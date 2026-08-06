@@ -278,10 +278,10 @@ struct HighwayTapOnsetView
     /*!
     \brief Duration of the light's rise ending at \ref seconds.
 
-    Derived at projection time with the fret-hand placements' own arrival rule (user rule
-    2026-07-28, replacing a fixed wall-clock rise): the minimum-sustain-distance margin at the
-    onset's meter, shortened when the previous tap onset's release crowds closer than the
-    margin so envelopes never reach backward through an earlier hold.
+    Derived at projection time with the fret-hand placements' own arrival rule rather than a
+    fixed wall-clock rise: the minimum-sustain-distance margin at the onset's meter, shortened
+    when the previous tap onset's release crowds closer than the margin so envelopes never reach
+    backward through an earlier hold.
     */
     double ramp_seconds{0.0};
 
@@ -416,12 +416,11 @@ struct HighwayViewState
 
     Derived structure for the camera's framing window only — deliberately not musical phrases
     (the notation has none) and carrying no notation meaning. The projection groups measures the
-    way a standard automatic phrase generator does (source research 2026-07-29): runs of
-    measures containing note onsets split into fixed-size groups
-    aligned to downbeats, runs of empty measures collapse into a single zone however long, and
-    section starts force a new zone. The camera frames the current zone plus the next one, so
-    its framing target steps only at these boundaries — the resting cadence that defines the
-    camera's feel.
+    way a standard automatic phrase generator does: runs of measures containing note onsets
+    split into fixed-size groups aligned to downbeats, runs of empty measures collapse into a
+    single zone however long, and section starts force a new zone. The camera frames the current
+    zone plus the next one, so its framing target steps only at these boundaries — the resting
+    cadence that defines the camera's feel.
 
     Non-empty whenever there is anything to frame, and the camera depends on that: it has a
     single scan path, so an empty list reads as one unbounded zone and would frame the entire

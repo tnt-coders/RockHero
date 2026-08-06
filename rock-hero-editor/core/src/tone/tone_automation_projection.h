@@ -93,7 +93,7 @@ plugin binding belongs to the tone first, then open lanes not subsumed by a mode
 Linear segments between points on a continuous parameter, held steps on a discrete one, and
 flat extensions outside the authored span — the model-side sibling of the lanes view's own
 on-curve evaluation, so a point created at this value lands on the drawn line (placement is
-sonically silent, 2026-07-18).
+sonically silent).
 
 \param points Authored points in ascending musical order.
 \param tempo_map Song tempo map used to place positions on the time axis.

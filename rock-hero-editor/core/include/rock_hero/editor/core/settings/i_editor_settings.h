@@ -24,7 +24,7 @@ namespace rock_hero::editor::core
 
 Seconds are the passive cursor's native coordinate — it rests wherever the transport paused,
 snapped to nothing — so the raw time round-trips losslessly with no grid math at either end
-(the marker model, 2026-07-18).
+(the marker model).
 */
 struct EditorProjectCursor
 {
@@ -50,7 +50,7 @@ struct EditorProjectCursor
 \brief The armed resume marker for one project: the caret's exact musical address plus string.
 
 Persisted as-is (never as a time value) so reopening a project lands the caret on the same grid
-slot it was on — no tempo edit can happen without an open session (the caret model, 2026-07-17).
+slot it was on — no tempo edit can happen without an open session (the caret model).
 */
 struct EditorProjectCaret
 {
@@ -72,7 +72,7 @@ struct EditorProjectCaret
 /*!
 \brief The app-local resume marker for one project, in whichever state it was left.
 
-Mirrors the runtime marker's sum shape (the marker model, 2026-07-18): a project resumes either
+Mirrors the runtime marker's sum shape (the marker model): a project resumes either
 passive — a paused cursor at a raw time — or armed — the editing caret on an exact grid slot.
 Exactly one alternative is ever stored, so the illegal "cursor and caret at once" state is as
 unrepresentable in the settings file as it is in the controller.
@@ -225,7 +225,7 @@ public:
     /*!
     \brief Reads the app-local resume marker stored for an editor project path.
 
-    The marker persists in whichever state it was left (the marker model, 2026-07-18): armed
+    The marker persists in whichever state it was left (the marker model): armed
     as its exact musical address — grid position plus string, never a time value, so the
     address round-trips to the same grid slot — or passive as the raw paused transport time,
     which is the cursor's native coordinate.

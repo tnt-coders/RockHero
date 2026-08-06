@@ -1600,8 +1600,7 @@ constexpr float g_chart_click_threshold_px = 4.0f;
 
 // The multi-digit fret entry window, shared by selection retyping and pending-insert
 // composition: well above deliberate two-digit typing (inter-keystroke ~150-300ms) and below a
-// thinking pause, so "12" combines and "2, pause, 3" stays two values (tuned down from 1500ms
-// on user feel feedback, settled at 750ms 2026-07-17).
+// thinking pause, so "12" combines and "2, pause, 3" stays two values.
 constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
 } // namespace
@@ -2019,8 +2018,8 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
 }
 
 // One grid step in beats at a position (the shared gridStepBeats seam under the session's
-// current grid). The grid step is the default move; the Ctrl fine tier (1/960 beat, settled
-// 2026-07-18) is the uniform precision escape hatch on both surfaces.
+// current grid). The grid step is the default move; the Ctrl fine tier (1/960 beat) is the uniform
+// precision escape hatch on both surfaces.
 common::core::Fraction EditorController::Impl::chartGridStepBeats(
     common::core::GridPosition at) const
 {
@@ -2093,14 +2092,14 @@ bool EditorController::Impl::applyChartEditPlan(
     return true;
 }
 
-// Arms the gesture and applies glyph-press selection per the containment hierarchy (settled
-// 2026-07-17): a plain single press selects the individual note — keeping an existing
-// multi-selection intact so a future drag can move it — a double press selects the note's
-// whole onset group (its chord), and Ctrl toggles individual membership. Shift is reassigned
-// to plan 52's time-range selection and behaves as plain until that lands. Marker handoffs
-// (the marker model, 2026-07-18): a plain press on an unselected note arms the caret there;
-// every multi-select gesture — Ctrl, double-click — dissolves the caret into a cursor in its
-// place, so the visible glyph always states whether typing inserts or acts on the selection.
+// Arms the gesture and applies glyph-press selection per the containment hierarchy: a plain single
+// press selects the individual note — keeping an existing multi-selection intact so a future drag
+// can move it — a double press selects the note's whole onset group (its chord), and Ctrl toggles
+// individual membership. Shift is reassigned to plan 52's time-range selection and behaves as
+// plain until that lands. Marker handoffs (the marker model): a plain press on an unselected note
+// arms the caret there; every multi-select gesture — Ctrl, double-click — dissolves the caret into
+// a cursor in its place, so the visible glyph always states whether typing inserts or acts on the
+// selection.
 void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
@@ -2493,13 +2492,12 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     }
     else
     {
-        // The caret steps the union stop set (settled 2026-07-18): the adjacent grid line OR
-        // the row's next authored object — a note on this string, a point on this lane —
-        // whichever is nearer. Off-grid objects are first-class stops, so a fine-placed note
-        // stays reachable from plain arrows; landing on one arms onto it (selecting it)
-        // exactly like landing on an occupied grid slot. The grid stop comes from the shared
-        // adjacent-line primitive the lane point nudge steps with, so the two surfaces can
-        // never land on different slots for the same verb.
+        // The caret steps the union stop set: the adjacent grid line OR the row's next authored
+        // object — a note on this string, a point on this lane — whichever is nearer. Off-grid
+        // objects are first-class stops, so a fine-placed note stays reachable from plain arrows;
+        // landing on one arms onto it (selecting it) exactly like landing on an occupied grid
+        // slot. The grid stop comes from the shared adjacent-line primitive the lane point nudge
+        // steps with, so the two surfaces can never land on different slots for the same verb.
         stepped = adjacentTempoGridPosition(tempo_map, m_grid_note_value, caret.position, sign > 0);
         if (const std::optional<common::core::GridPosition> object_stop =
                 nextRowObjectStop(caret, sign > 0);
@@ -2526,13 +2524,13 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     updateView();
 }
 
-// Caret leap to a derived musical position (Home/End, PageUp/Down; settled 2026-07-20). Each jump
-// resolves an absolute or section-relative destination and arms the caret there on the first
-// press — no arm-at-cursor step first, because the whole point of these keys is the big move. The
-// row is preserved (horizontal reach), so a lane caret keeps its lane and a string caret its
-// string; without an armed caret yet the jump measures from the paused cursor and lands on the
-// remembered string. A section jump with no section in that direction is refused, not clamped, in
-// line with every other refused move. Inert while playing — arming requires a paused transport.
+// Caret leap to a derived musical position (Home/End, PageUp/Down). Each jump resolves an absolute
+// or section-relative destination and arms the caret there on the first press — no arm-at-cursor
+// step first, because the whole point of these keys is the big move. The row is preserved
+// (horizontal reach), so a lane caret keeps its lane and a string caret its string; without an
+// armed caret yet the jump measures from the paused cursor and lands on the remembered string. A
+// section jump with no section in that direction is refused, not clamped, in line with every other
+// refused move. Inert while playing — arming requires a paused transport.
 void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
@@ -2594,16 +2592,16 @@ void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
     updateView();
 }
 
-// Extends or creates the grid-locked time selection (Shift+arrows; settled 2026-07-20). The range
-// is a mutually-exclusive selection kind, so making or extending it demotes the marker to passive
-// and evicts any object selection (decision D). With a range held, the focus edge moves one
-// `extent` in `direction` from the fixed anchor; with none held, the first press anchors on the
-// marker — the armed caret's slot snapped to the grid (an off-grid caret's note stays inside the
-// range), or the nearest grid line to the paused cursor while passive (52-Q9's recommendation) —
-// then extends from there. Every endpoint is a grid position, so a boundary is never off-grid
-// (decision B). A Grid or Section extend with nothing further that way refuses (the focus stays),
-// and a refused first press creates no range. Inert while playing; Up/Down are ignored (the span
-// is full-height).
+// Extends or creates the grid-locked time selection (Shift+arrows). The range is a
+// mutually-exclusive selection kind, so making or extending it demotes the marker to passive and
+// evicts any object selection (decision D). With a range held, the focus edge moves one `extent`
+// in `direction` from the fixed anchor; with none held, the first press anchors on the marker —
+// the armed caret's slot snapped to the grid (an off-grid caret's note stays inside the range), or
+// the nearest grid line to the paused cursor while passive (52-Q9's recommendation) — then
+// extends from there. Every endpoint is a grid position, so a boundary is never off-grid (decision
+// B). A Grid or Section extend with nothing further that way refuses (the focus stays), and a
+// refused first press creates no range. Inert while playing; Up/Down are ignored (the span is
+// full-height).
 void EditorController::Impl::onTimeSelectionExtendRequested(
     TimeSelectionExtent extent, ChartStepDirection direction)
 {
@@ -2725,12 +2723,11 @@ void EditorController::Impl::onSelectionMoveRequested(ChartStepDirection directi
     }
 }
 
-// Moves the selected chart notes: Left/Right by one grid step — or one 1/960-beat fine step,
-// the uniform precision tier (settled 2026-07-18); the move is relative either way, so an
-// off-grid note keeps its offset under grid steps — and Up/Down across strings (fine has no
-// meaning on the discrete string axis). A refused move (edge of the neck, occupied slot, grid
-// origin collision) is a silent no-op — the selection stays put, matching refuse-not-clamp
-// everywhere else.
+// Moves the selected chart notes: Left/Right by one grid step — or one 1/960-beat fine step, the
+// uniform precision tier; the move is relative either way, so an off-grid note keeps its offset
+// under grid steps — and Up/Down across strings (fine has no meaning on the discrete string axis).
+// A refused move (edge of the neck, occupied slot, grid origin collision) is a silent no-op — the
+// selection stays put, matching refuse-not-clamp everywhere else.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bool fine)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -2804,10 +2801,10 @@ void EditorController::Impl::deleteChartSelection()
         applyChartEditPlan(planDeleteNotes(*arrangement->chart, chartSelection().notes())));
 }
 
-// The Insert key's neutral create (2026-07-18): the surface's neutral object appears at an
-// armed EMPTY caret slot — a fret-0 note on a string row, an on-curve point on a lane row —
-// and nothing else ever happens: occupied slots, selections, and the passive state are
-// no-ops, so Insert never mutates existing objects.
+// The Insert key's neutral create: the surface's neutral object appears at an armed EMPTY caret
+// slot — a fret-0 note on a string row, an on-curve point on a lane row — and nothing else ever
+// happens: occupied slots, selections, and the passive state are no-ops, so Insert never mutates
+// existing objects.
 void EditorController::Impl::onNeutralInsertRequested()
 {
     if (isBusy())
@@ -2877,12 +2874,12 @@ void EditorController::Impl::onSelectionDeleteRequested()
     }
 }
 
-// Typed digits SET every selected note to the typed value — what you type is what appears —
-// or, with no selection, INSERT a note at the empty caret carrying the typed fret (the caret
-// model, 2026-07-17). Keystrokes inside the entry window combine into multi-digit values (a
-// widened insert stays ONE insert, so undo removes the note); each keystroke applies
-// immediately so the notation always shows the value being typed. The three flows live in
-// their own helpers below; this dispatcher only orders them.
+// Typed digits SET every selected note to the typed value — what you type is what appears — or,
+// with no selection, INSERT a note at the empty caret carrying the typed fret (the caret model).
+// Keystrokes inside the entry window combine into multi-digit values (a widened insert stays ONE
+// insert, so undo removes the note); each keystroke applies immediately so the notation always
+// shows the value being typed. The three flows live in their own helpers below; this dispatcher
+// only orders them.
 void EditorController::Impl::onChartFretDigitTyped(int digit)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -4059,7 +4056,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         // The 3D projection bakes in the displayed-string minimum (the shared palette must anchor
         // exactly as the 2D tab's), so it rebuilds on an arrangement change OR a minimum change —
         // the tab, which pads in the view, needs neither. Lowest-pitched string on top is the 3D
-        // default (user decision 2026-07-11, recorded in plan 25).
+        // default (recorded in plan 25).
         if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
         {
             m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(

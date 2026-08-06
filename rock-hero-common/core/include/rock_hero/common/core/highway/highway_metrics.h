@@ -24,10 +24,10 @@ inline constexpr int g_highway_fret_count{24};
 /*!
 \brief Every world-space constant of the 3D highway, in one documented struct.
 
-Starting values reproduce Charter's 3D preview coordinate system (the settled visual target),
-except where a field's comment records a deliberate user tuning away from it: X is the fret axis
-with fret 0 at x = 0, Y is the string axis with the board surface at y = 0, and Z is the time
-axis with the hit line at z = 0 and future notes at positive Z.
+Starting values reproduce Charter's 3D preview coordinate system (the visual target), except
+where a field's comment records a deliberate tuning away from it: X is the fret axis with fret 0
+at x = 0, Y is the string axis with the board surface at y = 0, and Z is the time axis with the
+hit line at z = 0 and future notes at positive Z.
 
 The highway has no magic numbers scattered through its renderer: tuning it is edits to this one
 header. The struct holds every *independently authored* constant; the free functions below it
@@ -43,8 +43,8 @@ struct HighwayMetrics
     /*!
     \brief Width of the first fret in world units.
 
-    Charter's firstFretDistance is 1.2; ours is user-tuned narrower (2026-07-21) with the note
-    head size deliberately kept at Charter's, so heads fill more of their fret slot.
+    Charter's firstFretDistance is 1.2; ours is deliberately narrower with the note head size
+    kept at Charter's, so heads fill more of their fret slot.
     */
     double first_fret_distance{1.1};
 
@@ -57,8 +57,8 @@ struct HighwayMetrics
     Doubles as the chord-box frame thickness, which the renderer reads from here rather than
     keeping its own copy: a chord box's bottom bar sits on the floor and fills this gap exactly,
     giving it the same half-string clearance from the bottom lane that the box's top bar — drawn
-    just past the fret-line top — has from the top lane (user rule 2026-07-23). Fret lines span
-    the string grid alone and do not extend down through this gap.
+    just past the fret-line top — has from the top lane. Fret lines span the string grid alone and
+    do not extend down through this gap.
     */
     double string_grid_base_y{0.075};
 
@@ -95,16 +95,16 @@ struct HighwayMetrics
     /*!
     \brief Rate of the camera's third-order critically damped smoother, per second.
 
-    The single smoothing constant of the camera (user direction 2026-07-29). The framing target
-    steps the instant a zone boundary shifts the scan window, and this smoother is the only
-    thing between that stepped target and the camera: three coincident real poles at this rate,
-    so the motion carries position, velocity, and acceleration as state and stays C^2 across
-    every step — it eases in from zero acceleration (no jolt) and lands with no overshoot. Three
-    equal poles is the maximally smooth arrangement at a given speed (spreading them apart only
-    sharpens the onset); a session of tuning landed on that maximally smooth, slow hover as the
-    most correct feel — the "slow hover chasing the hand" the camera research describes.
-    It settles visually in roughly 8 / value seconds — a deliberately languid drift that trails
-    the action slightly on the busiest charts, accepted for the calmer feel everywhere else.
+    The single smoothing constant of the camera. The framing target steps the instant a zone
+    boundary shifts the scan window, and this smoother is the only thing between that stepped
+    target and the camera: three coincident real poles at this rate, so the motion carries
+    position, velocity, and acceleration as state and stays C^2 across every step — it eases in
+    from zero acceleration (no jolt) and lands with no overshoot. Three equal poles is the
+    maximally smooth arrangement at a given speed (spreading them apart only sharpens the onset),
+    and that maximally smooth, slow hover is the wanted feel — the "slow hover chasing the hand"
+    the camera research describes. It settles visually in roughly 8 / value seconds — a
+    deliberately languid drift that trails the action slightly on the busiest charts, accepted
+    for the calmer feel everywhere else.
     */
     double focus_spring_per_second{1.3};
 
@@ -149,15 +149,15 @@ struct HighwayMetrics
     \brief Camera yaw in radians (Charter rotY = 0.03), negated under the lefty mirror.
 
     The yaw makes camera depth vary along a string, so strings slope ~2-3 degrees on screen and
-    the body-side neck end renders slightly larger — the angled-neck look (source-verified
-    2026-07-11; the zero-rotation formulation looked flat by comparison, the user's observation).
+    the body-side neck end renders slightly larger — the angled-neck look; the zero-rotation
+    formulation looked flat by comparison.
 
     The camera's only rotation, deliberately. Charter also ships a forward pitch (rotX = 0.06),
-    but that tilt skews the whole picture — verticals lean — and was rejected by the user on
-    sight (2026-07-11): the wanted angled-neck reading is this yaw's string slope alone. A
-    pitch parameter was carried at zero for a while and then removed; the camera chain has no
-    X rotation at all now, which is *why* fret lines project exactly vertical (a yaw never mixes
-    world Y into clip W or X). That exactness is regression-tested at the shipped defaults.
+    but that tilt skews the whole picture — verticals lean — and is not carried here: the wanted
+    angled-neck reading is this yaw's string slope alone. A pitch parameter was carried at zero
+    for a while and then removed; the camera chain has no X rotation at all now, which is *why*
+    fret lines project exactly vertical (a yaw never mixes world Y into clip W or X). That
+    exactness is regression-tested at the shipped defaults.
     */
     double camera_yaw_radians{0.03};
 
@@ -176,7 +176,7 @@ struct HighwayMetrics
     knob: it scales both axes together, so turning it changes how much board fills the screen
     without ever distorting it. Charter additionally lifted the vertical scale by +0.05 — an
     anamorphic stretch of 5 to 10 percent depending on window shape, which rendered square note
-    heads as tall rectangles; it was removed 2026-07-30 in favor of an exactly square-pixel
+    heads as tall rectangles; it is deliberately not carried, in favor of an exactly square-pixel
     frustum (regression-tested), which costs roughly 5 percent of the board's on-screen height.
     Recover that here if the composition ever reads short, not with a vertical-only term.
     */
@@ -245,8 +245,8 @@ geometry lands here as a real change when the question is answered rather than a
 /*!
 \brief Returns the fixed whole-neck world X that the camera's fret focus blends toward.
 
-Charter's weighted whole-neck spot is fretPos(24) * 0.4 + fretPos(0) * 0.6 (source-verified
-2026-07-11); the nut term is zero by construction, leaving 40 percent of the top fret line's X.
+Charter's weighted whole-neck spot is fretPos(24) * 0.4 + fretPos(0) * 0.6; the nut term is zero
+by construction, leaving 40 percent of the top fret line's X.
 
 Derived rather than stored so it cannot fall out of step with the fret axis it is defined
 against — the value was hand-recomputed once already when
@@ -290,9 +290,9 @@ Lanes are centered on half-string offsets above the string grid's base
 string spacing off the floor and the fret lines spanning the grid stick out the same half-string
 distance above the top lane as below the bottom lane. The grid hugs the flat notes on purpose (a
 far-away head standing vertical in the rolling flip dips below the floor at the horizon; a full
-one-string stack lift clearing it was tried and reverted 2026-07-23 — the flat-against-the-board
-look wins). The shared seam so every string-plane consumer (string lanes, fingering spots) maps
-lanes identically.
+one-string stack lift clears that but loses the flat-against-the-board look, which wins). The
+shared seam so every string-plane consumer (string lanes, fingering spots) maps lanes
+identically.
 
 \param lane One-based lane index, 1 at the bottom.
 \param metrics World-space constants.
@@ -326,12 +326,11 @@ flips the stacking for players who prefer the mirrored string order.
 /*!
 \brief Returns how far a bent tail lifts above its unbent lane, for a pitch offset in half steps.
 
-Exactly one string-lane gap per semitone (user direction 2026-07-28), so lift reads as pitch the
-same way lane position does: a bent tail reaches the lane N gaps away when the pitch is N
-semitones up, and a whole-step bend visibly crosses two lanes. That identity is why the rate is
-the string spacing itself rather than a constant stored beside it — Charter's separate
-stringDistance x 0.8 lift is deliberately superseded. Vibrato depth is authored in semitones and
-rides the same scale on purpose.
+Exactly one string-lane gap per semitone, so lift reads as pitch the same way lane position does:
+a bent tail reaches the lane N gaps away when the pitch is N semitones up, and a whole-step bend
+visibly crosses two lanes. That identity is why the rate is the string spacing itself rather than
+a constant stored beside it — Charter's separate stringDistance x 0.8 lift is deliberately
+superseded. Vibrato depth is authored in semitones and rides the same scale on purpose.
 
 \param semitones Pitch offset above the unbent string in half steps; fractional values are
        ordinary (a bend in progress, a vibrato wobble).

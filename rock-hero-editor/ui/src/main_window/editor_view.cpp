@@ -961,9 +961,9 @@ void EditorView::toggleUndoHistoryPanel()
     }
 }
 
-// Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
-// chart selection active, Alt+wheel (sustain — Ctrl composes the 1/960 fine step) and
-// Alt+Shift+wheel (fret shift) act on it wherever the pointer sits inside the editor window.
+// Selection verbs follow the selection, not the pointer: with a chart selection active,
+// Alt+wheel (sustain — Ctrl composes the 1/960 fine step) and Alt+Shift+wheel (fret shift) act on
+// it wherever the pointer sits inside the editor window.
 bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
@@ -1009,12 +1009,12 @@ void EditorView::togglePreviewWindow()
             m_playback_clock,
             [this](const juce::KeyPress& key) {
                 // Transport keys, the preview toggle, the forward/backward song-navigation
-                // verbs, and the grid granularity pair (44-Q4, widened 2026-07-22: the paused
-                // preview follows the marker, so caret time travel is meaningful from this
-                // window — and the grid size is its travel speed, since arrows step grid
-                // slots). Editing shortcuts (delete, nudge, undo) stay with the main window,
-                // which shows the selection context. Resolved through the command mappings,
-                // not hardcoded chords, so future rebinds of rebindable commands stay honored.
+                // verbs, and the grid granularity pair (44-Q4: the paused preview follows the
+                // marker, so caret time travel is meaningful from this window — and the grid size
+                // is its travel speed, since arrows step grid slots). Editing shortcuts (delete,
+                // nudge, undo) stay with the main window, which shows the selection context.
+                // Resolved through the command mappings, not hardcoded chords, so future rebinds
+                // of rebindable commands stay honored.
                 static constexpr std::array g_preview_commands{
                     EditorCommandId::PlayPause,
                     EditorCommandId::TogglePreview3D,
@@ -2728,11 +2728,11 @@ void EditorView::onToneAutomationPointsEditRequested(
 void EditorView::createToneMarkerAtCursor()
 {
     // The marker rule ("one position concept per transport state" — the play-from-the-marker
-    // unification, extended to Ctrl+T 2026-07-21): an armed caret IS the position, on either
-    // row family, so the insert lands where play would pick up; the passive cursor is the
-    // transport position. Positions are kept precisely rather than re-rounded to the nearest
-    // whole beat — the fine-grid quantization preserves any position placed on a practical
-    // subdivision (a grid line, or a Ctrl-free fine position).
+    // unification, extended to Ctrl+T): an armed caret IS the position, on either row family, so
+    // the insert lands where play would pick up; the passive cursor is the transport position.
+    // Positions are kept precisely rather than re-rounded to the nearest whole beat — the
+    // fine-grid quantization preserves any position placed on a practical subdivision (a grid
+    // line, or a Ctrl-free fine position).
     if (m_state.tone_automation.lane_caret.has_value())
     {
         createToneMarkerAt(m_state.tone_automation.lane_caret->position);

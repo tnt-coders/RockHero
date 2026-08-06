@@ -229,7 +229,7 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     Chart& chart = *chart_ptr;
     // A sustained note whose tail trails off unpitched: a placement on its end takes the
     // margin morph, never the whole-sustain segment (a segment tie made the window creep
-    // from the onset on long notes, sighted 2026-08-02).
+    // from the onset on long notes).
     chart.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -304,8 +304,7 @@ TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][hi
 
 // Camera framing zones quantize the camera's scan window: note-bearing measure runs split
 // every two measures aligned to downbeats, empty runs collapse into one zone however long, and
-// a section start forces a new zone (the derivation a standard automatic phrase generator uses;
-// user direction 2026-07-29).
+// a section start forces a new zone (the derivation a standard automatic phrase generator uses).
 TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();

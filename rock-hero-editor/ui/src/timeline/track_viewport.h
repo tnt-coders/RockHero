@@ -227,8 +227,7 @@ public:
     display — and re-centers wheel zoom on the caret instead of the transport cursor. Passive
     (absent) shows the ruler mark at the transport position and zooms around it. The
     content-spanning cursor line is independent of this: with a chart it renders only during
-    playback, so paused editing never has a line over the notes (the marker model,
-    2026-07-18).
+    playback, so paused editing never has a line over the notes (the marker model).
 
     \param seconds Armed caret position on the arrangement timeline, or empty while passive.
     */

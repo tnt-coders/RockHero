@@ -43,20 +43,20 @@ constexpr bgfx::ViewId g_overlay_view = 2;
 // Backdrop clear color behind the whole scene (0xRRGGBBAA); cleared to black.
 constexpr std::uint32_t g_backdrop_color = 0x000000ff;
 
-// Board-furniture colors (0xAARRGGBB), source-verified 2026-07-11.
+// Board-furniture colors (0xAARRGGBB).
 constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alike
 
 // Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp
 // chord-box-teal attack line exactly where they occur, then a brief beat-blue fade trailing
-// away down the measure — half the old symmetric-wings footprint (user direction).
+// away down the measure — half the old symmetric-wings footprint.
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
-constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright (user-tuned)
+constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright
 // The board's lit lane appearance: what each lane's surface looks like where the hand-window
 // light reveals it (plain lanes the runway blue, inlay-dotted lanes distinctly darker — the
 // intrinsic board pattern). The light carries these as vertex color and the per-fragment mask
-// reveals them, the physically honest reading (user rule 2026-07-23): nothing is painted over
-// or under the light, and away from it the board draws nothing and stays dark.
+// reveals them, the physically honest reading: nothing is painted over or under the light, and
+// away from it the board draws nothing and stays dark.
 constexpr ArgbColor g_lit_lane_color = 0x402590E8;
 constexpr ArgbColor g_lit_lane_dotted_color = 0x40185C94;
 // The falloff band the light dissolves across, centered on each eased edge (half strength at
@@ -64,63 +64,58 @@ constexpr ArgbColor g_lit_lane_dotted_color = 0x40185C94;
 // placement carries the lit region's width; this constant alone sets settled-edge sharpness.
 constexpr double g_window_light_falloff = 0.55;
 // How strongly the light dims while it sweeps through a transition, at full steepness. The
-// motion-dim model (user, 2026-07-23, replacing two edge-widening attempts that either bulged
-// the silhouette or collapsed the lit core): the exterior shape keeps the settled fade
-// cross-section along the entire eased contour, and the transition's fading lives in overall
-// brightness instead — a light rushing across lanes cannot fully illuminate them, so the lit
-// strip dips toward this fraction darker at peak sweep speed and recovers by arrival
-// (tuned on sight 0.6 -> 0.85 -> 0.95, 2026-07-23; the sin-squared bell keeps the overall feel
-// gentler than the old full-length plateau even at this depth).
+// motion-dim model (replacing two edge-widening attempts that either bulged the silhouette or
+// collapsed the lit core): the exterior shape keeps the settled fade cross-section along the
+// entire eased contour, and the transition's fading lives in overall brightness instead — a
+// light rushing across lanes cannot fully illuminate them, so the lit strip dips toward this
+// fraction darker at peak sweep speed and recovers by arrival (the sin-squared bell keeps the
+// overall feel gentler than the old full-length plateau even at this depth).
 constexpr double g_window_morph_dim = 0.95;
 // Tapping-hand light envelope (right-hand-tap-lighting plan): each tap onset lights its own
 // tapped fret lanes along the timeline, rising over the approach side of the tap, holding
 // through sustained contact (morphing with pitched glides), and decaying after the fingers
-// release, so the light dips between consecutive taps exactly as the finger lifts (user rule
-// 2026-07-28 — deliberately per-onset, never merged into runs). The rise duration is each
-// onset's projection-derived ramp_seconds — the fret-hand placements' own margin-based arrival
-// rule (user rule 2026-07-28, replacing a fixed wall-clock rise that read inconsistently) —
-// while the decay stays a short visual constant: the release is a gesture, not an arrival.
+// release, so the light dips between consecutive taps exactly as the finger lifts
+// (deliberately per-onset, never merged into runs). The rise duration is each onset's
+// projection-derived ramp_seconds — the fret-hand placements' own margin-based arrival rule
+// (replacing a fixed wall-clock rise that read inconsistently) — while the decay stays a short
+// visual constant: the release is a gesture, not an arrival.
 constexpr double g_tap_light_decay_seconds = 0.1;
-// The lane-border ribbons release much more slowly than the floor light (user rule 2026-07-28:
-// per-tap ribbon flashing read as jarring in tap sections): the light pulses with each strike
-// while the brightened edges bridge the gaps of a dense run, fading only once the run ends.
+// The lane-border ribbons release much more slowly than the floor light (per-tap ribbon
+// flashing read as jarring in tap sections): the light pulses with each strike while the
+// brightened edges bridge the gaps of a dense run, fading only once the run ends.
 constexpr double g_tap_ribbon_decay_seconds = 0.45;
-// Sustain slope shading (user direction 2026-07-28): the modulated tail's centerline slope
-// modulates its brightness like a surface tilting under a fixed light, so a bend's climb,
-// hold, and release — and a vibrato's wobble — read from shading alone even where screen-space
-// lift is foreshortened at center screen. Slope is normalized by the lane's bend-lift
-// direction so a climbing PITCH always brightens regardless of which way the lane draws it.
-// Gain scales world dy/dz into [-1, 1]; depth is the full brighten/darken mix at saturation.
+// Sustain slope shading: the modulated tail's centerline slope modulates its brightness like a
+// surface tilting under a fixed light, so a bend's climb, hold, and release — and a vibrato's
+// wobble — read from shading alone even where screen-space lift is foreshortened at center
+// screen. Slope is normalized by the lane's bend-lift direction so a climbing PITCH always
+// brightens regardless of which way the lane draws it. Gain scales world dy/dz into [-1, 1];
+// depth is the full brighten/darken mix at saturation.
 constexpr double g_tail_slope_shade_gain = 4.8;
 constexpr double g_tail_slope_shade_depth = 0.5;
 // Tent-smoothing half-window for the shade, in seconds of tail time. The raw per-sample shade
 // tracks the instantaneous derivative, which crosses tanh's linear region within a sample or
 // two on a real bend — the shade snapped between base and saturated over a couple of segments,
 // and foreshortening at screen center compressed that snap into a hard band that read as a
-// sharp point on a smooth curve (user report 2026-07-29). Smoothing over a fixed TIME window
-// guarantees the fade-in/out spans the same stretch of tail whatever the sample density or
-// viewing angle. Stays under half the vibrato period — tempo-locked to one wobble per
-// sixteenth note — up to roughly 150 BPM; faster songs dull the wobble's shimmer toward
-// its average rather than breaking, while the geometric wobble itself is unaffected.
+// sharp point on a smooth curve. Smoothing over a fixed TIME window guarantees the fade-in/out
+// spans the same stretch of tail whatever the sample density or viewing angle. Stays under
+// half the vibrato period — tempo-locked to one wobble per sixteenth note — up to roughly
+// 150 BPM; faster songs dull the wobble's shimmer toward its average rather than breaking,
+// while the geometric wobble itself is unaffected.
 constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 
 // Bend chevron station, in head half-heights from the head center along the drawn bend-lift
 // direction (above the note for an upward curve, below on bend-inverted lanes). Derived from
 // the atlas pixels, not the quad: the head art fills only the middle ~34% of its cell and the
 // glyph band is cell-centered, so this sits deliberately inside bare touch — the chevron's
-// legs anchor ON the note's top edge with the apex rising clear, the bend cue's
-// overlap (judged on a composite sheet, user 2026-07-29, re-tuned for the taller bolder
-// glyph the same day).
+// legs anchor ON the note's top edge with the apex rising clear, the bend cue's overlap.
 constexpr double g_bend_marker_offset_heads = 0.38;
 
 // The pick-slide V's center rides this many head half-heights above its head. The value dips
-// the V's solid tip (cell rows 24..43) into the X marker's upper notch — above the X's center
-// crossing, the floor the tip must never reach (user placement 2026-08-04: overlapping, but
-// clear of the middle; nudged up twice on sight).
+// the V's solid tip (cell rows 24..43) into the X marker's upper notch — overlapping the head
+// but clear of the X's center crossing, the floor the tip must never reach.
 constexpr double g_scrape_marker_offset_heads = 0.55;
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
-// chart-truth height is an annotation, dimmed so the rising head stays the subject (first
-// value judged on composite sheets 2026-07-31; expect on-sight retuning).
+// chart-truth height is an annotation, dimmed so the rising head stays the subject.
 constexpr double g_prebend_outline_alpha = 0.5;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
@@ -196,9 +191,8 @@ constexpr double g_passed_fade_seconds = 0.15;
 // Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line.
 // The reference flip is fast and late (a 500 ms roll landing flat 100 ms out, the only timing
 // verifiable from reference material — the flip has no documented tie to any internal
-// constants); our flip instead spans the whole approach (user request 2026-07-22), and the
-// slower final degrees need a longer flat stretch to read as finished before the board face
-// (user-tuned).
+// constants); our flip instead spans the whole approach, and the slower final degrees need a
+// longer flat stretch to read as finished before the board face.
 constexpr double g_flip_flat_lead_seconds = 0.25;
 
 // Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
@@ -215,14 +209,13 @@ constexpr double g_open_note_z_squash = 0.1;
 constexpr int g_open_note_segments = 6;
 
 // The bar fades to transparent over this run at each end, so it reads as tapering almost to a
-// point at the hand-window rails instead of stopping flat (user direction).
+// point at the hand-window rails instead of stopping flat.
 constexpr double g_open_note_end_fade_length = 0.5;
 
 // Sustain tails are three-band ribbons in Charter: solid edge strips around an inner band
 // Charter draws at 192/255 alpha. Ours is deliberately more translucent so notes stay
-// readable through a tail's core (user-tuned). Fretted tails split the tail width
-// quarter/half/quarter; open tails span the hand window inset by a margin, with edge bands of
-// the same width.
+// readable through a tail's core. Fretted tails split the tail width quarter/half/quarter;
+// open tails span the hand window inset by a margin, with edge bands of the same width.
 constexpr double g_tail_inner_alpha = 96.0 / 255.0;
 constexpr double g_open_tail_margin = 0.2;
 
@@ -231,16 +224,15 @@ constexpr double g_open_tail_margin = 0.2;
 constexpr double g_tail_tip_fade_fraction = 0.35;
 
 // Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
-// the tail width; this is the edge alpha where the post meets the floor (user-tuned to stay
-// subtle). A post rises from the floor toward its note's lane center, dissolving to nothing
-// partway up — the note art simply overlays the post's top (the old
-// fade-exactly-at-the-head-quad-bottom invariant is removed, user 2026-07-23) — so every lane
-// carries a post whose height scales naturally with the lane's height above the floor.
+// the tail width; this is the edge alpha where the post meets the floor, kept low enough that
+// the post stays subtle. A post rises from the floor toward its note's lane center,
+// dissolving to nothing partway up — the note art simply overlays the post's top (the old
+// fade-exactly-at-the-head-quad-bottom invariant is removed) — so every lane carries a post
+// whose height scales naturally with the lane's height above the floor.
 constexpr double g_shadow_post_floor_alpha = 0.5;
 
 // Fraction of the lane height where the post's dissolve completes: alpha reaches zero at this
-// point of the rise rather than at the lane center itself, a slightly more aggressive fade
-// (user-tuned 2026-07-23).
+// point of the rise rather than at the lane center itself, a slightly more aggressive fade.
 constexpr double g_shadow_post_fade_end_fraction = 0.75;
 
 // Open-note L posts: how far the floor foot reaches inward, measured from the bar end (the
@@ -285,9 +277,9 @@ constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
 // into a two-row ramp the shader samples by exact distance from the arm centerlines (see
 // box_mute_profile.h for the authoring contract). The distance field is evaluated per
 // fragment because the X's arm angle changes with every box aspect — a shape no fixed bitmap
-// contains — so bitmap stretching distorted line weight with the box (user findings
-// 2026-07-31/08-01) while this holds the painted weights everywhere. Repainting chords.png
-// is the only way to restyle the marks; there are deliberately no art constants here.
+// contains — so bitmap stretching distorted line weight with the box while this holds the
+// painted weights everywhere. Repainting chords.png is the only way to restyle the marks;
+// there are deliberately no art constants here.
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
 
 // Hand-shape span rails on the floor: arpeggio spans in Charter's purple, held shapes in
@@ -1164,8 +1156,8 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     }
 
     // Texture assets are required product content: a missing, undecodable, or wrong-shape
-    // asset is a broken install, not a degradable state (user decision 2026-08-01 — the
-    // procedural fallbacks this check replaces silently masked exactly such failures).
+    // asset is a broken install, not a degradable state (the procedural fallbacks this check
+    // replaces silently masked exactly such failures).
     if (!impl->atlases.heads.isValid() ||
         impl->atlases.head_layout.capacity() < g_head_cell_count ||
         !impl->inlay_texture.isValid() || !impl->fingering_texture.isValid() ||
@@ -1401,11 +1393,11 @@ void HighwayRenderer::Impl::draw(
                 }
             }
         }
-        // Right-hand windows join the visible tier (user rule 2026-07-28): lines the tapping
-        // hand's light path crosses on screen brighten like any visible window's. The tier is
-        // a per-line array, so overlap with the fretting hand's windows deduplicates itself,
-        // and the path union already carries any tapped-slide morph — the eased-coverage
-        // machinery stays exclusive to the current fretting-hand window's hit-line crossfade.
+        // Right-hand windows join the visible tier: lines the tapping hand's light path crosses
+        // on screen brighten like any visible window's. The tier is a per-line array, so overlap
+        // with the fretting hand's windows deduplicates itself, and the path union already
+        // carries any tapped-slide morph — the eased-coverage machinery stays exclusive to the
+        // current fretting-hand window's hit-line crossfade.
         for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
         {
             if (tap.path.front().seconds > span_end_seconds)
@@ -1431,13 +1423,13 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // The tapping hand's contribution to the bright tier (user catch 2026-07-28: the
-        // left window's coverage brightened its ribbons to full while the tap lanes stayed at
-        // the mid tier): each tap active at NOW brightens its lines by its own light envelope
-        // — rising on approach, full through the hold, fading over the decay — over the path
-        // extent at now (eased mid-glide with the same curve the light travels). Coverage
-        // softens across one fret past the extent's bounding lines, and lines take the max
-        // over taps, so hand overlap deduplicates itself exactly like the other tiers.
+        // The tapping hand's contribution to the bright tier (the left window's coverage
+        // brightened its ribbons to full while the tap lanes stayed at the mid tier): each tap
+        // active at NOW brightens its lines by its own light envelope — rising on approach, full
+        // through the hold, fading over the decay — over the path extent at now (eased
+        // mid-glide with the same curve the light travels). Coverage softens across one fret
+        // past the extent's bounding lines, and lines take the max over taps, so hand overlap
+        // deduplicates itself exactly like the other tiers.
         std::array<double, g_face_fret_count + 1> tap_coverage{};
         for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
         {
@@ -1502,11 +1494,11 @@ void HighwayRenderer::Impl::draw(
         const double z1 = time_to_z(span_end_seconds);
         for (int line = 0; line <= g_face_fret_count; ++line)
         {
-            // Coverage crossfade (signed 2026-07-23): each full-length strip lerps from its
-            // non-current tier to full brightness by how deeply the current eased window
-            // contains it, so the brightened band hands off line-by-line in lockstep with the
-            // border crossing the hit line. Lines stay straight and fixed; only alpha animates.
-            // Whichever hand covers a line more deeply wins it (max-combine).
+            // Coverage crossfade: each full-length strip lerps from its non-current tier to full
+            // brightness by how deeply the current eased window contains it, so the brightened
+            // band hands off line-by-line in lockstep with the border crossing the hit line.
+            // Lines stay straight and fixed; only alpha animates. Whichever hand covers a line
+            // more deeply wins it (max-combine).
             const double base_alpha =
                 in_visible_window.at(static_cast<std::size_t>(line)) ? 0.375 : 0.125;
             const double coverage = std::max(
@@ -1558,15 +1550,14 @@ void HighwayRenderer::Impl::draw(
             lows[sample] = low_x;
             highs[sample] = high_x;
         }
-        // Motion dim (user model 2026-07-23): the silhouette keeps the settled cross-section
-        // everywhere — the same x-measured fade band along the whole eased contour — and the
-        // transition's fading lives in the light's brightness instead. Each ramp dims along a
-        // sin-squared bell over its own progress: full brightness at the ramp's start and end,
-        // deepest exactly mid-transition, so the light reads as gradually fading out of the
-        // lit span, through the dark middle of the sweep, and back into the arriving span
-        // (user shaping 2026-07-23 — a per-sample speed dim plateaued at maximum across most
-        // of a fast morph instead). The bell's depth scales with the ramp's overall sweep
-        // steepness, so slow glides keep most of their glow.
+        // Motion dim: the silhouette keeps the settled cross-section everywhere — the same
+        // x-measured fade band along the whole eased contour — and the transition's fading
+        // lives in the light's brightness instead. Each ramp dims along a sin-squared bell over
+        // its own progress: full brightness at the ramp's start and end, deepest exactly
+        // mid-transition, so the light reads as gradually fading out of the lit span, through
+        // the dark middle of the sweep, and back into the arriving span (a per-sample speed dim
+        // plateaued at maximum across most of a fast morph instead). The bell's depth scales
+        // with the ramp's overall sweep steepness, so slow glides keep most of their glow.
         std::vector<double> dims(times.size(), 1.0);
         for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
         {
@@ -1652,11 +1643,11 @@ void HighwayRenderer::Impl::draw(
     // rising toward the tap along the approach side, holding through the derived path (which
     // morphs with pitched glides and sustained contact), and decaying after the fingers
     // release (the right-hand-tap-lighting plan). Patches are deliberately per-onset, never
-    // merged into runs: the dip between consecutive taps mirrors the finger lifting (user rule
-    // 2026-07-28). Consecutive same-lane patches simply alpha-compose where their envelopes
-    // overlap, which shallows the dip toward continuous light only at densities where the
-    // hand genuinely never leaves the board. Reuses the window light's per-fragment soft x
-    // edges; the tint leans toward the FHP orange so the two hands' lights read apart. ---
+    // merged into runs: the dip between consecutive taps mirrors the finger lifting.
+    // Consecutive same-lane patches simply alpha-compose where their envelopes overlap, which
+    // shallows the dip toward continuous light only at densities where the hand genuinely never
+    // leaves the board. Reuses the window light's per-fragment soft x edges; the tint leans
+    // toward the FHP orange so the two hands' lights read apart. ---
     {
         const std::array<float, 4> light_params{
             static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
@@ -2151,8 +2142,7 @@ void HighwayRenderer::Impl::draw(
         {
             // A dead chug earns the X repeat box only when it restates the nearest preceding
             // chord's posture (muted or not); with fresh frets it displays its notes and their
-            // mute crosses like any chord (user rule 2026-07-21 — Charter blanks every
-            // dead chug).
+            // mute crosses like any chord (Charter blanks every dead chug).
             std::size_t cursor = group.first;
             while (cursor > 0)
             {
@@ -2276,11 +2266,11 @@ void HighwayRenderer::Impl::draw(
         (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance);
 
     // Arpeggio bracket geometry accumulates per box PER STRING in the box pass below and
-    // submits lane-dominantly inside the note pass (user rule 2026-07-24, refining two earlier
-    // orderings): an upright bracket against a flat lane ribbon is occluded by lane height, not
-    // time — a camera ray from above reaches the higher surface first regardless of z — so each
-    // bracket glyph draws over everything on lower lanes (any onset) and yields only to groups
-    // containing notes on lanes above its own. The box panels stay under all notes as before.
+    // submits lane-dominantly inside the note pass: an upright bracket against a flat lane
+    // ribbon is occluded by lane height, not time — a camera ray from above reaches the higher
+    // surface first regardless of z — so each bracket glyph draws over everything on lower
+    // lanes (any onset) and yields only to groups containing notes on lanes above its own. The
+    // box panels stay under all notes as before.
     struct BracketBatch
     {
         int lane{0};
@@ -2320,7 +2310,7 @@ void HighwayRenderer::Impl::draw(
             box_indices.clear();
         };
         // Boxes rise exactly to the fret-line top: any higher and the panel visibly pokes past
-        // the fret grid (user-flagged bug; the old top added half a string distance).
+        // the fret grid (the old top added half a string distance).
         const double full_height_y1 = face_top_y;
 
         // Overlays one arpeggio shape's posture brackets (the fretboard notation) at a box's z:
@@ -2501,13 +2491,13 @@ void HighwayRenderer::Impl::draw(
             const double middle_y = (y0 + y1) / 2.0;
             const bool full = mute == common::core::NoteMute::Full;
             const BoxMuteLayout& profile = full ? box_mute_layouts.full : box_mute_layouts.palm;
-            // Both marks span the full interior height (sighted layout policy). The palm X
-            // runs border-less edge to edge: arms corner-to-corner of the interior, with the
-            // clip rect pushed past the quad by the ramp extent so the quad slices the arms
-            // mid-stroke at the frame's inner edges. The full X
-            // keeps a square footprint the height of the interior, tips wrapped by the note
-            // art's squared corners, its top and bottom stroke edges meeting the frame
-            // exactly (the sub-pixel antialiasing tail past them is cut by the quad).
+            // Both marks span the full interior height. The palm X runs border-less edge to
+            // edge: arms corner-to-corner of the interior, with the clip rect pushed past the
+            // quad by the ramp extent so the quad slices the arms mid-stroke at the frame's
+            // inner edges. The full X keeps a square footprint the height of the interior, tips
+            // wrapped by the note art's squared corners, its top and bottom stroke edges
+            // meeting the frame exactly (the sub-pixel antialiasing tail past them is cut by
+            // the quad).
             const double glyph_height = 2.0 * half_y;
             const double arm_half_x = full ? half_y : half_x;
             const double overshoot = full ? 0.0 : profile.extent_fraction * glyph_height;
@@ -2605,10 +2595,10 @@ void HighwayRenderer::Impl::draw(
                     metrics.string_grid_base_y);
                 continue;
             }
-            // Display-time window (user catch 2026-07-23): an approaching box takes the window
-            // at its own onset instant, and a box riding the hit line re-evaluates per frame, so
-            // a held arpeggio slides along with the chord sliding under it instead of staying
-            // frozen at its onset window.
+            // Display-time window: an approaching box takes the window at its own onset instant,
+            // and a box riding the hit line re-evaluates per frame, so a held arpeggio slides
+            // along with the chord sliding under it instead of staying frozen at its onset
+            // window.
             const double window_seconds = std::max(box.start_seconds, now_seconds);
             const common::core::HighwayHandWindow window =
                 common::core::highwayHandWindowAt(state.fret_hand_positions, window_seconds);
@@ -2767,11 +2757,11 @@ void HighwayRenderer::Impl::draw(
     };
     std::size_t batched_group = chord_groups.size();
 
-    // Bend chevrons layer above EVERY head of their onset group (user rule 2026-07-29): a
-    // chord's notes push lane-ascending into one batch, so an inline marker from a lower lane
-    // would be overdrawn by a higher groupmate's head. Chevrons therefore collect here during
-    // the group and append to the head batch at the group boundary — last in the group's
-    // painter order, still under nearer groups' flushes.
+    // Bend chevrons layer above EVERY head of their onset group: a chord's notes push
+    // lane-ascending into one batch, so an inline marker from a lower lane would be overdrawn
+    // by a higher groupmate's head. Chevrons therefore collect here during the group and append
+    // to the head batch at the group boundary — last in the group's painter order, still under
+    // nearer groups' flushes.
     struct PendingBendMarker
     {
         double x{0.0};
@@ -2807,14 +2797,14 @@ void HighwayRenderer::Impl::draw(
         }
         pending_bend_markers.clear();
     };
-    // Lane-dominant bracket submission at NOTE granularity (user rule 2026-07-24, twice
-    // refined: groups can hold lanes on both sides of a glyph, so group-level slotting let a
-    // low open tail ride its higher groupmate over the notation). A bracket glyph stays
-    // pending — compositing over every lower lane's tails and heads, whatever their onsets —
-    // until the note about to draw sits on a lane ABOVE the glyph AND overlaps its span; the
-    // batches flush and the glyph submits underneath that note, mid-group when that is where
-    // the lane boundary falls (in-group notes iterate lane-ascending, so lower lanes are
-    // already batched). Never-triggered glyphs drain after the last group.
+    // Lane-dominant bracket submission at NOTE granularity (groups can hold lanes on both
+    // sides of a glyph, so group-level slotting let a low open tail ride its higher groupmate
+    // over the notation). A bracket glyph stays pending — compositing over every lower lane's
+    // tails and heads, whatever their onsets — until the note about to draw sits on a lane
+    // ABOVE the glyph AND overlaps its span; the batches flush and the glyph submits underneath
+    // that note, mid-group when that is where the lane boundary falls (in-group notes iterate
+    // lane-ascending, so lower lanes are already batched). Never-triggered glyphs drain after
+    // the last group.
     const auto submit_brackets_below = [&](const common::core::HighwayNoteView& note) {
         const int note_lane = invert ? (state.string_count + 1 - note.string) : note.string;
         bool flushed = false;
@@ -2844,14 +2834,13 @@ void HighwayRenderer::Impl::draw(
     // --- Scrolling fret numbers: Charter's readability aid. Numbers ride the board floor
     // at each dotted fret on every measure downbeat (bright inside the current hand range, dim
     // elsewhere), mark each upcoming hand-position arrival in orange, and pin the current
-    // hand's numbers at the hit line; all fade in as they approach. One ordering rule for
-    // every floor number, blue or orange (user rule 2026-08-02): a number joins the
-    // far-to-near note sweep at its own time, draining just before the first onset group
-    // nearer than it — so any note struck earlier than the number, truly nearer in 3D,
-    // paints over it, while the number paints over every note at or behind its time
-    // (equal-time numbers drain after that group flushes, keeping number-over-note on
-    // ties). Numbers still draw before the board face, whose fret lines and skin keep
-    // occluding numbers scrolling in behind it (numbers popping through the fretboard
+    // hand's numbers at the hit line; all fade in as they approach. One ordering rule for every
+    // floor number, blue or orange: a number joins the far-to-near note sweep at its own time,
+    // draining just before the first onset group nearer than it — so any note struck earlier
+    // than the number, truly nearer in 3D, paints over it, while the number paints over every
+    // note at or behind its time (equal-time numbers drain after that group flushes, keeping
+    // number-over-note on ties). Numbers still draw before the board face, whose fret lines and
+    // skin keep occluding numbers scrolling in behind it (numbers popping through the fretboard
     // would read as a depth violation). ---
     struct FloorNumber
     {
@@ -2931,16 +2920,15 @@ void HighwayRenderer::Impl::draw(
             push_target_number(fhp.fret, fhp.seconds);
         }
 
-        // Tap numbers label POSITIONS, not notes (user rule 2026-07-28 — per-note numbers
-        // over-labeled dense runs): one number per tap onset, at its low fret like a
-        // hand-position arrival, and only when it tells the player something new — the first
-        // tap after the lighting lapsed, or a move away from the position the previous tap's
-        // path LANDED in. A repeat inside a lit run (the previous release plus the ribbon
-        // decay still bridging this rise — the same bridge the lane edges show) is already
-        // established and stays unlabeled, as are chord upper members. A tapped glide then
-        // establishes each landing as its own new position (user rule 2026-07-28, matching the
-        // placements a fretting-hand glide carries at its targets): every path station that
-        // changes the extent gets an arrival number of its own.
+        // Tap numbers label POSITIONS, not notes (per-note numbers over-labeled dense runs):
+        // one number per tap onset, at its low fret like a hand-position arrival, and only when
+        // it tells the player something new — the first tap after the lighting lapsed, or a
+        // move away from the position the previous tap's path LANDED in. A repeat inside a lit
+        // run (the previous release plus the ribbon decay still bridging this rise — the same
+        // bridge the lane edges show) is already established and stays unlabeled, as are chord
+        // upper members. A tapped glide then establishes each landing as its own new position
+        // (matching the placements a fretting-hand glide carries at its targets): every path
+        // station that changes the extent gets an arrival number of its own.
         const common::core::HighwayTapOnsetView* previous_tap = nullptr;
         for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
         {
@@ -2967,18 +2955,18 @@ void HighwayRenderer::Impl::draw(
             previous_tap = &tap;
         }
 
-        // Slide waypoints deliberately push no numbers of their own (user rule 2026-07-28,
-        // completing the one-rule model: an orange number marks a hand position being
-        // established, nothing else). A fretting-hand glide that moves the window carries a
-        // hand-position placement at its target (normalization rule 9), and a tapped glide's
-        // landings are labeled through the path-station loop above — both hands' glides earn
-        // their numbers as POSITIONS, never as waypoints. The waypoint glow posts and
-        // fret-span lines remain — they are target furniture, not labels.
+        // Slide waypoints deliberately push no numbers of their own (completing the one-rule
+        // model: an orange number marks a hand position being established, nothing else). A
+        // fretting-hand glide that moves the window carries a hand-position placement at its
+        // target (normalization rule 9), and a tapped glide's landings are labeled through the
+        // path-station loop above — both hands' glides earn their numbers as POSITIONS, never
+        // as waypoints. The waypoint glow posts and fret-span lines remain — they are target
+        // furniture, not labels.
 
-        // The current hand's numbers pinned at the hit line. Coverage fade (signed 2026-07-23):
-        // every glyph stays at its own lane's fixed position and animates opacity only, fading
-        // out as the sweeping border leaves its lane and in as the border reaches it. Their
-        // time is the current instant, so any sounding note drains after and covers them.
+        // The current hand's numbers pinned at the hit line. Coverage fade: every glyph stays
+        // at its own lane's fixed position and animates opacity only, fading out as the
+        // sweeping border leaves its lane and in as the border reaches it. Their time is the
+        // current instant, so any sounding note drains after and covers them.
         for (int fret = 1; fret <= g_face_fret_count; ++fret)
         {
             const double coverage = fret_coverage(current_window, fret);
@@ -3149,9 +3137,9 @@ void HighwayRenderer::Impl::draw(
                 : 0.0;
         // Chart-truth head station: the curve's value at the anchor time, with the vibrato
         // swing scaled to the head's half depth — the head breathes with the wobble instead
-        // of bouncing at the tail's full swing or sitting pinned, both sighted as odd
-        // (2026-08-02). A pre-bent curve is already lifted at the onset, so this sits off
-        // the lane for the entire approach.
+        // of bouncing at the tail's full swing or sitting pinned, both of which read as odd.
+        // A pre-bent curve is already lifted at the onset, so this sits off the lane for the
+        // entire approach.
         const double chart_head_y = note_y_at(
             head_seconds, common::core::g_highway_vibrato_head_depth_fraction * head_taper);
         // Rolling-flip clock, hoisted from the head-art roll below because the pre-bend reveal
@@ -3163,13 +3151,13 @@ void HighwayRenderer::Impl::draw(
             (note.start_seconds - now_seconds - g_flip_flat_lead_seconds) / roll_span_seconds,
             0.0,
             1.0);
-        // Pre-bend reveal (user design 2026-07-31): an approaching pre-bent head spawns on its
-        // own lane and rises toward the outlined chart-truth station in step with the rolling
-        // flip, lining up exactly when the art lands flat; the outline, chevron, tail, and
-        // anticipation ring hold the chart truth throughout, so the rising head is the only
-        // moving element. Exact identity for every non-pre-bent note: the curve is 0.0 at the
-        // onset, so chart_head_y == lane_y and the mix collapses. Chords skip the roll but keep
-        // this clock, so chord pre-bends still land with their groupmates.
+        // Pre-bend reveal: an approaching pre-bent head spawns on its own lane and rises toward
+        // the outlined chart-truth station in step with the rolling flip, lining up exactly when
+        // the art lands flat; the outline, chevron, tail, and anticipation ring hold the chart
+        // truth throughout, so the rising head is the only moving element. Exact identity for
+        // every non-pre-bent note: the curve is 0.0 at the onset, so chart_head_y == lane_y and
+        // the mix collapses. Chords skip the roll but keep this clock, so chord pre-bends still
+        // land with their groupmates.
         const double head_y = note.start_seconds > now_seconds
                                   ? lane_y + ((chart_head_y - lane_y) * (1.0 - flip_remaining))
                                   : chart_head_y;
@@ -3229,9 +3217,9 @@ void HighwayRenderer::Impl::draw(
                 // playback, and once a window move has scrolled fully behind the hit line the
                 // remaining tail must hold the settled post-move window — the onset-time window
                 // is the pre-move one, and using it snapped a ringing open tail back to the old
-                // hand position the instant the ramp left the visible span (user finding
-                // 2026-07-23). With no ramp inside [tail_from, tail_to] the window is constant
-                // across the whole visible tail, so tail_from is exact.
+                // hand position the instant the ramp left the visible span. With no ramp inside
+                // [tail_from, tail_to] the window is constant across the whole visible tail, so
+                // tail_from is exact.
                 band = open_band_stations(tail_from);
                 band_valid = band_valid && (band[3] - band[0] > 2.0 * g_open_tail_margin);
                 base_x = (band[0] + band[3]) / 2.0;
@@ -3556,13 +3544,13 @@ void HighwayRenderer::Impl::draw(
         // skips shadows for chord notes).
         const bool in_chord = group.count >= 2;
 
-        // Glow post: the sustain tails' three-band ribbon stood upright at a user-tuned
-        // fraction of the tail width, rising from the board toward the note's lane center and
-        // dissolving to nothing at the fade-end fraction of that height. One geometry serves
-        // both users — the note shadow at the onset (the note art overlays the post's top, so
-        // every lane down to the bottom one carries a post scaled to its own height) and the
-        // pitched slide-waypoint markers at their own slots and times — so a shape or banding
-        // tweak can never desync them.
+        // Glow post: the sustain tails' three-band ribbon stood upright at a fraction of the
+        // tail width, rising from the board toward the note's lane center and dissolving to
+        // nothing at the fade-end fraction of that height. One geometry serves both users — the
+        // note shadow at the onset (the note art overlays the post's top, so every lane down to
+        // the bottom one carries a post scaled to its own height) and the pitched
+        // slide-waypoint markers at their own slots and times — so a shape or banding tweak can
+        // never desync them.
         const double post_half_width = common::core::highwayTailHalfWidth(metrics) * 0.375;
         const double post_top_y = head_y * g_shadow_post_fade_end_fraction;
         const double post_floor_alpha = fade * head_slide.alpha * g_shadow_post_floor_alpha;
@@ -3627,10 +3615,10 @@ void HighwayRenderer::Impl::draw(
 
         // A pitched slide waypoint's board furniture: a glow post and fret-span line at its own
         // slot and time — the intermediate targets the hand glides through. No note head: the
-        // slide is one sounded note, so only its picked head is drawn (user rule 2026-07-28).
-        // Waypoints stay on the note's string, so they share its lane and color; the post skips
-        // the head's slide-dim (a waypoint has no sliding head above it). The fret number rides
-        // the board floor with the scrolling numbers, pushed in that pass below.
+        // slide is one sounded note, so only its picked head is drawn. Waypoints stay on the
+        // note's string, so they share its lane and color; the post skips the head's slide-dim
+        // (a waypoint has no sliding head above it). The fret number rides the board floor with
+        // the scrolling numbers, pushed in that pass below.
         const auto push_waypoint_marker = [&](const int wp_fret, const double wp_seconds) {
             const double wp_x = common::core::highwayNoteCenterX(wp_fret, metrics, mirrored);
             const double wp_z = time_to_z(wp_seconds);
@@ -3656,15 +3644,14 @@ void HighwayRenderer::Impl::draw(
             // landing mid-transition takes the eased window at its own anchor instant, so a
             // pinned sounding bar follows the sliding window like its ringing tail does.
             const auto [x0, x1] = handWindowXAt(state, head_seconds, metrics, mirrored);
-            // L posts pointing inward from the bar ends (the chord box's bottom corner
-            // holders, freestanding — user direction): one continuous two-leg ribbon per
-            // corner, its cross-section turning 45 degrees at the corner station so the
-            // bands wrap the L outline unbroken (an upright post plus a separate foot read
-            // as a cross at the corner, not an L). Cross-section colors are the open-tail
-            // treatment — transparent boundaries around edge strips around the translucent
-            // core — and both leg ends fade to nothing: the upright at the shared
-            // post_top_y (the glow posts' fade end below the bar), skipped entirely when that
-            // top leaves no room above the corner miter.
+            // L posts pointing inward from the bar ends (the chord box's bottom corner holders,
+            // freestanding): one continuous two-leg ribbon per corner, its cross-section
+            // turning 45 degrees at the corner station so the bands wrap the L outline unbroken
+            // (an upright post plus a separate foot read as a cross at the corner, not an L).
+            // Cross-section colors are the open-tail treatment — transparent boundaries around
+            // edge strips around the translucent core — and both leg ends fade to nothing: the
+            // upright at the shared post_top_y (the glow posts' fade end below the bar), skipped
+            // entirely when that top leaves no room above the corner miter.
             if (!in_chord)
             {
                 push_span_line(x0, x1);
@@ -3792,8 +3779,8 @@ void HighwayRenderer::Impl::draw(
         // Fretted head anchor: the fret-slot middle, or — for a NATURAL harmonic sounding
         // between frets — the chart's fractional node point, which is where the fret hand
         // touches. A pinch harmonic's touch is the PICKING hand's node: the fret hand stays on
-        // note.fret, so the head keeps the fret anchor (imported pinches drew at the node fret,
-        // user catch 2026-07-31) and the node waits for a dedicated right-hand cue (25-Q5).
+        // note.fret, so the head keeps the fret anchor (imported pinches drew at the node fret)
+        // and the node waits for a dedicated right-hand cue (25-Q5).
         double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
         if (note.harmonic == common::core::NoteHarmonic::Natural && note.touch.has_value())
         {
@@ -3806,9 +3793,9 @@ void HighwayRenderer::Impl::draw(
             x = left_x + ((right_x - left_x) * (touch - touch_floor));
         }
         // A sounding head travels with its glide, so it stays glued to the tail through bends,
-        // vibrato, and slides. It does NOT ride the tremolo teeth (user rule 2026-08-04): the
-        // teeth are a texture the tail carries, and a head shaking with them reads as a jitter
-        // fighting its own digit rather than as picking energy.
+        // vibrato, and slides. It does NOT ride the tremolo teeth: the teeth are a texture the
+        // tail carries, and a head shaking with them reads as a jitter fighting its own digit
+        // rather than as picking energy.
         x += head_slide.x_offset;
         const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
 
@@ -3870,15 +3857,15 @@ void HighwayRenderer::Impl::draw(
                     anticipation_cell[1]));
         }
 
-        // Pre-bend target outline (user design 2026-07-31): the anticipation cell — already a
-        // hollow copy of the head's rim in the reference atlas — parks at the chart-truth
-        // station for the whole approach, so a pre-bent note reads as a slot the head rises
-        // into instead of passing for a plainly fretted note on the lane it occupies. It rides
-        // the note's own z (unlike the ring's hit-line landing preview), stays axis-aligned
-        // like the upright technique markers, and stops at the onset, where the landed head
-        // covers it. chart_head_y - lane_y is exactly the onset bend lift (the vibrato taper is
-        // zero at the onset) and exactly 0.0 for a non-pre-bent curve, so the > 0.0 test is a
-        // precise pre-bend gate, not a tolerance.
+        // Pre-bend target outline: the anticipation cell — already a hollow copy of the head's
+        // rim in the reference atlas — parks at the chart-truth station for the whole approach,
+        // so a pre-bent note reads as a slot the head rises into instead of passing for a
+        // plainly fretted note on the lane it occupies. It rides the note's own z (unlike the
+        // ring's hit-line landing preview), stays axis-aligned like the upright technique
+        // markers, and stops at the onset, where the landed head covers it. chart_head_y -
+        // lane_y is exactly the onset bend lift (the vibrato taper is zero at the onset) and
+        // exactly 0.0 for a non-pre-bent curve, so the > 0.0 test is a precise pre-bend gate,
+        // not a tolerance.
         if (note.start_seconds > now_seconds && std::is_neq(chart_head_y <=> lane_y))
         {
             const std::uint32_t outline_tint =
@@ -4014,16 +4001,15 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // Bend notation (bend-head-indicators plan, fourth pass on sight 2026-07-28: chevron
-        // stacks read as clutter, amount figures did not read at speed, and target rails were
-        // redundant furniture once the tail itself carried the amount): the head carries ONE
-        // chevron marker — a caret-shaped bend cue —
-        // announcing only that a bend is coming. It rides the bend-lift side of the head
-        // (above the note for an upward curve, below on bend-inverted lanes) and its 180-degree
-        // flip keeps it pointing where the drawn curve goes. Amount and stages are the tail's
-        // own geometry: physical lift height plus slope shading. The station is the
+        // Bend notation (bend-head-indicators plan: chevron stacks read as clutter, amount
+        // figures did not read at speed, and target rails were redundant furniture once the
+        // tail itself carried the amount): the head carries ONE chevron marker — a caret-shaped
+        // bend cue — announcing only that a bend is coming. It rides the bend-lift side of the
+        // head (above the note for an upward curve, below on bend-inverted lanes) and its
+        // 180-degree flip keeps it pointing where the drawn curve goes. Amount and stages are
+        // the tail's own geometry: physical lift height plus slope shading. The station is the
         // chart-truth height: on an approaching pre-bend the chevron rides the target outline,
-        // not the rising head (user rule 2026-07-31); everywhere else chart and head coincide.
+        // not the rising head; everywhere else chart and head coincide.
         if (!note.bend.empty())
         {
             pending_bend_markers.push_back(
@@ -4046,10 +4032,10 @@ void HighwayRenderer::Impl::draw(
         // hit line it would stand at full alpha after its number vanished. Waypoint and
         // tapped-note fret numbers ride the board floor with the scrolling numbers, pushed in
         // that pass below.
-        // Stacked chord slides dedup (user rule 2026-07-30): members sliding together land
-        // waypoints on the same fret at the same instant, and their markers would pile up in
-        // one slot — only the member on the lowest displayed lane (nearest the floor, so its
-        // post overlaps nothing above it) draws the shared marker.
+        // Stacked chord slides dedup: members sliding together land waypoints on the same fret
+        // at the same instant, and their markers would pile up in one slot — only the member on
+        // the lowest displayed lane (nearest the floor, so its post overlaps nothing above it)
+        // draws the shared marker.
         const auto stacked_below = [&](const common::core::HighwaySlideView& waypoint) {
             for (std::size_t member = group.first; member < group.first + group.count; ++member)
             {
@@ -4145,10 +4131,10 @@ void HighwayRenderer::Impl::draw(
                 }
             }
         }
-        // Right-hand windows activate their lines under the same horizon (user rule
-        // 2026-07-28): the lines the tapping hand's light path crosses light up while the tap
-        // is held or arriving soon. Per-line array, so overlap with the fretting hand's
-        // windows deduplicates itself; the path union carries any tapped-slide morph.
+        // Right-hand windows activate their lines under the same horizon: the lines the tapping
+        // hand's light path crosses light up while the tap is held or arriving soon. Per-line
+        // array, so overlap with the fretting hand's windows deduplicates itself; the path
+        // union carries any tapped-slide morph.
         for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
         {
             if (tap.path.front().seconds > now_seconds + g_fret_active_horizon_seconds)
@@ -4542,9 +4528,9 @@ void HighwayRenderer::Impl::draw(
         };
         // Strikes that light the two live window-edge frets: lone opens, and strummed chords —
         // a strum glows only the chord box's left and right frets, the box interior stays
-        // deliberately dark (user direction 2026-07-30; what the interior does instead is an
-        // open decision). Both kinds share the same two strips, so their onsets collect here in
-        // ascending order and each clamps against the next window-edge strike of either kind.
+        // deliberately dark (what the interior does instead is an open decision). Both kinds
+        // share the same two strips, so their onsets collect here in ascending order and each
+        // clamps against the next window-edge strike of either kind.
         std::vector<double> window_edge_onsets;
 
         // Fretting-hand onset clusters, walked over the glow's own onset window: glow tails
@@ -4654,18 +4640,18 @@ void HighwayRenderer::Impl::draw(
         }
 
         // Slide landings and bend targets: every scored arrival pops the glow at its geometry
-        // (user frame 2026-07-30 — the game registers these as hit-or-miss, and the editor
-        // previews 100%-perfect play, so each one shows its success feedback). A pitched slide
-        // waypoint is a fret arrival — the finger lands on a new fret, the tail kinks there,
-        // the FHP window ramps there — and pops the landing's lines, whichever hand slides;
-        // unpitched trail-offs are pressure already releasing and contribute nothing (the tap
-        // light's rule). A bend target is a pitch arrival on the fret the finger stays planted
-        // on, so it pops that same line pair: each curve point ending a sloped segment (bend
-        // reached, release completed) is an arrival, while flat holds and the onset point are
-        // not — the strike already covers the onset. No inter-onset clamp: these are sparse,
-        // never the machine-gun case the clamp exists for, and the per-line max absorbs
-        // overlap. The sustain-aware range query covers a long sustain sliding or bending at
-        // its very end, whose onset left the cluster walk's window long ago.
+        // (the game registers these as hit-or-miss, and the editor previews 100%-perfect play,
+        // so each one shows its success feedback). A pitched slide waypoint is a fret arrival —
+        // the finger lands on a new fret, the tail kinks there, the FHP window ramps there —
+        // and pops the landing's lines, whichever hand slides; unpitched trail-offs are
+        // pressure already releasing and contribute nothing (the tap light's rule). A bend
+        // target is a pitch arrival on the fret the finger stays planted on, so it pops that
+        // same line pair: each curve point ending a sloped segment (bend reached, release
+        // completed) is an arrival, while flat holds and the onset point are not — the strike
+        // already covers the onset. No inter-onset clamp: these are sparse, never the
+        // machine-gun case the clamp exists for, and the per-line max absorbs overlap. The
+        // sustain-aware range query covers a long sustain sliding or bending at its very end,
+        // whose onset left the cluster walk's window long ago.
         const auto [waypoint_first, waypoint_last] = common::core::highwayVisibleNoteRange(
             state.notes, sustain_prefix_max, now_seconds - g_hit_glow_release_seconds, now_seconds);
         for (std::size_t index = waypoint_first; index < waypoint_last; ++index)

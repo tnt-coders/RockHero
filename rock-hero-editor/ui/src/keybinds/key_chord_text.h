@@ -24,11 +24,10 @@ using ShiftedCharacterResolver = juce::juce_wchar (*)(juce::juce_wchar base_char
 /*!
 \brief Returns the spaced middle dot (" · ") joining chord parts in every display ("Ctrl · Z").
 
-The small dot is the editor's house separator (user decision 2026-07-21, spaced per in-app
-review): unlike the conventional "+", it can never collide with the `+`/`-` keys ("Ctrl · +"
-vs "Ctrl++"), so those keys keep their compact symbols. U+00B7 MIDDLE DOT specifically — a
-Latin-1 character present in every font, immune to the substitution that killed the arrow
-glyphs (the math-block dot operator is not).
+The small dot is the editor's house separator: unlike the conventional "+", it can never collide
+with the `+`/`-` keys ("Ctrl · +" vs "Ctrl++"), so those keys keep their compact symbols. U+00B7
+MIDDLE DOT specifically — a Latin-1 character present in every font, immune to the substitution
+that killed the arrow glyphs (the math-block dot operator is not).
 */
 [[nodiscard]] juce::String keyChordJoiner();
 

@@ -351,9 +351,9 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         {
             next_sustain = g_minimum_slide_window;
         }
-        // The minimum-sustain-distance rule (settled 2026-07-18; override design deliberately
-        // open): growing a tail clamps it to end at least the shared margin BEFORE the next
-        // onset on ANY string, so extension can never crowd another note.
+        // The minimum-sustain-distance rule (override design deliberately open): growing a tail
+        // clamps it to end at least the shared margin BEFORE the next onset on ANY string, so
+        // extension can never crowd another note.
         // Same-onset chord members sit at equal positions and never block each other, and
         // notes under a shared shape span are implied-held across each other's onsets (§5),
         // so span siblings never block either — the first later onset outside every shared

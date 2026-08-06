@@ -73,10 +73,10 @@ struct HighwayShaderSet
 
 The assets live flat under rock-hero-common/ui/resources/textures and are deployed per
 product; LICENSE.txt beside them explicitly lists which files are Charter-adapted (BSD
-3-Clause) — the rest are original Rock Hero art. Every member is REQUIRED product
-content: empty or undecodable bytes fail create with a typed
-error, because a missing texture means a broken install, not a degradable state (user decision
-2026-08-01 — the procedural fallbacks this replaces silently masked such failures).
+3-Clause) — the rest are original Rock Hero art. Every member is REQUIRED product content:
+empty or undecodable bytes fail create with a typed error, because a missing texture means a
+broken install, not a degradable state — the procedural fallbacks this replaces silently masked
+such failures.
 */
 struct HighwayTextureSet
 {
@@ -139,11 +139,11 @@ struct HighwayOverlayRect
 /*!
 \brief Renders the note highway from the shared headless scene model.
 
-One renderer serves both products (the user's 2026-07-11 promotion decision superseding plan 44's
-duplicated-thin-drawers recommendation): the game shell and the editor preview each own a bgfx
-device and feed this renderer their compiled shaders, view state, and per-frame time. bgfx never
-appears in this header — the framework stays isolated to implementation files, the same treatment
-Tracktion receives in common/audio.
+One renderer serves both products, superseding plan 44's duplicated-thin-drawers recommendation:
+the game shell and the editor preview each own a bgfx device and feed this renderer their
+compiled shaders, view state, and per-frame time. bgfx never appears in this header — the
+framework stays isolated to implementation files, the same treatment Tracktion receives in
+common/audio.
 
 Lifetime: create only while a bgfx device is live, destroy before bgfx shutdown (every owned GPU
 resource dies with this object). All methods run on the bgfx API thread.

@@ -39,11 +39,11 @@ namespace
 // The camera chain: translate -> yaw -> wide perspective -> NDC pin.
 //
 // The yaw is Charter's rotY constant and is load-bearing for the look (it slopes the strings
-// like a held guitar neck; source analysis 2026-07-11). It is the chain's ONLY rotation:
-// Charter's forward pitch (rotX = 0.06) tilts the whole picture and leans verticals, which the
-// user rejected. Because no X rotation exists, a yaw-only chain never mixes world Y into clip W
-// or X, which is what makes world-vertical project exactly screen-vertical — the property the
-// regression tests pin at the shipped defaults. Reintroducing a pitch would break it.
+// like a held guitar neck). It is the chain's ONLY rotation: Charter's forward pitch
+// (rotX = 0.06) tilts the whole picture and leans verticals, so it is omitted. Because no X
+// rotation exists, a yaw-only chain never mixes world Y into clip W or X, which is what makes
+// world-vertical project exactly screen-vertical — the property the regression tests pin at the
+// shipped defaults. Reintroducing a pitch would break it.
 [[nodiscard]] HighwayMat4 makePinnedProjection(
     const HighwayCameraPose& camera, double aspect_ratio, const bool mirrored,
     const HighwayMetrics& metrics)
@@ -58,8 +58,9 @@ namespace
     // Both branches of that min() pair satisfy scale_y == scale_x * aspect, so the frustum is
     // exactly square-pixel at every viewport shape (regression-tested). Charter added +0.05 to
     // the vertical scale, which broke that identity by 5 to 10 percent depending on window shape
-    // and rendered world-square note heads as tall rectangles; it was removed 2026-07-30. Recover
-    // on-screen size with frustum_scale_base, which scales both axes and preserves the identity.
+    // and rendered world-square note heads as tall rectangles, so it is not carried here.
+    // Recover on-screen size with frustum_scale_base, which scales both axes and preserves the
+    // identity.
     const double screen_scale_x = std::min(0.5, 1.0 / aspect);
     const double screen_scale_y = std::min(1.0, aspect / 2.0);
     const double scale_x = metrics.frustum_scale_base * screen_scale_x;
@@ -70,8 +71,8 @@ namespace
     perspective.m[0] = scale_x;
     perspective.m[5] = scale_y;
     // Depth maps eye depth from [near, far] onto D3D's [0, 1]. The eye depth is camera-relative
-    // by construction here (the view translation runs first) — anchoring it at world Z instead
-    // was an earlier defect caught by the plan-25 Phase 3 checkpoint.
+    // by construction here (the view translation runs first); anchoring it at world Z instead is
+    // a defect the depth-volume regression test guards against.
     perspective.m[10] = metrics.far_plane / depth_range;
     perspective.m[11] = -metrics.near_plane * metrics.far_plane / depth_range;
     perspective.m[14] = 1.0;
@@ -169,11 +170,11 @@ HighwayCameraTarget makeHighwayCameraTarget(
         high_line = static_cast<double>(active->fret + active->width - 1);
     }
 
-    // The scan window is quantized to the derived camera framing zones (user direction
-    // 2026-07-29): everything defined during the current zone and the next one is framed,
-    // consumed or not, so the target holds perfectly still for whole zones and steps only at
-    // their boundaries — the HighwayCamera spring is the single mechanism turning those steps
-    // into motion, and each step lands a full zone before the hand needs to be in place.
+    // The scan window is quantized to the derived camera framing zones: everything defined
+    // during the current zone and the next one is framed, consumed or not, so the target holds
+    // perfectly still for whole zones and steps only at their boundaries — the HighwayCamera
+    // spring is the single mechanism turning those steps into motion, and each step lands a full
+    // zone before the hand needs to be in place.
     //
     // An empty zone list means the whole timeline is one unbounded zone, which falls straight
     // out of the bounds below rather than needing a second scan path. That degenerate state is
@@ -261,16 +262,15 @@ HighwayCameraTarget makeHighwayCameraTarget(
     };
 }
 
-// Third-order critically damped smoother (user direction 2026-07-29). A second-order spring
-// left acceleration discontinuous — from rest a step began with the peak acceleration
-// x''(0) = -d w^2, an instant kick that read as a jolt. Carrying acceleration as state too
-// (three coincident real poles at -w) makes the response C^2: from rest the motion eases in
-// from zero acceleration, cubic in time (displacement ~ d w^3 t^3 / 6), and lands with no
-// overshoot. Three equal poles is the maximally smooth arrangement at a given speed — spreading
-// them apart only sharpens the onset — and the maximally smooth, slow hover is what read most
-// correct. The error relaxes as e(t) = (c0 + c1 t + c2 t^2) e^{-w t}, and the update below is
-// that exact closed-form solution over the frame, so smoothing is exactly frame-rate
-// independent; the first advance snaps at rest.
+// Third-order critically damped smoother. A second-order spring left acceleration discontinuous —
+// from rest a step began with the peak acceleration x''(0) = -d w^2, an instant kick that read
+// as a jolt. Carrying acceleration as state too (three coincident real poles at -w) makes the
+// response C^2: from rest the motion eases in from zero acceleration, cubic in time (displacement
+// ~ d w^3 t^3 / 6), and lands with no overshoot. Three equal poles is the maximally smooth
+// arrangement at a given speed — spreading them apart only sharpens the onset — and the maximally
+// smooth, slow hover is what read most correct. The error relaxes as e(t) = (c0 + c1 t + c2 t^2)
+// e^{-w t}, and the update below is that exact closed-form solution over the frame, so smoothing
+// is exactly frame-rate independent; the first advance snaps at rest.
 void HighwayCamera::advance(
     const HighwayCameraTarget& target, double dt_seconds, const HighwayMetrics& metrics)
 {

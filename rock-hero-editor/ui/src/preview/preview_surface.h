@@ -28,9 +28,9 @@ spike proved as criterion S2), the process bgfx device, and the shared highway r
 tick on the message thread at vblank cadence — the editor's established display-refresh
 mechanism — sampling song time from the playback clock while playing (block-quantized transport
 reads shimmer on a moving field) and from the marker rule while paused: the armed caret is THE
-paused position (the 2026-07-18 marker model), with the exact transport position as the passive
-fallback, so a paused seek or caret move always lands. Paused time glides toward its target
-with a short exponential settle, so navigation reads as motion down the highway, not a cut.
+paused position (the marker model), with the exact transport position as the passive fallback, so
+a paused seek or caret move always lands. Paused time glides toward its target with a short
+exponential settle, so navigation reads as motion down the highway, not a cut.
 
 Lifecycle: attach() brings the stack up against the current peer on first open and merely
 resumes frame ticks on later opens; suspend() stops the ticks when the window hides (JUCE keeps

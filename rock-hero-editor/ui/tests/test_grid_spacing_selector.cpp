@@ -39,7 +39,7 @@ TEST_CASE("GridSpacingSelector emits chosen presets", "[ui][grid-spacing]")
     auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
 
     // Preset id 2 is the quarter-triplet grid: the ladder interleaves triplet subdivisions
-    // with the power-of-two values (grid-native authoring, 2026-07-18).
+    // with the power-of-two values (grid-native authoring).
     box.setSelectedId(2, juce::sendNotificationSync);
 
     CHECK(listener.chosen_count == 1);

@@ -89,7 +89,7 @@ this precondition).
 /*!
 \brief Plans retyping a snapshot of selected notes toward a typed fret target.
 
-Two modes (settled 2026-07-17): transposing (the default) shifts every note by the same delta
+Two modes: transposing (the default) shifts every note by the same delta
 so the snapshot's lowest fret lands on the target — shape-preserving, so chords reposition,
 runs transpose, and a single note retypes exactly — while set-exact assigns the target to
 every note. Members can never go below zero under transposition because the lowest fret is

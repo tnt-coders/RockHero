@@ -3,12 +3,12 @@ add_library(rock_hero::common::ui ALIAS rock_hero_common_ui)
 
 # Shared presentation both products consume: the string-color palette data (JUCE-free by design;
 # consumers convert colors at their own boundary), the highway feature — the shared 3D
-# note-highway renderer and its runtime-rasterized atlases (the 2026-07-11 promotion decision:
-# one renderer for the game and the editor preview instead of duplicated thin drawers) — and the
-# tab feature: the shared 2D notation paint core, lane layout, and layout manifest (plan 30
-# Phase 2). bgfx gets the Tracktion isolation treatment (implementation files only, never a
-# public header); JUCE gets the same except the one designated juce_graphics-bearing paint-core
-# header allowed by the 30-Q1 amendment (architectural-principles.md "UI Modules").
+# note-highway renderer and its runtime-rasterized atlases (promoted here so one renderer serves
+# the game and the editor preview instead of duplicated thin drawers) — and the tab feature:
+# the shared 2D notation paint core, lane layout, and layout manifest (plan 30 Phase 2). bgfx
+# gets the Tracktion isolation treatment (implementation files only, never a public header);
+# JUCE gets the same except the one designated juce_graphics-bearing paint-core header allowed
+# by the 30-Q1 amendment (architectural-principles.md "UI Modules").
 target_sources(
     rock_hero_common_ui
     PRIVATE src/highway/bgfx_program.cpp

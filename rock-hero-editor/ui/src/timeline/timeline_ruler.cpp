@@ -39,8 +39,7 @@ constexpr int g_subdivision_tick_height{5};
 // one family.
 constexpr int g_chip_height{11};
 // The play-from-here flag: a filled triangle at the ruler body's top pointing down the cursor
-// line, sized to read at a glance — the 1px alignment line alone was too easy to miss (user
-// feedback 2026-07-18).
+// line, sized to read at a glance — the 1px alignment line alone was too easy to miss.
 constexpr float g_cursor_flag_half_width{5.0f};
 constexpr float g_cursor_flag_height{7.0f};
 // Tab-derived chord/arpeggio name chips fill the tick band below the measure-number row, flush
@@ -170,10 +169,10 @@ void TimelineRuler::setTimelineView(
     m_view_x = view_x;
 }
 
-// Positions the ruler's aligned play-from-here mark (the marker model, 2026-07-18): the
-// moving playhead while playing, else the marker — the armed caret's slot or the passive
-// transport rest; absent only without a loaded project. The paused flag picks the mark's
-// color so it always matches the cursor drawn below it in the content.
+// Positions the ruler's aligned play-from-here mark (the marker model): the moving playhead
+// while playing, else the marker — the armed caret's slot or the passive transport rest; absent
+// only without a loaded project. The paused flag picks the mark's color so it always matches the
+// cursor drawn below it in the content.
 void TimelineRuler::setCursorPosition(
     std::optional<common::core::TimePosition> cursor_position, bool paused)
 {
@@ -760,8 +759,8 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
 }
 
 // Draws the chord/arpeggio name chips flush with the ruler's bottom edge, directly above the
-// tablature lane's top rail (user-directed placement: the lane has no clean room for names, and
-// this band overlaps only ticks — the measure-number row above stays clear). Chips draw left to
+// tablature lane's top rail: the lane has no clean room for names, and this band overlaps only
+// ticks — the measure-number row above stays clear. Chips draw left to
 // right in span order, so where shape changes crowd tighter than a name's width the later
 // span's chip wins locally instead of being suppressed entirely.
 void TimelineRuler::drawShapeChips(juce::Graphics& g)
@@ -799,7 +798,7 @@ void TimelineRuler::drawShapeChips(juce::Graphics& g)
 // flag triangle. The cursor starts at the body's top edge instead of y 0 so it does not cut
 // through the chip rows above. The line takes the paused or playback color so it reads as one
 // continuous indicator with the cursor in the content below; the flag stays playback white in
-// both states so the play-from-here mark never loses visibility (user ruling 2026-07-18).
+// both states so the play-from-here mark never loses visibility.
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
     const juce::Colour line_color =

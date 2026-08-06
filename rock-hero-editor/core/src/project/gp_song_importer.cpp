@@ -172,7 +172,7 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
     // assets whose sync tempos only reproduce at 44100). Positive padding is silence before the
     // audio when the recording's content starts after the score's first beat; negative padding
     // pulls the audio left so its head plays out before the score begins — dropping it desyncs
-    // the song by |padding|/44100 seconds (the 2026-07-21 corpus survey found negative padding
+    // the song by |padding|/44100 seconds (the corpus survey found negative padding
     // on 99 of 114 files, every one with its origin sync point at frame 0, so the padding is
     // the only carrier of that alignment). Both signs flow into the asset start offset; the
     // engine skips the pre-score head for negative values. The offset is snapped to the same

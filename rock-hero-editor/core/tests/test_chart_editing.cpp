@@ -125,8 +125,8 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     const int seek_baseline = transport.seek_call_count;
 
-    // The containment hierarchy: a single click selects the individual note, a double click
-    // its whole onset group (settled 2026-07-17).
+    // The containment hierarchy: a single click selects the individual note, a double click its
+    // whole onset group.
     click(controller, 40.0f, 220.0f);
 
     const EditorViewState* state = stateOrNull(view.last_state);
@@ -145,7 +145,7 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
 }
 
 // Ctrl toggles individual membership; plain clicks select individual notes per the containment
-// hierarchy (2026-07-17).
+// hierarchy.
 TEST_CASE("EditorController toggles and extends the chart selection", "[core][chart]")
 {
     FakeTransport transport;
@@ -190,9 +190,9 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 }
 
-// One selection exists editor-wide (2026-07-18): selecting on another surface structurally
-// replaces the chart selection, cross-surface selection changes never touch the marker, and the
-// unified Delete intent deletes whatever kind the selection holds.
+// One selection exists editor-wide: selecting on another surface structurally replaces the chart
+// selection, cross-surface selection changes never touch the marker, and the unified Delete intent
+// deletes whatever kind the selection holds.
 TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]")
 {
     FakeTransport transport;
@@ -217,8 +217,8 @@ TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]
     CHECK(state->chart_edit.caret.has_value());
 
     // Selecting an automation point (another surface) replaces the chart selection, and the
-    // marker follows the click onto the lane row (2026-07-18 — clicks arm on both surfaces):
-    // the chart-row caret unpublishes while the caret rides the lane.
+    // marker follows the click onto the lane row (clicks arm on both surfaces): the chart-row
+    // caret unpublishes while the caret rides the lane.
     controller.onToneAutomationPointSelectRequested(
         "instance-x", "gain", common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}});
     CHECK(state->chart_edit.selected_notes.empty());
@@ -239,8 +239,8 @@ TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]
     CHECK(state->chart_edit.selected_notes.empty());
 }
 
-// Insert is the neutral-create verb (2026-07-18): a fret-0 note at an armed empty string slot;
-// occupied slots (whose arming selects the note) and the passive marker are no-ops.
+// Insert is the neutral-create verb: a fret-0 note at an armed empty string slot; occupied slots
+// (whose arming selects the note) and the passive marker are no-ops.
 TEST_CASE("EditorController inserts a fret-0 note on the Insert verb", "[core][chart]")
 {
     FakeTransport transport;
@@ -282,9 +282,9 @@ TEST_CASE("EditorController inserts a fret-0 note on the Insert verb", "[core][c
     CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
 }
 
-// Alt+click is the mouse form of the Insert verb (2026-07-18): a press-release on an empty slot
-// plants a fret-0 note there, selects it, and arms the caret on it, so the very next typed digit
-// retypes it — "place, then correct the value".
+// Alt+click is the mouse form of the Insert verb: a press-release on an empty slot plants a fret-0
+// note there, selects it, and arms the caret on it, so the very next typed digit retypes it —
+// "place, then correct the value".
 TEST_CASE("EditorController plants a fret-0 note on Alt+click", "[core][chart]")
 {
     FakeTransport transport;
@@ -418,7 +418,7 @@ TEST_CASE("EditorController Alt+drag plants a note and suppresses the marquee", 
 
 // Typed digits set every selected note to the typed value; Alt+Shift+wheel's fret-shift intent
 // moves the whole selection by one, shape-preserving, refusing (never clamping) at fret zero
-// and at the fret cap (settled 2026-07-17).
+// and at the fret cap.
 TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[core][chart]")
 {
     FakeTransport transport;
@@ -1280,7 +1280,7 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
 }
 
 // Sustain growth clamps to the minimum-sustain-distance margin — the shared 1/16-whole-note
-// constant (a quarter beat in 4/4) — before the next onset on ANY string (settled 2026-07-18);
+// constant (a quarter beat in 4/4) — before the next onset on ANY string;
 // shrinking floors at zero.
 TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][chart]")
 {
@@ -1528,9 +1528,9 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     CHECK(chart->notes[0].string == 1);
 }
 
-// The Ctrl fine tier on notes (settled 2026-07-18): Alt+Ctrl+Left/Right moves the selection by
-// one 1/960-beat step, off the grid; grid steps stay relative afterwards, so the offset rides
-// along, and the fine step back returns to the exact lattice slot.
+// The Ctrl fine tier on notes: Alt+Ctrl+Left/Right moves the selection by one 1/960-beat step, off
+// the grid; grid steps stay relative afterwards, so the offset rides along, and the fine step back
+// returns to the exact lattice slot.
 TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][chart]")
 {
     FakeTransport transport;
@@ -1574,9 +1574,9 @@ TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][cha
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
 }
 
-// Off-grid notes are first-class caret stops (the union stop set, settled 2026-07-18): plain
-// arrows step to the nearer of the adjacent grid line and the row's next note, so a
-// fine-placed note stays reachable from the keyboard — and landing on it arms onto it.
+// Off-grid notes are first-class caret stops (the union stop set): plain arrows step to the nearer
+// of the adjacent grid line and the row's next note, so a fine-placed note stays reachable from
+// the keyboard — and landing on it arms onto it.
 TEST_CASE("EditorController steps the caret onto off-grid notes", "[core][chart]")
 {
     FakeTransport transport;

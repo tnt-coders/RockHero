@@ -17,15 +17,15 @@ namespace rock_hero::editor::ui
 /*!
 \brief The keyboard-shortcuts editor: registry commands, binding chips, capture, and reset.
 
-Custom-built against the public `juce::KeyPressMappingSet` API (plan 46 Phase 3's recorded
-custom-rebuild trigger fired 2026-07-20: the themed stock component read as off-product in live
-use). The view lists every registry command under its category, one row per command with its
-binding chips right-aligned; clicking a chip offers change/remove, the trailing `+` chip
-captures a new binding through a press-a-key dialog, and conflicts resolve through the
-overwrite-and-clear flow — a themed confirm naming the current owner, then remove-then-add, so
-exactly one owner keeps a chord (`addKeyPress` alone must never be trusted to resolve
-conflicts; its documented conflict removal does not exist in code). Every command is
-rebindable — the grammar verbs included (plan 53 Phase 1b, total rebindability).
+Custom-built against the public `juce::KeyPressMappingSet` API because the themed stock component
+read as off-product in live use (plan 46 Phase 3's custom-rebuild trigger). The view lists every
+registry command under its category, one row per command with its binding chips right-aligned;
+clicking a chip offers change/remove, the trailing `+` chip captures a new binding through a
+press-a-key dialog, and conflicts resolve through the overwrite-and-clear flow — a themed confirm
+naming the current owner, then remove-then-add, so exactly one owner keeps a chord (`addKeyPress`
+alone must never be trusted to resolve conflicts; its documented conflict removal does not exist
+in code). Every command is rebindable — the grammar verbs included (plan 53 Phase 1b, total
+rebindability).
 
 Rows rebuild from the mapping set on every change broadcast, which also keeps the view live
 against rebinds arriving from anywhere else; the broadcasts are asynchronous, so a rebuild

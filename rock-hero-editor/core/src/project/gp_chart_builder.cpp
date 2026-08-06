@@ -114,8 +114,8 @@ struct MeasureGrid
 }
 
 // A slide gesture's fret travel never shrinks below two frets — the minimum that reads as a
-// slide (user rule 2026-07-29). Widens an agreeing hand delta to that minimum; the constant
-// alone supplies the default travel when the hand is still.
+// slide. Widens an agreeing hand delta to that minimum; the constant alone supplies the default
+// travel when the hand is still.
 constexpr int g_minimum_slide_travel_frets = 2;
 
 [[nodiscard]] constexpr int widenedToMinimumTravel(const int delta, const bool downward)
@@ -482,7 +482,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 // onward tie so a ring-out continuation still binds. The first stroke keeps the accent and
 // any hammer/pull arrival; later strokes are plain picks. A bent tremolo spells out too —
 // each stroke samples the master curve at its own onset and carries the value as a flat
-// prebend, so the run reads as progressively larger prebent picks (user model 2026-08-04).
+// prebend, so the run reads as progressively larger prebent picks.
 // Only slide payloads keep the mark (per-stroke frets along a glide would be fabricated
 // data, and the payloads include the pick-slide carriers), counted for the track report.
 [[nodiscard]] std::vector<GpBeat> expandTremoloBeats(
@@ -825,10 +825,9 @@ struct BuiltNote
            note.vibrato || note.tremolo;
 }
 
-// Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21;
-// hold semantics refined 2026-07-22). The maintained plain-English spec is "GP chart
-// normalization policy" in docs/developer/the-project-lifecycle.md — tweak behavior there
-// first, then re-align this code.
+// Normalizes imported sustains for chart readability (import policy). The maintained
+// plain-English spec is "GP chart normalization policy" in
+// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
 //
 // 1. A tail is trimmed to end at least the minimum-sustain-distance margin — the shared
 //    constant in grid_arithmetic.h, the same margin the editor's duration verb clamps to —
@@ -848,9 +847,9 @@ struct BuiltNote
 // 3. A note with no sustain-carried technique NOTATED shorter than one beat loses its tail
 //    entirely after trimming: Guitar Pro gives every note its full notated duration, and a
 //    sub-beat effect-free ring reads as noise in a chart rather than as a deliberate sustain.
-//    The comparison reads the notated length, not the trimmed one (user rule 2026-07-28): a
-//    note held a full beat or longer in the source keeps its tail even though the margin
-//    leaves it slightly shorter than the beat.
+//    The comparison reads the notated length, not the trimmed one: a note held a full beat or
+//    longer in the source keeps its tail even though the margin leaves it slightly shorter than
+//    the beat.
 //
 // The rules are import normalization only — the editor never rewrites spacing the user authored.
 void normalizeImportedSustains(
@@ -872,9 +871,9 @@ void normalizeImportedSustains(
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
             ChartNote& note = built[index].note;
-            // The drop rule reads the NOTATED length, captured before the trim (user rule
-            // 2026-07-28): a note held a full beat or longer in the source keeps its trimmed
-            // tail even though the margin leaves it slightly shorter than the beat.
+            // The drop rule reads the NOTATED length, captured before the trim: a note held a
+            // full beat or longer in the source keeps its trimmed tail even though the margin
+            // leaves it slightly shorter than the beat.
             const Fraction notated_sustain = note.sustain;
             // The next binding onset (rule 1): the first later event whose NOTATED beat differs
             // from this note's — notationally simultaneous events (chord members, a strum's own
@@ -951,15 +950,15 @@ void normalizeImportedSustains(
                     {
                         target = note.slides.back().offset;
                     }
-                    // The unpitched slide-out is NOT a protected payload (user rule 2026-07-28):
-                    // its end is gesture geometry derived from the notated duration, not a
-                    // musical event, so it trims back with the tail to respect the margin. The
-                    // trimmed end must stay strictly positive and strictly after the last
-                    // waypoint (the model's ascending-payload invariant); a crowding that would
-                    // crush it compresses to the smallest legal end instead of keeping its full
-                    // length — the old keep-the-end fallback ran the gesture through the next
-                    // sounding onset when a slide-in had moved its head into the gap (the
-                    // slide-out-into-slide-in dip, sighted 2026-08-02).
+                    // The unpitched slide-out is NOT a protected payload: its end is gesture
+                    // geometry derived from the notated duration, not a musical event, so it
+                    // trims back with the tail to respect the margin. The trimmed end must stay
+                    // strictly positive and strictly after the last waypoint (the model's
+                    // ascending-payload invariant); a crowding that would crush it compresses to
+                    // the smallest legal end instead of keeping its full length — the old
+                    // keep-the-end fallback ran the gesture through the next sounding onset when
+                    // a slide-in had moved its head into the gap (the slide-out-into-slide-in
+                    // dip).
                     if (note.slide_out.has_value() && target < note.slide_out->offset)
                     {
                         const Fraction compressed = keptStrictlyAfterLastWaypoint(
@@ -998,27 +997,26 @@ void normalizeImportedSustains(
     }
 }
 
-// Derives chord templates and hand-posture spans from the note stream (import policy, user
-// request 2026-07-21). Guitar Pro scores in practice carry no handshape data (corpus chord
-// collections are empty), so any onset striking two or more strings becomes a chord posture,
-// deduplicated into the template table, and consecutive onsets holding the same posture merge
-// into one shape span covering the strums' notated (pre-trim) durations — the grouping the tab
-// renders as a chord box over repeated strums. Tap-only onsets are transparent to the whole
-// derivation (user rule 2026-07-28): taps are the tapping hand, so they neither form postures
-// nor close held spans, letting a ringing chord's span cover the taps above it. ANY articulation difference is a new chord (user
-// rule 2026-07-21): span continuity compares each string's whole note with only its position and
-// duration neutralized, so attack (hammer/pull/tap/slap/pop), muting, harmonics, vibrato,
-// tremolo, accent, bends, and slides — and any technique added to ChartNote later — all split
-// the span, while strum durations never do. The template table stays deduplicated by frets
-// alone (the hand posture is identical; techniques render on the notes). A note still ringing
-// through a chord's onset (tie-held from before, not re-struck) joins the posture on its string
-// (policy rule 12, user rule 2026-07-22); the projections' shared arrival rule then renders the
-// partly-struck span as an arpeggio, while fully-strummed spans stay chord boxes — no other
-// arpeggio grouping is derived (broken-chord grouping needs the corpus-informed pass). A span
-// closed by a following event trims to the minimum-sustain-distance margin before it — the same
-// margin every other element keeps (policy rule 12a, user rule 2026-07-23). Derived templates
-// are unnamed and unfingered. The maintained plain-English spec is "GP chart normalization
-// policy" in docs/developer/the-project-lifecycle.md.
+// Derives chord templates and hand-posture spans from the note stream (import policy). Guitar Pro
+// scores in practice carry no handshape data (corpus chord collections are empty), so any onset
+// striking two or more strings becomes a chord posture, deduplicated into the template table, and
+// consecutive onsets holding the same posture merge into one shape span covering the strums'
+// notated (pre-trim) durations — the grouping the tab renders as a chord box over repeated strums.
+// Tap-only onsets are transparent to the whole derivation: taps are the tapping hand, so they
+// neither form postures nor close held spans, letting a ringing chord's span cover the taps above
+// it. ANY articulation difference is a new chord: span continuity compares each string's whole note
+// with only its position and duration neutralized, so attack (hammer/pull/tap/slap/pop), muting,
+// harmonics, vibrato, tremolo, accent, bends, and slides — and any technique added to ChartNote
+// later — all split the span, while strum durations never do. The template table stays deduplicated
+// by frets alone (the hand posture is identical; techniques render on the notes). A note still
+// ringing through a chord's onset (tie-held from before, not re-struck) joins the posture on its
+// string (policy rule 12); the projections' shared arrival rule then renders the partly-struck span
+// as an arpeggio, while fully-strummed spans stay chord boxes — no other arpeggio grouping is
+// derived (broken-chord grouping needs the corpus-informed pass). A span closed by a following
+// event trims to the minimum-sustain-distance margin before it — the same margin every other
+// element keeps (policy rule 12a). Derived templates are unnamed and unfingered.
+// The maintained plain-English spec is "GP chart normalization policy" in
+// docs/developer/the-project-lifecycle.md.
 void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& grid, Chart& chart)
 {
     const std::size_t string_count = chart.tuning.strings.size();
@@ -1045,11 +1043,11 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         return closing.global_beat - sustainMarginAt(grid, closing.note.position);
     };
     // Closes the held span. A span closed by a following event trims to the margin before it
-    // (policy rule 12a — spans keep the same minimum sustain distance as every other element,
-    // user rule 2026-07-23), floored at the last strum so the box always reaches its final
-    // restrike. A span that would lose all length (a single strum crowded closer than the
-    // margin) falls back to exact adjacency, mirroring the sustain rules' protected-adjacency
-    // precedent — chart validation rejects zero-length spans.
+    // (policy rule 12a — spans keep the same minimum sustain distance as every other element),
+    // floored at the last strum so the box always reaches its final restrike. A span that would
+    // lose all length (a single strum crowded closer than the margin) falls back to exact
+    // adjacency, mirroring the sustain rules' protected-adjacency precedent — chart validation
+    // rejects zero-length spans.
     const auto close_span = [&chart, &open](
                                 const std::optional<Fraction> closing_limit,
                                 const std::optional<Fraction>
@@ -1203,17 +1201,17 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
 }
 
 // A silence long enough to read as a phrase break: the hand re-anchors across it. 0.8s is the
-// corpus sweet spot (4100-arrangement source-corpus study, 2026-07-28) — it holds the authored move rate
+// corpus sweet spot (4100-arrangement source-corpus study) — it holds the authored move rate
 // (~13.2 anchors per 100 notes) while lifting exact anchor-fret agreement from 59% to 72%.
 constexpr double g_fhp_phrase_rest_seconds = 0.8;
 
 // The fret span of notes still ringing at a slide waypoint that are NOT themselves gliding there
 // — each is a planted finger that pins the hand window's edge on its side. Returns false when no
 // such note exists, so the slide is a genuine whole-hand travel (rule 9 drag) rather than a
-// one-finger reshape (user rule 2026-07-30). Taps float above the hand and open strings never
-// anchor it, so both are excluded. A note that itself slid earlier is held at the fret it has
-// reached; a note with a waypoint at this exact instant is a co-slider (its own event carries it,
-// and a whole chord gliding in lockstep must translate, not reshape), so it is excluded too.
+// one-finger reshape. Taps float above the hand and open strings never anchor it, so both are
+// excluded. A note that itself slid earlier is held at the fret it has reached; a note with a
+// waypoint at this exact instant is a co-slider (its own event carries it, and a whole chord
+// gliding in lockstep must translate, not reshape), so it is excluded too.
 [[nodiscard]] bool heldHullAtSlideWaypoint(
     const std::vector<BuiltNote>& built, std::size_t moving_index, const Fraction& instant,
     int& held_min, int& held_max)
@@ -1273,11 +1271,11 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 //      note leaves the window (only ~35% of authored moves are forced). Within a segment it moves
 //      minimally when forced and drags with pitched slides.
 //   3. A slide taken while another finger stays PLANTED reshapes the window instead of translating
-//      it (user rule 2026-07-30): the held note pins its edge and the window becomes the exact
-//      sounding hull, so it shrinks when an outer note slides inward, grows when it slides
-//      outward, and holds when the slide is interior. Only a slide with nothing else held moves
-//      the whole hand (rule 9 drag). This reads the built notes' sounding spans — see
-//      heldHullAtSlideWaypoint — so the generator is sustain-aware for held detection (see below).
+//      it: the held note pins its edge and the window becomes the exact sounding hull, so it
+//      shrinks when an outer note slides inward, grows when it slides outward, and holds when
+//      the slide is interior. Only a slide with nothing else held moves the whole hand (rule 9
+//      drag). This reads the built notes' sounding spans — see heldHullAtSlideWaypoint — so the
+//      generator is sustain-aware for held detection (see below).
 // Scored against the corpus this reaches 72.5% exact anchor-fret agreement at the authored move
 // rate. The maintained plain-English spec is "GP chart normalization policy" in
 // docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
@@ -1291,7 +1289,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     // fit like a struck onset. A reshape waypoint is a slide taken while another finger stays
     // planted: [min_fret, max_fret] is then the exact sounding hull (held frets plus the slide
     // target) and the walk fits it edge-for-edge with no drag and no width floor, so the hand
-    // shrinks, grows, or holds with the slide instead of translating (user rule 2026-07-30).
+    // shrinks, grows, or holds with the slide instead of translating.
     struct CoverageEvent
     {
         Fraction global_beat{};
@@ -1439,7 +1437,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             // Hull-exact reshape: a held finger pins its edge and the sliding finger carries the
             // other, so the window is exactly the sounding span — it shrinks when an outer note
             // slides inward, grows when it slides outward, and holds when the slide is interior.
-            // No width floor and no drag: the hand deforms with the slide (user rule 2026-07-30).
+            // No width floor and no drag: the hand deforms with the slide.
             next_anchor = event.min_fret;
             next_width = event.max_fret - event.min_fret + 1;
         }
@@ -1475,9 +1473,9 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     }
 
     // An opening run of notes that anchor nothing (open strings, taps) must not pin the hand at
-    // the nut-reference window (user rule 2026-07-28): the song's starting position is wherever
-    // the first anchoring note puts the hand, so the first placement retimes back to the chart's
-    // first note and the window is already settled there when the song begins.
+    // the nut-reference window: the song's starting position is wherever the first anchoring note
+    // puts the hand, so the first placement retimes back to the chart's first note and the window
+    // is already settled there when the song begins.
     if (!positions.empty() && !built.empty() &&
         built.front().note.position < positions.front().position)
     {
@@ -1546,31 +1544,28 @@ void upsertPlacement(
 }
 
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
-// notation. The gesture is an ON-BEAT scoop (user decision 2026-08-02, superseding the
-// moved-head model of 2026-07-28): the ornament is the manner of the note's ATTACK and
-// occupies the note's own time slot — notation practice and faithful score players pluck on
-// the notated tick at an offset pitch and resolve to the target a quarter of the duration
-// in. The head therefore keeps its notated position at a derived approach fret and glides
-// to the notated fret over the scoop window: a quarter of the notated duration, capped at
-// the sustain margin, floored at the minimum slide window, and kept strictly before the
-// note's slide chain and trail-off end (bend curves order only against the sustain, so the
-// scoop leaves them untouched). Anticipation — the approach sounding BEFORE the beat
-// with the target landing ON it — is the before-beat grace-with-slide notation, which
-// resolves through the ordinary chain; a bare slide-in must not fabricate it.
+// notation. The gesture is an ON-BEAT scoop: the ornament is the manner of the note's ATTACK and
+// occupies the note's own time slot — notation practice and faithful score players pluck on the
+// notated tick at an offset pitch and resolve to the target a quarter of the duration in. The head
+// therefore keeps its notated position at a derived approach fret and glides to the notated fret
+// over the scoop window: a quarter of the notated duration, capped at the sustain margin, floored
+// at the minimum slide window, and kept strictly before the note's slide chain and trail-off end
+// (bend curves order only against the sustain, so the scoop leaves them untouched). Anticipation —
+// the approach sounding BEFORE the beat with the target landing ON it — is the before-beat
+// grace-with-slide notation, which resolves through the ordinary chain; a bare slide-in must not
+// fabricate it.
 //
-// Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the
-// window walk's delta arriving at the note, widened to a two-fret minimum (user rule
-// 2026-07-29), the flag's direction winning over a still hand or a contradicting delta.
-// The hand stays planted while the approach fret sits inside the active window — a two-fret
-// scoop is usually a finger gesture, not a hand move (the unpitched-slide precedent). An
-// approach OUTSIDE the window drags the window with it for exactly the scoop's duration
-// (sighted 2026-08-02: a window anchored on the notated fret left the approach uncovered):
-// the onset's window derives backward from the active one so the head keeps its slot, and
-// the natural window returns at the scoop's end. An open string cannot be slid into, and a
-// start clamped onto the notated fret has no travel; both count as unplaceable and stay
-// plain. The transform runs before the sustain policy, so the transformed note is a slide
-// when the trim rules run: a slide-in into a held landing keeps its hold like any notated
-// slide (user rule 2026-07-28).
+// Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the window
+// walk's delta arriving at the note, widened to a two-fret minimum, the flag's direction winning
+// over a still hand or a contradicting delta. The hand stays planted while the approach fret sits
+// inside the active window — a two-fret scoop is usually a finger gesture, not a hand move (the
+// unpitched-slide precedent). An approach OUTSIDE the window drags the window with it for exactly
+// the scoop's duration (a window anchored on the notated fret left the approach uncovered): the
+// onset's window derives backward from the active one so the head keeps its slot, and the natural
+// window returns at the scoop's end. An open string cannot be slid into, and a start clamped onto
+// the notated fret has no travel; both count as unplaceable and stay plain. The transform runs
+// before the sustain policy, so the transformed note is a slide when the trim rules run: a slide-in
+// into a held landing keeps its hold like any notated slide.
 void resolveSlideIns(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
     const MeasureGrid& grid, std::vector<std::string>& notes)
@@ -1693,20 +1688,18 @@ void resolveSlideIns(
     }
 }
 
-// Rides the hand window along every unpitched trail-off (user rules 2026-08-02): the window
-// always moves with the gesture — an exit placement at the trail-off's end, reached through
-// the projection's standard margin morph so the motion lands with the perceptible release —
-// and the hand's next move decides only the exit fret and what follows. When
-// the next placement departs in the trail-off's direction AND arrives by the very next
-// onset, the trail-off IS the departure: the exit fret rides that travel (widened to the
-// slide-in rule's two-fret minimum) and the window flows onward into the arrival. Otherwise
-// the trail-off is a release: the exit keeps the fixed four-fret gesture, the window dips
-// with it, and a restore placement at the next onset brings the window back for the note
-// that follows (so notes after the gesture are never stranded in the dipped window).
-// Fabricated exits yield to real placements at their instant, restores yield to anything
-// already there, and a trail-off ending at or past the next onset stays planted (no room to
-// ride). Runs after the sustain trim so the end positions are the compressed ones the chart
-// ships.
+// Rides the hand window along every unpitched trail-off: the window always moves with the gesture
+// — an exit placement at the trail-off's end, reached through the projection's standard margin
+// morph so the motion lands with the perceptible release — and the hand's next move decides only
+// the exit fret and what follows. When the next placement departs in the trail-off's direction AND
+// arrives by the very next onset, the trail-off IS the departure: the exit fret rides that travel
+// (widened to the slide-in rule's two-fret minimum) and the window flows onward into the arrival.
+// Otherwise the trail-off is a release: the exit keeps the fixed four-fret gesture, the window dips
+// with it, and a restore placement at the next onset brings the window back for the note that
+// follows (so notes after the gesture are never stranded in the dipped window). Fabricated exits
+// yield to real placements at their instant, restores yield to anything already there, and a
+// trail-off ending at or past the next onset stays planted (no room to ride). Runs after the
+// sustain trim so the end positions are the compressed ones the chart ships.
 void resolveSlideOutExits(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
     const MeasureGrid& grid)
@@ -1882,13 +1875,12 @@ void resolveSlideOutExits(
         if (source.left_hand_tapped)
         {
             // A left-hand tap is the fretting hand hammering the note from nowhere (no pick
-            // stroke), which the hammer-on states accurately — no separate notation (user rule
-            // 2026-07-28). Always a hammer, never a pull: nothing is released to sound it. The
-            // Hammer attack also gives the right downstream behavior automatically — the note
-            // anchors the fret hand, closes chord spans, and never floats above the window,
-            // all of which are Tap-attack special cases. Checked before the generic tap: a
-            // note carrying both marks is a left-hand tap, the more specific articulation
-            // (user rule 2026-07-28).
+            // stroke), which the hammer-on states accurately — no separate notation. Always
+            // a hammer, never a pull: nothing is released to sound it. The Hammer attack also
+            // gives the right downstream behavior automatically — the note anchors the fret hand,
+            // closes chord spans, and never floats above the window, all of which are Tap-attack
+            // special cases. Checked before the generic tap: a note carrying both marks is a
+            // left-hand tap, the more specific articulation.
             note.attack = NoteAttack::Hammer;
         }
         else if (source.tapped)
@@ -1954,22 +1946,22 @@ void resolveSlideOutExits(
 
     // Slides resolve against the next onset on the same string, so they run after every onset
     // exists. A shift slide (flag 1) glides toward a re-picked target that keeps its own onset
-    // and head. A legato slide (flag 2) is a continuation of the same note (user rule
-    // 2026-07-21): the target is not re-picked, so it folds into the origin as a pitched
-    // waypoint at the junction — the sustain extends through the target's notated end, its
-    // sustain-carried techniques fold in, and its own onward slide continues the chain until a
-    // shift, a slide-out, or the chain's end stops it. Slide-outs trail off unpitched.
+    // and head. A legato slide (flag 2) is a continuation of the same note: the target is not
+    // re-picked, so it folds into the origin as a pitched waypoint at the junction — the sustain
+    // extends through the target's notated end, its sustain-carried techniques fold in, and its own
+    // onward slide continues the chain until a shift, a slide-out, or the chain's end stops it.
+    // Slide-outs trail off unpitched.
     std::vector<bool> merged_away(built.size(), false);
 
     // Pick-slide carriers (Slide flags 64 down / 128 up) convert IN PLACE into pick-slide
-    // notes before any slide chain resolves (plan 55, note-carried design 2026-08-03): the
-    // dead carrier is Guitar Pro's encoding vehicle for the gesture, so it sheds its mute and
-    // gains the attack plus the corpus-derived default path (down 17 -> 3, up the mirror)
-    // across the notated span, ready for the user to reshape. Simultaneous same-direction
-    // carriers are one scrape performed across strings: the lowest-string carrier survives in
-    // its own slot (keeping the stream's sort intact) with the longest notated span, and a
-    // conflicting direction at the same onset is dropped with a report. The converted notes
-    // then participate in the ordinary minimum-distance trims like any note.
+    // notes before any slide chain resolves (plan 55, note-carried design): the dead carrier is
+    // Guitar Pro's encoding vehicle for the gesture, so it sheds its mute and gains the attack plus
+    // the corpus-derived default path (down 17 -> 3, up the mirror) across the notated span, ready
+    // for the user to reshape. Simultaneous same-direction carriers are one scrape performed across
+    // strings: the lowest-string carrier survives in its own slot (keeping the stream's sort
+    // intact) with the longest notated span, and a conflicting direction at the same onset is
+    // dropped with a report. The converted notes then participate in the ordinary minimum-distance
+    // trims like any note.
     int imported_pick_slides = 0;
     int conflicting_pick_slides = 0;
     for (std::size_t index = 0; index < built.size();)
@@ -2190,14 +2182,14 @@ void resolveSlideOutExits(
     // governed by the notated holds, so pre-trim ends are the correct "still ringing" signal for
     // a reshape (a trimmed tail must never read as the finger lifting). Slide-in resolution needs
     // the placements and must transform its notes into ordinary slides before normalization
-    // decides which tails a technique protects: a slide-in into a held landing keeps its hold
-    // (user rule 2026-07-28), trimmed like any tail but never dropped as effect-free.
+    // decides which tails a technique protects: a slide-in into a held landing keeps its hold,
+    // trimmed like any tail but never dropped as effect-free.
     //
     // The generator runs on the natural stream — slide-ins still plain notes at their notated
     // positions — and the resolver then touches the placements only when a scoop's approach
-    // leaves the active window (user decision 2026-08-02): the window dips with the scoop for
-    // exactly its duration and the natural window returns at the scoop's end; an approach the
-    // window already covers stays a planted finger gesture, like an unpitched slide.
+    // leaves the active window: the window dips with the scoop for exactly its duration and the
+    // natural window returns at the scoop's end; an approach the window already covers stays a
+    // planted finger gesture, like an unpitched slide.
     chart.fret_hand_positions = generateFretHandPositions(built, tempo_map, phrase_boundary_beats);
     resolveSlideIns(built, chart.fret_hand_positions, grid, notes);
     if (!chart.fret_hand_positions.empty())

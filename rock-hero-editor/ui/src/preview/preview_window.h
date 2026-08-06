@@ -28,8 +28,7 @@ keeps its native peer (and the embedded render child) alive, but the vblank feed
 visibility-blind, so the ticks stop explicitly while the window is away. The GPU stack itself
 lives from first open until destruction because bgfx cannot re-initialize in-process.
 Transport and song-navigation keys pressed while the preview has focus forward to the main view
-(44-Q4, widened 2026-07-22), so play/pause and caret navigation work without refocusing the
-editor.
+(44-Q4), so play/pause and caret navigation work without refocusing the editor.
 */
 class PreviewWindow final : public juce::DocumentWindow
 {

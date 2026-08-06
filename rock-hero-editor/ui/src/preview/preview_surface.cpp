@@ -26,9 +26,9 @@ namespace
 // Window procedure for the embedded render child: DefWindowProc everything except keyboard
 // focus, which bounces straight back to the JUCE peer. Clicking the 3D view activates the
 // preview window with OS keyboard focus landing on this child — a window that would silently
-// swallow every keystroke, killing the space/F3 transport shortcuts (regression found
-// 2026-07-18). The bounce hands focus to the peer, whose focus-gain restores the
-// PreviewSurface component, so keys keep flowing to PreviewWindow::keyPressed.
+// swallow every keystroke, killing the space/F3 transport shortcuts. The bounce hands focus to
+// the peer, whose focus-gain restores the PreviewSurface component, so keys keep flowing to
+// PreviewWindow::keyPressed.
 LRESULT CALLBACK previewChildWindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param)
 {
     if (message == WM_SETFOCUS)
@@ -340,9 +340,9 @@ void PreviewSurface::renderFrame()
     m_previous_tick = now;
 
     // Song time follows the marker rule while paused — the armed caret is THE paused position (the
-    // 2026-07-18 marker model), with the exact transport position as the passive fallback so paused
-    // seeks always land even if the clock publisher is idle. The transport is read only when paused
-    // and unarmed, so the port call stays off the playing path. PreviewTimeModel owns the
+    // marker model), with the exact transport position as the passive fallback so paused seeks
+    // always land even if the clock publisher is idle. The transport is read only when paused and
+    // unarmed, so the port call stays off the playing path. PreviewTimeModel owns the
     // playing/paused policy (extrapolation and the paused glide).
     const common::audio::PlaybackClockSnapshot snapshot = m_playback_clock.snapshot();
     const double paused_target_seconds =

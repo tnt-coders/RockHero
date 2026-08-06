@@ -70,16 +70,16 @@ struct AutomationPointSelection
         const AutomationPointSelection& lhs, const AutomationPointSelection& rhs) = default;
 };
 
-// Exactly one selection exists editor-wide (interaction model, 2026-07-18): chart notes, a tone
+// Exactly one selection exists editor-wide (the interaction model): chart notes, a tone
 // region, an automation point, and a time span are alternatives of one sum type, so selecting on
 // any surface structurally replaces the selection on every other — two live selections are
 // unrepresentable and the old Delete precedence ladder has nothing to disambiguate. std::monostate
 // is "nothing selected"; a held-but-empty ChartSelection means the same thing. Selection kinds keep
 // their shipped lifecycles: chart selection and the time span survive seeks and clear on play,
 // while the tone-region and automation-point kinds also clear whenever the cursor moves (the
-// transport-move rule). The time span is the object-vs-time exclusivity of decision D (2026-07-20):
-// making a range dissolves the object selection and demotes the marker to passive, and any object
-// gesture evicts the range in turn.
+// transport-move rule). The time span is the object-vs-time exclusivity of decision D: making a
+// range dissolves the object selection and demotes the marker to passive, and any object gesture
+// evicts the range in turn.
 using EditorSelection = std::variant<
     std::monostate, ChartSelection, ToneRegionSelection, AutomationPointSelection, TimeSelection>;
 

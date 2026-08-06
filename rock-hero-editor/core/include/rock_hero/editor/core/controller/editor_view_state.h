@@ -357,7 +357,7 @@ struct ChartMarqueeViewState
 /*!
 \brief The armed caret's rendered position while it sits on an empty grid slot.
 
-The marker model (2026-07-18): while the marker is armed the caret is THE paused position —
+The marker model: while the marker is armed the caret is THE paused position —
 typing inserts here, play starts here. Published in seconds so the lane maps it through the
 same visible-timeline convention as the notation.
 */

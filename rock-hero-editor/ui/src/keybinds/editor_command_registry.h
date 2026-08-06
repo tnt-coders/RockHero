@@ -20,8 +20,8 @@ The registry is the single authoritative table behind the command manager: `getC
 derives names, categories, and default keypresses from it, and the locked-table unit test pins
 its ids and chords so an accidental renumbering or default change fails the build. Every
 command is user-rebindable with no exceptions — the grammar verbs are registered commands too
-(plan 53 Phase 1b, total rebindability 2026-07-20), so the interaction grammar's modifier
-algebra lives on only as the shape of the defaults below.
+(plan 53 Phase 1b, total rebindability), so the interaction grammar's modifier algebra lives on
+only as the shape of the defaults below.
 */
 struct EditorCommandSpec final
 {

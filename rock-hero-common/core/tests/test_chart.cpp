@@ -502,7 +502,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     CHECK_FALSE(chartShapeArrivesAsArpeggio(chart, strum_under_ring, tempo_map));
 
     // A tapped note sounding within the span turns that box into a held arpeggio: the fretting
-    // hand holds the shape while the right hand taps above it (held-chord-under-tap, 2026-07-28).
+    // hand holds the shape while the right hand taps above it (held-chord-under-tap).
     Chart tapped_over_hold = chart; // the box state above (the ring ended before the strum)
     tapped_over_hold.notes.push_back(
         ChartNote{
@@ -554,7 +554,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
 
     // A ring from an earlier chord member is still a ring: the re-strum picks around the held
     // string, so it is an arpeggio too (a tied passage with a hand move splits into two
-    // arpeggio shapes, user rule 2026-07-22).
+    // arpeggio shapes).
     Chart chord_sourced_ring = chart;
     chord_sourced_ring.notes.insert(
         chord_sourced_ring.notes.begin() + 1,

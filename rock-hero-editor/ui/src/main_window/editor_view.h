@@ -170,11 +170,10 @@ public:
     /*!
     \brief Routes Alt-modified wheels bubbled from anywhere in the editor to the selection.
 
-    Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
-    chart selection active, Alt+wheel adjusts sustain (Ctrl composes the fine grid) and
-    Alt+Shift+wheel shifts frets wherever the pointer sits. Wheel-consuming surfaces (the
-    timeline zoom) route their Alt-modified wheels here instead of acting on them; unhandled
-    wheels keep bubbling.
+    Selection verbs follow the selection, not the pointer: with a chart selection active,
+    Alt+wheel adjusts sustain (Ctrl composes the fine grid) and Alt+Shift+wheel shifts frets
+    wherever the pointer sits. Wheel-consuming surfaces (the timeline zoom) route their
+    Alt-modified wheels here instead of acting on them; unhandled wheels keep bubbling.
 
     \param event Mouse event delivered by JUCE.
     \param wheel Wheel movement details.

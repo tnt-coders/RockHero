@@ -98,11 +98,10 @@ public:
     /*!
     \brief Hides the paused cursor while a chart is displayed.
 
-    With a chart the content-spanning line renders only during playback (the marker model,
-    2026-07-18, revised the same day from passive-shows-the-line on user feedback: the paused
-    line sat over selected notes' fret numbers): while paused the position shows as the armed
-    caret or the ruler's aligned mark, never as lane furniture. Chartless arrangements keep
-    their paused line as the only position indicator.
+    With a chart the content-spanning line renders only during playback (the marker model; a
+    paused line would sit over selected notes' fret numbers): while paused the position shows as
+    the armed caret or the ruler's aligned mark, never as lane furniture. Chartless arrangements
+    keep their paused line as the only position indicator.
 
     \param hidden True while a chart is displayed.
     */

@@ -72,8 +72,8 @@ namespace
             .id = EditorCommandId::ExitEditor,
             .name = "Exit",
             .category = "File",
-            // Ctrl+Q is the app-owned quit chord (user decision 2026-07-20); the OS separately
-            // owns Alt+F4, which needs no registration.
+            // Ctrl+Q is the app-owned quit chord; the OS separately owns Alt+F4, which needs no
+            // registration.
             .default_keypresses = {chord('q', command)},
         });
     registry.push_back(
@@ -88,8 +88,8 @@ namespace
             .id = EditorCommandId::Redo,
             .name = "Redo",
             .category = "Edit",
-            // Ctrl+Shift+Z is the DAW-convention alternative (decision 2026-07-20); alternatives
-            // per command are first-class in the mapping set.
+            // Ctrl+Shift+Z is the DAW-convention alternative; alternatives per command are
+            // first-class in the mapping set.
             .default_keypresses = {chord('y', command), chord('z', command | shift)},
         });
     registry.push_back(
@@ -133,9 +133,9 @@ namespace
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
-            // "at Cursor" = the marker rule (E2 as amended 2026-07-21): the armed caret when
-            // one exists, else the transport position — the same "one position concept" play
-            // follows, so the insert always lands where play would pick up.
+            // "at Cursor" = the marker rule (E2): the armed caret when one exists, else the
+            // transport position — the same "one position concept" play follows, so the insert
+            // always lands where play would pick up.
             .name = "Insert Tone Change at Cursor",
             .category = "Tone",
             // Exact modifier matching gives the guard-against-Alt for free: Ctrl+Alt+T does not
@@ -143,10 +143,10 @@ namespace
             .default_keypresses = {chord('t', command)},
         });
 
-    // The grammar verbs (plan 53 Phase 1b, total rebindability 2026-07-20): one command per
-    // (chord, verb) pair, so the precision/reach tiers are separate commands and every binding
-    // is individually rebindable. The defaults below ARE the interaction grammar's modifier
-    // algebra; the algebra is no longer enforced, only shipped.
+    // The grammar verbs (plan 53 Phase 1b, total rebindability): one command per (chord, verb)
+    // pair, so the precision/reach tiers are separate commands and every binding is individually
+    // rebindable. The defaults below ARE the interaction grammar's modifier algebra; the algebra is
+    // no longer enforced, only shipped.
     constexpr int alt = juce::ModifierKeys::altModifier;
     const auto add = [&registry](
                          EditorCommandId id,
@@ -164,7 +164,7 @@ namespace
     };
 
     // Navigation. The Ctrl aliases on the jump chords preserve the held-Ctrl navigation that
-    // would otherwise read as broken (decision A / the accepted PageUp ride-along).
+    // would otherwise read as broken.
     add(EditorCommandId::CaretStepLeft,
         "Step Caret Left",
         "Navigation",
@@ -341,8 +341,8 @@ namespace
     // chords ARE the numpad bindings and juce::KeyPress::numberPadAdd/Subtract never match
     // (registering them would ship lying chips). Shift+'=' is the main-row plus; it and '+'
     // display as one grouped "+" chip. The off-grammar neighbors stay as convenience aliases
-    // until something better claims them (user 2026-07-21): '=' unshifted on the plus side,
-    // Shift+'-' ('_') on the minus side — symmetric slop around the +/- grammar.
+    // until something better claims them: '=' unshifted on the plus side, Shift+'-' ('_') on the
+    // minus side — symmetric slop around the +/- grammar.
     add(EditorCommandId::GridFiner,
         "Grid Finer",
         "Grid & Zoom",

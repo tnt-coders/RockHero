@@ -17,8 +17,7 @@ namespace
 
 // Measures per derived camera framing zone for measures that contain notes. A standard
 // automatic phrase generator uses 2-4 for its phrase creation; 4 keeps the camera's framing
-// target at rest the longest, 2 gives a tighter, livelier frame (user tuning 2026-07-29:
-// 4-measure zones read too static).
+// target at rest the longest but reads too static, so 2 gives the tighter, livelier frame.
 constexpr int g_camera_zone_measures = 2;
 
 } // namespace
@@ -67,9 +66,9 @@ HighwayViewState makeHighwayViewState(
     // exactly on a waypoint's advanced grid position ties its ramp to the glide segment.
     // Unpitched trail-off ends are deliberately NOT recorded: their segment spans the whole
     // sustain (a plain note dips from its onset), and tying the importer's exit placements
-    // to it made the window creep away seconds early on long notes (sighted 2026-08-02) —
-    // the standard margin morph arriving at the trail-off's end matches the perceptible
-    // release instead. Chord slides record identical values under one key.
+    // to it made the window creep away seconds early on long notes — the standard margin morph
+    // arriving at the trail-off's end matches the perceptible release instead. Chord slides record
+    // identical values under one key.
     std::map<GridPosition, double> slide_ramp_starts;
     state.notes.reserve(chart.notes.size());
     for (const ChartNote& note : chart.notes)
@@ -261,11 +260,10 @@ HighwayViewState makeHighwayViewState(
             });
     }
 
-    // Camera framing zones (user direction 2026-07-29): the camera's framing window is
-    // quantized to these derived boundaries so its target steps only here and rests in between
-    // — the step-then-rest cadence that defines the intended camera feel. The derivation mirrors a
-    // standard automatic phrase generator: runs of measures containing note onsets split into
-    // g_camera_zone_measures-sized groups aligned to
+    // Camera framing zones: the camera's framing window is quantized to these derived boundaries
+    // so its target steps only here and rests in between — the step-then-rest cadence that defines
+    // the intended camera feel. The derivation mirrors a standard automatic phrase generator: runs
+    // of measures containing note onsets split into g_camera_zone_measures-sized groups aligned to
     // downbeats, a run of empty measures collapses into one zone however long (rests are the
     // camera's travel time, not framing churn), and a section start forces a new zone.
     std::vector<double> measure_starts;

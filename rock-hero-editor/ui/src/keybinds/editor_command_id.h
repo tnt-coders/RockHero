@@ -16,7 +16,7 @@ namespace rock_hero::editor::ui
 
 Values are the persistence contract: the keymap XML keys bindings off the hex value of these ids,
 so an id, once shipped, is locked forever. Growth conventions (plan 46; total rebindability per
-plan 53 Phase 1b, 2026-07-20):
+plan 53 Phase 1b):
 
 - New commands append new explicit values; never renumber, reuse, or reorder existing ones. Id
   blocks group by category: 0x1x file/edit/transport/view/tone, 0x15xx navigation, 0x16xx

@@ -135,8 +135,8 @@ a chart note resolve to nothing and are skipped.
 \brief Collects the keys of every note sharing one onset — the chord unit of the containment
 hierarchy.
 
-Selection granularity follows the containment hierarchy (§7 revision, 2026-07-17,
-docs/plans/in-progress/chart-span-and-selection-model.md): a single click selects the
+Selection granularity follows the containment hierarchy
+(docs/plans/in-progress/chart-span-and-selection-model.md §7): a single click selects the
 individual note, a DOUBLE click selects the whole onset group this collects — the double-click
 path is the sole consumer (the caret's re-derivation deliberately selects the single note
 under it, never the group).

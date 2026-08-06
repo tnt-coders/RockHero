@@ -31,9 +31,9 @@ HighwayHandWindow highwayHandWindowAt(
     const std::vector<HighwayFhpView>& fret_hand_positions, const double seconds) noexcept
 {
     // The reference nut window applies only to chartless boards. With placements, the first
-    // one's window already holds before its arrival (user, 2026-07-29): the song's opening
-    // scroll shows where the hand belongs before the first note reaches the hit line, and the
-    // first "ramp" degenerates to no motion, which also zeroes the light's motion dim.
+    // one's window already holds before its arrival: the song's opening scroll shows where the
+    // hand belongs before the first note reaches the hit line, and the first "ramp" degenerates to
+    // no motion, which also zeroes the light's motion dim.
     if (fret_hand_positions.empty())
     {
         return HighwayHandWindow{.low_line = 0.0, .high_line = 4.0};
@@ -51,8 +51,8 @@ HighwayHandWindow highwayHandWindowAt(
     }
     const HighwayHandWindow target = settledWindow(*next);
     const double progress = (seconds - (next->seconds - next->ramp_seconds)) / next->ramp_seconds;
-    // The pitched slide ease for every window move (signed 2026-07-23): zero slope at both
-    // endpoints, so the border leaves and rejoins the settled edges tangentially.
+    // The pitched slide ease for every window move: zero slope at both endpoints, so the border
+    // leaves and rejoins the settled edges tangentially.
     const double weight = highwaySlideEaseWeight(progress, false);
     return HighwayHandWindow{
         .low_line = previous.low_line + ((target.low_line - previous.low_line) * weight),

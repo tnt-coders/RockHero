@@ -31,7 +31,7 @@ const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 // Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
-// blue channel read too loud next to the blue, so the user tuned the arpeggio purple darker.
+// blue channel read too loud next to the blue, so the arpeggio tier sits darker.
 constexpr double g_shape_mark_brightness{1.5};
 constexpr double g_arpeggio_mark_brightness{1.3};
 // Bar width in whole pixels of the square-bracket pair marking an arpeggio posture note, which
@@ -161,18 +161,18 @@ void drawStringLines(
 
 // Draws the tremolo tail as a constant-thickness zigzag band: the plain sustain's ribbon with
 // its top and bottom borders displaced TOGETHER, so the strip snakes instead of pulsing in
-// thickness the way the ported pointed-gem chain did (user direction 2026-08-04, bringing the
-// tab in line with the 3D highway's teeth, which swing a constant-width ribbon the same way).
+// thickness the way the ported pointed-gem chain did. This matches the 3D highway's teeth,
+// which swing a constant-width ribbon the same way.
 //
 // The band is the plain tail's span grown by half the tremolo size on each side and swung by
 // that same half, which pins two things at once: the outer envelope stays exactly the gem
 // chain's — the tail occupies the same rows it always has — and the strip's ALWAYS-covered
 // core is exactly the plain span, so a slide diagonal, which is drawn to that span, sits
-// entirely inside the band at every x instead of crossing its teeth (user rule 2026-08-04).
-// Apexes come twice per gem cell (sighted, doubled from the chain's rate), which
-// reads as picking rather than as a slow wave. Drawn edge-colored with the tail color inset by
-// the edge size, like every other tail. Vertices run past the end and the clip cuts them, so
-// the final tooth keeps its true shape and the strip ends on a clean vertical edge.
+// entirely inside the band at every x instead of crossing its teeth. Apexes come twice per
+// gem cell, double the chain's rate, which reads as picking rather than as a slow wave. Drawn
+// edge-colored with the tail color inset by the edge size, like every other tail. Vertices run
+// past the end and the clip cuts them, so the final tooth keeps its true shape and the strip
+// ends on a clean vertical edge.
 void drawTremoloTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
     float length, float center_y)
@@ -833,8 +833,8 @@ void drawNoteHead(
         if (note.mute != common::core::NoteMute::None || scrape)
         {
             // Charter boxes the fret number on full mutes so it stays readable over the X;
-            // palm mutes need the same plate (user-flagged: the X's crossing strokes cut
-            // through the digits), in the palm X's own colors so it reads as the X's center.
+            // palm mutes need the same plate (the X's crossing strokes cut through the digits),
+            // in the palm X's own colors so it reads as the X's center.
             const bool full_mute = note.mute == common::core::NoteMute::Full || scrape;
             const auto text_width = static_cast<float>(textWidth(metrics.fret_font, fret_text));
             const juce::Rectangle<float> box{
@@ -861,9 +861,9 @@ void drawNoteHead(
 
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
 // span's duration — blue for chord shapes, purple for arpeggios — echoing the 3D highway's
-// shape rails at the hand-window fret lines (a user-directed departure from Charter's
-// full-height tint, which read as an ugly wall of color). The template name, when present,
-// rides the host's name-chip band (the editor's timeline ruler), not the lane itself.
+// shape rails at the hand-window fret lines (a departure from Charter's full-height tint, which
+// read as an ugly wall of color). The template name, when present, rides the host's name-chip
+// band (the editor's timeline ruler), not the lane itself.
 void drawShapeSpan(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabShapeView& shape)
 {
@@ -887,7 +887,7 @@ void drawShapeSpan(
 
     // The template name is not drawn here: the same tab projection feeds the editor timeline
     // ruler's shape-label band, which shows the name directly above this span in the ruler's
-    // vertical space (user-directed placement; the lane itself has no clean room for names).
+    // vertical space; the lane itself has no clean room for names.
 }
 
 // Draws one fret-hand-position marker: a small boxed fret label along the lane's top edge.
@@ -931,7 +931,7 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 }
 
 // Shared with host name chips (the editor timeline ruler's chord/arpeggio band) so chip and
-// rails always agree (user-directed brightness bumps over the Charter hand-shape bases).
+// rails always agree (brightness bumps over the Charter hand-shape bases).
 juce::Colour tabShapeMarkColor(bool arpeggio)
 {
     return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_brightness)
@@ -1051,7 +1051,7 @@ void paintTabLane(
 
     // Arpeggio spans draw "( fret )" bracket marks around every posture string at the
     // bracket start. Onsets carry no vertical bars — the heads themselves already mark them, so
-    // the span rails and these brackets are the only shape furniture (user-directed).
+    // the span rails and these brackets are the only shape furniture.
     for (const common::core::TabShapeView& shape : tab.shapes)
     {
         if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)

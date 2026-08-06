@@ -56,7 +56,7 @@ chart's strings and can never hide notes. A chart-less arrangement draws no lane
 The six highest lanes take Charter's default six string colors — red, yellow, blue, orange,
 green, purple from the sixth-highest lane upward — so a four-string bass keeps red through
 orange and a standard guitar keeps the familiar six. Lanes below that window continue with the
-decided extended tier going down — teal for the 7th, achromatic near-white gray for the 8th —
+extended tier going down — teal for the 7th, achromatic near-white gray for the 8th —
 cycling defensively for even lower lanes; further colors arrive with the string-cap raise. The
 palette data and Charter's fixed derivation multipliers live in rock-hero-common/ui
 (string_color_palette.h), shared with the game highway; this is a thin JUCE-converting wrapper.
@@ -247,7 +247,7 @@ public:
 
     The track viewport cuts this span out of the behind-content paused play-from-here column,
     so ONLY the cursor hides behind the caret square — the grid dots and string lines the
-    square overlaps keep showing through it (user ruling 2026-07-18).
+    square overlaps keep showing through it.
 
     \return Outer vertical span of the caret square including its stroke, or empty while no
     caret square is displayed.

@@ -239,7 +239,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     // Quarter palm mute on the low string. Its notated one-beat tail trims to 3/4 against the
     // next onset one beat later (minimum-sustain-distance margin 1/4 in 4/4) and KEEPS that
     // trimmed tail: the drop rule reads the notated length, and a full beat notated is a
-    // deliberate sustain (user rule 2026-07-28).
+    // deliberate sustain.
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[0].string == 1);
     CHECK(chart.notes[0].fret == 3);
@@ -264,7 +264,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     // The tie chain merges into one note whose sustain crosses the barline: onset 1:3, a
     // quarter in bar one plus a half in bar two makes four notated beats. The ring only
     // reaches — never crosses — the changed onset at 2:3, so it is no held ring and the
-    // minimum-distance trim applies like any other tail (policy rule 1 holds, 2026-07-22).
+    // minimum-distance trim applies like any other tail (policy rule 1 holds).
     CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
     CHECK(chart.notes[3].string == 2);
     CHECK(chart.notes[3].sustain == Fraction{15, 4});
@@ -301,7 +301,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// A legato slide is a continuation of the same note (user rule 2026-07-21): the landing is not
+// A legato slide is a continuation of the same note: the landing is not
 // re-picked, so it folds into the origin as a pitched waypoint instead of keeping its own onset
 // — unlike the shift slide in the main fixture, whose target stays a real note with its own head.
 TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[core][gp-import]")
@@ -356,7 +356,7 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
 }
 
 // An unpitched trail-off is a release, not a rule-9 pitched drag — the generator's walk never
-// repositions for it — but the window still rides the gesture (user rule 2026-08-02): a dip
+// repositions for it — but the window still rides the gesture: a dip
 // placement at the compressed trail-off end, returning at the next onset (here the real
 // fret-7 landing placement, which the restore yields to).
 TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[core][gp-import]")
@@ -386,7 +386,7 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     const auto* const slide_out = common::core::slideOutOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
     CHECK(slide_out->fret == 1);
-    // The trail-off is not a protected payload (rule 2 carve-out, user rule 2026-07-28): its
+    // The trail-off is not a protected payload (rule 2 carve-out): its
     // notated half-beat end trims back with the sustain to the minimum-sustain-distance margin
     // before the fret-7 onset.
     CHECK(slide_out->offset == Fraction{1, 4});
@@ -409,7 +409,7 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// The slide-out-into-slide-in dip (sighted 2026-08-02): the scoop stays in its own notated
+// The slide-out-into-slide-in dip: the scoop stays in its own notated
 // slot, so the previous slide-out compresses the plain margin before the notated onset and
 // the two gestures never overlap — no fabricated head intrudes into the gap.
 TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "[core][gp-import]")
@@ -461,8 +461,8 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// Guitar Pro's two tap articulations are different hands and must import differently (user rule
-// 2026-07-28): "Tapped" (two-hand tapping) becomes the chart's Tap attack, while
+// Guitar Pro's two tap articulations are different hands and must import differently:
+// "Tapped" (two-hand tapping) becomes the chart's Tap attack, while
 // "LeftHandTapped" — the fretting hand hammering the note from nowhere — imports as a plain
 // hammer-on, so it anchors the fret hand and closes chord spans like any fretted note.
 TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp-import]")
@@ -506,8 +506,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
 
     SECTION("a note carrying both marks imports as the left-hand tap")
     {
-        // Left-hand is the specialization; the generic tap mark adds nothing to it (user rule
-        // 2026-07-28).
+        // Left-hand is the specialization; the generic tap mark adds nothing to it.
         const auto song = import_with_property(
             "<Property name=\"Tapped\"><Enable/></Property>"
             "<Property name=\"LeftHandTapped\"><Enable/></Property>");
@@ -565,7 +564,7 @@ TEST_CASE(
 // One 4/4 bar, quarter notes: a two-string chord holds frets 2 and 5, and the lower fret-2 note
 // shift-slides to a beat-2 landing while the fret-5 note keeps ringing. The held 5 is a planted
 // finger that pins the top edge, so at the slide waypoint the hand window reshapes to the exact
-// sounding hull instead of translating (user rule 2026-07-30): a slide inward shrinks the window
+// sounding hull instead of translating: a slide inward shrinks the window
 // below the usual four-fret span, a slide outward grows it. At 120 BPM the fret-2 note's shift
 // glide ends the 1/4-beat minimum-sustain margin before the beat-2 landing, so its waypoint sits
 // at beat 1 + 3/4, where the fret-5 quarter note is still sounding.
@@ -1182,7 +1181,7 @@ namespace
 
 } // namespace
 
-// The sustain hold semantics (policy rule 1, user rule 2026-07-22): every tail that merely
+// The sustain hold semantics (policy rule 1): every tail that merely
 // reaches the next onset trims to the minimum sustain distance — ties and repeated chords included
 // — while a ring notated strictly past the next onset is a deliberate hold and stays whole.
 // Repeated chords keep their held reading through the merged shape span, which derives from
@@ -1705,7 +1704,7 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
     SECTION("dead notes with ordinary slide-out flags stay muted notes")
     {
         // The measure-3 figure class: a fret-hand-muted note carrying plain slide-out flags is
-        // a LEFT-hand gesture (user classification 2026-08-03) and must never reclassify.
+        // a LEFT-hand gesture and must never reclassify.
         GpScore score = makeLinearScore(1, syncs);
         GpNote dead_slide;
         dead_slide.string = 0;
@@ -1801,8 +1800,8 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
     }
 }
 
-// Grace beats take no bar time; the import places them against their principal (user rules
-// 2026-07-27): a before-beat grace sounds a thirty-second-note lead ahead of the principal, an
+// Grace beats take no bar time; the import places them against their principal:
+// a before-beat grace sounds a thirty-second-note lead ahead of the principal, an
 // on-beat grace sounds on the principal's position and delays the principal by the same lead.
 // The lead halves when the neighboring onset sits closer than the full lead, and a grace with
 // no room at all is dropped.
@@ -2017,7 +2016,7 @@ TEST_CASE("Guitar Pro import maps grace-note hammer-ons and pull-offs", "[core][
     }
 }
 
-// Tap-only onsets are transparent to span derivation (user rule 2026-07-28): a chord held under
+// Tap-only onsets are transparent to span derivation: a chord held under
 // two-hand tapping keeps its span ringing through the taps, and the arrival rule renders the
 // covered span as a held arpeggio; a chord whose ring ends before the taps is unaffected.
 TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core][gp-import]")
@@ -2190,8 +2189,8 @@ TEST_CASE("Guitar Pro import reads gpif grace placements", "[core][gp-import]")
     }
 }
 
-// A bare slide-in imports as an on-beat scoop — an ordinary slide in the note's own slot
-// (user decision 2026-08-02): the head keeps its notated position at a derived approach fret
+// A bare slide-in imports as an on-beat scoop — an ordinary slide in the note's own slot:
+// the head keeps its notated position at a derived approach fret
 // and rises to the notated fret over the scoop window (a quarter of the notated duration,
 // capped at the margin, floored at the minimum slide window). Guitar Pro gives the gesture no
 // start fret, so the fret-hand positions supply it; the flag's stated direction wins over a
@@ -2379,7 +2378,7 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(chart.notes.size() == 2);
         // The window walk moves the anchor minimally (3 to 4, since the width-4 window reaches
         // fret 7 from there) — a one-fret delta — but the approach never travels less than two
-        // frets (user rule 2026-07-29): the head departs at 5, not 6.
+        // frets: the head departs at 5, not 6.
         CHECK(chart.notes[1].fret == 5);
         REQUIRE(chart.notes[1].slides.size() == 1);
         CHECK(chart.notes[1].slides[0].fret == 7);
@@ -2571,7 +2570,7 @@ TEST_CASE(
     CHECK(merged.sustain == Fraction{9, 8});
 }
 
-// The window always rides an unpitched trail-off (user rules 2026-08-02); the hand's next move
+// The window always rides an unpitched trail-off; the hand's next move
 // picks the figure. A next placement departing in the trail-off's direction AND serving the very
 // next onset makes the gesture a departure: the exit fret rides that anchor travel (widened to
 // the slide-in rule's two-fret minimum) and the window flows onward. Otherwise it is a release:
@@ -2865,7 +2864,7 @@ TEST_CASE("Guitar Pro import anchors the hand below tapped notes", "[core][gp-im
 }
 
 // An opening open-string note anchors nothing, so it must not pin the hand at the nut-reference
-// window (user rule 2026-07-28): the first placement comes from the first fretted note and
+// window: the first placement comes from the first fretted note and
 // retimes back to the chart's first note, so the window is already settled there at song start.
 TEST_CASE(
     "Guitar Pro import bases the opening position on the first fretted note", "[core][gp-import]")

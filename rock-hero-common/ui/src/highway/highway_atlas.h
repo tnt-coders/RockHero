@@ -92,13 +92,12 @@ struct HighwayAtlases
     HighwayAtlasLayout glyph_layout{};
 };
 
-// The cell vocabulary, row-major on the 4x4 grid, sorted semantically (2026-08-04,
-// superseding the Charter reference asset's order): head bases + emphasis, then one row per
-// hand — the fretting hand's posture brackets, legato mark and bend, then the picking hand's
-// marks — then damping + timbre. One art set serves every head-composite consumer deliberately
-// (absolute consistency, no dedicated variants); repeat-box mute marks render through the SDF
-// program instead of any cell, because their line weights must hold across arbitrary box
-// aspects.
+// The cell vocabulary, row-major on the 4x4 grid, sorted semantically rather than in the
+// Charter reference asset's order: head bases + emphasis, then one row per hand — the fretting
+// hand's posture brackets, legato mark and bend, then the picking hand's marks — then damping +
+// timbre. One art set serves every head-composite consumer deliberately (absolute consistency,
+// no dedicated variants); repeat-box mute marks render through the SDF program instead of any
+// cell, because their line weights must hold across arbitrary box aspects.
 
 /*! \brief Cell index of the standard note head inside the head atlas. */
 inline constexpr int g_head_cell_standard = 0;
@@ -123,13 +122,13 @@ inline constexpr int g_head_cell_arpeggio_open_bracket = 5;
 
 One cell, not two. Drawn separately they disagreed — the flat edges carried different border
 thicknesses and the solid cores differed by 26 pixels, because each was authored rather than
-mirrored (measured 2026-08-04: 377 of 4096 pixels differed from a true mirror). Flipping one
-cell makes the pair exact inverses by construction, and frees the seventeenth cell that had
-forced the atlas to a fifth row.
+mirrored (measured: 377 of 4096 pixels differed from a true mirror). Flipping one cell makes the
+pair exact inverses by construction, and frees the seventeenth cell that had forced the atlas to
+a fifth row.
 */
 inline constexpr int g_head_cell_legato = 6;
 
-/*! \brief Bend marker: the chevron announcing a bent note on its head (authored 2026-07-28). */
+/*! \brief Bend marker: the chevron announcing a bent note on its head. */
 inline constexpr int g_head_cell_bend = 7;
 
 /*! \brief Tap marker. */

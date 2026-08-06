@@ -74,8 +74,8 @@ TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway]
 }
 
 // A multi-stage bend that keeps rising flows THROUGH its intermediate control point with
-// nonzero velocity (no flat shelf mid-rise — the terracing that read rigid and mechanical,
-// user report 2026-07-28), stays monotone with no overshoot, and holds plateaus exactly flat.
+// nonzero velocity (no flat shelf mid-rise — the terracing that read rigid and mechanical), stays
+// monotone with no overshoot, and holds plateaus exactly flat.
 TEST_CASE("Highway bend curve flows through same-direction points", "[core][highway][tail]")
 {
     // Uniform two-stage rise 0 -> 1 -> 2: the Fritsch–Carlson tangent at the middle point is

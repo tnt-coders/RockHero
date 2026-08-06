@@ -1804,9 +1804,9 @@ common::core::TimeRange EditorController::Impl::activeToneRegionWindow() const
 // A deliberate point click: the point becomes THE editor-wide selection, replacing whatever any
 // other surface had selected (one selection, structurally). Direct like the chart pointer
 // intents rather than an action: selection is display policy, not an undoable edit. The caret
-// arms at the clicked slot (2026-07-18 fix — it used to stay behind), so keyboard verbs
-// continue from the object just touched; arming re-derives the selection from the slot, which
-// is the clicked point. Armed implies paused, so while playing the click only selects.
+// arms at the clicked slot, so keyboard verbs continue from the object just touched; arming
+// re-derives the selection from the slot, which is the clicked point. Armed implies paused, so
+// while playing the click only selects.
 void EditorController::Impl::onToneAutomationPointSelectRequested(
     std::string instance_id, std::string param_id, common::core::GridPosition position)
 {

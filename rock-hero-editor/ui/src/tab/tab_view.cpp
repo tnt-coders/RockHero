@@ -252,9 +252,8 @@ void TabView::paint(juce::Graphics& g)
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the
     // head's own border ring and the accent glow while leaving the glow annulus readable on
-    // accented notes (user feedback 2026-07-17, twice narrowed: the fully-outward cut buried
-    // the glow and the double-width stroke still covered too much of it); harmonic heads get
-    // the matching diamond.
+    // accented notes (a fully-outward cut buried the glow, and a double-width stroke still
+    // covered too much of it); harmonic heads get the matching diamond.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= m_tab->notes.size())

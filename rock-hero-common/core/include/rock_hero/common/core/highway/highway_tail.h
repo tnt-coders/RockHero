@@ -18,19 +18,17 @@ namespace rock_hero::common::core
 
 The drawn vibrato completes one full wobble per sixteenth note of the song grid
 (highwayVibratoPeriodSeconds), so the wobble breathes with the song's tempo instead of a
-fixed wall-clock rate (the prior 160 ms sine read too frantic; sixteenths sighted as the
-sweet spot 2026-08-02). This constant only covers grids that yield no beat interval around
-the onset.
+fixed wall-clock rate (the prior 160 ms sine read too frantic). This constant only covers
+grids that yield no beat interval around the onset.
 */
 inline constexpr double g_highway_vibrato_period_seconds = 0.125;
 
 /*!
 \brief Vibrato wobble depth in semitones of bend lift — an eighth of a step each way.
 
-A quarter of a semitone (sighted direction 2026-08-02, halved from the first-pass quarter
-bend). Drawing the wobble at the unit factor's full swing (±1 semitone of lift) reads as a
-whammy dive, not a vibrato. Callers multiply this into the wobble factor when converting it
-to bend-lift semitones.
+A quarter of a semitone. Drawing the wobble at the unit factor's full swing (±1 semitone of
+lift) reads as a whammy dive, not a vibrato. Callers multiply this into the wobble factor
+when converting it to bend-lift semitones.
 */
 inline constexpr double g_highway_vibrato_depth_semitones = 0.25;
 
@@ -38,8 +36,8 @@ inline constexpr double g_highway_vibrato_depth_semitones = 0.25;
 \brief The head's vibrato swing as a fraction of the tail's depth.
 
 Half the tail's eighth-step swing — a sixteenth of a step each way. A fully pinned head
-looked odd against the wobbling tail and a full-depth head bounced (sighted 2026-08-02);
-the head breathing at half depth keeps it visibly alive while the tail carries the motion.
+looked odd against the wobbling tail and a full-depth head bounced; the head breathing at
+half depth keeps it visibly alive while the tail carries the motion.
 */
 inline constexpr double g_highway_vibrato_head_depth_fraction = 0.5;
 
@@ -51,15 +49,15 @@ fraction of its own distance from the camera and therefore keeps the same shape 
 whole way down the tail. A fixed time (or world-distance) pitch cannot: perspective shrinks a
 tooth's along-tail advance as one over depth squared but its lateral swing only as one over
 depth, so the near teeth read wide and shallow while the far ones collapse into needles — a
-1.53x drift in tooth aspect across one tail, measured through the real projection, which is
-exactly the "starts spaced out, gets compressed" the sighted pass showed. At this pitch the
-aspect holds to within two percent end to end.
+1.53x drift in tooth aspect across one tail, measured through the real projection, which reads
+as teeth that start spaced out and then get compressed. At this pitch the aspect holds to
+within two percent end to end.
 
 The value is small because it sets DENSITY as well as shape, and density is most of what reads
 as intensity: teeth per tail go as the log of the tail's depth ratio over this pitch, so a
-tooth count is bought here and nowhere else. Sighted up from a first uniform pass whose teeth
-were correct in shape but far too few. With the depth constant below, a tooth here is very
-nearly as wide as it is long (aspect ~0.94), which is a hard saw rather than a ripple.
+tooth count is bought here and nowhere else; a coarser pitch yields teeth of the right shape
+but far too few of them. With the depth constant below, a tooth here is very nearly as wide as
+it is long (aspect ~0.94), which is a hard saw rather than a ripple.
 */
 inline constexpr double g_highway_tremolo_log_pitch = 0.05;
 
@@ -77,9 +75,9 @@ inline constexpr double g_highway_tremolo_depth = 1.25;
 The teeth ease off the string line rather than starting mid-swing, but the ramp is measured in
 TEETH, not in a fraction of the tail's duration. A duration fraction cannot work here: teeth
 are spaced by depth, so the same fraction damps a dozen of them near the head on one sustain
-and less than one on another — read on sight as the teeth being narrower at the start (user
-catch 2026-08-04). One tooth in and one tooth out is fast enough to leave the run uniform at
-any sustain length while keeping the eased entry.
+and less than one on another, which reads as the teeth being narrower at the start. One tooth
+in and one tooth out is fast enough to leave the run uniform at any sustain length while
+keeping the eased entry.
 */
 inline constexpr double g_highway_tremolo_ramp_cycles = 1.0;
 
@@ -128,11 +126,11 @@ shape-preserving interpolant) through the control points: where consecutive segm
 the same direction the curve flows THROUGH the control point with continuous nonzero velocity
 — the way a real bending finger passes an intermediate target — instead of easing to a flat
 shelf at every point (the previous per-segment smoothstep, whose terraced look read rigid and
-mechanical on multi-stage bends, user report 2026-07-28). Plateaus and direction reversals
-still get an exactly flat tangent, and the Fritsch–Carlson limits guarantee no overshoot past
-any control value. The curve starts and settles at rest: zero tangent at the first point
-(easing from zero at the onset — unless the first point sits at the onset itself, a prebend,
-which anchors the start value) and at the last point, whose value then holds.
+mechanical on multi-stage bends). Plateaus and direction reversals still get an exactly flat
+tangent, and the Fritsch–Carlson limits guarantee no overshoot past any control value. The
+curve starts and settles at rest: zero tangent at the first point (easing from zero at the
+onset — unless the first point sits at the onset itself, a prebend, which anchors the start
+value) and at the last point, whose value then holds.
 
 \param bend Bend curve points in ascending time order.
 \param onset_seconds The note's onset time (the zero anchor for the pre-first-point ramp).

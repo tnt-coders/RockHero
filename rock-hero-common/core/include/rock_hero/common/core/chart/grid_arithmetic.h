@@ -17,8 +17,8 @@ namespace rock_hero::common::core
 
 The one settled spacing every element keeps before a following event: sustain tails, slide
 glide ends, chord/arpeggio shape spans, and the hand-window morph ramps all trim to this margin,
-and the editor's duration verb clamps to it. 1/16 whole note (1/32 was trialed and reverted on
-sight, 2026-07-23).
+and the editor's duration verb clamps to it. 1/16 whole note; a 1/32 margin closes the gap too
+tightly to read on screen.
 */
 inline constexpr Fraction g_minimum_sustain_distance_whole_note{1, 16};
 

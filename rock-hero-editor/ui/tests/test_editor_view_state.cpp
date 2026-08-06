@@ -208,7 +208,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     CHECK(pressCommandKey(view, redo_key));
     CHECK(controller.undo_request_count == 2);
     CHECK(controller.redo_request_count == 2);
-    // The DAW-convention redo alternative dispatches the same intent (decision 2026-07-20).
+    // The DAW-convention redo alternative dispatches the same intent.
     CHECK(pressCommandKey(
         view,
         juce::KeyPress{
@@ -231,8 +231,8 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
 }
 
 // Locks the registry's command ids and default chords: persistence keys off the hex id forever
-// and shipped defaults are user-approved, so any renumbering, reuse, or accidental default
-// change must fail loudly here.
+// and the shipped defaults are a committed part of the keymap, so any renumbering, reuse, or
+// accidental default change must fail loudly here.
 TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-view][keybinds]")
 {
     constexpr int command = juce::ModifierKeys::commandModifier;

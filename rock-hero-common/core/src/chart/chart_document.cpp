@@ -300,10 +300,10 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
             break;
         }
     }
-    // A pick slide OVERRIDES every other technique rather than forbidding it in memory (user
-    // design 2026-08-03): latent values survive the session so switching the attack back
-    // restores them, but the writer is the clearing seam — a saved pick-slide note never
-    // carries them, keeping the persisted format free of the contradictory combinations.
+    // A pick slide OVERRIDES every other technique rather than forbidding it in memory: latent
+    // values survive the session so switching the attack back restores them, but the writer is
+    // the clearing seam — a saved pick-slide note never carries them, keeping the persisted
+    // format free of the contradictory combinations.
     const bool scrape = note.attack == NoteAttack::PickSlide;
     if (!scrape && note.mute == NoteMute::Palm)
     {

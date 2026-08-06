@@ -228,9 +228,9 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         // Recorded so the gameplay session loads the same arrangement the display shows.
         m_chosen_arrangement_id = chosen->id;
 
-        // Lowest-pitched string on top is the 3D notation's default (user decision 2026-07-11,
-        // recorded in plan 25); the shared projection's invert flag realizes it, and plans 26/27
-        // surface the per-player setting later.
+        // Lowest-pitched string on top is the 3D notation's default (recorded in plan 25); the
+        // shared projection's invert flag realizes it, and plans 26/27 surface the per-player
+        // setting later.
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
             *chosen,
             song->tempo_map,

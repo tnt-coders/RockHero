@@ -152,14 +152,13 @@ void TrackViewport::Content::paint(juce::Graphics& g)
                 0, lanes_top, bounds.getWidth(), std::max(0, bounds.getHeight() - lanes_top)
             });
         drawTempoGridDots(g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds);
-        // The paused play-from-here column (the marker model, behind-content ruling
-        // 2026-07-18): drawn over the grid but BEHIND every track-row component, so while
-        // editing it shows in every gap without ever covering a note or its fret number.
-        // During playback the overlay's moving line takes over in front and this hides. The
-        // 1px width and the rounding match drawTimelineCursor exactly, so the column and the
-        // ruler's mark above it land in the same pixel and read as one line. The armed caret
-        // square's span is cut out rather than painted over: ONLY the cursor hides behind
-        // the caret, so the grid and strings the square overlaps stay visible.
+        // The paused play-from-here column (the marker model): drawn over the grid but BEHIND
+        // every track-row component, so while editing it shows in every gap without ever covering
+        // a note or its fret number. During playback the overlay's moving line takes over in front
+        // and this hides. The 1px width and the rounding match drawTimelineCursor exactly, so the
+        // column and the ruler's mark above it land in the same pixel and read as one line. The
+        // armed caret square's span is cut out rather than painted over: ONLY the cursor hides
+        // behind the caret, so the grid and strings the square overlaps stay visible.
         if (m_paused_cursor_x.has_value())
         {
             const int column = std::clamp(
@@ -373,8 +372,8 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
 // The caret-bearing views push their paused-column cut-out spans here whenever they change, so the
 // paused cursor's gap is kept in step with the drawn caret square without the viewport ever polling
 // sibling geometry. The push carries the fresh mask in the same synchronous pass as the square, so
-// no state-application order can leave the gap a frame behind (the earlier defect); updateRulerCursor
-// then folds it into its memo key so a mask-only change is never skipped.
+// no state-application order can leave the gap a frame behind; updateRulerCursor then folds it
+// into its memo key so a mask-only change is never skipped.
 void TrackViewport::setTabCaretMask(std::optional<juce::Range<float>> mask)
 {
     if (sameCaretMask(mask, m_tab_caret_mask))
@@ -941,11 +940,10 @@ void TrackViewport::updateRulerCursor()
         return;
     }
 
-    // The ruler mark is the play-from-here indicator and is ALWAYS shown (user ruling
-    // 2026-07-18): the moving playhead while playing, else the marker — the armed caret's
-    // slot (Space seeks there before playing) or the passive transport rest. While armed the
-    // mark must sit at the caret, not the stale transport position, or it would lie about
-    // where Space starts.
+    // The ruler mark is the play-from-here indicator and is ALWAYS shown: the moving playhead
+    // while playing, else the marker — the armed caret's slot (Space seeks there before playing)
+    // or the passive transport rest. While armed the mark must sit at the caret, not the stale
+    // transport position, or it would lie about where Space starts.
     const bool playing = m_transport.state().playing;
     const double mark_seconds =
         playing ? m_transport.position().seconds

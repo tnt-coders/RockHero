@@ -36,13 +36,13 @@ constexpr ArgbColor g_opaque_alpha = 0xff000000U;
 
 // Charter Classic: Charter's default six string colors (ChartPanelColors STRING_0..5) ordered
 // from the sixth-highest displayed lane upward — the RYB wheel's primaries then secondaries,
-// rank-matching the octave-folded open-string fundamentals — plus the decided extended tier
-// going down: the RYB tertiary teal 7th and the achromatic near-white 8th. The tier's magenta
-// 8th was trialed rendered (2026-07-31, full-strength and softened) and rejected: an 8th-to-6th
-// octave chord pairs it with the red lane only ~30 wheel-degrees away and the struck pair reads
-// as near-duplicates at any saturation, while the 8th is the one string whose fundamental folds
-// outside visible light — no hue to represent — making the achromatic (also the CIELAB sweep's
-// pick, and Charter's own STRING_7) the honest false color. Plan 45 open question 2, resolved A.
+// rank-matching the octave-folded open-string fundamentals — plus the extended tier going
+// down: the RYB tertiary teal 7th and the achromatic near-white 8th. A magenta 8th is wrong for
+// the tier: an 8th-to-6th octave chord pairs it with the red lane only ~30 wheel-degrees away
+// and the struck pair reads as near-duplicates at any saturation, while the 8th is the one
+// string whose fundamental folds outside visible light — no hue to represent — making the
+// achromatic (also the CIELAB sweep's pick, and Charter's own STRING_7) the honest false color.
+// See plan 45 open question 2.
 constexpr StringColorPalette g_charter_classic_palette{
     .id = "charter-classic",
     .standard =
@@ -62,10 +62,10 @@ constexpr StringColorPalette g_charter_classic_palette{
 
 // Accent brightening that keeps the string's hue: java's brighter() clamps each channel
 // independently, so Charter's ring.brighter().brighter() bleaches saturated hues toward yellow
-// or white (an orange or green accent glow rendered yellow — user-flagged bug). One shared gain
-// preserves the channel ratios; it targets java's double-brighter intensity (1 / 0.7^2) and
-// stops where the hottest channel saturates. Rounded, not truncated, so a capped gain lands the
-// hottest channel exactly on 255.
+// or white (an orange or green accent glow rendered yellow). One shared gain preserves the
+// channel ratios; it targets java's double-brighter intensity (1 / 0.7^2) and stops where the
+// hottest channel saturates. Rounded, not truncated, so a capped gain lands the hottest channel
+// exactly on 255.
 [[nodiscard]] ArgbColor huePreservingAccentColor(ArgbColor color)
 {
     const int max_channel = std::max({redOf(color), greenOf(color), blueOf(color)});

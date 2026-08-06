@@ -8,7 +8,7 @@ editor-wide interaction model (docs/plans/in-progress/editing-interaction-model.
 mutates (points select; empty lane space passes through to the seek overlay), Alt is the insert
 quasimode (click or press-drag-release places a point, with a ghost preview and copy cursor while
 Alt is held; the point lands ON the curve at the snapped time and the drag phase pulls its value
-by the pointer's delta, so placement is sonically silent until deliberately pulled — 2026-07-18),
+by the pointer's delta, so placement is sonically silent until deliberately pulled),
 Ctrl bypasses grid snap to the fine grid, Shift axis-locks point drags, and Esc
 cancels the gesture in flight. Gestures preview locally and commit one full-point-list intent on
 release; a state push mid-gesture is deferred until the gesture ends so it cannot reset the edit
@@ -81,7 +81,7 @@ public:
         /*!
         \brief Called when a gesture makes a point the editor-wide selection.
 
-        Selection is controller-owned (one selection editor-wide, 2026-07-18): the view emits
+        Selection is controller-owned (one selection editor-wide): the view emits
         the durable point identity and renders whatever selection the next state push
         publishes back.
 

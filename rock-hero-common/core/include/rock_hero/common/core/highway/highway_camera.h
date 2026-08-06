@@ -106,12 +106,12 @@ the current camera framing zone and the next one (HighwayViewState::camera_zone_
 a min/max fret-line range; the focus is that range's world middle blended a fixed fraction
 toward a whole-neck position, and the range width is the span driving the out-zoom.
 
-The target holds perfectly still for whole zones and *steps* only at zone boundaries (user
-direction 2026-07-29): content framed for its zone stays framed even after it is consumed, every
-position change is announced a full zone before the hand must be in place, and HighwayCamera's
-spring is the single mechanism that turns the boundary steps into motion. Earlier per-FHP rolling
-windows kept the target in constant per-position churn; target-side eases layered on a follow
-filter fought each other — both were tried and rejected.
+The target holds perfectly still for whole zones and *steps* only at zone boundaries: content
+framed for its zone stays framed even after it is consumed, every position change is announced a
+full zone before the hand must be in place, and HighwayCamera's spring is the single mechanism
+that turns the boundary steps into motion. Earlier per-FHP rolling windows kept the target in
+constant per-position churn; target-side eases layered on a follow filter fought each other —
+both were tried and rejected.
 
 Zone quantization is the only framing rule; there is no second scan path. An empty zone list is
 simply one unbounded zone, which is well defined because it can only occur with no chart at all
@@ -139,9 +139,9 @@ zone-boundary target step. It eases into the shift from zero acceleration (no jo
 without overshoot (real poles, no zeros → monotone). A second-order spring left acceleration
 discontinuous, so each step began with an instant kick that read as a jolt; the third pole
 removes it. Three equal poles is the maximally smooth arrangement at a given speed — spreading
-them apart only sharpens the onset — and that maximally smooth, slow hover is the settled feel
-(user direction 2026-07-29). Each advance applies the exact closed-form solution over the
-frame, so smoothing is exactly frame-rate independent: two half steps equal one full step.
+them apart only sharpens the onset — and that maximally smooth, slow hover is the wanted feel.
+Each advance applies the exact closed-form solution over the frame, so smoothing is exactly
+frame-rate independent: two half steps equal one full step.
 */
 class HighwayCamera
 {

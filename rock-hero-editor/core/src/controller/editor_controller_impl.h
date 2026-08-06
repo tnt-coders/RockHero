@@ -804,11 +804,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::optional<AutomationLaneRow> lane{};
     };
 
-    // The two-state position marker (the marker model, 2026-07-18): always present, exactly
-    // one state at a time — passive cursor or armed caret — so "cursor and caret at once" is
-    // unrepresentable. Armed implies paused (playback demotes via the transport listener) and
-    // implies the selection is what sits under the caret; chartless arrangements simply never
-    // arm.
+    // The two-state position marker (the marker model): always present, exactly one state at a
+    // time — passive cursor or armed caret — so "cursor and caret at once" is unrepresentable.
+    // Armed implies paused (playback demotes via the transport listener) and implies the selection
+    // is what sits under the caret; chartless arrangements simply never arm.
     using ChartMarker = std::variant<ChartCursor, ChartCaret>;
     ChartMarker m_chart_marker{ChartCursor{}};
 
@@ -833,9 +832,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::vector<AutomationLaneRow> visibleAutomationLaneRows() const;
 
     // The caret row's next authored object strictly beyond the caret in the step direction —
-    // a note on its string, a point on its lane. Objects are first-class caret stops (the
-    // union stop set, settled 2026-07-18): plain arrows step to the nearer of the adjacent
-    // grid line and this, so an off-grid object stays reachable from the keyboard.
+    // a note on its string, a point on its lane. Objects are first-class caret stops (the union
+    // stop set): plain arrows step to the nearer of the adjacent grid line and this, so an
+    // off-grid object stays reachable from the keyboard.
     [[nodiscard]] std::optional<common::core::GridPosition> nextRowObjectStop(
         const ChartCaret& caret, bool later);
 
@@ -883,7 +882,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The Insert key's neutral create: a fret-0 note at an armed empty string slot, an
     // on-curve point at an armed empty lane slot; a no-op on occupied slots, with a selection,
-    // or while passive — Insert never mutates existing objects (2026-07-18).
+    // or while passive — Insert never mutates existing objects.
     void onNeutralInsertRequested();
 
     // Inserts an on-curve point at an armed lane caret's slot (the Insert dispatch for lane

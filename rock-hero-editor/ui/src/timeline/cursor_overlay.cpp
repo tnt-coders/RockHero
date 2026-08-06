@@ -161,9 +161,9 @@ void CursorOverlay::mouseDown(const juce::MouseEvent& event)
 }
 
 // Samples the current position at render cadence and invalidates only changed cursor strips.
-// With a chart displayed the line renders only during playback (the marker model,
-// 2026-07-18): while paused the position shows as the caret or the ruler's mark, keeping the
-// lane clear; chartless arrangements keep the paused line as their only indicator.
+// With a chart displayed the line renders only during playback (the marker model): while paused
+// the position shows as the caret or the ruler's mark, keeping the lane clear; chartless
+// arrangements keep the paused line as their only indicator.
 void CursorOverlay::advanceCursor()
 {
     const bool cursor_visible = m_transport.state().playing || !m_paused_cursor_hidden;

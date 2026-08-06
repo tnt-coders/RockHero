@@ -69,8 +69,8 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
 
 // With camera framing zones the scan window is quantized: everything defined during the
 // current zone and the next is framed — consumed or not — so the target holds perfectly still
-// for whole zones and steps only at their boundaries (user direction 2026-07-29, matching the
-// zone-scoped framing rule the camera research documents).
+// for whole zones and steps only at their boundaries, matching the zone-scoped framing rule the
+// camera research documents.
 TEST_CASE("Highway camera frames the current and next zone", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
@@ -150,11 +150,11 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
 }
 
 // An empty zone list is one unbounded zone, not a special case: the camera has a single scan
-// path (the seconds-window fallback was deleted 2026-07-30). This pins the contract that makes
-// that safe — in production zones are empty only when the arrangement has no chart, and a state
-// with no chart also has no hand positions and no notes, so the unbounded window frames nothing
-// and the target is the reference window at the nut. A state that violates that invariant is
-// framed whole, which is the honest consequence and is asserted here so it cannot surprise.
+// path with no seconds-window fallback. This pins the contract that makes that safe — in
+// production zones are empty only when the arrangement has no chart, and a state with no chart
+// also has no hand positions and no notes, so the unbounded window frames nothing and the target
+// is the reference window at the nut. A state that violates that invariant is framed whole, which
+// is the honest consequence and is asserted here so it cannot surprise.
 TEST_CASE("Highway camera treats missing framing zones as one open zone", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
@@ -298,8 +298,8 @@ TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core
     }
 }
 
-// The shipped defaults carry only Charter's yaw (the string slope); the forward pitch is zero
-// by user decision (2026-07-11). A yaw-only chain never mixes world Y into clip W or X, so
+// The shipped defaults carry only Charter's yaw (the string slope) and no forward pitch, which
+// would tilt the whole picture. A yaw-only chain never mixes world Y into clip W or X, so
 // verticals must project EXACTLY vertical — the regression that guards "no forward tilt".
 TEST_CASE(
     "Highway camera default rotations keep verticals exactly vertical", "[core][highway][camera]")
@@ -321,8 +321,8 @@ TEST_CASE(
 
 // Square pixels: world-square geometry must project screen-square at every viewport shape, or
 // note heads and inlay dots render as ellipses. This guards the removal of Charter's +0.05
-// vertical screen-scale lift (2026-07-30), which stretched the picture 5 to 10 percent
-// vertically depending on window shape and which no test caught in either direction.
+// vertical screen-scale lift, which stretched the picture 5 to 10 percent vertically depending on
+// window shape and which no test caught in either direction.
 //
 // The check is that a world X extent and an equal world Y extent, at the same depth, occupy the
 // same fraction of the screen: NDC is normalized per axis, so equal screen lengths means the X
@@ -443,10 +443,10 @@ TEST_CASE("Highway background matrix parallaxes with the pin intact", "[core][hi
     CHECK(swayed_anchor[0] != Catch::Approx(anchor[0]).margin(1.0e-6));
 }
 
-// Depth regression for the plan-25 Phase 3 checkpoint finding: the near plane must be
-// camera-relative (eye depth), never anchored at world Z. The hit line (world z = 0) and the
-// short passed-note region behind it sit inside the depth volume, and depth stays monotonic
-// along the time axis so far-to-near draw ordering can rely on the depth test.
+// Depth regression (plan-25 Phase 3): the near plane must be camera-relative (eye depth),
+// never anchored at world Z. The hit line (world z = 0) and the short passed-note region behind
+// it sit inside the depth volume, and depth stays monotonic along the time axis so far-to-near
+// draw ordering can rely on the depth test.
 TEST_CASE("Highway camera keeps the hit line inside the depth volume", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};

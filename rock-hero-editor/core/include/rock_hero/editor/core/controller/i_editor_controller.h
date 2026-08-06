@@ -240,7 +240,7 @@ public:
     virtual void onChartPointerExit() = 0;
 
     /*!
-    \brief Handles an arrow key on the position marker (the marker model, 2026-07-18).
+    \brief Handles an arrow key on the position marker (the marker model).
 
     While the marker is passive, the first press arms the caret at the paused cursor — the
     nearest grid line to the transport position, on the remembered string — without stepping.
@@ -294,7 +294,7 @@ public:
     modifier).
 
     Dispatches on the selection's kind. Chart notes: Left/Right move the selection by one grid
-    step (one 1/960-beat step when \p fine — the uniform precision tier, settled 2026-07-18;
+    step (one 1/960-beat step when \p fine — the uniform precision tier;
     the move is relative either way, so off-grid notes keep their offsets), Up/Down move it
     across string lanes; refused, never clamped, when any note would leave the neck or land on
     an occupied slot, with the whole selection moving as one undo entry and 40-Q2-B truncation
@@ -313,7 +313,7 @@ public:
     \brief Handles the Delete key: deletes the one editor-wide selection, whatever its kind.
 
     Exactly one selection exists across every surface (chart notes, a tone region, or an
-    automation point — interaction model, 2026-07-18), so this dispatches on the selection's
+    automation point — interaction model), so this dispatches on the selection's
     kind rather than probing surfaces in precedence order. A no-op when nothing is selected.
     */
     virtual void onSelectionDeleteRequested() = 0;
@@ -324,8 +324,8 @@ public:
     With a note selection, typing sets every selected note to the typed value — what you type
     is what appears. With no selection and an armed caret on an empty grid slot, typing
     INSERTS a note there with the typed fret. While the marker is passive with no selection,
-    digits are inert — a stray keystroke after listening authors nothing (the marker model,
-    2026-07-18). Digits within the multi-digit entry window combine (typing 1 then 2 yields
+    digits are inert — a stray keystroke after listening authors nothing (the marker model).
+    Digits within the multi-digit entry window combine (typing 1 then 2 yields
     fret 12 as ONE undo entry — a widened insert stays an insert); a digit outside the window
     starts a fresh value. Each keystroke applies immediately so the notation always shows the
     current value.
@@ -373,7 +373,7 @@ public:
     /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
 
-    The Esc ladder (the marker model, 2026-07-18): an in-flight pointer gesture (marquee or
+    The Esc ladder (the marker model): an in-flight pointer gesture (marquee or
     armed press) is abandoned without mutating; else an armed caret dissolves to the passive
     cursor in its place, keeping the selection; else a standing note selection clears. Either
     marker rung also ends the multi-digit fret-entry window.
@@ -509,7 +509,7 @@ public:
 
     A fret-0 note on a string row, an on-curve point on an automation lane row; a no-op on
     occupied slots, with a selection, or while the marker is passive — Insert never mutates
-    existing objects (the neutral-create verb, 2026-07-18).
+    existing objects (the neutral-create verb).
     */
     virtual void onNeutralInsertRequested() = 0;
 
@@ -592,8 +592,7 @@ public:
 
     The point is stored durably (lane keys plus exact musical position) and re-resolved against
     the published lanes on every state push, so a selection whose point vanished simply shows
-    nothing. Selecting a point replaces any other surface's selection (one selection
-    editor-wide, 2026-07-18).
+    nothing. Selecting a point replaces any other surface's selection (one selection editor-wide).
 
     \param instance_id Plugin instance owning the parameter.
     \param param_id Parameter id within the plugin.

@@ -135,7 +135,7 @@ std::optional<int> RockHeroGame::onInit()
     }
     // Texture loads gather what exists and log what does not; the renderer's create validates
     // the set and fails startup with a typed error on any missing or invalid asset — textures
-    // are required product content (user decision 2026-08-01).
+    // are required product content.
     common::ui::HighwayTextureSet highway_textures;
     auto note_atlas = resources->textureBytes(core::GameTexture::HighwayNotes);
     if (note_atlas.has_value())

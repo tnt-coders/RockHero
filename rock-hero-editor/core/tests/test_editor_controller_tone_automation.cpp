@@ -529,8 +529,8 @@ TEST_CASE(
     CHECK(selected->point_index == 1);
     CHECK_FALSE(editor.view.last_state->tone_track.regions.front().selected);
 
-    // The caret arms at the clicked point's slot (2026-07-18 fix), so keyboard verbs continue
-    // from the object just touched.
+    // The caret arms at the clicked point's slot, so keyboard verbs continue from the object just
+    // touched.
     const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(editor.automation());
     REQUIRE(caret != nullptr);
     CHECK(caret->lane_index == 0);
