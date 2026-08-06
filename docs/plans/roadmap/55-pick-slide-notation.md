@@ -231,10 +231,10 @@ language on the 3D highway and the 2D tab.
    The root impact shards were built 2026-08-05 and DELETED the same day on the user's sight
    pass ("added nothing of value") — the treatment's build list is now empty; see the
    settled-rendering note above for the record.
-   User direction 2026-08-05: the design completes with the CURRENT head texture; a
-   head-texture revision comes at the end as its own pass.
-   **Exit.** User signs the treatment on sight over Van Halen measure 20. **Verify.** Build;
-   sight pass; plan 54 color coordination.
+   **SIGNED 2026-08-05 on sight** ("other than the texture I think it is looking solid now,
+   and the current texture is workable for now"): the treatment stands with the current head
+   texture; the head-texture revision is its own queued follow-up pass, explicitly outside
+   this plan's exit. **Verify.** Build; sight pass; plan 54 color coordination.
 5. **Editor verbs + acceptance. VERB LAYER SHIPPED 2026-08-05** (built, adversarially
    reviewed — two review-confirmed defects fixed before landing — full touched suites green):
    `planSetAttack` with the pick-slide entry/exit cases (entry keeps the note's fret as the
