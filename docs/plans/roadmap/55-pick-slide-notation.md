@@ -183,7 +183,15 @@ language on the 3D highway and the 2D tab.
   white-glow differentiator moot. The moving right-hand light sweeps its glide segments with
   the arrival waypoint's own ease (stations carry an unpitched flag) at span-scaled slice
   density — the fixed six slices and pitched ease that served tapped glides faceted a
-  scrape's dozen-fret legs into rough edges. The root impact shards stay a queued flourish.
+  scrape's dozen-fret legs into rough edges. The root impact shards — the comet proposal's
+  last surviving flourish, two slivers flaring back from the bite — were built and DELETED on
+  sight 2026-08-05 ("added nothing of value", user); the bite needs no debris: the X head, the
+  V, and the teeth already carry the whole scrape identity. Do not revive them as static board
+  geometry in any form. If anything ever returns here it would be genuine particle animation —
+  sparks or fire igniting the note as it is HIT and traveling down the sustain tail (user
+  direction 2026-08-05) — which is hit-moment gameplay feedback, not board notation: probably
+  game-only, editor participation undecided, and not wanted now. That idea belongs with plan
+  24's hit-feedback territory if it ever graduates.
 - **55-Q2 — authoring.** Mostly dissolved by the note-carried model: scrapes select, move,
   delete, and undo as ordinary notes. Remaining verbs for plan 40 Phase 5's technique surface:
   the attack toggle to/from `PickSlide` (synthesizing the default path on entry, restoring
@@ -220,18 +228,13 @@ language on the 3D highway and the 2D tab.
    the settled rendering above). The scrape drives a **moving right-hand light** through the
    tap-light machinery — the light path rides the waypoint travel exactly as the fret-hand
    window rides left-hand glides, with the tap's margin rise.
-   The root impact shards are BUILT 2026-08-05, pending sight: two near-white slivers flaring
-   back from the pick's first bite (ported from the signed treatment mock's flourish —
-   asymmetric angles 0.5/-0.4 rad off the reversed root leg, lengths 0.65/0.5 head heights,
-   hard butt ends in the X family's squared-cap language), flat on the board plane under the
-   head so only the flared tips show past the rim, riding the approaching root and dropping
-   once the bite is consumed at the hit line. Knobs: the g_scrape_shard_* constants in
-   highway_renderer.cpp; the near-white is a plan 54 theme-struct candidate.
-   User direction 2026-08-05: complete the design with the CURRENT head texture; a
+   The root impact shards were built 2026-08-05 and DELETED the same day on the user's sight
+   pass ("added nothing of value") — the treatment's build list is now empty; see the
+   settled-rendering note above for the record.
+   User direction 2026-08-05: the design completes with the CURRENT head texture; a
    head-texture revision comes at the end as its own pass.
-   Sight-iterate on Van Halen measure 20.
-   **Exit.** User signs the treatment on sight. **Verify.** Build; sight pass; plan 54 color
-   coordination.
+   **Exit.** User signs the treatment on sight over Van Halen measure 20. **Verify.** Build;
+   sight pass; plan 54 color coordination.
 5. **Editor verbs + acceptance. VERB LAYER SHIPPED 2026-08-05** (built, adversarially
    reviewed — two review-confirmed defects fixed before landing — full touched suites green):
    `planSetAttack` with the pick-slide entry/exit cases (entry keeps the note's fret as the
