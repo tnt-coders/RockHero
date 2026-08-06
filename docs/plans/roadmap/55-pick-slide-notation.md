@@ -220,7 +220,16 @@ language on the 3D highway and the 2D tab.
    the settled rendering above). The scrape drives a **moving right-hand light** through the
    tap-light machinery — the light path rides the waypoint travel exactly as the fret-hand
    window rides left-hand glides, with the tap's margin rise.
-   Still queued: the root impact shards. Sight-iterate on Van Halen measure 20.
+   The root impact shards are BUILT 2026-08-05, pending sight: two near-white slivers flaring
+   back from the pick's first bite (ported from the signed treatment mock's flourish —
+   asymmetric angles 0.5/-0.4 rad off the reversed root leg, lengths 0.65/0.5 head heights,
+   hard butt ends in the X family's squared-cap language), flat on the board plane under the
+   head so only the flared tips show past the rim, riding the approaching root and dropping
+   once the bite is consumed at the hit line. Knobs: the g_scrape_shard_* constants in
+   highway_renderer.cpp; the near-white is a plan 54 theme-struct candidate.
+   User direction 2026-08-05: complete the design with the CURRENT head texture; a
+   head-texture revision comes at the end as its own pass.
+   Sight-iterate on Van Halen measure 20.
    **Exit.** User signs the treatment on sight. **Verify.** Build; sight pass; plan 54 color
    coordination.
 5. **Editor verbs + acceptance. VERB LAYER SHIPPED 2026-08-05** (built, adversarially

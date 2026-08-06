@@ -118,6 +118,21 @@ constexpr double g_bend_marker_offset_heads = 0.38;
 // crossing, the floor the tip must never reach (user placement 2026-08-04: overlapping, but
 // clear of the middle; nudged up twice on sight).
 constexpr double g_scrape_marker_offset_heads = 0.55;
+
+// Root impact shards — the scrape's queued flourish, ported from the signed treatment mock:
+// two short slivers flaring back from the pick's first bite, asymmetric so they read as thrown
+// debris rather than an emblem, with hard butt ends matching the X family's squared caps.
+// Angles are radians off the reversed root-leg direction; gap, lengths, and width are in head
+// heights. They ride the approaching root and drop once the bite is consumed at the hit line —
+// hit-moment feedback belongs to gameplay, not the board. Near-white, not pure white, so the
+// slivers sit with the whitened V rather than outshining it (plan 54 may lift the color into
+// the theme struct).
+constexpr std::array<double, 2> g_scrape_shard_angles{0.5, -0.4};
+constexpr std::array<double, 2> g_scrape_shard_lengths{0.65, 0.5};
+constexpr double g_scrape_shard_gap_heads = 0.55;
+constexpr double g_scrape_shard_width_heads = 0.09;
+constexpr ArgbColor g_scrape_shard_color = 0xFFEBEEF0;
+
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
 // chart-truth height is an annotation, dimmed so the rising head stays the subject (first
 // value judged on composite sheets 2026-07-31; expect on-sight retuning).
@@ -3505,6 +3520,74 @@ void HighwayRenderer::Impl::draw(
                             .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
                             .outer_abgr = packAbgr(tail_b, note.fret > 0 ? b.alpha : 0.0),
                         });
+                }
+
+                // Root impact shards: the pick's first bite kicks two slivers back along the
+                // reversed root leg, flat on the board plane like the tail so the head layers
+                // over their bases and only the flared tips show past the rim. Drawn only
+                // while the root approaches, and only when the whole flare stays safely in
+                // front of the near plane.
+                if (note.attack == common::core::NoteAttack::PickSlide &&
+                    note.start_seconds >= now_seconds && !note.slides.empty())
+                {
+                    const double head_size = 2.0 * head_half_h;
+                    const double reach = (g_scrape_shard_gap_heads +
+                                          *std::ranges::max_element(g_scrape_shard_lengths)) *
+                                         head_size;
+                    const double root_z = time_to_z(note.start_seconds);
+                    const common::core::HighwaySlideView& first_leg = note.slides.front();
+                    const double leg_dx =
+                        common::core::highwayNoteCenterX(first_leg.fret, metrics, mirrored) -
+                        base_x;
+                    const double leg_dz = time_to_z(first_leg.seconds) - root_z;
+                    const double leg_length = std::hypot(leg_dx, leg_dz);
+                    if (leg_length > 0.0 && root_z - pose.z - reach > metrics.near_plane)
+                    {
+                        const double back_x = -leg_dx / leg_length;
+                        const double back_z = -leg_dz / leg_length;
+                        const double root_y = note_y_at(note.start_seconds, 0.0);
+                        const std::uint32_t shard_abgr = packAbgr(g_scrape_shard_color, 1.0);
+                        for (std::size_t shard = 0; shard < g_scrape_shard_angles.size(); ++shard)
+                        {
+                            const double cos_a = std::cos(g_scrape_shard_angles.at(shard));
+                            const double sin_a = std::sin(g_scrape_shard_angles.at(shard));
+                            const double dir_x = (back_x * cos_a) - (back_z * sin_a);
+                            const double dir_z = (back_x * sin_a) + (back_z * cos_a);
+                            const double start_d = g_scrape_shard_gap_heads * head_size;
+                            const double end_d =
+                                start_d + (g_scrape_shard_lengths.at(shard) * head_size);
+                            const double half_w = g_scrape_shard_width_heads * head_size / 2.0;
+                            const double normal_x = -dir_z;
+                            const double normal_z = dir_x;
+                            const double sx = base_x + (dir_x * start_d);
+                            const double sz = root_z + (dir_z * start_d);
+                            const double ex = base_x + (dir_x * end_d);
+                            const double ez = root_z + (dir_z * end_d);
+                            pushQuad(
+                                rail_vertices,
+                                rail_indices,
+                                makeVertex(
+                                    sx - (normal_x * half_w),
+                                    root_y,
+                                    sz - (normal_z * half_w),
+                                    shard_abgr),
+                                makeVertex(
+                                    sx + (normal_x * half_w),
+                                    root_y,
+                                    sz + (normal_z * half_w),
+                                    shard_abgr),
+                                makeVertex(
+                                    ex + (normal_x * half_w),
+                                    root_y,
+                                    ez + (normal_z * half_w),
+                                    shard_abgr),
+                                makeVertex(
+                                    ex - (normal_x * half_w),
+                                    root_y,
+                                    ez - (normal_z * half_w),
+                                    shard_abgr));
+                        }
+                    }
                 }
             }
         }
