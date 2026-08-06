@@ -62,8 +62,8 @@ struct HighwayShaderSet
 
     /*!
     \brief Repeat-box mute mark: an X that lays chords.png's measured cross-section along
-    arms whose distances are computed per fragment in box-local world units, so the painted
-    look holds its line weights exactly on boxes of any width.
+    arms whose distances are computed per fragment in box-local world units, so the measured
+    line weights hold exactly on boxes of any width.
     */
     HighwayShaderPair box_mute;
 };
@@ -91,8 +91,11 @@ struct HighwayTextureSet
 
     /*!
     \brief Repeat-box mute mark art PNG (chords.png): two stacked cells, palm mute above full
-    mute, painted in final display colors. The single source of truth for the box marks' look
-    — the renderer measures each mark's cross-section from these pixels at creation.
+    mute, painted in the structural channel scheme (R tint weight, G achromatic lift, B coverage)
+    with no alpha channel. The single source of truth for the box marks' line weighting and
+    coverage — the renderer measures each mark's cross-section from these pixels at creation and
+    supplies hue and opacity itself as vertex color, so retuning a color never requires repainting
+    the art.
     */
     std::vector<std::byte> chord_marks_png;
 };

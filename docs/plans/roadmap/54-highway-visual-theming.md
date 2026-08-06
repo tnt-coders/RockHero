@@ -7,6 +7,22 @@ below was first taken against `cffd8572` plus uncommitted box-mute hunks, then *
 against `182faedb`** after that work landed across four commits — the color-constant block did not
 move, the renderer API is unchanged, and the shaders still carry no color literals.
 
+**Amendment 2026-08-05 — decision 3 narrowed, and the box-mute art converted ahead of this plan.**
+`chords.png` used to author the palm mark's rim in the chord-box frame's literal color, duplicating
+`g_chord_box_color` in pixels, and the full mark in a steel blue that existed in no constant at
+all. Under the original decision 3 a colors-only theme — which 54-Q1's answer makes first-class —
+would have retinted the boxes while the marks kept the base theme's hue, meeting as a hard seam at
+the frame's inner edge. `chords.png` now carries structure in the same channel scheme `notes.png`
+uses — R tint weight, G achromatic lift, B coverage — while the renderer supplies hue and opacity
+as vertex color, so the marks follow a retint for free. Dropping the alpha channel is part of the
+fix rather than incidental: JUCE premultiplies an alpha-bearing PNG at decode, and that round trip
+had already corrupted the shipped asset's near-transparent band into values brighter than the frame
+color itself, silently. A PNG with no alpha chunk decodes bit-exact at every level.
+What this changes here: decision 3 below is narrowed, the
+color inventory gains a sixteenth role (`full_mute_mark`), `frameFadeModulation()` is deleted so a
+plain grep of the constants is now accurate, and Phase 5 no longer needs a per-theme mark repaint
+to change mark color. Phases and gates are otherwise unaffected.
+
 ## Goal
 
 The 3D highway's visual identity becomes data instead of compile-time constants and a fixed asset
@@ -24,8 +40,9 @@ Two things this buys that nothing else does:
    against a fixed purple arpeggio marker or cyan active fret number is half a solution. Those
    colors must move into the same selectable layer or the guarantee plan 45 makes is not one.
 2. **Art/engine separation.** `chords.png` already demonstrates the pattern — art is the source of
-   truth and the renderer measures it (`box_mute_profile.h` authoring contract). Generalizing that
-   lets the look change without touching the renderer.
+   truth for *structure* and the renderer measures it (`box_mute_profile.h` authoring contract),
+   while hue arrives per draw from a color role. Generalizing that lets the look change without
+   touching the renderer, and keeps a color change a color change rather than an art task.
 
 ## Non-goals
 
@@ -96,21 +113,28 @@ re-verified against `182faedb` after that work landed.
 - **Shaders carry no baked colors.** All 15 `.sc` files under `rock-hero-common/ui/shaders/`
   contain no numeric `vec3`/`vec4` color literals; colors arrive as vertex colors and uniforms.
   Shader work is not on this plan's critical path.
-- **The 15 hard-coded highway colors, which are not 15 of a kind.** All sit at file scope in the
-  anonymous namespace of `rock-hero-common/ui/src/highway/highway_renderer.cpp` (4,745 lines):
-  - **Fourteen `constexpr ArgbColor`**: `g_beat_bar_color` (47), `g_lit_lane_color` (60),
-    `g_lit_lane_dotted_color` (61), `g_lane_border_color` (122), `g_fret_inactive_color` (123),
-    `g_fret_active_color` (124), `g_fret_number_active_color` (129), `g_fret_number_dim_color`
-    (130), `g_fret_number_fhp_color` (131), `g_hit_glow_color` (146), `g_chord_box_color` (254),
-    `g_chord_box_dark_color` (255), `g_chord_name_color` (285), `g_arpeggio_color` (289).
+- **The 16 hard-coded highway colors, which are not 16 of a kind.** Line numbers re-verified
+  2026-08-05 after the box-mute conversion. All sit at file scope in the anonymous namespace of
+  `rock-hero-common/ui/src/highway/highway_renderer.cpp`:
+  - **Fifteen `constexpr ArgbColor`**: `g_beat_bar_color` (47), `g_lit_lane_color` (60),
+    `g_lit_lane_dotted_color` (61), `g_lane_border_color` (123), `g_fret_inactive_color` (124),
+    `g_fret_active_color` (125), `g_fret_number_active_color` (130), `g_fret_number_dim_color`
+    (131), `g_fret_number_fhp_color` (132), `g_hit_glow_color` (147), `g_chord_box_color` (252),
+    `g_chord_box_dark_color` (253), `g_full_mute_mark_color` (264), `g_chord_name_color` (267),
+    `g_arpeggio_color` (271).
+  - `g_full_mute_mark_color` is new as of the 2026-08-05 amendment: the full-mute mark's hue used
+    to exist only inside `chords.png`, reachable by no seam at all. It is a color role like any
+    other now, and the palm mark reuses `chord_box` rather than carrying a hue of its own.
   - **One `constexpr std::uint32_t`**: `g_backdrop_color` (44) `= 0x000000ff`. It is *not*
     `ArgbColor` and must not be treated as one — it is handed straight to `bgfx::setViewClear` as
     a packed RGBA clear value, a different channel order from the project's 0xAARRGGBB. Phase 1
     carries it in the theme as an `ArgbColor` like every other role and converts at the
     `setViewClear` call, so theme authors never meet two color formats.
-  - Do not count by grepping `constexpr ArgbColor`: line 261 is
-    `[[nodiscard]] constexpr ArgbColor frameFadeModulation()`, a *function*, and it inflated the
-    count in this plan's first draft.
+  - Grepping `constexpr ArgbColor` is an accurate count now, though it was not when this plan was
+    drafted: `frameFadeModulation()` was a *function* with that return type and it inflated the
+    first draft's count. The 2026-08-05 amendment deleted it — the marks no longer need a derived
+    dark/box ratio to turn frame-colored art into the frame's dark middle, because the renderer
+    now passes both frame colors directly to achromatic art.
 - **Alpha is encoded in several of these constants** and varied at use sites
   (`g_lane_border_color = 0x0007928F` with "alpha varies", `g_lit_lane_color = 0x402590E8`,
   `g_fret_number_dim_color = 0x8007928F`). The extraction must preserve each constant's alpha
@@ -135,15 +159,21 @@ re-verified against `182faedb` after that work landed.
 - **Implicit atlas contracts, currently unvalidated as a format**: `notes.png` 4x4 grid with the
   channel scheme (texture R multiplies the tint color, G adds white highlight, B is the alpha
   mask — one atlas serves every string color); `inlays.png` 8x4 grid, one 256x512 cell per fret;
-  `fingering.png` 4x4 grid; `chords.png` two stacked cells. `HighwayAtlas`
-  (`src/highway/highway_atlas.h`) holds the grid math.
+  `fingering.png` 4x4 grid; `chords.png` two stacked cells, sharing that same channel scheme since
+  the 2026-08-05 amendment — and, unlike the other three, measured on the CPU into a ramp rather
+  than sampled on the GPU. `HighwayAtlas` (`src/highway/highway_atlas.h`) holds the grid math.
 - **`chords.png` is measured, not merely sampled.** `box_mute_profile.h` defines the authoring
-  contract (two equal stacked cells, palm mute above full mute, final display colors, straight
-  alpha, arms corner to corner, stroke edge at half the glyph's peak alpha) and
-  `measureBoxMuteProfiles` returns `std::expected<BoxMuteProfiles, BoxMuteProfileError>` with
-  `UndecodableImage` / `UnanalyzableGlyph`. The renderer converts any failure into
-  `TextureAssetInvalid`. **This is the exemplar to follow for every other themed asset**: a
-  declared authoring contract, a measurement or validation step, and a typed failure.
+  contract (two equal stacked cells, palm mute above full mute, the **structural channel scheme
+  with no alpha channel**, arms corner to corner, stroke edge at half the glyph's peak coverage)
+  and `measureBoxMuteProfiles` returns `std::expected<BoxMuteProfiles, BoxMuteProfileError>` with
+  `UndecodableImage` / `UnanalyzableGlyph` / `AlphaBearingImage`. The renderer converts any failure
+  into `TextureAssetInvalid`. Neither hue nor opacity is in the art: coverage is normalized so each
+  rim plateau reaches full, and the renderer applies `g_chord_box_frame_alpha` — the same constant
+  the frame bars use — so the palm mark's rim and the border it meets are one expression rather
+  than two values that happen to agree. **This is the exemplar to follow for every other themed
+  asset**: a declared authoring contract, a measurement or validation step, and a typed failure.
+  The alpha-channel check is part of that exemplar; it is what keeps a premultiplied decode from
+  silently scaling all three signals instead of being rejected.
 - **Why box marks are measured rather than drawn** (relevant because it bounds what a theme may
   change): `pushChordBoxPanel` takes `x0..x1` from
   `highwayFretLineX(fret_low - 1)..highwayFretLineX(fret_high)` and `y1` from
@@ -163,6 +193,59 @@ re-verified against `182faedb` after that work landed.
   45 decision 7: both
   products persist a preset id string from the same common registry; the ids match, the stores do
   not. This plan follows it exactly.
+
+### Color-reachability audit (2026-08-05)
+
+Taken while converting the box-mute art, then re-verified against the post-conversion tree (the
+`chords.png` findings from the same audit are already fixed — see the Amendment). Everything below
+is a color a user-selected theme cannot currently reach, and this plan has to absorb all of it.
+
+- **The renderer takes no color input at all. This, not the constants, is the real blocker.**
+  `HighwayRenderer::create` accepts only shaders and textures, and the string palette is fetched
+  internally — `const StringColorPalette& palette = charterClassicPalette();` at
+  `highway_renderer.cpp:1243` and `:1317`. Phase 1 threads a `HighwayTheme` in, but a picker still
+  changes no *string* color on the highway until that fetch becomes a parameter. The 2D side has
+  the identical hardcoded call at `rock-hero-common/ui/src/tab/tab_paint_core.cpp:930`. Plan 45
+  Phase 3 owns the selection chain; **Phase 1 here must not ship without palette injection landing
+  beside it**, or the feature is visibly inert exactly where users will look first.
+- **`chord_box` is misnamed as a role — it also paints rhythm furniture.** Besides the chord panel
+  (`:752-757`) and the palm mute mark (`:2565`), `g_chord_box_color` draws the measure-downbeat
+  attack line and the per-note fret-span lines (`:1869`, `:3609`, `:3643`, all at
+  `g_attack_line_alpha`). A control labelled "chord box" would silently retint rhythm cues. Phase 1
+  must split the role or name it for what it actually does; deciding late is expensive because role
+  names are the theme file's keys and therefore a compatibility surface.
+- **Three colors are near-duplicate families, and splitting one is a visible regression.** The
+  extraction must record which roles are meant to move together:
+  - *Board blue*: `g_beat_bar_color` (47), `g_lit_lane_color` (60), `g_lit_lane_dotted_color` (61),
+    `g_fret_number_active_color` (130) — mutually within ~8 degrees of hue, and all near the default
+    palette's blue string. The lit-lane quads are the largest area of color on screen, so a warm
+    theme that misses them leaves a cold blue board under warm notes.
+  - *Board teal*: `g_lane_border_color` (123) and `g_fret_number_dim_color` (131) carry identical
+    RGB; `g_chord_box_color` (252) and `g_chord_box_dark_color` (253) sit ~2 degrees away.
+  - *Warm cue*: `g_fret_number_fhp_color` (132) and `g_hit_glow_color` (147) are ~1 degree apart,
+    and the FHP orange is mixed into the tapping-hand floor light — so a "fret number color" control
+    also changes floor lighting unless the roles are separated deliberately.
+- **Arpeggio-vs-held is encoded in hue alone, and that hue duplicates a string color.**
+  `highway_renderer.cpp:1903` distinguishes arpeggio rails from held-shape rails by picking
+  `g_arpeggio_color` or the lane-border teal, and `g_arpeggio_color` (277) is ~9 degrees from the
+  palette's 6th-string purple. A theme can therefore collapse a real notation distinction into
+  invisibility. Treat it as a constraint on the theme schema alongside plan 45 Phase 4's colorblind
+  guarantee, not as something theme authors are trusted to avoid.
+- **Two textures have no tint path at all.** The fretboard skin (`inlays.png`) and the fingering
+  panel (`fingering.png`) are submitted with a hardcoded white vertex color
+  (`highway_renderer.cpp:4225`, `:4298`), so their display color is whatever grayscale the PNG
+  holds. Phase 3 must state explicitly, per asset, whether it gains a tint role or is declared
+  image-owned art — because "textures as themed content" currently implies a tinting that does not
+  exist for either of them.
+- **A second background color lives outside the highway's own.** `g_backdrop_color`
+  (`highway_renderer.cpp:44`) is in this plan's inventory, but `render_device.cpp:17` carries an
+  independent `g_clear_color = 0x1a1a22ff` used by the default view. Phase 1 must either bring it
+  into the theme or scope it out in writing; a 16-role extraction that leaves a second clear color
+  behind still shows an unthemed surface.
+- **Known ceiling, not a defect:** the note atlas's specular highlight is the G channel added as
+  unmodulated white in the shader, so no theme can tint the highlight. That is inherent to the
+  structural channel scheme (see the Amendment) — document it in the theme authoring notes rather
+  than chase it.
 
 ## Dependencies
 
@@ -202,13 +285,18 @@ Restated with sources; do not re-litigate.
    input and gets typed-error handling with a fallback.
 2. **Preset ids are stable strings, persisted per product, resolved through one common registry**
    (plan 45 decision 7).
-3. **Art is the source of truth where the renderer measures it** (`box_mute_profile.h`). Themes do
-   not get numeric overrides for anything derived from pixels — repaint the asset instead.
+3. **Art owns structure; the theme owns color — including where the renderer measures the art**
+   (`box_mute_profile.h`; narrowed by the 2026-08-05 amendment). A measured asset's geometry, line
+   weighting, and opacity come from its pixels, so changing those still means repainting it and
+   themes get no numeric overrides for them. Hue is not in that set: the art is achromatic and the
+   renderer multiplies in `chord_box` and `full_mute_mark` per draw, so a theme retints the marks
+   with no art work at all. The wording this replaces — "repaint the asset instead" — assumed baked
+   color, and under it any colors-only theme would have left the marks at their base theme's hue.
 4. **Formats change in place.** No theme-file version field, no migration ladder.
 5. **Geometry is not themeable** (this plan's non-goals). The 39 layout constants encode
    playability.
 6. **Built-in themes are always complete; only user themes may be partial** (54-Q1 resolution
-   detail). Every theme this repository ships declares all 15 colors and supplies all four
+   detail). Every theme this repository ships declares all 16 colors and supplies all four
    atlases. This bounds the one real hazard partials introduce — a partial theme silently changes
    appearance when the theme it inherits from changes — to third-party files, and guarantees the
    registry always holds at least two fully-specified reference points. A shipped partial theme
@@ -255,7 +343,7 @@ whether the art is ready when Phase 4 lands.
 
 ### Phase 1 — `HighwayTheme` value struct
 
-**Scope.** Turn the 15 file-scope color constants into a public value struct with semantic role
+**Scope.** Turn the 16 file-scope color constants into a public value struct with semantic role
 names, threaded through the renderer. Zero visual change.
 
 - New feature folder `highway_theme/`:
@@ -265,9 +353,9 @@ names, threaded through the renderer. Zero visual change.
   verbatim — several are non-opaque and load-bearing.
 - Naming: semantic roles, not sites. `backdrop`, `beat_bar`, `lit_lane`, `lit_lane_dotted`,
   `lane_border`, `fret_inactive`, `fret_active`, `fret_number_active`, `fret_number_dim`,
-  `fret_number_hand_position`, `hit_glow`, `chord_box`, `chord_box_dark`, `chord_name`,
-  `arpeggio`. A role's *name* is the theme file's key, so it is a compatibility surface — pick
-  names that survive a renderer refactor.
+  `fret_number_hand_position`, `hit_glow`, `chord_box`, `chord_box_dark`, `full_mute_mark`,
+  `chord_name`, `arpeggio`. A role's *name* is the theme file's key, so it is a compatibility
+  surface — pick names that survive a renderer refactor.
 - `backdrop` is the one role whose storage format differs from its use: the theme holds
   `ArgbColor` like every other role, and the `bgfx::setViewClear` call site converts to bgfx's
   packed RGBA. Keep the conversion at that one call, not in the theme — a theme author who has to
@@ -286,14 +374,14 @@ names, threaded through the renderer. Zero visual change.
 constructor parameter and one setter — both products recompile.
 
 **Testing plan.** `rock-hero-common/ui/tests/test_highway_theme.cpp`: `defaultHighwayTheme()`
-values match the constants they replace exactly, **including alpha bytes** (pin all 15 roles as
+values match the constants they replace exactly, **including alpha bytes** (pin all 16 roles as
 literal expectations — this is the byte-identity proof); role names are unique; the backdrop
 ARGB→bgfx-RGBA conversion round-trips the current `0x000000ff` clear value exactly, since that one
 is a channel reorder rather than a copy and a silent swap would render as a wrong clear color
 nothing else would catch. Existing Noop-backend renderer tests (`test_render_device.cpp`) prove
 the renderer still comes up.
 
-**Exit criteria.** Highway renders identically in game and editor preview; the 15 constants no
+**Exit criteria.** Highway renders identically in game and editor preview; the 16 constants no
 longer exist in `highway_renderer.cpp`; no JUCE include in the new public header.
 
 **Verification** (configure needed — new target sources):
@@ -347,6 +435,17 @@ into validated ones with typed failures.
 - Document each contract where it is enforced, in the style `box_mute_profile.h` already sets:
   grid dimensions, cell size where fixed, channel semantics for the tinted atlas, and — for
   `chords.png` — a pointer to the existing measurement contract rather than a restatement.
+- `chords.png` already carries one validation this phase should surface rather than rebuild:
+  `measureBoxMuteProfiles` rejects an alpha-bearing image with `AlphaBearingImage`. That is the
+  likeliest user-theme mistake by a wide margin, because image editors export RGBA by default and
+  a premultiplied decode would silently scale all three structural channels. Route the error
+  through this phase's per-asset reporting so the message names the asset and the reason instead of
+  surfacing as an undifferentiated `TextureAssetInvalid`.
+  - Be honest about what is *not* detectable: under the structural scheme any RGB triple is a
+    legal (weight, lift, coverage), so a user who paints a literally colored X gets it
+    misinterpreted rather than rejected. That is the same class as any wrong art — wrong shape,
+    wrong stroke weight — and the contract documentation is the only guard. Do not invent a
+    heuristic that guesses whether art "looks like a color".
 - Both loaders gain a themed-asset path: resolve `<theme-dir>/<asset>.png` when the active theme
   provides one, else the built-in bytes. Keep the game's enum-driven and the editor's string-keyed
   loaders as they are; the asymmetry is recorded in `docs/developer/the-3d-highway.md` and is not
@@ -451,9 +550,16 @@ end to end with a real consumer rather than fixtures.
 
 - This is an art task, not an engineering one, and it is the schedule risk in this plan. The code
   is done at Phase 4; what remains is authoring note heads, a fretboard skin, a fingering panel,
-  and the two mute marks that satisfy the contracts and read well in motion.
-- The mute marks must satisfy `box_mute_profile.h`'s authoring contract, which is stricter than
-  "an X" — measure the result rather than eyeballing it.
+  and — only if the second theme wants different mark *structure* — the two mute marks, all
+  satisfying the contracts and reading well in motion.
+- **The mute marks may need no art at all.** Since the 2026-08-05 amendment their hue comes from
+  the `chord_box` and `full_mute_mark` roles, so a theme that only wants differently colored marks
+  gets them from its `colors` block. Re-author `chords.png` only to change stroke weight, rim and
+  core structure, or opacity.
+- If they are re-authored, they must satisfy `box_mute_profile.h`'s authoring contract, which is
+  stricter than "an X" — the structural channel scheme, no alpha channel, coverage normalized so
+  each rim plateau reaches full, arms corner to corner — so measure the result rather than
+  eyeballing it.
 - New art needs a provenance line in `resources/textures/LICENSE.txt` (or its own notice) stating
   authorship, keeping the existing BSD 3-Clause notice for the Charter-derived three correct.
 - **STOP — present both themes rendered in motion (game and editor preview) and get sign-off
@@ -483,7 +589,7 @@ crosses a machine boundary it is complete. Export is what enforces that, and it 
 exists at all rather than leaving users to zip a folder by hand.
 
 - **Export flattens.** Picking a theme and exporting resolves its entire inheritance chain and
-  writes one complete theme into the archive: all 15 colors, all four atlases, no `inherits` key.
+  writes one complete theme into the archive: all 16 colors, all four atlases, no `inherits` key.
   What the recipient sees is exactly what the author saw, frozen at export — the same reason
   decision 6 requires built-in themes to be complete.
 - **Flattening removes the failure mode instead of handling it.** An exported theme cannot fail on
@@ -545,7 +651,7 @@ pre-commit run --all-files
 ## Rollback/abort notes
 
 - **Phase 1** is a mechanical extraction pinned byte-identical by literal-value tests; rollback is
-  one revert. The risk is a dropped or normalized alpha byte, which is why the tests pin all 15
+  one revert. The risk is a dropped or normalized alpha byte, which is why the tests pin all 16
   including alpha rather than sampling.
 - **Phase 2** is additive; a revert loses the setting, and `EditorSettings` tolerates unknown keys.
   Fallback-on-unknown-id means a removed theme never bricks startup.

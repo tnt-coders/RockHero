@@ -1,8 +1,10 @@
 #include "highway/box_mute_profile.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <juce_graphics/juce_graphics.h>
+#include <span>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -11,8 +13,9 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// Alpha floor under which a texel counts as unpainted, in [0, 1].
-constexpr float g_visible_alpha = 2.0F / 255.0F;
+// Coverage floor under which a texel counts as unpainted, in [0, 1]. Coverage is channel B of the
+// structural-art scheme; the art carries no alpha channel, so nothing here reads one.
+constexpr float g_visible_coverage = 2.0F / 255.0F;
 
 // Measures one cell's glyph. Cuts are taken perpendicular to both arms at stations along the
 // outer spans (clear of the crossing and of the corner tips), sampled bilinearly, and
@@ -22,33 +25,33 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
 {
     const int width = bitmap.width;
 
-    // Two passes over the cell: the first finds any-visible bounds (the falloff's reach)
-    // and the glyph's peak pixel alpha; the second takes the solid bounds at half that peak
-    // — the glyph rect the contract clips the stroke to — so its corners pin the arm
-    // centerlines exactly even for rims authored below full opacity (the palm rim uses the
-    // chord-box frame's own 128/255) and regardless of any faint core or falloff around it.
+    // Two passes over the cell: the first finds any-visible bounds (the falloff's reach) and the
+    // glyph's peak pixel coverage; the second takes the solid bounds at half that peak — the glyph
+    // rect the contract clips the stroke to — so its corners pin the arm centerlines exactly even
+    // for a rim authored below full coverage, and regardless of any faint core or falloff around
+    // it.
     int faint_min_y = y_end;
     int faint_max_y = -1;
-    float peak_pixel_alpha = 0.0F;
+    float peak_pixel_coverage = 0.0F;
     for (int y = y_begin; y < y_end; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
-            const float alpha = bitmap.getPixelColour(x, y).getFloatAlpha();
-            if (alpha < g_visible_alpha)
+            const float coverage = bitmap.getPixelColour(x, y).getFloatBlue();
+            if (coverage < g_visible_coverage)
             {
                 continue;
             }
             faint_min_y = std::min(faint_min_y, y);
             faint_max_y = std::max(faint_max_y, y);
-            peak_pixel_alpha = std::max(peak_pixel_alpha, alpha);
+            peak_pixel_coverage = std::max(peak_pixel_coverage, coverage);
         }
     }
-    if (peak_pixel_alpha < 0.25F)
+    if (peak_pixel_coverage < 0.25F)
     {
         return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
     }
-    const float solid_alpha = peak_pixel_alpha / 2.0F;
+    const float solid_coverage = peak_pixel_coverage / 2.0F;
     int min_x = width;
     int min_y = y_end;
     int max_x = -1;
@@ -57,7 +60,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     {
         for (int x = 0; x < width; ++x)
         {
-            if (bitmap.getPixelColour(x, y).getFloatAlpha() < solid_alpha)
+            if (bitmap.getPixelColour(x, y).getFloatBlue() < solid_coverage)
             {
                 continue;
             }
@@ -83,7 +86,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     const double dir_y = (rect_height / 2.0) / arm_length;
 
     const auto sample = [&](const double x, const double y) {
-        // Bilinear RGBA sample, clamped to the cell.
+        // Bilinear sample of the three structural channels, clamped to the cell.
         const double fx = std::clamp(x, 0.0, static_cast<double>(width - 1));
         const double fy = std::clamp(y, static_cast<double>(y_begin), y_end - 1.0);
         const int x0 = static_cast<int>(std::floor(fx));
@@ -92,13 +95,12 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
         const int y1 = std::min(y0 + 1, y_end - 1);
         const double tx = fx - x0;
         const double ty = fy - y0;
-        std::array<double, 4> out{};
+        std::array<double, 3> out{};
         const auto accumulate = [&](const int px, const int py, const double weight) {
-            const juce::Colour color = bitmap.getPixelColour(px, py);
-            out[0] += weight * color.getFloatRed();
-            out[1] += weight * color.getFloatGreen();
-            out[2] += weight * color.getFloatBlue();
-            out[3] += weight * color.getFloatAlpha();
+            const juce::Colour texel = bitmap.getPixelColour(px, py);
+            out[0] += weight * texel.getFloatRed();
+            out[1] += weight * texel.getFloatGreen();
+            out[2] += weight * texel.getFloatBlue();
         };
         accumulate(x0, y0, (1.0 - tx) * (1.0 - ty));
         accumulate(x1, y0, tx * (1.0 - ty));
@@ -108,9 +110,9 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     };
 
     // Averages one cross-section cut set over both arms' outer spans into `samples`, each
-    // sample the mean RGBA at its distance from the measured arm's centerline across all
-    // valid cuts. The art composes as f(max(stripe, rect clip)), so a sample only carries
-    // cross-section truth where the stripe term owns the pixel; two guards enforce that.
+    // sample the mean of the three channels at its distance from the measured arm's centerline
+    // across all valid cuts. The art composes as f(max(stripe, rect clip)), so a sample only
+    // carries cross-section truth where the stripe term owns the pixel; two guards enforce that.
     // First, a sample must be at least as close to the measured arm as to the other one —
     // past that bisector the pixel shows the other arm's cross-section (on a wide glyph the
     // shallow arm angle makes perpendicular cuts run straight into the other arm's rim).
@@ -121,10 +123,10 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     // unguarded (it has no estimate yet); its stroke edge is set by the rim's sharp falloff,
     // which the tip smear does not move.
     const auto accumulate = [&](const double extent,
-                                const std::span<std::array<double, 4>>
+                                const std::span<std::array<double, 3>>
                                     samples,
                                 const double stroke_half_guard) {
-        std::ranges::fill(samples, std::array<double, 4>{});
+        std::ranges::fill(samples, std::array<double, 3>{});
         std::vector<double> weights(samples.size(), 0.0);
         constexpr int g_stations = 6;
         for (int station = 0; station < g_stations; ++station)
@@ -168,8 +170,8 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
                                     continue;
                                 }
                             }
-                            const std::array<double, 4> texel = sample(sample_x, sample_y);
-                            for (std::size_t channel = 0; channel < 4; ++channel)
+                            const std::array<double, 3> texel = sample(sample_x, sample_y);
+                            for (std::size_t channel = 0; channel < 3; ++channel)
                             {
                                 samples[i].at(channel) += texel.at(channel);
                             }
@@ -196,43 +198,43 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     // out past the faint bounding box — locates the stroke edge and the last visible art.
     constexpr std::size_t g_survey_samples = 256;
     const double survey_extent = ((faint_max_y - faint_min_y + 1) / 2.0) + 2.0;
-    std::array<std::array<double, 4>, g_survey_samples> survey{};
+    std::array<std::array<double, 3>, g_survey_samples> survey{};
     accumulate(survey_extent, survey, 0.0);
 
-    // The stroke boundary anchors to the rim's outer falloff at HALF THE GLYPH'S PEAK alpha
-    // rather than a fixed 50%: the palm rim is authored at the chord-box frame's own 128/255
-    // alpha, which a fixed threshold would straddle. A glyph whose peak never reaches a
+    // The stroke boundary anchors to the rim's outer falloff at HALF THE GLYPH'S PEAK coverage
+    // rather than a fixed 50%, so a rim the art did not carry to full coverage still anchors at
+    // its own edge instead of straddling a fixed threshold. A glyph whose peak never reaches a
     // quarter has no rim to anchor to.
-    double peak_alpha = 0.0;
-    for (const std::array<double, 4>& value : survey)
+    double peak_coverage = 0.0;
+    for (const std::array<double, 3>& value : survey)
     {
-        peak_alpha = std::max(peak_alpha, value[3]);
+        peak_coverage = std::max(peak_coverage, value[2]);
     }
-    if (peak_alpha < 0.25)
+    if (peak_coverage < 0.25)
     {
         return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
     }
-    const double edge_alpha = peak_alpha / 2.0;
+    const double edge_coverage = peak_coverage / 2.0;
 
     double stroke_half = -1.0;
     double last_visible = 0.0;
-    double previous_alpha = 0.0;
+    double previous_coverage = 0.0;
     for (std::size_t i = 0; i < g_survey_samples; ++i)
     {
         const double distance = survey_extent * (static_cast<double>(i) + 0.5) / g_survey_samples;
-        const double alpha = survey.at(i)[3];
+        const double coverage = survey.at(i)[2];
         // Take the OUTERMOST falling crossing — not the first — so the anchor stays on the
-        // rim even when the art's core is faint or fully hollow, where alpha starts below
+        // rim even when the art's core is faint or fully hollow, where coverage starts below
         // the edge threshold at the centerline.
-        if (previous_alpha >= edge_alpha && alpha < edge_alpha)
+        if (previous_coverage >= edge_coverage && coverage < edge_coverage)
         {
             stroke_half = distance;
         }
-        if (alpha >= g_visible_alpha)
+        if (coverage >= g_visible_coverage)
         {
             last_visible = distance;
         }
-        previous_alpha = alpha;
+        previous_coverage = coverage;
     }
     if (stroke_half <= 0.0 || last_visible <= stroke_half)
     {
@@ -241,22 +243,25 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
 
     // Second pass: the shipped ramp, cut over a tight extent that ends at the last visible
     // art so every sample carries signal and the renderer's overshoot — which follows
-    // extent_fraction — stays as small as the art allows; the forced-transparent tail below
+    // extent_fraction — stays as small as the art allows; the forced-zero tail below
     // guarantees the dissolve past it.
     const double extent = last_visible;
-    std::array<std::array<double, 4>, g_box_mute_ramp_samples> accumulated{};
+    std::array<std::array<double, 3>, g_box_mute_ramp_samples> accumulated{};
     accumulate(extent, accumulated, stroke_half);
 
     BoxMuteProfile profile;
     for (std::size_t i = 0; i < g_box_mute_ramp_samples; ++i)
     {
-        for (std::size_t channel = 0; channel < 4; ++channel)
+        for (std::size_t channel = 0; channel < 3; ++channel)
         {
             profile.ramp.at((i * 4) + channel) = static_cast<std::uint8_t>(
                 std::lround(std::clamp(accumulated.at(i).at(channel), 0.0, 1.0) * 255.0));
         }
+        // The fourth byte only pads the ramp out to the RGBA8 texture it uploads into; the
+        // shader never reads it.
+        profile.ramp.at((i * 4) + 3) = 255;
     }
-    // Force the tail transparent so sampling past the extent always dissolves.
+    // Force the tail to zero coverage so sampling past the extent always dissolves.
     for (std::size_t channel = 0; channel < 4; ++channel)
     {
         profile.ramp.at(((g_box_mute_ramp_samples - 1) * 4) + channel) = 0;
@@ -268,12 +273,20 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
 
 } // namespace
 
-// Validates the two-cell stack shape, then measures each cell's glyph.
+// Validates the two-cell stack shape and the absence of an alpha channel, then measures each
+// cell's glyph.
 std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(const juce::Image& image)
 {
     if (image.getWidth() < 16 || image.getHeight() < 16 || (image.getHeight() % 2) != 0)
     {
         return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
+    }
+    // An alpha-bearing image has already been premultiplied by the decoder, which scales the
+    // structural channels by an opacity that is not supposed to be in the art at all. Reject it
+    // here rather than measure signals that have been silently scaled.
+    if (image.hasAlphaChannel())
+    {
+        return std::unexpected(BoxMuteProfileError::AlphaBearingImage);
     }
     const juce::Image::BitmapData bitmap{image, juce::Image::BitmapData::readOnly};
     const int cell_height = image.getHeight() / 2;

@@ -1,12 +1,12 @@
 $input v_color0, v_texcoord0
 
-// Repeat-box mute mark: lays the chords.png art out along correctly-angled arms. The texture
-// is the single source of truth for the look — at load the renderer measures each mark's
-// cross-section (colors, rim/core structure, halo, all as painted) into a tiny ramp this
-// shader samples by exact distance from the arm centerline. The distance field is EVALUATED
-// per fragment in box-local world units because the X's arm angle changes with every box
-// aspect — a shape no fixed bitmap contains — so the art's line weights hold exactly on every
-// box while its colors come straight from the authored pixels.
+// Repeat-box mute mark: lays the chords.png art out along correctly-angled arms. The texture is
+// the single source of truth for the mark's structure — at load the renderer measures each mark's
+// cross-section (tint weighting, rim/core structure, coverage, all as painted) into a tiny ramp
+// this shader samples by exact distance from the arm centerline. The distance field is EVALUATED
+// per fragment in box-local world units because the X's arm angle changes with every box aspect —
+// a shape no fixed bitmap contains — so the art's line weights hold exactly on every box, while
+// v_color0 supplies hue and opacity so a color retune never needs a repaint.
 #include <bgfx_shader.sh>
 
 SAMPLER2D(s_atlas, 0);
@@ -47,9 +47,13 @@ void main()
     float d_rect = length(max(rect_q, vec2_splat(0.0))) + min(max(rect_q.x, rect_q.y), 0.0);
     float d = max(d_arm, d_rect);
 
-    // Distance from the arm centerline selects the painted cross-section sample; the ramp's
-    // tail is transparent by construction, so clamping dissolves everything past the art.
+    // Distance from the arm centerline selects the measured cross-section sample; the ramp's
+    // coverage falls to zero by construction, so clamping dissolves everything past the art.
+    // The ramp carries the structural-art channel scheme shared with the note atlas (see
+    // fs_texture_tint.sc): R weights the tint, G lifts achromatically toward white, B is
+    // coverage. Hue and opacity therefore both arrive in v_color0.
     float u = clamp((stroke_half_width + d) / ramp_extent, 0.0, 1.0);
     vec4 art = texture2D(s_atlas, vec2(u, u_box_mute_arms.w));
-    gl_FragColor = art * v_color0;
+    vec3 rgb = (art.r * v_color0.rgb) + vec3_splat(art.g);
+    gl_FragColor = vec4(rgb, art.b * v_color0.a);
 }

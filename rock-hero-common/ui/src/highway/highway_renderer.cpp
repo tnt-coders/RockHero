@@ -252,34 +252,24 @@ constexpr double g_unpitched_slide_end_alpha = 0.25;
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
 constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
 
-// The frame fade's vertex modulation: the per-channel ratio dark/box (rounded), which turns
-// art authored in the frame color into the frame's dark middle color when multiplied.
-// Channels the box color lacks pass through, as does alpha. Derived so the dark/box
-// relationship is stated only by the two constants above.
-[[nodiscard]] constexpr ArgbColor frameFadeModulation()
-{
-    constexpr auto channel = [](const ArgbColor color, const int shift) {
-        return (color >> static_cast<unsigned>(shift)) & 0xFFU;
-    };
-    ArgbColor modulation = 0xFF000000U;
-    for (const int shift : {16, 8, 0})
-    {
-        const std::uint32_t box = channel(g_chord_box_color, shift);
-        const std::uint32_t dark = channel(g_chord_box_dark_color, shift);
-        const std::uint32_t ratio = box == 0U ? 0xFFU : (((dark * 255U) + (box / 2U)) / box);
-        modulation |= ratio << static_cast<unsigned>(shift);
-    }
-    return modulation;
-}
-// Repeat-box mute marks render through the SDF shader (fs_box_mute), and chords.png is the
-// single source of truth for their look: at renderer creation each mark's cross-section —
-// colors, rim/core structure, halo, opacity, exactly as painted — is measured from that file
-// into a two-row ramp the shader samples by exact distance from the arm centerlines (see
-// box_mute_profile.h for the authoring contract). The distance field is evaluated per
-// fragment because the X's arm angle changes with every box aspect — a shape no fixed bitmap
-// contains — so bitmap stretching distorted line weight with the box while this holds the
-// painted weights everywhere. Repainting chords.png is the only way to restyle the marks;
-// there are deliberately no art constants here.
+// The frame's own opacity, shared by the gradient frame bars and by the mute marks drawn against
+// them. The palm mark's rim has to composite identically to the border it stops against, so the
+// value gets one home rather than two places that agree by coincidence.
+constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
+
+// Repeat-box mute marks render through the SDF shader (fs_box_mute). chords.png carries their
+// STRUCTURE only — tint weighting, rim/core structure, and coverage, in the same channel scheme
+// the note atlas uses — which the renderer measures at creation into a two-row ramp the shader
+// samples by exact distance from the arm centerlines (see box_mute_profile.h for the authoring
+// contract). Hue and opacity both arrive as vertex color from the constants here, never from the
+// art: the palm mark wears the frame's own color and alpha so the two stay equal wherever they
+// meet, and a hue baked into the pixels could not follow a retune of it. The distance field is
+// evaluated per fragment because the X's arm angle changes with every box aspect — a shape no
+// fixed bitmap contains — so bitmap stretching distorted line weight with the box while this
+// holds the measured weights everywhere.
+constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
+
+// Chord-name text above a box.
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
 
 // Hand-shape span rails on the floor: arpeggio spans in Charter's purple, held shapes in
@@ -760,8 +750,8 @@ void pushChordBoxPanel(
     const double thickness = frame_thickness;
 
     const std::uint32_t box_solid = packAbgr(g_chord_box_color);
-    const std::uint32_t box_half = packAbgr(g_chord_box_color, 128.0 / 255.0);
-    const std::uint32_t dark_half = packAbgr(g_chord_box_dark_color, 128.0 / 255.0);
+    const std::uint32_t box_half = packAbgr(g_chord_box_color, g_chord_box_frame_alpha);
+    const std::uint32_t dark_half = packAbgr(g_chord_box_dark_color, g_chord_box_frame_alpha);
     const std::uint32_t box_faint = packAbgr(g_chord_box_color, 32.0 / 255.0);
     const std::uint32_t dark_faint = packAbgr(g_chord_box_dark_color, 32.0 / 255.0);
     const std::uint32_t box_clear = packAbgr(g_chord_box_color, 0.0);
@@ -927,6 +917,24 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
         }};
     }
     return program;
+}
+
+// Names why the box-mute art failed, for the asset-invalid diagnostic. Deliberately switches
+// without a default so a new BoxMuteProfileError has to be named here rather than being reported
+// as one of the existing reasons.
+[[nodiscard]] constexpr std::string_view describeChordMarksError(const BoxMuteProfileError error)
+{
+    switch (error)
+    {
+        case BoxMuteProfileError::UndecodableImage:
+            return "undecodable";
+        case BoxMuteProfileError::UnanalyzableGlyph:
+            return "unanalyzable";
+        case BoxMuteProfileError::AlphaBearingImage:
+            return "alpha-bearing (the art must have no alpha channel — coverage lives in its blue "
+                   "channel and opacity is applied per draw)";
+    }
+    return "unrecognized";
 }
 
 } // namespace
@@ -1119,10 +1127,11 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     UploadedTexture fingering = uploadPngTexture(textures.fingering_png);
     impl->fingering_texture = std::move(fingering.handle);
 
-    // Box-mute marks: chords.png is the single source of truth for the marks' look. Measure
+    // Box-mute marks: chords.png is the single source of truth for the marks' STRUCTURE. Measure
     // both marks' cross-sections from its pixels and upload them as the two-row ramp the SDF
-    // shader samples by distance; what is painted there is exactly what the boxes render.
-    // Draw needs only the layout fractions afterwards — the ramps live in the GPU texture.
+    // shader samples by distance; the measured weighting and coverage are exactly what the boxes
+    // render, with hue and opacity applied per draw as vertex color. Draw needs only the layout
+    // fractions afterwards — the ramps live in the GPU texture.
     const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
         measureBoxMuteProfiles(textures.chord_marks_png);
     if (profiles.has_value())
@@ -1164,10 +1173,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         !impl->box_mute_ramp.isValid())
     {
         const std::string_view chord_marks_state =
-            profiles.has_value()
-                ? "measured"
-                : (profiles.error() == BoxMuteProfileError::UndecodableImage ? "undecodable"
-                                                                             : "unanalyzable");
+            profiles.has_value() ? "measured" : describeChordMarksError(profiles.error());
         return std::unexpected{HighwayRendererError{
             .code = HighwayRendererErrorCode::TextureAssetInvalid,
             .message = std::format(
@@ -2477,8 +2483,8 @@ void HighwayRenderer::Impl::draw(
         // them. The quad covers that interior exactly, texcoord carries interior-local
         // world-unit offsets, and the fragment shader samples chords.png's measured
         // cross-section by exact distance from the arm centerlines — the texture defines the
-        // look, the shader only lays the arms out. Submits immediately so painter order holds
-        // across boxes — see the batch comment above.
+        // structure, the shader lays the arms out, and the vertex color supplies hue and opacity.
+        // Submits immediately so painter order holds across boxes — see the batch comment above.
         const auto push_box_mute_marker = [&](const double x0,
                                               const double x1,
                                               const double y0,
@@ -2520,13 +2526,12 @@ void HighwayRenderer::Impl::draw(
             bgfx::setUniform(box_mute_params.get(), params.data());
             bgfx::setUniform(box_mute_arms.get(), arms.data());
             // The quad covers the interior exactly with no margin: the full mark dissolves
-            // inside it and the palm mark is sliced by it. The palm rim is authored in the
-            // frame color, so its quads ride the frame's own fade (pushMiddleFadedQuads,
-            // shared with the bars) as a vertex modulation — full brightness at the ends,
-            // the derived dark/box ratio at the middle — keeping the rim equal to the
-            // border wherever they meet. The full mark's rim is its own color and stays
-            // unshaded.
-            const std::uint32_t white = packAbgr(0xFFFFFFFF);
+            // inside it and the palm mark is sliced by it. The art carries structure only, so the
+            // vertex color passed here supplies BOTH the mark's hue and its opacity (the shader
+            // weights the tint by the art's R and scales this alpha by the art's coverage). The
+            // palm mark wears the frame's own colors at the frame's own alpha and rides the
+            // frame's end-to-middle fade (pushMiddleFadedQuads, shared with the bars), so its rim
+            // is the same expression as the border it meets; the full mark is a flat opaque tint.
             const auto make_corner =
                 [&](const double vx, const double vy, const std::uint32_t abgr) {
                     return makeUvVertex(
@@ -2539,13 +2544,14 @@ void HighwayRenderer::Impl::draw(
                 };
             if (full)
             {
+                const std::uint32_t tint = packAbgr(g_full_mute_mark_color);
                 pushQuad(
                     box_marker_vertices,
                     box_marker_indices,
-                    make_corner(x0, y0, white),
-                    make_corner(x1, y0, white),
-                    make_corner(x1, y1, white),
-                    make_corner(x0, y1, white));
+                    make_corner(x0, y0, tint),
+                    make_corner(x1, y0, tint),
+                    make_corner(x1, y1, tint),
+                    make_corner(x0, y1, tint));
             }
             else
             {
@@ -2556,8 +2562,8 @@ void HighwayRenderer::Impl::draw(
                     x1,
                     y0,
                     y1,
-                    white,
-                    packAbgr(frameFadeModulation()),
+                    packAbgr(g_chord_box_color, g_chord_box_frame_alpha),
+                    packAbgr(g_chord_box_dark_color, g_chord_box_frame_alpha),
                     make_corner);
             }
             const bgfx::TextureHandle ramp = box_mute_ramp.get();

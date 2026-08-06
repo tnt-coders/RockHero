@@ -143,6 +143,41 @@ Plan-specific hard rules:
 
 Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
+### Color-reachability audit (2026-08-05)
+
+Found while auditing what would break if colors became user-configurable, and re-verified against
+the current tree. The highway-side findings live in
+`docs/plans/roadmap/54-highway-visual-theming.md`; these are this plan's.
+
+- **The shared palette is hard-wired at every leaf call site, so Phase 3's picker would change
+  nothing.** `charterClassicPalette()` is called directly at
+  `rock-hero-common/ui/src/tab/tab_paint_core.cpp:930` and at `highway_renderer.cpp:1243` / `:1317`.
+  There is no injection path: the palette `id` field is documented as persisted by product settings,
+  but nothing consumes it. **Phase 3 must add the injection before or with the picker** — a
+  selection UI over a hardcoded palette is exactly the "code that lies about intent" the design
+  rules forbid. Plan 54 Phase 1 is blocked on the same change for the 3D side; coordinate rather
+  than solving it twice.
+- **The shared 2D notation paint core holds fixed chart colors reachable from neither seam.**
+  `rock-hero-common/ui/src/tab/tab_paint_core.cpp` carries 8 opaque hex literals. `EditorTheme` is
+  editor-private and cannot reach `common/ui`, and they are not string colors, so today they belong
+  to nothing. Decide ownership explicitly: either a small shared notation-color value beside the
+  palette in `common/ui` (which plan 30's strip renderer would also consume), or an argument passed
+  in by each product. Do not extend `EditorTheme` across the layering boundary.
+- **`EditorTheme` is not the single seam it is described as.** `rock-hero-editor/ui/src` has ~85
+  color-literal or `juce::Colours::` sites, of which 25 are fully opaque hex literals defining
+  per-feature palettes outside the theme struct; three overlay panel plates are built with
+  `juce::Colour::fromRGB`. Phase 2 should quantify and close this rather than adding presets on top
+  of a leaky seam — a preset that only moves the values already inside `EditorTheme` produces a
+  half-retinted editor, which reads as a bug rather than a theme.
+- **Stock JUCE widgets are colored by JUCE, not by the theme.** A `MenuLookAndFeel` exists but is
+  installed on the menu bar only (`editor_view.cpp:311`, `:341`), and `main_window.cpp:61` reads a
+  color from the *default* LookAndFeel. Every other stock widget therefore ignores `EditorTheme`
+  entirely. Phase 2 should decide whether a theme-driven LookAndFeel is in scope or explicitly out;
+  leaving it unstated is what produces the half-retinted result above.
+- **Editor SVG icons bake their fill color** — 7 resource files carry a `fill=` attribute and are
+  loaded with no recolor call, so icons cannot follow a theme. Small and self-contained; fold into
+  Phase 2 only if a preset would visibly clash, otherwise record it as accepted.
+
 ## Dependencies
 
 - Upstream (blocking): none for Phases 1–4; this plan sits on the current baseline.

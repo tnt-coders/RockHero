@@ -669,7 +669,9 @@ drawers (session Charter clone).
   (fs_box_mute, the seventh shader) whose look is owned entirely by the NEW chords.png asset
   (SETTLED 2026-08-01 as the architecture-gate outcome, two research agents concurring):
   chords.png — original Rock Hero art, two stacked cells, palm above full, final display
-  colors, deliberately separate from the note cells so the box marks can diverge — is
+  colors (superseded 2026-08-05: the art carries structure only, in the channel scheme notes.png
+  uses and with no alpha channel, while the renderer supplies hue and opacity; see plan 54's
+  amendment for why), deliberately separate from the note cells so the box marks can diverge — is
   measured at renderer creation into a two-row cross-section ramp (box_mute_profile.{h,cpp},
   headlessly tested, fail-loud on unanalyzable art) that the shader samples by exact distance
   from arm centerlines evaluated per fragment in box-local world units, because the X's arm

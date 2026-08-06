@@ -14,6 +14,14 @@ add_executable(
 # its include paths.
 target_include_directories(rock_hero_common_ui_tests PRIVATE ../src)
 
+# The box-mute art is measured at renderer creation against a declared authoring contract, so the
+# shipped asset itself is part of that contract and gets a test. Point the suite at the source
+# tree's texture folder rather than a deployed copy: the contract is a property of the checked-in
+# art, and a deploy step that had not run yet would test stale bytes.
+target_compile_definitions(
+    rock_hero_common_ui_tests
+    PRIVATE ROCK_HERO_TEXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../resources/textures")
+
 # Tests link the library under test plus Catch2's generated main; the paint-core pixel tests
 # rasterize through a software JUCE image, so they need the GUI module's scoped initialiser.
 target_link_libraries(

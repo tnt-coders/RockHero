@@ -470,6 +470,16 @@ forward and record it in both plans).
   typed reason (richer content reasons arrive with docs/plans/roadmap/42-chart-validation.md). Manual
   rescan action reuses Phase 3 with visible progress. Song detail pane: arrangements, parts,
   tunings, album-art image when available.
+- **Menu colors go through a seam from the first commit, not afterwards** (added 2026-08-05 from the
+  color-reachability audit). User-configurable colors are a planned feature
+  (docs/plans/roadmap/54-highway-visual-theming.md), and the two other UI surfaces both had to be
+  retrofitted because literals accumulated first — the editor now carries ~85 color-literal sites
+  outside its theme struct (plan 45's audit section). The game shell's existing literals are few and
+  should be folded in as this phase lands: `rock-hero-game/ui/src/game/game.cpp:172` carries a
+  translucent-white `abgr` inline. The diagnostics overlay
+  (`rock-hero-game/ui/src/overlay/diagnostics_overlay.cpp:28-32`) is deliberately exempt — its
+  green/amber/red bars encode budget thresholds, so they are semantic, not decoration, and must not
+  become themeable.
 - **Files**: song-list view model (filtering/sorting/selection as pure logic) in
   `rock-hero-game/core/.../library/`; presentation in `rock-hero-game/ui/` per 20's stack;
   fonts/menu SFX through 20's resource-pack conventions — no new loading paths invented here.
