@@ -979,45 +979,44 @@ void normalizeImportedSustains(
                     // Scrapes carry no bend and no slide-out (the carrier conversion sheds
                     // both), so this branch is the whole payload story for them.
                     //
-                    // The final leg and the closing gap SHARE the room `R` the leg has to work
-                    // in — from where the leg starts to the next binding onset. Only a genuine
-                    // conflict crunches anything: while the full margin still leaves the leg its
-                    // minimum window, the margin is paid in full and the leg simply takes what is
-                    // left. The gesture is squeezed only when honoring `d` would starve the leg,
-                    // i.e. below R = d + g_minimum_slide_window, and then the shortfall is shared
-                    // evenly rather than taken from one side. In the extreme the leg's window wins
-                    // outright — a leg shorter than it has nowhere to travel — and the gap gives
-                    // way to the exact adjacency the model already allows a scrape terminal.
+                    // Where the leg sits relative to the margin decides everything, and the
+                    // two cases are the whole rule. A leg that STARTS before the margin line has
+                    // room to end on it, so it does: the gap is the margin exactly, and no
+                    // spacing is given up. A leg that starts ON OR AFTER that line cannot yield
+                    // the margin at all — it is already inside the window — so it halves the
+                    // distance to the onset, which is the one split that always leaves some gap
+                    // whatever the crowding. This is the sanctioned exception: the gesture is
+                    // LITERALLY defined inside the margin, which is exactly when the spacing rule
+                    // steps aside.
                     //
-                    // In 4/4 (d = 1/4 beat, window = 1/8 beat): R >= 3/8 pays the full 1/4 gap;
-                    // R = 1/4 splits into a 1/8 leg and a 1/8 gap, which is a 1/32 whole note
-                    // each; R = 1/8 spends everything on the leg. The terminal only ever moves
-                    // EARLIER; a trim never lengthens a gesture.
+                    // No compression floor. Both cases land strictly after the leg's start by
+                    // construction — the first by its own branch condition, the second because
+                    // half of a positive room is positive — so the payload stays ascending
+                    // without one, and a floor here could only buy leg length by spending the
+                    // spacing the rule exists to protect. g_minimum_slide_window keeps its other
+                    // job, which is SYNTHESIS: a gesture built from nothing needs a default span.
+                    // That is not this decision.
                     if (note.attack == NoteAttack::PickSlide && !note.slides.empty())
                     {
                         const Fraction leg_start = note.slides.size() > 1
                                                        ? note.slides[note.slides.size() - 2].offset
                                                        : Fraction{};
-                        const Fraction room = sounding_gap - leg_start;
-                        // Squeezing is for conflicts only: a margin that costs the leg nothing it
-                        // cannot spare is not a conflict, so it is paid whole.
-                        const Fraction spare = room - margin;
-                        Fraction closing_gap = margin;
-                        if (spare < g_minimum_slide_window)
+                        Fraction terminal = note.slides.back().offset;
+                        if (leg_start < limit)
                         {
-                            const Fraction shared = room * Fraction{1, 2};
-                            const Fraction leg_floored = room - g_minimum_slide_window;
-                            closing_gap = std::min(shared, leg_floored);
-                            if (closing_gap.numerator < 0)
-                            {
-                                closing_gap = Fraction{};
-                            }
+                            terminal = limit;
                         }
-                        Fraction terminal = sounding_gap - closing_gap;
-                        if (terminal - leg_start < g_minimum_slide_window)
+                        else if (leg_start < sounding_gap)
                         {
-                            terminal = leg_start + g_minimum_slide_window;
+                            // Half the distance to the ONSET, not half the notated length: a leg
+                            // notated past the onset would halve to something still past it. The
+                            // hold check above already claims those notes, so this is belt and
+                            // braces against that guard ever moving.
+                            terminal = leg_start + ((sounding_gap - leg_start) * Fraction{1, 2});
                         }
+                        // A leg starting at or beyond the onset has nothing to crunch against
+                        // (a grace lead can shift a sounding onset under a notated ring), so it
+                        // keeps its end and the assignment below only ever shortens.
                         if (terminal < note.slides.back().offset)
                         {
                             note.slides.back().offset = terminal;

@@ -1729,11 +1729,11 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
 }
 
 // Policy rule 19's crowding case: a scrape's path is derived gesture geometry, so when the room
-// runs short the gesture and the closing gap SQUISH — sharing the shortfall instead of the gesture
-// yielding a fixed margin it cannot afford. Only a REAL conflict crunches anything: the margin d is
-// paid in full while paying it still leaves the leg its minimum window w, and only below R = d + w
-// do the two share. Runs in 4/4, where d is a quarter beat and w is an eighth beat, so the conflict
-// threshold sits at R = 3/8 beat.
+// runs short the terminal leg is crunched, and where the leg STARTS decides how. A leg starting
+// before the margin line ends on it, giving up no spacing at all. A leg starting on or after that
+// line is already inside the window, so it halves its distance to the onset — the exception the
+// spacing rule sanctions, since the gesture is literally defined in there. Runs in 4/4, where the
+// minimum sustain distance is a quarter beat.
 TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -1805,17 +1805,18 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
     }
 
-    SECTION("below the crossover the minimum slide window wins and the gap gives way")
+    SECTION("the tightest room still keeps a gap, because halving always leaves one")
     {
-        // R = 1/8 beat, under 2 * the minimum slide window: an even split would leave the
-        // gesture 1/16 beat with nowhere to travel, so the leg clamps up to the window and the
-        // path ends in exact adjacency with the next onset instead (the pick-slide carve-out in
-        // the chart rules). The path still ends exactly at the sustain.
+        // R = 1/8 beat, half the margin: the leg starts well inside the window, so it halves the
+        // room and both sides get 1/16. The old compression floor forced the leg up to 1/8 here
+        // and left NO gap at all — exact adjacency with the next onset — which is precisely the
+        // spacing the rule exists to protect, so dropping that floor improves the tightest case
+        // rather than costing anything. The path still ends exactly at the sustain.
         const auto built = crowded_scrape(Fraction{1, 32});
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{1, 8});
+        CHECK(chart.notes[0].sustain == Fraction{1, 16});
         REQUIRE(chart.notes[0].slides.size() == 1);
         CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
         CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
