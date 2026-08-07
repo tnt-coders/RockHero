@@ -11,9 +11,11 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <ranges>
 #include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <string>
@@ -3356,6 +3358,56 @@ TEST_CASE("Guitar Pro build stays quiet when sync coverage is full", "[core][gp-
     CHECK_FALSE(anyNoteContains(built->notes, "audio sync points cover only up to"));
     // The heuristic part guess is always recorded so a misfiled track stays visible.
     CHECK(anyNoteContains(built->notes, "assigned parts by track order and name"));
+}
+
+// A hold waypoint places NO hand position, not even at a phrase boundary. Nothing travels across an
+// equal-fret waypoint, so it announces no new hand position; the generator's coverage suppression
+// normally drops it anyway, because a hold cannot shift the hand and the window that covered the
+// note still covers it. A phrase boundary bypasses that suppression on purpose, so the hand can
+// re-anchor to a new phrase's floor — and a hold riding that bypass re-anchored the hand mid-note,
+// beats into a held note, before the slide that was the actual reason to move. Found on a tie chain
+// that held fret 11 across three beats and then trailed off into a sectioned measure.
+TEST_CASE(
+    "Guitar Pro import places no hand position at a hold on a phrase boundary", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    GpScore score = makeLinearScore(2, syncs);
+    // The section marker on bar 2 is what makes this reproduce: it is a phrase boundary, so the
+    // event landing there re-anchors instead of being suppressed as already-covered.
+    score.master_bars[1].section = "Chorus";
+
+    // Bar 1: a low fret sets a window that already covers 11, then the 11 is tied onward. Bar 2:
+    // the continuation trails off, so the merged note's hold waypoint lands on bar 2 beat 1 —
+    // exactly the boundary — with no other onset there to justify a placement.
+    GpBeat origin = noteBeat(Fraction{7, 8}, 11, 2);
+    origin.notes[0].tie_origin = true;
+    GpBeat continuation = noteBeat(Fraction{1, 4}, 11, 2, 8);
+    continuation.notes[0].tie_destination = true;
+    score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 8}, 8, 1), origin}}});
+    score.tracks[0].bars.push_back(
+        GpBar{.voices = {{continuation, noteBeat(Fraction{1, 4}, 3, 2)}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+
+    const auto held = std::ranges::find_if(
+        chart.notes, [](const common::core::ChartNote& note) { return note.fret == 11; });
+    REQUIRE(held != chart.notes.end());
+    REQUIRE_FALSE(held->slides.empty());
+    // The waypoint the continuation left behind holds the same fret, which is what makes it a hold.
+    CHECK(held->slides.front().fret == held->fret);
+
+    const GridPosition hold_position = common::core::advanceGridPosition(
+        built->tempo_map, held->position, held->slides.front().offset);
+    CHECK(hold_position == GridPosition{.measure = 2, .beat = 1});
+    const bool placed_at_hold = std::ranges::any_of(
+        chart.fret_hand_positions, [&hold_position](const common::core::FretHandPosition& fhp) {
+            return fhp.position == hold_position;
+        });
+    CHECK_FALSE(placed_at_hold);
 }
 
 TEST_CASE("Guitar Pro import rejects unusable sources", "[core][gp-import]")
