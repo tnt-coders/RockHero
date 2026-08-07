@@ -9,6 +9,7 @@
 #include <compare>
 #include <cstddef>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -455,10 +456,12 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     {
         return points.front().second;
     }
-    for (std::size_t segment = 1; segment < points.size(); ++segment)
+    // Walked as an iterator pair rather than by index: a runtime subscript on a fixed-size array
+    // is unchecked bounds access, and each step needs the point before it anyway.
+    for (auto segment = std::next(points.begin()); segment != points.end(); ++segment)
     {
-        const auto [from_offset, from_value] = points[segment - 1];
-        const auto [to_offset, to_value] = points[segment];
+        const auto [from_offset, from_value] = *std::prev(segment);
+        const auto [to_offset, to_value] = *segment;
         if (percent > to_offset)
         {
             continue;
