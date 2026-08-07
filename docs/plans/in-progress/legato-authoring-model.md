@@ -2,7 +2,9 @@
 
 Status: **OPEN DESIGN, parked 2026-08-07** at the user's direction — *"I want to decide on the note
 head shape for pick slides first and then maybe come back to this conversation and have Fable take an
-in-depth look at it to really analyze the potential pitfalls."* Plan 40 Phase 5's first verb (`H`)
+in-depth look at it to really analyze the potential pitfalls."* (That head-shape decision has since
+landed on ALT H — the plectrum head with the dark PS chip — so the blocker on resuming this is the
+user's remaining concern with it, then the deep review.) Plan 40 Phase 5's first verb (`H`)
 shipped in `4a98da55` with the naive derivation; this document records what that verb got wrong, what
 is settled, and the two questions that are genuinely open. Nothing here is implemented yet beyond
 what that commit contains.
@@ -118,7 +120,7 @@ note is `Pick`, nothing resurrects it, because `Pick` is never impossible. The 1
 cannot happen. But the user's first wish is then unmet — the 5→3→2 sequence leaves a plain pick where
 they expected a hammer-on.
 
-Options, none chosen:
+Options. A3 is rejected and **A4 leads**; A1 and A2 are kept for contrast:
 
 - **A1 — impossibility only (no new state).** Cleared stays cleared. No surprises, no resurrection.
   Cheapest; the 5→3→2 case disappoints.
@@ -126,13 +128,57 @@ Options, none chosen:
   (`EditorUndoHistory::replaceTop`, 1.5 s) so an in-flight retype does not commit the clear. This
   fixes 5→3→2 *within* the window and does nothing for it after, which arguably makes the behavior
   harder to predict rather than easier — a rule whose outcome depends on how fast you typed.
-- **A3 — store the legato INTENT separately from the derived direction.** A field meaning "the user
-  asserted legato here", with hammer/pull derived from it at projection time. Intent persists across
-  edits, direction re-derives whenever the relationship changes, clearing is an explicit user action,
-  and no surprise is possible because the direction only ever flips *within* a note already marked
-  legato. This is the only option that satisfies both wishes. Cost: a format change routed through
-  `docs/plans/roadmap/10-format-versioning-and-chart-identity.md`, and it makes the stored
-  hammer/pull advisory — which is the derived-over-authored direction the project already prefers.
+- **A3 — store the legato INTENT separately from the derived direction. REJECTED by the user
+  2026-08-07** ("I don't like that"). A field meaning "the user asserted legato here", with
+  hammer/pull derived at projection time. It satisfies both wishes, but costs a format change through
+  `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` and makes the stored hammer/pull
+  advisory. Recorded for the record, not as a live option.
+- **A4 — selection-scoped recalculation. THE LEADING CANDIDATE (user's proposal, 2026-08-07):**
+
+  > "Perhaps instead of that or a timer we could just have it remember that the note was part of the
+  > legato calculation and should be recalculated until you change selection at which point it would
+  > settle wherever it lands (and if that's picked it would not rejoin a legato calculation without
+  > intent)."
+
+  A legato note whose justification an edit has disturbed enters a **recalculating** state: further
+  edits re-derive its direction, and a **selection change settles it** wherever it landed. A note that
+  settles as `Pick` is out, and cannot rejoin a legato calculation without a fresh explicit `H`.
+
+  This satisfies **both** wishes, which no other option does without a format change. Walk the user's
+  own case: `5` then `3`, the `3` a pull-off. Retype the `5` to `3` — equal frets, the pull-off is
+  disturbed, the `3` enters recalculating and lands on `Pick`. Retype again to `2`, same selection —
+  it re-derives and becomes the hammer-on the user expected. Change selection — it settles as
+  `Hammer`. Ten minutes later, editing that predecessor again does **not** disturb it, because it is
+  no longer recalculating. The surprise cannot happen, and the restoring case works.
+
+  Its decisive advantage over A3 is that the state is **transient editor state, not chart data** — no
+  format change, nothing to serialize, nothing to migrate. It sits beside the existing multi-digit
+  fret-entry window as another piece of in-flight authoring context, and composes with it rather than
+  competing: typing `1` then `2` re-derives twice and the undo coalescing already collapses that.
+
+  **The ambiguity to pin before implementing — when is the flag born?** Two readings, and they behave
+  differently:
+
+  - *At the `H` press.* The notes that just became legato are flagged. But the user then has to
+    **change selection** to reach the predecessor they want to edit, which under this reading clears
+    the flag immediately and the mechanism never fires. This reading does not work as stated.
+  - *At the invalidating edit.* A note becomes recalculating **because** an edit disturbed it, scoped
+    to the selection that caused the disturbance. Further edits under that same selection re-derive;
+    changing selection settles. This reading works and is almost certainly what was meant.
+
+  Questions the deep review should answer:
+
+  - **Undo.** The attack change must ride the same undo entry as the edit that caused it, which has
+    precedent — 40-Q2-B's truncations already "ride the same single undo entry by construction". But
+    undo restores chart data, not transient state: after undoing back past the invalidating edit, is
+    the note recalculating again or settled? An inconsistency here is the most likely source of a
+    genuinely confusing bug.
+  - **What the user sees during the window.** Landing on `Pick` mid-sequence means the mark visibly
+    changes from pull-off to plain and possibly back to hammer-on. That flicker may be *desirable*
+    feedback — it shows the edit broke the legato — or it may read as instability. It is a design
+    call, not a detail.
+  - Does "selection change" include arming the caret elsewhere, a marquee, or a seek? The marker model
+    has several ways to move without a conventional selection change.
 
 ## Open — question B: should the left-hand tap be its own concept?
 
