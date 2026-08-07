@@ -152,6 +152,28 @@ from history; or shorten the framing zones via `g_camera_zone_measures` in `high
 vertical" than ours (height-vs-pullback balance, possibly a span-coupled pitch) — a distinct axis
 from motion timing, still open.
 
+## Guitar Pro import
+
+### A payload-driven sustain extension can manufacture a deliberate hold — trigger: a real chart at 64th-note density where a slide-bearing note reads as held across the next onset
+
+The hold exemption in `normalizeImportedSustains` (rule 1) asks whether the sustain rings past the
+next NOTATED onset, and it reads the sustain *after* slide resolution. But `resolveSlideIns` and the
+slide-out window can **extend** a sustain, floored at `g_minimum_slide_window`. If that extension is
+what carries the ring past the next notated onset, importer-fabricated geometry witnesses a
+"deliberate hold" — exactly what rule 1 already refuses to let a grace lead do, since the source
+never notated a hold there.
+
+Accepted for now because it needs sub-1/8-beat spacing (64ths) to reach, and no corpus case has been
+seen. The fix is not local: it means threading the source's pre-resolution notated ring through to
+the hold check, which touches the slide, arpeggio-arrival and FHP paths that all read that ring.
+Found 2026-08-06 while narrowing the trim's payload floor; deliberately left alone in that change.
+
+Two smaller relatives of the same family, also left: `hasSustainTechnique` tests
+`!note.slides.empty()`, so a trailing equal-fret hold still exempts a note from the *drop* rule when
+the trim does not fire; and below-margin crowding still leaves a chord's bent string with a stub its
+unbent partner does not get, which is the minimum-distance rule behaving as specified rather than a
+defect.
+
 ## Chart editing (tab lane)
 
 ### Sustain tail-drag resize is deliberately not implemented — trigger: charters reach for the tail
