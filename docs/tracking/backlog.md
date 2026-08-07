@@ -11,9 +11,13 @@ entry when it's done — git history is the record.
   charts imported before the sustain-policy rules 2 and 3 were narrowed (2026-08-06) still embed
   tails that a non-changing payload held open past the margin — a bend plateau or a trailing
   equal-fret hold waypoint — plus sub-beat chords whose unbent strings lost their tails while a
-  bent partner kept one. GP-import normalization applies to GP import only, so the
-  converter-sourced `.rock` corpus is NOT affected — only saves that passed through the GP
-  importer.
+  bent partner kept one, and charts imported before the hold-waypoint placement fix (2026-08-07)
+  have a stray fret-hand position baked in at every equal-fret hold waypoint, which shifts the hand
+  mid-note on a tie chain that holds a fret and then trails off. That last one persists in saved
+  projects rather than being re-derived on load, because `fret_hand_positions` is serialized into
+  the chart document — re-importing is the only way to clear it. GP-import normalization applies to
+  GP import only, so the converter-sourced `.rock` corpus is NOT affected — only saves that passed
+  through the GP importer.
 - Lane-caret keyboard navigation does not glide the viewport the way chart-caret navigation
   reveals its measure (2026-07-18): stepping a lane caret can walk it off-screen. Extend the
   caret-measure reveal to the lane caret's published seconds.
