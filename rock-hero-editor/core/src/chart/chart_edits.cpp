@@ -412,6 +412,72 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         beat_delta.numerator > 0 ? "Grow Sustain" : "Shrink Sustain");
 }
 
+// Derives each selected note's legato direction from the previous note on its own string. The
+// chart's notes are sorted by (position, string), so the note to come from is simply the last
+// earlier entry sharing the string — nothing on that string can sit between them.
+//
+// Deliberately unbounded in time: a hammer-on from a note eight bars back is musically odd, but the
+// user asserting legato is the authority on whether the notes connect, and the editor's job is only
+// to record which direction that connection runs. Refusing on distance would be second-guessing the
+// author; refusing on an absent or equal fret is refusing to invent data that is not there.
+std::optional<ChartNotesEditPlan> planSetLegato(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, const std::string_view label)
+{
+    if (keys.empty())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    bool changed = false;
+    for (std::size_t index = 0; index < candidate.size(); ++index)
+    {
+        common::core::ChartNote& note = candidate[index];
+        if (!std::ranges::binary_search(keys, keyOf(note)))
+        {
+            continue;
+        }
+        // The previous note on this string, read from the ORIGINAL stream so that setting one
+        // note's attack cannot change what the next one derives from.
+        const common::core::ChartNote* previous = nullptr;
+        for (std::size_t behind = index; behind > 0; --behind)
+        {
+            const common::core::ChartNote& earlier = chart.notes[behind - 1];
+            if (earlier.string == note.string)
+            {
+                previous = &earlier;
+                break;
+            }
+        }
+        if (previous == nullptr || previous->fret == note.fret)
+        {
+            continue;
+        }
+        const common::core::NoteAttack derived = note.fret > previous->fret
+                                                     ? common::core::NoteAttack::Hammer
+                                                     : common::core::NoteAttack::Pull;
+        if (note.attack == derived)
+        {
+            continue;
+        }
+        const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
+        note.attack = derived;
+        if (was_scrape)
+        {
+            // A scrape's path was gesture geometry; as a pitched glide it would be a fiction, so it
+            // leaves with the attack exactly as it does in planSetAttack.
+            note.slides.clear();
+        }
+        changed = true;
+    }
+    if (!changed)
+    {
+        return std::nullopt;
+    }
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+}
+
 std::optional<ChartNotesEditPlan> planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, const common::core::NoteAttack attack,

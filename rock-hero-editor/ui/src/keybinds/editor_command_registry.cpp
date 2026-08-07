@@ -317,6 +317,11 @@ namespace
     // reachable at all — it appears in the Actions dialog and the chart's discovery menu, and the
     // user can bind it there.
     add(EditorCommandId::ChartPickSlideToggle, "Toggle Pick Slide", "Authoring", {});
+    // `H` matches Guitar Pro's own "Hammer On / Pull Off" key, verified against the GP8 manual's
+    // shortcut appendix. One key covers both because the direction is derived from the chart rather
+    // than authored. Guitar Pro's Shift+H "Legato" is a sheet-music slur that does not change the
+    // hammer/pull state, so it has nothing to map onto here and stays unbound.
+    add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('h')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

@@ -130,6 +130,29 @@ binary-search this precondition).
     const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta);
 
 /*!
+\brief Plans setting the selection's attack to hammer-on or pull-off, deriving each per note.
+
+The direction is never authored. A legato note's hammer-versus-pull reading follows the fret
+relationship to the previous note on the SAME string — a higher fret is hammered onto, a lower one
+pulled off to — which is the relationship the 2D triangle already draws and the only fact the chart
+data actually carries. Deriving it means the two cannot disagree, and it is why one verb covers both.
+
+A note whose direction is not derivable is left untouched rather than guessed: no earlier note on its
+string to come from, or an earlier note at the same fret, which is neither hammered nor pulled. The
+plan therefore covers a subset of the keys when a selection mixes derivable and underivable notes,
+and reports no change at all when none are derivable.
+
+\param chart Chart the plan is built against.
+\param tempo_map Tempo map the plan resolves distances through.
+\param keys Notes to set, sorted-unique in chart order.
+\param label User-visible undo label.
+\return The planned change, or empty when no selected note has a derivable direction.
+*/
+[[nodiscard]] std::optional<ChartNotesEditPlan> planSetLegato(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, std::string_view label);
+
+/*!
 \brief Plans setting the keyed notes' attack, with the pick-slide entry and exit special cases.
 
 Notes already carrying the attack are left alone. Entering a pick slide keeps the note's fret

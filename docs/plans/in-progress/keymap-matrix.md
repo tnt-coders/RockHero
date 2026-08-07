@@ -175,7 +175,7 @@ mutation passes a gate*, applied per input family — not a new rule. So these a
 
 | Keybind | Verb | Status |
 |---|---|---|
-| `H` | **legato** — one verb for hammer-on and pull-off; the direction derives from the fret relationship to the previous note on that string (higher = hammer, lower = pull), and an ambiguous case (no previous note, or an equal fret) is refused rather than guessed | settled — Guitar Pro binds one key to "hammer on or pull-off" the same way |
+| `H` | **legato** — one verb for hammer-on and pull-off; the direction derives from the fret relationship to the previous note on that string (higher = hammer, lower = pull), and an ambiguous case (no previous note, or an equal fret) is refused rather than guessed | **Live** (`planSetLegato` + `ChartLegatoToggle`). Verified against the official GP8 manual's shortcut appendix: Guitar Pro binds `H` to "Hammer On / Pull Off" the same way. Its `Shift+H` "Legato" is a sheet-music slur that does not change the hammer/pull state, so it has nothing to map onto here and stays unbound |
 | `V` | **vibrato** | settled. `Alt+V` for a *wide* vibrato is an open possibility, not a decision — the field is a bool today, so a width distinction would need the format to carry one |
 | `A` | **accent** | settled, conditional on `A` not being wanted elsewhere. Checked 2026-08-07: plain `A` and `;` are both unassigned everywhere in this matrix, the interaction model and the registry; "select all" would be `Ctrl+A`, which is a different chord, and the arpeggio reading is derived rather than authored so it needs no key |
 

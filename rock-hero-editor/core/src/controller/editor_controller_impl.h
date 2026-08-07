@@ -185,6 +185,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::vector<ChartNoteKey>& keys) const;
     void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction, bool fine);
+    void onChartLegatoToggleRequested();
     void onChartPickSlideToggleRequested();
     void onChartEscapePressed();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
