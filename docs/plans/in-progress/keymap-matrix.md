@@ -161,7 +161,38 @@ below, which is a separate modal focus scope — so the same chord could legitim
 | `+` / `-` (main-row or numpad — numpad arrives as the same character key codes) · `=` / `_` convenience aliases | **grid** finer (`+`) / coarser (`-`) | Live (chord sets corrected 2026-07-21: `numberPad*` chords never matched on Windows and were removed; display-equal shapes group into one chip; `=`/`_` aliases kept until something better claims them) |
 | `Ctrl` + the same `+`/`-` family (incl. the `Ctrl+_` alias) | **zoom** in / out, marker-centered | Live (44f24ab6; chord sets corrected 2026-07-21) |
 | `[` / `]` | **free** — grid moved to `+/-` | `—` |
-| `L`, `B` | reserved (link/slide, pencil) — unbound | `—` |
+| `L` | reserved (link/slide) — unbound | `—` |
+| `B` | reserved for **bend** (plan 40 Phase 7), no longer for the pencil — unbound (user 2026-08-07: "B for bend makes more sense than B for pencil"; `Alt` already *is* the held pencil quasimode for the pointer, so the pencil needed no letter) | `—` |
+
+## Technique verbs — the typed family (plan 40 Phase 5)
+
+Technique toggles are **typed input**, so they take the typing family's gate rather than `Alt`: they
+act on the selection (or the armed marker) and no-op when there is none, exactly as the digits that
+retype a fret already do. That is the interaction model's law — *plain input never mutates; every
+mutation passes a gate*, applied per input family — not a new rule. So these are **plain letters**.
+
+**Settled 2026-08-07:**
+
+| Keybind | Verb | Status |
+|---|---|---|
+| `H` | **legato** — one verb for hammer-on and pull-off; the direction derives from the fret relationship to the previous note on that string (higher = hammer, lower = pull), and an ambiguous case (no previous note, or an equal fret) is refused rather than guessed | settled — Guitar Pro binds one key to "hammer on or pull-off" the same way |
+| `V` | **vibrato** | settled. `Alt+V` for a *wide* vibrato is an open possibility, not a decision — the field is a bool today, so a width distinction would need the format to carry one |
+| `A` | **accent** | settled, conditional on `A` not being wanted elsewhere. Checked 2026-08-07: plain `A` and `;` are both unassigned everywhere in this matrix, the interaction model and the registry; "select all" would be `Ctrl+A`, which is a different chord, and the arpeggio reading is derived rather than authored so it needs no key |
+
+**Open — do not bind before discussing:**
+
+- **`;` as an alias for accent.** The only argument for it is familiarity to Guitar Pro users, and
+  that premise is unverified: the search that suggested it also claimed `[` was Guitar Pro's palm
+  mute, which is wrong (`[` starts a repeat section there). Verify Guitar Pro's real accent key from
+  a reliable source before adding the alias, since without the familiarity argument the alias has no
+  purpose. Also weigh that a punctuation key chosen for muscle memory only transfers on layouts that
+  place it identically.
+- **palm mute, full mute, tap, slap, pop, tremolo picking, natural harmonic, pinch harmonic.** Eight
+  verbs, no chords settled. Our own 2D marks supply obvious letters for three of them (the lettered
+  plates read `T`, `S`, `P`) and the on-head X for full mute, but Guitar Pro's real map needs
+  verifying first — see the reliability note above. Guitar Pro's technique shortcuts are also heavily
+  **digit**-based, and plain digits are committed to fret entry here while `Shift`+anything means
+  extend, so some divergence is forced rather than chosen.
 
 ---
 
