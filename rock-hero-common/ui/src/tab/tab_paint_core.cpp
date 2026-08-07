@@ -535,10 +535,6 @@ void drawMuteIcon(
     g.strokePath(x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
 }
 
-// The picking-hand V's band thickness as a fraction of its height — the weight the 3D head
-// atlas's V glyph carries, so the two surfaces draw the same mark.
-constexpr float g_chevron_band_fraction = 0.6f;
-
 // The lettered plate's side, as a fraction of the note height: big enough to hold the fret
 // number's own font, small enough to stay under half the head's diameter.
 constexpr float g_letter_badge_fraction = 0.55f;
@@ -568,51 +564,6 @@ constexpr float g_icon_slot_gap = 1.0f;
 // of 25 and 0.507 at 20; the residual spread across the three marks falls from 2.25 px to
 // 0.24 px), and it reproduces zero for the plate and the pull-off, which must not move.
 constexpr float g_optical_inset_correction = 0.5f;
-
-// Draws the picking-hand V: an open chevron band pointing down, in the mute family's colors
-// (white fill, gray border) and the full-mute X's band construction. Shared by the tap icon
-// and the pick-slide mark, which is what the right-hand family looks like on the 3D board too
-// — both wear a V there. Callers place and size it; the band and its border follow the height,
-// so the glyph keeps its weight at any size.
-void drawChevronShape(juce::Graphics& g, float center_x, float center_y, float width, float height)
-{
-    const float band = height * g_chevron_band_fraction;
-    const float left = center_x - width / 2.0f;
-    const float right = center_x + width / 2.0f;
-    const float top = center_y - height / 2.0f;
-    const float tip_y = center_y + height / 2.0f;
-    // The inner V is the outer shifted up by the band thickness; its top points slide inward
-    // by the arms' run-over-rise so the band stays uniform whatever the slope.
-    const float inset_x = band * (width / 2.0f) / height;
-
-    juce::Path chevron;
-    chevron.startNewSubPath(left, top);
-    chevron.lineTo(center_x, tip_y);
-    chevron.lineTo(right, top);
-    chevron.lineTo(right - inset_x, top);
-    chevron.lineTo(center_x, tip_y - band);
-    chevron.lineTo(left + inset_x, top);
-    chevron.closeSubPath();
-    g.setColour(juce::Colours::white);
-    g.fillPath(chevron);
-    g.setColour(g_mute_border_color);
-    g.strokePath(chevron, juce::PathStrokeType{std::max(1.0f, band / 6.0f)});
-}
-
-// Draws the pick-slide V above the head, pointing down at the note with its tip dipped one band
-// into the head's top edge, mirroring the 3D head's V-over-X composite. The arms stand steeper
-// than the mute X's (the atlas V's narrowed angle) and the height shrinks at that locked angle
-// with the tip anchored (the full-height V read too tall), which also keeps stacked scrapes on
-// adjacent strings clear of each other.
-void drawChevronIcon(
-    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y)
-{
-    const float size = std::max(16.0f, metrics.note_height + 1.0f);
-    const float space = std::max(2.0f, size / 8.0f);
-    const float v_height = (size / 2.0f) * (5.0f / 6.0f);
-    const float tip_y = center_y - (size / 2.0f) + space;
-    drawChevronShape(g, center_x, tip_y - (v_height / 2.0f), v_height * 1.5f, v_height);
-}
 
 // Draws the legato triangle beside the head: hammer-on points down, pull-off up. The triangle
 // means LEGATO — the note is not re-attacked — which is why it carries no letter: the
@@ -657,14 +608,12 @@ void drawTriangleIcon(
 // in juce_Typeface.cpp, getPointsToHeightFactor() = ascent + descent), so a capital's ink is
 // only about half the number the font was asked for, and a plate smaller than that ink would
 // spill the letter over its edges the way the triangles did.
-void drawLetterBadge(
-    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
-    const juce::String& letter)
+void drawLetterPlate(
+    juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<float> plate,
+    const juce::String& letters)
 {
-    const float side = metrics.note_height * g_letter_badge_fraction;
-    const float border = std::max(1.0f, side / 9.0f);
-    const float radius = side * 0.22f;
-    const juce::Rectangle<float> plate{center_x - side / 2.0f, center_y - side / 2.0f, side, side};
+    const float border = std::max(1.0f, plate.getHeight() / 9.0f);
+    const float radius = plate.getHeight() * 0.22f;
 
     g.setColour(juce::Colours::black);
     g.fillRoundedRectangle(plate, radius);
@@ -672,12 +621,44 @@ void drawLetterBadge(
     g.drawRoundedRectangle(plate, radius, border);
 
     const float ink = metrics.fret_font.getHeight() * g_capital_ink_fraction;
-    if (metrics.draw_text && side >= ink + (2.0f * border))
+    if (metrics.draw_text && plate.getHeight() >= ink + (2.0f * border))
     {
         g.setColour(juce::Colours::white);
         g.setFont(metrics.fret_font);
-        g.drawText(letter, plate, juce::Justification::centred);
+        g.drawText(letters, plate, juce::Justification::centred);
     }
+}
+
+// The square single-capital case the three picking-hand attacks share.
+void drawLetterBadge(
+    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
+    const juce::String& letter)
+{
+    const float side = metrics.note_height * g_letter_badge_fraction;
+    drawLetterPlate(
+        g,
+        metrics,
+        juce::Rectangle<float>{center_x - side / 2.0f, center_y - side / 2.0f, side, side},
+        letter);
+}
+
+// Clear pixels the chip keeps between its letters' ink and the INNER edge of its rim. Measured from
+// the inner edge because the rim is a CENTERED stroke: padding measured from the box edge instead
+// left a tenth of a pixel of fill between letter and rim, which antialiased into one merged run.
+constexpr float g_chip_letter_clearance = 1.0f;
+
+// Width of the pick-scrape chip: exactly what its letters need. The rim is centered on the box
+// edge, so it eats `border` of interior across the two sides, then the clearance on each side.
+//
+// This is the whole reason the mark reads "PS" and not "P.S.": the slot has about 21 px of clear
+// width before the previous sixteenth note's head at the shipped lane, and no four-glyph string
+// fits it — "P.S." needs 26.5 px under this rule, and the two periods alone cost 8.6.
+[[nodiscard]] float chipWidth(
+    const TabLaneMetrics& metrics, const juce::String& letters, float height)
+{
+    const float border = std::max(1.0f, height / 9.0f);
+    return static_cast<float>(textWidth(metrics.fret_font, letters)) + border +
+           (2.0f * g_chip_letter_clearance);
 }
 
 // Draws the attack technique icon beside the head. The vocabulary reads by SHAPE, and the shape
@@ -783,8 +764,21 @@ void drawAttackIcon(
         }
         case common::core::NoteAttack::PickSlide:
         {
-            // Not an icon-slot mark: the V rides directly above the head like its 3D twin.
-            drawChevronIcon(g, metrics, center_x, center_y);
+            // The letters carry the identity, so the chip's width is reserved for them at EVERY
+            // size, including sizes too small to draw them: the aspect ratio is all that survives
+            // down there, and it must never collapse toward the square badge the tap, slap and pop
+            // plates share. Its lowest ink reaches the box's right edge, so it needs none of the
+            // hammer-on's optical correction.
+            const juce::String letters{"PS"};
+            const float width = chipWidth(metrics, letters, badge_side);
+            const juce::Point<float> chip = mark_center(width, badge_side);
+            drawLetterPlate(
+                g,
+                metrics,
+                juce::Rectangle<float>{
+                    chip.x - (width / 2.0f), chip.y - (badge_side / 2.0f), width, badge_side
+                },
+                letters);
             break;
         }
         case common::core::NoteAttack::Pick:
@@ -822,8 +816,11 @@ void drawNoteHead(
             });
     }
 
-    // A scrape wears the full-mute X: the travel is unpitched noise, so the head borrows the
-    // mute family's mark, mirroring the 3D scrape head's X shape.
+    // A scrape wears the full-mute X, and the two marks answer two different questions: the X says
+    // this note sounds no pitch, which is literally true of a scrape (its fret is where the pick
+    // starts, not a stopped pitch), and the beside-head chip says which pitchless thing it is. The
+    // pair cannot be read as a MUTED scrape, because the chart rules reject a mute on a pick-slide
+    // note outright, so a scrape's own mute is always None and the X has only the one meaning.
     const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
     drawMuteIcon(g, metrics, scrape ? common::core::NoteMute::Full : note.mute, onset_x, center_y);
 

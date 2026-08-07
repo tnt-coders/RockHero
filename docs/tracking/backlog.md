@@ -20,6 +20,19 @@ entry when it's done — git history is the record.
 - Tone changes should switch SLIGHTLY before the tone region begins (~100 ms ahead?) so the
   transition still feels seamless for players who are a little out of time — needs evaluation and
   tuning.
+- `g_capital_ink_fraction` (0.55, `tab_paint_core.cpp`) understates a capital's real ink by ~8.8%,
+  so the T/S/P plates draw their letter at note heights where it spills ~0.19 px past the plate's
+  inner height, and every slot mark's `tuck` floor is that much too small. Measured 2026-08-06:
+  Verdana Bold's cap height is 1489/2048 em against a JUCE font height (ascent+descent) of
+  1.215332 em, i.e. 0.5983 — 7.484 px measured at font height 12.5. Currently UNREACHABLE in the
+  editor, because `TrackViewport` fixes the canvas so `note_height` clamps to 25 at every string
+  count; it bites the game's 2D strips (plan 30) or any resizable row. Do NOT just write 0.5983:
+  Verdana is only JUCE's Windows default sans
+  (`juce_DirectWriteTypeface_windows.cpp:417`; Linux resolves Sans/Arial/Ubuntu), so a hardcoded
+  ratio bakes in a platform-specific font fact. `GlyphArrangement` cannot measure it either — a
+  `PositionedGlyph`'s bounds are the layout box, full font height rather than tight ink
+  (`juce_GlyphArrangement.h:75`). Needs a per-typeface measurement or a deliberately conservative
+  bound.
 - Evaluate VST2 support feasibility.
 - Automation lane "+" should look closer to the signal-chain "+" for visual consistency.
 - Report the bgfx Conan-package issue upstream to conan-center — we rolled our own recipe because
