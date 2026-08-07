@@ -1443,6 +1443,17 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     {
                         continue;
                     }
+                    // An equal-fret waypoint is a HOLD, not a glide: nothing travels across it, so
+                    // it announces no new hand position and must not place one. Letting it place
+                    // one moves the window mid-note for no reason — a tie chain that holds a fret
+                    // and then trails off would shift the hand at the hold, beats into the held
+                    // note, instead of leaving it put until the slide itself moves it. The
+                    // projection's ramp derivation draws the same distinction for the same reason
+                    // (see slide_ramp_starts in highway_projection.cpp).
+                    if (waypoint.fret == slide_source)
+                    {
+                        continue;
+                    }
                     const Fraction waypoint_beat = built[onset_end].global_beat + waypoint.offset;
                     const GridPosition waypoint_position = common::core::advanceGridPosition(
                         tempo_map, note.position, waypoint.offset);
