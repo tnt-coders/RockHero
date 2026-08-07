@@ -312,6 +312,11 @@ namespace
         "Insert Note / Point",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
+    // No default chord: the verb shipped with plan 55 but the signed keymap never assigned it one,
+    // and inventing one here would be an unsigned keymap decision. Registered anyway so it is
+    // reachable at all — it appears in the Actions dialog and the chart's discovery menu, and the
+    // user can bind it there.
+    add(EditorCommandId::ChartPickSlideToggle, "Toggle Pick Slide", "Authoring", {});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

@@ -362,6 +362,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_tab_view.setComponentID("tab_view");
+    m_tab_view.setContextMenuCallback(
+        [this](juce::Point<int> position) { showChartDiscoveryMenu(position); });
     m_tab_view.setPointerEventCallback(
         [this](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
             switch (phase)
@@ -1070,6 +1072,102 @@ bool EditorView::chartShown() const noexcept
     return m_state.tab != nullptr && m_state.tab->string_count > 0;
 }
 
+// Raises the chart lane's keybind-discovery menu.
+//
+// The menu's job is to TEACH the shortcuts, not to be a second way to act (keymap-matrix.md parity
+// triage item 2), so every item is a registered command added through addEditorCommandItem: the
+// label, the enablement, and the live chord all come from the registry, which means a rebind is
+// reflected here with no work and an item can never drift from the key that triggers it.
+//
+// Applicability needs no second source of truth either. Each command already answers it in
+// getCommandInfo, and a command-backed item renders greyed when inactive, so the menu lists the
+// chart's whole verb set and lets the registry gray what does not apply right now — a selection
+// verb reads as present-but-unavailable rather than vanishing, which is what teaches the grammar.
+void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
+{
+    if (!chartShown())
+    {
+        return;
+    }
+
+    const auto add = [this](juce::PopupMenu& menu, EditorCommandId command) {
+        addEditorCommandItem(menu, m_command_manager, command);
+    };
+
+    juce::PopupMenu note_menu;
+    add(note_menu, EditorCommandId::NeutralInsert);
+    add(note_menu, EditorCommandId::SelectionDelete);
+    note_menu.addSeparator();
+    add(note_menu, EditorCommandId::ChartPickSlideToggle);
+
+    juce::PopupMenu move_menu;
+    add(move_menu, EditorCommandId::SelectionMoveLeft);
+    add(move_menu, EditorCommandId::SelectionMoveRight);
+    add(move_menu, EditorCommandId::SelectionMoveUp);
+    add(move_menu, EditorCommandId::SelectionMoveDown);
+    move_menu.addSeparator();
+    add(move_menu, EditorCommandId::SelectionMoveFineLeft);
+    add(move_menu, EditorCommandId::SelectionMoveFineRight);
+    add(move_menu, EditorCommandId::SelectionMoveFineUp);
+    add(move_menu, EditorCommandId::SelectionMoveFineDown);
+
+    juce::PopupMenu sustain_menu;
+    add(sustain_menu, EditorCommandId::SustainLengthen);
+    add(sustain_menu, EditorCommandId::SustainShorten);
+    sustain_menu.addSeparator();
+    add(sustain_menu, EditorCommandId::SustainLengthenFine);
+    add(sustain_menu, EditorCommandId::SustainShortenFine);
+
+    juce::PopupMenu fret_menu;
+    add(fret_menu, EditorCommandId::FretShiftUp);
+    add(fret_menu, EditorCommandId::FretShiftDown);
+
+    juce::PopupMenu navigate_menu;
+    add(navigate_menu, EditorCommandId::CaretStepLeft);
+    add(navigate_menu, EditorCommandId::CaretStepRight);
+    add(navigate_menu, EditorCommandId::CaretStepUp);
+    add(navigate_menu, EditorCommandId::CaretStepDown);
+    navigate_menu.addSeparator();
+    add(navigate_menu, EditorCommandId::CaretMeasureJumpLeft);
+    add(navigate_menu, EditorCommandId::CaretMeasureJumpRight);
+    add(navigate_menu, EditorCommandId::CaretJumpPreviousSection);
+    add(navigate_menu, EditorCommandId::CaretJumpNextSection);
+    navigate_menu.addSeparator();
+    add(navigate_menu, EditorCommandId::CaretJumpChartStart);
+    add(navigate_menu, EditorCommandId::CaretJumpChartEnd);
+
+    juce::PopupMenu grid_menu;
+    add(grid_menu, EditorCommandId::GridFiner);
+    add(grid_menu, EditorCommandId::GridCoarser);
+    grid_menu.addSeparator();
+    add(grid_menu, EditorCommandId::ZoomIn);
+    add(grid_menu, EditorCommandId::ZoomOut);
+
+    juce::PopupMenu menu;
+    menu.addSubMenu("Note", note_menu);
+    menu.addSubMenu("Move Selection", move_menu);
+    menu.addSubMenu("Sustain", sustain_menu);
+    menu.addSubMenu("Frets", fret_menu);
+    menu.addSeparator();
+    menu.addSubMenu("Navigate", navigate_menu);
+    menu.addSubMenu("Grid & Zoom", grid_menu);
+    menu.addSeparator();
+    add(menu, EditorCommandId::Undo);
+    add(menu, EditorCommandId::Redo);
+    menu.addSeparator();
+    add(menu, EditorCommandId::CancelDismiss);
+    add(menu, EditorCommandId::ShowActions);
+
+    menu.showMenuAsync(
+        juce::PopupMenu::Options{}
+            .withTargetComponent(&m_tab_view)
+            .withTargetScreenArea(
+                juce::Rectangle<int>{
+                    m_tab_view.localPointToGlobal(position), juce::Point<int>{}
+                }.expanded(1))
+            .withDeletionCheck(*this));
+}
+
 void EditorView::showActionsWindow()
 {
     if (m_actions_window == nullptr)
@@ -1305,6 +1403,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SelectionMoveFineUp:
         case EditorCommandId::SelectionMoveFineDown:
         case EditorCommandId::SelectionDelete:
+        case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::SustainLengthenFine:
@@ -1472,6 +1571,14 @@ bool EditorView::perform(const InvocationInfo& info)
             if (chartShown())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Right, false);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartPickSlideToggle:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartPickSlideToggleRequested();
             }
             return true;
         }

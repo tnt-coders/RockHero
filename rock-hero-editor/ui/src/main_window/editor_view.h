@@ -480,6 +480,11 @@ private:
     // window survives closes so its tree state is kept.
     void showActionsWindow();
 
+    // Raises the chart lane's keybind-discovery menu at a lane-local position. The lane detects
+    // the gesture; the menu is built here because its items are registered commands invoked
+    // through the command manager this view owns.
+    void showChartDiscoveryMenu(juce::Point<int> position);
+
     // True when a chart with strings is loaded — the caret/typing surface the grammar-verb
     // commands act on exists.
     [[nodiscard]] bool chartShown() const noexcept;

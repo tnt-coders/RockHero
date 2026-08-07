@@ -77,6 +77,11 @@ void TabView::setCaretMaskCallback(CaretMaskCallback callback)
     publishCaretMask();
 }
 
+void TabView::setContextMenuCallback(ContextMenuCallback callback)
+{
+    m_context_menu_callback = std::move(callback);
+}
+
 // Applies the chart-editing overlay state; skipped repaints keep unrelated pushes cheap.
 void TabView::setEditState(core::ChartEditViewState edit)
 {
@@ -137,10 +142,23 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
 
 void TabView::mouseDown(const juce::MouseEvent& event)
 {
-    if (wantsPointerAt(event.getPosition()))
+    if (!wantsPointerAt(event.getPosition()))
     {
-        m_on_pointer_event(core::ChartPointerPhase::Down, makePointerEvent(event));
+        return;
     }
+
+    // The popup gesture raises the discovery menu instead of starting a gesture: a right press is
+    // not a select, a seek, or an insert, so it must never reach the controller as a Down.
+    if (event.mods.isPopupMenu())
+    {
+        if (m_context_menu_callback != nullptr)
+        {
+            m_context_menu_callback(event.getPosition());
+        }
+        return;
+    }
+
+    m_on_pointer_event(core::ChartPointerPhase::Down, makePointerEvent(event));
 }
 
 void TabView::mouseDrag(const juce::MouseEvent& event)

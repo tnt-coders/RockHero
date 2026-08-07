@@ -234,6 +234,28 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
     CHECK(event_count == 3);
     CHECK(last_phase == core::ChartPointerPhase::Up);
 
+    // The popup gesture raises the discovery menu INSTEAD of a gesture: a right press must never
+    // reach the controller as a Down, or it would select, seek, or insert behind the menu.
+    std::optional<juce::Point<int>> menu_position;
+    view.setContextMenuCallback([&](juce::Point<int> position) { menu_position = position; });
+    view.mouseDown(
+        testing::makeMouseDownEvent(
+            view, 30.0f, 100.0f, juce::ModifierKeys{juce::ModifierKeys::rightButtonModifier}));
+    CHECK(event_count == 3);
+    REQUIRE(menu_position.has_value());
+    if (menu_position.has_value())
+    {
+        CHECK(menu_position->x == 30);
+        CHECK(menu_position->y == 100);
+    }
+
+    // With no menu sink installed the gesture is swallowed rather than falling through to a Down.
+    view.setContextMenuCallback(nullptr);
+    view.mouseDown(
+        testing::makeMouseDownEvent(
+            view, 30.0f, 100.0f, juce::ModifierKeys{juce::ModifierKeys::rightButtonModifier}));
+    CHECK(event_count == 3);
+
     // Modifiers travel with the event.
     view.mouseDown(
         testing::makeMouseDownEvent(

@@ -144,6 +144,9 @@ public:
     */
     using CaretMaskCallback = std::function<void(std::optional<juce::Range<float>>)>;
 
+    /*! \brief Sink raising the keybind-discovery menu at a lane-local position. */
+    using ContextMenuCallback = std::function<void(juce::Point<int>)>;
+
     /*!
     \brief Installs the sink that receives the lane's chart pointer intents.
     \param on_pointer_event Callback invoked for every gesture phase; empty disables forwarding.
@@ -155,6 +158,16 @@ public:
     \param callback Callback receiving the caret square's content-coordinate y span, or empty.
     */
     void setCaretMaskCallback(CaretMaskCallback callback);
+
+    /*!
+    \brief Installs the sink that raises the lane's keybind-discovery menu.
+
+    The lane detects the popup gesture but does not build the menu: its items are registered
+    commands invoked through the command manager, which the editor shell owns.
+
+    \param callback Callback receiving the lane-local position of the popup gesture.
+    */
+    void setContextMenuCallback(ContextMenuCallback callback);
 
     /*!
     \brief Applies the chart-editing overlay state (selection, marquee).
@@ -283,6 +296,9 @@ private:
 
     // Caret-mask sink into the track viewport's paused-column cut-out; empty disables it.
     CaretMaskCallback m_caret_mask_callback{};
+
+    // Raises the keybind-discovery menu; empty until the shell installs it.
+    ContextMenuCallback m_context_menu_callback{};
 
     // Last caret mask handed to the sink, so a republish only fires on an actual change.
     std::optional<juce::Range<float>> m_published_caret_mask{};

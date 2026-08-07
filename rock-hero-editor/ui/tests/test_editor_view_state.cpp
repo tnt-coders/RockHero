@@ -387,6 +387,8 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::NeutralInsert,
          .value = 0x1707,
          .chords = {chord(juce::KeyPress::insertKey)}},
+        // Deliberately chord-less: the signed keymap never assigned this verb one.
+        {.id = EditorCommandId::ChartPickSlideToggle, .value = 0x1709, .chords = {}},
         {.id = EditorCommandId::TypeDigit0,
          .value = 0x1801,
          .chords = {chord('0'), chord(juce::KeyPress::numberPad0)}},
