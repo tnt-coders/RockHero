@@ -1705,7 +1705,8 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
     {
         // The scrape's path is gesture geometry, so the trim compresses its final point with the
         // tail rather than flooring on it — and the pick-slide rule that the path end IS the
-        // sustain still holds afterward.
+        // sustain still holds afterward. R is a half beat here, exactly 2d, so the gesture still
+        // yields the full margin.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -1721,6 +1722,83 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
         CHECK(chart.notes[0].sustain == Fraction{1, 4});
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
+    }
+}
+
+// Policy rule 19's crowding case: a scrape's path is derived gesture geometry, so when the room
+// runs short the gesture and the closing gap SQUISH — sharing the room instead of the gesture
+// yielding a fixed margin it cannot afford. Gap = min(d, R/2). Runs in 4/4, where the minimum
+// sustain distance d is a quarter beat and the minimum slide window is an eighth beat, so the
+// crossover to the invariant floor sits at R = d.
+TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    // The scrape's notated span always equals R here, so the gesture merely REACHES the next
+    // onset — a span notated past it would be a deliberate hold and keep its full length.
+    const auto crowded_scrape = [&syncs](const Fraction span) {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{carrierBeat(span, {pickSlideCarrier(64)}), noteBeat(span, 3, 2)}}});
+        return buildGpSong(score);
+    };
+
+    SECTION("room above twice the margin still yields the full margin")
+    {
+        // R = one beat, comfortably above 2d: the gap is the whole quarter-beat margin.
+        const auto built = crowded_scrape(Fraction{1, 4});
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+    }
+
+    SECTION("room between the margin and twice it splits evenly")
+    {
+        // R = 3/8 beat, between d and 2d: gap = R/2 = 3/16 beat, so the gesture keeps the other
+        // 3/16 rather than being cut to the old fixed 1/8-beat floor.
+        const auto built = crowded_scrape(Fraction{3, 32});
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{3, 16});
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
+    }
+
+    SECTION("room equal to the margin halves it, the worked example")
+    {
+        // R = 1/16 whole note against d = 1/16: a 1/32-whole-note gesture and a 1/32 gap — a
+        // quarter beat of room splitting into an eighth beat each way. This is also the crossover
+        // where the formula's leg length meets the minimum slide window exactly.
+        const auto built = crowded_scrape(Fraction{1, 16});
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{1, 8});
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+    }
+
+    SECTION("below the crossover the minimum slide window wins and the gap gives way")
+    {
+        // R = 1/8 beat, under 2 * the minimum slide window: an even split would leave the
+        // gesture 1/16 beat with nowhere to travel, so the leg clamps up to the window and the
+        // path ends in exact adjacency with the next onset instead (the pick-slide carve-out in
+        // the chart rules). The path still ends exactly at the sustain.
+        const auto built = crowded_scrape(Fraction{1, 32});
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{1, 8});
         REQUIRE(chart.notes[0].slides.size() == 1);
         CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
         CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);

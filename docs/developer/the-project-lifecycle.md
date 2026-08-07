@@ -364,8 +364,26 @@ through the trim rules):
     onset is dropped with a conversion note. As ordinary notes, scrapes participate in every
     distance rule — margin trims, the deliberate-hold exemption (a scrape notated ringing
     strictly past a later onset is a hold; scraping through sounding strings is physically
-    real), string occupancy — with one twist: the path is gesture geometry like a slide-out,
-    so the trim compresses its final point instead of flooring the tail on it. Dead notes
+    real), string occupancy — with one twist: the path is *derived* gesture geometry,
+    synthesized from the notated duration rather than authored, so moving its endpoint loses no
+    information and the trim compresses its final point instead of flooring the tail on it. That
+    asymmetry is the whole reason rule 2's payload floor protects an authored bend point but not
+    a synthesized gesture end.
+    When the room runs short the gesture and its closing gap **squish**, sharing the room instead
+    of the gesture yielding a fixed margin it cannot afford (user rule 2026-08-06, superseding
+    the plain minimum-window floor). Writing `R` for the room the final leg has — from where the
+    leg starts (the previous path point, or the onset) to the next binding onset — and `d` for
+    the minimum sustain distance at that position, the closing gap is `min(d, R/2)` and the leg
+    takes the rest: the full margin whenever `R ≥ 2d`, an even split below it, continuous at
+    `R = 2d` and monotone in the leg's length throughout. `R` = 1/16 whole note against
+    `d` = 1/16 gives a 1/32 leg and a 1/32 gap.
+    The model's floor wins in the extreme, because a leg shorter than the minimum slide window
+    has nowhere to travel: below `R = 2 ×` the minimum slide window the leg clamps up to that
+    window and the gap gives way instead, down to the exact adjacency the chart rules carve out
+    for a scrape terminal. In x/4 that crossover sits exactly at `R = d`, where the formula and
+    the floor agree; in x/8 it sits at `R = d/2`. The terminal only ever moves *earlier* — a
+    trim never lengthens a gesture — and the path still ends exactly at the sustain afterward.
+    Dead notes
     carrying ordinary slide-out flags (4/8) are LEFT-hand figures and never reclassify. The
     fret-hand machinery ignores scrapes exactly as it ignores taps (`rightHandOnset`), keeping
     them FHP-transparent.

@@ -967,33 +967,43 @@ void normalizeImportedSustains(
             }
             if (note.sustain.numerator > 0 && has_binding)
             {
-                const Fraction limit = sounding_gap - sustainMarginAt(grid, note.position);
+                const Fraction margin = sustainMarginAt(grid, note.position);
+                const Fraction limit = sounding_gap - margin;
                 if (limit < note.sustain)
                 {
                     Fraction target = limit.numerator < 0 ? Fraction{} : limit;
-                    // A scrape's path is gesture geometry like a slide-out, not a pitch
-                    // target: its final point compresses with the tail, floored at the
-                    // minimum window and kept strictly after the previous path point. Scrapes
-                    // carry no bend and no slide-out (the carrier conversion sheds both), so
-                    // this branch is the whole payload story for them.
+                    // A scrape's path is DERIVED gesture geometry, synthesized from the notated
+                    // duration rather than authored, so moving its endpoint loses no
+                    // information — which is why the trim squishes the gesture instead of
+                    // flooring the tail on it the way an authored bend point does (rule 2).
+                    // Scrapes carry no bend and no slide-out (the carrier conversion sheds
+                    // both), so this branch is the whole payload story for them.
+                    //
+                    // The final leg and the closing gap SHARE the room `R` the leg has to work
+                    // in — from where the leg starts to the next binding onset. The gap is
+                    // min(d, R/2), so at R >= 2d the gesture yields the full margin `d` and
+                    // below it the two split the room evenly: continuous at R = 2d and monotone
+                    // in the leg's length throughout (R = 1/16 whole note against d = 1/16 gives
+                    // a 1/32 leg and a 1/32 gap). The model's floor wins in the extreme, because
+                    // a leg shorter than the minimum slide window has nowhere to travel: below
+                    // R = 2 * g_minimum_slide_window the leg clamps up to that window and the
+                    // gap gives way instead — in x/4 that crossover sits exactly at R = d. The
+                    // terminal only ever moves EARLIER; a trim never lengthens a gesture.
                     if (note.attack == NoteAttack::PickSlide && !note.slides.empty())
                     {
-                        if (target < note.slides.back().offset)
+                        const Fraction leg_start = note.slides.size() > 1
+                                                       ? note.slides[note.slides.size() - 2].offset
+                                                       : Fraction{};
+                        const Fraction room = sounding_gap - leg_start;
+                        const Fraction closing_gap = std::min(margin, room * Fraction{1, 2});
+                        Fraction terminal = sounding_gap - closing_gap;
+                        if (terminal - leg_start < g_minimum_slide_window)
                         {
-                            Fraction compressed = std::max(target, g_minimum_slide_window);
-                            if (note.slides.size() > 1)
-                            {
-                                const Fraction previous_point =
-                                    note.slides[note.slides.size() - 2].offset;
-                                if (compressed <= previous_point)
-                                {
-                                    compressed = previous_point + g_minimum_slide_window;
-                                }
-                            }
-                            if (compressed < note.slides.back().offset)
-                            {
-                                note.slides.back().offset = compressed;
-                            }
+                            terminal = leg_start + g_minimum_slide_window;
+                        }
+                        if (terminal < note.slides.back().offset)
+                        {
+                            note.slides.back().offset = terminal;
                         }
                         target = note.slides.back().offset;
                     }
