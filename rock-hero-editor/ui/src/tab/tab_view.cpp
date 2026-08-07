@@ -149,7 +149,13 @@ void TabView::mouseDown(const juce::MouseEvent& event)
 
     // The popup gesture raises the discovery menu instead of starting a gesture: a right press is
     // not a select, a seek, or an insert, so it must never reach the controller as a Down.
-    if (event.mods.isPopupMenu())
+    //
+    // A LEFT press is never the popup gesture, whatever else is held. JUCE expands
+    // popupMenuClickModifier to (rightButton | ctrl) on macOS, so isPopupMenu() alone is also true
+    // for Ctrl+left-click there — and Ctrl is this lane's precision modifier, so the menu would eat
+    // every precision gesture on that one platform. Testing the left press instead keeps a single
+    // behavior on all three, with no OS conditional.
+    if (event.mods.isPopupMenu() && !event.mods.isLeftButtonDown())
     {
         if (m_context_menu_callback != nullptr)
         {

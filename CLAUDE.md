@@ -270,6 +270,7 @@ all:
 | `bugprone-use-after-move` | zero findings against the MSVC STL | CI lint |
 | Release-only undefined behavior | debug timing and layout hide it | CI Release tests |
 | `juce::PNGImageFormat::decodeImage` pixel format | honors the file's color type (libpng path) | macOS CI tests — CoreImage cannot make a 24-bit image, so every PNG decodes to ARGB; the file's real alpha state survives only in the `originalImageHadAlpha` property |
+| `ModifierKeys::isPopupMenu()` | true for a right press only | macOS CI tests — `popupMenuClickModifier` expands to `rightButton \| ctrl`, so it is also true for Ctrl+left-click |
 
 No local command reports these, so the check is a reading pass over the diff, not another build.
 Before reporting a code change complete, re-read every touched hunk for the constructs that trigger

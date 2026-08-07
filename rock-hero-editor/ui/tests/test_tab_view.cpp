@@ -256,13 +256,21 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
             view, 30.0f, 100.0f, juce::ModifierKeys{juce::ModifierKeys::rightButtonModifier}));
     CHECK(event_count == 3);
 
-    // Modifiers travel with the event.
+    // Modifiers travel with the event, and a Ctrl-modified LEFT press is the lane's precision
+    // gesture on every platform — never the discovery menu. macOS folds Ctrl into JUCE's
+    // popup-click modifier, so a popup test that asked isPopupMenu() alone would swallow the
+    // precision gesture there and nowhere else; the sink is reinstalled here so this pins that the
+    // menu stays shut.
+    menu_position.reset();
+    view.setContextMenuCallback([&](juce::Point<int> position) { menu_position = position; });
     view.mouseDown(
         testing::makeMouseDownEvent(
             view,
             10.0f,
             110.0f,
             juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier));
+    CHECK(event_count == 4);
+    CHECK_FALSE(menu_position.has_value());
     REQUIRE(last_event.has_value());
     if (last_event.has_value())
     {
