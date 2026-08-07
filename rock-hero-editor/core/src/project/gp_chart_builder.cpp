@@ -825,6 +825,40 @@ struct BuiltNote
            note.vibrato || note.tremolo;
 }
 
+// The offset of the last payload point that CHANGES something — the last instant the tail still
+// has information to present, and so the furthest a margin trim may be overridden (rule 2).
+//
+// A bend point repeating its predecessor's semitones and a waypoint repeating the previous fret
+// (a HOLD, not a glide) both say what the tail already said, so a trailing run of them is not a
+// reason to keep a tail open past the margin. The note starts unbent at its own fret, which is
+// what the first point of each payload is measured against. Whole-note techniques — vibrato,
+// tremolo, accent, muting, harmonics — cannot change mid-sustain and so never appear here at all.
+// The unpitched slide-out is deliberately absent: its end is gesture geometry that trims back
+// with the tail rather than pinning it (rule 2), and the trim compresses it separately.
+[[nodiscard]] Fraction lastChangingPayloadOffset(const ChartNote& note)
+{
+    Fraction last{};
+    double previous_semitones = 0.0;
+    for (const BendPoint& point : note.bend)
+    {
+        if (std::is_neq(point.semitones <=> previous_semitones) && last < point.offset)
+        {
+            last = point.offset;
+        }
+        previous_semitones = point.semitones;
+    }
+    int previous_fret = note.fret;
+    for (const SlideWaypoint& waypoint : note.slides)
+    {
+        if (waypoint.fret != previous_fret && last < waypoint.offset)
+        {
+            last = waypoint.offset;
+        }
+        previous_fret = waypoint.fret;
+    }
+    return last;
+}
+
 // Normalizes imported sustains for chart readability (import policy). The maintained
 // plain-English spec is "GP chart normalization policy" in
 // docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
@@ -842,8 +876,16 @@ struct BuiltNote
 //    ring past it proves nothing deliberate. Repeated chords trim like
 //    everything else: their held reading lives in the merged shape span (rule 11), which is
 //    derived from the notated pre-trim ends and already runs through every restrike.
-// 2. Trimming never clips a bend or slide payload: the tail floors at the last payload offset,
-//    so a slide still reaches its target note (exact adjacency stays legal per 40-Q2-B).
+// 2. Carrying a technique is not an exemption from rule 1; the margin yields only to
+//    information, and only as far as the information reaches. The tail floors at the last
+//    payload point that CHANGES something — a bend point differing from its predecessor, a
+//    waypoint differing from the previous fret — and stops exactly there, never running on to
+//    the notated end (exact adjacency stays legal per 40-Q2-B, so a slide still reaches its
+//    target note). Payload that repeats what the tail already said holds nothing open: a
+//    trailing hold waypoint is a pin, not a glide, and a repeated bend value is not news, so
+//    points the trim passes leave with the tail. Whole-note techniques — vibrato, tremolo,
+//    accent, muting, harmonics — cannot change mid-sustain and so never override the margin at
+//    all.
 // 3. A note with no sustain-carried technique NOTATED shorter than one beat loses its tail
 //    entirely after trimming: Guitar Pro gives every note its full notated duration, and a
 //    sub-beat effect-free ring reads as noise in a chart rather than as a deliberate sustain.
@@ -929,35 +971,54 @@ void normalizeImportedSustains(
                 if (limit < note.sustain)
                 {
                     Fraction target = limit.numerator < 0 ? Fraction{} : limit;
-                    if (!note.bend.empty() && target < note.bend.back().offset)
-                    {
-                        target = note.bend.back().offset;
-                    }
                     // A scrape's path is gesture geometry like a slide-out, not a pitch
                     // target: its final point compresses with the tail, floored at the
-                    // minimum window and kept strictly after the previous path point.
-                    if (note.attack == NoteAttack::PickSlide && !note.slides.empty() &&
-                        target < note.slides.back().offset)
+                    // minimum window and kept strictly after the previous path point. Scrapes
+                    // carry no bend and no slide-out (the carrier conversion sheds both), so
+                    // this branch is the whole payload story for them.
+                    if (note.attack == NoteAttack::PickSlide && !note.slides.empty())
                     {
-                        Fraction compressed = std::max(target, g_minimum_slide_window);
-                        if (note.slides.size() > 1)
+                        if (target < note.slides.back().offset)
                         {
-                            const Fraction previous_point =
-                                note.slides[note.slides.size() - 2].offset;
-                            if (compressed <= previous_point)
+                            Fraction compressed = std::max(target, g_minimum_slide_window);
+                            if (note.slides.size() > 1)
                             {
-                                compressed = previous_point + g_minimum_slide_window;
+                                const Fraction previous_point =
+                                    note.slides[note.slides.size() - 2].offset;
+                                if (compressed <= previous_point)
+                                {
+                                    compressed = previous_point + g_minimum_slide_window;
+                                }
                             }
-                        }
-                        if (compressed < note.slides.back().offset)
-                        {
-                            note.slides.back().offset = compressed;
+                            if (compressed < note.slides.back().offset)
+                            {
+                                note.slides.back().offset = compressed;
+                            }
                         }
                         target = note.slides.back().offset;
                     }
-                    else if (!note.slides.empty() && target < note.slides.back().offset)
+                    else
                     {
-                        target = note.slides.back().offset;
+                        // Rule 2: the margin yields only to information, and only as far as the
+                        // information reaches — the tail extends to the last payload point that
+                        // CHANGES something and stops exactly there, never on to the notated end.
+                        const Fraction informative = lastChangingPayloadOffset(note);
+                        if (target < informative)
+                        {
+                            target = informative;
+                        }
+                        // Trailing points the target passed present nothing new (only
+                        // non-changing ones can sit past the last changing one), so they leave
+                        // with the tail. Clipping here rather than after the assignment below
+                        // keeps the model's "payload within the sustain" invariant AND lets the
+                        // slide-out measure itself against the path that survives — a trailing
+                        // hold waypoint must not hold the gesture open through the margin.
+                        std::erase_if(note.bend, [target](const BendPoint& point) {
+                            return target < point.offset;
+                        });
+                        std::erase_if(note.slides, [target](const SlideWaypoint& waypoint) {
+                            return target < waypoint.offset;
+                        });
                     }
                     // The unpitched slide-out is NOT a protected payload: its end is gesture
                     // geometry derived from the notated duration, not a musical event, so it
@@ -2146,17 +2207,19 @@ void resolveSlideOutExits(
             // Shift: an ordinary pitched waypoint glides to the re-picked landing's fret,
             // ending the minimum-sustain-distance margin before the landing's onset like any
             // trimmed tail (policy rule 13); the landing keeps its own onset and head. The
-            // sustain ends at the glide end, floored at any payload the tie merge folded past
-            // it and kept strictly after the last chain waypoint (a degenerate gap glides
-            // through half of it instead).
+            // sustain ends at the glide end, floored at any INFORMATIVE payload the tie merge
+            // folded past it (rule 2 — a repeated bend value or a hold waypoint pins nothing)
+            // and kept strictly after the last chain waypoint (a degenerate gap glides through
+            // half of it instead).
             Fraction window = gap - sustainMarginAt(grid, note.position);
             if (window.numerator <= 0)
             {
                 window = gap * Fraction{1, 2};
             }
-            if (!note.bend.empty() && window < note.bend.back().offset)
+            const Fraction informative = lastChangingPayloadOffset(note);
+            if (window < informative)
             {
-                window = note.bend.back().offset;
+                window = informative;
             }
             window = keptStrictlyAfterLastWaypoint(note, window);
             note.slides.push_back(SlideWaypoint{.offset = window, .fret = next->note.fret});

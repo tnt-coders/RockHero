@@ -1596,6 +1596,137 @@ TEST_CASE("Guitar Pro import keeps a chord's tails together", "[core][gp-import]
     }
 }
 
+// Policy rule 2: carrying a technique is not an exemption from the minimum sustain distance. The
+// margin yields only to payload that CHANGES something, and only as far as that change reaches.
+// Runs in 4/4, where the margin is a quarter beat.
+TEST_CASE("Guitar Pro import trims technique tails to their last information", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a bend plateau running to the notated end does not exempt the tail from the margin")
+    {
+        // The curve reaches two semitones a quarter beat in and then holds that value to the
+        // notated end. The plateau is not information, so the one-beat tail trims to the margin
+        // before the next onset and the redundant final point leaves with it.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {beatOf(Fraction{1, 4}, {bentNote(0, 5, 100.0, 100.0, 25.0, 100.0)}),
+                     noteBeat(Fraction{1, 4}, 3, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        REQUIRE(chart.notes[0].bend.size() == 2);
+        CHECK(chart.notes[0].bend[0].offset == Fraction{});
+        CHECK(chart.notes[0].bend[1].offset == Fraction{1, 4});
+        CHECK(chart.notes[0].bend[1].semitones == Catch::Approx(2.0));
+    }
+
+    SECTION("a bend change inside the trimmed region extends the tail to exactly that change")
+    {
+        // The destination lands at 95% of a two-beat note — past the margin limit of 7/4 — so
+        // the tail overrides the margin, but only out to the change itself, not to the notated
+        // end at two beats.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {beatOf(Fraction{1, 2}, {bentNote(0, 5, 50.0, 100.0, 50.0, 95.0)}),
+                     noteBeat(Fraction{1, 2}, 3, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{19, 10});
+        REQUIRE(chart.notes[0].bend.size() == 3);
+        CHECK(chart.notes[0].bend.back().offset == Fraction{19, 10});
+        CHECK(chart.notes[0].bend.back().semitones == Catch::Approx(2.0));
+    }
+
+    SECTION("a change landing exactly at the margin truncates there and keeps its information")
+    {
+        // 87.5% of two beats is 7/4 — precisely the margin limit. The tail ends there with the
+        // bend's full information intact.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {beatOf(Fraction{1, 2}, {bentNote(0, 5, 50.0, 100.0, 50.0, 87.5)}),
+                     noteBeat(Fraction{1, 2}, 3, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{7, 4});
+        REQUIRE(chart.notes[0].bend.size() == 3);
+        CHECK(chart.notes[0].bend.back().offset == Fraction{7, 4});
+        CHECK(chart.notes[0].bend.back().semitones == Catch::Approx(2.0));
+    }
+
+    SECTION("a trailing equal-fret hold waypoint holds no tail open")
+    {
+        // A legato slide onto the same fret is a hold, not a glide: it pins a pitch the note is
+        // already sounding, so it cannot override the margin. The tail trims and the waypoint
+        // leaves with it (the hold-versus-glide distinction the 3D hand window also reads).
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 5, 0, 2),
+                     noteBeat(Fraction{1, 32}, 5, 0),
+                     noteBeat(Fraction{1, 32}, 3, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].sustain == Fraction{7, 8});
+        CHECK(chart.notes[0].slides.empty());
+    }
+
+    SECTION("a scrape's path still ends exactly at its trimmed sustain")
+    {
+        // The scrape's path is gesture geometry, so the trim compresses its final point with the
+        // tail rather than flooring on it — and the pick-slide rule that the path end IS the
+        // sustain still holds afterward.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {carrierBeat(Fraction{1, 8}, {pickSlideCarrier(64)}),
+                     noteBeat(Fraction{1, 8}, 3, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
+        CHECK(chart.notes[0].sustain == Fraction{1, 4});
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
+    }
+}
+
 // Pick-slide carriers convert in place into pick-slide notes: the dead carrier is Guitar Pro's
 // encoding vehicle for the right-hand gesture, so it sheds its mute and gains the attack plus
 // the corpus-derived default path (down 17 -> 3, up the mirror), ready for reshaping.

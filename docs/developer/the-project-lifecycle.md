@@ -106,16 +106,31 @@ sustains):
    Repeated chords trim too: their held-to-the-restrike reading lives in the merged shape span
    (rule 11), which derives from the notated pre-trim durations and already runs through every
    restrike — the box continues while the tails keep the minimum gap.
-2. **Never clip a technique payload.** Trimming stops at the note's last bend point or slide
-   waypoint, so a slide always reaches its target note and a bend keeps its full curve, even
-   when that leaves the tail closer than the margin (exact adjacency is legal). The unpitched
-   slide-out is *not* protected (user rule 2026-07-28): its end is gesture geometry derived
-   from the notated duration, not a musical event, so it trims back with the tail and respects
-   the margin. A crowding that would crush it — a non-positive target, or one at or under the
-   last waypoint — compresses it to the smallest legal end instead (strictly positive,
-   strictly after the last waypoint) rather than keeping its full length: the old
-   keep-the-end fallback could run the gesture through the next sounding onset in a crowded
-   passage (first sighted 2026-08-02, when slide-ins still fabricated early heads).
+2. **Clip a technique payload that says nothing new; never clip one that does.** Carrying a
+   technique is not a blanket exemption from rule 1 (user rule 2026-08-06, superseding the
+   unconditional "never clip a technique payload" form): the margin yields only when a payload
+   point *changes* something inside the region the trim would remove, and then only as far as
+   that change reaches. Writing `t_authored` for the notated ring, `t_trim` for the end rule 1
+   alone would give, and `t_info` for the last *changing* payload offset, the tail ends at
+   `min(t_authored, max(t_trim, t_info))` — it extends to the change and **stops exactly there**,
+   never running on to the notated end. A change landing precisely at the margin truncates the
+   tail right there with its information intact. Payload points the trim passes are dropped with
+   the tail; only non-changing ones can ever sit past `t_info`, so nothing informative is lost
+   and the model's "payload within the sustain" invariant keeps holding. What counts as a change:
+   a bend point whose semitones differ from its predecessor (the note starts unbent), and a slide
+   waypoint whose fret differs from the previous fret — an **equal-fret waypoint is a HOLD, not a
+   glide** (rule 15), so a trailing hold pins a pitch the tail already sounds and cannot hold the
+   tail open. A slide still reaches its target note, because a shift glide's landing waypoint is
+   by definition a fret change (exact adjacency stays legal). Whole-note techniques — vibrato,
+   tremolo, accent, muting, harmonics — cannot change mid-sustain, so they never override the
+   margin at all. The unpitched slide-out is not payload either (user rule 2026-07-28): its end
+   is gesture geometry derived from the notated duration, not a musical event, so it trims back
+   with the tail and respects the margin. A crowding that would crush it — a non-positive
+   target, or one at or under the last *surviving* waypoint — compresses it to the smallest
+   legal end instead (strictly positive, strictly after the last waypoint) rather than keeping
+   its full length: the old keep-the-end fallback could run the gesture through the next sounding
+   onset in a crowded passage (first sighted 2026-08-02, when slide-ins still fabricated early
+   heads).
 3. **Drop short effect-free tails, per notated strum.** A strum that carries no sustain technique
    (bend, slide, vibrato, tremolo) on any string and is *notated* shorter than one beat loses its
    tails entirely after trimming. The comparison reads the notated length, not the trimmed one
