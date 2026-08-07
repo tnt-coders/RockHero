@@ -351,11 +351,13 @@ format-side decisions) and the design docs — a fresh session needs no other co
   arpeggio flag on templates (format change through plan 10). **Recommendation: A.** B authors
   what is derivable and adds a mode; C reintroduces a flag the format deliberately dropped.
   Revisit B as a convenience generator later if authoring pain proves real.
-- **Q2 — Same-string sustain overlap semantics on edit** (open in the note-format plan).
-  Options: (A) reject the edit; (B) auto-truncate the earlier note's sustain to the new onset,
-  captured in the same undo entry; (C) allow overlap and only warn. **Recommendation: B** — it
-  matches GP's editing feel, keeps every commit point valid (decision 9), and the truncation is
-  visible and undoable. 42 additionally flags residual overlaps found in imported charts.
+- **Q2 — Same-string sustain overlap semantics on edit — SETTLED (B), shipped in Phase 4.**
+  Options were: (A) reject the edit; (B) auto-truncate the earlier note's sustain to the new
+  onset, captured in the same undo entry; (C) allow overlap and only warn. B is implemented and
+  named in the code: `chart_edits.h` normalizes same-string overlaps "per 40-Q2-B", truncating to
+  exact adjacency and clipping bend/slide payloads with it, inside the one undo entry. It matches
+  GP's editing feel and keeps every commit point valid (decision 9). 42 additionally flags
+  residual overlaps found in imported charts. Kept here for the rationale, not for a decision.
 - **Q3 — Click semantics in the tab lane.** **SETTLED 2026-07-09** by the editor-wide
   interaction model (`docs/plans/in-progress/editing-interaction-model.md`), which extends the
   recommended outcome A: glyph click selects, empty click seeks + deselects, empty drag marquees,
@@ -453,7 +455,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   seek still works on empty space; zero chart mutations yet.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`, then `-Targets clang-tidy`.
 
-### Phase 4 — Note insert, delete, move, and sustain editing with undo
+### Phase 4 — Note insert, delete, move, and sustain editing with undo — COMPLETE (see the status record above)
+
+**Two gestures in the original scope below were overridden while executing, and the status record
+above is the authority.** Sustain **tail-drag is dropped**, not deferred: `Alt`+wheel is already
+the mouse sustain command, so an edge-drag is redundant (keymap-matrix.md parity triage item 1),
+and it stands as a watch item rather than queued work. **`Shift`+Left/Right is not a sustain
+chord**: the keyboard grammar amendment reserved `Shift`+arrows for time-selection extension, so
+sustain resize is **`Shift+Alt`+Left/Right** (`Ctrl+Shift+Alt` fine). Read the scope below as the
+original intent, not as remaining work.
 
 - **Scope**: the first mutations. Edit primitives in editor-core (`src/chart/chart_edits.{h,cpp}`
   modeled on `tone_region_edits.h`): insert preserving the (position, string) sort, delete,
@@ -463,8 +473,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   model: digit keys type fret numbers at the caret (multi-digit entry window, clamped to
   `g_max_fret`), Alt+click pencil placement on a string lane at the grid snap (Ctrl bypasses to
   the fine grid; ghost preview + `CopyingCursor` while Alt is held), drag-move with snap
-  (Shift axis-locks), sustain editing via tail drag, Alt+wheel, and Shift+Left/Right by grid
-  step, delete key, Esc cancels an in-flight gesture. All edits push through
+  (Shift axis-locks), sustain editing via ~~tail drag~~, Alt+wheel, and ~~Shift~~+Left/Right by
+  grid step, delete key, Esc cancels an in-flight gesture. All edits push through
   `EditorUndoHistory::push`; dirty tracking then works via the existing clean marker.
 - **Files**: editor-core `src/chart/` (edits + handlers TU following the per-domain handler
   pattern), `editor_action_id.h`, availability, `tab_view.cpp` gestures.
@@ -473,12 +483,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   round-trip tests (apply → undo → chart equals original by `operator==`), redo equivalence,
   compound-entry atomicity.
 - **Exit criteria**: with a chart loaded, notes can be created, moved, resized, and deleted;
-  every path is undoable; saves persist the result (Phase 2). Arrangements without a chart get a
-  minimal "create empty chart" action (tuning seeded from a default) so editing has an entry
-  point ahead of `docs/plans/roadmap/41-tempo-map-authoring.md`.
+  every path is undoable; saves persist the result (Phase 2). — **Met, except the creation entry
+  point, which was superseded rather than shipped.** The "minimal create empty chart action
+  (tuning seeded from a default)" sketched here is **not** what to build: the user directed
+  2026-08-06 that the entry point is an explicit **New**, and that it should require backing audio
+  to start with, which makes it a new-song flow rather than a bare chart insert. It needs
+  deliberate design before implementation — where it lives (File > New vs a chart-level action),
+  what it demands up front (audio asset, tuning, tempo seed, arrangement part), how it meets plan
+  43's song-information and publish gate, and whether it writes a package immediately. Design it
+  with the user; do not ship the minimal version to close this line.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 
-### Phase 5 — Technique and note-property editing
+### Phase 5 — Technique and note-property editing — ATTACK SLICE LANDED EARLY
+
+**The attack verb already shipped, outside this plan.** `docs/plans/roadmap/55-pick-slide-notation.md`
+needed it, so `planSetAttack` lives in `chart_edits.h` today with the scrape-safe planners beside
+it (a pick-slide carrier sheds its other techniques and synthesizes its default path). Re-verify
+what attack coverage exists before executing this phase; the mute/harmonic/vibrato/tremolo/accent
+properties and the §9a mixed-validity feedback are what remain.
 
 - **Scope**: attack (pick/hammer/pull/tap/pop/slap), mute (none/palm/full), harmonic
   (none/natural/pinch) with optional `touch` numeric entry, vibrato (whole-note bool until

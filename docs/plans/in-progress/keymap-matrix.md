@@ -113,7 +113,14 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 |---|---|---|---|---|
 | `Delete` / `Backspace` | delete note(s) | delete point | delete region (merges) | Live |
 | `Insert` | fret-0 note at caret | on-curve point at caret | `✗` (no keyboard) | Live |
-| `Ctrl+D` | duplicate selection | duplicate selection | duplicate | `▷40` |
+| `Ctrl+D` | duplicate selection | duplicate selection | duplicate | `▷40` · **chord `◇` — see below** |
+
+*(The duplicate **verb** is wanted; its **chord** is not settled. The user flagged 2026-08-06 that
+`Ctrl+D` "seems a bit unconventional" and asked to discuss it deliberately when the verb comes up
+in plan 40 Phase 9. Do not bind `Ctrl+D` before that discussion. Note the collision to weigh
+there: `Ctrl+D` is also proposed for duplicating the selected plugin in the plugin-chain scope
+below, which is a separate modal focus scope — so the same chord could legitimately mean
+"duplicate whatever the active scope holds," or the two could want different chords.)*
 
 ## Pointer
 
