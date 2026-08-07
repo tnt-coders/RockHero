@@ -242,7 +242,7 @@ TEST_CASE("Box mute profiles reject an alpha-bearing image", "[ui][highway]")
 {
     // Otherwise measurable art — same geometry as the accepted cases — but carrying alpha.
     const juce::Image alpha_bearing{juce::Image::ARGB, 96, 96, true, juce::SoftwareImageType{}};
-    juce::Graphics graphics{alpha_bearing};
+    const juce::Graphics graphics{alpha_bearing};
     graphics.drawImageAt(crossMask(96, 96, {8.0F, 8.0F, 80.0F, 32.0F}, 12.0F), 0, 0);
     graphics.drawImageAt(crossMask(96, 96, {8.0F, 56.0F, 80.0F, 32.0F}, 12.0F), 0, 0);
 
