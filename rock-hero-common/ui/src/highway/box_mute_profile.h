@@ -32,9 +32,10 @@ enum class BoxMuteProfileError : std::uint8_t
     UnanalyzableGlyph,
 
     /*!
-    \brief The image carries a real alpha channel. The contract requires opacity in the coverage
+    \brief The PNG file carries a real alpha channel. The contract requires opacity in the coverage
     channel instead, because JUCE premultiplies an alpha-bearing PNG at decode and would silently
-    scale every channel of the structural scheme by it.
+    scale every channel of the structural scheme by it. This is a fact about the file, not about
+    the decoded image: macOS decodes every PNG to ARGB whatever the file's color type.
     */
     AlphaBearingImage,
 };
@@ -108,7 +109,11 @@ falloff at half the glyph's peak coverage. The measurement averages perpendicula
 cuts over the arms' outer spans (clear of the crossing and the tips), so what is painted is
 exactly what the box marks render.
 
-\param image Decoded chords.png. Must carry no alpha channel, per the contract above.
+Only the three structural channels are read; any alpha the decoder attached is ignored, because
+whether the ART carries alpha is a question about the file that only the byte overload below can
+answer. Callers holding a file must go through that overload to get the no-alpha rule enforced.
+
+\param image Decoded chords.png.
 \return Both profiles, or the measurement failure — the renderer treats any failure as an
         invalid required asset.
 */
@@ -116,10 +121,14 @@ exactly what the box marks render.
     const juce::Image& image);
 
 /*!
-\brief Decodes chords.png bytes and measures both profiles.
+\brief Decodes chords.png bytes, enforces the no-alpha rule, and measures both profiles.
+
+This is the entry point the renderer uses and the one the contract is defined against: it is the
+only place the file's own alpha state is still known, so it is where an alpha-bearing re-bake is
+rejected.
 
 \param png_bytes The chords.png file contents.
-\return Both profiles, or the decode or measurement failure.
+\return Both profiles, or the decode, alpha, or measurement failure.
 */
 [[nodiscard]] std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
     std::span<const std::byte> png_bytes);

@@ -436,7 +436,9 @@ into validated ones with typed failures.
   grid dimensions, cell size where fixed, channel semantics for the tinted atlas, and — for
   `chords.png` — a pointer to the existing measurement contract rather than a restatement.
 - `chords.png` already carries one validation this phase should surface rather than rebuild:
-  `measureBoxMuteProfiles` rejects an alpha-bearing image with `AlphaBearingImage`. That is the
+  `measureBoxMuteProfiles` rejects an alpha-bearing image with `AlphaBearingImage`. The check lives
+  in the byte overload, not the image one — macOS decodes every PNG to ARGB whatever its color type,
+  so only the undecoded file still knows whether the art carried alpha. That is the
   likeliest user-theme mistake by a wide margin, because image editors export RGBA by default and
   a premultiplied decode would silently scale all three structural channels. Route the error
   through this phase's per-asset reporting so the message names the asset and the reason instead of

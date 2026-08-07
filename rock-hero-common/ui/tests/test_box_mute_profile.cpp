@@ -235,9 +235,13 @@ TEST_CASE("Box mute profiles anchor partly covered rims at half the peak", "[ui]
     CHECK(rampCoverage(profiles->palm, 0) < 160);
 }
 
-// An alpha-bearing image has already been premultiplied by the decoder, silently scaling the
+// An alpha-bearing PNG has already been premultiplied by the decoder, silently scaling the
 // structural channels. The contract rejects it rather than measuring scaled signals — this is the
 // guard that keeps a future re-bake from reintroducing an alpha channel unnoticed.
+//
+// Measured as encoded BYTES, which is both the renderer's entry point and the only place the rule
+// can be enforced: whether the art carries alpha is a fact about the file, and the decoded image
+// does not preserve it (macOS decodes every PNG to ARGB regardless of its color type).
 TEST_CASE("Box mute profiles reject an alpha-bearing image", "[ui][highway]")
 {
     // Otherwise measurable art — same geometry as the accepted cases — but carrying alpha.
@@ -246,8 +250,11 @@ TEST_CASE("Box mute profiles reject an alpha-bearing image", "[ui][highway]")
     graphics.drawImageAt(crossMask(96, 96, {8.0F, 8.0F, 80.0F, 32.0F}, 12.0F), 0, 0);
     graphics.drawImageAt(crossMask(96, 96, {8.0F, 56.0F, 80.0F, 32.0F}, 12.0F), 0, 0);
 
-    const std::expected<BoxMuteProfiles, BoxMuteProfileError> result =
-        measureBoxMuteProfiles(alpha_bearing);
+    juce::MemoryOutputStream encoded;
+    REQUIRE(juce::PNGImageFormat{}.writeImageToStream(alpha_bearing, encoded));
+
+    const std::expected<BoxMuteProfiles, BoxMuteProfileError> result = measureBoxMuteProfiles(
+        std::span{static_cast<const std::byte*>(encoded.getData()), encoded.getDataSize()});
     REQUIRE_FALSE(result.has_value());
     if (!result.has_value())
     {

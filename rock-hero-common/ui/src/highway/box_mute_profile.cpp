@@ -273,20 +273,14 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
 
 } // namespace
 
-// Validates the two-cell stack shape and the absence of an alpha channel, then measures each
-// cell's glyph.
+// Validates the two-cell stack shape, then measures each cell's glyph. The no-alpha half of the
+// contract is enforced by the byte overload below, which is the only caller that can see what the
+// FILE carried; this overload reads the three structural channels of whatever it is handed.
 std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(const juce::Image& image)
 {
     if (image.getWidth() < 16 || image.getHeight() < 16 || (image.getHeight() % 2) != 0)
     {
         return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
-    }
-    // An alpha-bearing image has already been premultiplied by the decoder, which scales the
-    // structural channels by an opacity that is not supposed to be in the art at all. Reject it
-    // here rather than measure signals that have been silently scaled.
-    if (image.hasAlphaChannel())
-    {
-        return std::unexpected(BoxMuteProfileError::AlphaBearingImage);
     }
     const juce::Image::BitmapData bitmap{image, juce::Image::BitmapData::readOnly};
     const int cell_height = image.getHeight() / 2;
@@ -318,6 +312,18 @@ std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
     if (decoded.isNull())
     {
         return std::unexpected(BoxMuteProfileError::UndecodableImage);
+    }
+    // Whether the decoded image has an alpha channel is NOT the same question as whether the file
+    // did, so it cannot be the test. On macOS JUCE decodes every PNG through CoreImage, which
+    // cannot produce a 24-bit image and so always hands back ARGB with opaque alpha
+    // (juce_CoreGraphicsContext_mac.mm juce_loadWithCoreImage); asking hasAlphaChannel() there
+    // rejects every alpha-free PNG, including the shipped asset. Both of JUCE's decode paths
+    // record the file's real alpha state in this property for exactly this purpose, so it is the
+    // portable answer. An opaque alpha channel premultiplies by 1 and leaves the structural
+    // channels intact, which is why measuring the macOS ARGB image is still bit-exact.
+    if (static_cast<bool>(decoded.getProperties()->getWithDefault("originalImageHadAlpha", false)))
+    {
+        return std::unexpected(BoxMuteProfileError::AlphaBearingImage);
     }
     return measureBoxMuteProfiles(decoded);
 }
