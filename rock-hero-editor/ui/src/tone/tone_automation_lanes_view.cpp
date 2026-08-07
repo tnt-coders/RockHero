@@ -1023,7 +1023,11 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition());
 
-    if (event.mods.isPopupMenu())
+    // A left press is excluded for the same reason the chart lane excludes it: JUCE expands
+    // popupMenuClickModifier to (rightButton | ctrl) on macOS, and these lanes bind Ctrl as a
+    // pointer modifier (the handlers read modifiers.ctrl), so isPopupMenu() alone would raise a
+    // menu instead of the Ctrl gesture on that platform only.
+    if (event.mods.isPopupMenu() && !event.mods.isLeftButtonDown())
     {
         // A right-click on a point offers its own menu; a right-click on a claimed lane zone (the
         // name chip or the resize band) offers lane removal. Empty lane area belongs to the seek
