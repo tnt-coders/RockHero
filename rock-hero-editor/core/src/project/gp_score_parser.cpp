@@ -1,7 +1,6 @@
 #include "project/gp_score_parser.h"
 
 #include <cstddef>
-#include <cstdlib>
 #include <juce_core/juce_core.h>
 #include <map>
 #include <optional>
@@ -533,8 +532,10 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                         beat.tremolo_stroke = Fraction{1, 16};
                         if (divider != std::string::npos)
                         {
-                            const int numerator = std::atoi(text.substr(0, divider).c_str());
-                            const int denominator = std::atoi(text.substr(divider + 1).c_str());
+                            const int numerator =
+                                juce::String{text.substr(0, divider)}.getIntValue();
+                            const int denominator =
+                                juce::String{text.substr(divider + 1)}.getIntValue();
                             if (numerator > 0 && denominator > 0)
                             {
                                 beat.tremolo_stroke = Fraction{numerator, denominator * 4};
