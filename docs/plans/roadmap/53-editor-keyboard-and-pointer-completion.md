@@ -273,11 +273,38 @@ exactly one owner and the dialog's one-owner law stands unchanged.
 
 Depends on Phase 1 (done). Gate: none — user-directed 2026-07-20; execute next.
 
-### Phase 2 — Keybind-discovery context menus (every surface)  *(extends plan 46)*
+### Phase 2 — Keybind-discovery context menus (every surface)  *(extends plan 46)* — CHART MENU DONE; ROUTING HALF RESEQUENCED
 
 Build the net-new chart-lane menu; route the existing tone/automation menus through registered
 commands. Each item shows its **live** shortcut (JUCE `PopupMenu::addCommandItem` reads the current
 mapping — stays correct after a rebind). Depends on Phase 1.
+
+**Chart-lane menu shipped 2026-08-06.** Grouped Note / Move Selection / Sustain / Frets / Navigate /
+Grid & Zoom plus Undo, Redo and the Actions dialog, every item added through
+`addEditorCommandItem` so label, enablement and live chord all come from the registry. Applicability
+needs no second source of truth: commands answer it in `getCommandInfo` and inactive items render
+greyed, so the menu lists the whole verb set and lets the registry gray what does not apply. The
+lane detects the popup gesture and raises a callback; the shell builds the menu because it owns the
+command manager, and a right press no longer reaches the controller as a pointer `Down`. The audit
+for it also found `onChartPickSlideToggleRequested` implemented in editor-core with tests and
+**zero UI references** — registered as a chord-less command (the signed keymap never gave the verb
+a chord, and inventing one here would be an unsigned keymap decision).
+
+**The routing half must follow Phases 4 and 6, not precede them.** It is blocked by design rather
+than merely unbuilt. Those menus' items are *parameter-carrying*: the tone strip's items close over
+the hit region's ref, name and id, and the automation lanes' close over `instance_id`, `param_id`,
+a lane default, and a point's musical position — the last with an explicit invariant that a state
+push while the menu is open must not act on a different point. A registered
+`ApplicationCommand` takes no parameters, so routing these requires the surfaces to adopt
+"right-click **selects**, then the command acts on the selection", and right-click on the tone strip
+does not select today (it opens the menu on the hit region directly).
+
+That selection model is exactly what fold-in issue **B postponed "to last"** for the tone-region row
+and what **Phase 6** decides for the lanes (`Ctrl`+click toggle + marquee, parity triage item 3).
+Routing before those land would either duplicate every verb as both a raw item and a command or
+settle postponed semantics unilaterally. **Phase 6's selection model is already decided and
+unblocked, so it is the cheaper next step and it unlocks the lane half of this routing;** the tone
+half waits on issue B with Phase 4.
 
 ### Phase 3 — Navigation-reach + zoom/grid behaviors — LANDED AHEAD OF SEQUENCE (see record above)
 
