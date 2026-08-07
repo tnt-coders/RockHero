@@ -1729,10 +1729,11 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
 }
 
 // Policy rule 19's crowding case: a scrape's path is derived gesture geometry, so when the room
-// runs short the gesture and the closing gap SQUISH — sharing the room instead of the gesture
-// yielding a fixed margin it cannot afford. Gap = min(d, R/2). Runs in 4/4, where the minimum
-// sustain distance d is a quarter beat and the minimum slide window is an eighth beat, so the
-// crossover to the invariant floor sits at R = d.
+// runs short the gesture and the closing gap SQUISH — sharing the shortfall instead of the gesture
+// yielding a fixed margin it cannot afford. Only a REAL conflict crunches anything: the margin d is
+// paid in full while paying it still leaves the leg its minimum window w, and only below R = d + w
+// do the two share. Runs in 4/4, where d is a quarter beat and w is an eighth beat, so the conflict
+// threshold sits at R = 3/8 beat.
 TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -1760,25 +1761,41 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
     }
 
-    SECTION("room between the margin and twice it splits evenly")
+    SECTION("room exactly at the conflict threshold still pays the full margin")
     {
-        // R = 3/8 beat, between d and 2d: gap = R/2 = 3/16 beat, so the gesture keeps the other
-        // 3/16 rather than being cut to the old fixed 1/8-beat floor.
+        // R = 3/8 beat = d + w, the tightest room where the full margin costs the leg nothing it
+        // cannot spare: gap = d = 1/4 and the leg takes the remaining 1/8, landing exactly on its
+        // window. Nothing is crunched because nothing conflicts.
         const auto built = crowded_scrape(Fraction{3, 32});
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{1, 8});
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
+    }
+
+    SECTION("room above the threshold pays the margin whole rather than sharing it")
+    {
+        // R = 7/16 beat, inside the band an earlier revision of this rule crunched: it set the gap
+        // to min(d, R/2) = 7/32, manufacturing a spacing violation where the full 1/4 margin was
+        // affordable. The margin is paid whole and the leg takes 3/16.
+        const auto built = crowded_scrape(Fraction{7, 64});
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == Fraction{3, 16});
         REQUIRE(chart.notes[0].slides.size() == 1);
         CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
-        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
     }
 
     SECTION("room equal to the margin halves it, the worked example")
     {
         // R = 1/16 whole note against d = 1/16: a 1/32-whole-note gesture and a 1/32 gap — a
-        // quarter beat of room splitting into an eighth beat each way. This is also the crossover
-        // where the formula's leg length meets the minimum slide window exactly.
+        // quarter beat of room splitting into an eighth beat each way. A genuine conflict, since
+        // paying d whole would leave the leg nothing, and the even split lands it exactly on its
+        // window.
         const auto built = crowded_scrape(Fraction{1, 16});
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;

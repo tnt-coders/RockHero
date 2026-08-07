@@ -57,10 +57,11 @@ language on the 3D highway and the 2D tab.
      notes ride the original trim scan natively. The one trim twist that remains: the path is
      *derived* gesture geometry, synthesized from the notated duration rather than authored, so
      the margin trim compresses its final point instead of flooring the tail on it. **Revised
-     2026-08-06:** the crowded case squishes rather than flooring — the final leg and its closing
-     gap share the room `R` from the leg's start to the next binding onset, gap = `min(d, R/2)`,
-     with the minimum-slide-window floor taking over below `R = 2 ×` that window (see lifecycle
-     rule 19 for the full statement).
+     2026-08-06:** the crowded case squishes rather than flooring, but only when crowding is real
+     — the margin `d` is paid in full whenever paying it still leaves the final leg its minimum
+     window `w`, and only below `R = d + w` (for `R` the room from the leg's start to the next
+     binding onset) do the two share the shortfall evenly (see lifecycle rule 19 for the full
+     statement).
 
 ## Non-goals
 

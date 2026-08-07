@@ -369,19 +369,23 @@ through the trim rules):
     information and the trim compresses its final point instead of flooring the tail on it. That
     asymmetry is the whole reason rule 2's payload floor protects an authored bend point but not
     a synthesized gesture end.
-    When the room runs short the gesture and its closing gap **squish**, sharing the room instead
-    of the gesture yielding a fixed margin it cannot afford (user rule 2026-08-06, superseding
-    the plain minimum-window floor). Writing `R` for the room the final leg has — from where the
-    leg starts (the previous path point, or the onset) to the next binding onset — and `d` for
-    the minimum sustain distance at that position, the closing gap is `min(d, R/2)` and the leg
-    takes the rest: the full margin whenever `R ≥ 2d`, an even split below it, continuous at
-    `R = 2d` and monotone in the leg's length throughout. `R` = 1/16 whole note against
-    `d` = 1/16 gives a 1/32 leg and a 1/32 gap.
-    The model's floor wins in the extreme, because a leg shorter than the minimum slide window
-    has nowhere to travel: below `R = 2 ×` the minimum slide window the leg clamps up to that
-    window and the gap gives way instead, down to the exact adjacency the chart rules carve out
-    for a scrape terminal. In x/4 that crossover sits exactly at `R = d`, where the formula and
-    the floor agree; in x/8 it sits at `R = d/2`. The terminal only ever moves *earlier* — a
+    When the room genuinely runs short the gesture and its closing gap **squish**, sharing the
+    shortfall instead of the gesture yielding a fixed margin it cannot afford (user rule
+    2026-08-06, superseding the plain minimum-window floor). The governing principle is that only
+    a real conflict crunches anything: **the margin is paid in full whenever paying it leaves the
+    leg its minimum window.** Writing `R` for the room the final leg has — from where the leg
+    starts (the previous path point, or the onset) to the next binding onset — `d` for the minimum
+    sustain distance at that position, and `w` for the minimum slide window, the closing gap is
+    `d` whenever `R − d ≥ w`, and the leg simply takes what is left. Only below
+    `R = d + w` is there a conflict, and then the room splits evenly, `gap = min(R/2, R − w)`,
+    so the leg keeps its window and the gap absorbs the remainder — down to the exact adjacency
+    the chart rules carve out for a scrape terminal.
+    In 4/4, where `d` = 1/4 beat and `w` = 1/8 beat: `R ≥ 3/8` pays the full 1/4 gap and the
+    leg takes `R − 1/4`; `R` = 1/4 (a 1/16 whole note, against `d` = 1/16 whole note) splits
+    into a 1/8 leg and a 1/8 gap, a 1/32 whole note each; `R` = 1/8 spends everything on the leg.
+    An earlier revision of this rule set the gap to `min(d, R/2)`, which crunched the gesture over
+    the whole band `d + w ≤ R < 2d` where the margin was perfectly affordable, manufacturing a
+    spacing violation where none existed. The terminal only ever moves *earlier* — a
     trim never lengthens a gesture — and the path still ends exactly at the sustain afterward.
     Dead notes
     carrying ordinary slide-out flags (4/8) are LEFT-hand figures and never reclassify. The

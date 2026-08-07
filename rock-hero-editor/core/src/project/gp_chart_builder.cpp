@@ -980,22 +980,39 @@ void normalizeImportedSustains(
                     // both), so this branch is the whole payload story for them.
                     //
                     // The final leg and the closing gap SHARE the room `R` the leg has to work
-                    // in — from where the leg starts to the next binding onset. The gap is
-                    // min(d, R/2), so at R >= 2d the gesture yields the full margin `d` and
-                    // below it the two split the room evenly: continuous at R = 2d and monotone
-                    // in the leg's length throughout (R = 1/16 whole note against d = 1/16 gives
-                    // a 1/32 leg and a 1/32 gap). The model's floor wins in the extreme, because
-                    // a leg shorter than the minimum slide window has nowhere to travel: below
-                    // R = 2 * g_minimum_slide_window the leg clamps up to that window and the
-                    // gap gives way instead — in x/4 that crossover sits exactly at R = d. The
-                    // terminal only ever moves EARLIER; a trim never lengthens a gesture.
+                    // in — from where the leg starts to the next binding onset. Only a genuine
+                    // conflict crunches anything: while the full margin still leaves the leg its
+                    // minimum window, the margin is paid in full and the leg simply takes what is
+                    // left. The gesture is squeezed only when honoring `d` would starve the leg,
+                    // i.e. below R = d + g_minimum_slide_window, and then the shortfall is shared
+                    // evenly rather than taken from one side. In the extreme the leg's window wins
+                    // outright — a leg shorter than it has nowhere to travel — and the gap gives
+                    // way to the exact adjacency the model already allows a scrape terminal.
+                    //
+                    // In 4/4 (d = 1/4 beat, window = 1/8 beat): R >= 3/8 pays the full 1/4 gap;
+                    // R = 1/4 splits into a 1/8 leg and a 1/8 gap, which is a 1/32 whole note
+                    // each; R = 1/8 spends everything on the leg. The terminal only ever moves
+                    // EARLIER; a trim never lengthens a gesture.
                     if (note.attack == NoteAttack::PickSlide && !note.slides.empty())
                     {
                         const Fraction leg_start = note.slides.size() > 1
                                                        ? note.slides[note.slides.size() - 2].offset
                                                        : Fraction{};
                         const Fraction room = sounding_gap - leg_start;
-                        const Fraction closing_gap = std::min(margin, room * Fraction{1, 2});
+                        // Squeezing is for conflicts only: a margin that costs the leg nothing it
+                        // cannot spare is not a conflict, so it is paid whole.
+                        const Fraction spare = room - margin;
+                        Fraction closing_gap = margin;
+                        if (spare < g_minimum_slide_window)
+                        {
+                            const Fraction shared = room * Fraction{1, 2};
+                            const Fraction leg_floored = room - g_minimum_slide_window;
+                            closing_gap = std::min(shared, leg_floored);
+                            if (closing_gap.numerator < 0)
+                            {
+                                closing_gap = Fraction{};
+                            }
+                        }
                         Fraction terminal = sounding_gap - closing_gap;
                         if (terminal - leg_start < g_minimum_slide_window)
                         {
