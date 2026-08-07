@@ -70,9 +70,16 @@ struct CellArt
     for (const CellArt& cell : cells)
     {
         const juce::Image rim_mask = crossMask(width, height, cell.rect, cell.stroke_width);
-        const juce::Image core_mask =
-            cell.core.has_value() ? crossMask(width, height, cell.rect, cell.core_stroke_width)
-                                  : juce::Image{};
+        // The core's mask and its band are both constant across the cell's pixel sweep, so they
+        // are resolved once here rather than per pixel — and reading the optional inside its own
+        // has_value guard is the form the optional-access analysis can follow.
+        juce::Image core_mask;
+        Band core_band{};
+        if (cell.core.has_value())
+        {
+            core_mask = crossMask(width, height, cell.rect, cell.core_stroke_width);
+            core_band = *cell.core;
+        }
         const juce::Image::BitmapData rim_bits{rim_mask, juce::Image::BitmapData::readOnly};
         for (int y = 0; y < height; ++y)
         {
@@ -84,9 +91,9 @@ struct CellArt
                     continue;
                 }
                 Band band = cell.rim;
-                if (cell.core.has_value() && core_mask.getPixelAt(x, y).getFloatAlpha() > 0.5F)
+                if (core_mask.isValid() && core_mask.getPixelAt(x, y).getFloatAlpha() > 0.5F)
                 {
-                    band = *cell.core;
+                    band = core_band;
                 }
                 art.setPixelAt(
                     x,
