@@ -145,16 +145,25 @@ right-hand cell cores at or below 68 while every fretting-hand cell cores at exa
 split holds across cells sharing a function (palm and full mute), a technique (natural and pinch
 harmonic), and a motion (tap and legato), so it tracks the hand rather than the atlas row.
 
-One zig zag at 45 degrees — two arms offset by a single perpendicular step — splits the pick
-through the cell center, and the fracture carries the row's brightest white lift, 192, so the crack
-reads as light filling it rather than as a hole. The crack is a six-vertex bolt: full thickness
-across the middle, tapering to a single point at each end. Every edge is straight, including the
-offset step, which is a chord rather than the arc a plain distance field would join the arms with.
-Each point lands just past the silhouette's half-coverage line so the crack's zero and the pick's
-zero coincide, which is what makes the split reach the outline instead of stopping short of it. The
-two ends cannot converge at the same rate: the plectrum is mirror-symmetric rather than
-180-degree-symmetric, so its point sits nearer the crack than its shoulder does and the lower taper
-is the steeper of the two. Seated concentric on the head like the harmonic cell, at 0.76 of the
+One zig zag at 45 degrees — two arms offset by a single perpendicular step — splits the pick, and
+the fracture carries the row's brightest white lift, 192, so the crack reads as light filling it
+rather than as a hole. The crack is a six-vertex bolt: full thickness across the middle, tapering
+to a single point at each end. Every edge is straight, including the offset step, which is a chord
+rather than the arc a plain distance field would join the arms with. Each point lands just past the
+silhouette's half-coverage line so the crack's zero and the pick's zero coincide, which is what
+makes the split reach the outline instead of stopping short of it. The two ends cannot converge at
+the same rate: the plectrum is mirror-symmetric rather than 180-degree-symmetric, so its point sits
+nearer the crack than its shoulder does and the lower taper is the steeper of the two.
+
+The kink sits at the plectrum's own 180-degree symmetry center, not the cell's. Both points are
+pinned to the outline, so where the kink falls between them is the mark's only freedom, and placing
+it by ink symmetry rather than by geometry is what makes the two arms read as equal — measured
+against a plain cell-centered kink, their length ratio falls from 1.43 to 1.08 while the kink stays
+on the cell's vertical center line. The offset is equal along the arms and across them, the one
+construction that buys the balance without moving the kink off that line. Its across-the-arms half
+is why the upper point cuts a shallower notch through the rim than the lower one: recovering that
+notch means giving the balance back, and pushing the point further past the outline was measured not
+to recover it. Seated concentric on the head like the harmonic cell, at 0.76 of the
 head's solid width and 1.57 of its height: it covers the head's own footprint, which is why a
 scrape wears this mark alone and no X beneath it.
 */
