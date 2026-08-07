@@ -290,21 +290,31 @@ for it also found `onChartPickSlideToggleRequested` implemented in editor-core w
 **zero UI references** — registered as a chord-less command (the signed keymap never gave the verb
 a chord, and inventing one here would be an unsigned keymap decision).
 
-**The routing half must follow Phases 4 and 6, not precede them.** It is blocked by design rather
-than merely unbuilt. Those menus' items are *parameter-carrying*: the tone strip's items close over
-the hit region's ref, name and id, and the automation lanes' close over `instance_id`, `param_id`,
-a lane default, and a point's musical position — the last with an explicit invariant that a state
-push while the menu is open must not act on a different point. A registered
-`ApplicationCommand` takes no parameters, so routing these requires the surfaces to adopt
-"right-click **selects**, then the command acts on the selection", and right-click on the tone strip
-does not select today (it opens the menu on the hit region directly).
+**The routing half needs one interaction decision, now made: right-click SELECTS, then opens the
+menu (user, 2026-08-06 — the standard behavior in other applications).** The reason it needs one at
+all is that those menus' items are *parameter-carrying*: the tone strip's close over the hit
+region's ref, name and id, and the automation lanes' close over `instance_id`, `param_id`, a lane
+default, and a point's musical position. A registered `ApplicationCommand` takes no parameters, so
+a command-backed item must act on a selection instead of on a captured target, and right-click on
+the tone strip does not select today (it opens the menu on the hit region directly).
 
-That selection model is exactly what fold-in issue **B postponed "to last"** for the tone-region row
-and what **Phase 6** decides for the lanes (`Ctrl`+click toggle + marquee, parity triage item 3).
-Routing before those land would either duplicate every verb as both a raw item and a command or
-settle postponed semantics unilaterally. **Phase 6's selection model is already decided and
-unblocked, so it is the cheaper next step and it unlocks the lane half of this routing;** the tone
-half waits on issue B with Phase 4.
+An earlier revision of this note claimed the routing was blocked behind fold-in issue B and Phase 6.
+**That was overstated.** Issue B concerns the tone row's *keyboard* marker semantics — what an armed
+caret means when it drops onto a span surface in the vertical nav stack — whereas right-click
+selecting is a *pointer* behavior, and both the tone strip and the lanes already have single-object
+selection by left-click. Right-click can simply do what left-click already does, then open the menu,
+without settling anything issue B owns. The "reachable twice" worry was likewise weak: routing
+through commands *replaces* the raw item rather than adding beside it.
+
+One thing to verify when building it, and the reason to be careful rather than quick: the point menu
+deliberately identifies its target **by the musical position captured at click time, not by index**,
+so that a state push while the menu is open cannot act on a different point. A selection-based
+command preserves that invariant only if point selection is keyed durably rather than by index —
+check before relying on it.
+
+**Phase 6 still runs first**, not as a blocker but because its `Ctrl`+click-toggle-plus-marquee
+selection model (parity triage item 3) is already decided, unblocked, and is what the lane half of
+this routing wants underneath.
 
 ### Phase 3 — Navigation-reach + zoom/grid behaviors — LANDED AHEAD OF SEQUENCE (see record above)
 
