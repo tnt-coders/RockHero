@@ -1092,10 +1092,10 @@ void normalizeImportedSustains(
         strum->second = strum->second || earned;
     }
     int dropped = 0;
-    for (std::size_t index = 0; index < built.size(); ++index)
+    for (BuiltNote& entry : built)
     {
-        ChartNote& note = built[index].note;
-        if (note.sustain.numerator > 0 && !strum_earned_tail.at(built[index].notated_beat))
+        ChartNote& note = entry.note;
+        if (note.sustain.numerator > 0 && !strum_earned_tail.at(entry.notated_beat))
         {
             // Nothing to clip with the tail: a strum with no earned tail carries no payload on
             // any member (a bend or slide would have earned it).
