@@ -116,14 +116,24 @@ sustains):
    strictly after the last waypoint) rather than keeping its full length: the old
    keep-the-end fallback could run the gesture through the next sounding onset in a crowded
    passage (first sighted 2026-08-02, when slide-ins still fabricated early heads).
-3. **Drop short effect-free tails.** A note that carries no sustain technique (bend, slide,
-   vibrato, tremolo) and is *notated* shorter than one beat loses its tail entirely after
-   trimming. The comparison reads the notated length, not the trimmed one (user rule
-   2026-07-28, superseding the post-trim comparison): a note held a full beat or longer in the
-   source keeps its trimmed tail even though the margin leaves it slightly shorter than the
-   beat — a chugged riff of notated one-beat notes now keeps its 3/4 tails, while a run of
-   shorter notes still renders as plain heads. Vibrato and tremolo protect a tail from
-   *dropping* but not from *trimming* — in dense passages such a tail can shrink to nothing.
+3. **Drop short effect-free tails, per notated strum.** A strum that carries no sustain technique
+   (bend, slide, vibrato, tremolo) on any string and is *notated* shorter than one beat loses its
+   tails entirely after trimming. The comparison reads the notated length, not the trimmed one
+   (user rule 2026-07-28, superseding the post-trim comparison): a note held a full beat or
+   longer in the source keeps its trimmed tail even though the margin leaves it slightly shorter
+   than the beat — a chugged riff of notated one-beat notes now keeps its 3/4 tails, while a run
+   of shorter notes still renders as plain heads. The decision belongs to the **notated strum**,
+   not the single string (user rule 2026-08-06): every string of a chord rings from one stroke, so
+   a tail any member earned — a technique on it, a notated ring of a full beat, or rule 1's hold
+   exemption — keeps every member's tail. Deciding per string drew a lone tail on a sub-beat
+   double stop's bent note while its unbent partner, effect-free and notated sub-beat, lost its
+   tail entirely and read as unsounded. Grouping is the notated beat, the same identity rule 1's
+   binding scan uses, so grace-shifted strum members and cross-voice simultaneities count as one
+   stroke here too. Each member still keeps its *own* margin-trimmed end (rule 2 decides length
+   per string; only the keep-or-drop verdict is shared), so the bent string's tail runs to its
+   last bend change while its partner's stops at the margin. Vibrato and tremolo protect a tail
+   from *dropping* but not from *trimming* — in dense passages such a tail can shrink to nothing,
+   and where the margin leaves a partner no room at all it still shows no tail.
 4. **"One beat" is one signature beat** — a quarter note in x/4, an eighth in x/8 — matching the
    chart model's own sustain unit.
 

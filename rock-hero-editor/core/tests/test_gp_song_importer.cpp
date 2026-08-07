@@ -1504,7 +1504,97 @@ namespace
     return beat;
 }
 
+// One note carrying a bend curve that rises from unbent, for the payload-trim tests below.
+// Values are Guitar Pro's percent-of-a-whole-step scale (100 = one whole step = two semitones)
+// and offsets are percent of the note duration; the plateau is a single point (both middle
+// offsets coincide), so the curve reads origin, middle, destination.
+[[nodiscard]] GpNote bentNote(
+    const int string, const int fret, const double middle_value, const double destination_value,
+    const double middle_offset, const double destination_offset)
+{
+    GpNote note;
+    note.string = string;
+    note.fret = fret;
+    note.bend = GpBend{
+        .origin_value = 0.0,
+        .middle_value = middle_value,
+        .destination_value = destination_value,
+        .origin_offset = 0.0,
+        .middle_offset1 = middle_offset,
+        .middle_offset2 = middle_offset,
+        .destination_offset = destination_offset,
+    };
+    return note;
+}
+
+// One beat holding the given notes verbatim.
+[[nodiscard]] GpBeat beatOf(const Fraction duration, std::vector<GpNote> beat_notes)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.notes = std::move(beat_notes);
+    return beat;
+}
+
 } // namespace
+
+// Policy rule 3: the sub-beat drop decision belongs to the notated strum, not the single string.
+// Runs in 4/4, where the minimum sustain distance is a quarter beat.
+TEST_CASE("Guitar Pro import keeps a chord's tails together", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a chord's unbent partner keeps a tail beside its bent one")
+    {
+        // Both strings of the double stop ring from one stroke, so the plain partner keeps its
+        // margin-trimmed tail instead of losing it to the sub-beat drop rule while the bent
+        // string shows a lone tail. The lengths differ because only one string carries the bend:
+        // rule 2 decides each tail's length per string, rule 3 only shares the keep-or-drop
+        // verdict.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {beatOf(
+                         Fraction{1, 8},
+                         {bentNote(0, 5, 50.0, 100.0, 50.0, 100.0),
+                          GpNote{.string = 1, .fret = 7, .harmonic_type = ""}}),
+                     noteBeat(Fraction{1, 8}, 3, 2)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].string == 1);
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].string == 2);
+        CHECK(chart.notes[1].sustain == Fraction{1, 4});
+    }
+
+    SECTION("a strum with nothing to say still loses every tail")
+    {
+        // The companion case: no member carries a technique and the notated ring is sub-beat, so
+        // the whole strum drops its tails and renders as plain heads.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeat(Fraction{1, 8}, 5, 7, false, false), noteBeat(Fraction{1, 8}, 3, 4)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].sustain == Fraction{});
+        CHECK(chart.notes[1].sustain == Fraction{});
+    }
+}
 
 // Pick-slide carriers convert in place into pick-slide notes: the dead carrier is Guitar Pro's
 // encoding vehicle for the right-hand gesture, so it sheds its mute and gains the attack plus

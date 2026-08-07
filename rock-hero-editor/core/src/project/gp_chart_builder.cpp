@@ -849,14 +849,26 @@ struct BuiltNote
 //    sub-beat effect-free ring reads as noise in a chart rather than as a deliberate sustain.
 //    The comparison reads the notated length, not the trimmed one: a note held a full beat or
 //    longer in the source keeps its tail even though the margin leaves it slightly shorter than
-//    the beat.
+//    the beat. The decision belongs to the NOTATED STRUM, not the single string: every string of
+//    a chord rings from one stroke, so a tail any member earned — a technique on it, a notated
+//    ring of a full beat, or rule 1's hold exemption — keeps the whole strum's tails. Deciding
+//    per string drew a lone tail on a chord's bent note beside partners that looked unsounded.
 //
 // The rules are import normalization only — the editor never rewrites spacing the user authored.
 void normalizeImportedSustains(
     std::vector<BuiltNote>& built, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     int trimmed = 0;
-    int dropped = 0;
+
+    // Rule 3 reads each tail's NOTATED ring, so it is captured before the trim pass rewrites it,
+    // and the pass records which tails rule 1's hold exemption spared.
+    std::vector<Fraction> notated_sustain;
+    notated_sustain.reserve(built.size());
+    for (const BuiltNote& entry : built)
+    {
+        notated_sustain.push_back(entry.note.sustain);
+    }
+    std::vector<bool> deliberate_hold(built.size(), false);
 
     std::size_t group_begin = 0;
     while (group_begin < built.size())
@@ -871,10 +883,6 @@ void normalizeImportedSustains(
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
             ChartNote& note = built[index].note;
-            // The drop rule reads the NOTATED length, captured before the trim: a note held a
-            // full beat or longer in the source keeps its trimmed tail even though the margin
-            // leaves it slightly shorter than the beat.
-            const Fraction notated_sustain = note.sustain;
             // The next binding onset (rule 1): the first later event whose NOTATED beat differs
             // from this note's — notationally simultaneous events (chord members, a strum's own
             // grace-shifted notes) never bind. The tail keeps the margin before the binding
@@ -912,6 +920,7 @@ void normalizeImportedSustains(
             if (notated_ahead.has_value() &&
                 (*notated_ahead - built[index].global_beat) < note.sustain)
             {
+                deliberate_hold[index] = true;
                 continue;
             }
             if (note.sustain.numerator > 0 && has_binding)
@@ -976,15 +985,35 @@ void normalizeImportedSustains(
                     }
                 }
             }
-            if (note.sustain.numerator > 0 && !hasSustainTechnique(note) &&
-                notated_sustain < Fraction{1})
-            {
-                note.sustain = Fraction{};
-                ++dropped;
-            }
         }
         group_begin = group_end;
     }
+
+    // Rule 3, decided per notated strum: a tail any member of the strum earned keeps every
+    // member's tail, so a chord never shows one string ringing beside partners that look
+    // unsounded. Grouping is the notated beat — the same identity rule 1's binding scan uses, so
+    // grace-shifted strum members and cross-voice simultaneities count as one stroke here too.
+    std::map<Fraction, bool> strum_earned_tail;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        const bool earned = deliberate_hold[index] || hasSustainTechnique(built[index].note) ||
+                            notated_sustain[index] >= Fraction{1};
+        const auto strum = strum_earned_tail.try_emplace(built[index].notated_beat, false).first;
+        strum->second = strum->second || earned;
+    }
+    int dropped = 0;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        ChartNote& note = built[index].note;
+        if (note.sustain.numerator > 0 && !strum_earned_tail.at(built[index].notated_beat))
+        {
+            // Nothing to clip with the tail: a strum with no earned tail carries no payload on
+            // any member (a bend or slide would have earned it).
+            note.sustain = Fraction{};
+            ++dropped;
+        }
+    }
+
     if (trimmed > 0)
     {
         notes.push_back(
