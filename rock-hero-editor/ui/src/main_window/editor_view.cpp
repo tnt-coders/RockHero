@@ -1404,6 +1404,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SelectionMoveFineDown:
         case EditorCommandId::SelectionDelete:
         case EditorCommandId::ChartPickSlideToggle:
+        case EditorCommandId::ChartLegatoToggle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::SustainLengthenFine:
@@ -1579,6 +1580,14 @@ bool EditorView::perform(const InvocationInfo& info)
             if (chartShown())
             {
                 m_controller.onChartPickSlideToggleRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::ChartLegatoToggle:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartLegatoToggleRequested();
             }
             return true;
         }

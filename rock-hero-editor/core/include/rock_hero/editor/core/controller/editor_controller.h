@@ -469,6 +469,9 @@ public:
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
     void onChartSustainAdjustRequested(int direction, bool fine) override;
 
+    /*! \copydoc IEditorController::onChartLegatoToggleRequested */
+    void onChartLegatoToggleRequested() override;
+
     /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
     void onChartPickSlideToggleRequested() override;
 

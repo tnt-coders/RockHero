@@ -879,4 +879,116 @@ TEST_CASE("planSetAttack replaces a pitched glide and does not restore it", "[co
     CHECK(restored->slides.empty());
 }
 
+// The legato direction is derived from the previous note on the SAME string, never authored, so one
+// verb covers hammer-on and pull-off and the two can never disagree with the fret data.
+TEST_CASE("planSetLegato derives hammer versus pull from the previous fret", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // String 1 climbs 3 -> 7: the 7 is hammered onto.
+        makeNote({.measure = 1, .beat = 1}, 1, 3),
+        makeNote({.measure = 1, .beat = 2}, 1, 7),
+        // String 2 falls 9 -> 5: the 5 is pulled off to.
+        makeNote({.measure = 1, .beat = 3}, 2, 9),
+        makeNote({.measure = 1, .beat = 4}, 2, 5),
+    };
+
+    const std::vector<ChartNoteKey> keys{
+        keyAt({.measure = 1, .beat = 2}, 1),
+        keyAt({.measure = 1, .beat = 4}, 2),
+    };
+    const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->inserted.size() == 2);
+    // Insertions stay in chart order: the string-1 climb first, then the string-2 fall.
+    CHECK(plan->inserted[0].string == 1);
+    CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+    CHECK(plan->inserted[1].string == 2);
+    CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pull);
+}
+
+// A direction that is not derivable is refused rather than guessed: the editor never invents a fact
+// the chart does not carry.
+TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("no earlier note on the string")
+    {
+        // The only note on string 1 has nothing to come from. A note on ANOTHER string earlier in
+        // time must not stand in for it — you cannot hammer on from a different string.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 2, 5),
+            makeNote({.measure = 1, .beat = 2}, 1, 7),
+        };
+        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
+                        .has_value());
+    }
+
+    SECTION("the earlier note sits at the same fret")
+    {
+        // Neither hammered nor pulled: the fret does not move, so there is no direction to record.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 7),
+            makeNote({.measure = 1, .beat = 2}, 1, 7),
+        };
+        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
+                        .has_value());
+    }
+}
+
+// Mixed selections edit what they can and leave the rest, rather than refusing wholesale — the
+// mixed-validity policy's "apply where valid".
+TEST_CASE("planSetLegato applies to the derivable subset of a selection", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeNote({.measure = 1, .beat = 1}, 1, 3),
+        makeNote({.measure = 1, .beat = 2}, 1, 7),
+        // String 2's note is first on its string, so it has no derivable direction.
+        makeNote({.measure = 1, .beat = 2}, 2, 4),
+    };
+
+    const std::vector<ChartNoteKey> keys{
+        keyAt({.measure = 1, .beat = 2}, 1),
+        keyAt({.measure = 1, .beat = 2}, 2),
+    };
+    const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
+    REQUIRE(plan.has_value());
+    // Only the derivable note changes; the other keeps its plain pick and stays out of the plan.
+    REQUIRE(plan->inserted.size() == 1);
+    CHECK(plan->inserted[0].string == 1);
+    CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+}
+
+// A scrape's path is gesture geometry; retyping the attack drops it exactly as planSetAttack does,
+// because a pitched glide reading of it would be a fiction.
+TEST_CASE("planSetLegato drops a scrape's path with the attack", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeNote({.measure = 1, .beat = 1}, 1, 3),
+        makeScrape({.measure = 1, .beat = 2}, 1),
+    };
+    REQUIRE_FALSE(chart.notes[1].slides.empty());
+
+    const auto plan =
+        planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+    REQUIRE(plan.has_value());
+    REQUIRE(plan->inserted.size() == 1);
+    // The scrape starts at fret 9 above the fret-3 note, so it hammers on.
+    CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+    CHECK(plan->inserted[0].slides.empty());
+}
+
 } // namespace rock_hero::editor::core
