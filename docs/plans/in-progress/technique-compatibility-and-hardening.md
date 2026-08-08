@@ -73,6 +73,7 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
 | **E8** | `Full` mute excludes `harmonic` | A full mute sounds no pitch; a harmonic *is* a pitch, so they contradict by definition. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so full mute never has to stretch to cover it, and that case is Q1 instead. |
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
+| **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
 
 **E3 is the one that started this**, and it is worth stating what it costs: pressing the pinch verb
 on a tapped note must refuse or clear the tap, and pressing `T` on a pinch harmonic must clear the
@@ -86,7 +87,7 @@ never to author an invalid state.
 | **H1** | `tremolo` requires `attack == Pick` | Tremolo picking *is* repeated picking, so an attack that replaces the pick stroke contradicts it. Would exclude `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`. |
 | **H2** | `Natural` harmonic does **not** require `Pick` | A tapped harmonic — tapping directly over the node — is a real technique, so `Tap` + `Natural` is playable. This is the asymmetry with E3 and the reason the two harmonic kinds cannot share one rule. |
 | **H3** | `accent` is compatible with everything | It is dynamics, orthogonal to how the note is produced. |
-| **H4** | `Full` mute excludes `harmonic`, `bend`, `slides`, `slide_out`, `vibrato` | A dead note has no pitch to bend, slide, vary, or sound a harmonic on. See Q3 — a raked "dead slide" may be a real counter-example. |
+| ~~**H4**~~ | **SUPERSEDED.** It bundled five cells under one "no pitch" argument and got two wrong. Settled instead as: `harmonic` excluded (E8), `bend` excluded (E10), `slides` and `slide_out` **allowed** (E10 — positions, not pitches), `vibrato` still open as Q4. The lesson is that "no pitch" separates *pitch-valued* payloads from *position-valued* ones rather than excluding everything. |
 
 ## Open — needs the user's call
 
@@ -97,8 +98,17 @@ Grouped so they can be answered in passes rather than one at a time.
 - ~~**Q1** `Palm` + `Natural` harmonic~~ — **ALLOWED** (user, 2026-08-07). The damping shortens the
   harmonic without preventing it, and the palm sits near the bridge while the node can be far up the
   neck. The worked example for "pointless but coherent is allowed".
-- **Q2** `Palm` + `bend` / `slides` — palm-muted bends and slides?
-- **Q3** `Full` + `slides` — is a raked or dead slide something we want representable? This is the one case that could refute H4.
+- ~~**Q2** `Palm` + `bend` / `slides`~~ — **ALLOWED** (user, 2026-08-07). Palm muting damps sustain at
+  the bridge while the fretting hand bends or slides normally; nothing contradicts and the data stays
+  coherent — a real offset from a real pitch. Also common rather than merely possible.
+- ~~**Q3** `Full` + `slides`~~ — **ALLOWED, and `Full` + `bend` is NOT** (user, 2026-08-07). The split
+  falls exactly where the *data* does. A slide's waypoints are **positions**, which stay meaningful
+  with no pitch — the pick-slide precedent proves it, since a scrape's frets are right-hand travel
+  rather than pitch. A bend stores **semitones**, an offset from a pitch that a full mute does not
+  have, so it is incoherent in the E8 sense rather than merely pointless. The user's case for allowing
+  the slide is concrete: Van Halen dragging a muted hand up and down under heavy phaser, which
+  full-mute-plus-slide is the natural way to represent. `slide_out` follows `slides` for the same
+  reason — it is a position too.
 - **Q4** `Full` + `vibrato` — anything to vary?
 
 **Harmonics against articulation.**
