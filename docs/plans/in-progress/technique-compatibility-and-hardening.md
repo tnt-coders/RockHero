@@ -96,10 +96,33 @@ So the constraint is blast radius, not compatibility.
 
 ### Can be made structurally unrepresentable (intra-note)
 
-1. **Bundle `touch` into the harmonic.** `std::optional<Harmonic>` where
-   `Harmonic { Kind kind; std::optional<double> touch; }`. A `touch` without a harmonic stops being
-   *representable*, and E1 disappears as a rule rather than being enforced. Small, contained, high
-   value — the cheapest real win on this list.
+1. **Bundle the node into the harmonic, and make it REQUIRED** (user, 2026-08-07):
+
+   ```
+   Harmonic { Kind kind; double node; }   // node required, in fret units
+   std::optional<Harmonic> harmonic;      // absent = not a harmonic
+   ```
+
+   Three separate wins in one small change:
+
+   - **`touch` without a harmonic becomes unrepresentable**, so E1 disappears as a rule.
+   - **It is called `node` for every kind**, and the *kind* says which hand produced it — the fretting
+     hand for a natural, the picking hand for a pinch. One concept, one name; the same factoring the
+     marks use (shape = kind, darkness = hand). An earlier draft proposed a second name for the pinch
+     case, which was worse: it invented vocabulary for one concept.
+   - **Required, not optional, because the node determines the pitch.** A harmonic without a node is
+     underdetermined. And the optionality currently causes a real defect, verified in
+     `highway_renderer.cpp:3796`: an absent node anchors the head at
+     `highwayNoteCenterX(note.fret)` — the fret-slot middle, which is the *fretted-note* anchor —
+     while a present node interpolates from `highwayFretLineX`, the fret **wire**. So `node = 12.0`
+     and an absent node on the same twelfth-fret harmonic draw **half a fret apart**, and the absent
+     path uses the wrong anchor for a harmonic besides: a harmonic is touched *at* the wire, where a
+     fretted note is pressed behind it. Requiring the node removes both the double encoding and the
+     wrong-anchor path.
+
+   **Import consequence:** the importer must always produce a node. Guitar Pro supplies
+   `harmonic_fret`; where it omits one for an on-fret harmonic, default `node = fret` **at the import
+   boundary**, which is where a default belongs rather than as a permanent ambiguity in the format.
 2. **Make the scrape its own variant.** A form carrying only `{fret, sustain, path}` makes **all eight**
    of E2's exclusions structural in one move. Today they are eight separate checks in one `if`.
 3. **Derive a scrape's `sustain` from its path.** If the variant stores the path and exposes `sustain`
@@ -135,6 +158,31 @@ a neighbour cannot.** Worth stating plainly so the effort is not oversold.
 - **Over-modelling risk.** If most cells turn out compatible, a variant per attack duplicates shared
   fields for little gain. The matrix decides how much structure is justified — which is exactly why it
   comes first.
+
+## Tap harmonics are coming (user, 2026-08-07)
+
+*"We will add tap harmonics as well later which will similarly need a node field."* A tap harmonic is
+sounded by tapping directly over a node, so it is a third `Kind` carrying a **right-hand** node — the
+same field, no special case, which is confirmation that the shape above is right.
+
+Two consequences worth logging before it lands:
+
+- **The notation gets stressed.** The harmonic family becomes 3-way (natural / pinch / tap), and the
+  pinch **bar** cannot distinguish pinch from tap. Under the notation system's third rule — letters
+  appear only when a family has more members than shape and darkness can separate — a 3-way harmonic
+  family is exactly where letters become justified. This belongs to the notation-consistency thread,
+  but it originates here.
+- **A new matrix cell.** A tap harmonic probably implies `attack == Tap`, since the tap *is* how it is
+  sounded. That would make it the third harmonic-versus-attack rule beside E3 ("pinch requires Pick")
+  and H2 ("natural requires nothing"), and it needs the user's confirmation like the rest.
+
+## A cross-surface gap this exposed
+
+**2D and 3D disagree about where a natural harmonic sits.** `TabNoteView` carries `harmonic` but
+**not** the node, so the 2D projection cannot see it: 2D draws the head at the integer fret while 3D
+draws it at the true node. For a 3.2 harmonic that is most of a fret's width of disagreement between
+two views of the same note. A pinch harmonic's node is read by nothing on either surface, still waiting
+on roadmap 25-Q5.
 
 ## Next steps
 
