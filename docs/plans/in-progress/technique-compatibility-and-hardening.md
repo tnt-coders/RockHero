@@ -75,6 +75,46 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
 | **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
 | **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
+| **E12** | `Pull` excludes every harmonic | A pull-off sounds the string by *releasing* a finger so a lower stopped pitch rings — and that pitch rings over the full speaking length with nothing damping a node, so the result is an ordinary note by construction. A contrived arrival at a node (a finger resting lightly below the released one) has the release *damping* rather than exciting, and barely sounds. |
+| **E13** | `Pinch` requires `attack == Pick` | A pinch harmonic's thumb grazes the node as part of the pick stroke it follows. No stroke, no thumb pass. |
+| **E14** | `Hammer` + `Natural` is **allowed**, and it *is* the tap harmonic | The fret hand strikes the string over a node; the strike both excites and damps. No new harmonic kind is needed — see below. |
+
+**The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
+slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
+
+| | `Natural` + `Hammer` | a new `Tap` kind |
+|---|---|---|
+| `fret` | 0 | 0 |
+| `touch` (node) | the node | the node |
+| `attack` | `Hammer` | `Pick`? — nothing picks it |
+
+The third row is the giveaway. A `Tap` kind leaves `attack` describing something false, and its only
+honest value is `Hammer` — at which point the kind is redundant with the attack. Worse, it creates a
+new invalid combination (`Tap` + `Pick`) for the format to forbid, which is the class of state this
+document exists to eliminate. The same shape as the whammy resolution: the distinction was already
+carried by a field that exists. **Keep `NoteHarmonic` two-valued.**
+
+Two consequences follow.
+
+**E1's precondition is stated on the wrong quantity.** E1 requires `fret > 0` because a hammer needs
+somewhere to land. A tap harmonic has `fret == 0` and `node == 12`. The rule wants a positive
+**sounding position** — where the fret hand meets the string — which is `fret` for an ordinary note
+and `node` for a natural harmonic. That is the same branch already shipped in the renderer as
+`noteFretboardX` (`highway_renderer.cpp`, commit `d2fea3fb`), which anchors a natural harmonic's head
+and tail on its node. The rule and the render ask one question, so the branch belongs in core as one
+named accessor — roughly `soundingPosition(note)` returning `*note.touch` for a natural harmonic with
+a node and `note.fret` otherwise — with E1 reading `soundingPosition(note) > 0` and the renderer
+calling it. Fold this into the hardening pass; do not duplicate the branch a third time.
+
+**`Natural` is a misnomer for what the field means.** A harmonic's pitch comes from the ratio of
+node→bridge to fret→bridge, and fret positions are logarithmic, so the midpoint of a string stopped
+at fret 5 lies exactly at fret 17. An absolute node plus `fret` therefore determines the pitch in
+*every* case, and an open-string natural harmonic is just the `fret == 0` case — not a separate
+reference frame. What actually separates `Natural` from `Pinch` is **which hand damps the node**,
+precisely the axis the notation already encodes by darkness. Two things follow: a *fretted* tap
+harmonic (hold 5, tap 17 — the common form) is already representable, since no rule requires a
+natural harmonic to be open; and the enum's names describe techniques where the field means a hand.
+Renaming is a user call, not folded in here.
 
 **The full-mute row reduces to one sentence.** A full mute sounds no pitch, so it excludes everything
 **pitch-valued** — `harmonic` (E8), `bend` (E10), `vibrato` (E11) — and allows everything
@@ -133,9 +173,9 @@ Grouped so they can be answered in passes rather than one at a time.
 
 **Harmonics against articulation.**
 
-- **Q5** `Natural` + `Hammer` / `Pull` — hammering onto or pulling off to a node?
-- ~~**Q6** `Natural` + `bend` / `vibrato`~~ — **RESOLVED as E9**, and the whammy ambiguity that made it
-  hard dissolved rather than needing a ruling. See "Whammy is beat-scoped" below.
+- ~~**Q5** `Natural` + `Hammer`/`Pull`~~ — **ANSWERED 2026-08-07.** `Pull` forbidden on every
+  harmonic, `Hammer` forbidden on `Pinch`, `Hammer` **allowed** on `Natural` — where it *is* the tap
+  harmonic. See E12–E14 and the two consequences below.
 - **Q7** `Slap` / `Pop` + `harmonic` — do bass slap harmonics belong in the model?
 
 **Bass techniques.**
