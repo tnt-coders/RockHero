@@ -311,9 +311,11 @@ struct PosColorUvVertex
     const common::core::HighwayNoteView& note, const common::core::HighwayMetrics& metrics,
     const bool mirrored)
 {
-    if (note.harmonic == common::core::NoteHarmonic::Natural && note.touch.has_value())
+    if (const std::optional<double> fretboard_node =
+            common::core::fretboardHarmonicNode(note.harmonic_node, note.attack);
+        fretboard_node.has_value())
     {
-        const double node = *note.touch;
+        const double node = *fretboard_node;
         const double node_floor = std::floor(node);
         const auto node_fret = static_cast<int>(node_floor);
         const double left_x = common::core::highwayFretLineX(node_fret, metrics, mirrored);
@@ -2153,7 +2155,7 @@ void HighwayRenderer::Impl::draw(
             has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
                         note.tremolo || !note.bend.empty() || !note.slides.empty();
             all_palm_muted = all_palm_muted && note.mute == common::core::NoteMute::Palm;
-            any_marks = any_marks || note.harmonic != common::core::NoteHarmonic::None ||
+            any_marks = any_marks || common::core::isHarmonic(note.harmonic_node, note.attack) ||
                         note.attack != common::core::NoteAttack::Pick ||
                         note.mute != common::core::NoteMute::None;
         }
@@ -3811,11 +3813,11 @@ void HighwayRenderer::Impl::draw(
             continue;
         }
 
-        // Fretted head anchor: the fret-slot middle, or — for a NATURAL harmonic sounding
-        // between frets — the chart's fractional node point, which is where the fret hand
-        // touches. A pinch harmonic's touch is the PICKING hand's node: the fret hand stays on
-        // note.fret, so the head keeps the fret anchor (imported pinches drew at the node fret)
-        // and the node waits for a dedicated right-hand cue (25-Q5).
+        // Fretted head anchor: the fret-slot middle, or — for a harmonic whose node lies on the
+        // fretboard — that node, because the damping finger is standing on it. A pinch is the one
+        // harmonic excluded: its thumb grazes over the body, so there is no neck coordinate to
+        // place it at and the head keeps the fret anchor. A cue for where the thumb DOES land is
+        // deferred to 25-Q5.
         double x = noteFretboardX(note, metrics, mirrored);
         // A sounding head travels with its glide, so it stays glued to the tail through bends,
         // vibrato, and slides. It does NOT ride the tremolo teeth: the teeth are a texture the
@@ -3942,10 +3944,11 @@ void HighwayRenderer::Impl::draw(
         // — its travel is unpitched noise, so it takes the darker base a full-muted note takes,
         // and the pick mark then sits on that base rather than on an X — else the standard head
         // (Charter's base-cell selection).
-        const bool tech_head = note.mute == common::core::NoteMute::Full ||
-                               note.harmonic == common::core::NoteHarmonic::Natural ||
-                               note.attack == common::core::NoteAttack::Hammer ||
-                               note.attack == common::core::NoteAttack::Pull || scrape;
+        const bool tech_head =
+            note.mute == common::core::NoteMute::Full ||
+            common::core::fretboardHarmonicNode(note.harmonic_node, note.attack).has_value() ||
+            note.attack == common::core::NoteAttack::Hammer ||
+            note.attack == common::core::NoteAttack::Pull || scrape;
         const std::array<float, 4> base_cell =
             tech_head ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
@@ -3968,13 +3971,13 @@ void HighwayRenderer::Impl::draw(
         {
             // Rotating markers ride the rolling flip (Charter bakes these into the head
             // texture), in Charter's composite order.
-            if (note.harmonic == common::core::NoteHarmonic::Natural)
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
-            }
-            else if (note.harmonic == common::core::NoteHarmonic::Pinch)
+            if (note.attack == common::core::NoteAttack::Pinch)
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pinch_harmonic, tint);
+            }
+            else if (note.harmonic_node.has_value())
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
             }
             if (note.mute == common::core::NoteMute::Palm)
             {

@@ -117,17 +117,16 @@ struct HighwayNoteView
     /*! \brief Muting applied to the note. */
     NoteMute mute{NoteMute::None};
 
-    /*! \brief Harmonic timbre applied to the note. */
-    NoteHarmonic harmonic{NoteHarmonic::None};
-
     /*!
-    \brief Fractional touch position for harmonics sounding between frets.
+    \brief Harmonic node in fret units, and the assertion that this note is a harmonic.
 
-    Carries the chart's exact node point (the 3.2 / 2.7 / 5.8 family) so the highway can place
-    the harmonic head at the true touch position instead of the fret middle. Only meaningful
-    when harmonic is set.
+    Mirrors `ChartNote::harmonic_node`, carrying the chart's exact node point (the 3.2 / 2.7 / 5.8 family)
+    so the highway places the harmonic head at the true node instead of the fret middle. Ask
+    `fretboardHarmonicNode` before anchoring to it and `isHarmonic` to ask whether the note is
+    one at all — a pinch is a harmonic whose node may be unrecorded, and is drawn at its fret
+    because the thumb grazes over the body.
     */
-    std::optional<double> touch{};
+    std::optional<double> harmonic_node{};
 
     /*! \brief True when the note is played with vibrato. */
     bool vibrato{false};

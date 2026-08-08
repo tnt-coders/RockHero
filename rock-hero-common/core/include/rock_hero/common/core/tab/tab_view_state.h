@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <string>
 #include <vector>
@@ -84,8 +85,14 @@ struct TabNoteView
     /*! \brief Muting applied to the note. */
     NoteMute mute{NoteMute::None};
 
-    /*! \brief Harmonic timbre applied to the note. */
-    NoteHarmonic harmonic{NoteHarmonic::None};
+    /*!
+    \brief Harmonic node in fret units, and the assertion that this note is a harmonic.
+
+    Mirrors `ChartNote::harmonic_node`. 2D has no fretboard axis to place a node on, so this positions
+    nothing — it selects the diamond head, and carries the value for a future fractional label.
+    Ask `isHarmonic` rather than testing it directly, since a pinch may have no node to record.
+    */
+    std::optional<double> harmonic_node{};
 
     /*! \brief True when the note is played with vibrato. */
     bool vibrato{false};

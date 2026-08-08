@@ -167,7 +167,7 @@ state which answer they assume. The mid-sustain vibrato-span sub-scope (Phase 7)
 
 Full authorability of everything the chart format supports, inside the existing 2D tab lane over
 the waveform: insert/delete/move notes and sustains; every technique (attack, palm/full mutes,
-natural/pinch harmonics plus fractional `touch`, vibrato, tremolo, accent); bend curves and slide
+harmonics as a `harmonic_node` with a `Pinch` attack, vibrato, tremolo, accent); bend curves and slide
 waypoints; chord templates with per-string fingerings and a template editor; shape spans (chords,
 chugs, arpeggios); fret-hand positions; section markers; tuning/capo/centOffset. Plus the editing
 substrate that makes it usable: a selection model, an editing caret, copy/paste, multi-edit, the
