@@ -487,7 +487,10 @@ original intent, not as remaining work.
   point, which was superseded rather than shipped.** The "minimal create empty chart action
   (tuning seeded from a default)" sketched here is **not** what to build: the user directed
   2026-08-06 that the entry point is an explicit **New**, and that it should require backing audio
-  to start with, which makes it a new-song flow rather than a bare chart insert. It needs
+  to start with, which makes it a new-song flow rather than a bare chart insert. **POSTPONED 2026-08-07** until editing is complete
+  *including tempo-map authoring* (`docs/plans/roadmap/41-tempo-map-authoring.md`) — the user's gate:
+  a new chart cannot be charted from scratch without an editable tempo map, so the entry point is not
+  useful before then. The requirement below stands for when it revives. It needs
   deliberate design before implementation — where it lives (File > New vs a chart-level action),
   what it demands up front (audio asset, tuning, tempo seed, arrangement part), how it meets plan
   43's song-information and publish gate, and whether it writes a package immediately. Design it
