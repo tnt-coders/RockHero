@@ -350,11 +350,21 @@ natural harmonic established as E14 already requires `attack == Slap`, so it can
 `attack == Natural`. Two values, one field.
 
 **What survives is one binary axis: which hand damps the node.** Orthogonal to attack, and exactly the
-thing the current field already stores. So the field is the right *shape* with the wrong *name* —
-`Natural`/`Pinch` name techniques where the field means a hand. The rename pays off immediately in the
-renderer, whose head-anchoring branch reads `if Natural` when the real reason is physical: the fret hand
-**is** on the fretboard at the node, so the head belongs there, while the picking hand is over the body,
-so the head stays on the fret. Renamed, `noteFretboardX` and `soundingPosition()` explain themselves.
+thing the current field already stores — so the field is already the right shape.
+
+**A rename was proposed and withdrawn.** The first draft of this section called `Natural`/`Pinch` a
+misnomer and wanted the values named for the hand. That is too strong: those are the *actual* names of
+the techniques, and a reader who sees `Pinch` knows what sound is meant, where `PickHand` would make
+them reconstruct which technique that is. The damping hand is the **reason** the two differ, not a
+better name for them. Against a readability gain, a rename also changes the wire strings — `song.json`
+stores `"harmonic": "natural"` / `"pinch"` (`chart_document.cpp:138-149, 316-322`) — which costs a
+re-import of all 39 `.rock` packages, since the reader rejects an unknown harmonic outright.
+
+What the withdrawn rename was really reaching for is narrower and free: **the renderer does not say why
+it branches.** `noteFretboardX` tests `harmonic == Natural` where the operative fact is physical — the
+fretting hand *is* on the fretboard at the node, so the head belongs there, while the picking hand is
+over the body, so the head stays on the fret. That is a comment, and the same sentence belongs on
+`soundingPosition()` when it lands.
 
 **One redundancy, deliberately not exploited.** The field is only independent information when
 `attack == Pick`. For `Tap` the damper is the picking hand, for `Hammer` the fretting hand, for
