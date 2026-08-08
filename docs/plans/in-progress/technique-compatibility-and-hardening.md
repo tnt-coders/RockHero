@@ -254,20 +254,25 @@ So the constraint is blast radius, not compatibility.
 
 ### Can be made structurally unrepresentable (intra-note)
 
-1. **Bundle the node into the harmonic, and make it REQUIRED** (user, 2026-08-07):
+1. **Make the node required and drop the kind** — *revised 2026-08-07 by the collapse above, which
+   supersedes the `Harmonic { Kind; node }` bundle this item originally proposed.* With `Pinch` moved
+   to the attack axis there is no kind left to bundle, so the shape is simply:
 
    ```
-   Harmonic { Kind kind; double node; }   // node required, in fret units
-   std::optional<Harmonic> harmonic;      // absent = not a harmonic
+   std::optional<double> node;   // absent = not a harmonic; present = the node, in fret units
    ```
 
-   Three separate wins in one small change:
+   The bundle was reaching for "a node cannot exist without a harmonic". The collapse achieves that
+   more directly, because the node *is* the harmonic — there is no second field to contradict. The
+   original item's three wins survive, restated against the simpler shape:
 
-   - **`touch` without a harmonic becomes unrepresentable**, so E1 disappears as a rule.
-   - **It is called `node` for every kind**, and the *kind* says which hand produced it — the fretting
-     hand for a natural, the picking hand for a pinch. One concept, one name; the same factoring the
-     marks use (shape = kind, darkness = hand). An earlier draft proposed a second name for the pinch
-     case, which was worse: it invented vocabulary for one concept.
+   - **A node without a harmonic becomes unrepresentable**, and so does a harmonic without a node, so
+     E1 disappears entirely rather than being enforced better. It is one of only two rules that exist
+     in code today, so this deletes real enforcement code rather than just a table row.
+   - **It is called `node` in every case**, with the *attack* saying which hand produced it — any
+     ordinary attack means the fretting hand, `Pinch` means the picking hand. One concept, one name.
+     An earlier draft proposed a second name for the pinch case, which was worse: it invented
+     vocabulary for one concept.
    - **Required, not optional, because the node determines the pitch.** A harmonic without a node is
      underdetermined. And the optionality currently causes a real defect, verified in
      `highway_renderer.cpp:3796`: an absent node anchors the head at
