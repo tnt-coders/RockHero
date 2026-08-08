@@ -292,12 +292,58 @@ node** instead of answering a bool — a bool would have left `*note.harmonic_no
 call that `bugprone-unchecked-optional-access` cannot see through, and the returning form lets callers
 dereference a local both the compiler and the linter can prove is engaged.
 
-Wrong: **"a node asserts the harmonic" is not the whole story.** Guitar Pro's `HarmonicFret` is an
-optional property *separate* from `HarmonicType`, so a pinch legitimately arrives with **no node** —
-the picking hand catches whichever node falls under it and nobody records which. So the question "is
-this a harmonic" is `isHarmonic(node, attack)` = `node.has_value() || attack == Pinch`, not node
-presence alone. The collapse still holds (one predicate replaced an enum plus a field), but it is two
-halves rather than one.
+Wrong, then corrected: I claimed **"a pinch may legitimately carry no node"**, reasoning that Guitar
+Pro's `HarmonicFret` is a separate optional property and that players do not aim for a particular node.
+The user rejected it on the concept — a pinch *is* picking while damping a node, so the overtone that
+squeals is **determined** by where the thumb lands — and asked for the import side to be diagnosed
+rather than the model bent around it. They were right, and measurement settled it: across a **118-file
+Guitar Pro corpus, all 207 harmonics carry an `HarmonicFret`, every one of the 56 pinches included**.
+The `std::optional` in the parser is defensive coding, and I mistook it for evidence about GP's data.
+
+So a pinch requires its node, `chart_rules` enforces that, and `isHarmonic` is node presence alone
+rather than the two-part test the wrong claim forced.
+
+### The node's range, and how high a harmonic to support
+
+Settled 2026-08-08. The first cut range-checked the node against `g_max_fret` (30), which conflated two
+quantities: a **fret** must be a real neck position, a **node** can sit anywhere along the vibrating
+string, and a pinch's thumb grazes *past* the neck (real scores use 24.0 — the 4th partial's
+bridge-side node, since `12*log2(4) = 24`). That bound would have rejected every bridge-side node from
+the 6th partial up. Replaced with `g_max_harmonic_node = 48.0`, which is `12*log2(16)` exactly.
+
+**How high is worth supporting?** Three independent lines put the practical ceiling near the **8th
+partial**:
+
+| Line of evidence | Ceiling |
+|---|---|
+| **Ergonomics** — the nut-side node of partial *n* is at exactly `L/n`, so adjacent nodes are `L/(n(n+1))` apart: 9.0 mm at the 8th, 7.2 mm at the 9th, **2.1 mm at the 17th**, against a 10-15 mm fingertip | ~8-9, and it is a *hard* limit no amount of gain defeats |
+| **Literature** — partials 2-5 "easiest to produce and most audible", above them "nearly inaudible without the overdrive of an amp", the "stratospheric" band between frets 2 and 3 being partials 6-9 | 5 acoustic, ~9 amplified |
+| **Real charts** — the 118-file GP corpus's node values map to about the 8th | ~8 |
+
+Precision is not the binding constraint: one decimal separates every distinct node through the **17th**
+partial with zero collisions, first failing at the 18th (0.990 and 1.050 both round to 1.0). So the
+16-partial bound costs nothing and leaves roughly double the headroom anything playable needs.
+
+**The bound is deliberately permissive, and that is not the same question as the picker.** A bound can
+only ever *reject a legitimate chart* — including a GP import we do not author — so it is set to refuse
+junk and nothing more. Keeping the option list short is a **UI** concern: when harmonic authoring is
+built, the picker should offer partials 2-8 (the nut-side nodes plus the named bridge-side ones: 7/19,
+5/24, 4/9/16), not the 79 nodes this bound admits.
+
+A related discovery: **GP's `HFret` values are conventional labels, not exact physics.** The true 8th
+partial node is 2.313 but GP writes `2.4`; the 5th is 3.863 but GP writes `4.0`. The format therefore
+stores what a chart *says* and must never snap a node to a computed ideal.
+
+### 2D now labels a fret-hand harmonic with its node
+
+Shipped 2026-08-08 (user: *"We should also add 2D fractional note label for harmonics now"*).
+`tabNoteHeadText` in the paint core returns the node for a harmonic whose node is on the fretboard and
+the fret otherwise, with a trailing `.0` dropped so 12 / 7 / 5 stay as narrow as an ordinary fret
+number and only genuinely fractional nodes (3.2, 14.7) pay for the glyphs. **A pinch keeps its fret**,
+per the same user message — *"pinch harmonics can come later because the fret is accurate and I'm not
+sure how we should represent the node in 2D for pinches"* — which is exactly the split
+`fretboardHarmonicNode` already draws, so no new predicate was needed. Worth an eye on screen: labels
+can now reach four characters (`14.7`) where a fret reached two.
 
 ### A live data-loss bug the collapse exposed
 

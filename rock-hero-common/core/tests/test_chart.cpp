@@ -249,7 +249,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         note.harmonic_node = 3.2;
         const ChartNote parsed = round_trip(note);
         CHECK(parsed == note);
-        CHECK(isHarmonic(parsed.harmonic_node, parsed.attack));
+        CHECK(isHarmonic(parsed.harmonic_node));
         CHECK(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
     }
 
@@ -260,25 +260,38 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         note.harmonic_node = 17.0;
         const ChartNote parsed = round_trip(note);
         CHECK(parsed == note);
-        CHECK(isHarmonic(parsed.harmonic_node, parsed.attack));
+        CHECK(isHarmonic(parsed.harmonic_node));
         // The thumb grazes over the body, so the node is not a neck position to draw at.
         CHECK_FALSE(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
     }
 
-    SECTION("a pinch with no node is still a harmonic")
+    SECTION("a pinch with no node is REFUSED")
     {
-        // Guitar Pro's HarmonicFret is a separate optional property, so an imported pinch often
-        // has no node at all. The attack has to carry the harmonic on its own.
+        // A pinch is picking while damping a node, so one without a node is missing data rather than
+        // a different technique — the overtone that squeals is determined by where the thumb lands.
+        // Enforcing this is what lets isHarmonic be node presence alone.
         ChartNote note = note_at(5);
         note.attack = NoteAttack::Pinch;
-        const ChartNote parsed = round_trip(note);
-        CHECK(parsed == note);
-        CHECK_FALSE(parsed.harmonic_node.has_value());
-        CHECK(isHarmonic(parsed.harmonic_node, parsed.attack));
         Chart pinch_chart;
         pinch_chart.tuning.strings = {"E2"};
         pinch_chart.notes = {note};
-        CHECK(validateChartRules(pinch_chart, tempo_map).has_value());
+        const auto result = validateChartRules(pinch_chart, tempo_map);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code == ChartErrorCode::InvalidNote);
+    }
+
+    SECTION("a node past the bridge-side limit is refused, but a sub-fret-1 node is fine")
+    {
+        // Higher harmonics crowd toward the nut, so a node below fret 1 is legitimate; the bound
+        // only refuses positions past the 16th harmonic's bridge-side node.
+        Chart chart;
+        chart.tuning.strings = {"E2"};
+        chart.notes = {note_at(0)};
+        chart.notes[0].harmonic_node = 1.1;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = g_max_harmonic_node + 0.1;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
     }
 
     SECTION("a tapped node is a tap harmonic, and its damper IS on the fretboard")
@@ -410,7 +423,7 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     // node with no harmonic — is gone on purpose: the node IS the harmonic now, so there is no
     // second field left for it to disagree with and no way to build the state to reject.
     Chart node_off_the_neck = makeFullChart();
-    node_off_the_neck.notes[0].harmonic_node = static_cast<double>(g_max_fret) + 1.0;
+    node_off_the_neck.notes[0].harmonic_node = g_max_harmonic_node + 1.0;
     const auto node_result = validateChartRules(node_off_the_neck, tempo_map);
     REQUIRE_FALSE(node_result.has_value());
     CHECK(node_result.error().code == ChartErrorCode::InvalidNote);

@@ -12,6 +12,13 @@ entry when it's done — git history is the record.
   silent loading, which would have dropped every harmonic in the chart without a word. This affects
   the converter-sourced `.rock` corpus too, unlike the GP-only item below. The refusal in
   `chart_document.cpp` is a tripwire, not compatibility: delete it once the corpus is re-imported.
+  Two conversion notes to expect when re-running the converter: every natural harmonic gains a node
+  equal to its touched fret (the source represents one as a note at that fret, so this is faithful, and
+  without it the note would no longer read as a harmonic at all — 1960 of them in the packages
+  measured), and **pinch harmonics import as plain picks**, because the source records only a flag while
+  RockHero requires the node that sets the squeal's pitch. Measured 2026-08-08: 5 such notes across the
+  whole corpus, so the loss is negligible. Guitar Pro imports are unaffected — GP always records a
+  harmonic fret (207 of 207 across 118 files).
 
 - Re-import GP-derived projects/packages saved before 2026-08-06: charts imported before the
   scoop/trail-off model (commits 6b5c9894/4d33abbf) still embed moved-head slide-ins and

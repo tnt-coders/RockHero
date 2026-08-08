@@ -183,16 +183,25 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                 .message = "note sustain must not be negative at " + positionText(note.position),
             }};
         }
-        // Only the range is checkable now. The rule this replaced also had to catch a node
-        // disagreeing with a harmonic field; that field is gone, so the disagreement it policed is
-        // no longer expressible.
+        // The rule this replaced also had to catch a node disagreeing with a harmonic field; that
+        // field is gone, so the disagreement it policed is no longer expressible.
         if (note.harmonic_node.has_value() &&
-            (*note.harmonic_node <= 0.0 || *note.harmonic_node > static_cast<double>(g_max_fret)))
+            (*note.harmonic_node <= 0.0 || *note.harmonic_node > g_max_harmonic_node))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNote,
                 .message =
                     "harmonic node position is out of range at " + positionText(note.position),
+            }};
+        }
+        // A pinch is picking while damping a node, so a pinch without one is missing data rather
+        // than a different technique — the overtone that squeals is *determined* by where the thumb
+        // lands. Enforcing it is what lets `isHarmonic` be node presence alone.
+        if (note.attack == NoteAttack::Pinch && !note.harmonic_node.has_value())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "pinch harmonic must carry its node at " + positionText(note.position),
             }};
         }
         if (previous_note != nullptr)

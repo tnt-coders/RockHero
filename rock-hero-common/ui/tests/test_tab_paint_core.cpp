@@ -105,10 +105,11 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .end_seconds = 3.0,
             .string = 3,
             .fret = 7,
-            // A pinch with NO node: GP often does not record which node the thumb caught,
-            // and the attack alone still makes it a harmonic.
+            // A pinch carries its node like every harmonic, but 24.0 sits past the neck where the
+            // thumb grazes, so the head still labels the fret (7) rather than the node.
             .attack = common::core::NoteAttack::Pinch,
             .mute = common::core::NoteMute::Full,
+            .harmonic_node = 24.0,
             .bend = {},
             .slides = {},
         },
@@ -217,6 +218,48 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
 // A pick scrape's head is the plectrum silhouette measured off the note atlas's pick-slide cell,
 // and it carries its identity by SHAPE: no borrowed full-mute X, no boxed fret number. Every probe
 // here reads the RIGHT half of the head, because the beside-head chip occupies the left.
+// A fret-hand harmonic's head names its node, not its fret.
+TEST_CASE("Tab paint core labels a harmonic head with its node", "[ui][tab-paint]")
+{
+    const auto head_text = [](const int fret,
+                              const std::optional<double>
+                                  node,
+                              const common::core::NoteAttack attack) {
+        common::core::TabNoteView note;
+        note.string = 1;
+        note.fret = fret;
+        note.attack = attack;
+        note.harmonic_node = node;
+        return common::ui::tabNoteHeadText(note);
+    };
+    constexpr auto pick = common::core::NoteAttack::Pick;
+
+    // A plain note keeps showing its fret.
+    CHECK(head_text(7, std::nullopt, pick) == "7");
+
+    // Whole-numbered nodes drop the ".0" so the common positions stay as narrow as a fret number,
+    // even when the node disagrees with the integer anchor in `fret`.
+    CHECK(head_text(12, 12.0, pick) == "12");
+    CHECK(head_text(0, 12.0, pick) == "12");
+    CHECK(head_text(7, 7.0, pick) == "7");
+
+    // Genuinely fractional nodes keep one decimal — the 6th and 7th partials, and the widest label
+    // the head has to hold.
+    CHECK(head_text(3, 3.2, pick) == "3.2");
+    CHECK(head_text(2, 2.7, pick) == "2.7");
+    CHECK(head_text(14, 14.7, pick) == "14.7");
+
+    // Higher partials crowd toward the nut, below fret 1.
+    CHECK(head_text(1, 1.1, pick) == "1.1");
+
+    // A tap harmonic's damping finger lands ON the neck, so it labels the node like any other.
+    CHECK(head_text(5, 17.0, common::core::NoteAttack::Tap) == "17");
+
+    // A pinch keeps its FRET: its node is off the neck over the pickups, and 2D has no axis for it,
+    // so labelling 24.0 here would name a fret the hand is nowhere near (25-Q5).
+    CHECK(head_text(5, 24.0, common::core::NoteAttack::Pinch) == "5");
+}
+
 TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
