@@ -67,7 +67,7 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E1** | `touch` requires `harmonic != None`, and must be positive and in range | `chart_rules.cpp:186` |
 | **E2** | `PickSlide` excludes `mute`, `harmonic`, `touch`, `vibrato`, `tremolo`, `accent`, `bend`, `slide_out`; and requires a `slides` path that keeps traveling and ends **exactly** at `sustain` | `chart_rules.cpp:289-320` |
 | **E3** | `Pinch` requires `attack == Pick` | Established 2026-08-07. A pinch harmonic is produced by the pick stroke with the thumb catching the string, so every attack that *replaces* the pick stroke — `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`, and the left-hand tap stored as `Hammer` — excludes it. `PickSlide` already excluded by E2. **Not enforced anywhere today.** |
-| **E4** | `Hammer` requires `fret > 0` | You cannot hammer onto, or left-hand tap, an open string. Not enforced today. |
+| **E4** | `Hammer` and `Tap` require a positive **sounding position** — `fret` for an ordinary note, `node` for a natural harmonic | You cannot hammer onto, or tap, an open string or the nut. **Amended 2026-08-07** from the original `fret > 0`, which rejected every tap harmonic (`fret == 0`, `node == 12`); see the accessor note below. Not enforced today. |
 | **E5** | `Pull` requires a preceding note on the same string at a **higher** fret | Something must be released to sound it. **Relational** — see the ceiling below. |
 | **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-authoring-model.md`. **Relational.** |
 | **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
@@ -76,35 +76,37 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
 | **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
 | **E12** | `Pull` excludes every harmonic | A pull-off sounds the string by *releasing* a finger so a lower stopped pitch rings — and that pitch rings over the full speaking length with nothing damping a node, so the result is an ordinary note by construction. A contrived arrival at a node (a finger resting lightly below the released one) has the release *damping* rather than exciting, and barely sounds. |
-| **E13** | `Pinch` requires `attack == Pick` | A pinch harmonic's thumb grazes the node as part of the pick stroke it follows. No stroke, no thumb pass. |
-| **E14** | `Hammer` + `Natural` is **allowed**, and it *is* the tap harmonic | The fret hand strikes the string over a node; the strike both excites and damps. No new harmonic kind is needed — see below. |
+| **E13** | `Natural` harmonic **allows** `Hammer` and `Tap`, and that pairing *is* the tap harmonic | A finger strikes the string over a node and the strike both excites and damps. `Hammer` is the fretting-hand form, `Tap` the picking-hand one (hold 5, tap 17 — the most common form of all). Promotes H2 from candidate to established, and needs **no new harmonic kind** — see below. |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
 slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
 
-| | `Natural` + `Hammer` | a new `Tap` kind |
+| | `Natural` + `Hammer`/`Tap` | a new `Tap` kind |
 |---|---|---|
-| `fret` | 0 | 0 |
+| `fret` | 0 (or the stopped fret) | same |
 | `touch` (node) | the node | the node |
-| `attack` | `Hammer` | `Pick`? — nothing picks it |
+| `attack` | `Hammer` or `Tap` — **which hand struck it** | `Pick`? — nothing picks it |
 
-The third row is the giveaway. A `Tap` kind leaves `attack` describing something false, and its only
-honest value is `Hammer` — at which point the kind is redundant with the attack. Worse, it creates a
-new invalid combination (`Tap` + `Pick`) for the format to forbid, which is the class of state this
-document exists to eliminate. The same shape as the whammy resolution: the distinction was already
-carried by a field that exists. **Keep `NoteHarmonic` two-valued.**
+The third row is the giveaway, twice over. A `Tap` kind leaves `attack` describing something false,
+since nothing picks a tapped note and its only honest values are the two that already exist. And a
+single kind **cannot say which hand tapped** — a distinction the attack axis draws for free and the
+notation would otherwise have to invent a mark for. Worse, the kind creates a new invalid combination
+(`Tap` kind + `Pick` attack) for the format to forbid, which is the class of state this document
+exists to eliminate. Same shape as the whammy resolution: the distinction was already carried by
+fields that exist. **Keep `NoteHarmonic` two-valued.**
 
 Two consequences follow.
 
-**E1's precondition is stated on the wrong quantity.** E1 requires `fret > 0` because a hammer needs
-somewhere to land. A tap harmonic has `fret == 0` and `node == 12`. The rule wants a positive
-**sounding position** — where the fret hand meets the string — which is `fret` for an ordinary note
-and `node` for a natural harmonic. That is the same branch already shipped in the renderer as
-`noteFretboardX` (`highway_renderer.cpp`, commit `d2fea3fb`), which anchors a natural harmonic's head
-and tail on its node. The rule and the render ask one question, so the branch belongs in core as one
-named accessor — roughly `soundingPosition(note)` returning `*note.touch` for a natural harmonic with
-a node and `note.fret` otherwise — with E1 reading `soundingPosition(note) > 0` and the renderer
-calling it. Fold this into the hardening pass; do not duplicate the branch a third time.
+**E4's precondition was stated on the wrong quantity.** It required `fret > 0` because a hammer needs
+somewhere to land — but a tap harmonic on an open string has `fret == 0` and `node == 12`, so the rule
+rejected the very technique E13 allows. The quantity it wants is the **sounding position**: where the
+striking finger meets the string, which is `fret` for an ordinary note and `node` for a natural
+harmonic. That is the branch already shipped in the renderer as `noteFretboardX`
+(`highway_renderer.cpp`, commit `d2fea3fb`), which anchors a natural harmonic's head and tail on its
+node. The rule and the render ask one question, so the branch belongs in core as one named accessor —
+roughly `soundingPosition(note)` returning `*note.touch` for a natural harmonic with a node and
+`note.fret` otherwise — with E4 reading `soundingPosition(note) > 0` and the renderer calling it.
+Fold this into the hardening pass; do not write the branch a third time.
 
 **`Natural` is a misnomer for what the field means.** A harmonic's pitch comes from the ratio of
 node→bridge to fret→bridge, and fret positions are logarithmic, so the midpoint of a string stopped
@@ -112,9 +114,9 @@ at fret 5 lies exactly at fret 17. An absolute node plus `fret` therefore determ
 *every* case, and an open-string natural harmonic is just the `fret == 0` case — not a separate
 reference frame. What actually separates `Natural` from `Pinch` is **which hand damps the node**,
 precisely the axis the notation already encodes by darkness. Two things follow: a *fretted* tap
-harmonic (hold 5, tap 17 — the common form) is already representable, since no rule requires a
-natural harmonic to be open; and the enum's names describe techniques where the field means a hand.
-Renaming is a user call, not folded in here.
+harmonic is already representable, since no rule requires a natural harmonic to be open; and the
+enum's names describe techniques where the field means a hand. Renaming is a user call, not folded in
+here.
 
 **The full-mute row reduces to one sentence.** A full mute sounds no pitch, so it excludes everything
 **pitch-valued** — `harmonic` (E8), `bend` (E10), `vibrato` (E11) — and allows everything
@@ -132,7 +134,7 @@ never to author an invalid state.
 | # | Proposed rule | Reasoning |
 |---|---|---|
 | **H1** | `tremolo` requires `attack == Pick` | Tremolo picking *is* repeated picking, so an attack that replaces the pick stroke contradicts it. Would exclude `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`. |
-| **H2** | `Natural` harmonic does **not** require `Pick` | A tapped harmonic — tapping directly over the node — is a real technique, so `Tap` + `Natural` is playable. This is the asymmetry with E3 and the reason the two harmonic kinds cannot share one rule. |
+| ~~**H2**~~ | **PROMOTED to E13** 2026-08-07 — `Natural` harmonic does **not** require `Pick` | A tapped harmonic — tapping directly over the node — is a real technique, so `Tap` + `Natural` is playable. This is the asymmetry with E3 and the reason the two harmonic kinds cannot share one rule. |
 | **H3** | `accent` is compatible with everything | It is dynamics, orthogonal to how the note is produced. |
 | ~~**H4**~~ | **SUPERSEDED.** It bundled five cells under one "no pitch" argument and got two wrong. Settled instead as: `harmonic` excluded (E8), `bend` excluded (E10), `slides` and `slide_out` **allowed** (E10 — positions, not pitches), `vibrato` still open as Q4. The lesson is that "no pitch" separates *pitch-valued* payloads from *position-valued* ones rather than excluding everything. |
 
@@ -174,8 +176,9 @@ Grouped so they can be answered in passes rather than one at a time.
 **Harmonics against articulation.**
 
 - ~~**Q5** `Natural` + `Hammer`/`Pull`~~ — **ANSWERED 2026-08-07.** `Pull` forbidden on every
-  harmonic, `Hammer` forbidden on `Pinch`, `Hammer` **allowed** on `Natural` — where it *is* the tap
-  harmonic. See E12–E14 and the two consequences below.
+  harmonic (E12); `Hammer` and `Tap` **allowed** on `Natural`, where that pairing *is* the tap
+  harmonic (E13, promoting H2). `Hammer` on `Pinch` was already E3. Amends E4, whose `fret > 0` test
+  rejected every tap harmonic, and retires the third-`Kind` plan. Two consequences below.
 - **Q7** `Slap` / `Pop` + `harmonic` — do bass slap harmonics belong in the model?
 
 **Bass techniques.**
@@ -291,22 +294,28 @@ a neighbour cannot.** Worth stating plainly so the effort is not oversold.
   fields for little gain. The matrix decides how much structure is justified — which is exactly why it
   comes first.
 
-## Tap harmonics are coming (user, 2026-08-07)
+## Tap harmonics: already representable (revised 2026-08-07)
 
-*"We will add tap harmonics as well later which will similarly need a node field."* A tap harmonic is
-sounded by tapping directly over a node, so it is a third `Kind` carrying a **right-hand** node — the
-same field, no special case, which is confirmation that the shape above is right.
+*"We will add tap harmonics as well later which will similarly need a node field."* — the user, when
+this was still expected to be a third `Kind`. **Q5 superseded that.** A tap harmonic is a natural
+harmonic whose node is struck rather than picked, so it is `harmonic == Natural` plus `attack ==
+Hammer` (fretting hand) or `Tap` (picking hand), and it ships the moment E4 stops testing `fret`. See
+E13 and the finding above.
 
-Two consequences worth logging before it lands:
+What that resolves, against the two consequences logged under the old premise:
 
-- **The notation gets stressed.** The harmonic family becomes 3-way (natural / pinch / tap), and the
-  pinch **bar** cannot distinguish pinch from tap. Under the notation system's third rule — letters
-  appear only when a family has more members than shape and darkness can separate — a 3-way harmonic
-  family is exactly where letters become justified. This belongs to the notation-consistency thread,
-  but it originates here.
-- **A new matrix cell.** A tap harmonic probably implies `attack == Tap`, since the tap *is* how it is
-  sounded. That would make it the third harmonic-versus-attack rule beside E3 ("pinch requires Pick")
-  and H2 ("natural requires nothing"), and it needs the user's confirmation like the rest.
+- **The notation is not stressed after all.** The harmonic family stays 2-way, so the pinch bar keeps
+  its single job and the third notation rule never fires — letters appear only when a family outgrows
+  shape and darkness, and this family does not grow. Whether a tap harmonic wants its own cue is a
+  question about the **attack**, where `Tap` and `Hammer` already carry marks, not about the harmonic
+  family. The notation-consistency thread inherits nothing from here.
+- **The new matrix cell resolved itself.** The guess was that a tap harmonic "probably implies
+  `attack == Tap`". Inverted: the attack is what *makes* it a tap harmonic, and both tapping attacks
+  qualify. So there is no third harmonic-versus-attack rule — E3 (`Pinch` requires `Pick`) and E13
+  (`Natural` allows the tapping attacks) are the complete pair.
+
+One thing genuinely deferred: a **pinch** harmonic cannot be tapped (E3), which the user independently
+confirmed — *"tap and pinch harmonic cannot be executed together."*
 
 ## The 2D node question (and a retracted claim)
 
