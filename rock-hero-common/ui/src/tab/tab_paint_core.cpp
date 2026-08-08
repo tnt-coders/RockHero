@@ -299,11 +299,11 @@ enum class HeadShape
 };
 
 // Picks the silhouette naming this note's kind. The harmonic diamond takes precedence over the
-// scrape's plectrum only so the mapping is total: the chart rules reject a pick-slide note that
-// carries any other technique, harmonics included, so no note can ask for both.
+// scrape's plectrum only so the mapping is total: no note can ask for both, since a pinch and a
+// scrape are two values of one attack and the chart rules reject a scrape carrying a node.
 [[nodiscard]] HeadShape headShapeFor(const common::core::TabNoteView& note)
 {
-    if (note.harmonic != common::core::NoteHarmonic::None)
+    if (common::core::isHarmonic(note.harmonic_node, note.attack))
     {
         return HeadShape::Diamond;
     }
@@ -915,6 +915,13 @@ void drawAttackIcon(
                 letters);
             break;
         }
+        case common::core::NoteAttack::Pinch:
+        {
+            // Nothing here: a pinch's mark is the bar drawn beside the diamond head with the head
+            // itself, not a plate in this band. It reads as a harmonic cue rather than an attack
+            // cue even though the data now lives on the attack.
+            break;
+        }
         case common::core::NoteAttack::Pick:
         {
             break;
@@ -951,7 +958,7 @@ void drawNoteHead(
 
     fillHeadShape(g, style.border_inner, style.inner, onset_x, center_y, size, shape);
 
-    if (note.harmonic == common::core::NoteHarmonic::Pinch)
+    if (note.attack == common::core::NoteAttack::Pinch)
     {
         const float line_x = onset_x - metrics.note_height / 2.0f;
         g.setColour(style.border_inner);

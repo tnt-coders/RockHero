@@ -5,6 +5,14 @@ Small fixes and evaluations to do when there's time — short entries, not plans
 that needs a design or multiple steps belongs in a `docs/plans/todo/` plan instead. Delete an
 entry when it's done — git history is the record.
 
+- **Re-import EVERY package and project (2026-08-08, hard break).** The harmonic collapse replaced
+  the `harmonic` and `touch` note fields with a single `harmonicNode`, and moved the pinch to
+  `"attack": "pinch"`. The chart reader now **refuses** a document carrying either old key rather than
+  ignoring it, so an un-reimported package fails to load with a message naming the fix — chosen over
+  silent loading, which would have dropped every harmonic in the chart without a word. This affects
+  the converter-sourced `.rock` corpus too, unlike the GP-only item below. The refusal in
+  `chart_document.cpp` is a tripwire, not compatibility: delete it once the corpus is re-imported.
+
 - Re-import GP-derived projects/packages saved before 2026-08-06: charts imported before the
   scoop/trail-off model (commits 6b5c9894/4d33abbf) still embed moved-head slide-ins and
   windowless trail-off FHP tracks (e.g. the Van Halen import project that motivated plan 55), and

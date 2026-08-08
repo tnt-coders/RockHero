@@ -183,13 +183,16 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                 .message = "note sustain must not be negative at " + positionText(note.position),
             }};
         }
-        if (note.touch.has_value() && (note.harmonic == NoteHarmonic::None || *note.touch <= 0.0 ||
-                                       *note.touch > static_cast<double>(g_max_fret)))
+        // Only the range is checkable now. The rule this replaced also had to catch a node
+        // disagreeing with a harmonic field; that field is gone, so the disagreement it policed is
+        // no longer expressible.
+        if (note.harmonic_node.has_value() &&
+            (*note.harmonic_node <= 0.0 || *note.harmonic_node > static_cast<double>(g_max_fret)))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNote,
                 .message =
-                    "harmonic touch position is out of range at " + positionText(note.position),
+                    "harmonic node position is out of range at " + positionText(note.position),
             }};
         }
         if (previous_note != nullptr)
@@ -288,9 +291,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         // ending exactly at the sustain, because nothing rings past a scrape.
         if (note.attack == NoteAttack::PickSlide)
         {
-            if (note.mute != NoteMute::None || note.harmonic != NoteHarmonic::None ||
-                note.touch.has_value() || note.vibrato || note.tremolo || note.accent ||
-                !note.bend.empty() || slide_out != nullptr)
+            if (note.mute != NoteMute::None || note.harmonic_node.has_value() || note.vibrato ||
+                note.tremolo || note.accent || !note.bend.empty() || slide_out != nullptr)
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidPickSlide,

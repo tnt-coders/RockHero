@@ -96,6 +96,10 @@ namespace
     {
         note.attack = NoteAttack::Hammer;
     }
+    else if (attack == "pinch")
+    {
+        note.attack = NoteAttack::Pinch;
+    }
     else if (attack == "pull")
     {
         note.attack = NoteAttack::Pull;
@@ -135,21 +139,19 @@ namespace
         return std::unexpected{malformed("chart note mute is unknown: " + mute)};
     }
 
-    const std::string harmonic = Json::readOptionalString(note_json, "harmonic", "");
-    if (harmonic == "natural")
+    // The harmonic field is gone: a node asserts the harmonic and `attack` says which hand damps
+    // it. A document still carrying either old key predates that and would otherwise load with its
+    // harmonics silently dropped, so refuse it and name the fix. Delete this once the packages are
+    // re-imported — it exists to fail loudly, not to support the old shape.
+    if (!Json::readOptionalString(note_json, "harmonic", "").empty() ||
+        Json::tryReadDouble(note_json, "touch").has_value())
     {
-        note.harmonic = NoteHarmonic::Natural;
-    }
-    else if (harmonic == "pinch")
-    {
-        note.harmonic = NoteHarmonic::Pinch;
-    }
-    else if (!harmonic.empty())
-    {
-        return std::unexpected{malformed("chart note harmonic is unknown: " + harmonic)};
+        return std::unexpected{malformed(
+            "chart note uses the removed harmonic/touch fields; re-import the package to get "
+            "\"harmonicNode\" (and \"attack\": \"pinch\")")};
     }
 
-    note.touch = Json::tryReadDouble(note_json, "touch");
+    note.harmonic_node = Json::tryReadDouble(note_json, "harmonicNode");
 
     note.vibrato = Json::readOptionalBool(note_json, "vibrato", false);
     note.tremolo = Json::readOptionalBool(note_json, "tremolo", false);
@@ -269,6 +271,11 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
         {
             break;
         }
+        case NoteAttack::Pinch:
+        {
+            line += R"(, "attack": "pinch")";
+            break;
+        }
         case NoteAttack::Hammer:
         {
             line += R"(, "attack": "hammer")";
@@ -313,17 +320,11 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     {
         line += R"(, "mute": "full")";
     }
-    if (!scrape && note.harmonic == NoteHarmonic::Natural)
+    // A pinch needs no suppression here: it lives on the attack, and a single-valued attack cannot
+    // be a scrape and a pinch at once.
+    if (!scrape && note.harmonic_node.has_value())
     {
-        line += R"(, "harmonic": "natural")";
-    }
-    else if (!scrape && note.harmonic == NoteHarmonic::Pinch)
-    {
-        line += R"(, "harmonic": "pinch")";
-    }
-    if (!scrape && note.touch.has_value())
-    {
-        line += R"(, "touch": )" + doubleText(*note.touch);
+        line += R"(, "harmonicNode": )" + doubleText(*note.harmonic_node);
     }
     if (!scrape && note.vibrato)
     {

@@ -289,7 +289,7 @@ void TabView::paint(juce::Graphics& g)
         const float stroke = overlayRingStroke(layout.head_size);
         const float extent = layout.head_size;
         g.setColour(accent);
-        if (note.harmonic != common::core::NoteHarmonic::None)
+        if (common::core::isHarmonic(note.harmonic_node, note.attack))
         {
             juce::Path shape;
             shape.startNewSubPath(layout.onset_x, layout.center_y - extent / 2.0f);

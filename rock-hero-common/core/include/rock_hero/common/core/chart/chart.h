@@ -72,6 +72,15 @@ enum class NoteAttack : std::uint8_t
 {
     /*! \brief Plain picked onset. */
     Pick,
+    /*!
+    \brief Pinch harmonic: the pick stroke's thumb graze damps a node as the plectrum passes.
+
+    An attack rather than a timbre because the graze happens *inside* the onset — one compound
+    stroke with its own hand angle, not a pick plus a separate action. That is the same grain
+    that already separates `Slap` from `Pop`. It also makes the pinch the one harmonic damped
+    off the neck, which is why `fretboardHarmonicNode` excludes it.
+    */
+    Pinch,
     /*! \brief Hammer-on from the previous note. */
     Hammer,
     /*! \brief Pull-off from the previous note. */
@@ -94,6 +103,45 @@ enum class NoteAttack : std::uint8_t
 };
 
 /*!
+\brief True when the note is a harmonic.
+
+A node asserts a harmonic on its own, because the node is what makes the note one. A `Pinch`
+attack is a harmonic whether or not its node is known, so both halves are needed: absent on a
+pinch means unrecorded, not unharmonic.
+
+\param node Harmonic node in fret units, absent when there is none to record.
+\param attack How the onset is produced.
+
+\return True when the note sounds a harmonic.
+*/
+[[nodiscard]] constexpr bool isHarmonic(const std::optional<double>& node, const NoteAttack attack)
+{
+    return node.has_value() || attack == NoteAttack::Pinch;
+}
+
+/*!
+\brief The harmonic node a display can anchor to, when it lies on the fretboard.
+
+Every harmonic damps its node with a finger on the neck except a pinch, whose thumb grazes the
+string over the body — so a pinch keeps the fret anchor while every other harmonic anchors on its
+node. A right-hand tap harmonic belongs on this side: the damping finger is the picking hand's, but
+it lands on the fretboard, which is why this asks about the fretboard rather than about a hand.
+
+Returns the node rather than a bool so callers ask once and dereference a local the compiler and the
+linter can both see is engaged.
+
+\param node Harmonic node in fret units, absent when there is none to record.
+\param attack How the onset is produced.
+
+\return The node when it is a neck position this note can be drawn at, otherwise nothing.
+*/
+[[nodiscard]] constexpr std::optional<double> fretboardHarmonicNode(
+    const std::optional<double>& node, const NoteAttack attack)
+{
+    return attack == NoteAttack::Pinch ? std::nullopt : node;
+}
+
+/*!
 \brief Reports whether the attack is produced by the picking hand at the neck (tap, pick slide).
 
 These onsets never anchor, cover, or ring into a fretting-hand posture; the fret-hand
@@ -113,17 +161,6 @@ enum class NoteMute : std::uint8_t
     Palm,
     /*! \brief Full fret-hand mute: percussive, unpitched. */
     Full
-};
-
-/*! \brief Harmonic timbre applied to a note. */
-enum class NoteHarmonic : std::uint8_t
-{
-    /*! \brief No harmonic. */
-    None,
-    /*! \brief Natural harmonic at a string node. */
-    Natural,
-    /*! \brief Pinch harmonic. */
-    Pinch
 };
 
 /*! \brief One point of a bend curve, positioned relative to the note onset. */
@@ -230,21 +267,25 @@ struct ChartNote
     /*! \brief Muting applied to the note. */
     NoteMute mute{NoteMute::None};
 
-    /*! \brief Harmonic timbre applied to the note. */
-    NoteHarmonic harmonic{NoteHarmonic::None};
-
     /*!
-    \brief Precise fractional string position of the harmonic node, in fret units.
+    \brief String position of the harmonic node, in fret units — and the assertion that this
+    note *is* a harmonic.
 
-    Natural-harmonic node points are not fret positions (the 3.2 / 2.7 / 5.8 family), so
-    harmonic notes may carry the exact node here while `fret` stays the integer anchor. For a
-    natural harmonic this is where the fret hand touches, and displays anchor the head here;
-    for a pinch harmonic it is where the picking hand grazes the string — the fret hand stays
-    on `fret`, so displays keep the fret anchor and the node waits for a dedicated right-hand
-    cue (roadmap 25-Q5). Only meaningful when `harmonic` is set; absent when the node is the
-    fret itself.
+    There is no separate harmonic field: the node is what makes a note a harmonic, so its
+    presence is the claim, and a node cannot disagree with a kind that no longer exists. Node
+    points are not fret positions (the 3.2 / 2.7 / 5.8 family), which is why this is a `double`
+    while `fret` stays the integer the fretting hand stops.
+
+    Which hand damps the node is carried by `attack`: every attack damps with a finger on the
+    neck except `Pinch`, whose thumb grazes the string over the body. Ask
+    `fretboardHarmonicNode` rather than testing the attack directly. On a pinch the value is where
+    the picking hand grazes, which no surface shows yet (roadmap 25-Q5).
+
+    Absent on a `Pinch` means the node is simply unknown, not that the note is unharmonic — the
+    picking hand catches whichever node falls under it, so neither players nor Guitar Pro's
+    `HarmonicFret` reliably record which. Use `isHarmonic` for the "is it a harmonic" question.
     */
-    std::optional<double> touch{};
+    std::optional<double> harmonic_node{};
 
     /*! \brief True when the note is played with vibrato. */
     bool vibrato{false};

@@ -20,7 +20,7 @@ landed 2026-07-10. Phases 1–2 implemented in `rock-hero-common/core` `highway/
 projection (`makeHighwayViewState` — renamed from the sketch's `highwayViewStateFor` per the
 coding conventions' make-prefix rule for view-state builders), metrics with Charter's constants,
 camera with the exact-verticality invariant and the NDC board pin both under regression tests,
-lefty mirror + string-order invert as pure math, beat/measure list, harmonic `touch`
+lefty mirror + string-order invert as pure math, beat/measure list, `harmonic_node`
 pass-through. One constant our camera analysis never pinned: the vertical field of view
 (default 90°, the value at which the pinned framing works for the default camera; tuned live at
 Phase 3). Phase 3+ next (render stack lands via plan 20 Phases 1–4).
@@ -100,7 +100,7 @@ already carries everything rendered here — no format changes are required by t
     and `g_tertiary_string_colors` — the palette plan 45 extracts to common.
 - `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` carries every technique
   the highway renders: bends as semitone curve points, slide waypoints with `unpitched`,
-  harmonics with optional fractional `touch` position (chart.h:175–182), palm/full mutes,
+  harmonics with a fractional `harmonic_node` position (chart.h), palm/full mutes,
   vibrato, tremolo, accent, `ChartSection{position, type}` (chart.h:285–300), chord templates
   with per-string fingerings, shapes, FHPs.
 - `rock-hero-common/core/include/rock_hero/common/core/chart/chart_rules.h:24` —
@@ -252,7 +252,7 @@ this tree on 2026-07-06):
   onsets under a shape span exactly as the 2D lane's projection does (`TabShapeView::arpeggio`).
 - **Forward extensions the format already sketches** (render support added when the data lands):
   whammy dives = signed bend curve on the rail; between-fret harmonics = harmonic head at the
-  fractional `touch` position (chart.h:175–182) instead of the fret middle.
+  fractional `harmonic_node` position (chart.h) instead of the fret middle.
 
 Corrections made while absorbing: the old doc's "chart format v2" phrasing is dropped — chart
 sidecars write `formatVersion` 1 today and version policy belongs to plan 10; "SDL3 + bgfx (not
@@ -661,7 +661,7 @@ drawers (session Charter clone).
   associative, so overlay quads replace the compositing wart; upright overlays for full mute and
   hammer/pull), open-note technique overlays and Charter's triple-thickness accent halo,
   natural-harmonic heads at the chart's fractional touch position (a pinch keeps its fret
-  anchor — its touch is the picking hand's node, deferred to a dedicated cue, 25-Q5;
+  anchor — its `harmonic_node` is the picking hand's node, deferred to a dedicated cue, 25-Q5;
   wrong-fret pinch display fixed 2026-07-31), modulated three-band tails (bends,
   vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
   chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full

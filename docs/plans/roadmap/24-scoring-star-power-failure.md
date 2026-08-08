@@ -118,7 +118,7 @@ Verified with `rg`/reads against the tree:
   `rock_hero_common_core_tests`).
 - **Chart model** (`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h`): the full
   technique surface this plan must score — `NoteAttack` {Pick, Hammer, Pull, Tap, Pop, Slap},
-  `NoteMute` {None, Palm, Full}, `NoteHarmonic` {None, Natural, Pinch} with optional `touch`
+  `NoteMute` {None, Palm, Full}, a `Pinch` attack with an optional `harmonic_node` (a node IS the harmonic; renamed 2026-08-08)
   position, `vibrato`/`tremolo`/`accent` flags, `BendPoint` curves (beat-fraction offset +
   semitones), `SlideWaypoint`s (offset, fret, unpitched), `Fraction` sustains, `ChordTemplate` /
   `ChartShape` posture spans, `FretHandPosition`, `ChartSection`, and `ChartTuning` (string

@@ -274,8 +274,12 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs.
     CHECK(chart.notes[4].position == GridPosition{.measure = 2, .beat = 3});
-    CHECK(chart.notes[4].harmonic == common::core::NoteHarmonic::Natural);
-    CHECK(chart.notes[4].touch == std::optional{3.2});
+    CHECK(chart.notes[4].attack == common::core::NoteAttack::Pick);
+    REQUIRE(chart.notes[4].harmonic_node.has_value());
+    if (chart.notes[4].harmonic_node.has_value())
+    {
+        CHECK(*chart.notes[4].harmonic_node == Catch::Approx(3.2));
+    }
     REQUIRE(chart.notes[4].bend.size() == 3);
     CHECK(chart.notes[4].bend[0].offset == Fraction{0});
     CHECK(chart.notes[4].bend[0].semitones == Catch::Approx(0.0));
@@ -1286,6 +1290,62 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
 // at the marked subdivision. Ties into a tremolo beat release their origin (the strokes
 // re-pick), the first stroke alone keeps the accent, and beats whose notes carry bends or slide
 // payloads keep the mark with a conversion note instead.
+// A harmonic is asserted by its node now, so import must always set one for a fret-hand harmonic —
+// including when Guitar Pro's HarmonicFret matches the fret, or omits it. Storing it only when it
+// differed (the old shape, where a separate field carried the harmonic) would now import the note as
+// not a harmonic at all.
+TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    const auto importNote = [&syncs](const GpNote& note) {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{GpBeat{.duration_whole = Fraction{1, 4}, .notes = {note}}}}});
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        return chart.notes[0];
+    };
+
+    SECTION("a node equal to the fret is still stored")
+    {
+        const common::core::ChartNote note = importNote(
+            GpNote{.string = 1, .fret = 12, .harmonic_type = "Natural", .harmonic_fret = 12.0});
+        REQUIRE(note.harmonic_node.has_value());
+        if (note.harmonic_node.has_value())
+        {
+            CHECK(*note.harmonic_node == Catch::Approx(12.0));
+        }
+        CHECK(common::core::isHarmonic(note.harmonic_node, note.attack));
+    }
+
+    SECTION("a missing node falls back to the fret rather than leaving the note unharmonic")
+    {
+        const common::core::ChartNote note =
+            importNote(GpNote{.string = 1, .fret = 7, .harmonic_type = "Natural"});
+        REQUIRE(note.harmonic_node.has_value());
+        if (note.harmonic_node.has_value())
+        {
+            CHECK(*note.harmonic_node == Catch::Approx(7.0));
+        }
+        CHECK(common::core::isHarmonic(note.harmonic_node, note.attack));
+    }
+
+    SECTION("a pinch becomes the attack and may legitimately carry no node")
+    {
+        const common::core::ChartNote note =
+            importNote(GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch"});
+        CHECK(note.attack == common::core::NoteAttack::Pinch);
+        CHECK_FALSE(note.harmonic_node.has_value());
+        CHECK(common::core::isHarmonic(note.harmonic_node, note.attack));
+        CHECK_FALSE(
+            common::core::fretboardHarmonicNode(note.harmonic_node, note.attack).has_value());
+    }
+}
+
 TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{

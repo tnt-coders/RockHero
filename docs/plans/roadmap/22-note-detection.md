@@ -90,7 +90,7 @@ lock-free queues; graph-rebuilding mutations are message-thread only.
   live chain.
 - **Chart technique surface** (rock-hero-common/core/include/rock_hero/common/core/chart/chart.h):
   `NoteAttack{Pick,Hammer,Pull,Tap,Pop,Slap}`, `NoteMute{None,Palm,Full}`,
-  `NoteHarmonic{None,Natural,Pinch}` plus fractional `touch`, `vibrato`, `tremolo`, `accent`,
+  a `Pinch` attack plus an optional `harmonic_node` (a node IS the harmonic; renamed 2026-08-08), `vibrato`, `tremolo`, `accent`,
   bend curves (`BendPoint{offset,semitones}`), slide waypoints (`SlideWaypoint{offset,fret,
   unpitched}`), sustain, `ChordTemplate`/`ChartShape`, `FretHandPosition`, `ChartSection`,
   `ChartTuning{strings[] as note-name-with-octave, capo, cent_offset}`.

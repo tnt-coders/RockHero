@@ -76,13 +76,12 @@ namespace
             .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
             .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
         },
-        // Natural harmonic with a between-fret touch position the highway must carry through.
+        // Natural harmonic with a between-fret node the highway must carry through.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 3,
             .fret = 3,
-            .harmonic = NoteHarmonic::Natural,
-            .touch = 3.2,
+            .harmonic_node = 3.2,
             .bend = {},
             .slides = {},
         },
@@ -148,13 +147,15 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);
 
-    // The between-fret harmonic touch position survives projection untouched.
+    // The between-fret harmonic node survives projection untouched, and its presence is what
+    // makes the note a harmonic now.
     const HighwayNoteView& harmonic = state.notes[3];
-    CHECK(harmonic.harmonic == NoteHarmonic::Natural);
-    REQUIRE(harmonic.touch.has_value());
-    if (harmonic.touch.has_value())
+    CHECK(harmonic.attack == NoteAttack::Pick);
+    REQUIRE(harmonic.harmonic_node.has_value());
+    if (harmonic.harmonic_node.has_value())
     {
-        CHECK(*harmonic.touch == Catch::Approx(3.2));
+        CHECK(*harmonic.harmonic_node == Catch::Approx(3.2));
+        CHECK(fretboardHarmonicNode(harmonic.harmonic_node, harmonic.attack).has_value());
     }
 
     REQUIRE(state.shapes.size() == 2);

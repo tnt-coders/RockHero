@@ -10,7 +10,8 @@ much as it can."*
 type on a guessed cell means restructuring it again when the cell flips.
 
 This is a **prerequisite for plan 40 Phase 5**, not a follow-up. Phase 5's scope already promises
-"illegal-combination guards" but names only one (`touch` only with a harmonic), and every remaining
+"illegal-combination guards" but names only one (a node only with a harmonic — which the 2026-08-08
+collapse made structural, so that guard no longer needs writing), and every remaining
 technique verb needs to know what it must clear or refuse. A verb that authors an impossible state
 violates Phase 5's own rule against authoring an invalid state.
 
@@ -20,10 +21,10 @@ violates Phase 5's own rule against authoring an invalid state.
 
 | Field | Values |
 |---|---|
-| `attack` | `Pick`, `Hammer`, `Pull`, `Tap`, `Pop`, `Slap`, `PickSlide` |
+| `attack` | `Pick`, **`Pinch`**, `Hammer`, `Pull`, `Tap`, `Pop`, `Slap`, `PickSlide` |
 | `mute` | `None`, `Palm`, `Full` |
-| `harmonic` | `None`, `Natural`, `Pinch` |
-| `touch` | `optional<double>` — the between-fret node position |
+| ~~`harmonic`~~ | **DELETED 2026-08-08** — collapsed onto `attack` + `harmonic_node` |
+| `harmonic_node` | `optional<double>` — the node position, in fret units, **and the assertion that the note is a harmonic** |
 | `vibrato`, `tremolo`, `accent` | `bool` |
 | `bend` | `vector<BendPoint>` — `{offset, semitones}` |
 | `slides` | `vector<SlideWaypoint>` — `{offset, fret}` |
@@ -64,9 +65,9 @@ Each of these is either enforced in code today or physically unambiguous.
 
 | # | Rule | Source |
 |---|---|---|
-| **E1** | `touch` requires `harmonic != None`, and must be positive and in range | `chart_rules.cpp:186` |
-| **E2** | `PickSlide` excludes `mute`, `harmonic`, `touch`, `vibrato`, `tremolo`, `accent`, `bend`, `slide_out`; and requires a `slides` path that keeps traveling and ends **exactly** at `sustain` | `chart_rules.cpp:289-320` |
-| **E3** | `Pinch` requires `attack == Pick` | Established 2026-08-07. A pinch harmonic is produced by the pick stroke with the thumb catching the string, so every attack that *replaces* the pick stroke — `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`, and the left-hand tap stored as `Hammer` — excludes it. `PickSlide` already excluded by E2. **Not enforced anywhere today.** |
+| ~~**E1**~~ | **HALF DELETED 2026-08-08.** The `harmonic != None` half is gone: with the field collapsed there is nothing for a node to disagree with, so the state cannot be built. Only the range check survives, on `harmonic_node`. | `chart_rules.cpp` |
+| **E2** | `PickSlide` excludes `mute`, `harmonic_node`, `vibrato`, `tremolo`, `accent`, `bend`, `slide_out`; and requires a `slides` path that keeps traveling and ends **exactly** at `sustain` | `chart_rules.cpp:289-320` |
+| ~~**E3**~~ | **UNVIOLATABLE 2026-08-08** — `Pinch` *is* an attack now, so it cannot be paired with a different one. Kept for the record: | Established 2026-08-07. A pinch harmonic is produced by the pick stroke with the thumb catching the string, so every attack that *replaces* the pick stroke — `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`, and the left-hand tap stored as `Hammer` — excludes it. `PickSlide` already excluded by E2. **Not enforced anywhere today.** |
 | **E4** | `Hammer` and `Tap` require a positive **sounding position** — `fret` for an ordinary note, `node` for a natural harmonic | You cannot hammer onto, or tap, an open string or the nut. **Amended 2026-08-07** from the original `fret > 0`, which rejected every tap harmonic (`fret == 0`, `node == 12`); see the accessor note below. Not enforced today. |
 | **E5** | `Pull` requires a preceding note on the same string at a **higher** fret | Something must be released to sound it. **Relational** — see the ceiling below. |
 | **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-authoring-model.md`. **Relational.** |
@@ -263,6 +264,65 @@ not future-proofing.
 **Tripwire:** if whammy is ever modelled as a **note** payload rather than beat-scoped, **E9 reopens**,
 because the finger-versus-bar distinction would then matter inside a note again.
 
+## SHIPPED 2026-08-08 — the collapse, and what it actually cost
+
+The harmonic field is gone. `NoteHarmonic` is deleted, `Pinch` joined `NoteAttack`, and `touch`
+became `harmonic_node` (the user's name: it keeps the word "harmonic" that dropping the type would
+have lost, while staying honest about the value — `.has_value()` reads "has a harmonic node" and
+`*harmonic_node` reads as a position, where a bare `harmonic` holding `12.0` would not).
+
+**Wire format**, changed in place per the standing no-migration rule:
+
+| Before | After |
+|---|---|
+| `"harmonic": "natural"`, `"touch": 12.0` | `"harmonicNode": 12.0` |
+| `"harmonic": "pinch"`, `"touch": 17.0` | `"attack": "pinch"`, `"harmonicNode": 17.0` |
+| `"harmonic": "pinch"` | `"attack": "pinch"` |
+
+**The reader refuses either old key** rather than ignoring it. Ignoring would have loaded an
+un-reimported package while silently dropping every harmonic in the chart; the refusal names the fix
+instead. It is a tripwire, not compatibility — delete it once the corpus is re-imported
+(`docs/tracking/backlog.md`).
+
+### What the predictions got right, and the one they got wrong
+
+Right: E1's disagreement half became unrepresentable, E3 became unviolatable, and the render
+predicate simplified. The predicate is now `fretboardHarmonicNode(node, attack)`, which **returns the
+node** instead of answering a bool — a bool would have left `*note.harmonic_node` guarded by an opaque
+call that `bugprone-unchecked-optional-access` cannot see through, and the returning form lets callers
+dereference a local both the compiler and the linter can prove is engaged.
+
+Wrong: **"a node asserts the harmonic" is not the whole story.** Guitar Pro's `HarmonicFret` is an
+optional property *separate* from `HarmonicType`, so a pinch legitimately arrives with **no node** —
+the picking hand catches whichever node falls under it and nobody records which. So the question "is
+this a harmonic" is `isHarmonic(node, attack)` = `node.has_value() || attack == Pinch`, not node
+presence alone. The collapse still holds (one predicate replaced an enum plus a field), but it is two
+halves rather than one.
+
+### A live data-loss bug the collapse exposed
+
+Import stored the node **only when it differed from the fret** — harmless when a separate field
+carried the harmonic, but fatal once the node *is* the harmonic: a GP natural harmonic at fret 12 with
+`HarmonicFret` 12 would have imported as **not a harmonic at all**. Verified by reverting the fix and
+watching `isHarmonic` return false. Import now always sets the node for a fret-hand harmonic, falling
+back to the fret, which also removes the old double encoding where an absent node silently meant "the
+fret itself" and drew half a fret off.
+
+### One guarantee traded, not gained
+
+Honest accounting: the superseded `Harmonic { Kind; node }` bundle would have made a node **required**
+for a pinch too, structurally. The collapse cannot, because the attack is set independently of the
+node — and per the paragraph above it *should* not, since GP often has no node to give. So the collapse
+is not purely additive: it trades that guarantee for deleting the enum, the disagreement state, and
+E3. Worth it, but not free.
+
+### A consequence of pinch living on the attack
+
+Switching a note's attack to `PickSlide` now destroys its pinch-ness, where the old shape kept
+`harmonic == Pinch` latent in memory for the "switch back and restore" behavior. That is inherent —
+one field cannot hold two attacks — and currently unreachable, since the scrape toggle has no UI
+route. Recorded so it is not mistaken for a regression later.
+
 ## Hardening the format: what can become impossible, and the ceiling
 
 The project already prefers this shape — "sum types over inheritance… so illegal states can't exist"
@@ -458,7 +518,10 @@ Options to weigh in the notation pass: a smaller font for the fractional part, t
 subscript, the node beside the head instead of on it, or the integer on the head with the fraction
 carried elsewhere.
 
-A pinch harmonic's node is still read by nothing on either surface, waiting on roadmap 25-Q5.
+A pinch harmonic's node is still read by nothing on either surface, waiting on roadmap 25-Q5 — which
+the user confirmed on 2026-08-08 is a real future requirement, not a maybe, because the node
+determines the squeal's pitch. A pinch stays a normal picked note until then. No format work remains
+for it: `harmonic_node` already holds the strike position and already round-trips.
 
 ## Next steps
 

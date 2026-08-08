@@ -85,8 +85,8 @@ namespace
             .string = 5,
             .fret = 5,
             .sustain = Fraction{1},
-            .harmonic = NoteHarmonic::Pinch,
-            .touch = 3.2,
+            .attack = NoteAttack::Pinch,
+            .harmonic_node = 3.2,
             .tremolo = true,
             .accent = true,
             .bend = {},
@@ -220,6 +220,96 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
     CHECK(validateChartRules(chart, makeTempoMap()).has_value());
 }
 
+// The harmonic has no field of its own: a node asserts one and the attack says which hand damps
+// it. These are the states that shape makes reachable, and the one it makes unreachable.
+TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    const auto note_at = [](const int fret) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = 1;
+        note.fret = fret;
+        return note;
+    };
+    const auto round_trip = [](const ChartNote& note) {
+        Chart chart;
+        chart.tuning.strings = {"E2"};
+        chart.notes = {note};
+        const auto parsed = parseChartDocument(chartDocumentText(chart));
+        REQUIRE(parsed.has_value());
+        REQUIRE(parsed->notes.size() == 1);
+        return parsed->notes[0];
+    };
+
+    SECTION("a bare node is a natural harmonic, damped on the fretboard")
+    {
+        ChartNote note = note_at(0);
+        note.harmonic_node = 3.2;
+        const ChartNote parsed = round_trip(note);
+        CHECK(parsed == note);
+        CHECK(isHarmonic(parsed.harmonic_node, parsed.attack));
+        CHECK(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
+    }
+
+    SECTION("a pinch carries its node when one is known")
+    {
+        ChartNote note = note_at(5);
+        note.attack = NoteAttack::Pinch;
+        note.harmonic_node = 17.0;
+        const ChartNote parsed = round_trip(note);
+        CHECK(parsed == note);
+        CHECK(isHarmonic(parsed.harmonic_node, parsed.attack));
+        // The thumb grazes over the body, so the node is not a neck position to draw at.
+        CHECK_FALSE(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
+    }
+
+    SECTION("a pinch with no node is still a harmonic")
+    {
+        // Guitar Pro's HarmonicFret is a separate optional property, so an imported pinch often
+        // has no node at all. The attack has to carry the harmonic on its own.
+        ChartNote note = note_at(5);
+        note.attack = NoteAttack::Pinch;
+        const ChartNote parsed = round_trip(note);
+        CHECK(parsed == note);
+        CHECK_FALSE(parsed.harmonic_node.has_value());
+        CHECK(isHarmonic(parsed.harmonic_node, parsed.attack));
+        Chart pinch_chart;
+        pinch_chart.tuning.strings = {"E2"};
+        pinch_chart.notes = {note};
+        CHECK(validateChartRules(pinch_chart, tempo_map).has_value());
+    }
+
+    SECTION("a tapped node is a tap harmonic, and its damper IS on the fretboard")
+    {
+        // The picking hand taps, but it lands on the neck — so unlike a pinch this anchors at the
+        // node. That distinction is why the predicate asks about the fretboard, not about a hand.
+        ChartNote note = note_at(5);
+        note.attack = NoteAttack::Tap;
+        note.harmonic_node = 17.0;
+        const ChartNote parsed = round_trip(note);
+        CHECK(parsed == note);
+        CHECK(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
+    }
+
+    SECTION("the removed fields are refused rather than silently dropped")
+    {
+        // Loading an un-reimported package must fail loudly: ignoring these keys would drop every
+        // harmonic in the chart without a word.
+        CHECK_FALSE(parseChartDocument(
+                        R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+                        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0,)"
+                        R"( "harmonic": "natural" } ] })")
+                        .has_value());
+        CHECK_FALSE(parseChartDocument(
+                        R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+                        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12,)"
+                        R"( "touch": 12.0 } ] })")
+                        .has_value());
+    }
+}
+
 TEST_CASE("Chart document rejects unsupported versions", "[core][chart]")
 {
     // Missing and non-1 versions are both rejected by the single chart version gate.
@@ -316,12 +406,20 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     REQUIRE_FALSE(bad_template_result.has_value());
     CHECK(bad_template_result.error().code == ChartErrorCode::InvalidTemplate);
 
-    // A harmonic touch position needs a harmonic and a real neck position.
-    Chart touch_without_harmonic = makeFullChart();
-    touch_without_harmonic.notes[0].touch = 3.2;
-    const auto touch_result = validateChartRules(touch_without_harmonic, tempo_map);
-    REQUIRE_FALSE(touch_result.has_value());
-    CHECK(touch_result.error().code == ChartErrorCode::InvalidNote);
+    // A harmonic node must name a real neck position. The companion case this once covered — a
+    // node with no harmonic — is gone on purpose: the node IS the harmonic now, so there is no
+    // second field left for it to disagree with and no way to build the state to reject.
+    Chart node_off_the_neck = makeFullChart();
+    node_off_the_neck.notes[0].harmonic_node = static_cast<double>(g_max_fret) + 1.0;
+    const auto node_result = validateChartRules(node_off_the_neck, tempo_map);
+    REQUIRE_FALSE(node_result.has_value());
+    CHECK(node_result.error().code == ChartErrorCode::InvalidNote);
+
+    // A bare node with an ordinary attack is a natural harmonic and perfectly valid — the rule
+    // above must reject the position, never the presence.
+    Chart natural_harmonic = makeFullChart();
+    natural_harmonic.notes[0].harmonic_node = 3.2;
+    CHECK(validateChartRules(natural_harmonic, tempo_map).has_value());
 
     // Cent offsets span a full octave because real bass arrangements charted on guitar strings
     // pitch down twelve hundred cents; anything beyond that is junk data.

@@ -32,7 +32,6 @@ using common::core::ChordTemplate;
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::NoteAttack;
-using common::core::NoteHarmonic;
 using common::core::NoteMute;
 using common::core::SlideWaypoint;
 
@@ -2037,12 +2036,24 @@ void resolveSlideOutExits(
 
         if (!source.harmonic_type.empty())
         {
-            note.harmonic =
-                source.harmonic_type == "Pinch" ? NoteHarmonic::Pinch : NoteHarmonic::Natural;
-            if (source.harmonic_fret.has_value() &&
-                std::abs(*source.harmonic_fret - source.fret) > 1e-6)
+            if (source.harmonic_type == "Pinch")
             {
-                note.touch = source.harmonic_fret;
+                // A pinch is an attack now, and its node is whatever the thumb happened to catch —
+                // GP's HarmonicFret is a separate optional property, so it often is not recorded.
+                // Carry it when GP knows it and leave it absent when GP does not; the attack alone
+                // still says this is a harmonic.
+                note.attack = NoteAttack::Pinch;
+                note.harmonic_node = source.harmonic_fret;
+            }
+            else
+            {
+                // The node IS the harmonic now, so it must always be set — the old code stored it
+                // only when it differed from the fret, which under this shape would import the
+                // note as unharmonic. Falling back to the fret also removes the double encoding
+                // where an absent node silently meant "the fret itself" and drew half a fret off.
+                note.harmonic_node = source.harmonic_fret.has_value()
+                                         ? *source.harmonic_fret
+                                         : static_cast<double>(source.fret);
             }
         }
 
@@ -2145,8 +2156,7 @@ void resolveSlideOutExits(
             ChartNote& note = kept.note;
             note.attack = NoteAttack::PickSlide;
             note.mute = NoteMute::None;
-            note.harmonic = NoteHarmonic::None;
-            note.touch.reset();
+            note.harmonic_node.reset();
             note.vibrato = false;
             note.tremolo = false;
             note.accent = false;

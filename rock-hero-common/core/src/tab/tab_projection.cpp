@@ -43,7 +43,7 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         view.fret = note.fret;
         view.attack = note.attack;
         view.mute = scrape ? NoteMute::None : note.mute;
-        view.harmonic = scrape ? NoteHarmonic::None : note.harmonic;
+        view.harmonic_node = scrape ? std::optional<double>{} : note.harmonic_node;
         view.vibrato = !scrape && note.vibrato;
         view.tremolo = !scrape && note.tremolo;
         view.accent = !scrape && note.accent;
