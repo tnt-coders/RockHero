@@ -131,6 +131,24 @@ harmonic is already representable, since no rule requires a natural harmonic to 
 enum's names describe techniques where the field means a hand. Renaming is a user call, not folded in
 here.
 
+**Where the line falls: does the technique happen at the onset, or across the sustain?** This question
+decided two cells in opposite directions, so it is the operative test rather than intuition about
+whether something "is a way of playing the note".
+
+- **`Pinch` → attack.** The thumb graze happens *inside the single onset event*. One stroke, one moment.
+- **`tremolo` → payload.** The field means *"unmeasured noise picking — as fast as possible, no real
+  timing"*, with measured repetition spelled out as discrete notes instead. It is a texture across the
+  **duration**; the onset is merely its first stroke, and the model deliberately never represents the
+  individual strikes. Asked directly whether tremolo should be an attack, the user's instinct was that
+  it *"feels wrong"* — correct, and the field's own definition is why.
+
+The consequence for `tremolo` is that it constrains **nothing** on the attack axis, which is what
+rejected H1. Its one exclusion, E2's, exists because the field comment says pick slides *"share the
+noise vocabulary intrinsically through their attack, without this flag"* — so setting it on a scrape is
+**double encoding, not a contradiction**. That is a second and independent argument for the ranked
+candidate that moves `PickSlide` off the attack axis: the comment is an admission that a
+sustain-spanning texture currently rides on the onset field.
+
 **`attack` is the onset; every payload is the sustain.** This one line dissolved Q10 and Q11 and
 should be checked first against any future "aren't these two claims about the same thing?" worry.
 `attack` says how the note *began*; `mute`, `harmonic`, `vibrato`, `tremolo`, `bend`, `slides` and
@@ -161,7 +179,7 @@ never to author an invalid state.
 
 | # | Proposed rule | Reasoning |
 |---|---|---|
-| **H1** | `tremolo` requires `attack == Pick` | Tremolo picking *is* repeated picking, so an attack that replaces the pick stroke contradicts it. Would exclude `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`. |
+| ~~**H1**~~ | **REJECTED 2026-08-07** — `tremolo` does **not** require `attack == Pick` | User instinct (*"Should tremolo be an attack? That feels wrong."*) exposed the flaw. H1 reasoned that tremolo picking *is* repeated picking, so an attack replacing the pick stroke contradicts it — but an attack describes only the **onset**, not the whole duration, so it never "replaces the picking". Hammer onto a note and then tremolo-pick it: `Hammer` + `tremolo`, executable and uncontradictory. H1 conflated onset with sustain, which is exactly what E17 warns against. Tremolo is **orthogonal to attack**; the only exclusion is E2's, and that one is redundancy rather than contradiction. |
 | ~~**H2**~~ | **PROMOTED to E13** 2026-08-07 — `Natural` harmonic does **not** require `Pick` | A tapped harmonic — tapping directly over the node — is a real technique, so `Tap` + `Natural` is playable. This is the asymmetry with E3 and the reason the two harmonic kinds cannot share one rule. |
 | **H3** | `accent` is compatible with everything **except a scrape** | It is dynamics, orthogonal to how the note is produced. **Amended 2026-08-07:** as originally written it contradicted E2, which already excludes `accent` from `PickSlide`; that cell is deliberately deferred rather than principled — see the deferred group. |
 | ~~**H4**~~ | **SUPERSEDED.** It bundled five cells under one "no pitch" argument and got two wrong. Settled instead as: `harmonic` excluded (E8), `bend` excluded (E10), `slides` and `slide_out` **allowed** (E10 — positions, not pitches), `vibrato` still open as Q4. The lesson is that "no pitch" separates *pitch-valued* payloads from *position-valued* ones rather than excluding everything. |
@@ -377,10 +395,10 @@ non-`Pinch` attack", which is longer to say but no less precise.
 
 **Two consequences to settle before building it.**
 
-- **It interacts with H1.** A tremolo-picked pinch harmonic would need `attack == Pinch` plus
-  `tremolo`, which H1 (`tremolo` requires `Pick`) forbids. Tremolo-picking pinches is almost certainly
-  not a real technique, since every stroke would need its own thumb graze — but if it is, H1 becomes
-  "requires `Pick` **or** `Pinch`". Another reason H1 wants a ruling.
+- ~~**It interacts with H1.**~~ **Gate removed 2026-08-07.** This was logged as needing a ruling on the
+  tremolo-picked pinch. H1 is now rejected outright — tremolo is orthogonal to attack — so
+  `Pinch` + `tremolo` needs no special case. It is very hard to execute and probably never charted, but
+  hard is not impossible, and forbidding it would take a cross-axis rule that can never be structural.
 - **It costs a re-import.** The wire format changes from `"harmonic": "pinch"` to `"attack": "pinch"`,
   and a natural harmonic becomes a bare `"node"` with no harmonic key. The reader rejects unknown
   values outright, so all 39 `.rock` packages need re-importing — the cost already accepted for the
