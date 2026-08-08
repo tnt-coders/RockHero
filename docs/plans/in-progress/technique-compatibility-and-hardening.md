@@ -369,6 +369,67 @@ Switching a note's attack to `PickSlide` now destroys its pinch-ness, where the 
 one field cannot hold two attacks — and currently unreachable, since the scrape toggle has no UI
 route. Recorded so it is not mistaken for a regression later.
 
+## OPEN, and the last real modeling defect: `fret` is overloaded
+
+Raised 2026-08-08 when the user asked whether `node >= fret` should be a rule. It should not — and the
+reason it cannot be written is the defect.
+
+**Neither `>` nor `>=` holds today.** Guitar Pro has natural harmonics at fret 6 / node 5.8, fret 3 /
+node 2.7, fret 15 / node 14.7 — 9 of 109 measured — whose node sits *below* the fret, because GP rounds
+the **fret** to an integer while the node is the true position. So a comparison rule rejects real data.
+
+**Why: `fret` means two different things.**
+
+| note | what `fret` holds |
+|---|---|
+| ordinary note | the **stop** |
+| pinch harmonic | the **stop**; the node is past it, over the pickups |
+| tap harmonic | the **stop**; the node is past it, on the neck |
+| **natural harmonic** | a **rounded copy of the node** — there is no stop at all |
+
+That is the same shape of defect the collapse removed from the harmonic field: one slot carrying two
+meanings, distinguishable only by inspecting another field.
+
+**The fix, and why it is not folded in yet.** Make `fret` always the stop, 0 for an open string. Then
+`node > fret` is universal and enforceable — a natural harmonic is `fret 0, node 12.0`; a pinch is
+`fret 5, node 29`; a tap harmonic is `fret 5, node 17`; and the impossible imported pinch
+(`fret 9, node 2.7`) is refused. Strictly `>`: a node *at* the stop **is** the stop and sounds no
+harmonic.
+
+The cost is in fret-hand positions. `gp_chart_builder.cpp:1349` skips notes with `fret <= 0` when
+deriving them, so zeroing a natural harmonic's fret drops it out of FHP derivation entirely — the hand
+window would sit at the nut through a 12th-fret harmonic passage. That subsystem is tuned (the
+phrase-aware generator at 72.5% exact match against authored data), so this needs a **hand-position
+accessor** rather than a quiet field change: the fretting hand is at the node when a fret-hand-damped
+node exists with no stop, and at the fret otherwise. That is the same `soundingPosition()` accessor E4
+already wants, so the two should land together.
+
+Until then the rule is **scoped to a pinch**, where `fret` is unambiguously a stop, and that scoping is
+commented in `chart_rules.cpp` so it is not mistaken for an oversight.
+
+## Recovering a node from a source that records only a fret
+
+Settled 2026-08-08. Both importers face it, and neither needs a bespoke algorithm: a source's fret for a
+natural harmonic **is** a rounded label for the node, so snapping recovers it. Worked examples:
+
+| source says | resolves to | partial | error |
+|---|---|---|---|
+| fret 5 | 4.980 | 4th | 0.020 |
+| fret 3 | **3.156** | **6th** | 0.156 |
+| fret 9 | 8.844 | 5th | 0.156 |
+| fret 12 | 12.000 | 2nd | 0.000 |
+
+Fret 3 resolves to the 6th partial, *not* the 7th at 2.669 — distance decides, and the 6th is less than
+half as far. **And eight integer frets have no harmonic near them at all**: 1, 11, 13, 14, 18, 20, 21,
+23, missing by 0.669 to 1.312. A source naming one of those is bad data, and snapping anyway would move
+it a whole fret and sound a *different partial*, so those drop the harmonic with a diagnostic. Half a
+fret is the threshold: real labels land within 0.331 of a true node, implausible ones miss by 0.669 or
+more.
+
+A **pinch** cannot use this, because its fret is a stop rather than a node label and the source records
+no partial — so it defaults to the octave (the lowest-order harmonic available at any fret, hence the
+easiest to ring), also with a diagnostic.
+
 ## Hardening the format: what can become impossible, and the ceiling
 
 The project already prefers this shape — "sum types over inheritance… so illegal states can't exist"
