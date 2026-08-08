@@ -333,44 +333,57 @@ things follow: `fret == 0` stops being a placeholder on a natural harmonic and s
 string"; and the unified shape *gains* expressiveness, because it represents picking a harmonic over a
 fretted note — one finger pressing 5, another resting on 17 — which is rare but real and awkward today.
 
-**The attack cannot carry the distinction.** Those three names hide *two* independent facts — what
-**excites** the string and what **damps** the node:
+**The attack CAN carry it — pinch belongs on the attack axis.** The first draft of this section argued
+that pinch and natural "collide on `Pick`", treating `attack` as *what excites the string*. That was a
+definition imposed on the field rather than read off it: the enum's own doc says **"How the onset is
+produced"**, and under that a pinch qualifies plainly. The thumb graze is not a separate action added
+to a pick stroke — it is one compound stroke with its own hand angle and follow-through that players
+learn as a single thing. The enum already discriminates at exactly that grain, since `Slap` and `Pop`
+are both picking-hand excitation differing only in manner.
 
-| technique | excites | damps the node | attack today |
-|---|---|---|---|
-| natural | the pick | fret hand | `Pick` |
-| pinch | the pick | pick hand (thumb) | `Pick` |
-| right-hand tap | the tapping finger | that same finger (pick hand) | `Tap` |
-| left-hand tap | the tapping finger | that same finger (fret hand) | `Hammer` |
-| slapped natural (E14) | thumb slap | fret hand | `Slap` |
+**So `NoteHarmonic` collapses entirely** (user, 2026-08-07: *"Pinch is kind of a different 'attack'
+though... should that be considered as its own attack?"*). Two questions replace the field:
 
-Natural and pinch **collide on `Pick`**: they share their excitation entirely and differ only in the
-damping hand, so no single attack value separates them. And the last row is decisive — the slapped
-natural harmonic established as E14 already requires `attack == Slap`, so it cannot simultaneously hold
-`attack == Natural`. Two values, one field.
+- **Is this a harmonic?** — does it carry a `node`.
+- **Which hand damps it?** — is the attack `Pinch`. Fretting-hand damping is the **default**, what
+  happens when nothing says otherwise, so it needs no value of its own.
 
-**What survives is one binary axis: which hand damps the node.** Orthogonal to attack, and exactly the
-thing the current field already stores — so the field is already the right shape.
+Every case survives: a slapped natural harmonic is `Slap` + node (E14 holds, and the earlier "two
+values, one field" objection evaporates — `Pinch` and `Slap` are *mutually exclusive* attacks, which
+is what a single-valued enum wants); tapped is `Tap` + node; hammered is `Hammer` + node; the
+two-finger picked harmonic over a fretted note is `Pick` + fret 5 + node 17.
 
-**A rename was proposed and withdrawn.** The first draft of this section called `Natural`/`Pinch` a
-misnomer and wanted the values named for the hand. That is too strong: those are the *actual* names of
-the techniques, and a reader who sees `Pinch` knows what sound is meant, where `PickHand` would make
-them reconstruct which technique that is. The damping hand is the **reason** the two differ, not a
-better name for them. Against a readability gain, a rename also changes the wire strings — `song.json`
-stores `"harmonic": "natural"` / `"pinch"` (`chart_document.cpp:138-149, 316-322`) — which costs a
-re-import of all 39 `.rock` packages, since the reader rejects an unknown harmonic outright.
+**This is the hardening the document was opened to find.** Three things stop being rules and become
+impossible to express:
 
-What the withdrawn rename was really reaching for is narrower and free: **the renderer does not say why
-it branches.** `noteFretboardX` tests `harmonic == Natural` where the operative fact is physical — the
-fretting hand *is* on the fretboard at the node, so the head belongs there, while the picking hand is
-over the body, so the head stays on the fret. That is a comment, and the same sentence belongs on
-`soundingPosition()` when it lands.
+| | before | after the collapse |
+|---|---|---|
+| **E1** | enforced rule policing `harmonic` disagreeing with `touch` — one of only *two* rules that exist in code | nothing left to disagree; the rule is vacuous |
+| **E3** | `Pinch` requires `attack == Pick`, **unenforced** | cannot be violated when pinch *is* the attack |
+| renderer predicate | `harmonic == Natural`, a technique test | **anchor at the node unless the attack is `Pinch`** — pinch is the only case whose damping finger is off the fretboard and over the body |
 
-**One redundancy, deliberately not exploited.** The field is only independent information when
-`attack == Pick`. For `Tap` the damper is the picking hand, for `Hammer` the fretting hand, for
-`Slap`/`Pop` the fretting hand — all derivable from the attack. Deriving it would shrink the format but
-produce a field that is sometimes stored and sometimes computed, which reads worse than one that always
-says what it means. Keep it explicit.
+That last row also fixes a misclassification the field-based reading would have produced: a
+right-hand tap harmonic has its damping finger *on* the fretboard at the node, so the head should
+anchor there — and the new predicate gives that for the correct reason rather than by accident.
+
+Rules that merely *allow* something (E13, E14) need no restatement, since allowances are the default
+and only forbids need rules. Rules that split on the two kinds (E7, E9) restate as "a node with a
+non-`Pinch` attack", which is longer to say but no less precise.
+
+**Two consequences to settle before building it.**
+
+- **It interacts with H1.** A tremolo-picked pinch harmonic would need `attack == Pinch` plus
+  `tremolo`, which H1 (`tremolo` requires `Pick`) forbids. Tremolo-picking pinches is almost certainly
+  not a real technique, since every stroke would need its own thumb graze — but if it is, H1 becomes
+  "requires `Pick` **or** `Pinch`". Another reason H1 wants a ruling.
+- **It costs a re-import.** The wire format changes from `"harmonic": "pinch"` to `"attack": "pinch"`,
+  and a natural harmonic becomes a bare `"node"` with no harmonic key. The reader rejects unknown
+  values outright, so all 39 `.rock` packages need re-importing — the cost already accepted for the
+  FramePadding correction.
+
+**A case the collapse forced into view:** you *can* pull off from a **pinch** harmonic, because the
+fretting hand is pressing a real fret and therefore has something to release. E19 is correctly
+natural-only; that case went unchecked until the model made it unavoidable.
 
 ## Tap harmonics: already representable (revised 2026-08-07)
 
