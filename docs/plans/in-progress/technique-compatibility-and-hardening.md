@@ -32,6 +32,32 @@ violates Phase 5's own rule against authoring an invalid state.
 `fret == 0` means an open string. `sustain` is the drawn tail, **not** the physical ring — a
 zero-sustain note still sounds, which matters for several cells below.
 
+## The criterion (settled 2026-08-07)
+
+**Forbid a combination only when it cannot be *executed*. Allow the merely unusual.**
+
+Three reasons, all of them consistent with calls already made: the importer must faithfully carry what
+sources contain, so forbidding the odd means silently dropping real data; the user already drew this
+line for pinch-on-natural, choosing not to *support* it while leaving the door open rather than
+declaring it invalid; and it matches the legato-distance decision, where the author asserting a
+technique is the authority rather than us.
+
+This has a consequence worth stating plainly: **most remaining cells resolve to "allowed,"** so the
+matrix's real content is the handful of hard impossibilities. That shrinks the hardening payoff too —
+fewer forbidden combinations means fewer things worth making structurally impossible — and the
+restructure below should be sized against the impossibilities that actually survive, not against the
+number of questions asked.
+
+A useful sub-distinction emerged while applying it. "Cannot be executed" covers two things:
+
+- **Physically impossible** — the motion contradicts itself (E3, E7).
+- **Incoherent data** — the combination is playable but the stored value would describe something that
+  does not exist (E8: a pitch offset from a note with no pitch). This is *not* the same as pointless,
+  and it is still forbidden.
+
+"Pointless but coherent" is allowed. Q1 is the worked example: palm-muting a natural harmonic mostly
+defeats the technique, but the harmonic still sounds and the data still means something, so it stands.
+
 ## Established
 
 Each of these is either enforced in code today or physically unambiguous.
@@ -44,7 +70,8 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E4** | `Hammer` requires `fret > 0` | You cannot hammer onto, or left-hand tap, an open string. Not enforced today. |
 | **E5** | `Pull` requires a preceding note on the same string at a **higher** fret | Something must be released to sound it. **Relational** — see the ceiling below. |
 | **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-authoring-model.md`. **Relational.** |
-| **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. || **E8** | `Full` mute excludes `harmonic` | A full mute sounds no pitch; a harmonic *is* a pitch, so they contradict by definition. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so full mute never has to stretch to cover it, and that case is Q1 instead. |
+| **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
+| **E8** | `Full` mute excludes `harmonic` | A full mute sounds no pitch; a harmonic *is* a pitch, so they contradict by definition. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so full mute never has to stretch to cover it, and that case is Q1 instead. |
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
 
 **E3 is the one that started this**, and it is worth stating what it costs: pressing the pinch verb
@@ -67,7 +94,9 @@ Grouped so they can be answered in passes rather than one at a time.
 
 **Mutes against pitch.** Palm muting damps but does not kill the pitch; full muting kills it.
 
-- **Q1** `Palm` + `Natural` harmonic — does damping kill the harmonic, or is it playable?
+- ~~**Q1** `Palm` + `Natural` harmonic~~ — **ALLOWED** (user, 2026-08-07). The damping shortens the
+  harmonic without preventing it, and the palm sits near the bridge while the node can be far up the
+  neck. The worked example for "pointless but coherent is allowed".
 - **Q2** `Palm` + `bend` / `slides` — palm-muted bends and slides?
 - **Q3** `Full` + `slides` — is a raked or dead slide something we want representable? This is the one case that could refute H4.
 - **Q4** `Full` + `vibrato` — anything to vary?
