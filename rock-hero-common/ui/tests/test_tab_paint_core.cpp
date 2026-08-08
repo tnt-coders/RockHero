@@ -1,10 +1,72 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cmath>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
+#include <utility>
 
 namespace rock_hero::common::ui
 {
+
+namespace
+{
+
+// Coverage summed across one row of a window, in pixels. For an opaque silhouette over a
+// transparent lane this is the row's true chord to sub-pixel accuracy, which counting pixels past
+// a threshold cannot give. Coverage is alpha/255, the same definition the plectrum outline was
+// measured under in the note atlas.
+[[nodiscard]] double rowCoverage(const juce::Image& image, int y, int x_from, int x_to)
+{
+    double total = 0.0;
+    for (int x = x_from; x <= x_to; ++x)
+    {
+        total += static_cast<double>(image.getPixelAt(x, y).getAlpha()) / 255.0;
+    }
+    return total;
+}
+
+// Coverage summed down one column of a window, in pixels.
+[[nodiscard]] double columnCoverage(const juce::Image& image, int x, int y_from, int y_to)
+{
+    double total = 0.0;
+    for (int y = y_from; y <= y_to; ++y)
+    {
+        total += static_cast<double>(image.getPixelAt(x, y).getAlpha()) / 255.0;
+    }
+    return total;
+}
+
+// True for pure white ink: the fret number and the full-mute X are the only things painted it, and
+// no string color, head layer or chip surface reaches it, so this identifies them without the test
+// having to know which lane color it is looking at.
+[[nodiscard]] bool isWhiteInk(juce::Colour color)
+{
+    return color.getAlpha() >= 250 && color.getRed() >= 250 && color.getGreen() >= 250 &&
+           color.getBlue() >= 250;
+}
+
+// Half-width of the head's digit window. Narrower than the beside-head chip's own clearance from
+// the axis, so within it only the fret number can be white.
+constexpr int g_digit_window = 4;
+
+// Topmost row carrying digit ink inside that window.
+[[nodiscard]] int topDigitInkRow(const juce::Image& image, int center_x, int center_y)
+{
+    for (int y = center_y - 20; y <= center_y + 20; ++y)
+    {
+        for (int x = center_x - g_digit_window; x <= center_x + g_digit_window; ++x)
+        {
+            if (isWhiteInk(image.getPixelAt(x, y)))
+            {
+                return y;
+            }
+        }
+    }
+    return 0;
+}
+
+} // namespace
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
 // Moved from the editor's TabView suite when the paint core was extracted (plan 30 Phase 2);
@@ -148,6 +210,201 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     // The five-fret-wide FHP at 14.0s (x = 280) draws its "3-7" range marker box along the top
     // edge; the probe sits inside the box fill, left of the centered text.
     CHECK(image.getPixelAt(282, 7) == juce::Colour{0xff2a2f36});
+}
+
+// A pick scrape's head is the plectrum silhouette measured off the note atlas's pick-slide cell,
+// and it carries its identity by SHAPE: no borrowed full-mute X, no boxed fret number. Every probe
+// here reads the RIGHT half of the head, because the beside-head chip occupies the left.
+TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::TabViewState state;
+    state.string_count = 6;
+    // Four zero-length notes on one lane, differing only in what should change the head. Zero
+    // length keeps every head clean: drawNoteTail returns early, so no sustain ribbon and no
+    // tremolo strip (which a scrape otherwise rides) reaches the probes.
+    state.notes = {
+        common::core::TabNoteView{
+            .start_seconds = 4.0,
+            .end_seconds = 4.0,
+            .string = 3,
+            .fret = 5,
+            .attack = common::core::NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::TabNoteView{
+            .start_seconds = 8.0,
+            .end_seconds = 8.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::TabNoteView{
+            .start_seconds = 12.0,
+            .end_seconds = 12.0,
+            .string = 3,
+            .fret = 5,
+            .mute = common::core::NoteMute::Full,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::TabNoteView{
+            .start_seconds = 16.0,
+            .end_seconds = 16.0,
+            .string = 3,
+            .fret = 5,
+            .harmonic = common::core::NoteHarmonic::Natural,
+            .bend = {},
+            .slides = {},
+        },
+        // The widest number the raise has to hold, on its own lane: two digits reach far enough
+        // left to meet the chip that caps the raise, which one digit never does.
+        common::core::TabNoteView{
+            .start_seconds = 4.0,
+            .end_seconds = 4.0,
+            .string = 5,
+            .fret = 12,
+            .attack = common::core::NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::TabNoteView{
+            .start_seconds = 8.0,
+            .end_seconds = 8.0,
+            .string = 5,
+            .fret = 12,
+            .bend = {},
+            .slides = {},
+        },
+    };
+
+    const juce::Rectangle<int> bounds{0, 0, 400, 240};
+    const common::core::TimeRange visible_timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        bounds,
+        visible_timeline,
+        tabDisplayedStringCount(state.string_count, 0),
+        state.string_count);
+    // Six lanes in 240 px put note_height at its 25 px ceiling, so the head is 26 px and every
+    // onset lands on a whole pixel: 20 px per second puts the string-3 heads at x = 80, 160, 240
+    // and 320, and the two-digit pair on string 5 at 80 and 160. Whole-pixel centers matter — the
+    // silhouette is symmetric about a pixel BOUNDARY there, so a right-half probe is exactly half
+    // the chord.
+    REQUIRE_THAT(metrics.note_height, Catch::Matchers::WithinULP(25.0f, 0));
+    REQUIRE(metrics.draw_text);
+
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics graphics{image};
+    paintTabLane(graphics, metrics, state, tabPrefixMaxEndSeconds(state.notes));
+
+    constexpr int scrape_x = 80;
+    constexpr int plain_x = 160;
+    constexpr int mute_x = 240;
+    constexpr int harmonic_x = 320;
+    constexpr int lane_y = 140; // string 3 of six in 240 px
+
+    // UPPER-HEAVY SILHOUETTE. The plectrum's widest row sits 3.94 px above the string line and it
+    // tapers to a tip below, so its half-chord four rows up beats the one two rows down by about
+    // 2.3 px (12.1 against 9.8). A disc cannot do that: its widest row IS the string line, so the
+    // same difference comes out negative (12.4 against 12.9). This is the whole shape claim, and it
+    // reads off the paths alone with no font involved.
+    const double scrape_upper = rowCoverage(image, lane_y - 4, scrape_x, scrape_x + 15);
+    const double scrape_lower = rowCoverage(image, lane_y + 2, scrape_x, scrape_x + 15);
+    const double plain_upper = rowCoverage(image, lane_y - 4, plain_x, plain_x + 15);
+    const double plain_lower = rowCoverage(image, lane_y + 2, plain_x, plain_x + 15);
+    CHECK(scrape_upper - scrape_lower > 1.5);
+    CHECK(plain_upper - plain_lower < 0.0);
+
+    // The silhouette stands exactly as tall as the disc it replaces and 0.9395 as wide, so the
+    // lane's vertical collision budget is untouched. Height is the center column's coverage (the
+    // head is opaque, so the string line under it adds nothing); width is twice the widest sampled
+    // half-chord, which lands a little under the true 24.43 px maximum because it is averaged over
+    // a whole pixel row.
+    const double scrape_height = columnCoverage(image, scrape_x, lane_y - 20, lane_y + 20);
+    const double plain_height = columnCoverage(image, plain_x, lane_y - 20, lane_y + 20);
+    CHECK(scrape_height > 25.5);
+    CHECK(scrape_height < 26.2);
+    CHECK(std::abs(scrape_height - plain_height) < 0.5);
+    const double scrape_aspect = 2.0 * scrape_upper / scrape_height;
+    CHECK(scrape_aspect > 0.92);
+    CHECK(scrape_aspect < 0.95);
+
+    // NO BORROWED X. The full mute's lower arms cover the head's bottom corners; the plectrum has
+    // tapered to a 3.4 px half-chord by that row, so those corners are empty for a scrape and white
+    // for the mute that owns the mark. The taper is a narrowing head, not a missing one: two pixels
+    // right of the axis, eight rows down, is still fully opaque (the outline is 5.2 px out there).
+    CHECK(image.getPixelAt(scrape_x + 10, lane_y + 10).getAlpha() == 0);
+    CHECK(image.getPixelAt(scrape_x - 10, lane_y + 10).getAlpha() == 0);
+    CHECK(isWhiteInk(image.getPixelAt(mute_x + 10, lane_y + 10)));
+    CHECK(isWhiteInk(image.getPixelAt(mute_x - 10, lane_y + 10)));
+    CHECK(image.getPixelAt(scrape_x + 2, lane_y + 8).getAlpha() == 255);
+
+    // NO BOXED NUMBER. A real mute fills its plate with Charter's gray behind the digit; the same
+    // probe on the scrape reads the head's own colored center instead.
+    CHECK(image.getPixelAt(mute_x + 3, lane_y + 5) == juce::Colour{0xff808080});
+    CHECK(image.getPixelAt(scrape_x + 3, lane_y + 5) != juce::Colour{0xff808080});
+    CHECK(image.getPixelAt(scrape_x + 3, lane_y + 5).getAlpha() == 255);
+
+    // THE DIGIT RIDES 3 PX HIGHER, and only on the plectrum. The glyph is the same raster shifted
+    // by 0.1154 * 26 = 3.0004 px, so the topmost inked row moves by exactly three; the disc and the
+    // diamond must not move at all.
+    const int scrape_digit_top = topDigitInkRow(image, scrape_x, lane_y);
+    const int plain_digit_top = topDigitInkRow(image, plain_x, lane_y);
+    const int harmonic_digit_top = topDigitInkRow(image, harmonic_x, lane_y);
+    CHECK(plain_digit_top - scrape_digit_top == 3);
+    CHECK(harmonic_digit_top == plain_digit_top);
+
+    // The head's own solid center is what replaces the plate, so the raised digit has to sit well
+    // inside it. Every inked pixel keeps a two-pixel margin from the near-black outer ring and from
+    // the empty lane, which is what would fail first if the raise overshot the plectrum's broad
+    // band or the silhouette were too narrow to hold a number unboxed. Checked for the two-digit
+    // fret as well, on its own lane: that is the widest number the unboxed head has to hold.
+    const auto digitInkClearOfRim = [&image](int center_x, int center_y, int window) {
+        int found = 0;
+        bool clear = true;
+        for (int y = center_y - 20; y <= center_y + 20; ++y)
+        {
+            for (int x = center_x - window; x <= center_x + window; ++x)
+            {
+                if (!isWhiteInk(image.getPixelAt(x, y)))
+                {
+                    continue;
+                }
+                ++found;
+                for (int dy = -2; dy <= 2; ++dy)
+                {
+                    for (int dx = -2; dx <= 2; ++dx)
+                    {
+                        const juce::Colour near_ink = image.getPixelAt(x + dx, y + dy);
+                        clear = clear && near_ink.getAlpha() == 255 &&
+                                near_ink != juce::Colour{0xff101010};
+                    }
+                }
+            }
+        }
+        return std::pair{found, clear};
+    };
+
+    const auto [one_digit_ink, one_digit_clear] =
+        digitInkClearOfRim(scrape_x, lane_y, g_digit_window);
+    CHECK(one_digit_ink > 0);
+    CHECK(one_digit_clear);
+
+    // The two-digit scrape sits on string 5 (lane center y = 60). Its window stops short of the
+    // chip's own letters so only the fret number answers.
+    constexpr int wide_lane_y = 60;
+    const auto [two_digit_ink, two_digit_clear] = digitInkClearOfRim(scrape_x, wide_lane_y, 6);
+    CHECK(two_digit_ink > one_digit_ink);
+    CHECK(two_digit_clear);
+    // And it is raised by the same three pixels as the one-digit number.
+    const int wide_scrape_digit_top = topDigitInkRow(image, scrape_x, wide_lane_y);
+    const int wide_plain_digit_top = topDigitInkRow(image, plain_x, wide_lane_y);
+    CHECK(wide_plain_digit_top - wide_scrape_digit_top == 3);
 }
 
 } // namespace rock_hero::common::ui
