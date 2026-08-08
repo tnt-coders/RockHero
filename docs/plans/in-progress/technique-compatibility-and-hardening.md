@@ -44,6 +44,7 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E4** | `Hammer` requires `fret > 0` | You cannot hammer onto, or left-hand tap, an open string. Not enforced today. |
 | **E5** | `Pull` requires a preceding note on the same string at a **higher** fret | Something must be released to sound it. **Relational** — see the ceiling below. |
 | **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-authoring-model.md`. **Relational.** |
+| **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
 
 **E3 is the one that started this**, and it is worth stating what it costs: pressing the pinch verb
 on a tapped note must refuse or clear the tap, and pressing `T` on a pinch harmonic must clear the
@@ -73,7 +74,15 @@ Grouped so they can be answered in passes rather than one at a time.
 **Harmonics against articulation.**
 
 - **Q5** `Natural` + `Hammer` / `Pull` — hammering onto or pulling off to a node?
-- **Q6** `Natural` + `bend` — bending a harmonic. I believe yes; confirming.
+- **Q6** `Natural` + `bend` / `vibrato` — **this is where E7 stops being simple, and an earlier draft of
+  this question was wrong.** E7's reasoning (a light touch cannot press, so the fretting hand cannot
+  modulate the pitch) would exclude bend and finger vibrato too. But a **whammy-bar** dive or vibrato
+  on a natural harmonic is a staple, not an exotic. Our format stores `bend` as a pitch curve and
+  `vibrato` as a bool, and **neither says whether the fretting hand or the bar produced it** — so
+  these cells depend on a distinction the format cannot currently make. Two ways out: allow both and
+  accept that the format under-specifies, or add the finger-versus-bar distinction (a format change,
+  and a real one, since Guitar Pro itself separates them — its `V` is left-hand vibrato and its `W`
+  family is the tremolo bar).
 - **Q7** `Slap` / `Pop` + `harmonic` — do bass slap harmonics belong in the model?
 
 **Bass techniques.**
@@ -176,13 +185,34 @@ Two consequences worth logging before it lands:
   sounded. That would make it the third harmonic-versus-attack rule beside E3 ("pinch requires Pick")
   and H2 ("natural requires nothing"), and it needs the user's confirmation like the rest.
 
-## A cross-surface gap this exposed
+## The 2D node question (and a retracted claim)
 
-**2D and 3D disagree about where a natural harmonic sits.** `TabNoteView` carries `harmonic` but
-**not** the node, so the 2D projection cannot see it: 2D draws the head at the integer fret while 3D
-draws it at the true node. For a 3.2 harmonic that is most of a fret's width of disagreement between
-two views of the same note. A pinch harmonic's node is read by nothing on either surface, still waiting
-on roadmap 25-Q5.
+**Retracted:** an earlier revision of this document called it a cross-surface *gap* that 2D does not
+carry the node. That was wrong. 2D's axes are **time and string** — there is no fretboard axis to
+place a node on, so the concept does not apply there and `TabNoteView` omitting it is correct.
+3D has a fret axis, which is why the node positions the head there.
+
+**What 2D needs instead is to report the node as a NUMBER** (user, 2026-08-07): the drawn fret number
+should show where the hand actually goes, not the integer anchor. Two findings, both computed rather
+than estimated (`-12*log2(1-j/k)` for the node at string fraction `j/k`):
+
+- **0.1 precision is sufficient for the entire harmonic series through the 12th.** The tightest gap
+  between any two distinct node positions inside 24 frets is **0.144 frets** — the 12th and 11th
+  harmonics at 1.506 and 1.650 — and 0.1 separates them. So going as high as the 12th costs nothing
+  in precision, and there is no case needing two decimals.
+- **The common harmonics land on near-integers, which answers the width worry.** 12.000, 7.020,
+  4.980, 19.020 and 24.000 round to 12.0, 7.0, 5.0, 19.0, 24.0 — so **suppressing a trailing `.0`
+  keeps every commonly used harmonic at one or two characters**, exactly what is drawn today, and it
+  also matches how guitarists name them ("the 5th fret harmonic" for a node at 4.980). Only the
+  exotic nodes widen: 3.2, 2.7, 8.8, and at worst four characters like 15.9.
+
+The open design question is therefore narrower than it first looked: **only the exotic fractional
+nodes need somewhere to go**, and a four-character string will not fit the fret font on a 26 px head.
+Options to weigh in the notation pass: a smaller font for the fractional part, the fraction as a
+subscript, the node beside the head instead of on it, or the integer on the head with the fraction
+carried elsewhere.
+
+A pinch harmonic's node is still read by nothing on either surface, waiting on roadmap 25-Q5.
 
 ## Next steps
 
