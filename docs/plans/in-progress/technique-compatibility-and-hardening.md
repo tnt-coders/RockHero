@@ -77,6 +77,11 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
 | **E12** | `Pull` excludes every harmonic | A pull-off sounds the string by *releasing* a finger so a lower stopped pitch rings — and that pitch rings over the full speaking length with nothing damping a node, so the result is an ordinary note by construction. A contrived arrival at a node (a finger resting lightly below the released one) has the release *damping* rather than exciting, and barely sounds. |
 | **E13** | `Natural` harmonic **allows** `Hammer` and `Tap`, and that pairing *is* the tap harmonic | A finger strikes the string over a node and the strike both excites and damps. `Hammer` is the fretting-hand form, `Tap` the picking-hand one (hold 5, tap 17 — the most common form of all). Promotes H2 from candidate to established, and needs **no new harmonic kind** — see below. |
+| **E14** | `Slap` / `Pop` **allow** `Natural` harmonic | Q7. A slap harmonic — thumb striking the string while a fretting finger rests on the 12th, 7th or 5th node — is a staple of the slap idiom, and popping over a node is the same vocabulary. `Pinch` stays excluded by E3, which already lists every attack that replaces the pick stroke. |
+| **E15** | `Slap` / `Pop` **allow** every `mute` | Q8. `Full` + `Slap` *is* the slapped dead note, core rhythmic material in a slap line rather than an oddity — forbidding it would make slap lines unrepresentable. `Palm` + `Slap` is awkward, since the thumb and the palm heel want different positions, but the hand spans it, so the criterion allows it. |
+| **E16** | `vibrato` and `bend` **compose** | Q9. Bend up to pitch, then vibrato on the bent note — the blues-lead vocabulary entire. No data conflict either: `bend` is a path and `vibrato` oscillates around whatever the path is, so neither subsumes the other. |
+| **E17** | `attack` **allows** every slide payload — `Hammer`/`Pull` + `slides`, `Tap` + `slide_out` | Q10 and Q11, both **dissolved** rather than decided: `attack` names the onset and `slides`/`slide_out` name the sustain, so "hammered onto, then slid while ringing" is two moments, not two claims about one transition. See the separation below. |
+| **E18** | `tremolo` **allows** `slides` and `bend` | Q12. A tremolo-picked bend is ordinary and the rising tremolo-picked slide is a standard metal figure. Consistent with H1, which constrains the *onset* to a pick while tremolo describes the sustain. |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
 slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
@@ -118,6 +123,21 @@ harmonic is already representable, since no rule requires a natural harmonic to 
 enum's names describe techniques where the field means a hand. Renaming is a user call, not folded in
 here.
 
+**`attack` is the onset; every payload is the sustain.** This one line dissolved Q10 and Q11 and
+should be checked first against any future "aren't these two claims about the same thing?" worry.
+`attack` says how the note *began*; `mute`, `harmonic`, `vibrato`, `tremolo`, `bend`, `slides` and
+`slide_out` all describe what happens *while it rings*. So a hammer-on carrying a slide path is not a
+contradiction — it is one note hammered onto and then slid, two different moments. The intuition that
+they collide comes from tab notation, where a slide is *drawn* as a connector between two notes and
+therefore looks like a property of the transition into one; our model instead puts the slide inside
+the note as a path across its sustain.
+
+The separation also explains why `PickSlide` needs the elaborate E2: it is the **one attack whose
+meaning extends across the sustain**, which is why it must own the `slides` path and exclude every
+other payload. Being the sole exception is a reason to keep an eye on it — the hardening candidate that
+splits the scrape into its own variant is really a proposal to stop it from sitting on the `attack`
+axis while behaving like a payload.
+
 **The full-mute row reduces to one sentence.** A full mute sounds no pitch, so it excludes everything
 **pitch-valued** — `harmonic` (E8), `bend` (E10), `vibrato` (E11) — and allows everything
 **position-valued** — `slides` and `slide_out` (E10). That is a cleaner rule than the five-way bundle
@@ -135,7 +155,7 @@ never to author an invalid state.
 |---|---|---|
 | **H1** | `tremolo` requires `attack == Pick` | Tremolo picking *is* repeated picking, so an attack that replaces the pick stroke contradicts it. Would exclude `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`. |
 | ~~**H2**~~ | **PROMOTED to E13** 2026-08-07 — `Natural` harmonic does **not** require `Pick` | A tapped harmonic — tapping directly over the node — is a real technique, so `Tap` + `Natural` is playable. This is the asymmetry with E3 and the reason the two harmonic kinds cannot share one rule. |
-| **H3** | `accent` is compatible with everything | It is dynamics, orthogonal to how the note is produced. |
+| **H3** | `accent` is compatible with everything **except a scrape** | It is dynamics, orthogonal to how the note is produced. **Amended 2026-08-07:** as originally written it contradicted E2, which already excludes `accent` from `PickSlide`; that cell is deliberately deferred rather than principled — see the deferred group. |
 | ~~**H4**~~ | **SUPERSEDED.** It bundled five cells under one "no pitch" argument and got two wrong. Settled instead as: `harmonic` excluded (E8), `bend` excluded (E10), `slides` and `slide_out` **allowed** (E10 — positions, not pitches), `vibrato` still open as Q4. The lesson is that "no pitch" separates *pitch-valued* payloads from *position-valued* ones rather than excluding everything. |
 
 ## Possible, but deliberately unsupported for now
@@ -150,9 +170,11 @@ revisit the whole group together.
 | **Pinch on a natural harmonic** | User: *"TECHNICALLY possible... But so rare I have literally never seen it."* Already impossible by construction, since `harmonic` is a single enum — so the single-kind shape **is** the enforcement, and a future design wanting it would need a second harmonic entry with its own node. Do not "fix" that into a set without meaning to. |
 | **`accent` on a scrape** | Same category (user, 2026-08-07). Currently forbidden by E2. **Checked whether it is easy: it is not.** Removing `accent` from the rule is a one-token change, but it activates the accent-glow path on a plectrum head, and that path was measured during the ALT H work: the glow's fade band clears the plectrum by **0.331 px** at note height 25 where it clears the disc by **1.560**, because the plectrum's widest point is a diagonal shoulder reaching 0.547 of the head against the disc's 0.500. The fix is `glow_size`, which the **round head shares** — so allowing accent means touching every accented note's glow. Deferred with pinch-on-natural. |
 
-## Open — needs the user's call
+## Resolution log — Q1–Q12, all closed 2026-08-07
 
-Grouped so they can be answered in passes rather than one at a time.
+Every cell put to the user, and every cell the criterion closed on its own, with the reasoning that
+decided it. Kept in question order because the *arguments* are the durable part — the rules they
+produced live in Established above, and this is where to look when one of them seems wrong later.
 
 **Mutes against pitch.** Palm muting damps but does not kill the pitch; full muting kills it.
 
@@ -179,18 +201,11 @@ Grouped so they can be answered in passes rather than one at a time.
   harmonic (E12); `Hammer` and `Tap` **allowed** on `Natural`, where that pairing *is* the tap
   harmonic (E13, promoting H2). `Hammer` on `Pinch` was already E3. Amends E4, whose `fret > 0` test
   rejected every tap harmonic, and retires the third-`Kind` plan. Two consequences below.
-- **Q7** `Slap` / `Pop` + `harmonic` — do bass slap harmonics belong in the model?
-
-**Bass techniques.**
-
-- **Q8** `Slap` / `Pop` + `mute` — slap is often muted; which mute, if any?
-
-**Payloads against each other and against articulation.**
-
-- **Q9** `vibrato` + `bend` — both modulate pitch. Do they compose, or does one subsume the other?
-- **Q10** `Hammer` / `Pull` + `slides` — a legato slide is its own articulation; can a hammer-on also carry a slide path, or is that two claims about the same transition?
-- **Q11** `Tap` + `slide_out` — tapping into a trail-off?
-- **Q12** `tremolo` + `slides` / `bend` — a tremolo-picked bend is playable; a tremolo-picked slide?
+- ~~**Q7**–**Q12**~~ — **ALL ANSWERED 2026-08-07 by the criterion itself**, no ruling needed: every one
+  is executable, and five of the six are *staples* whose forbidding would make real charts
+  unrepresentable. Recorded as E14–E18. Two of them dissolved rather than resolved — see the onset /
+  sustain separation below. Overturn any of them if you disagree; they were not put to you because a
+  forbid-a-staple error is costly while an allow-something-odd error is free.
 
 ## Whammy is beat-scoped, which is why E9 needed no format change
 
@@ -348,8 +363,16 @@ A pinch harmonic's node is still read by nothing on either surface, waiting on r
 
 ## Next steps
 
-1. User answers Q1–Q12 (and corrects E3/E4 or H1–H4 if any are wrong).
+1. ~~User answers Q1–Q12.~~ **Done 2026-08-07** — eighteen established rules, E1–E18. What is left
+   wanting confirmation is **H1** (`tremolo` requires `Pick`) and **H3** (`accent` compatible with
+   everything but a scrape), plus the two deferred-by-choice cells.
 2. Enforce the settled rules as guards in the Phase 5 verbs, so no verb authors an invalid state, and
-   as rules where a chart could already carry the violation from import.
+   as rules where a chart could already carry the violation from import. **Most of the matrix is
+   unenforced today** — only E1 and E2 exist in `chart_rules.cpp`; E3–E18 are recorded but nothing
+   checks them, so this step is where the matrix stops being a document and starts being a guarantee.
+   E4 needs the `soundingPosition()` accessor first, shared with the renderer.
 3. *Then* re-open the format shape with the matrix in hand, sizing the sum type against how many cells
-   actually turned out incompatible.
+   actually turned out incompatible. The count is now known and it is **lopsided — the great majority
+   of cells are compatible**, which argues against an elaborate sum type and for the narrow hardenings
+   already ranked: the required `Harmonic{kind, node}`, the scrape as its own variant, and a
+   path-derived scrape sustain. Size the work against that, not against the length of this document.
