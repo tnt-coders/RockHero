@@ -263,6 +263,23 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
 
     // A cap below 2 has no partials to search, so it yields the octave rather than nothing.
     CHECK(snapHarmonicNode(3.2, 0, 1) == Catch::Approx(12.0));
+
+    // Which fret the FRETTING hand occupies. A natural harmonic has no stop of its own — its fret is
+    // the nut, or the capo — so the hand is at the node, the only place it touches the string.
+    // Rounding reproduces the names players use: 3.156 and 2.669 are "3.2" and "2.7", both at fret 3.
+    CHECK(handFret(0, 12.0, NoteAttack::Pick) == 12);
+    CHECK(handFret(0, 3.156, NoteAttack::Pick) == 3);
+    CHECK(handFret(0, 2.669, NoteAttack::Pick) == 3);
+    CHECK(handFret(0, 3.863, NoteAttack::Pick) == 4);
+    CHECK(handFret(2, 14.0, NoteAttack::Pick) == 14); // capo'd: still at the node
+    // A hammer harmonic is the fretting hand rapping the node itself.
+    CHECK(handFret(0, 12.0, NoteAttack::Hammer) == 12);
+    // A tap harmonic and a pinch both have a real stop; the node belongs to the OTHER hand, so the
+    // fretting hand stays down at the stop.
+    CHECK(handFret(5, 17.0, NoteAttack::Tap) == 5);
+    CHECK(handFret(5, 29.0, NoteAttack::Pinch) == 5);
+    // An ordinary note is just its fret.
+    CHECK(handFret(7, std::nullopt, NoteAttack::Pick) == 7);
 }
 
 TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
@@ -293,7 +310,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         const ChartNote parsed = round_trip(note);
         CHECK(parsed == note);
         CHECK(isHarmonic(parsed.harmonic_node));
-        CHECK(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
+        CHECK(anchorNode(parsed.harmonic_node, parsed.attack).has_value());
     }
 
     SECTION("a pinch carries its node when one is known")
@@ -305,7 +322,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         CHECK(parsed == note);
         CHECK(isHarmonic(parsed.harmonic_node));
         // The thumb grazes over the body, so the node is not a neck position to draw at.
-        CHECK_FALSE(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
+        CHECK_FALSE(anchorNode(parsed.harmonic_node, parsed.attack).has_value());
     }
 
     SECTION("a pinch with no node is REFUSED")
@@ -346,7 +363,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         note.harmonic_node = 17.0;
         const ChartNote parsed = round_trip(note);
         CHECK(parsed == note);
-        CHECK(fretboardHarmonicNode(parsed.harmonic_node, parsed.attack).has_value());
+        CHECK(anchorNode(parsed.harmonic_node, parsed.attack).has_value());
     }
 
     SECTION("the removed fields are refused rather than silently dropped")

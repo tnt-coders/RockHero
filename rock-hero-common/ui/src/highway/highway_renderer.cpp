@@ -312,7 +312,7 @@ struct PosColorUvVertex
     const bool mirrored)
 {
     if (const std::optional<double> fretboard_node =
-            common::core::fretboardHarmonicNode(note.harmonic_node, note.attack);
+            common::core::anchorNode(note.harmonic_node, note.attack);
         fretboard_node.has_value())
     {
         const double node = *fretboard_node;
@@ -3946,7 +3946,7 @@ void HighwayRenderer::Impl::draw(
         // (Charter's base-cell selection).
         const bool tech_head =
             note.mute == common::core::NoteMute::Full ||
-            common::core::fretboardHarmonicNode(note.harmonic_node, note.attack).has_value() ||
+            common::core::anchorNode(note.harmonic_node, note.attack).has_value() ||
             note.attack == common::core::NoteAttack::Hammer ||
             note.attack == common::core::NoteAttack::Pull || scrape;
         const std::array<float, 4> base_cell =

@@ -155,7 +155,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     if (harmonic.harmonic_node.has_value())
     {
         CHECK(*harmonic.harmonic_node == Catch::Approx(3.2));
-        CHECK(fretboardHarmonicNode(harmonic.harmonic_node, harmonic.attack).has_value());
+        CHECK(anchorNode(harmonic.harmonic_node, harmonic.attack).has_value());
     }
 
     REQUIRE(state.shapes.size() == 2);

@@ -78,7 +78,7 @@ enum class NoteAttack : std::uint8_t
     An attack rather than a timbre because the graze happens *inside* the onset — one compound
     stroke with its own hand angle, not a pick plus a separate action. That is the same grain
     that already separates `Slap` from `Pop`. It also makes the pinch the one harmonic damped
-    off the neck, which is why `fretboardHarmonicNode` excludes it.
+    off the neck, which is why `anchorNode` excludes it.
     */
     Pinch,
     /*! \brief Hammer-on from the previous note. */
@@ -154,6 +154,31 @@ off chokes a high harmonic instead of ringing it. This maps a label onto the phy
 [[nodiscard]] double snapHarmonicNode(double notated, int fret, int max_partial);
 
 /*!
+\brief Integer fret the **fretting hand** occupies, for hand-position derivation.
+
+Distinct from \ref anchorNode, which answers where to *draw* a head. That excludes only a
+pinch, because a tap harmonic's node is still a neck position worth drawing at. This excludes a tap as
+well, because the question is which hand is *there*: a tap harmonic's node is held by the **picking**
+hand while the fretting hand stays on the stop.
+
+- Natural harmonic: no stop of its own (`fret` is the nut, or the capo), so the fretting hand is at the
+  node — the only place it touches the string.
+- Hammer harmonic: same, the fretting hand raps the node itself.
+- Tap harmonic and pinch: the fretting hand holds the stop; the node belongs to the other hand.
+- Ordinary note: the stop.
+
+Rounds rather than truncates, which reproduces the fret names players use: 3.156 and 2.669 both round
+to 3 (written "3.2" and "2.7"), 3.863 to 4, 4.980 to 5, 8.844 to 9.
+
+\param fret Fret the string is stopped at.
+\param node Harmonic node in fret units, absent when the note is not a harmonic.
+\param attack How the onset is produced.
+
+\return Fret the fretting hand occupies.
+*/
+[[nodiscard]] int handFret(int fret, const std::optional<double>& node, NoteAttack attack);
+
+/*!
 \brief The harmonic node a display can anchor to, when it lies on the fretboard.
 
 Every harmonic damps its node with a finger on the neck except a pinch, whose thumb grazes the
@@ -169,7 +194,7 @@ linter can both see is engaged.
 
 \return The node when it is a neck position this note can be drawn at, otherwise nothing.
 */
-[[nodiscard]] constexpr std::optional<double> fretboardHarmonicNode(
+[[nodiscard]] constexpr std::optional<double> anchorNode(
     const std::optional<double>& node, const NoteAttack attack)
 {
     return attack == NoteAttack::Pinch ? std::nullopt : node;
@@ -312,7 +337,7 @@ struct ChartNote
 
     Which hand damps the node is carried by `attack`: every attack damps with a finger on the
     neck except `Pinch`, whose thumb grazes the string over the body. Ask
-    `fretboardHarmonicNode` rather than testing the attack directly. On a pinch the value is where
+    `anchorNode` rather than testing the attack directly. On a pinch the value is where
     the picking hand grazes, which no surface shows yet (roadmap 25-Q5).
 
 **Every** harmonic has one, a pinch included: the overtone that squeals is *determined* by where

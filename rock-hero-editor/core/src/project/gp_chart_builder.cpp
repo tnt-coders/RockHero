@@ -1346,11 +1346,16 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         {
             continue; // not sounding at this instant
         }
-        if (common::core::rightHandOnset(other.note.attack) || other.note.fret <= 0)
+        // A natural harmonic has no stop of its own, so its `fret` is the nut (or the capo) and its
+        // fretting hand is at the NODE instead — reading `fret` here would drop a 12th-fret harmonic
+        // passage out of hand derivation and leave the window at the nut.
+        const int other_hand_fret =
+            common::core::handFret(other.note.fret, other.note.harmonic_node, other.note.attack);
+        if (common::core::rightHandOnset(other.note.attack) || other_hand_fret <= 0)
         {
             continue; // right-hand onsets float above the hand; open strings never anchor it
         }
-        int fret = other.note.fret;
+        int fret = other_hand_fret;
         bool co_sliding = false;
         for (const SlideWaypoint& waypoint : other.note.slides)
         {
@@ -1432,11 +1437,13 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             // Right-hand onsets float above the window and never anchor the hand.
             if (!common::core::rightHandOnset(note.attack))
             {
-                if (note.fret > 0)
+                const int hand_fret =
+                    common::core::handFret(note.fret, note.harmonic_node, note.attack);
+                if (hand_fret > 0)
                 {
                     onset.min_fret =
-                        onset.min_fret == 0 ? note.fret : std::min(onset.min_fret, note.fret);
-                    onset.max_fret = std::max(onset.max_fret, note.fret);
+                        onset.min_fret == 0 ? hand_fret : std::min(onset.min_fret, hand_fret);
+                    onset.max_fret = std::max(onset.max_fret, hand_fret);
                 }
                 int slide_source = note.fret;
                 for (const SlideWaypoint& waypoint : note.slides)
@@ -2053,19 +2060,36 @@ void resolveSlideOutExits(
             {
                 note.attack = NoteAttack::Pinch;
             }
-            // A natural harmonic's value is already an absolute open-string node; a fretted
-            // harmonic's is an offset from its own fret. With no value at all, a natural falls back
-            // to the note's own fret (which for one IS the touched position), while a fretted
-            // harmonic falls back to the octave offset — the 2nd partial, the lowest-order harmonic
-            // available at any fret and so the easiest to ring. Using the *fret* as a fallback label
-            // there would read a stop as a partial number, which means nothing.
-            const int stop_fret = fretted_harmonic ? source.fret : 0;
+            // The stop a harmonic speaks from: its own fret when the note is stopped, else the nut —
+            // or the CAPO, which is the stop on a capo'd guitar. Guitar Pro ignores the capo here: a
+            // capo-1 score in the corpus writes its natural harmonics at 7.0 and 8.2, positions
+            // measured from the nut that are not nodes of the capo'd string at all (its 3rd partial
+            // sits at 8.02), so as written they would not ring. Referencing the stop fixes that
+            // rather than inheriting it.
+            //
+            // With no value at all, a natural falls back to its own fret (which for one IS the
+            // touched position) while a fretted harmonic falls back to the octave offset — the 2nd
+            // partial, the lowest-order harmonic available at any fret and so the easiest to ring.
+            // Using the *fret* as a fallback label there would read a stop as a partial number.
+            const int stop_fret = fretted_harmonic ? source.fret : chart.tuning.capo;
             const double fallback = fretted_harmonic ? 12.0 : static_cast<double>(source.fret);
             const double notated = source.harmonic_fret.value_or(fallback);
-            note.harmonic_node = common::core::snapHarmonicNode(
-                notated + static_cast<double>(stop_fret),
-                stop_fret,
-                common::core::g_max_snapped_partial);
+            // Notated values are nut-referenced either way, so they name an OFFSET. Resolve the
+            // offset first against an open string, then place it against the real stop — one formula
+            // for both readings. Resolving against the stop instead would look for a node near the
+            // nut-referenced number, which on a capo'd chart is the wrong partial entirely: with a
+            // capo at 2, "3.2" would find the 8th partial at 4.31 rather than the intended 6th, whose
+            // node on that string sits at 5.16.
+            const double offset =
+                common::core::snapHarmonicNode(notated, 0, common::core::g_max_snapped_partial);
+            note.harmonic_node = static_cast<double>(stop_fret) + offset;
+            if (!fretted_harmonic)
+            {
+                // A natural harmonic has no stop of its own — the string speaks from the nut, or the
+                // capo. Its node carries the position, so `fret` stops doubling as a rounded copy of
+                // it, which is what makes the node-beyond-the-stop rule expressible at all.
+                note.fret = chart.tuning.capo;
+            }
         }
 
         if (source.bend.has_value())

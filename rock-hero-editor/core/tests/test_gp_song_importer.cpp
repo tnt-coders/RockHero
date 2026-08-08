@@ -278,8 +278,20 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     REQUIRE(chart.notes[4].harmonic_node.has_value());
     if (chart.notes[4].harmonic_node.has_value())
     {
-        // Snapped to the 6th partial's true node; the score's "3.2" is a conventional label.
-        CHECK(*chart.notes[4].harmonic_node == Catch::Approx(3.1564).margin(0.001));
+        // The score writes "3.2", a conventional label naming the 6th partial. Two corrections land
+        // here: the label resolves to that partial's true offset (3.156, not 3.2, since a position
+        // even slightly off chokes the harmonic), and it is placed against the real stop — this
+        // fixture has a CAPO AT 2, so the string speaks from there and its 6th-partial node sits at
+        // 5.156. Guitar Pro ignores the capo and would have the player touch 3.2, which is not a node
+        // of that string at all and would not ring.
+        CHECK(*chart.notes[4].harmonic_node == Catch::Approx(5.1564).margin(0.001));
+        // A natural harmonic has no stop of its own, so its fret IS the capo, not a copy of its node.
+        CHECK(chart.notes[4].fret == 2);
+        CHECK(*chart.notes[4].harmonic_node > static_cast<double>(chart.notes[4].fret));
+        // The fretting hand is at the node it touches, not down at the capo.
+        CHECK(
+            common::core::handFret(
+                chart.notes[4].fret, chart.notes[4].harmonic_node, chart.notes[4].attack) == 5);
     }
     REQUIRE(chart.notes[4].bend.size() == 3);
     CHECK(chart.notes[4].bend[0].offset == Fraction{0});
@@ -1356,8 +1368,7 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         }
         CHECK(common::core::isHarmonic(note.harmonic_node));
         // Off the neck, so no 2D/3D anchor comes from it.
-        CHECK_FALSE(
-            common::core::fretboardHarmonicNode(note.harmonic_node, note.attack).has_value());
+        CHECK_FALSE(common::core::anchorNode(note.harmonic_node, note.attack).has_value());
     }
 
     SECTION("a pinch Guitar Pro left without a fret defaults to the octave node")

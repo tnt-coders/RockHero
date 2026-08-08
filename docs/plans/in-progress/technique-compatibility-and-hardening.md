@@ -369,43 +369,51 @@ Switching a note's attack to `PickSlide` now destroys its pinch-ness, where the 
 one field cannot hold two attacks — and currently unreachable, since the scrape toggle has no UI
 route. Recorded so it is not mistaken for a regression later.
 
-## OPEN, and the last real modeling defect: `fret` is overloaded
+## SETTLED 2026-08-08: `fret` is the stop, always
 
-Raised 2026-08-08 when the user asked whether `node >= fret` should be a rule. It should not — and the
-reason it cannot be written is the defect.
+The user asked whether `node >= fret` should be a rule, then settled the representation it depends on:
+*"natural harmonics do in fact need to have fret assigned to 0 OR in songs with a capo, it must be
+defined at the capo. That seems like the only truly correct way to represent them."*
 
-**Neither `>` nor `>=` holds today.** Guitar Pro has natural harmonics at fret 6 / node 5.8, fret 3 /
-node 2.7, fret 15 / node 14.7 — 9 of 109 measured — whose node sits *below* the fret, because GP rounds
-the **fret** to an integer while the node is the true position. So a comparison rule rejects real data.
+**`>=` was not right either, and that was the tell.** Guitar Pro has natural harmonics at fret 6 / node
+5.8, fret 3 / node 2.7, fret 15 / node 14.7 — 9 of 109 measured — whose node sits *below* the fret,
+because GP rounds the **fret** to an integer while the node is the true position. No comparison rule
+survives that, because `fret` was carrying two meanings: the **stop** for an ordinary note, a pinch, or
+a tap harmonic, but a **rounded copy of the node** for a natural harmonic, which has no stop at all.
+Same shape of defect the harmonic-field collapse removed — one slot, two meanings.
 
-**Why: `fret` means two different things.**
+`fret` is now always the stop: 0, or the **capo**, which is what stops a capo'd string. So
+`node > fret` is universal and enforced — strictly `>`, since a node *at* the stop **is** the stop and
+sounds nothing.
 
-| note | what `fret` holds |
-|---|---|
-| ordinary note | the **stop** |
-| pinch harmonic | the **stop**; the node is past it, over the pickups |
-| tap harmonic | the **stop**; the node is past it, on the neck |
-| **natural harmonic** | a **rounded copy of the node** — there is no stop at all |
+**The capo point fixes real data rather than only tidying the model.** A capo-1 score in the corpus
+writes its natural harmonics at 7.0 and 8.2: nut-referenced positions that are *not* nodes of the
+capo'd string, whose 3rd partial sits at 8.02. As written they would not ring. GP is capo-blind here, so
+import now resolves the notated label to a partial **offset** against an open string and then places it
+against the real stop. The importer's own regression test carries a capo of 2, where "3.2" correctly
+becomes 5.156 rather than 3.156.
 
-That is the same shape of defect the collapse removed from the harmonic field: one slot carrying two
-meanings, distinguishable only by inspecting another field.
+Two helpers answer two different questions, and conflating them is the trap:
 
-**The fix, and why it is not folded in yet.** Make `fret` always the stop, 0 for an open string. Then
-`node > fret` is universal and enforceable — a natural harmonic is `fret 0, node 12.0`; a pinch is
-`fret 5, node 29`; a tap harmonic is `fret 5, node 17`; and the impossible imported pinch
-(`fret 9, node 2.7`) is refused. Strictly `>`: a node *at* the stop **is** the stop and sounds no
-harmonic.
+| helper | question | excludes |
+|---|---|---|
+| `anchorNode(node, attack)` | where to **draw** the head | `Pinch` only — a tap harmonic's node is still a neck position |
+| `handFret(fret, node, attack)` | where the **fretting hand** is | `Pinch` **and** `Tap` — both have a real stop, and their node belongs to the other hand |
 
-The cost is in fret-hand positions. `gp_chart_builder.cpp:1349` skips notes with `fret <= 0` when
-deriving them, so zeroing a natural harmonic's fret drops it out of FHP derivation entirely — the hand
-window would sit at the nut through a 12th-fret harmonic passage. That subsystem is tuned (the
-phrase-aware generator at 72.5% exact match against authored data), so this needs a **hand-position
-accessor** rather than a quiet field change: the fretting hand is at the node when a fret-hand-damped
-node exists with no stop, and at the fret otherwise. That is the same `soundingPosition()` accessor E4
-already wants, so the two should land together.
+`handFret` rounds, which reproduces the names players use (3.156 and 2.669 both give fret 3, written
+"3.2" and "2.7"). It is what FHP derivation now consults: reading `fret` there would drop a 12th-fret
+harmonic passage out of hand derivation and leave the window at the nut. The user's proposed approach —
+use the integer fret the node belongs to and let the existing window rules place it — is exactly this,
+and it avoids fractional-fret FHP, which they judged too large a design change for the return.
 
-Until then the rule is **scoped to a pinch**, where `fret` is unambiguously a stop, and that scoping is
-commented in `chart_rules.cpp` so it is not mistaken for an oversight.
+**Names shortened** on the user's objection that `fretHandFret` and `fretboardHarmonicNode` were
+verbose: `handFret` drops the stutter, and `anchorNode` says what the node is *for* — which also keeps
+it from being misread as a plain accessor for the field, a mistake that would silently include pinches.
+
+**Still inert:** `capo` is stored, imported, and surfaced in the package description, but consumed by
+nothing else — no projection or renderer offsets by it. Whether note frets are nut-absolute or
+capo-relative could not be settled from 2 capo'd scores; it does not block this, because `node > fret`
+holds under either convention and only the literal numbers differ.
 
 ## Recovering a node from a source that records only a fret
 

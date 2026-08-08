@@ -122,7 +122,7 @@ struct HighwayNoteView
 
     Mirrors `ChartNote::harmonic_node`, carrying the chart's exact node point (the 3.2 / 2.7 / 5.8 family)
     so the highway places the harmonic head at the true node instead of the fret middle. Ask
-    `fretboardHarmonicNode` before anchoring to it and `isHarmonic` to ask whether the note is
+    `anchorNode` before anchoring to it and `isHarmonic` to ask whether the note is
     one at all — a pinch is a harmonic whose node may be unrecorded, and is drawn at its fret
     because the thumb grazes over the body.
     */

@@ -194,22 +194,17 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                     "harmonic node position is out of range at " + positionText(note.position),
             }};
         }
-        // A pinch's node must lie beyond its stop — nothing vibrates behind the fretting finger, so
-        // a thumb cannot graze there. Guitar Pro violates this in 18 of 56 pinches because its
-        // HarmonicFret is a partial *label* rather than a position (a pinch fretted at 9 naming
-        // "2.7"), so import converts the label to `fret + offset`; this catches a regression.
-        //
-        // Scoped to a pinch on purpose. The same test cannot be applied to a NATURAL harmonic until
-        // it is settled what `fret` means for one: Guitar Pro puts the touched position there
-        // (Fret 12, HarmonicFret 12.0), which makes node == fret rather than greater, and fret-hand
-        // position generation depends on it being there because the hand really is at the 12th.
-        if (note.attack == NoteAttack::Pinch && note.harmonic_node.has_value() &&
-            *note.harmonic_node <= static_cast<double>(note.fret))
+        // A node lies on the speaking length, so it cannot sit at or behind the stop — nothing
+        // vibrates there. Universal now that a natural harmonic's `fret` is its actual stop (the nut,
+        // or the capo) rather than a rounded copy of its own node; while it was the latter this rule
+        // could not be written at all, because Guitar Pro rounds that fret to an integer and 9 of 109
+        // naturals ended up with a node just below it.
+        if (note.harmonic_node.has_value() && *note.harmonic_node <= static_cast<double>(note.fret))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNote,
-                .message = "pinch harmonic node must lie beyond the fretted position at " +
-                           positionText(note.position),
+                .message =
+                    "harmonic node must lie beyond the stop at " + positionText(note.position),
             }};
         }
         // A pinch is picking while damping a node, so a pinch without one is missing data rather
