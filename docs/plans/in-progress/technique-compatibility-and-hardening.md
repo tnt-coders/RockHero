@@ -74,6 +74,13 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E8** | `Full` mute excludes `harmonic` | A full mute sounds no pitch; a harmonic *is* a pitch, so they contradict by definition. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so full mute never has to stretch to cover it, and that case is Q1 instead. |
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
 | **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
+| **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
+
+**The full-mute row reduces to one sentence.** A full mute sounds no pitch, so it excludes everything
+**pitch-valued** — `harmonic` (E8), `bend` (E10), `vibrato` (E11) — and allows everything
+**position-valued** — `slides` and `slide_out` (E10). That is a cleaner rule than the five-way bundle
+H4 attempted, and it generalizes: the question to ask of any future payload is whether it names a
+pitch or a place.
 
 **E3 is the one that started this**, and it is worth stating what it costs: pressing the pinch verb
 on a tapped note must refuse or clear the tap, and pressing `T` on a pinch harmonic must clear the
@@ -88,6 +95,18 @@ never to author an invalid state.
 | **H2** | `Natural` harmonic does **not** require `Pick` | A tapped harmonic — tapping directly over the node — is a real technique, so `Tap` + `Natural` is playable. This is the asymmetry with E3 and the reason the two harmonic kinds cannot share one rule. |
 | **H3** | `accent` is compatible with everything | It is dynamics, orthogonal to how the note is produced. |
 | ~~**H4**~~ | **SUPERSEDED.** It bundled five cells under one "no pitch" argument and got two wrong. Settled instead as: `harmonic` excluded (E8), `bend` excluded (E10), `slides` and `slide_out` **allowed** (E10 — positions, not pitches), `vibrato` still open as Q4. The lesson is that "no pitch" separates *pitch-valued* payloads from *position-valued* ones rather than excluding everything. |
+
+## Possible, but deliberately unsupported for now
+
+A third disposition beside "impossible, forbid" and "pointless but coherent, allow": combinations that
+**can** be executed but are so rare that supporting them costs more than it returns. The user's rule
+for these (2026-08-07): keep them forbidden for now, allow one **only if it is easy**, and otherwise
+revisit the whole group together.
+
+| Combination | Why deferred rather than forbidden |
+|---|---|
+| **Pinch on a natural harmonic** | User: *"TECHNICALLY possible... But so rare I have literally never seen it."* Already impossible by construction, since `harmonic` is a single enum — so the single-kind shape **is** the enforcement, and a future design wanting it would need a second harmonic entry with its own node. Do not "fix" that into a set without meaning to. |
+| **`accent` on a scrape** | Same category (user, 2026-08-07). Currently forbidden by E2. **Checked whether it is easy: it is not.** Removing `accent` from the rule is a one-token change, but it activates the accent-glow path on a plectrum head, and that path was measured during the ALT H work: the glow's fade band clears the plectrum by **0.331 px** at note height 25 where it clears the disc by **1.560**, because the plectrum's widest point is a diagonal shoulder reaching 0.547 of the head against the disc's 0.500. The fix is `glow_size`, which the **round head shares** — so allowing accent means touching every accented note's glow. Deferred with pinch-on-natural. |
 
 ## Open — needs the user's call
 
@@ -109,7 +128,8 @@ Grouped so they can be answered in passes rather than one at a time.
   the slide is concrete: Van Halen dragging a muted hand up and down under heavy phaser, which
   full-mute-plus-slide is the natural way to represent. `slide_out` follows `slides` for the same
   reason — it is a position too.
-- **Q4** `Full` + `vibrato` — anything to vary?
+- ~~**Q4** `Full` + `vibrato`~~ — **DISALLOWED** (user, 2026-08-07: "Full mute vibrato makes no
+  sense"). See E11 — it completes the full-mute row into one principle.
 
 **Harmonics against articulation.**
 
