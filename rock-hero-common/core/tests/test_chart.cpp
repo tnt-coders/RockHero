@@ -86,7 +86,9 @@ namespace
             .fret = 5,
             .sustain = Fraction{1},
             .attack = NoteAttack::Pinch,
-            .harmonic_node = 3.2,
+            // Beyond the stop at fret 5, because nothing vibrates behind the fretting finger: this
+            // is the octave node of the stopped string (5 + 12), the commonest pinch target.
+            .harmonic_node = 17.0,
             .tremolo = true,
             .accent = true,
             .bend = {},
@@ -222,6 +224,47 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
 
 // The harmonic has no field of its own: a node asserts one and the attack says which hand damps
 // it. These are the states that shape makes reachable, and the one it makes unreachable.
+// Notation writes conventional labels, not measurements, so import snaps them onto the physics: a
+// label even slightly off chokes a high harmonic instead of ringing it.
+TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
+{
+    // The nut-side offsets guitarists name, against the labels notation prints for them.
+    REQUIRE(harmonicPartialOffset(2).has_value());
+    if (const auto octave = harmonicPartialOffset(2); octave.has_value())
+    {
+        CHECK(*octave == Catch::Approx(12.0));
+    }
+    if (const auto sixth = harmonicPartialOffset(6); sixth.has_value())
+    {
+        CHECK(*sixth == Catch::Approx(3.1564).margin(0.001)); // printed "3.2"
+    }
+    if (const auto eighth = harmonicPartialOffset(8); eighth.has_value())
+    {
+        CHECK(*eighth == Catch::Approx(2.3124).margin(0.001)); // printed "2.4" or "2.3"
+    }
+    // The fundamental has no node.
+    CHECK_FALSE(harmonicPartialOffset(1).has_value());
+
+    // Fret units are logarithmic, so a stop and a node offset simply add: the same offsets serve
+    // every fretted position.
+    CHECK(snapHarmonicNode(12.0, 0, g_max_snapped_partial) == Catch::Approx(12.0));
+    CHECK(snapHarmonicNode(17.0, 5, g_max_snapped_partial) == Catch::Approx(17.0));
+
+    // Conventional labels resolve to the partial the score meant, not to whatever node happens to
+    // sit nearest. This is the guard on g_max_snapped_partial: at a cap of 16 the "2.4" below
+    // resolves to the 15th partial instead of the 8th, because the nodes crowd tighter than the
+    // label's own rounding error.
+    CHECK(snapHarmonicNode(2.4, 0, g_max_snapped_partial) == Catch::Approx(2.3124).margin(0.001));
+    CHECK(snapHarmonicNode(2.7, 0, g_max_snapped_partial) == Catch::Approx(2.6687).margin(0.001));
+    CHECK(snapHarmonicNode(4.0, 0, g_max_snapped_partial) == Catch::Approx(3.8631).margin(0.001));
+    // Bridge-side nodes are named too: 19 and 24 are the 3rd and 4th partials' later nodes.
+    CHECK(snapHarmonicNode(19.0, 0, g_max_snapped_partial) == Catch::Approx(19.0196).margin(0.001));
+    CHECK(snapHarmonicNode(24.0, 0, g_max_snapped_partial) == Catch::Approx(24.0));
+
+    // A cap below 2 has no partials to search, so it yields the octave rather than nothing.
+    CHECK(snapHarmonicNode(3.2, 0, 1) == Catch::Approx(12.0));
+}
+
 TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();

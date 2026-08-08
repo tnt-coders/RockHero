@@ -2036,34 +2036,36 @@ void resolveSlideOutExits(
 
         if (!source.harmonic_type.empty())
         {
+            // Guitar Pro's HarmonicFret means two different things, measured across a 118-file
+            // corpus. For a NATURAL harmonic it is the node itself: the note's Fret already carries
+            // the touched position and HarmonicFret refines it, so HarmonicFret - Fret clusters at
+            // zero. For a FRETTED harmonic (pinch, artificial) it is instead a *partial label*
+            // spelled as the familiar open-string position — HarmonicFret - Fret is scattered, and
+            // 18 of 56 pinches name a position BELOW their own fret, which no thumb can reach. Since
+            // fret positions are logarithmic the real node is just fret + the label's offset.
+            //
+            // Either way the notated value is snapped to the true node, because a label that is even
+            // slightly off chokes a high harmonic instead of ringing it, and sources round them
+            // inconsistently (the 7th is "2.7" here and "2.8" elsewhere against a true 2.669).
+            const bool fretted_harmonic =
+                source.harmonic_type == "Pinch" || source.harmonic_type == "Artificial";
             if (source.harmonic_type == "Pinch")
             {
                 note.attack = NoteAttack::Pinch;
-                if (source.harmonic_fret.has_value())
-                {
-                    note.harmonic_node = source.harmonic_fret;
-                }
-                else
-                {
-                    // Unreached in practice: every one of the 207 harmonics in a 118-file corpus
-                    // carried a HarmonicFret, pinches included. But a pinch damps a node by
-                    // definition, so chart_rules refuses one without it, and inventing a node would
-                    // invent a pitch. Drop the harmonic and say so rather than guess.
-                    note.attack = NoteAttack::Pick;
-                    notes.emplace_back(
-                        "a pinch harmonic carried no harmonic fret; imported as a plain pick");
-                }
             }
-            else
-            {
-                // The node IS the harmonic now, so it must always be set — the old code stored it
-                // only when it differed from the fret, which under this shape would import the
-                // note as unharmonic. Falling back to the fret also removes the double encoding
-                // where an absent node silently meant "the fret itself" and drew half a fret off.
-                note.harmonic_node = source.harmonic_fret.has_value()
-                                         ? *source.harmonic_fret
-                                         : static_cast<double>(source.fret);
-            }
+            // A natural harmonic's value is already an absolute open-string node; a fretted
+            // harmonic's is an offset from its own fret. With no value at all, a natural falls back
+            // to the note's own fret (which for one IS the touched position), while a fretted
+            // harmonic falls back to the octave offset — the 2nd partial, the lowest-order harmonic
+            // available at any fret and so the easiest to ring. Using the *fret* as a fallback label
+            // there would read a stop as a partial number, which means nothing.
+            const int stop_fret = fretted_harmonic ? source.fret : 0;
+            const double fallback = fretted_harmonic ? 12.0 : static_cast<double>(source.fret);
+            const double notated = source.harmonic_fret.value_or(fallback);
+            note.harmonic_node = common::core::snapHarmonicNode(
+                notated + static_cast<double>(stop_fret),
+                stop_fret,
+                common::core::g_max_snapped_partial);
         }
 
         if (source.bend.has_value())
