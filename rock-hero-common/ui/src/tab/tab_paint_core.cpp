@@ -287,31 +287,151 @@ void drawNoteTail(
     }
 }
 
+// The note-head silhouettes. The shape carries what KIND of note this is; it never carries which
+// hand produced it, which is what a present mark's DARKNESS says instead. So the plectrum names a
+// pick scrape while the head itself keeps the ordinary string colors, and only the beside-head
+// chip goes dark.
+enum class HeadShape
+{
+    Round,
+    Diamond,
+    Plectrum
+};
+
+// Picks the silhouette naming this note's kind. The harmonic diamond takes precedence over the
+// scrape's plectrum only so the mapping is total: the chart rules reject a pick-slide note that
+// carries any other technique, harmonics included, so no note can ask for both.
+[[nodiscard]] HeadShape headShapeFor(const common::core::TabNoteView& note)
+{
+    if (note.harmonic != common::core::NoteHarmonic::None)
+    {
+        return HeadShape::Diamond;
+    }
+    if (note.attack == common::core::NoteAttack::PickSlide)
+    {
+        return HeadShape::Plectrum;
+    }
+    return HeadShape::Round;
+}
+
+// Half of the plectrum silhouette, measured off the pick-slide cell of the shipped note atlas
+// (cell 9, g_head_cell_pick_slide) at its 0.5-coverage line — the same level the atlas's own
+// fracture is pinned to — in units of the head's extent, with the silhouette's box center at the
+// origin.
+//
+// Only the RIGHT half is stored, as the chain from the blunt top edge's right corner down to the
+// tip. The art is mirror-symmetric to the last measured sample (every boundary sample's mirror
+// lands on another sample, worst distance 0.000000 px), so mirroring this chain at draw time makes
+// the two sides exact by construction instead of asking two authored halves to agree.
+//
+// The x values carry the aspect. The cell measures 31.000 x 32.997 px at that level, so scaling
+// BOTH axes by the extent fits the silhouette's HEIGHT to the extent and leaves its width at
+// 0.9395 of it, the art's own proportion. The head therefore stands exactly as tall as the round
+// head it replaces and 6% narrower, which leaves the lane's vertical collision budget alone.
+//
+// A rounded triangle is not a substitute for the table: the silhouette keeps widening for nine
+// rows below its topmost ink, and its widest row sits 0.1515 of the height ABOVE the box center,
+// so its mass is upper-heavy in a way no three-corner rounded triangle reproduces. Sixteen points
+// hold the measured outline to 0.0898 px at a 25 px note height and 0.0449 px at 12.
+constexpr std::array<juce::Point<float>, 16> g_plectrum_half_outline{
+    juce::Point<float>{0.03031f, -0.50000f}, // the blunt top edge's right corner
+    juce::Point<float>{0.12122f, -0.49511f},
+    juce::Point<float>{0.24245f, -0.46738f},
+    juce::Point<float>{0.33336f, -0.43214f},
+    juce::Point<float>{0.36367f, -0.40898f},
+    juce::Point<float>{0.43366f, -0.33332f},
+    juce::Point<float>{0.46071f, -0.27271f},
+    juce::Point<float>{0.46821f, -0.24240f},
+    juce::Point<float>{0.46974f, -0.15148f}, // widest row
+    juce::Point<float>{0.46054f, -0.09087f},
+    juce::Point<float>{0.40451f, 0.03035f},
+    juce::Point<float>{0.31390f, 0.18188f},
+    juce::Point<float>{0.25008f, 0.27280f},
+    juce::Point<float>{0.08321f, 0.45463f},
+    juce::Point<float>{0.03031f, 0.49559f},
+    juce::Point<float>{0.00000f, 0.50000f}, // the tip, on the mirror axis
+};
+
+// Builds the plectrum outline as a closed path at one extent: down the measured right half from
+// the top edge's right corner to the tip, then back up its mirror image, so the two sides cannot
+// disagree. The tip is shared and closing the path draws the blunt top edge between the two top
+// corners, for 31 vertices in all.
+//
+// An extent at or below zero yields an empty path. Scaling this outline by a negative extent would
+// not shrink it, it would turn the plectrum upside down, because the silhouette is not centrally
+// symmetric — unlike the disc and the diamond, which a negative extent merely mirrors onto
+// themselves. Small lanes reach that: the innermost layer's extent is size - 4 * border, which
+// goes negative once the head is under 5 px.
+[[nodiscard]] juce::Path plectrumPath(float center_x, float center_y, float extent)
+{
+    juce::Path shape;
+    if (extent <= 0.0f)
+    {
+        return shape;
+    }
+
+    const auto vertex = [&](const juce::Point<float>& outline_point, float x_sign) {
+        return juce::Point<float>{
+            center_x + (x_sign * outline_point.x * extent), center_y + (outline_point.y * extent)
+        };
+    };
+
+    shape.startNewSubPath(vertex(g_plectrum_half_outline.front(), 1.0f));
+    for (std::size_t i = 1; i < g_plectrum_half_outline.size(); ++i)
+    {
+        shape.lineTo(vertex(g_plectrum_half_outline[i], 1.0f));
+    }
+    // Back up the mirrored side, skipping the tip the two halves share.
+    for (std::size_t i = g_plectrum_half_outline.size() - 1; i-- > 0;)
+    {
+        shape.lineTo(vertex(g_plectrum_half_outline[i], -1.0f));
+    }
+    shape.closeSubPath();
+    return shape;
+}
+
 // Fills Charter's layered note-head shape: a dark outer ring, a bright string-colored ring, and
 // a colored center (dimmed for normal heads, doubly dimmed for linked heads). Harmonic notes use
-// the diamond silhouette of the same layers.
+// the diamond silhouette of the same layers, pick scrapes the plectrum's.
+//
+// The layers are concentric by SCALE rather than by a true offset, so the visible ring between two
+// of them is `border` wide only where the outline faces the center squarely. Its tightest
+// perpendicular gap is 2 * border * (the shape's smallest center-to-edge distance, in units of its
+// height): 1.0000 * border for the disc, 0.7228 for the plectrum, 0.7071 for the diamond already
+// shipping beside it. The plectrum's rings are therefore the family's middle case, 1.0222x the
+// diamond's — 1.2529 px against 1.2257 px at a 25 px note height.
 void fillHeadShape(
     juce::Graphics& g, juce::Colour border_inner, juce::Colour inner, float center_x,
-    float center_y, float size, bool diamond)
+    float center_y, float size, HeadShape shape)
 {
     const float border = std::max(1.0f, size / 15.0f);
 
     const auto layer = [&](float inset, juce::Colour color) {
         const float extent = size - 2.0f * inset;
         g.setColour(color);
-        if (diamond)
+        switch (shape)
         {
-            juce::Path shape;
-            shape.startNewSubPath(center_x, center_y - extent / 2.0f);
-            shape.lineTo(center_x + extent / 2.0f, center_y);
-            shape.lineTo(center_x, center_y + extent / 2.0f);
-            shape.lineTo(center_x - extent / 2.0f, center_y);
-            shape.closeSubPath();
-            g.fillPath(shape);
-        }
-        else
-        {
-            g.fillEllipse(center_x - extent / 2.0f, center_y - extent / 2.0f, extent, extent);
+            case HeadShape::Diamond:
+            {
+                juce::Path diamond;
+                diamond.startNewSubPath(center_x, center_y - extent / 2.0f);
+                diamond.lineTo(center_x + extent / 2.0f, center_y);
+                diamond.lineTo(center_x, center_y + extent / 2.0f);
+                diamond.lineTo(center_x - extent / 2.0f, center_y);
+                diamond.closeSubPath();
+                g.fillPath(diamond);
+                break;
+            }
+            case HeadShape::Plectrum:
+            {
+                g.fillPath(plectrumPath(center_x, center_y, extent));
+                break;
+            }
+            case HeadShape::Round:
+            {
+                g.fillEllipse(center_x - extent / 2.0f, center_y - extent / 2.0f, extent, extent);
+                break;
+            }
         }
     };
 
@@ -394,7 +514,8 @@ void drawSlideWaypointHeads(
 
         const float x = metrics.x(waypoint.seconds);
         const float size = metrics.note_height + 1.0f;
-        fillHeadShape(g, style.border_inner, style.linked_inner, x, center_y, size, false);
+        fillHeadShape(
+            g, style.border_inner, style.linked_inner, x, center_y, size, HeadShape::Round);
         if (metrics.draw_text)
         {
             g.setColour(juce::Colours::white);
@@ -457,25 +578,34 @@ void drawBendLines(
 }
 
 // Draws Charter's accent glow behind the head: a soft ring fading out just past the head edge.
+//
+// The plectrum shares the disc's radial fade rather than getting its own outline pass, and the
+// mapping is stated rather than left to a default even though the chart rules make it unreachable
+// (an accent is one of the techniques a pick-slide note may not carry). It is the right fallback
+// but not a free one: the fade band opens at 0.560 of the head and the plectrum's upper shoulder
+// reaches 0.547 — farther out than the disc's own 0.500 rim, because that shoulder sits diagonally
+// — so the band would clear the silhouette by 0.331 px at a 25 px note height where it clears the
+// disc by 1.560. Widening it means raising glow_size (1.52 would restore the disc's clearance),
+// which the round head shares, so it stays as it is until an accented scrape is legal.
 void drawAccentGlow(
     juce::Graphics& g, const StringStyle& style, float center_x, float center_y, float size,
-    bool diamond)
+    HeadShape shape)
 {
     const float glow_size = size * 1.4f;
-    if (diamond)
+    if (shape == HeadShape::Diamond)
     {
         // Concentric fading diamond outlines approximate Charter's diamond-distance fade.
         for (int ring = 0; ring < 4; ++ring)
         {
             const float extent = glow_size * (0.8f + 0.05f * static_cast<float>(ring));
-            juce::Path shape;
-            shape.startNewSubPath(center_x, center_y - extent / 2.0f);
-            shape.lineTo(center_x + extent / 2.0f, center_y);
-            shape.lineTo(center_x, center_y + extent / 2.0f);
-            shape.lineTo(center_x - extent / 2.0f, center_y);
-            shape.closeSubPath();
+            juce::Path outline;
+            outline.startNewSubPath(center_x, center_y - extent / 2.0f);
+            outline.lineTo(center_x + extent / 2.0f, center_y);
+            outline.lineTo(center_x, center_y + extent / 2.0f);
+            outline.lineTo(center_x - extent / 2.0f, center_y);
+            outline.closeSubPath();
             g.setColour(style.accent.withAlpha(1.0f - 0.25f * static_cast<float>(ring)));
-            g.strokePath(shape, juce::PathStrokeType{glow_size * 0.05f});
+            g.strokePath(outline, juce::PathStrokeType{glow_size * 0.05f});
         }
         return;
     }
@@ -665,8 +795,12 @@ constexpr float g_chip_letter_clearance = 1.0f;
 // says what the attack IS: a triangle means legato — the note is not re-attacked — so it needs
 // no letter, only a direction (down for a hammer-on, up for a pull-off). Everything that IS
 // re-attacked by the picking hand wears a lettered plate carrying the letter printed tab
-// already uses (T, S, P), so those three share one silhouette and the letter names them. The
-// pick slide is neither: it is a gesture over the whole note, and it sits above the head.
+// already uses (T, S, P), so those three share one silhouette and the letter names them. The pick
+// slide takes the same plate in the same slot, just two letters wide.
+//
+// Its chip is deliberately redundant with the plectrum head under it: both say "pick scrape". The
+// slot cannot be contested — `attack` is a single field and the chart rules forbid a scrape any
+// other technique — so the pair can only ever agree, and saying it twice is what makes it plain.
 //
 // Every beside-head mark tucks into the head's UPPER-LEFT shoulder, and they all pin the same
 // point: the bottom-right corner of the mark's own box. Pinning a corner rather than a center
@@ -788,6 +922,17 @@ void drawAttackIcon(
     }
 }
 
+// How far the fret number rides above the string line on a plectrum head, as a fraction of the
+// head. The plectrum is upper-heavy — its widest row sits 0.1515 of the head above the box center
+// and it tapers to a tip below — so a digit centered on the line straddles the narrowing half. The
+// raise moves it onto the broad band, and the beside-head chip is what caps it: the chip's lower
+// edge sits 5.520 px above the line at a 25 px note height, and this is the largest raise that
+// still leaves the digit's ink all but clear of it.
+//
+// The number is NOT boxed here. A plate would answer a question the silhouette has already
+// answered, and the raise buys the same legibility from the art itself.
+constexpr float g_plectrum_digit_raise = 0.1154f;
+
 // Draws the complete note head stack in Charter's order: accent glow, layered head shape, the
 // pinch-harmonic edge line, mute icon, fret number, then the attack icon.
 void drawNoteHead(
@@ -797,14 +942,14 @@ void drawNoteHead(
     // Charter renders heads one pixel larger than the configured height so they get a center
     // pixel on the string line.
     const float size = metrics.note_height + 1.0f;
-    const bool diamond = note.harmonic != common::core::NoteHarmonic::None;
+    const HeadShape shape = headShapeFor(note);
 
     if (note.accent)
     {
-        drawAccentGlow(g, style, onset_x, center_y, size, diamond);
+        drawAccentGlow(g, style, onset_x, center_y, size, shape);
     }
 
-    fillHeadShape(g, style.border_inner, style.inner, onset_x, center_y, size, diamond);
+    fillHeadShape(g, style.border_inner, style.inner, onset_x, center_y, size, shape);
 
     if (note.harmonic == common::core::NoteHarmonic::Pinch)
     {
@@ -816,23 +961,22 @@ void drawNoteHead(
             });
     }
 
-    // A scrape wears the full-mute X, and the two marks answer two different questions: the X says
-    // this note sounds no pitch, which is literally true of a scrape (its fret is where the pick
-    // starts, not a stopped pitch), and the beside-head chip says which pitchless thing it is. The
-    // pair cannot be read as a MUTED scrape, because the chart rules reject a mute on a pick-slide
-    // note outright, so a scrape's own mute is always None and the X has only the one meaning.
-    const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
-    drawMuteIcon(g, metrics, scrape ? common::core::NoteMute::Full : note.mute, onset_x, center_y);
+    // The X reports this note's OWN mute state and nothing else. A scrape used to borrow the
+    // full-mute X to say "sounds no pitch", but the plectrum silhouette now says which kind of note
+    // this is, and a mark that means one thing on one note and another thing elsewhere is a mark
+    // the reader has to disambiguate. The chart rules reject a mute on a pick-slide note outright,
+    // so a scrape passes None here and draws no X at all.
+    drawMuteIcon(g, metrics, note.mute, onset_x, center_y);
 
     if (metrics.draw_text)
     {
         const juce::String fret_text{note.fret};
-        if (note.mute != common::core::NoteMute::None || scrape)
+        if (note.mute != common::core::NoteMute::None)
         {
             // Charter boxes the fret number on full mutes so it stays readable over the X;
             // palm mutes need the same plate (the X's crossing strokes cut through the digits),
             // in the palm X's own colors so it reads as the X's center.
-            const bool full_mute = note.mute == common::core::NoteMute::Full || scrape;
+            const bool full_mute = note.mute == common::core::NoteMute::Full;
             const auto text_width = static_cast<float>(textWidth(metrics.fret_font, fret_text));
             const juce::Rectangle<float> box{
                 onset_x - text_width / 2.0f - 2.0f,
@@ -845,11 +989,17 @@ void drawNoteHead(
             g.setColour(full_mute ? g_full_mute_text_border : g_mute_border_color);
             g.drawRect(box, 1.0f);
         }
+        // Only the plectrum moves its digit: the disc and the diamond are widest on the string
+        // line, so their numbers stay centered on it.
+        const float digit_raise =
+            shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
         g.setColour(juce::Colours::white);
         g.setFont(metrics.fret_font);
         g.drawText(
             fret_text,
-            juce::Rectangle<float>{onset_x - size, center_y - size, size * 2.0f, size * 2.0f},
+            juce::Rectangle<float>{
+                onset_x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
+            },
             juce::Justification::centred);
     }
 
