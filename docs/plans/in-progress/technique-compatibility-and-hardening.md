@@ -44,7 +44,8 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E4** | `Hammer` requires `fret > 0` | You cannot hammer onto, or left-hand tap, an open string. Not enforced today. |
 | **E5** | `Pull` requires a preceding note on the same string at a **higher** fret | Something must be released to sound it. **Relational** — see the ceiling below. |
 | **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-authoring-model.md`. **Relational.** |
-| **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
+| **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. || **E8** | `Full` mute excludes `harmonic` | A full mute sounds no pitch; a harmonic *is* a pitch, so they contradict by definition. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so full mute never has to stretch to cover it, and that case is Q1 instead. |
+| **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
 
 **E3 is the one that started this**, and it is worth stating what it costs: pressing the pinch verb
 on a tapped note must refuse or clear the tap, and pressing `T` on a pinch harmonic must clear the
@@ -74,15 +75,8 @@ Grouped so they can be answered in passes rather than one at a time.
 **Harmonics against articulation.**
 
 - **Q5** `Natural` + `Hammer` / `Pull` — hammering onto or pulling off to a node?
-- **Q6** `Natural` + `bend` / `vibrato` — **this is where E7 stops being simple, and an earlier draft of
-  this question was wrong.** E7's reasoning (a light touch cannot press, so the fretting hand cannot
-  modulate the pitch) would exclude bend and finger vibrato too. But a **whammy-bar** dive or vibrato
-  on a natural harmonic is a staple, not an exotic. Our format stores `bend` as a pitch curve and
-  `vibrato` as a bool, and **neither says whether the fretting hand or the bar produced it** — so
-  these cells depend on a distinction the format cannot currently make. Two ways out: allow both and
-  accept that the format under-specifies, or add the finger-versus-bar distinction (a format change,
-  and a real one, since Guitar Pro itself separates them — its `V` is left-hand vibrato and its `W`
-  family is the tremolo bar).
+- ~~**Q6** `Natural` + `bend` / `vibrato`~~ — **RESOLVED as E9**, and the whammy ambiguity that made it
+  hard dissolved rather than needing a ruling. See "Whammy is beat-scoped" below.
 - **Q7** `Slap` / `Pop` + `harmonic` — do bass slap harmonics belong in the model?
 
 **Bass techniques.**
@@ -95,6 +89,36 @@ Grouped so they can be answered in passes rather than one at a time.
 - **Q10** `Hammer` / `Pull` + `slides` — a legato slide is its own articulation; can a hammer-on also carry a slide path, or is that two claims about the same transition?
 - **Q11** `Tap` + `slide_out` — tapping into a trail-off?
 - **Q12** `tremolo` + `slides` / `bend` — a tremolo-picked bend is playable; a tremolo-picked slide?
+
+## Whammy is beat-scoped, which is why E9 needed no format change
+
+The finger-versus-bar problem looked like it blocked E9: our `bend` is a pitch curve that does not say
+whether the fretting hand or the whammy bar produced it, and a bar dive on a natural harmonic is a
+staple. It dissolves on **scope**, not on a ruling.
+
+Guitar Pro stores it as **`beat.whammy`** (`gp_score.h:157`, parsed from the `Whammy` /
+`WhammyExtend` elements at `gp_score_parser.cpp:545`) — *beat*-scoped, because a bar dive bends every
+sounding string at once. Our `bend` is *note*-scoped. So a dive was never going to be a note payload;
+modelling it as one would mean duplicating it across every ringing note. Therefore:
+
+- `bend` and `vibrato` are note fields the fretting hand produces → **incompatible with a natural
+  harmonic** (E9), with no ambiguity left to resolve.
+- a bar dive lives at beat scope → **there is no note cell for it to occupy**.
+
+**The whammy feature itself is deliberately NOT specced here** (user asked; answer was no, not yet).
+It is a whole feature — notation on both surfaces, detection of a continuously sliding pitch,
+scoring, and how a dive interacts with sustain — and belongs in its own roadmap plan rather than
+widening this one. What is recorded now is only the piece the *format* needs, because the restructure
+below is imminent and discovering later that whammy wants to be a note field would mean restructuring
+twice.
+
+**Already true today, worth knowing:** the importer sees whammy and drops it knowingly, reporting
+*"N whammy-bar beats were imported without their bar dives"* (`gp_chart_builder.cpp:2416`). So source
+charts in the corpus already carry data we discard — this is a recorded gap with a count attached,
+not future-proofing.
+
+**Tripwire:** if whammy is ever modelled as a **note** payload rather than beat-scoped, **E9 reopens**,
+because the finger-versus-bar distinction would then matter inside a note again.
 
 ## Hardening the format: what can become impossible, and the ceiling
 
