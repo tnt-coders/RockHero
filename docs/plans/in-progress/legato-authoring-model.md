@@ -236,13 +236,31 @@ precedent rather than later under pressure.
 
 The user wants Fable to analyze the pitfalls in depth. The questions worth putting to that review:
 
-1. Does A3 (stored intent, derived direction) actually satisfy both of the user's wishes, or does it
-   move the surprise somewhere else — for instance, a note whose *displayed* articulation changes
-   while its stored intent did not?
-2. Is there a fourth option neither of us saw, particularly one that avoids a format change?
-3. Does B collapse into A3, or are they genuinely independent?
-4. What breaks in the FHP generator, chord-span derivation and the 3D hand window if a left-hand tap
+**A4's own three questions, restated here so this list is complete** — these are the concerns raised
+against the leading candidate and the reason it is not simply implemented:
+
+1. **Undo consistency.** The attack change must ride the same undo entry as the edit that caused it
+   (precedent: 40-Q2-B's truncations already do). But undo restores chart data and **not** transient
+   editor state, so after undoing back past the invalidating edit, is the note recalculating again or
+   settled? A mismatch here is the likeliest source of a genuinely confusing bug, and it is the
+   concern to answer first.
+2. **What the user sees during the window.** Landing on `Pick` mid-sequence means the mark visibly
+   changes pull-off → plain → hammer-on. That may be desirable feedback — it shows the edit broke the
+   legato — or it may read as instability. A design call, not a detail.
+3. **What counts as a "selection change".** The marker model has several ways to move without a
+   conventional selection change: arming the caret elsewhere, a marquee, a plain seek, `Esc`'s ladder.
+   Each needs a yes or no, because each is a settle point.
+
+And the wider questions:
+
+4. Was A3 (stored intent) rejected for the right reason? The user's objection was the format change;
+   if the deep review finds A4 cannot be made undo-consistent, A3 returns as the fallback, so its
+   trade should be re-stated rather than forgotten.
+5. Is there a fifth option neither of us saw, particularly one that needs neither a format change nor
+   transient state?
+6. Does question B (the left-hand tap as its own concept) collapse into A4, or are they independent?
+7. What breaks in the FHP generator, chord-span derivation and the 3D hand window if a left-hand tap
    stops being a `Hammer`? The importer comment claims those behaviors ride on the hammer attack.
-5. Enumerate the invalidating edits exhaustively — the six known are delete, move-off-string,
+8. Enumerate the invalidating edits exhaustively — the six known are delete, move-off-string,
    retype-to-equal, retype-to-invert, move-earlier-than-source, and insert-between — and check
    whether any *other* verb in the family can invalidate a legato note as a side effect.
