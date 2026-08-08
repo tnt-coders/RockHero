@@ -105,18 +105,18 @@ enum class NoteAttack : std::uint8_t
 /*!
 \brief True when the note is a harmonic.
 
-A node asserts a harmonic on its own, because the node is what makes the note one. A `Pinch`
-attack is a harmonic whether or not its node is known, so both halves are needed: absent on a
-pinch means unrecorded, not unharmonic.
+Node presence is the whole test. A node is what makes a note a harmonic, and **every** harmonic has
+one, a pinch included — the overtone that squeals is *determined* by where the thumb lands, so an
+absent node is missing data rather than a different technique. `chart_rules` refuses a `Pinch`
+carrying no node for exactly that reason, which is what lets this ask one question.
 
-\param node Harmonic node in fret units, absent when there is none to record.
-\param attack How the onset is produced.
+\param node Harmonic node in fret units.
 
 \return True when the note sounds a harmonic.
 */
-[[nodiscard]] constexpr bool isHarmonic(const std::optional<double>& node, const NoteAttack attack)
+[[nodiscard]] constexpr bool isHarmonic(const std::optional<double>& node)
 {
-    return node.has_value() || attack == NoteAttack::Pinch;
+    return node.has_value();
 }
 
 /*!
@@ -281,9 +281,10 @@ struct ChartNote
     `fretboardHarmonicNode` rather than testing the attack directly. On a pinch the value is where
     the picking hand grazes, which no surface shows yet (roadmap 25-Q5).
 
-    Absent on a `Pinch` means the node is simply unknown, not that the note is unharmonic — the
-    picking hand catches whichever node falls under it, so neither players nor Guitar Pro's
-    `HarmonicFret` reliably record which. Use `isHarmonic` for the "is it a harmonic" question.
+**Every** harmonic has one, a pinch included: the overtone that squeals is *determined* by where
+    the thumb lands, so there is always a node even though a player does not consciously aim for it.
+    `chart_rules` refuses a `Pinch` carrying none. Guitar Pro always supplies it — measured across a
+    118-file corpus, all 207 harmonics carried an `HarmonicFret`, pinches included.
     */
     std::optional<double> harmonic_node{};
 

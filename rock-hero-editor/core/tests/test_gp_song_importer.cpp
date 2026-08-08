@@ -1319,7 +1319,7 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         {
             CHECK(*note.harmonic_node == Catch::Approx(12.0));
         }
-        CHECK(common::core::isHarmonic(note.harmonic_node, note.attack));
+        CHECK(common::core::isHarmonic(note.harmonic_node));
     }
 
     SECTION("a missing node falls back to the fret rather than leaving the note unharmonic")
@@ -1331,18 +1331,47 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         {
             CHECK(*note.harmonic_node == Catch::Approx(7.0));
         }
-        CHECK(common::core::isHarmonic(note.harmonic_node, note.attack));
+        CHECK(common::core::isHarmonic(note.harmonic_node));
     }
 
-    SECTION("a pinch becomes the attack and may legitimately carry no node")
+    SECTION("a pinch becomes the attack and carries the node Guitar Pro recorded")
     {
-        const common::core::ChartNote note =
-            importNote(GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch"});
+        // Measured: all 207 harmonics across a 118-file corpus carry a HarmonicFret, pinches
+        // included. 24.0 is a real observed value — the 4th partial's bridge-side node, past the
+        // neck where a thumb actually grazes.
+        const common::core::ChartNote note = importNote(
+            GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch", .harmonic_fret = 24.0});
         CHECK(note.attack == common::core::NoteAttack::Pinch);
-        CHECK_FALSE(note.harmonic_node.has_value());
-        CHECK(common::core::isHarmonic(note.harmonic_node, note.attack));
+        REQUIRE(note.harmonic_node.has_value());
+        if (note.harmonic_node.has_value())
+        {
+            CHECK(*note.harmonic_node == Catch::Approx(24.0));
+        }
+        CHECK(common::core::isHarmonic(note.harmonic_node));
+        // Off the neck, so no 2D/3D anchor comes from it.
         CHECK_FALSE(
             common::core::fretboardHarmonicNode(note.harmonic_node, note.attack).has_value());
+    }
+
+    SECTION("a pinch Guitar Pro left without a fret degrades to a plain pick, loudly")
+    {
+        // Unreached against real scores, but a pinch cannot be represented without its node, and
+        // inventing one would invent a pitch.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{GpBeat{
+                    .duration_whole = Fraction{1, 4},
+                    .notes = {GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch"}}
+                }}}
+            });
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+        CHECK(anyNoteContains(built->notes, "pinch harmonic carried no harmonic fret"));
     }
 }
 

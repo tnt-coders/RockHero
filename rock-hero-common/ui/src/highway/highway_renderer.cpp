@@ -2155,7 +2155,7 @@ void HighwayRenderer::Impl::draw(
             has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
                         note.tremolo || !note.bend.empty() || !note.slides.empty();
             all_palm_muted = all_palm_muted && note.mute == common::core::NoteMute::Palm;
-            any_marks = any_marks || common::core::isHarmonic(note.harmonic_node, note.attack) ||
+            any_marks = any_marks || common::core::isHarmonic(note.harmonic_node) ||
                         note.attack != common::core::NoteAttack::Pick ||
                         note.mute != common::core::NoteMute::None;
         }

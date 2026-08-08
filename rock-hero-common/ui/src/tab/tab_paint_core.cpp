@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -303,7 +304,7 @@ enum class HeadShape
 // scrape are two values of one attack and the chart rules reject a scrape carrying a node.
 [[nodiscard]] HeadShape headShapeFor(const common::core::TabNoteView& note)
 {
-    if (common::core::isHarmonic(note.harmonic_node, note.attack))
+    if (common::core::isHarmonic(note.harmonic_node))
     {
         return HeadShape::Diamond;
     }
@@ -977,7 +978,7 @@ void drawNoteHead(
 
     if (metrics.draw_text)
     {
-        const juce::String fret_text{note.fret};
+        const juce::String fret_text = tabNoteHeadText(note);
         if (note.mute != common::core::NoteMute::None)
         {
             // Charter boxes the fret number on full mutes so it stays readable over the X;
@@ -1086,6 +1087,23 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 
 // Shared with host name chips (the editor timeline ruler's chord/arpeggio band) so chip and
 // rails always agree (brightness bumps over the Charter hand-shape bases).
+// Rationale lives on the declaration in tab_paint_core.h.
+juce::String tabNoteHeadText(const common::core::TabNoteView& note)
+{
+    const std::optional<double> node =
+        common::core::fretboardHarmonicNode(note.harmonic_node, note.attack);
+    if (!node.has_value())
+    {
+        return juce::String{note.fret};
+    }
+    juce::String text{*node, 1};
+    if (text.endsWith(".0"))
+    {
+        text = text.dropLastCharacters(2);
+    }
+    return text;
+}
+
 juce::Colour tabShapeMarkColor(bool arpeggio)
 {
     return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_brightness)

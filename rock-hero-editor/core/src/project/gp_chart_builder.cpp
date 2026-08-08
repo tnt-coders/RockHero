@@ -2038,12 +2038,21 @@ void resolveSlideOutExits(
         {
             if (source.harmonic_type == "Pinch")
             {
-                // A pinch is an attack now, and its node is whatever the thumb happened to catch —
-                // GP's HarmonicFret is a separate optional property, so it often is not recorded.
-                // Carry it when GP knows it and leave it absent when GP does not; the attack alone
-                // still says this is a harmonic.
                 note.attack = NoteAttack::Pinch;
-                note.harmonic_node = source.harmonic_fret;
+                if (source.harmonic_fret.has_value())
+                {
+                    note.harmonic_node = source.harmonic_fret;
+                }
+                else
+                {
+                    // Unreached in practice: every one of the 207 harmonics in a 118-file corpus
+                    // carried a HarmonicFret, pinches included. But a pinch damps a node by
+                    // definition, so chart_rules refuses one without it, and inventing a node would
+                    // invent a pitch. Drop the harmonic and say so rather than guess.
+                    note.attack = NoteAttack::Pick;
+                    notes.emplace_back(
+                        "a pinch harmonic carried no harmonic fret; imported as a plain pick");
+                }
             }
             else
             {

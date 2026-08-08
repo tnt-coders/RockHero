@@ -32,6 +32,45 @@ and validation agree on one authority.
 */
 inline constexpr int g_max_fret{30};
 
+/*!
+\brief Highest harmonic node position accepted, in fret units.
+
+**Not `g_max_fret`.** A fret must be a real position on the neck; a node is anywhere along the
+vibrating string, and the nodes a *pinch* uses sit past the neck entirely, over the pickups. Node
+positions in fret units are `12 * log2(n / (n - k))` for the harmonic's k-th node, so the bridge-side
+node climbs with the harmonic: the 3rd is at 19.02 and the 4th at 24.0 (both observed in real Guitar
+Pro scores), and the 12th reaches 43.02. Capping at `g_max_fret` would have rejected every
+bridge-side node from the 6th harmonic up.
+
+48 is `12 * log2(16)` exactly — the 16th harmonic's bridge-side node, chosen 2026-08-08 with roughly
+double the headroom anything human needs. Three independent lines put the practical ceiling near the
+**8th** partial:
+
+- **Ergonomics, the hard limit.** The nut-side node of the nth partial sits at exactly `L / n` from the
+  nut, so adjacent nodes are `L / (n(n+1))` apart. On a 647.7 mm scale that is 9.0 mm at the 8th and
+  7.2 mm at the 9th — already under a 10-15 mm fingertip — and 2.1 mm at the 17th, where one finger
+  blankets half a dozen nodes. No amount of gain defeats that.
+- **The literature.** Partials 2-5 are the easily audible ones; above them they are "nearly inaudible
+  without the overdrive of an amp", and the "stratospheric" band between frets 2 and 3 is partials 6-9.
+- **Real charts.** A 118-file Guitar Pro corpus reaches only about the 8th.
+
+Precision is not the constraint either: one decimal separates every distinct node through the **17th**
+harmonic without collision (it first fails at the 18th, where 0.990 and 1.050 both round to 1.0).
+
+Note this is a *distance-to-the-bridge* bound more than a partial bound — even capping at the 9th
+partial, its bridge-side node already sits at 38.0 fret units, so a generous number is required either
+way.
+
+Deliberately permissive: the bound's only job is refusing junk, and a tight one could only reject a
+legitimate chart — including a Guitar Pro import we do not author. Keeping the *picker* short is a
+separate UI concern; when harmonic authoring is built it should offer partials 2-8 (the nut-side nodes
+plus the named bridge-side ones: 7/19, 5/24, 4/9/16), not all 79 nodes this bound admits.
+
+There is no low bound beyond "positive": nodes below fret 1 are legitimate, since higher harmonics
+crowd toward the nut (the 16th harmonic's nearest node is 1.12).
+*/
+inline constexpr double g_max_harmonic_node{48.0};
+
 /*! \brief Stable chart validation failure kind. */
 enum class ChartErrorCode : std::uint8_t
 {
