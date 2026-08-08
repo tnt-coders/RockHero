@@ -1,10 +1,13 @@
 # Technique Compatibility Matrix, and Hardening the Format Against Invalid Combinations
 
-Status: **OPEN — matrix incomplete, awaiting the user's domain calls.** Started 2026-08-07 after the
-user observed that *"tap and pinch harmonic cannot be executed together"* and that nothing in the
-format or the rules prevents it. Their direction: *"establish this full matrix then re-analyze the
-save file format to see if it can be hardened even more to make invalid combinations impossible as
-much as it can."*
+Status: **REVIEWED 2026-08-08, awaiting the user's sign-off on the full matrix.** Started
+2026-08-07 after the user observed that *"tap and pinch harmonic cannot be executed together"* and
+that nothing in the format or the rules prevents it. Their direction: *"establish this full matrix
+then re-analyze the save file format to see it can be hardened even more to make invalid
+combinations impossible as much as it can."* A deep review pass (2026-08-08) closed the recording
+gaps, numbered the two enforced-but-unnumbered rules E20/E21, and surfaced the open question
+cluster in [What the review left open](#what-the-2026-08-08-review-left-open) — sign-off covers
+the rendered matrix plus those questions.
 
 **Order matters and is deliberate: the matrix settles first, the format second.** Restructuring the
 type on a guessed cell means restructuring it again when the cell flips.
@@ -61,12 +64,14 @@ defeats the technique, but the harmonic still sounds and the data still means so
 
 ## Established
 
-Each of these is either enforced in code today or physically unambiguous.
+Each of these is either enforced in code today or physically unambiguous. Rows written before the
+2026-08-08 collapse keep their original vocabulary: read `harmonic` as `harmonic_node`, and
+`Natural` as "a fret-hand harmonic — a node with a non-`Pinch` attack."
 
 | # | Rule | Source |
 |---|---|---|
 | ~~**E1**~~ | **HALF DELETED 2026-08-08.** The `harmonic != None` half is gone: with the field collapsed there is nothing for a node to disagree with, so the state cannot be built. Only the range check survives, on `harmonic_node`. | `chart_rules.cpp` |
-| **E2** | `PickSlide` excludes `mute`, `harmonic_node`, `vibrato`, `tremolo`, `accent`, `bend`, `slide_out`; and requires a `slides` path that keeps traveling and ends **exactly** at `sustain` | `chart_rules.cpp:289-320` |
+| **E2** | `PickSlide` excludes `mute`, `harmonic_node`, `vibrato`, `tremolo`, `accent`, `bend`, `slide_out`; and requires a `slides` path that keeps traveling and ends **exactly** at `sustain` | the `PickSlide` block in `chart_rules.cpp` |
 | ~~**E3**~~ | **UNVIOLATABLE 2026-08-08** — `Pinch` *is* an attack now, so it cannot be paired with a different one. Kept for the record: | Established 2026-08-07. A pinch harmonic is produced by the pick stroke with the thumb catching the string, so every attack that *replaces* the pick stroke — `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`, and the left-hand tap stored as `Hammer` — excludes it. `PickSlide` already excluded by E2. **Not enforced anywhere today.** |
 | **E4** | `Hammer` and `Tap` require a positive **sounding position** — `fret` for an ordinary note, `node` for a natural harmonic | You cannot hammer onto, or tap, an open string or the nut. **Amended 2026-08-07** from the original `fret > 0`, which rejected every tap harmonic (`fret == 0`, `node == 12`); see the accessor note below. Not enforced today. |
 | **E5** | `Pull` requires a preceding note on the same string at a **higher** fret | Something must be released to sound it. **Relational** — see the ceiling below. |
@@ -83,7 +88,9 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E16** | `vibrato` and `bend` **compose** | Q9. Bend up to pitch, then vibrato on the bent note — the blues-lead vocabulary entire. No data conflict either: `bend` is a path and `vibrato` oscillates around whatever the path is, so neither subsumes the other. |
 | **E17** | `attack` **allows** every slide payload — `Hammer`/`Pull` + `slides`, `Tap` + `slide_out` | Q10 and Q11, both **dissolved** rather than decided: `attack` names the onset and `slides`/`slide_out` name the sustain, so "hammered onto, then slid while ringing" is two moments, not two claims about one transition. See the separation below. |
 | **E18** | `tremolo` **allows** `slides` and `bend` | Q12. A tremolo-picked bend is ordinary and the rising tremolo-picked slide is a standard metal figure. Consistent with H1, which constrains the *onset* to a pick while tremolo describes the sustain. |
-| **E19** | A `Pull`'s predecessor cannot be a **natural harmonic** | User, 2026-08-07: *"Natural harmonic should be able to be followed by a hammer on, not a pull off. Pull off would be physically impossible."* The converse of E12 and a **separate cell**: E12 forbids pulling *into* a harmonic, this forbids pulling *from* one. The fretting hand is touching a node, not pressing, so nothing can be released. **Relational** — see the ceiling. A natural harmonic followed by a *hammer-on* is fine: the string is already ringing and a finger coming down stops it at a new pitch. |
+| **E19** | A `Pull`'s predecessor cannot be a **fret-hand harmonic** — and pull-from-a-**pinch** is explicitly ALLOWED | User, 2026-08-07: *"Natural harmonic should be able to be followed by a hammer on, not a pull off. Pull off would be physically impossible."* The converse of E12 and a **separate cell**: E12 forbids pulling *into* a harmonic, this forbids pulling *from* one. The fretting hand is touching a node, not pressing, so nothing can be released. A pinch's fretting hand *is* pressing a real fret, so pulling off from a pinch works — promoted to rule status by the 2026-08-08 review. **Relational** — see the ceiling. A natural harmonic followed by a *hammer-on* is fine: the string is already ringing and a finger coming down stops it at a new pitch. |
+| **E20** | `Pinch` **requires** `harmonic_node` | **Enforced** (`chart_rules.cpp`). A pinch is picking while damping a node — the overtone that squeals is determined by where the thumb lands — so one without a node is missing data. This is what lets node presence alone assert the harmonic. Numbered by the 2026-08-08 review; previously narrated but never a table row. |
+| **E21** | `harmonic_node > fret`, **strict** | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Universal because a natural harmonic's `fret` is its actual stop (nut or capo), never a rounded copy of its node. Numbered by the 2026-08-08 review. |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
 slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
@@ -104,23 +111,32 @@ fields that exist. **Keep `NoteHarmonic` two-valued.**
 
 Two consequences follow.
 
-**E4's precondition was stated on the wrong quantity.** It required `fret > 0` because a hammer needs
-somewhere to land — but a tap harmonic on an open string has `fret == 0` and `node == 12`, so the rule
-rejected the very technique E13 allows. The quantity it wants is the **sounding position**: where the
-striking finger meets the string, which is `fret` for an ordinary note and `node` for a natural
-harmonic. That is the branch already shipped in the renderer as `noteFretboardX`
-(`highway_renderer.cpp`, commit `d2fea3fb`), which anchors a natural harmonic's head and tail on its
-node. The rule and the render ask one question, so the branch belongs in core as one named accessor —
-roughly `soundingPosition(note)` returning `*note.touch` for a natural harmonic with a node and
-`note.fret` otherwise — with E4 reading `soundingPosition(note) > 0` and the renderer calling it.
-Fold this into the hardening pass; do not write the branch a third time.
+**E4's precondition was stated on the wrong quantity, and its enforcement needs no accessor.** It
+required `fret > 0` because a hammer needs somewhere to land — but a tap harmonic on an open string
+has `fret == 0` and `node == 12`, so the rule rejected the very technique E13 allows. The quantity
+it wants is the **sounding position**: where the striking finger meets the string. An earlier
+revision planned a `soundingPosition(note)` accessor shared with the renderer; the 2026-08-08
+review retired that plan, because the two consumers deliberately diverged into *different*
+questions — the renderer's `noteFretboardX` wants an x-coordinate (the exact node), while core's
+`fretFor` wants the hand's fret (`ceil` of the node, and `note.fret` for a `Tap` attack, whose node
+is the *other* hand's). Writing E4 on `fretFor` would reject the open-string tap harmonic all over
+again (`fretFor` returns 0 for it). The correct enforcement form is simply:
 
-**Do not apply that accessor to E5.** E5 tests that a `Pull`'s predecessor sits at a *higher fret*, and
-a natural harmonic has `fret == 0`, so E5 rejects one today — by accident. Reading E5 on
-`soundingPosition()` instead would make a harmonic at node 12 followed by a pull to fret 5 **pass**,
-since 12 > 5, silently allowing exactly what E19 forbids. The two rules ask different questions of the
-same number: a hammer needs somewhere to **land**, a pull needs something **pressed**, and a node is a
-place but not a press. E19 is the rule that has to carry it, not the accessor.
+```
+note.fret > 0 || note.harmonic_node.has_value()
+```
+
+— node positivity needs no separate test because the enforced range rule already guarantees
+`node > 0`. One caveat rides the capo: with `fret` meaning the stop, `fret == capo` *is* the capo'd
+open string, so E4 arguably wants `fret > capo`. That hangs on the unsettled frame convention for
+ordinary note frets (below), so it is recorded rather than decided.
+
+**Do not evaluate E5 on the sounding position.** E5 tests that a `Pull`'s predecessor sits at a
+*higher fret*. Reading it on the sounding position would make a harmonic at node 12 followed by a
+pull to fret 5 **pass**, since 12 > 5, silently allowing exactly what E19 forbids. The two rules
+ask different questions of the same number: a hammer needs somewhere to **land**, a pull needs
+something **pressed**, and a node is a place but not a press. E19 is the rule that has to carry
+it.
 
 **`Natural` is a misnomer for what the field means.** A harmonic's pitch comes from the ratio of
 node→bridge to fret→bridge, and fret positions are logarithmic, so the midpoint of a string stopped
@@ -171,10 +187,13 @@ axis while behaving like a payload.
 H4 attempted, and it generalizes: the question to ask of any future payload is whether it names a
 pitch or a place.
 
-**E3 is the one that started this**, and it is worth stating what it costs: pressing the pinch verb
-on a tapped note must refuse or clear the tap, and pressing `T` on a pinch harmonic must clear the
-pinch. Neither happens today, and neither can be left to validation if Phase 5 is to keep its promise
-never to author an invalid state.
+**E3 is the one that started this, and the collapse retired its verb problem** — attack is a single
+field now, so assigning one clears the other structurally. What replaced it is a different verb
+obligation, found by the 2026-08-08 review: the pinch verb must **author a node** (E20), and any
+verb that moves a pinch's attack *away* from `Pinch` must clear or re-ask the node — the stored
+value is an off-neck graze position, and under any other attack `nodeIsOnNeck` reads the same
+number as a fret-hand node, silently teleporting the hand (a node of 24.0 becomes "hand at fret
+24"). Neither guard exists today; both belong to the enforcement pass.
 
 ## High confidence, wants confirmation
 
@@ -194,7 +213,7 @@ revisit the whole group together.
 
 | Combination | Why deferred rather than forbidden |
 |---|---|
-| **Pinch on a natural harmonic** | User: *"TECHNICALLY possible... But so rare I have literally never seen it."* Already impossible by construction, since `harmonic` is a single enum — so the single-kind shape **is** the enforcement, and a future design wanting it would need a second harmonic entry with its own node. Do not "fix" that into a set without meaning to. |
+| **Pinch on a natural harmonic** | User: *"TECHNICALLY possible... But so rare I have literally never seen it."* Already impossible by construction: one note carries one `harmonic_node`, so a second, independently-damped node cannot be written — the single-node shape **is** the enforcement, and a future design wanting it would need a second node field. Do not "fix" that into a set without meaning to. |
 | **`accent` on a scrape** | Same category (user, 2026-08-07). Currently forbidden by E2. **Checked whether it is easy: it is not.** Removing `accent` from the rule is a one-token change, but it activates the accent-glow path on a plectrum head, and that path was measured during the ALT H work: the glow's fade band clears the plectrum by **0.331 px** at note height 25 where it clears the disc by **1.560**, because the plectrum's widest point is a diagonal shoulder reaching 0.547 of the head against the disc's 0.500. The fix is `glow_size`, which the **round head shares** — so allowing accent means touching every accented note's glow. Deferred with pinch-on-natural. |
 
 ## Resolution log — Q1–Q12, all closed 2026-08-07
@@ -228,6 +247,9 @@ produced live in Established above, and this is where to look when one of them s
   harmonic (E12); `Hammer` and `Tap` **allowed** on `Natural`, where that pairing *is* the tap
   harmonic (E13, promoting H2). `Hammer` on `Pinch` was already E3. Amends E4, whose `fret > 0` test
   rejected every tap harmonic, and retires the third-`Kind` plan. Two consequences below.
+- ~~**Q6** `Natural` + `bend`~~ — **ANSWERED 2026-08-07, absorbed into E9** (the user forbade bend
+  *and* vibrato on a natural in one ruling). The row was lost when the log was restructured; restored
+  by the 2026-08-08 review so the numbering has no silent hole.
 - ~~**Q7**–**Q12**~~ — **ALL ANSWERED 2026-08-07 by the criterion itself**, no ruling needed: every one
   is executable, and five of the six are *staples* whose forbidding would make real charts
   unrepresentable. Recorded as E14–E18. Two of them dissolved rather than resolved — see the onset /
@@ -257,12 +279,151 @@ below is imminent and discovering later that whammy wants to be a note field wou
 twice.
 
 **Already true today, worth knowing:** the importer sees whammy and drops it knowingly, reporting
-*"N whammy-bar beats were imported without their bar dives"* (`gp_chart_builder.cpp:2416`). So source
-charts in the corpus already carry data we discard — this is a recorded gap with a count attached,
-not future-proofing.
+*"N whammy-bar beats were imported without their bar dives"* (the whammy diagnostic at the end of
+`gp_chart_builder.cpp`). So source charts in the corpus already carry data we discard — this is a
+recorded gap with a count attached, not future-proofing.
 
 **Tripwire:** if whammy is ever modelled as a **note** payload rather than beat-scoped, **E9 reopens**,
 because the finger-versus-bar distinction would then matter inside a note again.
+
+## What the 2026-08-08 review left open
+
+The deep-review pass swept the full cross-product and closed every recording gap it could close
+from the settled criterion alone (see the rendered matrix below). What it could NOT close is one
+question cluster, plus a handful of newly recorded default-allow cells the sign-off should glance
+at:
+
+**The fretted-harmonic cluster — the one real design question.** The model now represents a
+harmonic over a *real* stop with the fretting hand pressing: the tap harmonic (`Tap` + fret 5 +
+node 17) is settled, but the same shape with `Pick` — the **harp harmonic**, and Guitar Pro's
+**artificial harmonic** (A.H.), where the picking hand's finger rests on the node while the thumb
+or pick strikes — collides with three things at once:
+
+1. **`fretFor` misplaces it.** For any non-`Pinch`, non-`Tap` attack with a node, `fretFor` puts
+   the fretting hand at `ceil(node)` — right for a natural, wrong for an A.H./harp harmonic, whose
+   fretting hand is at the *stop* while the *picking* hand touches the node. Every A.H. the GP
+   importer carries today drives the hand window ~12 frets too high.
+2. **E7/E9/E19 are keyed too broadly.** Their shared physics is "the fretting hand touches a node,
+   not a press — so nothing can slide, bend, oscillate, or be released." True when the stop is the
+   nut/capo; false for a harmonic over a real stop, where the fretting hand *is* pressing
+   (tap-harmonic-then-bend is a real figure). Keying them on "attack != Pinch" forbids executable
+   music.
+3. **A possible rule fixes both.** If a fret-hand harmonic's `fret` must be the string's floor
+   (0/capo) — which the user's own settlement wording implies — then "fret > floor + node present +
+   non-Pinch attack" *means* picking-hand-damped-on-neck, `fretFor` can read the distinction from
+   data that exists, E7/E9/E19 key on "no real stop," and a second bound becomes principled:
+   `nodeIsOnNeck(attack) ⇒ node <= g_max_fret` (a finger on the fretboard cannot be past the last
+   fret — proposed as **E22**), which also removes the tail risk of a legal bridge-side node
+   deriving a hand fret past `g_max_fret` and failing whole-chart validation. **All one user call.**
+
+**The capo frame question, sharpened.** The capo-1 corpus score's natural-harmonic labels 7.0 and
+8.2 are both standard open-string-family labels (3rd partial 7.02; 8th partial's third node 8.14).
+Under the old "GP is capo-blind" reading they are junk; under a **capo-relative** reading they are
+exactly right relative to the capo-as-nut. The import formula `capo + snap(label)` is identical
+either way — but the evidence now leans capo-relative, which would mean GP's *ordinary* note frets
+are capo-relative too, and our import stores them unshifted. Whether RockHero's `fret` under a capo
+means nut-absolute or capo-relative is the decision (the natural-harmonic settlement's "fret = the
+capo" wording implies absolute); it gates the corpus re-import, and E4's `fret > 0` vs
+`fret > capo` question above rides on it.
+
+**Newly recorded cells, closed by the criterion, flagged for the glance:** Palm + Pinch (the
+palm-muted squeal — the single most common pinch context, previously resting on silent
+default-allow); Pinch + slides / slide_out / vibrato (a pinch's fretting hand presses a real
+fret); Natural + tremolo (re-exciting a ringing harmonic); Full mute + tremolo (the tremolo-picked
+dead note — texture, not pitch, so the full-mute principle allows it); bend + slides on one note
+(allowed — a coherent sequential reading exists; simultaneity is not representable as distinct
+data); slides + slide_out (already structurally governed: the slide-out must end strictly after
+every waypoint); vibrato and tremolo on zero-sustain notes (coherent — the note still sounds).
+
+**Newly recorded open cells for the ruling:** Full mute + `Hammer` / `Tap` / `Pull` — the hammered
+or tapped dead note (ghost legato) and the percussive pull-off release. All three are executable
+by the criterion's own test, so the review's recommendation is **allow**, but no user ruling
+exists yet.
+
+**Relational refinements recorded (enforcement-pass material, no format impact):** E5's
+"predecessor's fret" must mean the *released* fret (last slide waypoint, else the fret) or a
+predecessor that slid away breaks the comparison; a `PickSlide` predecessor cannot justify a pull
+(its fret is picking-hand travel — same physics as E19); a fully-muted predecessor CAN (its finger
+is a real press, and releasing it is the ghost pull); "which note is the predecessor" is
+unambiguous because duplicate onsets per (position, string) are already invalid; `Hammer`
+deliberately has no predecessor constraint (hammer-from-nowhere is the left-hand tap); `Pinch` has
+no relational constraints at all. The E5/E19 interplay and the exhaustive invalidating-edit
+inventory live in `docs/plans/in-progress/legato-authoring-model.md`.
+
+**Transitive impossibilities, made visible so verb guards know them:** Full + Pinch (E8 + E20 —
+representable in a saved file until E8 is enforced); Full + any node-bearing note regardless of
+attack (E8); PickSlide + anything, node included (E2, enforced). The full-mute verb on a pinch,
+and the pinch verb on a full-muted note, must refuse or clear — per-pair verb behavior
+(refuse vs. clear vs. convert) is otherwise undecided for every forbidden pair and belongs to the
+enforcement pass.
+
+## The full matrix, rendered for sign-off
+
+Legend: **OK** = allowed (default or by rule n); **FORBID En** = forbidden by rule n; **REQ** =
+required; **[enf]** = enforced in `chart_rules.cpp` today; **OPEN** = awaiting the user's ruling;
+**DEFER** = deliberately unsupported for now. When a node is present, the harmonic overlay (second
+table) overrides the attack row.
+
+### Attack × payload (no node present, except the first column)
+
+| attack | node? | Palm | Full | vibrato | tremolo | accent | bend | slides | slide_out |
+|---|---|---|---|---|---|---|---|---|---|
+| **Pick** | OK (picked natural) | OK | OK (dead note) | OK | OK | OK H3 | OK | OK | OK |
+| **Pinch** | **REQ E20 [enf]** | OK (muted squeal) | FORBID E8+E20 | OK E9 | OK | OK H3 | OK E9 (bent squeal) | OK | OK |
+| **Hammer** | OK E13 (rare) | OK | OPEN (ghost hammer) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Pull** | **FORBID E12** | OK | OPEN (ghost pull) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Tap** | OK E13 (tap harmonic) | OK | OPEN (ghost tap) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Pop** | OK E14 | OK E15 | OK E15 | OK | OK | OK H3 | OK | OK | OK |
+| **Slap** | OK E14 | OK E15 | OK E15 (slapped dead note) | OK | OK | OK H3 | OK | OK | OK |
+| **PickSlide** | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] + DEFER | FORBID E2 [enf] | **REQ E2 [enf]** | FORBID E2 [enf] |
+
+Plus E4 (unenforced): `Hammer` and `Tap` require `fret > 0 || harmonic_node.has_value()` (the
+capo variant is open, above).
+
+### Harmonic overlay (node present — overrides the row above)
+
+| configuration | bend | vibrato | slides | slide_out | Palm | Full | tremolo | as Pull's predecessor |
+|---|---|---|---|---|---|---|---|---|
+| **Fret-hand harmonic** (node + Pick/Hammer/Slap/Pop, stop = 0/capo) | FORBID E9 | FORBID E9 | FORBID E7 | FORBID E7 | OK Q1 | FORBID E8 | OK | FORBID E19 |
+| **Tap harmonic** (node + Tap) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | OK | OPEN |
+| **Harp / artificial harmonic** (node + Pick, stop > capo) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | OK | OPEN |
+| **Pinch** (node + Pinch) | OK E9 | OK E9 | OK | OK | OK | FORBID E8+E20 | OK | **OK** (E19 note) |
+
+Universal, both enforced: node in (0, 48] and node > fret (E21). Proposed **E22**:
+`nodeIsOnNeck(attack) ⇒ node <= g_max_fret`.
+
+### Mute × payload
+
+| mute | node | vibrato | tremolo | accent | bend | slides | slide_out |
+|---|---|---|---|---|---|---|---|
+| **None** | OK | OK | OK | OK H3 | OK | OK | OK |
+| **Palm** | OK Q1 | OK | OK | OK H3 | OK Q2 | OK Q2 | OK Q2 |
+| **Full** | FORBID E8 | FORBID E11 | OK (texture) | OK H3 | FORBID E10 | OK E10 | OK E10 |
+
+The full-mute principle: forbid everything **pitch-valued**, allow everything **position-valued**
+(and textures).
+
+### Relational rules (validation only, never structural)
+
+| rule | statement | status |
+|---|---|---|
+| E5 | `Pull` requires a same-string predecessor whose **released** fret is higher, and which is releasable (not a scrape, not a fret-hand harmonic) | recorded; unenforced |
+| E6 | Legato direction derives from that relationship | recorded; the editing workflow is specced in the legato doc |
+| E19 | No pull FROM a fret-hand harmonic; pull from a pinch is allowed | recorded; unenforced |
+| — | `Hammer` has no predecessor constraint (deliberate: the left-hand tap) | recorded |
+
+### Open items gating sign-off
+
+1. **H3** — accent compatible with everything except a scrape (still awaiting confirmation).
+2. **The fretted-harmonic cluster** (harp/A.H. representation, E7/E9/E19 keying, the fret-floor
+   rule, proposed E22) — one decision.
+3. **The capo frame** for ordinary note frets (gates the corpus re-import).
+4. **Full mute + Hammer/Tap/Pull** (ghost legato — recommendation: allow).
+5. Deferred by choice, unchanged: pinch-on-a-natural (unrepresentable — one node per note);
+   accent-on-a-scrape (E2; the glow_size measurement stands).
+
+Enforcement reality after the review: **E1-remnant, E2, E20, E21 are enforced; everything else is
+recorded only** and becomes code in the enforcement pass (roadmap task, gated on this sign-off).
 
 ## SHIPPED 2026-08-08 — the collapse, and what it actually cost
 
@@ -287,10 +448,11 @@ instead. It is a tripwire, not compatibility — delete it once the corpus is re
 ### What the predictions got right, and the one they got wrong
 
 Right: E1's disagreement half became unrepresentable, E3 became unviolatable, and the render
-predicate simplified. The predicate is now `fretboardHarmonicNode(node, attack)`, which **returns the
-node** instead of answering a bool — a bool would have left `*note.harmonic_node` guarded by an opaque
-call that `bugprone-unchecked-optional-access` cannot see through, and the returning form lets callers
-dereference a local both the compiler and the linter can prove is engaged.
+predicate simplified. After a naming iteration it settled as the attack-only `nodeIsOnNeck` beside
+an inline `harmonic_node.has_value()` at each call site — the inline spelling is what keeps the
+dereference visible to `bugprone-unchecked-optional-access`, which cannot see through a wrapper.
+(An interim `isHarmonic` wrapper for the presence half was deleted by the 2026-08-08 review: two
+spellings for one predicate, and the wrapped one was the checker-hostile spelling.)
 
 Wrong, then corrected: I claimed **"a pinch may legitimately carry no node"**, reasoning that Guitar
 Pro's `HarmonicFret` is a separate optional property and that players do not aim for a particular node.
@@ -300,8 +462,8 @@ rather than the model bent around it. They were right, and measurement settled i
 Guitar Pro corpus, all 207 harmonics carry an `HarmonicFret`, every one of the 56 pinches included**.
 The `std::optional` in the parser is defensive coding, and I mistook it for evidence about GP's data.
 
-So a pinch requires its node, `chart_rules` enforces that, and `isHarmonic` is node presence alone
-rather than the two-part test the wrong claim forced.
+So a pinch requires its node (E20), `chart_rules` enforces that, and node presence alone asserts
+the harmonic rather than the two-part test the wrong claim forced.
 
 ### The node's range, and how high a harmonic to support
 
@@ -342,7 +504,7 @@ the fret otherwise, with a trailing `.0` dropped so 12 / 7 / 5 stay as narrow as
 number and only genuinely fractional nodes (3.2, 14.7) pay for the glyphs. **A pinch keeps its fret**,
 per the same user message — *"pinch harmonics can come later because the fret is accurate and I'm not
 sure how we should represent the node in 2D for pinches"* — which is exactly the split
-`fretboardHarmonicNode` already draws, so no new predicate was needed. Worth an eye on screen: labels
+`nodeIsOnNeck` already draws, so no new predicate was needed. Worth an eye on screen: labels
 can now reach four characters (`14.7`) where a fret reached two.
 
 ### A live data-loss bug the collapse exposed
@@ -356,11 +518,14 @@ fret itself" and drew half a fret off.
 
 ### One guarantee traded, not gained
 
-Honest accounting: the superseded `Harmonic { Kind; node }` bundle would have made a node **required**
-for a pinch too, structurally. The collapse cannot, because the attack is set independently of the
-node — and per the paragraph above it *should* not, since GP often has no node to give. So the collapse
-is not purely additive: it trades that guarantee for deleting the enum, the disagreement state, and
-E3. Worth it, but not free.
+Honest accounting: the superseded `Harmonic { Kind; node }` bundle would have made a node required
+for a pinch **structurally**. The collapse cannot, because the attack is set independently of the
+node — so the guarantee exists **by rule instead** (E20, enforced), which is weaker than
+unrepresentable but is a guarantee all the same. (An earlier revision of this paragraph argued the
+requirement should not exist at all "since GP often has no node to give" — that was the corrected
+wrong claim above; GP always supplies one.) The collapse trades structural-for-rule on that one
+requirement in exchange for deleting the enum, the disagreement state, and E3. Worth it, but not
+free.
 
 ### A consequence of pinch living on the attack
 
@@ -416,9 +581,11 @@ lerped to the next wire. That is *interpolation*, not containment — and since 
 fractional coordinate and is linear in it, the whole dance collapsed to one call with no rounding at
 all. Removed, because a stray `floor` sitting next to a `ceil` rule costs a reader time.
 
-**Names shortened** on the user's objection that `fretHandFret` and `fretboardHarmonicNode` were
-verbose: `handFret` drops the stutter, and `anchorNode` says what the node is *for* — which also keeps
-it from being misread as a plain accessor for the field, a mistake that would silently include pinches.
+**The naming iterated to its final shape** on the user's repeated objections (`fretHandFret` and
+`fretboardHarmonicNode` verbose; `handFret` "still reads really odd"; `anchorNode` redundant with
+the field): the interim names were dissolved entirely into the two helpers in the table above —
+`fretFor` absorbed the hand-fret question, and the anchor predicate became attack-only
+`nodeIsOnNeck` beside an inline `has_value()`.
 
 **Still inert:** `capo` is stored, imported, and surfaced in the package description, but consumed by
 nothing else — no projection or renderer offsets by it. Whether note frets are nut-absolute or
@@ -448,6 +615,18 @@ A **pinch** cannot use this, because its fret is a stop rather than a node label
 no partial — so it defaults to the octave (the lowest-order harmonic available at any fret, hence the
 easiest to ring), also with a diagnostic.
 
+**Implemented in the GP importer 2026-08-08** — the review found this section was recorded as
+settled but never built: snapping was unconditional and both diagnostics were missing, so a junk
+label silently moved a whole fret. The importer now applies the half-fret threshold (implausible
+natural labels drop the harmonic with a conversion note; unusable stopped-harmonic labels fall to
+the octave with one), and the same pass fixed Guitar Pro's fuller harmonic-type vocabulary: `Tap`
+harmonics keep their stop and become the `Tap` attack (the natural path had been erasing the stop
+with the capo), `Semi`/`Feedback` drop the harmonic loudly instead of corrupting the note, and an
+open-string pinch on a capo'd track now speaks from the capo. `Artificial` still imports as
+`Pick` + stop + node — faithful data whose hand placement awaits the fretted-harmonic cluster
+ruling above. The standalone converter has not received the threshold yet; verify it when its
+working-tree changes are reviewed.
+
 ## Hardening the format: what can become impossible, and the ceiling
 
 The project already prefers this shape — "sum types over inheritance… so illegal states can't exist"
@@ -457,46 +636,25 @@ So the constraint is blast radius, not compatibility.
 
 ### Can be made structurally unrepresentable (intra-note)
 
-1. **Make the node required and drop the kind** — *revised 2026-08-07 by the collapse above, which
-   supersedes the `Harmonic { Kind; node }` bundle this item originally proposed.* With `Pinch` moved
-   to the attack axis there is no kind left to bundle, so the shape is simply:
-
-   ```
-   std::optional<double> node;   // absent = not a harmonic; present = the node, in fret units
-   ```
-
-   The bundle was reaching for "a node cannot exist without a harmonic". The collapse achieves that
-   more directly, because the node *is* the harmonic — there is no second field to contradict. The
-   original item's three wins survive, restated against the simpler shape:
-
-   - **A node without a harmonic becomes unrepresentable**, and so does a harmonic without a node, so
-     E1 disappears entirely rather than being enforced better. It is one of only two rules that exist
-     in code today, so this deletes real enforcement code rather than just a table row.
-   - **It is called `node` in every case**, with the *attack* saying which hand produced it — any
-     ordinary attack means the fretting hand, `Pinch` means the picking hand. One concept, one name.
-     An earlier draft proposed a second name for the pinch case, which was worse: it invented
-     vocabulary for one concept.
-   - **Required, not optional, because the node determines the pitch.** A harmonic without a node is
-     underdetermined. And the optionality currently causes a real defect, verified in
-     `highway_renderer.cpp:3796`: an absent node anchors the head at
-     `highwayNoteCenterX(note.fret)` — the fret-slot middle, which is the *fretted-note* anchor —
-     while a present node interpolates from `highwayFretLineX`, the fret **wire**. So `node = 12.0`
-     and an absent node on the same twelfth-fret harmonic draw **half a fret apart**, and the absent
-     path uses the wrong anchor for a harmonic besides: a harmonic is touched *at* the wire, where a
-     fretted note is pressed behind it. Requiring the node removes both the double encoding and the
-     wrong-anchor path.
-
-   **Import consequence:** the importer must always produce a node. Guitar Pro supplies
-   `harmonic_fret`; where it omits one for an on-fret harmonic, default `node = fret` **at the import
-   boundary**, which is where a default belongs rather than as a permanent ambiguity in the format.
-2. **Make the scrape its own variant.** A form carrying only `{fret, sustain, path}` makes **all eight**
-   of E2's exclusions structural in one move. Today they are eight separate checks in one `if`.
+1. ~~**Make the node required and drop the kind**~~ — **SHIPPED 2026-08-08** as the collapse above:
+   `std::optional<double> harmonic_node` where presence *is* the harmonic. Its three wins landed: a
+   node-without-a-harmonic and a harmonic-without-a-node are both unrepresentable (E1's
+   disagreement half deleted real enforcement code); one name in every case with the attack saying
+   which hand; and the wrong-anchor defect died with the double encoding — the importer now always
+   produces a node, and the renderer's absent-node path is gone. The one caveat is recorded under
+   "One guarantee traded" — the *pinch* half of "required" is rule-enforced (E20), not structural.
+2. **Make the scrape its own variant.** A form carrying only `{fret, sustain, path}` makes all
+   **seven** of E2's exclusions structural in one move. Today they are seven separate checks in one
+   `if`.
 3. **Derive a scrape's `sustain` from its path.** If the variant stores the path and exposes `sustain`
    as the last waypoint's offset, then "the path ends exactly at `sustain`" is true by construction —
    an invariant that currently needs a rule, a normalization step, *and* care in three planners.
-4. **Put `Pinch` only on the picked form** (E3), and `tremolo` only on the picked form (H1), if H1 is
-   confirmed. Both become unrepresentable elsewhere rather than validated.
-5. **A dead-note form** carrying no pitch payloads at all, if H4 survives Q3.
+4. ~~**Put `Pinch` only on the picked form** (E3), and `tremolo` only on the picked form (H1)~~ —
+   **dead both ways**: `Pinch` became an attack (shipped) and H1 was rejected (tremolo is orthogonal
+   to attack).
+5. ~~**A dead-note form**~~ — the conditional died with H4; the dead note's payload set is settled
+   by the full-mute row instead (no node/bend/vibrato; yes slides/slide_out; tremolo and accent per
+   the principle and H3), which a future sum type may or may not bother making structural.
 
 That points at `ChartNote` becoming position/string/fret/sustain plus a **sum type for the
 articulation that owns the fields legal for it**, rather than a flat struct of independent optionals.
@@ -519,8 +677,8 @@ a neighbour cannot.** Worth stating plainly so the effort is not oversold.
   projections, both renderers, the GP importer, all six `chart_edits` planners, the rules, and the
   document serializer. The importer is the worst of these — it builds notes field-by-field.
 - **Generic verbs get harder.** "Set accent on the selection" is trivial across a flat struct and needs
-  visitation across a sum type. Since accent is compatible with everything (H3), it argues for keeping
-  the universally-compatible fields *outside* the variant.
+  visitation across a sum type. If accent is compatible with everything (H3, still awaiting
+  confirmation), that argues for keeping the universally-compatible fields *outside* the variant.
 - **Over-modelling risk.** If most cells turn out compatible, a variant per attack duplicates shared
   fields for little gain. The matrix decides how much structure is justified — which is exactly why it
   comes first.
@@ -593,13 +751,14 @@ non-`Pinch` attack", which is longer to say but no less precise.
 fretting hand is pressing a real fret and therefore has something to release. E19 is correctly
 natural-only; that case went unchecked until the model made it unavoidable.
 
-## Tap harmonics: already representable (revised 2026-08-07)
+## Tap harmonics: already representable (revised 2026-08-07; vocabulary pre-collapse)
 
 *"We will add tap harmonics as well later which will similarly need a node field."* — the user, when
 this was still expected to be a third `Kind`. **Q5 superseded that.** A tap harmonic is a natural
-harmonic whose node is struck rather than picked, so it is `harmonic == Natural` plus `attack ==
-Hammer` (fretting hand) or `Tap` (picking hand), and it ships the moment E4 stops testing `fret`. See
-E13 and the finding above.
+harmonic whose node is struck rather than picked — in post-collapse vocabulary, a **node** plus
+`attack == Hammer` (fretting hand) or `Tap` (picking hand) — and it ships the moment E4 stops
+testing `fret`. See E13 and the finding above. (The section below keeps its original pre-collapse
+wording; `harmonic == Natural` reads as "a node with a fret-hand attack" now.)
 
 What that resolves, against the two consequences logged under the old premise:
 
@@ -650,16 +809,21 @@ for it: `harmonic_node` already holds the strike position and already round-trip
 
 ## Next steps
 
-1. ~~User answers Q1–Q12.~~ **Done 2026-08-07** — eighteen established rules, E1–E18. What is left
-   wanting confirmation is **H1** (`tremolo` requires `Pick`) and **H3** (`accent` compatible with
-   everything but a scrape), plus the two deferred-by-choice cells.
-2. Enforce the settled rules as guards in the Phase 5 verbs, so no verb authors an invalid state, and
-   as rules where a chart could already carry the violation from import. **Most of the matrix is
-   unenforced today** — only E1 and E2 exist in `chart_rules.cpp`; E3–E18 are recorded but nothing
-   checks them, so this step is where the matrix stops being a document and starts being a guarantee.
-   E4 needs the `soundingPosition()` accessor first, shared with the renderer.
-3. *Then* re-open the format shape with the matrix in hand, sizing the sum type against how many cells
-   actually turned out incompatible. The count is now known and it is **lopsided — the great majority
-   of cells are compatible**, which argues against an elaborate sum type and for the narrow hardenings
-   already ranked: the required `Harmonic{kind, node}`, the scrape as its own variant, and a
-   path-derived scrape sustain. Size the work against that, not against the length of this document.
+1. ~~User answers Q1–Q12.~~ **Done 2026-08-07** — rules E1–E19, plus the review's E20/E21. Wanting
+   a ruling now: **H3** (accent compatible with everything but a scrape — H1 was *rejected*, not
+   deferred), the **sign-off on the rendered matrix above**, and the review's open cluster (the
+   fretted harmonic / E22, the capo frame, ghost legato).
+2. Enforce the settled rules as guards in the Phase 5 verbs, so no verb authors an invalid state,
+   and as rules where a chart could already carry the violation from import. **Most of the matrix
+   is unenforced today** — the E1 range remnant, E2, E20 and E21 exist in `chart_rules.cpp`;
+   everything else is recorded but unchecked, so this step is where the matrix stops being a
+   document and starts being a guarantee. E4 needs no accessor (its form is fixed above). Two test
+   fixtures currently violate recorded rules and must be fixed with the enforcement: the tab-paint
+   fixture pairs a full mute with a pinch (E8+E20), and the GP importer fixture pairs a natural
+   harmonic with a bend (E9).
+3. *Then* re-open the format shape with the matrix in hand, sizing the sum type against how many
+   cells actually turned out incompatible. The count is known and **lopsided — the great majority
+   of cells are compatible**, which argues against an elaborate sum type and for the narrow
+   hardenings still standing: the scrape as its own variant, and a path-derived scrape sustain
+   (item 1 shipped as the collapse). Size the work against that, not against the length of this
+   document.
