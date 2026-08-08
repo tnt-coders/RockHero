@@ -278,7 +278,8 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     REQUIRE(chart.notes[4].harmonic_node.has_value());
     if (chart.notes[4].harmonic_node.has_value())
     {
-        CHECK(*chart.notes[4].harmonic_node == Catch::Approx(3.2));
+        // Snapped to the 6th partial's true node; the score's "3.2" is a conventional label.
+        CHECK(*chart.notes[4].harmonic_node == Catch::Approx(3.1564).margin(0.001));
     }
     REQUIRE(chart.notes[4].bend.size() == 3);
     CHECK(chart.notes[4].bend[0].offset == Fraction{0});
@@ -1329,23 +1330,29 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         REQUIRE(note.harmonic_node.has_value());
         if (note.harmonic_node.has_value())
         {
-            CHECK(*note.harmonic_node == Catch::Approx(7.0));
+            // Snapped to the 3rd partial's true node, not the "7" the score wrote.
+            CHECK(*note.harmonic_node == Catch::Approx(7.0196).margin(0.001));
         }
         CHECK(common::core::isHarmonic(note.harmonic_node));
     }
 
     SECTION("a pinch becomes the attack and carries the node Guitar Pro recorded")
     {
-        // Measured: all 207 harmonics across a 118-file corpus carry a HarmonicFret, pinches
-        // included. 24.0 is a real observed value — the 4th partial's bridge-side node, past the
-        // neck where a thumb actually grazes.
+        // For a FRETTED harmonic Guitar Pro's HarmonicFret is a partial LABEL, not a position:
+        // measured across 118 files, HarmonicFret - Fret is scattered and 18 of 56 pinches name a
+        // position below their own fret, which no thumb can reach. Fret units are logarithmic, so
+        // the real node is fret + the label's offset. 24.0 labels the 4th partial's third node, so a
+        // pinch stopped at 5 grazes at 29 — past the neck, over the pickups, exactly where a thumb
+        // is.
         const common::core::ChartNote note = importNote(
             GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch", .harmonic_fret = 24.0});
         CHECK(note.attack == common::core::NoteAttack::Pinch);
         REQUIRE(note.harmonic_node.has_value());
         if (note.harmonic_node.has_value())
         {
-            CHECK(*note.harmonic_node == Catch::Approx(24.0));
+            CHECK(*note.harmonic_node == Catch::Approx(29.0));
+            // Beyond the stop, which the chart rules require.
+            CHECK(*note.harmonic_node > static_cast<double>(note.fret));
         }
         CHECK(common::core::isHarmonic(note.harmonic_node));
         // Off the neck, so no 2D/3D anchor comes from it.
@@ -1353,25 +1360,19 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
             common::core::fretboardHarmonicNode(note.harmonic_node, note.attack).has_value());
     }
 
-    SECTION("a pinch Guitar Pro left without a fret degrades to a plain pick, loudly")
+    SECTION("a pinch Guitar Pro left without a fret defaults to the octave node")
     {
-        // Unreached against real scores, but a pinch cannot be represented without its node, and
-        // inventing one would invent a pitch.
-        GpScore score = makeLinearScore(1, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {{GpBeat{
-                    .duration_whole = Fraction{1, 4},
-                    .notes = {GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch"}}
-                }}}
-            });
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 1);
-        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
-        CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
-        CHECK(anyNoteContains(built->notes, "pinch harmonic carried no harmonic fret"));
+        // Unreached against real scores, but a pinch cannot be represented without its node. The
+        // octave is the 2nd partial — the lowest-order harmonic available at any fret, so the
+        // easiest to ring — which beats both dropping the technique and reading the stop as a label.
+        const common::core::ChartNote note =
+            importNote(GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch"});
+        CHECK(note.attack == common::core::NoteAttack::Pinch);
+        REQUIRE(note.harmonic_node.has_value());
+        if (note.harmonic_node.has_value())
+        {
+            CHECK(*note.harmonic_node == Catch::Approx(17.0));
+        }
     }
 }
 

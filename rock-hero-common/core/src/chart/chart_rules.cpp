@@ -194,6 +194,24 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                     "harmonic node position is out of range at " + positionText(note.position),
             }};
         }
+        // A pinch's node must lie beyond its stop — nothing vibrates behind the fretting finger, so
+        // a thumb cannot graze there. Guitar Pro violates this in 18 of 56 pinches because its
+        // HarmonicFret is a partial *label* rather than a position (a pinch fretted at 9 naming
+        // "2.7"), so import converts the label to `fret + offset`; this catches a regression.
+        //
+        // Scoped to a pinch on purpose. The same test cannot be applied to a NATURAL harmonic until
+        // it is settled what `fret` means for one: Guitar Pro puts the touched position there
+        // (Fret 12, HarmonicFret 12.0), which makes node == fret rather than greater, and fret-hand
+        // position generation depends on it being there because the hand really is at the 12th.
+        if (note.attack == NoteAttack::Pinch && note.harmonic_node.has_value() &&
+            *note.harmonic_node <= static_cast<double>(note.fret))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "pinch harmonic node must lie beyond the fretted position at " +
+                           positionText(note.position),
+            }};
+        }
         // A pinch is picking while damping a node, so a pinch without one is missing data rather
         // than a different technique — the overtone that squeals is *determined* by where the thumb
         // lands. Enforcing it is what lets `isHarmonic` be node presence alone.

@@ -71,6 +71,50 @@ crowd toward the nut (the 16th harmonic's nearest node is 1.12).
 */
 inline constexpr double g_max_harmonic_node{48.0};
 
+/*!
+\brief Highest harmonic partial an editor offers for deliberate selection.
+
+Distinct from \ref g_max_harmonic_node, which only refuses junk. This is the *authoring* ceiling.
+
+16, settled 2026-08-08. One decimal of precision separates every distinct node through the 17th
+partial without collision, so 16 costs nothing there, and the interaction cost is avoided by the
+picker's shape: a per-fret dropdown listing the harmonics available at that fret **sorted from lowest
+order to highest**, defaulting to the lowest, puts the impractical ones at the bottom of a short list
+rather than flat in a menu of every node on the neck.
+
+Practice sits far below this — the literature calls partials 2-5 the easily audible ones, treats the
+9th and 10th as playable-though-challenging, and says beyond the 10th they "are so weak and difficult
+to bring out that they are rarely used", while the ergonomics give 5.9 mm between the 10th's nodes
+against a 10-15 mm fingertip. Offering them anyway is harmless when they sort last; *inferring* them
+is not, which is why import uses \ref g_max_snapped_partial instead.
+*/
+inline constexpr int g_max_authored_partial{16};
+
+/*!
+\brief Highest harmonic partial a *notated* node may be snapped onto during import.
+
+Deliberately lower than \ref g_max_authored_partial, because the two are different problems: choosing
+a partial needs no inference, while resolving a coarse conventional label into a physical node does.
+
+**8, taken from Guitar Pro's own output.** The GP8 manual documents the harmonic *types* (A.H., T.H.,
+P.H., S.H., natural) but states no maximum order and lists no node positions, and `HarmonicFret` is a
+free-form decimal — so neither the application nor its format imposes a cap to inherit. Measured
+instead: across a 118-file corpus the nut-side labels form an unbroken run 12, 7, 5, 4, 3.2, 2.7,
+2.4 — exactly partials 2 through 8 — and every remaining value (5.8, 8.2, 9.0, 14.7, 19, 24) is an
+alternate node of one of those same partials. Nothing needs a 9th. All 13 values resolve to the same
+partial at a cap of 8 as at 10, so the tighter cap loses nothing.
+
+Why a cap is needed at all: notation writes labels, not measurements, and rounds them inconsistently.
+The 7th appears as "2.7" or "2.8" against a true 2.669, and four GP values match no true node at any
+cap (9.0 sits 0.16 from the 5th partial's 8.844). Snapping only works while the nodes stay farther
+apart than that error, and the margin collapses as the cap rises: the tightest label wins by **0.180**
+fret units at a cap of 8 against its own 0.088 error, but by just **0.011** at 16 — where Guitar Pro's
+"2.4" flips to the 15th partial (2.477) instead of the intended 8th (2.312).
+
+Raising this needs that measurement re-run against real scores, not just a bigger number.
+*/
+inline constexpr int g_max_snapped_partial{8};
+
 /*! \brief Stable chart validation failure kind. */
 enum class ChartErrorCode : std::uint8_t
 {

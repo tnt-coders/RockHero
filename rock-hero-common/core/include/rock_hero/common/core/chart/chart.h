@@ -120,6 +120,40 @@ carrying no node for exactly that reason, which is what lets this ask one questi
 }
 
 /*!
+\brief Open-string node offset, in fret units, of a harmonic's partial.
+
+The physics, once: a string stopped at fret `F` has its nth-partial nodes at `F + 12*log2(n/(n-k))`
+for `k = 1..n-1`. Fret positions are logarithmic, so the fret and the offset simply **add** — which is
+why one offset table serves every fretted position.
+
+Returns the nut-side (`k = 1`) offset, the one guitarists name and the easiest of a partial's nodes to
+sound. Notation sources round these inconsistently — the 7th is written "2.7" by Guitar Pro and "2.8"
+elsewhere against a true 2.669, and the 8th is "2.4" or "2.3" against 2.313 — so computed values are
+the only stable reference and imports snap to them.
+
+\param partial Harmonic number, 2 or greater; 1 is the fundamental and has no node.
+
+\return Offset in fret units, or nothing when `partial` is below 2.
+*/
+[[nodiscard]] std::optional<double> harmonicPartialOffset(int partial);
+
+/*!
+\brief Snaps a notated node position to the nearest true node, for a string stopped at a fret.
+
+Notation stores conventional labels rather than measured positions, and a label that is even slightly
+off chokes a high harmonic instead of ringing it. This maps a label onto the physics.
+
+\param notated Node position as written, in fret units.
+\param fret Fret the string is stopped at; 0 for an open string.
+\param max_partial Highest partial to consider, so a label cannot snap onto an absurd high-order node
+                   that happens to sit nearer to it.
+
+\return Nearest true node beyond `fret`. Always defined, since every partial from 2 up has nodes; a
+        `max_partial` below 2 yields the octave.
+*/
+[[nodiscard]] double snapHarmonicNode(double notated, int fret, int max_partial);
+
+/*!
 \brief The harmonic node a display can anchor to, when it lies on the fretboard.
 
 Every harmonic damps its node with a finger on the neck except a pinch, whose thumb grazes the

@@ -114,6 +114,11 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## Dependencies
 
+**What landing this unblocks:** `docs/plans/roadmap/40-chart-editing.md` **Phase 11 — the New chart
+entry point** is gated on this plan and nothing else. A chart cannot be built from nothing without an
+editable tempo map, so that phase waits here; when this lands, design Phase 11 with the user rather
+than shipping the minimal "empty chart" action it explicitly rejects.
+
 - **Gates** docs/plans/roadmap/40-chart-editing.md: its create-chart-from-raw-audio promise requires this
   plan's Phases 1–4 (anchor authoring + tap tempo) at minimum; Phase 5 (onset snapping) strongly
   recommended before serious from-scratch charting. Sequence 41 before the from-scratch phases

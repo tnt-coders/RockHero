@@ -272,9 +272,10 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 - `docs/plans/in-progress/tone-track-tempo-map-plan.md` — active tone work with uncommitted editor-core
   changes in flight. **Do not start Phase 2 until that work is committed**; both touch
   `editor_controller_impl.h` and the handler-TU layout.
-- `docs/plans/roadmap/41-tempo-map-authoring.md` — gates the *from-scratch* charting promise only. Every
-  phase here is executable against imported packages (GP import already builds tempo maps); the
-  roadmap should sequence 41 before "author a chart from bare audio" is claimed as done.
+- `docs/plans/roadmap/41-tempo-map-authoring.md` — gates the *from-scratch* charting promise only, which
+  is now **Phase 11** and the last phase here. Phases 1-10 are all executable against imported packages
+  (GP import already builds tempo maps), so 41 blocks nothing else; the roadmap sequences 41 before
+  "author a chart from bare audio" is claimed as done.
 - `docs/plans/roadmap/42-chart-validation.md` — Phase 10 consumes its rule set for live feedback; the
   same-string-overlap rule (Q2) is co-owned: this plan sets the edit-time semantics, 42 flags
   residual violations from imports.
@@ -485,16 +486,8 @@ original intent, not as remaining work.
 - **Exit criteria**: with a chart loaded, notes can be created, moved, resized, and deleted;
   every path is undoable; saves persist the result (Phase 2). — **Met, except the creation entry
   point, which was superseded rather than shipped.** The "minimal create empty chart action
-  (tuning seeded from a default)" sketched here is **not** what to build: the user directed
-  2026-08-06 that the entry point is an explicit **New**, and that it should require backing audio
-  to start with, which makes it a new-song flow rather than a bare chart insert. **POSTPONED 2026-08-07** until editing is complete
-  *including tempo-map authoring* (`docs/plans/roadmap/41-tempo-map-authoring.md`) — the user's gate:
-  a new chart cannot be charted from scratch without an editable tempo map, so the entry point is not
-  useful before then. The requirement below stands for when it revives. It needs
-  deliberate design before implementation — where it lives (File > New vs a chart-level action),
-  what it demands up front (audio asset, tuning, tempo seed, arrangement part), how it meets plan
-  43's song-information and publish gate, and whether it writes a package immediately. Design it
-  with the user; do not ship the minimal version to close this line.
+  (tuning seeded from a default)" sketched here is **not** what to build; it became its own gated
+  deliverable, **Phase 11** below. Nothing else in Phase 4 waits on it.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 
 ### Phase 5 — Technique and note-property editing — ATTACK SLICE LANDED EARLY
@@ -628,6 +621,34 @@ properties and the §9a mixed-validity feedback are what remain.
   `docs/design/architectural-principles.md`), problems projection.
 - **Exit criteria**: tuning fully authorable; edits report problems live; no save regression.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
+
+### Phase 11 — The New chart entry point — GATED on plan 41
+
+**Gate:** blocked until `docs/plans/roadmap/41-tempo-map-authoring.md` lands. User's reasoning
+(2026-08-07): a chart cannot be built from scratch without an editable tempo map, so the entry point
+is not useful before then — which is why this is last rather than part of Phase 4, where it was
+originally sketched. Moved here 2026-08-08 to give it a fixed home in the roadmap instead of a
+standing to-do.
+
+**Why it is not a small action.** The user directed (2026-08-06) that the entry point is an explicit
+**New**, and that it must require backing audio to start with. That makes it a *new-song* flow rather
+than a bare chart insert, so the minimal "create empty chart, tuning seeded from a default" version is
+explicitly **not** what to build — shipping it to close the line is the failure mode to avoid.
+
+**Design with the user before implementing.** The open questions:
+
+- Where it lives — File > New versus a chart-level action.
+- What it demands up front — audio asset, tuning, tempo seed, arrangement part.
+- How it meets plan 43's song-information and publish gate.
+- Whether it writes a package immediately, or holds an unsaved session.
+- What tempo seed a new chart starts from, now that plan 41 makes the map editable: a default map to
+  be replaced, or tap-in as part of the flow (41's own acceptance script already exercises "start
+  from a default-map project").
+
+**Exit criteria**: a chart can be created from nothing and charted to a saveable package without
+touching an imported file.
+
+**Verification**: `-Targets all`, then `-RunTouchedTests`.
 
 ## Final acceptance phase
 
