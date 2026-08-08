@@ -113,14 +113,21 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 |---|---|---|---|---|
 | `Delete` / `Backspace` | delete note(s) | delete point | delete region (merges) | Live |
 | `Insert` | fret-0 note at caret | on-curve point at caret | `✗` (no keyboard) | Live |
-| `Ctrl+D` | duplicate selection | duplicate selection | duplicate | `▷40` · **chord `◇` — see below** |
+| ~~`Ctrl+D`~~ | — | — | **verb dropped** | **RESOLVED 2026-08-08 — see below** |
 
-*(The duplicate **verb** is wanted; its **chord** is not settled. The user flagged 2026-08-06 that
-`Ctrl+D` "seems a bit unconventional" and asked to discuss it deliberately when the verb comes up
-in plan 40 Phase 9. Do not bind `Ctrl+D` before that discussion. Note the collision to weigh
-there: `Ctrl+D` is also proposed for duplicating the selected plugin in the plugin-chain scope
-below, which is a separate modal focus scope — so the same chord could legitimately mean
-"duplicate whatever the active scope holds," or the two could want different chords.)*
+**RESOLVED 2026-08-08 — there is no duplicate verb in the chart scope.** The user: *"Wouldn't
+copy/paste via Ctrl+C/Ctrl+V be the mechanism for duplicating objects? Ctrl+D seems unconventional and
+most likely unneeded."* Guitar Pro settles it: it has **no duplicate command at all** — Copy is
+`Ctrl+C`, Paste is `Ctrl+V`, and **`Ctrl+D` is bound to Brush Down**, a strum-direction technique. So
+the chord is not merely unconventional here, it is conventionally spoken for by a technique mark. With
+a caret defining the paste target, copy/paste covers duplication in two chords and needs no third.
+
+**`Ctrl+D` is therefore reserved for Brush Down**, should strum direction ever be notated — it is not
+in the model today (there is no brush attack), but it is real notation and this is where it would land.
+
+The plugin-chain scope keeps its own `Ctrl+D` for now (below), since bindings are scope-local and a
+plugin's state has no clipboard yet. Worth revisiting together: if a plugin clipboard lands, copy/paste
+likely subsumes that one too by the same argument.
 
 ## Pointer
 
@@ -279,7 +286,9 @@ chain-scoped exception noted alongside it.)*
 
 **Future enhancements (revisit after the current keybinds settle):**
 - **Bypass / enable toggle** — A/B a plugin without deleting it (agreed essential; a new state-toggle verb-class, needs a `PluginBypassEdit`).
-- `Ctrl+D` **duplicate** the selected plugin (state included).
+- `Ctrl+D` **duplicate** the selected plugin (state included). Scope-local, so it does not
+  collide with the chart scope reserving `Ctrl+D` for Brush Down; revisit if a plugin clipboard makes
+  copy/paste sufficient here too.
 - `Ctrl+C` / `Ctrl+V` **copy/paste** a plugin — or a whole chain — across tones (needs an editor clipboard).
 - `Ctrl+↑` from a selected plugin surfaces **that plugin's** automation lanes (targeted drill, closing the chain↔lanes loop).
 - `Ctrl+Alt+←/→` = **move-to-end** (or leave `✗`, uniform with the discrete strings row).

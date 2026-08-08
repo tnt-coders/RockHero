@@ -1090,12 +1090,11 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::String tabNoteHeadText(const common::core::TabNoteView& note)
 {
-    const std::optional<double> node = common::core::anchorNode(note.harmonic_node, note.attack);
-    if (!node.has_value())
+    if (!note.harmonic_node.has_value() || !common::core::nodeIsOnNeck(note.attack))
     {
         return juce::String{note.fret};
     }
-    juce::String text{*node, 1};
+    juce::String text{*note.harmonic_node, 1};
     if (text.endsWith(".0"))
     {
         text = text.dropLastCharacters(2);

@@ -578,7 +578,11 @@ properties and the §9a mixed-validity feedback are what remain.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`, then `-Targets clang-tidy` (new
   components).
 
-### Phase 9 — Copy/paste, duplicate, transpose, and bulk edit
+### Phase 9 — Copy/paste, transpose, and bulk edit
+
+**Duplicate was dropped from this phase 2026-08-08.** Copy/paste is the mechanism for it, and Guitar
+Pro agrees — it ships no duplicate command, and binds `Ctrl+D` to Brush Down instead. Full reasoning in
+`docs/plans/in-progress/keymap-matrix.md`.
 
 - **Scope**: clipboard holds a position-relative JSON fragment in the document grammar (notes,
   shapes, FHPs rebased to the selection's first onset); paste rebases at the marker — arming

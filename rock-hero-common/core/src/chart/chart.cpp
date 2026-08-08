@@ -16,13 +16,11 @@ std::optional<double> harmonicPartialOffset(const int partial)
     return 12.0 * std::log2(static_cast<double>(partial) / static_cast<double>(partial - 1));
 }
 
-int handFret(const int fret, const std::optional<double>& node, const NoteAttack attack)
+int fretFor(const ChartNote& note)
 {
-    if (!node.has_value() || attack == NoteAttack::Pinch || attack == NoteAttack::Tap)
-    {
-        return fret;
-    }
-    return static_cast<int>(std::lround(*node));
+    const bool fret_hand_holds_node = note.harmonic_node.has_value() && nodeIsOnNeck(note.attack) &&
+                                      note.attack != NoteAttack::Tap;
+    return fret_hand_holds_node ? static_cast<int>(std::ceil(*note.harmonic_node)) : note.fret;
 }
 
 double snapHarmonicNode(const double notated, const int fret, const int max_partial)

@@ -311,16 +311,12 @@ struct PosColorUvVertex
     const common::core::HighwayNoteView& note, const common::core::HighwayMetrics& metrics,
     const bool mirrored)
 {
-    if (const std::optional<double> fretboard_node =
-            common::core::anchorNode(note.harmonic_node, note.attack);
-        fretboard_node.has_value())
+    if (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack))
     {
-        const double node = *fretboard_node;
-        const double node_floor = std::floor(node);
-        const auto node_fret = static_cast<int>(node_floor);
-        const double left_x = common::core::highwayFretLineX(node_fret, metrics, mirrored);
-        const double right_x = common::core::highwayFretLineX(node_fret + 1, metrics, mirrored);
-        return left_x + ((right_x - left_x) * (node - node_floor));
+        // The fret axis takes a fractional coordinate directly, so the node needs no rounding of any
+        // kind here. This is NOT the ceil that `fretFor` applies: that one asks which integer fret
+        // *contains* the node, for the hand window, while this wants the node's exact position.
+        return common::core::highwayFretLineX(*note.harmonic_node, metrics, mirrored);
     }
     return common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
 }
@@ -3946,7 +3942,7 @@ void HighwayRenderer::Impl::draw(
         // (Charter's base-cell selection).
         const bool tech_head =
             note.mute == common::core::NoteMute::Full ||
-            common::core::anchorNode(note.harmonic_node, note.attack).has_value() ||
+            (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack)) ||
             note.attack == common::core::NoteAttack::Hammer ||
             note.attack == common::core::NoteAttack::Pull || scrape;
         const std::array<float, 4> base_cell =

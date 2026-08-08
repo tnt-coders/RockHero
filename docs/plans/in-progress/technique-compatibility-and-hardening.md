@@ -393,18 +393,28 @@ import now resolves the notated label to a partial **offset** against an open st
 against the real stop. The importer's own regression test carries a capo of 2, where "3.2" correctly
 becomes 5.156 rather than 3.156.
 
-Two helpers answer two different questions, and conflating them is the trap:
+**Two helpers, and the naming iteration that got there.** The user pushed back twice — *"handFret
+still reads really odd"*, *"something just smells about this"* — and the smell was real: I had been
+pushing **policy** into general-purpose accessors, which is why they kept needing contorted names.
+Fixed by separating the pure question from the policy, then collapsing what was left:
 
-| helper | question | excludes |
+| helper | question | answer |
 |---|---|---|
-| `anchorNode(node, attack)` | where to **draw** the head | `Pinch` only — a tap harmonic's node is still a neck position |
-| `handFret(fret, node, attack)` | where the **fretting hand** is | `Pinch` **and** `Tap` — both have a real stop, and their node belongs to the other hand |
+| `nodeIsOnNeck(attack)` | is the node somewhere a display can point at? | everything but a **pinch**, whose thumb grazes out over the body. A predicate about the *attack* alone, so callers keep `harmonic_node.has_value()` inline — plainer, and visible to the optional-access checker, which cannot see through a wrapper. |
+| `fretFor(note)` | which fret is the **fretting hand** on? | the node's fret for a fret-hand harmonic; the stop for a pinch or a two-hand tap, whose node is the *other* hand's; the fret otherwise. |
 
-`handFret` rounds, which reproduces the names players use (3.156 and 2.669 both give fret 3, written
-"3.2" and "2.7"). It is what FHP derivation now consults: reading `fret` there would drop a 12th-fret
-harmonic passage out of hand derivation and leave the window at the nut. The user's proposed approach —
-use the integer fret the node belongs to and let the existing window rules place it — is exactly this,
-and it avoids fractional-fret FHP, which they judged too large a design change for the return.
+`fretFor` uses **`ceil`**, and that was a third correction. Fret `N` spans wire `N-1` to wire `N`
+(`highwayNoteCenterX` is their midpoint), so a node at 2.669 lies in fret **3** and 3.156 in fret **4**.
+A fret-hand window over `[f, f+w-1]` covers fret units `[f-1, f+w-1]`, so an edge harmonic is only
+reliably covered when `H-1 <= node <= H`. Measured over every node below fret 25: **`floor` fails 18
+times, `round` 7, `ceil` never.** The user raised the concern (`round` was unsafe — correct) and
+proposed `floor`, which inverts because fret `N` spans `[N-1, N]` rather than `[N, N+1]`; they confirmed
+the span against a real guitar.
+
+**Not every rounding is that question.** `noteFretboardX` in the renderer once floored the node and
+lerped to the next wire. That is *interpolation*, not containment — and since `highwayFretLineX` takes a
+fractional coordinate and is linear in it, the whole dance collapsed to one call with no rounding at
+all. Removed, because a stray `floor` sitting next to a `ceil` rule costs a reader time.
 
 **Names shortened** on the user's objection that `fretHandFret` and `fretboardHarmonicNode` were
 verbose: `handFret` drops the stutter, and `anchorNode` says what the node is *for* — which also keeps

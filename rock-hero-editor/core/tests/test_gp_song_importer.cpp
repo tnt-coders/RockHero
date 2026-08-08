@@ -289,9 +289,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         CHECK(chart.notes[4].fret == 2);
         CHECK(*chart.notes[4].harmonic_node > static_cast<double>(chart.notes[4].fret));
         // The fretting hand is at the node it touches, not down at the capo.
-        CHECK(
-            common::core::handFret(
-                chart.notes[4].fret, chart.notes[4].harmonic_node, chart.notes[4].attack) == 5);
+        CHECK(common::core::fretFor(chart.notes[4]) == 6);
     }
     REQUIRE(chart.notes[4].bend.size() == 3);
     CHECK(chart.notes[4].bend[0].offset == Fraction{0});
@@ -1368,7 +1366,7 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         }
         CHECK(common::core::isHarmonic(note.harmonic_node));
         // Off the neck, so no 2D/3D anchor comes from it.
-        CHECK_FALSE(common::core::anchorNode(note.harmonic_node, note.attack).has_value());
+        CHECK_FALSE(common::core::nodeIsOnNeck(note.attack));
     }
 
     SECTION("a pinch Guitar Pro left without a fret defaults to the octave node")

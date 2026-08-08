@@ -1349,8 +1349,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         // A natural harmonic has no stop of its own, so its `fret` is the nut (or the capo) and its
         // fretting hand is at the NODE instead — reading `fret` here would drop a 12th-fret harmonic
         // passage out of hand derivation and leave the window at the nut.
-        const int other_hand_fret =
-            common::core::handFret(other.note.fret, other.note.harmonic_node, other.note.attack);
+        const int other_hand_fret = common::core::fretFor(other.note);
         if (common::core::rightHandOnset(other.note.attack) || other_hand_fret <= 0)
         {
             continue; // right-hand onsets float above the hand; open strings never anchor it
@@ -1437,8 +1436,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             // Right-hand onsets float above the window and never anchor the hand.
             if (!common::core::rightHandOnset(note.attack))
             {
-                const int hand_fret =
-                    common::core::handFret(note.fret, note.harmonic_node, note.attack);
+                const int hand_fret = common::core::fretFor(note);
                 if (hand_fret > 0)
                 {
                     onset.min_fret =
