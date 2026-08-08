@@ -76,12 +76,13 @@ Each of these is either enforced in code today or physically unambiguous.
 | **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
 | **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
 | **E12** | `Pull` excludes every harmonic | A pull-off sounds the string by *releasing* a finger so a lower stopped pitch rings — and that pitch rings over the full speaking length with nothing damping a node, so the result is an ordinary note by construction. A contrived arrival at a node (a finger resting lightly below the released one) has the release *damping* rather than exciting, and barely sounds. |
-| **E13** | `Natural` harmonic **allows** `Hammer` and `Tap`, and that pairing *is* the tap harmonic | A finger strikes the string over a node and the strike both excites and damps. `Hammer` is the fretting-hand form, `Tap` the picking-hand one (hold 5, tap 17 — the most common form of all). Promotes H2 from candidate to established, and needs **no new harmonic kind** — see below. |
+| **E13** | `Natural` harmonic **allows** `Hammer` and `Tap`, and that pairing *is* the tap harmonic | A finger strikes the string over a node and the strike both excites and damps. `Hammer` is the fretting-hand form, `Tap` the picking-hand one (hold 5, tap 17 — the most common form of all). Promotes H2 from candidate to established, and needs **no new harmonic kind** — see below.  **Frequency is very lopsided** (user, 2026-08-07): the `Hammer` form — the fretting hand rapping a node — is *"VERY rare. It is possible though"*, while the `Tap` form is common. Both legal; the editor should not make the rare one easy to author by accident, and it does not deserve prominent notation. |
 | **E14** | `Slap` / `Pop` **allow** `Natural` harmonic | Q7. A slap harmonic — thumb striking the string while a fretting finger rests on the 12th, 7th or 5th node — is a staple of the slap idiom, and popping over a node is the same vocabulary. `Pinch` stays excluded by E3, which already lists every attack that replaces the pick stroke. |
 | **E15** | `Slap` / `Pop` **allow** every `mute` | Q8. `Full` + `Slap` *is* the slapped dead note, core rhythmic material in a slap line rather than an oddity — forbidding it would make slap lines unrepresentable. `Palm` + `Slap` is awkward, since the thumb and the palm heel want different positions, but the hand spans it, so the criterion allows it. |
 | **E16** | `vibrato` and `bend` **compose** | Q9. Bend up to pitch, then vibrato on the bent note — the blues-lead vocabulary entire. No data conflict either: `bend` is a path and `vibrato` oscillates around whatever the path is, so neither subsumes the other. |
 | **E17** | `attack` **allows** every slide payload — `Hammer`/`Pull` + `slides`, `Tap` + `slide_out` | Q10 and Q11, both **dissolved** rather than decided: `attack` names the onset and `slides`/`slide_out` name the sustain, so "hammered onto, then slid while ringing" is two moments, not two claims about one transition. See the separation below. |
 | **E18** | `tremolo` **allows** `slides` and `bend` | Q12. A tremolo-picked bend is ordinary and the rising tremolo-picked slide is a standard metal figure. Consistent with H1, which constrains the *onset* to a pick while tremolo describes the sustain. |
+| **E19** | A `Pull`'s predecessor cannot be a **natural harmonic** | User, 2026-08-07: *"Natural harmonic should be able to be followed by a hammer on, not a pull off. Pull off would be physically impossible."* The converse of E12 and a **separate cell**: E12 forbids pulling *into* a harmonic, this forbids pulling *from* one. The fretting hand is touching a node, not pressing, so nothing can be released. **Relational** — see the ceiling. A natural harmonic followed by a *hammer-on* is fine: the string is already ringing and a finger coming down stops it at a new pitch. |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
 slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
@@ -112,6 +113,13 @@ node. The rule and the render ask one question, so the branch belongs in core as
 roughly `soundingPosition(note)` returning `*note.touch` for a natural harmonic with a node and
 `note.fret` otherwise — with E4 reading `soundingPosition(note) > 0` and the renderer calling it.
 Fold this into the hardening pass; do not write the branch a third time.
+
+**Do not apply that accessor to E5.** E5 tests that a `Pull`'s predecessor sits at a *higher fret*, and
+a natural harmonic has `fret == 0`, so E5 rejects one today — by accident. Reading E5 on
+`soundingPosition()` instead would make a harmonic at node 12 followed by a pull to fret 5 **pass**,
+since 12 > 5, silently allowing exactly what E19 forbids. The two rules ask different questions of the
+same number: a hammer needs somewhere to **land**, a pull needs something **pressed**, and a node is a
+place but not a press. E19 is the rule that has to carry it, not the accessor.
 
 **`Natural` is a misnomer for what the field means.** A harmonic's pitch comes from the ratio of
 node→bridge to fret→bridge, and fret positions are logarithmic, so the midpoint of a string stopped
@@ -308,6 +316,51 @@ a neighbour cannot.** Worth stating plainly so the effort is not oversold.
 - **Over-modelling risk.** If most cells turn out compatible, a variant per attack duplicates shared
   fields for little gain. The matrix decides how much structure is justified — which is exactly why it
   comes first.
+
+## Are all harmonics one set of data? (user proposal, 2026-08-07)
+
+*"Does this mean pinch harmonics could be represented by a fret and node the same way as a natural
+harmonic so technically all harmonics are one set of data? fret and node? But the ATTACK can differ?
+Natural, Pinch, Tap?"*
+
+**Half of this is right, and the right half is already true.**
+
+**The data unifies.** One formula covers every harmonic: the sounding pitch is set by the ratio of the
+node→bridge length to the fret→bridge length. Fret spacing is logarithmic, so a node 12 frets above a
+stop at fret 5 is exactly the midpoint of the speaking length and yields the octave. `(fret, node)`
+therefore determines the pitch for natural, pinch, and tap alike, with no per-kind special case. Two
+things follow: `fret == 0` stops being a placeholder on a natural harmonic and starts **meaning** "open
+string"; and the unified shape *gains* expressiveness, because it represents picking a harmonic over a
+fretted note — one finger pressing 5, another resting on 17 — which is rare but real and awkward today.
+
+**The attack cannot carry the distinction.** Those three names hide *two* independent facts — what
+**excites** the string and what **damps** the node:
+
+| technique | excites | damps the node | attack today |
+|---|---|---|---|
+| natural | the pick | fret hand | `Pick` |
+| pinch | the pick | pick hand (thumb) | `Pick` |
+| right-hand tap | the tapping finger | that same finger (pick hand) | `Tap` |
+| left-hand tap | the tapping finger | that same finger (fret hand) | `Hammer` |
+| slapped natural (E14) | thumb slap | fret hand | `Slap` |
+
+Natural and pinch **collide on `Pick`**: they share their excitation entirely and differ only in the
+damping hand, so no single attack value separates them. And the last row is decisive — the slapped
+natural harmonic established as E14 already requires `attack == Slap`, so it cannot simultaneously hold
+`attack == Natural`. Two values, one field.
+
+**What survives is one binary axis: which hand damps the node.** Orthogonal to attack, and exactly the
+thing the current field already stores. So the field is the right *shape* with the wrong *name* —
+`Natural`/`Pinch` name techniques where the field means a hand. The rename pays off immediately in the
+renderer, whose head-anchoring branch reads `if Natural` when the real reason is physical: the fret hand
+**is** on the fretboard at the node, so the head belongs there, while the picking hand is over the body,
+so the head stays on the fret. Renamed, `noteFretboardX` and `soundingPosition()` explain themselves.
+
+**One redundancy, deliberately not exploited.** The field is only independent information when
+`attack == Pick`. For `Tap` the damper is the picking hand, for `Hammer` the fretting hand, for
+`Slap`/`Pop` the fretting hand — all derivable from the attack. Deriving it would shrink the format but
+produce a field that is sometimes stored and sometimes computed, which reads worse than one that always
+says what it means. Keep it explicit.
 
 ## Tap harmonics: already representable (revised 2026-08-07)
 
