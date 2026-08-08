@@ -24,11 +24,12 @@ ninth-and-beyond lane colors are chosen.
 inline constexpr int g_max_chart_strings{8};
 
 /*!
-\brief Highest fret a note, slide waypoint, touch position, or fret-hand position may reference.
+\brief Highest fret a note, slide waypoint, or fret-hand position may reference.
 
 Frets above the low twenties do not exist on real instruments; the cap leaves headroom for
 extended-range hardware without accepting junk data. Shared with import code so fret clamping
-and validation agree on one authority.
+and validation agree on one authority. Harmonic nodes are bounded separately by
+\ref g_max_harmonic_node, since a node is not a neck position.
 */
 inline constexpr int g_max_fret{30};
 
@@ -36,82 +37,31 @@ inline constexpr int g_max_fret{30};
 \brief Highest harmonic node position accepted, in fret units.
 
 **Not `g_max_fret`.** A fret must be a real position on the neck; a node is anywhere along the
-vibrating string, and the nodes a *pinch* uses sit past the neck entirely, over the pickups. Node
-positions in fret units are `12 * log2(n / (n - k))` for the harmonic's k-th node, so the bridge-side
-node climbs with the harmonic: the 3rd is at 19.02 and the 4th at 24.0 (both observed in real Guitar
-Pro scores), and the 12th reaches 43.02. Capping at `g_max_fret` would have rejected every
-bridge-side node from the 6th harmonic up.
+vibrating string, and the nodes a *pinch* uses sit past the neck entirely, over the pickups —
+bridge-side nodes climb with the harmonic (the 3rd partial's is at 19.02, the 4th's at 24.0, both
+in real Guitar Pro scores), so capping at `g_max_fret` would reject every bridge-side node from
+the 6th partial up. 48 is `12 * log2(16)` exactly, the 16th partial's bridge-side node.
 
-48 is `12 * log2(16)` exactly — the 16th harmonic's bridge-side node, chosen 2026-08-08 with roughly
-double the headroom anything human needs. Three independent lines put the practical ceiling near the
-**8th** partial:
-
-- **Ergonomics, the hard limit.** The nut-side node of the nth partial sits at exactly `L / n` from the
-  nut, so adjacent nodes are `L / (n(n+1))` apart. On a 647.7 mm scale that is 9.0 mm at the 8th and
-  7.2 mm at the 9th — already under a 10-15 mm fingertip — and 2.1 mm at the 17th, where one finger
-  blankets half a dozen nodes. No amount of gain defeats that.
-- **The literature.** Partials 2-5 are the easily audible ones; above them they are "nearly inaudible
-  without the overdrive of an amp", and the "stratospheric" band between frets 2 and 3 is partials 6-9.
-- **Real charts.** A 118-file Guitar Pro corpus reaches only about the 8th.
-
-Precision is not the constraint either: one decimal separates every distinct node through the **17th**
-harmonic without collision (it first fails at the 18th, where 0.990 and 1.050 both round to 1.0).
-
-Note this is a *distance-to-the-bridge* bound more than a partial bound — even capping at the 9th
-partial, its bridge-side node already sits at 38.0 fret units, so a generous number is required either
-way.
-
-Deliberately permissive: the bound's only job is refusing junk, and a tight one could only reject a
-legitimate chart — including a Guitar Pro import we do not author. Keeping the *picker* short is a
-separate UI concern; when harmonic authoring is built it should offer partials 2-8 (the nut-side nodes
-plus the named bridge-side ones: 7/19, 5/24, 4/9/16), not all 79 nodes this bound admits.
-
-There is no low bound beyond "positive": nodes below fret 1 are legitimate, since higher harmonics
-crowd toward the nut (the 16th harmonic's nearest node is 1.12).
+Deliberately permissive: the bound's only job is refusing junk, and a tight one could only reject
+a legitimate chart — including an import we do not author. There is no low bound beyond
+"positive": higher harmonics crowd toward the nut, so nodes below fret 1 are legitimate. The
+evidence behind the number (ergonomics, audibility, corpus reach — all ceiling near the 8th
+partial) lives in `docs/plans/in-progress/technique-compatibility-and-hardening.md`.
 */
 inline constexpr double g_max_harmonic_node{48.0};
 
 /*!
-\brief Highest harmonic partial an editor offers for deliberate selection.
-
-Distinct from \ref g_max_harmonic_node, which only refuses junk. This is the *authoring* ceiling.
-
-16, settled 2026-08-08. One decimal of precision separates every distinct node through the 17th
-partial without collision, so 16 costs nothing there, and the interaction cost is avoided by the
-picker's shape: a per-fret dropdown listing the harmonics available at that fret **sorted from lowest
-order to highest**, defaulting to the lowest, puts the impractical ones at the bottom of a short list
-rather than flat in a menu of every node on the neck.
-
-Practice sits far below this — the literature calls partials 2-5 the easily audible ones, treats the
-9th and 10th as playable-though-challenging, and says beyond the 10th they "are so weak and difficult
-to bring out that they are rarely used", while the ergonomics give 5.9 mm between the 10th's nodes
-against a 10-15 mm fingertip. Offering them anyway is harmless when they sort last; *inferring* them
-is not, which is why import uses \ref g_max_snapped_partial instead.
-*/
-inline constexpr int g_max_authored_partial{16};
-
-/*!
 \brief Highest harmonic partial a *notated* node may be snapped onto during import.
 
-Deliberately lower than \ref g_max_authored_partial, because the two are different problems: choosing
-a partial needs no inference, while resolving a coarse conventional label into a physical node does.
+**8, taken from Guitar Pro's own output**: measured corpus labels form the unbroken run 12, 7, 5,
+4, 3.2, 2.7, 2.4 — exactly partials 2 through 8 — with every remaining value an alternate node of
+those same partials. Neither the GP8 manual nor its format states a cap of its own.
 
-**8, taken from Guitar Pro's own output.** The GP8 manual documents the harmonic *types* (A.H., T.H.,
-P.H., S.H., natural) but states no maximum order and lists no node positions, and `HarmonicFret` is a
-free-form decimal — so neither the application nor its format imposes a cap to inherit. Measured
-instead: across a 118-file corpus the nut-side labels form an unbroken run 12, 7, 5, 4, 3.2, 2.7,
-2.4 — exactly partials 2 through 8 — and every remaining value (5.8, 8.2, 9.0, 14.7, 19, 24) is an
-alternate node of one of those same partials. Nothing needs a 9th. All 13 values resolve to the same
-partial at a cap of 8 as at 10, so the tighter cap loses nothing.
-
-Why a cap is needed at all: notation writes labels, not measurements, and rounds them inconsistently.
-The 7th appears as "2.7" or "2.8" against a true 2.669, and four GP values match no true node at any
-cap (9.0 sits 0.16 from the 5th partial's 8.844). Snapping only works while the nodes stay farther
-apart than that error, and the margin collapses as the cap rises: the tightest label wins by **0.180**
-fret units at a cap of 8 against its own 0.088 error, but by just **0.011** at 16 — where Guitar Pro's
-"2.4" flips to the 15th partial (2.477) instead of the intended 8th (2.312).
-
-Raising this needs that measurement re-run against real scores, not just a bigger number.
+A cap is needed because notation writes rounded labels, not measurements, and snapping only works
+while true nodes stay farther apart than the label error. The margin collapses as the cap rises:
+at 16, Guitar Pro's "2.4" flips to the 15th partial (2.477) instead of the intended 8th (2.312).
+Raising this needs the corpus measurement re-run, not just a bigger number; the full numbers live
+in `docs/plans/in-progress/technique-compatibility-and-hardening.md`.
 */
 inline constexpr int g_max_snapped_partial{8};
 

@@ -103,71 +103,39 @@ enum class NoteAttack : std::uint8_t
 };
 
 /*!
-\brief True when the note is a harmonic.
+\brief Snaps a notated open-string node label to the nearest true node offset.
 
-Node presence is the whole test. A node is what makes a note a harmonic, and **every** harmonic has
-one, a pinch included — the overtone that squeals is *determined* by where the thumb lands, so an
-absent node is missing data rather than a different technique. `chart_rules` refuses a `Pinch`
-carrying no node for exactly that reason, which is what lets this ask one question.
+Notation stores conventional labels rather than measured positions — the 7th partial is written
+"2.7" or "2.8" against a true 2.669 — and a touch even slightly off a node chokes a high harmonic
+instead of ringing it. This maps a label onto the physics: a string's nth-partial nodes sit at
+`12*log2(n/(n-k))` fret units above its stop for `k = 1..n-1`, and fret positions are logarithmic,
+so the stop and the offset simply add. Callers resolve the label against an open string and place
+the result against the real stop.
 
-\param node Harmonic node in fret units.
+\param notated Node label as written, in open-string fret units.
+\param max_partial Highest partial to consider, so a label cannot snap onto an absurd high-order
+                   node that happens to sit nearer to it.
 
-\return True when the note sounds a harmonic.
-*/
-[[nodiscard]] constexpr bool isHarmonic(const std::optional<double>& node)
-{
-    return node.has_value();
-}
-
-/*!
-\brief Open-string node offset, in fret units, of a harmonic's partial.
-
-The physics, once: a string stopped at fret `F` has its nth-partial nodes at `F + 12*log2(n/(n-k))`
-for `k = 1..n-1`. Fret positions are logarithmic, so the fret and the offset simply **add** — which is
-why one offset table serves every fretted position.
-
-Returns the nut-side (`k = 1`) offset, the one guitarists name and the easiest of a partial's nodes to
-sound. Notation sources round these inconsistently — the 7th is written "2.7" by Guitar Pro and "2.8"
-elsewhere against a true 2.669, and the 8th is "2.4" or "2.3" against 2.313 — so computed values are
-the only stable reference and imports snap to them.
-
-\param partial Harmonic number, 2 or greater; 1 is the fundamental and has no node.
-
-\return Offset in fret units, or nothing when `partial` is below 2.
-*/
-[[nodiscard]] std::optional<double> harmonicPartialOffset(int partial);
-
-/*!
-\brief Snaps a notated node position to the nearest true node, for a string stopped at a fret.
-
-Notation stores conventional labels rather than measured positions, and a label that is even slightly
-off chokes a high harmonic instead of ringing it. This maps a label onto the physics.
-
-\param notated Node position as written, in fret units.
-\param fret Fret the string is stopped at; 0 for an open string.
-\param max_partial Highest partial to consider, so a label cannot snap onto an absurd high-order node
-                   that happens to sit nearer to it.
-
-\return Nearest true node beyond `fret`. Always defined, since every partial from 2 up has nodes; a
+\return Nearest true node offset. Always defined, since every partial from 2 up has nodes; a
         `max_partial` below 2 yields the octave.
 */
-[[nodiscard]] double snapHarmonicNode(double notated, int fret, int max_partial);
+[[nodiscard]] double snapHarmonicNode(double notated, int max_partial);
 
 /*!
 \brief True when a harmonic's node lies on the neck, where a display can point at it.
 
-Every harmonic damps its node with a finger on the fretboard except a **pinch**, whose thumb grazes the
-string out over the body. A right-hand tap harmonic belongs on the neck side: the damping finger is the
-picking hand's, but it lands on the fretboard.
+Every harmonic damps its node with a finger on the fretboard except a **pinch**, whose thumb
+grazes the string out over the body. A right-hand tap harmonic belongs on the neck side: the
+damping finger is the picking hand's, but it lands on the fretboard.
 
-Asks about the *attack* alone, so callers keep their own `harmonic_node.has_value()` beside it. That
+Asks about the *attack* alone; callers pair it with their own `harmonic_node.has_value()`, which
 reads plainly and stays visible to the optional-access checker, which cannot see through a wrapper.
 
 \param attack How the onset is produced.
 
 \return True unless the node is off the neck.
 */
-[[nodiscard]] constexpr bool nodeIsOnNeck(const NoteAttack attack)
+[[nodiscard]] constexpr bool nodeIsOnNeck(NoteAttack attack) noexcept
 {
     return attack != NoteAttack::Pinch;
 }
@@ -178,7 +146,7 @@ reads plainly and stays visible to the optional-access checker, which cannot see
 These onsets never anchor, cover, or ring into a fretting-hand posture; the fret-hand
 generator, posture derivation, chord grouping, and camera framing all share this predicate.
 */
-[[nodiscard]] constexpr bool rightHandOnset(const NoteAttack attack) noexcept
+[[nodiscard]] constexpr bool rightHandOnset(NoteAttack attack) noexcept
 {
     return attack == NoteAttack::Tap || attack == NoteAttack::PickSlide;
 }
@@ -308,14 +276,13 @@ struct ChartNote
     while `fret` stays the integer the fretting hand stops.
 
     Which hand damps the node is carried by `attack`: every attack damps with a finger on the
-    neck except `Pinch`, whose thumb grazes the string over the body. Ask
-    `nodeIsOnNeck` rather than testing the attack directly. On a pinch the value is where
-    the picking hand grazes, which no surface shows yet (roadmap 25-Q5).
+    neck except `Pinch`, whose thumb grazes the string over the body — ask `nodeIsOnNeck` rather
+    than testing the attack directly. On a pinch the value is where the picking hand grazes,
+    which no surface shows yet (roadmap 25-Q5).
 
-**Every** harmonic has one, a pinch included: the overtone that squeals is *determined* by where
-    the thumb lands, so there is always a node even though a player does not consciously aim for it.
-    `chart_rules` refuses a `Pinch` carrying none. Guitar Pro always supplies it — measured across a
-    118-file corpus, all 207 harmonics carried an `HarmonicFret`, pinches included.
+    **Every** harmonic has one, a pinch included: the overtone that squeals is *determined* by
+    where the thumb lands, so an absent node is missing data rather than a different technique,
+    and `chart_rules` refuses a `Pinch` carrying none.
     */
     std::optional<double> harmonic_node{};
 
@@ -397,17 +364,17 @@ struct ChordTemplate
 /*!
 \brief The fret the **fretting hand** occupies for this note.
 
-Not the same as `note.fret`, which is the **stop**. A harmonic damped by the fretting hand has no stop
-of its own — its `fret` is the nut, or the capo — so the hand is at the node, the only place it touches
-the string. A pinch and a two-hand tap both *do* have a real stop, and their node belongs to the
-picking hand, so those stay on the fret.
+Not the same as `note.fret`, which is the **stop**. A harmonic damped by the fretting hand has no
+stop of its own — its `fret` is the nut, or the capo — so the hand is at the node, the only place
+it touches the string. A pinch and a two-hand tap both *do* have a real stop, and their node
+belongs to the picking hand, so those stay on the fret.
 
-Fret `N` occupies the neck from wire `N-1` to wire `N` (`highwayNoteCenterX` is the midpoint of those
-two), so the fret containing a node at `p` is `ceil(p)`: 2.669 lies in fret 3 and 3.156 in fret 4.
-**Neither `round` nor `floor` works.** A fret-hand window over frets `[f, f+w-1]` covers fret units
-`[f-1, f+w-1]`, so when the harmonic is the window's edge note the window only reliably covers
-`[H-1, H]` for the fret `H` it was given. Measured over every node below fret 25, `floor` leaves the
-head outside the window 18 times and `round` 7 times; `ceil` never does.
+Fret `N` occupies the neck from wire `N-1` to wire `N` (`highwayNoteCenterX` is the midpoint of
+those two), so the fret containing a node at `p` is `ceil(p)`: 2.669 lies in fret 3 and 3.156 in
+fret 4. **Neither `round` nor `floor` works.** A fret-hand window over frets `[f, f+w-1]` covers
+fret units `[f-1, f+w-1]`, so when the harmonic is the window's edge note the window only reliably
+covers `[H-1, H]` for the fret `H` it was given. Measured over every node below fret 25, `floor`
+leaves the head outside the window 18 times and `round` 7 times; `ceil` never does.
 
 \param note Note to place.
 

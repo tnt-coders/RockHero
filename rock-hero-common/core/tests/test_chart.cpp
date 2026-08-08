@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -229,41 +230,24 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
 // label even slightly off chokes a high harmonic instead of ringing it.
 TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
 {
-    // The nut-side offsets guitarists name, against the labels notation prints for them.
-    REQUIRE(harmonicPartialOffset(2).has_value());
-    if (const auto octave = harmonicPartialOffset(2); octave.has_value())
-    {
-        CHECK(*octave == Catch::Approx(12.0));
-    }
-    if (const auto sixth = harmonicPartialOffset(6); sixth.has_value())
-    {
-        CHECK(*sixth == Catch::Approx(3.1564).margin(0.001)); // printed "3.2"
-    }
-    if (const auto eighth = harmonicPartialOffset(8); eighth.has_value())
-    {
-        CHECK(*eighth == Catch::Approx(2.3124).margin(0.001)); // printed "2.4" or "2.3"
-    }
-    // The fundamental has no node.
-    CHECK_FALSE(harmonicPartialOffset(1).has_value());
-
-    // Fret units are logarithmic, so a stop and a node offset simply add: the same offsets serve
-    // every fretted position.
-    CHECK(snapHarmonicNode(12.0, 0, g_max_snapped_partial) == Catch::Approx(12.0));
-    CHECK(snapHarmonicNode(17.0, 5, g_max_snapped_partial) == Catch::Approx(17.0));
+    // The exact labels: the octave and the 4th partial's bridge-side node are true nodes, so
+    // snapping must return them untouched. Call sites add the stop themselves — fret units are
+    // logarithmic, so a stop and an open-string offset simply add.
+    CHECK_THAT(snapHarmonicNode(12.0, g_max_snapped_partial), Catch::Matchers::WithinULP(12.0, 0));
+    CHECK_THAT(snapHarmonicNode(24.0, g_max_snapped_partial), Catch::Matchers::WithinULP(24.0, 0));
 
     // Conventional labels resolve to the partial the score meant, not to whatever node happens to
     // sit nearest. This is the guard on g_max_snapped_partial: at a cap of 16 the "2.4" below
     // resolves to the 15th partial instead of the 8th, because the nodes crowd tighter than the
     // label's own rounding error.
-    CHECK(snapHarmonicNode(2.4, 0, g_max_snapped_partial) == Catch::Approx(2.3124).margin(0.001));
-    CHECK(snapHarmonicNode(2.7, 0, g_max_snapped_partial) == Catch::Approx(2.6687).margin(0.001));
-    CHECK(snapHarmonicNode(4.0, 0, g_max_snapped_partial) == Catch::Approx(3.8631).margin(0.001));
-    // Bridge-side nodes are named too: 19 and 24 are the 3rd and 4th partials' later nodes.
-    CHECK(snapHarmonicNode(19.0, 0, g_max_snapped_partial) == Catch::Approx(19.0196).margin(0.001));
-    CHECK(snapHarmonicNode(24.0, 0, g_max_snapped_partial) == Catch::Approx(24.0));
+    CHECK(snapHarmonicNode(2.4, g_max_snapped_partial) == Catch::Approx(2.3124).margin(0.001));
+    CHECK(snapHarmonicNode(2.7, g_max_snapped_partial) == Catch::Approx(2.6687).margin(0.001));
+    CHECK(snapHarmonicNode(4.0, g_max_snapped_partial) == Catch::Approx(3.8631).margin(0.001));
+    // Bridge-side nodes are named too: 19 is the 3rd partial's second node.
+    CHECK(snapHarmonicNode(19.0, g_max_snapped_partial) == Catch::Approx(19.0196).margin(0.001));
 
     // A cap below 2 has no partials to search, so it yields the octave rather than nothing.
-    CHECK(snapHarmonicNode(3.2, 0, 1) == Catch::Approx(12.0));
+    CHECK_THAT(snapHarmonicNode(3.2, 1), Catch::Matchers::WithinULP(12.0, 0));
 
     // Which fret the FRETTING hand occupies. A natural harmonic has no stop of its own, so the hand
     // is at the node; fret N spans wire N-1 to wire N, making that fret ceil(node) — NOT round and
@@ -346,7 +330,7 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         note.harmonic_node = 3.2;
         const ChartNote parsed = round_trip(note);
         CHECK(parsed == note);
-        CHECK(isHarmonic(parsed.harmonic_node));
+        CHECK(parsed.harmonic_node.has_value());
         CHECK(nodeIsOnNeck(parsed.attack));
     }
 
@@ -357,16 +341,16 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         note.harmonic_node = 17.0;
         const ChartNote parsed = round_trip(note);
         CHECK(parsed == note);
-        CHECK(isHarmonic(parsed.harmonic_node));
+        CHECK(parsed.harmonic_node.has_value());
         // The thumb grazes over the body, so the node is not a neck position to draw at.
         CHECK_FALSE(nodeIsOnNeck(parsed.attack));
     }
 
     SECTION("a pinch with no node is REFUSED")
     {
-        // A pinch is picking while damping a node, so one without a node is missing data rather than
-        // a different technique — the overtone that squeals is determined by where the thumb lands.
-        // Enforcing this is what lets isHarmonic be node presence alone.
+        // A pinch is picking while damping a node, so one without a node is missing data rather
+        // than a different technique — the overtone that squeals is set by where the thumb lands.
+        // Enforcing this is what lets node presence alone assert the harmonic.
         ChartNote note = note_at(5);
         note.attack = NoteAttack::Pinch;
         Chart pinch_chart;
@@ -380,15 +364,39 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
     SECTION("a node past the bridge-side limit is refused, but a sub-fret-1 node is fine")
     {
         // Higher harmonics crowd toward the nut, so a node below fret 1 is legitimate; the bound
-        // only refuses positions past the 16th harmonic's bridge-side node.
+        // only refuses positions past the 16th harmonic's bridge-side node — and it is inclusive,
+        // since that node is itself real.
         Chart chart;
         chart.tuning.strings = {"E2"};
         chart.notes = {note_at(0)};
         chart.notes[0].harmonic_node = 1.1;
         CHECK(validateChartRules(chart, tempo_map).has_value());
 
+        chart.notes[0].harmonic_node = g_max_harmonic_node;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+
         chart.notes[0].harmonic_node = g_max_harmonic_node + 0.1;
         CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = 0.0;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+    }
+
+    SECTION("a node at or behind the stop is refused")
+    {
+        // A node lies on the speaking length: nothing vibrates at or behind the stop, so the
+        // comparison is strict — a node AT the stop is the stop.
+        Chart chart;
+        chart.tuning.strings = {"E2"};
+        chart.notes = {note_at(3)};
+        chart.notes[0].harmonic_node = 3.0;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = 2.7;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = 3.2;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
     }
 
     SECTION("a tapped node is a tap harmonic, and its damper IS on the fretboard")

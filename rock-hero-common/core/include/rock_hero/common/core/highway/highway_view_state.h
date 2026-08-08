@@ -120,11 +120,11 @@ struct HighwayNoteView
     /*!
     \brief Harmonic node in fret units, and the assertion that this note is a harmonic.
 
-    Mirrors `ChartNote::harmonic_node`, carrying the chart's exact node point (the 3.2 / 2.7 / 5.8 family)
-    so the highway places the harmonic head at the true node instead of the fret middle. Ask
-    `nodeIsOnNeck` before anchoring to it and `isHarmonic` to ask whether the note is
-    one at all — a pinch is a harmonic whose node may be unrecorded, and is drawn at its fret
-    because the thumb grazes over the body.
+    Mirrors `ChartNote::harmonic_node`, carrying the chart's exact node point (the 3.2 / 2.7 /
+    5.8 family) so the highway places the harmonic head at the true node instead of the fret
+    middle. Every harmonic carries one, a pinch included (rule-enforced) — but a pinch's node
+    lies off the neck where the thumb grazes, so ask `nodeIsOnNeck` before anchoring to it; a
+    pinch draws at its fret.
     */
     std::optional<double> harmonic_node{};
 

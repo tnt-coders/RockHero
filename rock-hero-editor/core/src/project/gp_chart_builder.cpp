@@ -1346,9 +1346,9 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         {
             continue; // not sounding at this instant
         }
-        // A natural harmonic has no stop of its own, so its `fret` is the nut (or the capo) and its
-        // fretting hand is at the NODE instead — reading `fret` here would drop a 12th-fret harmonic
-        // passage out of hand derivation and leave the window at the nut.
+        // A natural harmonic has no stop of its own, so its `fret` is the nut (or the capo) and
+        // its fretting hand is at the NODE instead — reading `fret` here would drop a 12th-fret
+        // harmonic passage out of hand derivation and leave the window at the nut.
         const int other_hand_fret = common::core::fretFor(other.note);
         if (common::core::rightHandOnset(other.note.attack) || other_hand_fret <= 0)
         {
@@ -1938,6 +1938,9 @@ void resolveSlideOutExits(
     std::map<int, std::size_t> open_note_per_string;
     std::map<int, int> previous_fret_per_string;
     int dropped_duplicates = 0;
+    int unsupported_harmonics = 0;
+    int implausible_natural_labels = 0;
+    int defaulted_fretted_nodes = 0;
 
     for (const NoteEvent& event : events)
     {
@@ -2041,52 +2044,86 @@ void resolveSlideOutExits(
 
         if (!source.harmonic_type.empty())
         {
-            // Guitar Pro's HarmonicFret means two different things, measured across a 118-file
-            // corpus. For a NATURAL harmonic it is the node itself: the note's Fret already carries
-            // the touched position and HarmonicFret refines it, so HarmonicFret - Fret clusters at
-            // zero. For a FRETTED harmonic (pinch, artificial) it is instead a *partial label*
-            // spelled as the familiar open-string position — HarmonicFret - Fret is scattered, and
-            // 18 of 56 pinches name a position BELOW their own fret, which no thumb can reach. Since
-            // fret positions are logarithmic the real node is just fret + the label's offset.
+            // Guitar Pro's HarmonicFret means two different things. For a NATURAL harmonic it is
+            // the node itself: the note's Fret already carries the touched position and
+            // HarmonicFret refines it. For a harmonic over a real stop — pinch, artificial,
+            // tapped — it is instead a *partial label* spelled as the familiar open-string
+            // position (18 of 56 corpus pinches name a position BELOW their own fret, which no
+            // thumb can reach). Fret positions are logarithmic, so the real node is the stop
+            // plus the label's open-string offset.
             //
-            // Either way the notated value is snapped to the true node, because a label that is even
-            // slightly off chokes a high harmonic instead of ringing it, and sources round them
-            // inconsistently (the 7th is "2.7" here and "2.8" elsewhere against a true 2.669).
-            const bool fretted_harmonic =
-                source.harmonic_type == "Pinch" || source.harmonic_type == "Artificial";
-            if (source.harmonic_type == "Pinch")
+            // Labels are conventional roundings, so each is snapped to the true node it names —
+            // a touch even slightly off a node chokes the harmonic. A label farther than half a
+            // fret from every node names nothing: real labels land within 0.331 of a node, while
+            // the integer frets with no harmonic near them (1, 11, 13, ...) miss by 0.669 or
+            // more, and snapping those anyway would move the touch a whole fret and sound a
+            // different partial.
+            constexpr double plausible_label_error = 0.5;
+            const bool fretted_harmonic = source.harmonic_type == "Pinch" ||
+                                          source.harmonic_type == "Artificial" ||
+                                          source.harmonic_type == "Tap";
+            if (fretted_harmonic)
             {
-                note.attack = NoteAttack::Pinch;
+                if (source.harmonic_type == "Pinch")
+                {
+                    // GP can notate a legato or tap mark beside the pinch; the single-attack
+                    // model keeps one onset, and the pinch is the one the squeal makes audible.
+                    note.attack = NoteAttack::Pinch;
+                }
+                else if (source.harmonic_type == "Tap")
+                {
+                    note.attack = NoteAttack::Tap;
+                }
+                // The stop the harmonic speaks from: the note's own fret, or the capo when the
+                // string is open — the capo is what stops a capo'd string.
+                const int stop_fret = source.fret > 0 ? source.fret : chart.tuning.capo;
+                // With no usable label the octave is the default: the 2nd partial is the
+                // lowest-order harmonic available at any fret and so the easiest to ring. Using
+                // the *fret* as a label here would read a stop as a partial number.
+                double offset = 12.0;
+                bool defaulted = true;
+                if (source.harmonic_fret.has_value())
+                {
+                    const double snapped = common::core::snapHarmonicNode(
+                        *source.harmonic_fret, common::core::g_max_snapped_partial);
+                    if (std::abs(snapped - *source.harmonic_fret) <= plausible_label_error)
+                    {
+                        offset = snapped;
+                        defaulted = false;
+                    }
+                }
+                defaulted_fretted_nodes += defaulted ? 1 : 0;
+                note.harmonic_node = static_cast<double>(stop_fret) + offset;
             }
-            // The stop a harmonic speaks from: its own fret when the note is stopped, else the nut —
-            // or the CAPO, which is the stop on a capo'd guitar. Guitar Pro ignores the capo here: a
-            // capo-1 score in the corpus writes its natural harmonics at 7.0 and 8.2, positions
-            // measured from the nut that are not nodes of the capo'd string at all (its 3rd partial
-            // sits at 8.02), so as written they would not ring. Referencing the stop fixes that
-            // rather than inheriting it.
-            //
-            // With no value at all, a natural falls back to its own fret (which for one IS the
-            // touched position) while a fretted harmonic falls back to the octave offset — the 2nd
-            // partial, the lowest-order harmonic available at any fret and so the easiest to ring.
-            // Using the *fret* as a fallback label there would read a stop as a partial number.
-            const int stop_fret = fretted_harmonic ? source.fret : chart.tuning.capo;
-            const double fallback = fretted_harmonic ? 12.0 : static_cast<double>(source.fret);
-            const double notated = source.harmonic_fret.value_or(fallback);
-            // Notated values are nut-referenced either way, so they name an OFFSET. Resolve the
-            // offset first against an open string, then place it against the real stop — one formula
-            // for both readings. Resolving against the stop instead would look for a node near the
-            // nut-referenced number, which on a capo'd chart is the wrong partial entirely: with a
-            // capo at 2, "3.2" would find the 8th partial at 4.31 rather than the intended 6th, whose
-            // node on that string sits at 5.16.
-            const double offset =
-                common::core::snapHarmonicNode(notated, 0, common::core::g_max_snapped_partial);
-            note.harmonic_node = static_cast<double>(stop_fret) + offset;
-            if (!fretted_harmonic)
+            else if (source.harmonic_type == "Natural")
             {
-                // A natural harmonic has no stop of its own — the string speaks from the nut, or the
-                // capo. Its node carries the position, so `fret` stops doubling as a rounded copy of
-                // it, which is what makes the node-beyond-the-stop rule expressible at all.
-                note.fret = chart.tuning.capo;
+                // A natural has no stop of its own — the string speaks from the nut or the capo,
+                // and the node carries the position, so `fret` never doubles as a rounded copy
+                // of it. The label (or, absent one, the note's own fret, which for a natural IS
+                // the touched position) resolves against an open string and lands on the real
+                // stop. That formula is right whether GP writes its numbers nut-referenced or
+                // capo-relative; the frame question for ordinary frets is recorded in the
+                // technique-compatibility plan doc.
+                const double notated =
+                    source.harmonic_fret.value_or(static_cast<double>(source.fret));
+                const double offset =
+                    common::core::snapHarmonicNode(notated, common::core::g_max_snapped_partial);
+                if (std::abs(offset - notated) <= plausible_label_error)
+                {
+                    note.harmonic_node = static_cast<double>(chart.tuning.capo) + offset;
+                    note.fret = chart.tuning.capo;
+                }
+                else
+                {
+                    // The label names no node; the note survives as an ordinary fretted note.
+                    ++implausible_natural_labels;
+                }
+            }
+            else
+            {
+                // Semi and feedback harmonics have no representation yet; the note survives as
+                // an ordinary note, and the count keeps the loss loud.
+                ++unsupported_harmonics;
             }
         }
 
@@ -2393,6 +2430,26 @@ void resolveSlideOutExits(
         notes.push_back(
             "derived " + std::to_string(chart.shapes.size()) + " chord spans (" +
             std::to_string(chart.templates.size()) + " postures)");
+    }
+
+    if (unsupported_harmonics > 0)
+    {
+        notes.push_back(
+            std::to_string(unsupported_harmonics) +
+            " semi/feedback harmonics were imported without their harmonic");
+    }
+    if (implausible_natural_labels > 0)
+    {
+        notes.push_back(
+            std::to_string(implausible_natural_labels) +
+            " natural-harmonic labels matched no real node and were imported without their "
+            "harmonic");
+    }
+    if (defaulted_fretted_nodes > 0)
+    {
+        notes.push_back(
+            std::to_string(defaulted_fretted_nodes) +
+            " stopped harmonics carried no usable node label and defaulted to the octave");
     }
 
     chart.notes.reserve(built.size());

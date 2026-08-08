@@ -39,7 +39,7 @@ namespace
 }
 
 // Mirrors the editor tab-projection fixture (chord pair, sustained slide/bend note, shape spans,
-// one FHP) plus a harmonic touch position for the highway-only fields.
+// one FHP) plus a harmonic node for the highway-only fields.
 [[nodiscard]] Arrangement makeArrangementWithChart()
 {
     Chart chart;

@@ -282,10 +282,11 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         // here: the label resolves to that partial's true offset (3.156, not 3.2, since a position
         // even slightly off chokes the harmonic), and it is placed against the real stop — this
         // fixture has a CAPO AT 2, so the string speaks from there and its 6th-partial node sits at
-        // 5.156. Guitar Pro ignores the capo and would have the player touch 3.2, which is not a node
-        // of that string at all and would not ring.
+        // 5.156. Reading the label as an open-string offset from the stop is right whether Guitar
+        // Pro's numbers are nut-referenced or capo-relative (the frame question is recorded in the
+        // technique-compatibility plan doc).
         CHECK(*chart.notes[4].harmonic_node == Catch::Approx(5.1564).margin(0.001));
-        // A natural harmonic has no stop of its own, so its fret IS the capo, not a copy of its node.
+        // A natural harmonic has no stop of its own, so its fret IS the capo, not a node copy.
         CHECK(chart.notes[4].fret == 2);
         CHECK(*chart.notes[4].harmonic_node > static_cast<double>(chart.notes[4].fret));
         // The fretting hand is at the node it touches, not down at the capo.
@@ -1303,8 +1304,8 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
 // payloads keep the mark with a conversion note instead.
 // A harmonic is asserted by its node now, so import must always set one for a fret-hand harmonic —
 // including when Guitar Pro's HarmonicFret matches the fret, or omits it. Storing it only when it
-// differed (the old shape, where a separate field carried the harmonic) would now import the note as
-// not a harmonic at all.
+// differed (the old shape, where a separate field carried the harmonic) would now import the
+// note as not a harmonic at all.
 TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -1330,7 +1331,6 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         {
             CHECK(*note.harmonic_node == Catch::Approx(12.0));
         }
-        CHECK(common::core::isHarmonic(note.harmonic_node));
     }
 
     SECTION("a missing node falls back to the fret rather than leaving the note unharmonic")
@@ -1343,7 +1343,6 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
             // Snapped to the 3rd partial's true node, not the "7" the score wrote.
             CHECK(*note.harmonic_node == Catch::Approx(7.0196).margin(0.001));
         }
-        CHECK(common::core::isHarmonic(note.harmonic_node));
     }
 
     SECTION("a pinch becomes the attack and carries the node Guitar Pro recorded")
@@ -1351,9 +1350,9 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         // For a FRETTED harmonic Guitar Pro's HarmonicFret is a partial LABEL, not a position:
         // measured across 118 files, HarmonicFret - Fret is scattered and 18 of 56 pinches name a
         // position below their own fret, which no thumb can reach. Fret units are logarithmic, so
-        // the real node is fret + the label's offset. 24.0 labels the 4th partial's third node, so a
-        // pinch stopped at 5 grazes at 29 — past the neck, over the pickups, exactly where a thumb
-        // is.
+        // the real node is fret + the label's offset. 24.0 labels the 4th partial's third node,
+        // so a pinch stopped at 5 grazes at 29 — past the neck, over the pickups, exactly where a
+        // thumb is.
         const common::core::ChartNote note = importNote(
             GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch", .harmonic_fret = 24.0});
         CHECK(note.attack == common::core::NoteAttack::Pinch);
@@ -1364,7 +1363,6 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
             // Beyond the stop, which the chart rules require.
             CHECK(*note.harmonic_node > static_cast<double>(note.fret));
         }
-        CHECK(common::core::isHarmonic(note.harmonic_node));
         // Off the neck, so no 2D/3D anchor comes from it.
         CHECK_FALSE(common::core::nodeIsOnNeck(note.attack));
     }
@@ -1373,7 +1371,7 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
     {
         // Unreached against real scores, but a pinch cannot be represented without its node. The
         // octave is the 2nd partial — the lowest-order harmonic available at any fret, so the
-        // easiest to ring — which beats both dropping the technique and reading the stop as a label.
+        // easiest to ring — beating both dropping the technique and reading the stop as a label.
         const common::core::ChartNote note =
             importNote(GpNote{.string = 1, .fret = 5, .harmonic_type = "Pinch"});
         CHECK(note.attack == common::core::NoteAttack::Pinch);
@@ -1381,6 +1379,93 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         if (note.harmonic_node.has_value())
         {
             CHECK(*note.harmonic_node == Catch::Approx(17.0));
+        }
+    }
+
+    SECTION("a tapped harmonic keeps its stop and becomes the Tap attack")
+    {
+        // The natural path would erase the stop (fret := capo) and read the label against the
+        // wrong string. A tap harmonic is a harmonic over a real stop, like a pinch — but its
+        // damping finger lands ON the neck, so the node anchors displays.
+        const common::core::ChartNote note = importNote(
+            GpNote{.string = 1, .fret = 5, .harmonic_type = "Tap", .harmonic_fret = 12.0});
+        CHECK(note.attack == common::core::NoteAttack::Tap);
+        CHECK(note.fret == 5);
+        REQUIRE(note.harmonic_node.has_value());
+        if (note.harmonic_node.has_value())
+        {
+            CHECK(*note.harmonic_node == Catch::Approx(17.0));
+        }
+        CHECK(common::core::nodeIsOnNeck(note.attack));
+    }
+
+    SECTION("semi and feedback harmonics drop the harmonic loudly, never corrupt the note")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{GpBeat{
+                    .duration_whole = Fraction{1, 4},
+                    .notes = {GpNote{
+                        .string = 1, .fret = 5, .harmonic_type = "Feedback", .harmonic_fret = 12.0
+                    }}
+                }}}
+            });
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        // The note survives as an ordinary note — the stop is NOT overwritten with the capo the
+        // way the natural path writes it — and the dropped harmonic is reported.
+        CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
+        CHECK(anyNoteContains(built->notes, "semi/feedback harmonics"));
+    }
+
+    SECTION("a natural label matching no real node drops the harmonic loudly")
+    {
+        // Integer frets 1, 11, 13, 14, 18, 20, 21, 23 sit 0.669+ from every true node; snapping
+        // one anyway would move the touch a whole fret and sound a different partial.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{GpBeat{
+                    .duration_whole = Fraction{1, 4},
+                    .notes = {GpNote{.string = 1, .fret = 13, .harmonic_type = "Natural"}}
+                }}}
+            });
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
+        CHECK(chart.notes[0].fret == 13);
+        CHECK(anyNoteContains(built->notes, "matched no real node"));
+    }
+
+    SECTION("an open-string pinch on a capo'd track speaks from the capo")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].capo = 2;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{GpBeat{
+                    .duration_whole = Fraction{1, 4},
+                    .notes = {GpNote{
+                        .string = 1, .fret = 0, .harmonic_type = "Pinch", .harmonic_fret = 12.0
+                    }}
+                }}}
+            });
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].harmonic_node.has_value());
+        if (chart.notes[0].harmonic_node.has_value())
+        {
+            // The capo stops the open string, so the octave squeals from capo + 12, not the nut.
+            CHECK(*chart.notes[0].harmonic_node == Catch::Approx(14.0));
         }
     }
 }

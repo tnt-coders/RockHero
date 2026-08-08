@@ -183,8 +183,6 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                 .message = "note sustain must not be negative at " + positionText(note.position),
             }};
         }
-        // The rule this replaced also had to catch a node disagreeing with a harmonic field; that
-        // field is gone, so the disagreement it policed is no longer expressible.
         if (note.harmonic_node.has_value() &&
             (*note.harmonic_node <= 0.0 || *note.harmonic_node > g_max_harmonic_node))
         {
@@ -195,10 +193,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             }};
         }
         // A node lies on the speaking length, so it cannot sit at or behind the stop — nothing
-        // vibrates there. Universal now that a natural harmonic's `fret` is its actual stop (the nut,
-        // or the capo) rather than a rounded copy of its own node; while it was the latter this rule
-        // could not be written at all, because Guitar Pro rounds that fret to an integer and 9 of 109
-        // naturals ended up with a node just below it.
+        // vibrates there. Universal because a natural harmonic's `fret` is its actual stop (the
+        // nut, or the capo), never a rounded copy of its own node.
         if (note.harmonic_node.has_value() && *note.harmonic_node <= static_cast<double>(note.fret))
         {
             return std::unexpected{ChartError{
@@ -209,7 +205,7 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
         // A pinch is picking while damping a node, so a pinch without one is missing data rather
         // than a different technique — the overtone that squeals is *determined* by where the thumb
-        // lands. Enforcing it is what lets `isHarmonic` be node presence alone.
+        // lands. Enforcing it is what lets node presence alone assert the harmonic.
         if (note.attack == NoteAttack::Pinch && !note.harmonic_node.has_value())
         {
             return std::unexpected{ChartError{

@@ -45,19 +45,19 @@ projection must agree on it so a chip visually belongs to the rails below it.
 [[nodiscard]] juce::Colour tabShapeMarkColor(bool arpeggio);
 
 /*!
-rief Returns the number a note head carries: its harmonic node when it has one, else its fret.
+\brief Returns the number a note head carries: its harmonic node when it has one, else its fret.
 
-A fret-hand harmonic names its **node** rather than its fret, because the node is what sets the pitch
-and is where the finger actually is — a natural harmonic's `fret` is only an integer anchor. One
-decimal is exactly enough: it separates every distinct node through the 17th harmonic, far past the
-~8th a fingertip can still isolate. A trailing ".0" is dropped so the common 12 / 7 / 5 positions stay
-as narrow as an ordinary fret number.
+A fret-hand harmonic names its **node** rather than its fret, because the node is what sets the
+pitch and is where the finger actually is — a natural harmonic's `fret` is only an integer anchor.
+One decimal is exactly enough: it separates every distinct node through the 17th harmonic, far
+past the ~8th a fingertip can still isolate. A trailing ".0" is dropped so the common 12 / 7 / 5
+positions stay as narrow as an ordinary fret number.
 
 A **pinch** keeps its fret: its node sits off the neck over the pickups, and 2D has no axis to place
 that on, so drawing it would name a fret the hand is nowhere near (roadmap 25-Q5).
 
 \param note Projected note to label.
-eturn Head text, never empty.
+\return Head text, never empty.
 */
 [[nodiscard]] juce::String tabNoteHeadText(const common::core::TabNoteView& note);
 

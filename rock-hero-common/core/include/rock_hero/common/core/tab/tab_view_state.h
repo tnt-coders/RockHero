@@ -88,9 +88,9 @@ struct TabNoteView
     /*!
     \brief Harmonic node in fret units, and the assertion that this note is a harmonic.
 
-    Mirrors `ChartNote::harmonic_node`. 2D has no fretboard axis to place a node on, so this positions
-    nothing — it selects the diamond head, and carries the value for a future fractional label.
-    Ask `isHarmonic` rather than testing it directly, since a pinch may have no node to record.
+    Mirrors `ChartNote::harmonic_node`: presence is the whole test, and every harmonic carries
+    one, a pinch included (rule-enforced). 2D has no fretboard axis to place a node on, so this
+    positions nothing — it selects the diamond head and supplies the head's node label.
     */
     std::optional<double> harmonic_node{};
 

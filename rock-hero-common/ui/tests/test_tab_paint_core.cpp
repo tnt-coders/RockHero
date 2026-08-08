@@ -215,9 +215,6 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     CHECK(image.getPixelAt(282, 7) == juce::Colour{0xff2a2f36});
 }
 
-// A pick scrape's head is the plectrum silhouette measured off the note atlas's pick-slide cell,
-// and it carries its identity by SHAPE: no borrowed full-mute X, no boxed fret number. Every probe
-// here reads the RIGHT half of the head, because the beside-head chip occupies the left.
 // A fret-hand harmonic's head names its node, not its fret.
 TEST_CASE("Tab paint core labels a harmonic head with its node", "[ui][tab-paint]")
 {
@@ -260,6 +257,9 @@ TEST_CASE("Tab paint core labels a harmonic head with its node", "[ui][tab-paint
     CHECK(head_text(5, 24.0, common::core::NoteAttack::Pinch) == "5");
 }
 
+// A pick scrape's head is the plectrum silhouette measured off the note atlas's pick-slide cell,
+// and it carries its identity by SHAPE: no borrowed full-mute X, no boxed fret number. Every probe
+// here reads the RIGHT half of the head, because the beside-head chip occupies the left.
 TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

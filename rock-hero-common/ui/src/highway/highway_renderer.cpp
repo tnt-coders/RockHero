@@ -294,33 +294,31 @@ struct PosColorUvVertex
     float v;
 };
 
-// Lazily built layouts. begin()'s default RendererType::Noop merely selects an attribute-size
-// table shared with D3D11 (it never consults the live context), so building these is safe at
-// any time; laziness just keeps the construction in one place.
 // The note's x on the fretboard axis, and the ONE authority for it.
 //
-// A natural harmonic is touched AT its node rather than behind a fret wire, so its head, its tail and
-// its slide anchor must all read the same value. Three call sites once computed this independently and
-// only the head applied the node, which drew a held harmonic's head a full fret slot away from its own
-// tail — the node lands just past a wire while the fret slot's middle sits between the two wires
-// behind it.
+// A natural harmonic is touched AT its node rather than behind a fret wire, so its head, its tail
+// and its slide anchor must all read the same value: the node lands just past a wire while the
+// fret slot's middle sits between the two wires behind it, half a slot away.
 //
-// A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on `fret` and this
-// returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).
+// A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on `fret` and
+// this returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).
 [[nodiscard]] double noteFretboardX(
     const common::core::HighwayNoteView& note, const common::core::HighwayMetrics& metrics,
     const bool mirrored)
 {
     if (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack))
     {
-        // The fret axis takes a fractional coordinate directly, so the node needs no rounding of any
-        // kind here. This is NOT the ceil that `fretFor` applies: that one asks which integer fret
-        // *contains* the node, for the hand window, while this wants the node's exact position.
+        // The fret axis takes a fractional coordinate directly, so the node needs no rounding of
+        // any kind here. This is NOT the ceil that `fretFor` applies: that one asks which integer
+        // fret *contains* the node, for the hand window; this wants the node's exact position.
         return common::core::highwayFretLineX(*note.harmonic_node, metrics, mirrored);
     }
     return common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
 }
 
+// Lazily built layouts. begin()'s default RendererType::Noop merely selects an attribute-size
+// table shared with D3D11 (it never consults the live context), so building these is safe at
+// any time; laziness just keeps the construction in one place.
 [[nodiscard]] const bgfx::VertexLayout& posColorLayout()
 {
     static const bgfx::VertexLayout g_layout = [] {
@@ -2151,7 +2149,7 @@ void HighwayRenderer::Impl::draw(
             has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
                         note.tremolo || !note.bend.empty() || !note.slides.empty();
             all_palm_muted = all_palm_muted && note.mute == common::core::NoteMute::Palm;
-            any_marks = any_marks || common::core::isHarmonic(note.harmonic_node) ||
+            any_marks = any_marks || note.harmonic_node.has_value() ||
                         note.attack != common::core::NoteAttack::Pick ||
                         note.mute != common::core::NoteMute::None;
         }
@@ -2314,8 +2312,8 @@ void HighwayRenderer::Impl::draw(
         std::vector<PosColorVertex> box_vertices;
         std::vector<std::uint16_t> box_indices;
         // Repeat-box mute marks render through the SDF program (see box_mute_profile.h for
-        // the measured-art model). They ride a different program than the panels, and painter order must
-        // hold ACROSS boxes — dense chug chains overlap heavily on screen in perspective, and
+        // the measured-art model). They ride a different program than the panels, and painter
+        // order must hold ACROSS boxes — dense chug chains overlap heavily on screen, and
         // a far box's mark must never composite over a nearer box's panel — so the panel
         // batch flushes before each mark and the mark submits immediately. Draw-call cost is
         // bounded by the visible marked repeat boxes: tens at worst, noise for bgfx.

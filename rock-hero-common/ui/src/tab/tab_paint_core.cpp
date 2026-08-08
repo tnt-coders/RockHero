@@ -304,7 +304,7 @@ enum class HeadShape
 // scrape are two values of one attack and the chart rules reject a scrape carrying a node.
 [[nodiscard]] HeadShape headShapeFor(const common::core::TabNoteView& note)
 {
-    if (common::core::isHarmonic(note.harmonic_node))
+    if (note.harmonic_node.has_value())
     {
         return HeadShape::Diamond;
     }
@@ -580,14 +580,11 @@ void drawBendLines(
 
 // Draws Charter's accent glow behind the head: a soft ring fading out just past the head edge.
 //
-// The plectrum shares the disc's radial fade rather than getting its own outline pass, and the
-// mapping is stated rather than left to a default even though the chart rules make it unreachable
-// (an accent is one of the techniques a pick-slide note may not carry). It is the right fallback
-// but not a free one: the fade band opens at 0.560 of the head and the plectrum's upper shoulder
-// reaches 0.547 — farther out than the disc's own 0.500 rim, because that shoulder sits diagonally
-// — so the band would clear the silhouette by 0.331 px at a 25 px note height where it clears the
-// disc by 1.560. Widening it means raising glow_size (1.52 would restore the disc's clearance),
-// which the round head shares, so it stays as it is until an accented scrape is legal.
+// The plectrum shares the disc's radial fade, stated rather than defaulted even though the chart
+// rules make an accented scrape unreachable. The fade band clears the plectrum's diagonal
+// shoulder by only 0.331 px at a 25 px head against the disc's 1.560; the fix is glow_size, which
+// the round head shares, so it stays as it is until an accented scrape is legal (the measurements
+// live with the deferred cell in the technique-compatibility plan doc).
 void drawAccentGlow(
     juce::Graphics& g, const StringStyle& style, float center_x, float center_y, float size,
     HeadShape shape)
@@ -969,23 +966,22 @@ void drawNoteHead(
             });
     }
 
-    // The X reports this note's OWN mute state and nothing else. A scrape used to borrow the
-    // full-mute X to say "sounds no pitch", but the plectrum silhouette now says which kind of note
-    // this is, and a mark that means one thing on one note and another thing elsewhere is a mark
-    // the reader has to disambiguate. The chart rules reject a mute on a pick-slide note outright,
-    // so a scrape passes None here and draws no X at all.
+    // The X reports this note's OWN mute state and nothing else — a mark that means one thing on
+    // one note and another elsewhere is a mark the reader has to disambiguate; the plectrum
+    // silhouette already says what a scrape is. The chart rules reject a mute on a pick-slide
+    // note outright, so a scrape passes None here and draws no X at all.
     drawMuteIcon(g, metrics, note.mute, onset_x, center_y);
 
     if (metrics.draw_text)
     {
-        const juce::String fret_text = tabNoteHeadText(note);
+        const juce::String head_text = tabNoteHeadText(note);
         if (note.mute != common::core::NoteMute::None)
         {
             // Charter boxes the fret number on full mutes so it stays readable over the X;
             // palm mutes need the same plate (the X's crossing strokes cut through the digits),
             // in the palm X's own colors so it reads as the X's center.
             const bool full_mute = note.mute == common::core::NoteMute::Full;
-            const auto text_width = static_cast<float>(textWidth(metrics.fret_font, fret_text));
+            const auto text_width = static_cast<float>(textWidth(metrics.fret_font, head_text));
             const juce::Rectangle<float> box{
                 onset_x - text_width / 2.0f - 2.0f,
                 center_y - metrics.fret_font.getHeight() / 2.0f - 1.0f,
@@ -1004,7 +1000,7 @@ void drawNoteHead(
         g.setColour(juce::Colours::white);
         g.setFont(metrics.fret_font);
         g.drawText(
-            fret_text,
+            head_text,
             juce::Rectangle<float>{
                 onset_x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
             },
@@ -1085,8 +1081,6 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
         displayed_string, displayed_string_count, charterClassicPalette())};
 }
 
-// Shared with host name chips (the editor timeline ruler's chord/arpeggio band) so chip and
-// rails always agree (brightness bumps over the Charter hand-shape bases).
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::String tabNoteHeadText(const common::core::TabNoteView& note)
 {
@@ -1102,6 +1096,8 @@ juce::String tabNoteHeadText(const common::core::TabNoteView& note)
     return text;
 }
 
+// Shared with host name chips (the editor timeline ruler's chord/arpeggio band) so chip and
+// rails always agree (brightness bumps over the Charter hand-shape bases).
 juce::Colour tabShapeMarkColor(bool arpeggio)
 {
     return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_brightness)
