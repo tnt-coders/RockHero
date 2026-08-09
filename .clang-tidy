@@ -80,14 +80,6 @@ CheckOptions:
   - key: bugprone-exception-escape.IgnoredExceptions
     value: 'bad_alloc,bad_array_new_length,length_error'
 
-  # The default 1e-3 threshold flags measured art data by coincidence: a plectrum-outline
-  # coordinate measured off the note atlas (0.43366) sat within 6.34e-04 of log10(e) and was
-  # ordered rewritten as std::numbers::log10e_v. A literal is only meant to BE a math constant
-  # when it matches one to about five decimals (a hand-rounded 3.14159 or 0.43429 still flags);
-  # three-decimal proximity is noise whenever a file carries measured coordinates.
-  - key: modernize-use-std-numbers.DiffThreshold
-    value: '1e-5'
-
   # --------------------------------------------------------------------------
   # Const correctness
   # --------------------------------------------------------------------------

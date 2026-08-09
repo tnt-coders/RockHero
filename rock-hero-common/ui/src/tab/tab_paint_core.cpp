@@ -342,6 +342,8 @@ constexpr std::array<juce::Point<float>, 16> g_plectrum_half_outline{
     juce::Point<float>{0.24245f, -0.46738f},
     juce::Point<float>{0.33336f, -0.43214f},
     juce::Point<float>{0.36367f, -0.40898f},
+    // NOLINTNEXTLINE(modernize-use-std-numbers) — a measured coordinate that happens to sit
+    // within the check's tolerance of log10(e).
     juce::Point<float>{0.43366f, -0.33332f},
     juce::Point<float>{0.46071f, -0.27271f},
     juce::Point<float>{0.46821f, -0.24240f},

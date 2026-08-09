@@ -25,8 +25,11 @@ You may **never**, under any circumstance, without the user personally signing o
 - cast, `static_cast`, or type-pun purely to silence a conversion diagnostic
 
 If the only fix you can see is on that list, that is a **blocker** (see below) — not a fix. Say so
-and move on to the next failure. The single sanctioned exception in this project is a targeted
-`NOLINT` for a construct an **OS ABI forces** on us, and even that needs the user's sign-off first.
+and move on to the next failure. A targeted `NOLINT` is not strictly forbidden — it is the
+project's **reserved mechanism for explicit exceptions the user deliberately signs off on**
+(a measured-data false positive, an OS-ABI-forced construct) — but every instance needs that
+sign-off first, and for a one-line false positive it beats weakening the check's configuration
+for the whole project. Without the sign-off in hand, it stays a blocker.
 
 # Fix each diagnostic the way this project already fixes it
 
@@ -86,9 +89,11 @@ Repeat until CI is green or only blockers remain:
    was wrong, and what the project's pattern is. Follow the repo's commit style (short imperative
    subject, blank line, explanatory body). End every message with the session trailer the main
    session uses.
-7. **Push to `master`** — that is the branch these workflows validate, and the user has asked for
-   fixes pushed there directly for this task. Push after each coherent class rather than batching
-   everything, so a green signal arrives incrementally.
+7. **Commit locally; push only when the user's invocation explicitly authorizes it.** Pushing is
+   always the user's call — never assume it from context. When pushing IS authorized, push to
+   `master` (the branch these workflows validate) after each coherent class rather than batching
+   everything, so a green signal arrives incrementally; otherwise leave the commits local and
+   report that CI verification is pending the user's push.
 8. **Go back to 1.**
 
 # Blockers: never stop early, collect and raise at the end
