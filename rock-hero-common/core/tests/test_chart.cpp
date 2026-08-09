@@ -668,7 +668,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("a pull-off can neither sound nor release a harmonic")
     {
-        ChartNote source = make_note(1, 1, 9);
+        const ChartNote source = make_note(1, 1, 9);
         ChartNote pull = make_note(2, 1, 5);
         pull.attack = NoteAttack::Pull;
         CHECK(validate({source, pull}).has_value());
@@ -688,7 +688,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         pull.attack = NoteAttack::Pull;
         CHECK_FALSE(validate({pull}).has_value());
 
-        ChartNote equal_source = make_note(1, 1, 5);
+        const ChartNote equal_source = make_note(1, 1, 5);
         CHECK_FALSE(validate({equal_source, pull}).has_value());
 
         // The released fret is where the finger ENDS: a 3->7 glide hands over 7, justifying a
