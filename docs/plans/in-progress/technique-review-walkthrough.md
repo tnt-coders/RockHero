@@ -62,27 +62,25 @@ recommendation so the user can rule with full context in front of them.
   duplicated relational logic); and D2 + D4 shrink the variant's structural payoff to five
   excluded fields plus the required terminal, which enforced rules already cover, so the current
   lean is that the variant will not be worth it.
-- [ ] **D3 — Pick slide + the noise flag (REOPENED 2026-08-08, now includes a rename).** The
-  user's reframe is correct and sharpened the item: the field never means tremolo picking in the
-  notation sense (measured repetition is always spelled out as separate heads), it means
-  *unmeasured noise texture* — and a scrape genuinely has that property, so "why not REQ?" is
-  legitimate. Recommendation, three parts:
-  - **Not REQ**, because a flag another field forces to true carries zero information: the attack
-    already asserts the scrape's noise, so REQ stores one fact twice and manufactures a new
-    invalid state (`PickSlide` + flag false) needing its own rule — the exact class the matrix
-    exists to eliminate, and the same shape as the rejected third tap-harmonic enum value.
-    Contrast E20: a pinch's node is required because it carries *independent* information. A
+- [x] **D3 — Pick slide + the tremolo flag — CLOSED 2026-08-08: exclusion stands, name stays
+  `tremolo`, "noise" is texture vocabulary.** The discussion's arc, kept because each step
+  sharpened the model:
+  - The user's first reframe was right: the field means *unmeasured noise texture* (measured
+    repetition is always spelled out as separate heads), and a scrape has that property — so
+    "why not REQ?" was legitimate.
+  - REQ lost on information content: a flag another field forces to true stores one fact twice
+    and manufactures a new invalid state (`PickSlide` + flag false) — the rejected-tap-enum
+    shape; E20's required node differs because the node carries *independent* information. A
     uniform "is this note noise?" read is a derived accessor, not authored duplication.
-  - **Rename `tremolo` → `noise_picking`** (the doc's own phrase): the misleading name has now
-    derailed three discussions (H1, E23, this one). The name choice settles the cell — naming
-    the *mechanism* gives two noise sources, one per axis (scrape noise on the attack, picked
-    noise on the flag), and the exclusion becomes self-evident; plain `noise` would name the
-    *property* and genuinely invite REQ plus double representation.
-  - Costs: identifiers, JSON key with a loud old-key tripwire (the `harmonic`/`touch` precedent —
-    silent ignoring would drop the flag from every saved package), docs; the tremolo-slash
-    notation mark is untouched; re-import already owed.
-  Options put to the user: (a) exclusion + rename to `noise_picking` (recommended); (b)
-  exclusion, keep the name; (c) REQ + rename to `noise` (argued against).
+  - The agent proposed renaming to `noise_picking`; the user's second reframe beat it: untimed
+    as-fast-as-physically-possible picking IS tremolo picking, so the technique name is honest —
+    and plain `noise` would misdescribe the field, because a tremolo-picked note is **pitched**
+    noise (the fret still sets a measurable pitch) where a scrape is **unpitched** noise.
+  - **The settled taxonomy: two noise textures, distinguished by pitch, one per axis** — pitched
+    noise on the `tremolo` flag, unpitched noise on the `PickSlide` attack — which is why they
+    never share a field. Recorded in the field's own doc comment. Display: today's marks are
+    tremolo-specific slashes and keep their literal names; "noise" is the name for a tail style
+    only if one is ever genuinely shared between the two textures.
 - [ ] **D4 — Accent on a scrape: allow (un-defer).** User: "just an aggressively played pick
   slide." Recommendation: agree — E2 drops `accent` from its exclusion list, the writer and
   projections stop suppressing it on scrapes, and H3 closes as "accent is compatible with

@@ -295,8 +295,10 @@ struct ChartNote
 
     The charting standard reserves this for true noise (an outro strummed purely for sound);
     measured fast repetition is spelled out as discrete notes instead, so every timed pick is
-    its own chart event. Pick slides share the noise vocabulary intrinsically through their
-    attack, without this flag.
+    its own chart event. Deliberately named for the technique: tremolo picking is *pitched*
+    noise — the fret still sets a measurable pitch — where a scrape is *unpitched* noise carried
+    by its attack, which is why the two never share a field and a pick slide never sets this
+    flag.
     */
     bool tremolo{false};
 

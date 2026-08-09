@@ -159,7 +159,11 @@ whether something "is a way of playing the note".
   timing"*, with measured repetition spelled out as discrete notes instead. It is a texture across the
   **duration**; the onset is merely its first stroke, and the model deliberately never represents the
   individual strikes. Asked directly whether tremolo should be an attack, the user's instinct was that
-  it *"feels wrong"* — correct, and the field's own definition is why.
+  it *"feels wrong"* — correct, and the field's own definition is why. The name itself was
+  re-litigated and kept (walkthrough D3, 2026-08-08): untimed as-fast-as-possible picking IS tremolo
+  picking, and the settled taxonomy is **two noise textures distinguished by pitch, one per axis** —
+  tremolo is *pitched* noise on the flag (the fret still sets a measurable pitch), the scrape is
+  *unpitched* noise on the attack — which is why they never share a field.
 
 The consequence for `tremolo` is that it constrains **nothing** on the attack axis, which is what
 rejected H1. Its one exclusion, E2's, exists because the field comment says pick slides *"share the
