@@ -33,40 +33,37 @@ void clipPayloadsToSustain(common::core::ChartNote& note)
     std::erase_if(note.bend, [&note](const common::core::BendPoint& point) {
         return note.sustain < point.offset;
     });
-    if (note.attack == common::core::NoteAttack::PickSlide && !note.slides.empty())
+    if (note.attack == common::core::NoteAttack::PickSlide && note.slide_out.has_value())
     {
-        // A scrape's path is gesture geometry ending exactly at the sustain, so a sustain
-        // change RE-TERMINATES the path instead of clipping it (the import trim's compress
-        // twist under the editor's exact-adjacency bound): waypoints strictly before the new
-        // end survive, and the final fret rides to the sustain itself. When compression makes
-        // the terminal fret meet its new predecessor, the nearest earlier differing fret takes
-        // over so the path never sits still.
+        // A scrape's gesture ends exactly at the sustain, so a sustain change RE-TERMINATES the
+        // slide-out instead of dropping it (the import trim's compress twist under the editor's
+        // exact-adjacency bound): turnaround waypoints strictly before the new end survive, and
+        // the terminal rides to the sustain itself. When compression makes the terminal fret
+        // meet its new predecessor, the nearest earlier differing fret takes over so the path
+        // never sits still.
         const std::vector<common::core::SlideWaypoint> path = std::move(note.slides);
         note.slides = {};
-        for (std::size_t index = 0; index + 1 < path.size(); ++index)
+        for (const common::core::SlideWaypoint& waypoint : path)
         {
-            if (path[index].offset < note.sustain)
+            if (waypoint.offset < note.sustain)
             {
-                note.slides.push_back(path[index]);
+                note.slides.push_back(waypoint);
             }
         }
         const int previous_fret = note.slides.empty() ? note.fret : note.slides.back().fret;
-        int terminal_fret = path.back().fret;
-        std::size_t candidate = path.size() - 1;
+        int terminal_fret = note.slide_out->fret;
+        std::size_t candidate = path.size();
         while (terminal_fret == previous_fret && candidate > 0)
         {
             --candidate;
             terminal_fret = path[candidate].fret;
         }
-        note.slides.push_back(
-            common::core::SlideWaypoint{.offset = note.sustain, .fret = terminal_fret});
+        note.slide_out = common::core::SlideOut{.offset = note.sustain, .fret = terminal_fret};
+        return;
     }
-    else
-    {
-        std::erase_if(note.slides, [&note](const common::core::SlideWaypoint& waypoint) {
-            return note.sustain < waypoint.offset;
-        });
-    }
+    std::erase_if(note.slides, [&note](const common::core::SlideWaypoint& waypoint) {
+        return note.sustain < waypoint.offset;
+    });
     if (note.slide_out.has_value() && note.sustain < note.slide_out->offset)
     {
         note.slide_out.reset();
@@ -316,6 +313,15 @@ std::optional<ChartNotesEditPlan> planRetypeFrets(
                     return std::nullopt;
                 }
             }
+            if (retyped.slide_out.has_value())
+            {
+                retyped.slide_out->fret += path_delta;
+                if (retyped.slide_out->fret < 0 ||
+                    retyped.slide_out->fret > common::core::g_max_fret)
+                {
+                    return std::nullopt;
+                }
+            }
         }
         plan.inserted.push_back(std::move(retyped));
     }
@@ -465,9 +471,10 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         note.attack = derived;
         if (was_scrape)
         {
-            // A scrape's path was gesture geometry; as a pitched glide it would be a fiction, so it
-            // leaves with the attack exactly as it does in planSetAttack.
+            // A scrape's path was gesture geometry; as a pitched glide or an ordinary trail-off
+            // it would be a fiction, so it leaves with the attack exactly as in planSetAttack.
             note.slides.clear();
+            note.slide_out.reset();
         }
         changed = true;
     }
@@ -509,9 +516,11 @@ std::optional<ChartNotesEditPlan> planSetAttack(
         }
         else if (was_scrape)
         {
-            // The path was gesture geometry; as a pitched glide it would be a fiction. The
-            // overridden techniques were never touched, so they simply resurface.
+            // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
+            // would be a fiction. The overridden techniques were never touched, so they simply
+            // resurface — except a latent slide-out, which the scrape's own terminal occupied.
             note.slides.clear();
+            note.slide_out.reset();
         }
         changed = true;
     }

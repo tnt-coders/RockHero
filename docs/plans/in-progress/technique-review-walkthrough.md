@@ -45,7 +45,14 @@ recommendation so the user can rule with full context in front of them.
   measured could reject valid imports. A 2D display note for the notation pass, no action now:
   a fretted tap harmonic's head currently shows the node, and the stop is carried nowhere on the
   2D surface — a two-position technique may eventually want both.
-- [ ] **D2 — The scrape's payload shape.** User proposes: `slide_out` **required** (a pick slide
+- [x] **D2 — The scrape's payload shape — ADOPTED 2026-08-08 and shipped flat.** `slide_out` is
+  the required unpitched terminal (offset exactly at the sustain), `slides` are optional
+  turnaround waypoints, the whole path always traveling — implemented across the rules, writer,
+  projections, defaults, the sustain-trim planners, the retype transposition, the importer's
+  carrier conversion and crowding trim, and the slide-out exit resolver (which now skips scrapes:
+  their terminal is authored travel, not an exit to resolve). The old scrape-terminal carve-out
+  in the waypoint-on-onset rule became structural and was deleted. Original analysis retained
+  below for the record: User proposes: `slide_out` **required** (a pick slide
   always ends unpitched — a pitched waypoint terminal would imply a turnaround or a held
   landing), `slides` **optional** (turnarounds only). Replaces E2's current "required traveling
   path ending exactly at sustain, slide_out excluded." Agent analysis: within a scrape the
@@ -81,12 +88,11 @@ recommendation so the user can rule with full context in front of them.
     never share a field. Recorded in the field's own doc comment. Display: today's marks are
     tremolo-specific slashes and keep their literal names; "noise" is the name for a tail style
     only if one is ever genuinely shared between the two textures.
-- [ ] **D4 — Accent on a scrape: allow (un-defer).** User: "just an aggressively played pick
-  slide." Recommendation: agree — E2 drops `accent` from its exclusion list, the writer and
-  projections stop suppressing it on scrapes, and H3 closes as "accent is compatible with
-  **everything**," no exception. Cost: the measured glow clearance on the plectrum is tight
-  (0.331 px at a 25 px head vs the disc's 1.560) — acceptable as-is or a small `glow_size` bump
-  that the round head shares.
+- [x] **D4 — Accent on a scrape — ADOPTED 2026-08-08 and shipped** with D2: E2 dropped `accent`
+  from its exclusions, the writer and both projections stopped suppressing it on scrapes, and H3
+  closed as "accent is compatible with **everything**," no exception. The tight glow clearance
+  (0.331 px at a 25 px head vs the disc's 1.560) is accepted as-is; `glow_size` is the joint
+  retune knob if it ever needs air.
 - [ ] **D5 — Ghost legato: Full mute + Hammer / Pull / Tap.** User asked for practice evidence:
   muted hammer-on/pull-off "clucks" are standard funk and R&B rhythm vocabulary (bass especially),
   and dead-note taps are core percussive-fingerstyle material — these are real, charted idioms.

@@ -274,15 +274,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             // A curve waypoint may never sit on a later onset of its own string: a glide into a
             // real note is the slideEnd "next" terminal, which stores no coordinates. Rejecting
             // the coordinate copy here is what keeps the desyncable encoding unrepresentable.
-            // The one exception is a scrape's TERMINAL waypoint: it is unpitched gesture
-            // geometry pinned to the sustain end (never a linked-head landing), and 40-Q2-B
-            // truncation legally parks the sustain — and therefore the terminal — exactly on
-            // the silencing next onset. Scrape interiors stay bound by the rule.
-            if (note.attack == NoteAttack::PickSlide && waypoint.offset == note.sustain)
-            {
-                previous_offset = waypoint.offset;
-                continue;
-            }
+            // Scrape turnarounds are bound too; the scrape's sustain-parked terminal is its
+            // slide-out, which this rule never sees.
             const GridPosition waypoint_position =
                 advanceGridPosition(tempo_map, note.position, waypoint.offset);
             for (auto at_waypoint = std::ranges::lower_bound(
@@ -316,28 +309,29 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             }};
         }
 
-        // A SAVED pick-slide note carries no other technique — the document writer omits them
+        // A SAVED pick-slide note carries no pitched technique — the document writer omits them
         // (the in-memory override design, chart.h) — so a document that does is hand-made or a
-        // bug and fails loudly. The path is the gesture: required, always traveling
+        // bug and fails loudly; accent is a scrape's own technique and passes. The gesture is
+        // the required unpitched slide-out terminal, exactly at the sustain (nothing rings past
+        // a scrape), plus optional turnaround waypoints; the whole path keeps traveling
         // (consecutive neck positions strictly differ, the start fret included — a scrape
-        // cannot sit still, unlike note slides, whose equal-fret segments are holds), and
-        // ending exactly at the sustain, because nothing rings past a scrape.
+        // cannot sit still, unlike note slides, whose equal-fret segments are holds).
         if (note.attack == NoteAttack::PickSlide)
         {
             if (note.mute != NoteMute::None || note.harmonic_node.has_value() || note.vibrato ||
-                note.tremolo || note.accent || !note.bend.empty() || slide_out != nullptr)
+                note.tremolo || !note.bend.empty())
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidPickSlide,
-                    .message = "pick-slide note must not carry other techniques at " +
+                    .message = "pick-slide note must not carry pitched techniques at " +
                                positionText(note.position),
                 }};
             }
-            if (note.slides.empty() || !(note.slides.back().offset == note.sustain))
+            if (slide_out == nullptr || !(slide_out->offset == note.sustain))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidPickSlide,
-                    .message = "pick-slide path must end exactly at the sustain at " +
+                    .message = "pick slide must end in a slide-out exactly at the sustain at " +
                                positionText(note.position),
                 }};
             }
@@ -353,6 +347,14 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                     }};
                 }
                 previous_fret = waypoint.fret;
+            }
+            if (slide_out->fret == previous_fret)
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidPickSlide,
+                    .message =
+                        "pick-slide path must keep traveling at " + positionText(note.position),
+                }};
             }
         }
 

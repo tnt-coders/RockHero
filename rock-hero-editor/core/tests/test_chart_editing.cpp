@@ -1373,8 +1373,11 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
     CHECK(chart->notes[0].fret == original.fret);
-    REQUIRE_FALSE(chart->notes[0].slides.empty());
-    CHECK(chart->notes[0].slides.back().offset == chart->notes[0].sustain);
+    REQUIRE(chart->notes[0].slide_out.has_value());
+    if (chart->notes[0].slide_out.has_value())
+    {
+        CHECK(chart->notes[0].slide_out->offset == chart->notes[0].sustain);
+    }
 
     // Toggling back restores the note field-for-field: the scrape's path clears and nothing
     // else was ever touched.
@@ -1432,6 +1435,8 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
     CHECK(chart->notes[0].slides.empty());
     CHECK(chart->notes[1].slides.empty());
+    CHECK_FALSE(chart->notes[0].slide_out.has_value());
+    CHECK_FALSE(chart->notes[1].slide_out.has_value());
 }
 
 // A refused first digit still arms the multi-digit entry window, so an in-range two-digit
@@ -1462,19 +1467,25 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
     REQUIRE(chart->notes[0].fret == 17);
-    REQUIRE(chart->notes[0].slides.size() == 1);
-    REQUIRE(chart->notes[0].slides.front().fret == 3);
+    REQUIRE(chart->notes[0].slide_out.has_value());
+    if (chart->notes[0].slide_out.has_value())
+    {
+        REQUIRE(chart->notes[0].slide_out->fret == 3);
+    }
 
-    // "1" refuses (path fret would leave the neck) but arms the window; "5" widens to 15 and
-    // the whole path translates with the start.
+    // "1" refuses (the terminal would leave the neck) but arms the window; "5" widens to 15
+    // and the whole path translates with the start.
     controller.onChartFretDigitTyped(1);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 17);
     controller.onChartFretDigitTyped(5);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 15);
-    REQUIRE(chart->notes[0].slides.size() == 1);
-    CHECK(chart->notes[0].slides.front().fret == 1);
+    REQUIRE(chart->notes[0].slide_out.has_value());
+    if (chart->notes[0].slide_out.has_value())
+    {
+        CHECK(chart->notes[0].slide_out->fret == 1);
+    }
 }
 
 // Arrow keys nudge a selection by the grid step; refused moves (occupied slot) change nothing.

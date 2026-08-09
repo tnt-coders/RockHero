@@ -307,10 +307,11 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
             break;
         }
     }
-    // A pick slide OVERRIDES every other technique rather than forbidding it in memory: latent
-    // values survive the session so switching the attack back restores them, but the writer is
-    // the clearing seam — a saved pick-slide note never carries them, keeping the persisted
-    // format free of the contradictory combinations.
+    // A pick slide OVERRIDES the pitched techniques rather than forbidding them in memory:
+    // latent values survive the session so switching the attack back restores them, but the
+    // writer is the clearing seam — a saved pick-slide note never carries them, keeping the
+    // persisted format free of the contradictory combinations. Accent and the slide payloads
+    // are a scrape's own data and always write.
     const bool scrape = note.attack == NoteAttack::PickSlide;
     if (!scrape && note.mute == NoteMute::Palm)
     {
@@ -334,7 +335,7 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     {
         line += R"(, "tremolo": true)";
     }
-    if (!scrape && note.accent)
+    if (note.accent)
     {
         line += R"(, "accent": true)";
     }
@@ -367,7 +368,7 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
         }
         line += ']';
     }
-    if (!scrape && note.slide_out.has_value())
+    if (note.slide_out.has_value())
     {
         line += R"(, "slideOut": { "offset": ")" + formatBeatFractionToken(note.slide_out->offset) +
                 R"(", "fret": )" + std::to_string(note.slide_out->fret) + " }";

@@ -71,7 +71,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | # | Rule | Source |
 |---|---|---|
 | ~~**E1**~~ | **HALF DELETED 2026-08-08.** The `harmonic != None` half is gone: with the field collapsed there is nothing for a node to disagree with, so the state cannot be built. Only the range check survives, on `harmonic_node`. | `chart_rules.cpp` |
-| **E2** | `PickSlide` excludes `mute`, `harmonic_node`, `vibrato`, `tremolo`, `accent`, `bend`, `slide_out`; and requires a `slides` path that keeps traveling and ends **exactly** at `sustain` | the `PickSlide` block in `chart_rules.cpp` |
+| **E2** | `PickSlide` excludes the pitched techniques — `mute`, `harmonic_node`, `vibrato`, `tremolo`, `bend` — and requires the unpitched `slide_out` **terminal** exactly at `sustain`, with `slides` as optional turnaround waypoints and the whole path always traveling. `accent` is the scrape's own technique and allowed. | **Enforced**, the `PickSlide` block in `chart_rules.cpp`. **Reshaped 2026-08-08 by walkthrough D2+D4** (user): the terminal is definitionally unpitched, so it is the `slide_out` — a pitched waypoint terminal would imply a turnaround or a held landing — and an accented scrape is just an aggressively played one. |
 | ~~**E3**~~ | **UNVIOLATABLE 2026-08-08** — `Pinch` *is* an attack now, so it cannot be paired with a different one. Kept for the record: | Established 2026-08-07. A pinch harmonic is produced by the pick stroke with the thumb catching the string, so every attack that *replaces* the pick stroke — `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`, and the left-hand tap stored as `Hammer` — excludes it. `PickSlide` already excluded by E2. **Not enforced anywhere today.** |
 | **E4** | `Hammer` and `Tap` require a positive **sounding position** — `fret` for an ordinary note, `node` for a natural harmonic | You cannot hammer onto, or tap, an open string or the nut. **Amended 2026-08-07** from the original `fret > 0`, which rejected every tap harmonic (`fret == 0`, `node == 12`); see the accessor note below. Not enforced today. |
 | **E5** | `Pull` requires a preceding note on the same string at a **higher** fret | Something must be released to sound it. **Relational** — see the ceiling below. |
@@ -182,8 +182,8 @@ therefore looks like a property of the transition into one; our model instead pu
 the note as a path across its sustain.
 
 The separation also explains why `PickSlide` needs the elaborate E2: it is the **one attack whose
-meaning extends across the sustain**, which is why it must own the `slides` path and exclude every
-other payload. Being the sole exception is a reason to keep an eye on it — the hardening candidate that
+meaning extends across the sustain**, which is why it must own its slide payloads — the required
+`slide_out` terminal plus optional turnarounds — and exclude every pitched payload. Being the sole exception is a reason to keep an eye on it — the hardening candidate that
 splits the scrape into its own variant is really a proposal to stop it from sitting on the `attack`
 axis while behaving like a payload.
 
@@ -207,7 +207,7 @@ number as a fret-hand node, silently teleporting the hand (a node of 24.0 become
 |---|---|---|
 | ~~**H1**~~ | **REJECTED 2026-08-07** — `tremolo` does **not** require `attack == Pick` | User instinct (*"Should tremolo be an attack? That feels wrong."*) exposed the flaw. H1 reasoned that tremolo picking *is* repeated picking, so an attack replacing the pick stroke contradicts it — but an attack describes only the **onset**, not the whole duration, so it never "replaces the picking". Hammer onto a note and then tremolo-pick it: `Hammer` + `tremolo`, executable and uncontradictory. H1 conflated onset with sustain, which is exactly what E17 warns against. Tremolo is **orthogonal to attack**; the only exclusion is E2's, and that one is redundancy rather than contradiction. |
 | ~~**H2**~~ | **PROMOTED to E13** 2026-08-07 — `Natural` harmonic does **not** require `Pick` | A tapped harmonic — tapping directly over the node — is a real technique, so `Tap` + `Natural` is playable. This is the asymmetry with E3 and the reason the two harmonic kinds cannot share one rule. |
-| **H3** | `accent` is compatible with everything **except a scrape** | It is dynamics, orthogonal to how the note is produced. **Amended 2026-08-07:** as originally written it contradicted E2, which already excludes `accent` from `PickSlide`; that cell is deliberately deferred rather than principled — see the deferred group. |
+| ~~**H3**~~ | **CONFIRMED 2026-08-08 in its strongest form: `accent` is compatible with EVERYTHING, no exception** (walkthrough D4). It is dynamics, orthogonal to how the note is produced — the user: an accented scrape "would just be an aggressively played pick slide." The 2026-08-07 amendment's scrape carve-out is gone; E2 no longer excludes accent, and the glow's tight plectrum clearance (0.331 px at a 25 px head) is accepted as-is with `glow_size` as the joint retune knob if it ever needs air. |
 | ~~**H4**~~ | **SUPERSEDED.** It bundled five cells under one "no pitch" argument and got two wrong. Settled instead as: `harmonic` excluded (E8), `bend` excluded (E10), `slides` and `slide_out` **allowed** (E10 — positions, not pitches), `vibrato` still open as Q4. The lesson is that "no pitch" separates *pitch-valued* payloads from *position-valued* ones rather than excluding everything. |
 
 ## Possible, but deliberately unsupported for now
@@ -220,7 +220,7 @@ revisit the whole group together.
 | Combination | Why deferred rather than forbidden |
 |---|---|
 | **Pinch on a natural harmonic** | User: *"TECHNICALLY possible... But so rare I have literally never seen it."* Already impossible by construction: one note carries one `harmonic_node`, so a second, independently-damped node cannot be written — the single-node shape **is** the enforcement, and a future design wanting it would need a second node field. Do not "fix" that into a set without meaning to. |
-| **`accent` on a scrape** | Same category (user, 2026-08-07). Currently forbidden by E2. **Checked whether it is easy: it is not.** Removing `accent` from the rule is a one-token change, but it activates the accent-glow path on a plectrum head, and that path was measured during the ALT H work: the glow's fade band clears the plectrum by **0.331 px** at note height 25 where it clears the disc by **1.560**, because the plectrum's widest point is a diagonal shoulder reaching 0.547 of the head against the disc's 0.500. The fix is `glow_size`, which the **round head shares** — so allowing accent means touching every accented note's glow. Deferred with pinch-on-natural. |
+| ~~**`accent` on a scrape**~~ | **UN-DEFERRED 2026-08-08 (walkthrough D4): allowed and shipped.** The measured glow clearance that motivated the deferral (fade band clears the plectrum's diagonal shoulder by **0.331 px** at note height 25 against the disc's **1.560**, because the shoulder reaches 0.547 of the head against the disc's 0.500) was accepted as-is — visually tight but real. The knob is `glow_size`, which the round head shares; retune jointly if it ever needs air. |
 
 ## Resolution log — Q1–Q12, all closed 2026-08-07
 
@@ -364,7 +364,7 @@ table) overrides the attack row.
 | **Tap** | OK E13 (tap harmonic) | OK | OPEN (ghost tap) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
 | **Pop** | OK E14 | OK E15 | OK E15 | OK | OK | OK H3 | OK | OK | OK |
 | **Slap** | OK E14 | OK E15 | OK E15 (slapped dead note) | OK | OK | OK H3 | OK | OK | OK |
-| **PickSlide** | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] + DEFER | FORBID E2 [enf] | **REQ E2 [enf]** | FORBID E2 [enf] |
+| **PickSlide** | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | **OK** (D4: aggressively played scrape) | FORBID E2 [enf] | OK (optional turnarounds) [enf] | **REQ E2 [enf]** (the unpitched terminal, at sustain) |
 
 Plus E4 (unenforced): `Hammer` and `Tap` require `fret > 0 || harmonic_node.has_value()` — the
 form is final; D1's 0-means-open convention removed the capo caveat.

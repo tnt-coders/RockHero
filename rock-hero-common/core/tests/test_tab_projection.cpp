@@ -195,15 +195,12 @@ TEST_CASE("Tab projection suppresses pick-slide latents", "[editor-core][tab]")
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
         .bend = {BendPoint{.offset = Fraction{1, 4}, .semitones = 1.0}},
-        .slides = {
-            SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3},
-            SlideWaypoint{.offset = Fraction{1}, .fret = 9},
-        },
+        .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3}},
+        .slide_out = SlideOut{.offset = Fraction{1}, .fret = 9},
     };
     scrape.mute = NoteMute::Full;
     scrape.tremolo = true;
     scrape.vibrato = true;
-    scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 1};
     chart.notes = {scrape};
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
@@ -216,8 +213,8 @@ TEST_CASE("Tab projection suppresses pick-slide latents", "[editor-core][tab]")
     CHECK_FALSE(view.tremolo);
     CHECK_FALSE(view.vibrato);
     CHECK(view.bend.empty());
-    // The latent slide-out never flattens in; only the path's own legs remain, all unpitched
-    // and unlinked (chips, not continuation heads, mark the traveled positions).
+    // The turnaround waypoint and the slide-out terminal flatten into one leg list, all
+    // unpitched and unlinked (chips, not continuation heads, mark the traveled positions).
     REQUIRE(view.slides.size() == 2);
     for (const TabSlideView& leg : view.slides)
     {

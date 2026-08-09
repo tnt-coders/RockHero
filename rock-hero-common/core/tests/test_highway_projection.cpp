@@ -727,15 +727,12 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
         .bend = {BendPoint{.offset = Fraction{1, 4}, .semitones = 1.0}},
-        .slides = {
-            SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3},
-            SlideWaypoint{.offset = Fraction{1}, .fret = 9},
-        },
+        .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3}},
+        .slide_out = SlideOut{.offset = Fraction{1}, .fret = 9},
     };
     scrape.mute = NoteMute::Full;
     scrape.tremolo = true;
     scrape.vibrato = true;
-    scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 1};
     chart.notes = {scrape};
     chart.fret_hand_positions = {
         FretHandPosition{

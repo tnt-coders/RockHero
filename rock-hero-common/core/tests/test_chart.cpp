@@ -117,7 +117,8 @@ namespace
             .slides = {},
         },
         // A down-then-up chained scrape, then an adjacent simple one: pick-slide notes carry
-        // the traveled path in `slides` with the last offset equal to the sustain.
+        // optional turnaround waypoints in `slides` and the required unpitched terminal in
+        // `slide_out`, its offset exactly at the sustain.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 5,
@@ -125,11 +126,8 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides =
-                {
-                    SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5},
-                    SlideWaypoint{.offset = Fraction{1}, .fret = 9},
-                },
+            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}},
+            .slide_out = SlideOut{.offset = Fraction{1}, .fret = 9},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -138,7 +136,8 @@ namespace
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 12}},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 12},
         },
     };
     chart.shapes = {
@@ -602,13 +601,14 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     CHECK(beyond_octave_result.error().code == ChartErrorCode::InvalidTuning);
 }
 
-// Pick-slide notes: no other techniques in a saved document (the writer omits the in-memory
-// overrides), and a required always-traveling path ending exactly at the sustain.
+// Pick-slide notes: no pitched techniques in a saved document (the writer omits the in-memory
+// overrides; accent is a scrape's own technique), the required unpitched slide-out terminal
+// exactly at the sustain, and an always-traveling path.
 TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
 
-    // The chained scrape in the full fixture.
+    // The chained scrape in the full fixture: fret 17, one turnaround waypoint, slide-out.
     constexpr std::size_t scrape = 7;
 
     const auto expect_invalid = [&tempo_map](const Chart& chart) {
@@ -625,9 +625,20 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     carried_mute.notes[scrape].mute = NoteMute::Full;
     expect_invalid(carried_mute);
 
-    Chart empty_path = makeFullChart();
-    empty_path.notes[scrape].slides.clear();
-    expect_invalid(empty_path);
+    // An accented scrape is legal — an aggressively played pick slide, the scrape's own
+    // technique rather than an override.
+    Chart accented = makeFullChart();
+    accented.notes[scrape].accent = true;
+    CHECK(validateChartRules(accented, tempo_map).has_value());
+
+    Chart missing_terminal = makeFullChart();
+    missing_terminal.notes[scrape].slide_out.reset();
+    expect_invalid(missing_terminal);
+
+    // Turnaround waypoints are optional: a plain start-to-terminal scrape is the common case.
+    Chart no_turnarounds = makeFullChart();
+    no_turnarounds.notes[scrape].slides.clear();
+    CHECK(validateChartRules(no_turnarounds, tempo_map).has_value());
 
     Chart ringing_past_path = makeFullChart();
     ringing_past_path.notes[scrape].sustain = Fraction{3, 2};
@@ -639,14 +650,14 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     stationary_start.notes[scrape].slides[0].fret = 17;
     expect_invalid(stationary_start);
 
-    Chart stationary_leg = makeFullChart();
-    stationary_leg.notes[scrape].slides[1].fret = 5;
-    expect_invalid(stationary_leg);
+    Chart stationary_terminal = makeFullChart();
+    stationary_terminal.notes[scrape].slide_out = SlideOut{.offset = Fraction{1}, .fret = 5};
+    expect_invalid(stationary_terminal);
 
-    // The one carve-out in the waypoint-on-onset rule: a scrape TERMINAL legally lands exactly
-    // on the silencing next onset — a 40-Q2-B truncation parks the sustain, and therefore the
-    // terminal, right there — while an interior waypoint on a later onset stays rejected like
-    // any glide waypoint.
+    // A scrape's slide-out legally lands exactly on the silencing next onset — a 40-Q2-B
+    // truncation parks the sustain, and therefore the terminal, right there. That needs no
+    // carve-out now: the waypoint-on-onset rule never sees a slide-out. An interior turnaround
+    // on a later onset stays rejected like any glide waypoint.
     Chart terminal_on_onset;
     terminal_on_onset.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     terminal_on_onset.notes = {
@@ -657,7 +668,8 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4}},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 4},
         },
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
@@ -671,17 +683,16 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
 
     Chart interior_on_onset = terminal_on_onset;
     interior_on_onset.notes[0].sustain = Fraction{1};
-    interior_on_onset.notes[0].slides = {
-        SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4},
-        SlideWaypoint{.offset = Fraction{1}, .fret = 9},
-    };
+    interior_on_onset.notes[0].slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4}};
+    interior_on_onset.notes[0].slide_out = SlideOut{.offset = Fraction{1}, .fret = 9};
     const auto interior_result = validateChartRules(interior_on_onset, tempo_map);
     REQUIRE_FALSE(interior_result.has_value());
     CHECK(interior_result.error().code == ChartErrorCode::InvalidNotePayload);
 }
 
-// Latent techniques survive in memory for attack toggling but never reach the document: the
-// writer omits them, so the saved note is clean and passes the rules.
+// Latent pitched techniques survive in memory for attack toggling but never reach the document:
+// the writer omits them, so the saved note is clean and passes the rules. Accent and the slide
+// payloads are the scrape's own data and round-trip.
 TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core][chart]")
 {
     Chart chart = makeFullChart();
@@ -690,6 +701,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     scrape.tremolo = true;
     scrape.vibrato = true;
     scrape.mute = NoteMute::Full;
+    scrape.accent = true;
 
     const auto parsed = parseChartDocument(chartDocumentText(chart));
     REQUIRE(parsed.has_value());
@@ -698,6 +710,12 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     CHECK_FALSE(saved.tremolo);
     CHECK_FALSE(saved.vibrato);
     CHECK(saved.mute == NoteMute::None);
+    CHECK(saved.accent);
+    REQUIRE(saved.slide_out.has_value());
+    if (saved.slide_out.has_value())
+    {
+        CHECK(saved.slide_out->fret == 9);
+    }
     CHECK(validateChartRules(*parsed, makeTempoMap()).has_value());
 }
 
@@ -792,7 +810,8 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .sustain = Fraction{1, 4},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides = {SlideWaypoint{.offset = Fraction{1, 4}, .fret = 3}},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{1, 4}, .fret = 3},
         });
     CHECK(chartShapeArrivesAsArpeggio(scraped_over_hold, strum_under_ring, tempo_map));
 

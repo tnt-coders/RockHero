@@ -46,7 +46,7 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         view.harmonic_node = scrape ? std::optional<double>{} : note.harmonic_node;
         view.vibrato = !scrape && note.vibrato;
         view.tremolo = !scrape && note.tremolo;
-        view.accent = !scrape && note.accent;
+        view.accent = note.accent;
         if (!scrape)
         {
             view.bend.reserve(note.bend.size());
@@ -77,8 +77,8 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
                 });
         }
         // The unpitched slide-out flattens into the view's slide list; it owns its geometry.
-        // A scrape's slide-out is a suppressed latent like the rest.
-        if (note.slide_out.has_value() && !scrape)
+        // A scrape's slide-out is its required terminal and flattens the same way.
+        if (note.slide_out.has_value())
         {
             view.slides.push_back(
                 TabSlideView{

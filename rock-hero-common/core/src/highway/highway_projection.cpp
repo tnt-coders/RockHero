@@ -97,7 +97,7 @@ HighwayViewState makeHighwayViewState(
         view.harmonic_node = scrape ? std::optional<double>{} : note.harmonic_node;
         view.vibrato = !scrape && note.vibrato;
         view.tremolo = !scrape && note.tremolo;
-        view.accent = !scrape && note.accent;
+        view.accent = note.accent;
         if (!scrape)
         {
             view.bend.reserve(note.bend.size());
@@ -141,9 +141,10 @@ HighwayViewState makeHighwayViewState(
         }
         // The slide-out flattens into the view's slide list so the renderer keeps one uniform
         // segment model; it owns its geometry and dims unpitched. Pitched glides — shift and
-        // legato alike — are already ordinary waypoints above. A scrape's slide-out is a
-        // suppressed latent like the rest.
-        if (const SlideOut* const slide_out = slideOutOrNull(note); slide_out != nullptr && !scrape)
+        // legato alike — are already ordinary waypoints above. A scrape's slide-out is its
+        // required terminal and flattens the same way, but never feeds the placement ramps —
+        // the scrape has no fret-hand anchor to ramp.
+        if (const SlideOut* const slide_out = slideOutOrNull(note); slide_out != nullptr)
         {
             view.slides.push_back(
                 HighwaySlideView{
@@ -156,9 +157,12 @@ HighwayViewState makeHighwayViewState(
             // note's onset when there are none), which is exactly the span the renderer draws it
             // over. Recording it ties the window to that span and marks the family so the ease
             // matches too.
-            slide_ramp_starts.try_emplace(
-                advanceGridPosition(tempo_map, note.position, slide_out->offset),
-                SlideRamp{.start_seconds = glide_segment_start_seconds, .unpitched = true});
+            if (!scrape)
+            {
+                slide_ramp_starts.try_emplace(
+                    advanceGridPosition(tempo_map, note.position, slide_out->offset),
+                    SlideRamp{.start_seconds = glide_segment_start_seconds, .unpitched = true});
+            }
         }
         double rise_seconds = 0.0;
         if (rightHandOnset(note.attack))

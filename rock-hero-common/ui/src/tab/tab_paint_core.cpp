@@ -580,11 +580,11 @@ void drawBendLines(
 
 // Draws Charter's accent glow behind the head: a soft ring fading out just past the head edge.
 //
-// The plectrum shares the disc's radial fade, stated rather than defaulted even though the chart
-// rules make an accented scrape unreachable. The fade band clears the plectrum's diagonal
-// shoulder by only 0.331 px at a 25 px head against the disc's 1.560; the fix is glow_size, which
-// the round head shares, so it stays as it is until an accented scrape is legal (the measurements
-// live with the deferred cell in the technique-compatibility plan doc).
+// The plectrum shares the disc's radial fade. An accented scrape is legal — an aggressively
+// played pick slide — and the band clears the plectrum's diagonal shoulder by only 0.331 px at
+// a 25 px head against the disc's 1.560: visually tight but real. The knob is glow_size, which
+// the round head shares, so widening it is a joint retune (measurements in the
+// technique-compatibility plan doc).
 void drawAccentGlow(
     juce::Graphics& g, const StringStyle& style, float center_x, float center_y, float size,
     HeadShape shape)

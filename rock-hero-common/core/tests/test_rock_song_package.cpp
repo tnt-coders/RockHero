@@ -1421,7 +1421,8 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .sustain = Fraction{3, 4},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides = {SlideWaypoint{.offset = Fraction{3, 4}, .fret = 4}},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{3, 4}, .fret = 4},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1500,7 +1501,8 @@ TEST_CASE("Rock song package read rejects a non-traveling pick slide", "[core][r
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4}},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 4},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1510,9 +1512,9 @@ TEST_CASE("Rock song package read rejects a non-traveling pick slide", "[core][r
     REQUIRE(writeChartDocument(package_directory / chart_ref, scrape_chart).has_value());
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
-    // Corrupt in place: the path's target lands on the start fret, so the scrape sits still.
+    // Corrupt in place: the terminal lands on the start fret, so the scrape sits still.
     Chart still_chart = scrape_chart;
-    still_chart.notes[0].slides[0].fret = 12;
+    still_chart.notes[0].slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 12};
     REQUIRE(writeChartDocument(package_directory / chart_ref, still_chart).has_value());
 
     const auto loaded = readRockSongPackageDirectory(package_directory);

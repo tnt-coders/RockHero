@@ -14,7 +14,9 @@ void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward)
     {
         target = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;
     }
-    note.slides = {common::core::SlideWaypoint{.offset = note.sustain, .fret = target}};
+    // The gesture is the required slide-out terminal; turnaround waypoints are authored later.
+    note.slides.clear();
+    note.slide_out = common::core::SlideOut{.offset = note.sustain, .fret = target};
 }
 
 } // namespace rock_hero::editor::core

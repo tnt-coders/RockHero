@@ -138,10 +138,10 @@ count; notes sorted by (position, string) with no duplicate onsets, on valid gri
 with strings and frets in range; positive sustains; slide offsets strictly positive, ascending,
 and within the sustain; bend offsets non-negative, ascending, and within the sustain; shape
 spans positive, sorted, and referencing existing templates; sorted fret-hand positions; and, on
-pick-slide notes, no other techniques (a saved scrape carries none — the writer omits the
-in-memory overrides) plus a non-empty, always-traveling path ending exactly at the sustain
-(consecutive neck positions, the start fret included, must strictly differ — a scrape cannot
-sit still).
+pick-slide notes, no pitched techniques (a saved scrape carries none — the writer omits the
+in-memory overrides; accent is a scrape's own technique) plus the required unpitched slide-out
+terminal exactly at the sustain and an always-traveling path (consecutive neck positions, the
+start fret included, must strictly differ — a scrape cannot sit still).
 
 \param chart Chart to validate.
 \param tempo_map Song tempo map the chart's positions must lie on.

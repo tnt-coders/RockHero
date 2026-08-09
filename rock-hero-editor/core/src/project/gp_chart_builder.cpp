@@ -978,8 +978,8 @@ void normalizeImportedSustains(
                     // duration rather than authored, so moving its endpoint loses no
                     // information — which is why the trim squishes the gesture instead of
                     // flooring the tail on it the way an authored bend point does (rule 2).
-                    // Scrapes carry no bend and no slide-out (the carrier conversion sheds
-                    // both), so this branch is the whole payload story for them.
+                    // The slide-out IS that gesture's terminal, and the carrier conversion
+                    // sheds bends, so this branch is the whole payload story for a scrape.
                     //
                     // Where the leg sits relative to the margin decides everything, and the
                     // two cases are the whole rule. A leg that STARTS before the margin line has
@@ -998,12 +998,11 @@ void normalizeImportedSustains(
                     // spacing the rule exists to protect. g_minimum_slide_window keeps its other
                     // job, which is SYNTHESIS: a gesture built from nothing needs a default span.
                     // That is not this decision.
-                    if (note.attack == NoteAttack::PickSlide && !note.slides.empty())
+                    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value())
                     {
-                        const Fraction leg_start = note.slides.size() > 1
-                                                       ? note.slides[note.slides.size() - 2].offset
-                                                       : Fraction{};
-                        Fraction terminal = note.slides.back().offset;
+                        const Fraction leg_start =
+                            note.slides.empty() ? Fraction{} : note.slides.back().offset;
+                        Fraction terminal = note.slide_out->offset;
                         if (leg_start < limit)
                         {
                             terminal = limit;
@@ -1019,11 +1018,11 @@ void normalizeImportedSustains(
                         // A leg starting at or beyond the onset has nothing to crunch against
                         // (a grace lead can shift a sounding onset under a notated ring), so it
                         // keeps its end and the assignment below only ever shortens.
-                        if (terminal < note.slides.back().offset)
+                        if (terminal < note.slide_out->offset)
                         {
-                            note.slides.back().offset = terminal;
+                            note.slide_out->offset = terminal;
                         }
-                        target = note.slides.back().offset;
+                        target = note.slide_out->offset;
                     }
                     else
                     {
@@ -1844,7 +1843,9 @@ void resolveSlideOutExits(
     {
         BuiltNote& entry = built[index];
         ChartNote& note = entry.note;
-        if (!note.slide_out.has_value())
+        // A scrape's slide-out is authored travel, not a trail-off exit to resolve — and the
+        // scrape never anchors the hand, so there is no placement to ride.
+        if (!note.slide_out.has_value() || note.attack == NoteAttack::PickSlide)
         {
             continue;
         }
@@ -2239,7 +2240,6 @@ void resolveSlideOutExits(
             note.tremolo = false;
             note.accent = false;
             note.bend.clear();
-            note.slide_out.reset();
             // Carriers are dead strings with meaningless frets, so the import owns the start too;
             // the editor's toggle keeps a real note's fret instead.
             note.fret = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;

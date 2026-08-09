@@ -1917,12 +1917,12 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         CHECK(chart.notes[0].slides.empty());
     }
 
-    SECTION("a scrape's path still ends exactly at its trimmed sustain")
+    SECTION("a scrape's terminal still sits exactly at its trimmed sustain")
     {
-        // The scrape's path is gesture geometry, so the trim compresses its final point with the
-        // tail rather than flooring on it — and the pick-slide rule that the path end IS the
-        // sustain still holds afterward. R is a half beat here, exactly 2d, so the gesture still
-        // yields the full margin.
+        // The scrape's path is gesture geometry, so the trim compresses its terminal with the
+        // tail rather than flooring on it — and the pick-slide rule that the slide-out IS the
+        // sustain end still holds afterward. R is a half beat here, exactly 2d, so the gesture
+        // still yields the full margin.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -1938,9 +1938,10 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
         CHECK(chart.notes[0].sustain == Fraction{1, 4});
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
-        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == chart.notes[0].sustain);
+        CHECK(terminal->fret != chart.notes[0].fret);
     }
 }
 
@@ -1973,8 +1974,9 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == Fraction{3, 4});
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == chart.notes[0].sustain);
     }
 
     SECTION("room exactly at the conflict threshold still pays the full margin")
@@ -1987,9 +1989,10 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == Fraction{1, 8});
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
-        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == chart.notes[0].sustain);
+        CHECK(terminal->fret != chart.notes[0].fret);
     }
 
     SECTION("room above the threshold pays the margin whole rather than sharing it")
@@ -2002,8 +2005,9 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == Fraction{3, 16});
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == chart.notes[0].sustain);
     }
 
     SECTION("room equal to the margin halves it, the worked example")
@@ -2017,8 +2021,9 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == Fraction{1, 8});
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == chart.notes[0].sustain);
     }
 
     SECTION("the tightest room still keeps a gap, because halving always leaves one")
@@ -2033,9 +2038,10 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == Fraction{1, 16});
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
-        CHECK(chart.notes[0].slides.back().fret != chart.notes[0].fret);
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == chart.notes[0].sustain);
+        CHECK(terminal->fret != chart.notes[0].fret);
     }
 }
 
@@ -2070,11 +2076,12 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         CHECK(scrape.string == 1);
         CHECK(scrape.fret == 17);
         CHECK(scrape.mute == common::core::NoteMute::None);
-        // The path ends at the sustain, which keeps the ordinary quarter-beat margin before
-        // the fret-8 onset one beat later.
-        REQUIRE(scrape.slides.size() == 1);
-        CHECK(scrape.slides[0].offset == Fraction{3, 4});
-        CHECK(scrape.slides[0].fret == 3);
+        // The terminal sits at the sustain, which keeps the ordinary quarter-beat margin
+        // before the fret-8 onset one beat later.
+        const auto* const terminal = common::core::slideOutOrNull(scrape);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == Fraction{3, 4});
+        CHECK(terminal->fret == 3);
         CHECK(scrape.sustain == Fraction{3, 4});
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[2].fret == 8);
@@ -2092,8 +2099,9 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
         CHECK(chart.notes[0].fret == 3);
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides[0].fret == 17);
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->fret == 17);
         CHECK(chart.notes[0].sustain == Fraction{1});
     }
 
@@ -2139,10 +2147,12 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].sustain == chart.notes[1].sustain);
-        REQUIRE_FALSE(chart.notes[0].slides.empty());
-        REQUIRE_FALSE(chart.notes[1].slides.empty());
-        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
-        CHECK(chart.notes[1].slides.back().offset == chart.notes[1].sustain);
+        const auto* const first_terminal = common::core::slideOutOrNull(chart.notes[0]);
+        const auto* const second_terminal = common::core::slideOutOrNull(chart.notes[1]);
+        REQUIRE(first_terminal != nullptr);
+        REQUIRE(second_terminal != nullptr);
+        CHECK(first_terminal->offset == chart.notes[0].sustain);
+        CHECK(second_terminal->offset == chart.notes[1].sustain);
     }
 
     SECTION("conflicting simultaneous directions keep the first and report")
@@ -2187,8 +2197,9 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides[0].offset == Fraction{2});
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == Fraction{2});
         CHECK(chart.notes[1].sustain == Fraction{1});
     }
 
@@ -2230,8 +2241,9 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
-        REQUIRE(chart.notes[0].slides.size() == 1);
-        CHECK(chart.notes[0].slides[0].offset == Fraction{2});
+        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(terminal != nullptr);
+        CHECK(terminal->offset == Fraction{2});
     }
 
     SECTION("the fret-hand track is identical with the gesture present or absent")

@@ -94,10 +94,14 @@ enum class NoteAttack : std::uint8_t
     /*!
     \brief Right-hand pick slide: the pick scrapes along the neck across the sustain.
 
-    Fret data is right-hand travel like a tapped note's: `fret` is where the scrape starts and
-    `slides` is the path — required, always traveling, last offset equal to the sustain. Other
-    techniques are overridden while this attack is set: kept in memory so switching the attack
-    back restores them, but suppressed by projections and omitted by the document writer.
+    Fret data is right-hand travel like a tapped note's: `fret` is where the scrape starts,
+    `slide_out` is the required unpitched terminal — its offset exactly at the sustain, because
+    nothing rings past a scrape — and `slides` holds optional direction-turnaround waypoints,
+    the whole path always traveling. The pitched techniques (mute, harmonic node, vibrato,
+    tremolo, bend) are overridden while this attack is set: kept in memory so switching the
+    attack back restores them, but suppressed by projections and omitted by the document
+    writer. Accent is a scrape's own technique — an aggressively played scrape — never
+    overridden.
     */
     PickSlide
 };
@@ -193,9 +197,9 @@ Waypoints describe the note's own pitch curve — legato junctions, holds, and s
 toward a re-picked landing — and are always pitched; the only unpitched gesture is the separate
 \ref SlideOut terminal, so an "unpitched middle" cannot be written. A waypoint never sits on a
 later onset of its own string: a shift-slide glide ends the minimum sustain distance before its
-landing, and the landing note renders its own head. A pick slide's terminal waypoint is the one
-exception — unpitched gesture geometry pinned to the sustain end, which a truncation may park
-exactly on the silencing next onset.
+landing, and the landing note renders its own head. On a pick slide the waypoints are optional
+direction turnarounds — unpitched right-hand travel bound by the same ordering rules — and the
+gesture's terminal is its required \ref SlideOut.
 */
 struct SlideWaypoint
 {
@@ -220,7 +224,9 @@ struct SlideWaypoint
 
 No landing note exists — that is what distinguishes a slide-out from a pitched glide, which is
 plain \ref SlideWaypoint data — so the gesture legitimately owns its own end offset and target
-fret; there is no other event to desync from.
+fret; there is no other event to desync from. A pick slide's slide-out is its required terminal,
+pinned exactly to the sustain end, which a truncation may park exactly on the silencing next
+onset.
 */
 struct SlideOut
 {
