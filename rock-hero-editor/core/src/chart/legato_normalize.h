@@ -6,6 +6,7 @@
 #pragma once
 
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -22,11 +23,18 @@ pick. Every other `Hammer` is untouched — always possible as a left-hand tap, 
 hands over its last waypoint, a scrape its slide-out's end), never predecessor identity, and a
 valid pull-from-a-scrape is deliberately left standing.
 
+Justification also requires the predecessor still holdable at the note's onset
+(`predecessorHoldReaches`): past the kept-sustain bound a released predecessor supports neither
+direction, so a Pull it once justified repairs to a plain pick — which is why a sustain edit
+that disconnects a tail repairs its dependent legato in the same undo entry.
+
 Runs inside the planners' shared finalize step so every edit repairs what it disturbed in the
 same undo entry, and at import completion so a chart is never invalid in the first place.
 
 \param notes Note stream sorted by (position, string); repaired in place.
+\param tempo_map Tempo map supplying the beat axis for the hold test.
 */
-void normalizeChartLegato(std::vector<common::core::ChartNote>& notes);
+void normalizeChartLegato(
+    std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map);
 
 } // namespace rock_hero::editor::core

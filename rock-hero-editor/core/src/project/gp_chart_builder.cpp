@@ -889,12 +889,14 @@ struct BuiltNote
 //    points the trim passes leave with the tail. Whole-note techniques — vibrato, tremolo,
 //    accent, muting, harmonics — cannot change mid-sustain and so never override the margin at
 //    all.
-// 3. A note with no sustain-carried technique NOTATED shorter than one beat loses its tail
-//    entirely after trimming: Guitar Pro gives every note its full notated duration, and a
-//    sub-beat effect-free ring reads as noise in a chart rather than as a deliberate sustain.
-//    The comparison reads the notated length, not the trimmed one: a note held a full beat or
-//    longer in the source keeps its tail even though the margin leaves it slightly shorter than
-//    the beat. The decision belongs to the NOTATED STRUM, not the single string: every string of
+// 3. A note with no sustain-carried technique NOTATED shorter than the kept-sustain bound
+//    (g_minimum_kept_sustain_beats — shared with the legato hold test, which relies on this
+//    rule to read a missing tail as a proven release) loses its tail entirely after trimming:
+//    Guitar Pro gives every note its full notated duration, and a shorter effect-free ring
+//    reads as noise in a chart rather than as a deliberate sustain. The comparison reads the
+//    notated length, not the trimmed one: a note held to the bound or longer in the source
+//    keeps its tail even though the margin leaves it slightly shorter.
+//    The decision belongs to the NOTATED STRUM, not the single string: every string of
 //    a chord rings from one stroke, so a tail any member earned — a technique on it, a notated
 //    ring of a full beat, or rule 1's hold exemption — keeps the whole strum's tails. Deciding
 //    per string drew a lone tail on a chord's bent note beside partners that looked unsounded.
@@ -1086,7 +1088,7 @@ void normalizeImportedSustains(
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         const bool earned = deliberate_hold[index] || hasSustainTechnique(built[index].note) ||
-                            notated_sustain[index] >= Fraction{1};
+                            notated_sustain[index] >= common::core::g_minimum_kept_sustain_beats;
         const auto strum = strum_earned_tail.try_emplace(built[index].notated_beat, false).first;
         strum->second = strum->second || earned;
     }
@@ -1111,7 +1113,7 @@ void normalizeImportedSustains(
     if (dropped > 0)
     {
         notes.push_back(
-            std::to_string(dropped) + " sub-beat sustains without techniques were dropped");
+            std::to_string(dropped) + " short sustains without techniques were dropped");
     }
 }
 
@@ -2527,7 +2529,7 @@ void resolveSlideOutExits(
             std::to_string(harmonics_shed) +
             " harmonics shed techniques they cannot execute (bend, vibrato, slide, or mute)");
     }
-    normalizeChartLegato(chart.notes);
+    normalizeChartLegato(chart.notes, tempo_map);
 
     return chart;
 }

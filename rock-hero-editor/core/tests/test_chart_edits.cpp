@@ -936,6 +936,10 @@ TEST_CASE("planSetLegato derives hammer versus pull from the previous fret", "[c
         makeNote({.measure = 1, .beat = 3}, 2, 9),
         makeNote({.measure = 1, .beat = 4}, 2, 5),
     };
+    // One-beat gaps sit at the kept-sustain bound, so the predecessors hold their tails to the
+    // margin — the connection the derivation requires there.
+    chart.notes[0].sustain = common::core::Fraction{3, 4};
+    chart.notes[2].sustain = common::core::Fraction{3, 4};
 
     const std::vector<ChartNoteKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
@@ -977,14 +981,41 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
     SECTION("the earlier note sits at the same fret")
     {
         // Neither hammered nor pulled: the fret does not move, so there is no direction to record.
+        // The predecessor holds its tail so the refusal is the equal fret, not the hold test.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
             makeNote({.measure = 1, .beat = 1}, 1, 7),
             makeNote({.measure = 1, .beat = 2}, 1, 7),
         };
+        chart.notes[0].sustain = common::core::Fraction{3, 4};
         CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
                         .has_value());
+    }
+
+    SECTION("the earlier note provably released before this one")
+    {
+        // A bare predecessor at the kept-sustain bound is a proven release: a held note would
+        // carry a tail reaching the margin. Dragging the tail there is how legato across the
+        // gap is authored.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 3),
+            makeNote({.measure = 1, .beat = 3}, 1, 7),
+        };
+        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato")
+                        .has_value());
+
+        chart.notes[0].sustain = common::core::Fraction{7, 4};
+        const auto plan =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+        }
     }
 }
 
@@ -1001,6 +1032,7 @@ TEST_CASE("planSetLegato applies to the derivable subset of a selection", "[core
         // String 2's note is first on its string, so it has no derivable direction.
         makeNote({.measure = 1, .beat = 2}, 2, 4),
     };
+    chart.notes[0].sustain = common::core::Fraction{3, 4};
 
     const std::vector<ChartNoteKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
@@ -1028,6 +1060,7 @@ TEST_CASE("planSetLegato drops a scrape's path with the attack", "[core][chart]"
         makeNote({.measure = 1, .beat = 1}, 1, 3),
         makeScrape({.measure = 1, .beat = 2}, 1),
     };
+    chart.notes[0].sustain = common::core::Fraction{3, 4};
     REQUIRE_FALSE(chart.notes[1].slides.empty());
 
     const auto plan =
@@ -1039,6 +1072,32 @@ TEST_CASE("planSetLegato drops a scrape's path with the attack", "[core][chart]"
         // The scrape starts at fret 9 above the fret-3 note, so it hammers on.
         CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
         CHECK(plan->inserted[0].slides.empty());
+    }
+}
+
+// Disconnecting a tail repairs the legato it justified, inside the same plan: the shared
+// finalize runs the legato repair after the sustain change, so a pull whose predecessor no
+// longer reaches it returns to a plain pick in the same undo entry.
+TEST_CASE("planAdjustSustain repairs legato its shrink disconnects", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeNote({.measure = 1, .beat = 1}, 1, 9),
+        makeNote({.measure = 1, .beat = 3}, 1, 5),
+    };
+    chart.notes[0].sustain = common::core::Fraction{7, 4};
+    chart.notes[1].attack = common::core::NoteAttack::Pull;
+
+    const auto plan = planAdjustSustain(
+        chart, tempo_map, {keyAt({.measure = 1, .beat = 1}, 1)}, common::core::Fraction{-1});
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        REQUIRE(plan->inserted.size() == 2);
+        CHECK(plan->inserted[0].sustain == common::core::Fraction{3, 4});
+        CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pick);
     }
 }
 

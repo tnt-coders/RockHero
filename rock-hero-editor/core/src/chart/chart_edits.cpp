@@ -164,7 +164,7 @@ void normalizeSustainOverlaps(
 {
     std::ranges::sort(candidate, keyLess);
     normalizeSustainOverlaps(candidate, tempo_map);
-    normalizeChartLegato(candidate);
+    normalizeChartLegato(candidate, tempo_map);
     std::vector<common::core::ChartNote> saved_form;
     saved_form.reserve(candidate.size());
     for (const common::core::ChartNote& note : candidate)
@@ -479,10 +479,14 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         // Option C: the verb infers only what the frets justify. A scrape predecessor is never
         // inferred across (deliberate legato only — its pull is authorable by ordering the edits);
         // a fret-hand harmonic never converts here, since deriving onto it would strip its
-        // harmonic; equal released frets justify nothing. The judged fret is the RELEASED one —
-        // where the predecessor's finger ends — so a glide hands over its last waypoint.
+        // harmonic; equal released frets justify nothing; and the predecessor must still be
+        // holdable at this onset (predecessorHoldReaches) — past the kept-sustain bound a
+        // disconnected tail is a proven release, and dragging the tail to reach the note is how
+        // legato across such a gap is authored. The judged fret is the RELEASED one — where the
+        // predecessor's finger ends — so a glide hands over its last waypoint.
         if (previous == nullptr || previous->attack == common::core::NoteAttack::PickSlide ||
-            common::core::fretHandHarmonic(note))
+            common::core::fretHandHarmonic(note) ||
+            !common::core::predecessorHoldReaches(*previous, note.position, tempo_map))
         {
             continue;
         }

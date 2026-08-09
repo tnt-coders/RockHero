@@ -668,7 +668,10 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
     SECTION("a pull-off can neither sound nor release a harmonic")
     {
-        const ChartNote source = make_note(1, 1, 9);
+        // Predecessors hold their tails to the margin so the hold test never interferes with
+        // what each case is about.
+        ChartNote source = make_note(1, 1, 9);
+        source.sustain = Fraction{3, 4};
         ChartNote pull = make_note(2, 1, 5);
         pull.attack = NoteAttack::Pull;
         CHECK(validate({source, pull}).has_value());
@@ -679,6 +682,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
 
         ChartNote harmonic_source = make_note(1, 1, 0);
         harmonic_source.harmonic_node = 12.0;
+        harmonic_source.sustain = Fraction{3, 4};
         CHECK_FALSE(validate({harmonic_source, pull}).has_value());
     }
 
@@ -688,22 +692,54 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         pull.attack = NoteAttack::Pull;
         CHECK_FALSE(validate({pull}).has_value());
 
-        const ChartNote equal_source = make_note(1, 1, 5);
+        ChartNote equal_source = make_note(1, 1, 5);
+        equal_source.sustain = Fraction{3, 4};
         CHECK_FALSE(validate({equal_source, pull}).has_value());
 
         // The released fret is where the finger ENDS: a 3->7 glide hands over 7, justifying a
         // pull to 5 that the onset frets alone would refuse.
         ChartNote gliding_source = make_note(1, 1, 3);
-        gliding_source.sustain = Fraction{1, 2};
+        gliding_source.sustain = Fraction{3, 4};
         gliding_source.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 7}};
         CHECK(validate({gliding_source, pull}).has_value());
 
         // A scrape predecessor is valid data: its released fret is the slide-out's end.
         ChartNote scrape_source = make_note(1, 1, 12);
-        scrape_source.sustain = Fraction{1, 2};
+        scrape_source.sustain = Fraction{3, 4};
         scrape_source.attack = NoteAttack::PickSlide;
-        scrape_source.slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 7};
+        scrape_source.slide_out = SlideOut{.offset = Fraction{3, 4}, .fret = 7};
         CHECK(validate({scrape_source, pull}).has_value());
+    }
+
+    SECTION("a pull-off needs its predecessor still held")
+    {
+        // At the kept-sustain bound a held note necessarily carries a tail, so a bare
+        // predecessor one beat back is a proven release with nothing left to pull.
+        ChartNote source = make_note(1, 1, 9);
+        ChartNote pull = make_note(2, 1, 5);
+        pull.attack = NoteAttack::Pull;
+        CHECK_FALSE(validate({source, pull}).has_value());
+
+        // A tail reaching the minimum-sustain-distance margin is the maximum representable
+        // hold, and it justifies the pull.
+        source.sustain = Fraction{3, 4};
+        CHECK(validate({source, pull}).has_value());
+
+        // Across a wider gap the tail must reach all the way, not merely exist.
+        ChartNote far_source = make_note(1, 1, 9);
+        far_source.sustain = Fraction{2};
+        ChartNote far_pull = make_note(4, 1, 5);
+        far_pull.attack = NoteAttack::Pull;
+        CHECK_FALSE(validate({far_source, far_pull}).has_value());
+        far_source.sustain = Fraction{11, 4};
+        CHECK(validate({far_source, far_pull}).has_value());
+
+        // Under the bound nothing is proven — tails that short are legitimately absent — so a
+        // bare eighth-note predecessor still releases.
+        ChartNote close_pull = make_note(1, 1, 5);
+        close_pull.position.offset = Fraction{1, 2};
+        close_pull.attack = NoteAttack::Pull;
+        CHECK(validate({make_note(1, 1, 9), close_pull}).has_value());
     }
 
     SECTION("a tap harmonic cannot be tremolo picked; a picked one over a stop can")

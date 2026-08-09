@@ -167,6 +167,34 @@ recommendation so the user can rule with full context in front of them.
   import completion; import sheds harmonic-impossible techniques loudly (conversion note) and
   the FHP generators floor every window, slide-in approach, and gesture dip at capo + 1.
 
+- [x] **D13 — The release-inference refinement of legato (user proposal; SIGNED and SHIPPED
+  2026-08-09).** The sustain conventions make "the predecessor released early" *provable*
+  beyond a bound, refining Option C's "still ringing is unknowable" to "unknowable only at
+  close range":
+  - **The two data facts.** (1) Import rule 3 (`normalizeImportedSustains`) drops the tail of
+    any effect-free note notated shorter than the kept-sustain bound — now the named shared
+    constant `g_minimum_kept_sustain_beats` (grid_arithmetic.h, currently one beat), promoted
+    from a bare literal so the drop rule and the inference can never disagree. (2) A held tail
+    is trimmed/clamped to end exactly the minimum-sustain-distance margin
+    (`g_minimum_sustain_distance_whole_note`, meter-scaled) before the next same-string onset,
+    so "sustain end reaches (next onset − margin)" IS the maximum representable hold.
+  - **The inference.** Onset gap strictly under the bound: tails may have been legitimately
+    dropped, so hammer/pull derivability stays fret-only. Gap at or past the bound (`≥`,
+    boundary included — user-verified against the quarter-note import test, which pins a
+    one-beat note keeping its margin-trimmed tail): a held-through predecessor necessarily
+    carries a tail reaching the margin, so a sustain ending short of it proves the string was
+    released, and no hammer-on or pull-off from that predecessor is real. Editor-inserted
+    notes default to zero sustain, so hand-authoring legato across such a gap means dragging
+    the predecessor's tail first — consistent with the display convention, where a tail-less
+    note does not read as held either.
+  - **Shipped uniformly in all three layers** through the one shared predicate
+    `predecessorHoldReaches` (grid_arithmetic): E5 validation rejects, `normalizeChartLegato`
+    (now tempo-map-aware) repairs an orphaned Pull to a plain pick — a released predecessor
+    justifies neither direction, hammering after a release being `Ctrl+H`'s left-hand-tap
+    domain — and the `H` verb skips. A sustain shrink that disconnects a tail repairs its
+    dependent Pull inside the same undo entry via the finalize gate (tested); imports
+    normalize before validation, so charts are never born invalid.
+
 ## Recorded, no decision needed
 
 - **D11 — The pick-side tap.** Rare technique: a tap performed with the side of the pick, itself

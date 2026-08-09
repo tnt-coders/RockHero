@@ -400,6 +400,17 @@ std::expected<void, ChartError> validateChartNotes(
                                positionText(note.position),
                 }};
             }
+            // The predecessor must also still be holdable when this note starts: past the
+            // kept-sustain bound a held note necessarily carries a tail reaching the margin,
+            // so a shorter tail is a proven release with nothing left to pull.
+            if (!predecessorHoldReaches(*source, note.position, tempo_map))
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNote,
+                    .message = "a pull-off must release a note still held at " +
+                               positionText(note.position),
+                }};
+            }
         }
         if (previous_note != nullptr)
         {

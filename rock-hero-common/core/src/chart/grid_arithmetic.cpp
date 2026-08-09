@@ -86,6 +86,23 @@ GridPosition sustainEndPosition(const TempoMap& tempo_map, const ChartNote& note
     return advanceGridPosition(tempo_map, note.position, note.sustain);
 }
 
+// The gap, the sustain, and the margin all live on the predecessor's beat frame, so the whole
+// test is one exact-rational comparison. The margin reads the predecessor's measure because
+// that is the margin every trim derives (the import trim and the editor clamp alike), so a
+// legally-maximal tail always passes.
+bool predecessorHoldReaches(
+    const ChartNote& predecessor, const GridPosition& onset, const TempoMap& tempo_map)
+{
+    const Fraction gap = beatDistance(tempo_map, predecessor.position, onset);
+    if (gap < g_minimum_kept_sustain_beats)
+    {
+        return true;
+    }
+    const Fraction margin = minimumSustainDistanceBeats(
+        tempo_map.timeSignatureAt(predecessor.position.measure).denominator);
+    return predecessor.sustain + margin >= gap;
+}
+
 // Mirrors the editor timeline grid's semantics exactly (tempo_grid_geometry.h): measure-anchored
 // note-value steps, downbeats always lines, ties to the earlier line, exact rational results.
 GridPosition snapGridPosition(const TempoMap& tempo_map, GridPosition position, Fraction note_value)

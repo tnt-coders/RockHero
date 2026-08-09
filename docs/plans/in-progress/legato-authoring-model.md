@@ -227,6 +227,29 @@ left-hand tap is stored as `Hammer` and therefore inherits every Hammer cell:
   silently become a fret-hand node); on a **scrape**, it is ordinary attack replacement, the
   gesture leaving with the attack per `planSetAttack`.
 
+## The release-inference refinement (D13, signed and shipped 2026-08-09)
+
+Option C said "still ringing is unknowable from data." The sustain conventions bound that:
+unknowable only at close range. Two shared quantities make the far case provable —
+`g_minimum_kept_sustain_beats` (grid_arithmetic.h; the notated ring below which import drops an
+effect-free tail) and the minimum-sustain-distance margin (the exact end every held tail trims
+to). At onset gaps of the bound or more, a held-through predecessor necessarily carries a tail
+reaching the margin before the onset, so a shorter (or absent) tail proves the string was
+released and legato from it is not real.
+
+`predecessorHoldReaches` (grid_arithmetic) is the one statement of the test, and it gates all
+three layers identically: E5 validation rejects the pull, `normalizeChartLegato` repairs an
+orphaned Pull to a plain pick (never Hammer — hammering after a release is the left-hand tap,
+`Ctrl+H`'s domain), and the `H` verb skips the note as underivable. Under the bound nothing
+changes: tails that short are legitimately absent, so derivation stays fret-only.
+
+Two consequences worth naming. A sustain edit that disconnects a tail repairs its dependent
+Pull in the same undo entry (the shared finalize runs the repair after the sustain change), and
+authoring legato across a gap at or past the bound is done by dragging the predecessor's tail
+to reach the note — the tail IS the held-ness datum, and a note held to the next one looks held
+precisely because it carries its tail. `Ctrl+H` is untouched: a left-hand tap needs no
+predecessor at all.
+
 ## Rejected alternatives, ranked, each with the sequence that kills it
 
 1. **A4, flag survives undo** — the kill sequence above: destroys a deliberate `Ctrl+H`.

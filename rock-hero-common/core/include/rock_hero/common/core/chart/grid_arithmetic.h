@@ -41,6 +41,37 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
+\brief The shortest notated ring that earns a kept sustain tail, in signature beats.
+
+Two readers must agree on this bound, which is why it is named once. The import drop rule
+removes the tail of any effect-free note notated shorter than this — a shorter ring reads as
+noise in a chart, not a deliberate sustain. Consequently a note held through a gap of at least
+this length necessarily carries a tail reaching the minimum-sustain-distance margin, which is
+what lets \ref predecessorHoldReaches read a shorter (or absent) tail as a proven release.
+Currently one beat.
+*/
+inline constexpr Fraction g_minimum_kept_sustain_beats{1};
+
+/*!
+\brief True unless the chart proves the predecessor was released before the onset.
+
+The legato hold test: a hammer-on or pull-off is real only while its predecessor can still be
+held when the new note starts. Under an onset gap shorter than
+\ref g_minimum_kept_sustain_beats that is assumed — tails below the bound are legitimately
+absent. At or beyond it, a held-through predecessor necessarily carries a tail reaching the
+minimum-sustain-distance margin before the onset, so a sustain ending short of that margin —
+evaluated at the predecessor's measure, the same margin every trim derives — proves the string
+was released. A scrape's sustain is its gesture's end, so the same comparison covers it.
+
+\param predecessor Previous note on the same string.
+\param onset Onset of the note taking the hammer-on or pull-off.
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+\return True when a hammer-on or pull-off from the predecessor is not disproven.
+*/
+[[nodiscard]] bool predecessorHoldReaches(
+    const ChartNote& predecessor, const GridPosition& onset, const TempoMap& tempo_map);
+
+/*!
 \brief Converts a grid position onto the tempo map's fractional global-beat axis.
 
 The whole-beat index of the position's (measure, beat) plus its sub-beat offset. This is the one
