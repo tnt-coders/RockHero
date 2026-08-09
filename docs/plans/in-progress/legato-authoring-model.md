@@ -99,10 +99,11 @@ else its `fret` (user call 3 below). Repairs ride the same undo entry as the edi
 exactly like 40-Q2-B truncations — one plan, one entry, exact inverse. `ChartNotesEdit` replays
 stored values, so undo/redo restore both halves atomically with **no derivation at undo time**.
 
-Whole-stream scope means the first edit after an import carrying invalid legato also repairs that
-imported data, riding the edit's entry — the same action-at-distance `normalizeSustainOverlaps`
-already ships, and the "chart valid at every commit point" rule already means. Stated so it is a
-documented property, not a surprise.
+Imported charts are repaired **at import** (user ruling, 2026-08-09): the importer runs this same
+normalization at import completion, because import is a commit point and "valid at every commit
+point" applies to it too. The finalize-step sweep stays whole-stream as the invariant keeper, but
+it never finds imported junk — a chart is never invalid in the first place, and the
+first-edit-repairs-old-data surprise cannot happen.
 
 Layer 1 alone is the shipped fallback: cleared stays cleared, no surprises, the 5→3→2 case
 disappoints.
@@ -300,18 +301,36 @@ Defects in `planSetLegato` as of `4a98da55`, to fix when this design is implemen
 ## Remaining user calls
 
 1. **Recalculating-state chrome** — recommended: none initially; the honest live marks are the
-   feedback. Add a subtle cue only if real use shows confusion.
-2. **Empty-selection scope after a delete** — recommended: let the flag live with the empty
-   post-delete scope, so the natural delete-then-retype-at-the-armed-caret flow re-derives N against
-   the replacement note, one-shot; the alternative (empty scope = no scope) is simpler and costs one
-   extra `H` in that flow.
-3. **Released-fret semantics** — recommended: last pitched waypoint (the musical truth and what tab
-   notation means) over onset fret; if adopted, the 2D relationship drawing should follow the same
-   rule, and Phase 7 waypoint edits join the invalidating set.
-4. **Question B** — recommended: defer (above).
-5. **Layer 1's whole-stream sweep** — recommended: global (precedent-consistent with sustain
-   normalization); the alternative is edit-scoped repair, which leaves imported invalid legato
-   standing until touched.
+   feedback (the pull-off symbol visibly dropping to plain and rising to hammer-on IS the
+   signal). "Chrome" means extra decoration on the note while the window is open — an outline or
+   tint — and the recommendation is to add none unless real use shows confusion.
+2. ~~**Empty-selection scope after a delete**~~ — **RULED 2026-08-09 (user): delete clears
+   everything; no effects that are not explicit.** And it is free: deleting the selected notes
+   *changes the selection*, so the ordinary settle-on-selection-change rule already closes the
+   window — the rejected option was an *exception* to keep it alive, so the ruling deletes a
+   special case rather than adding one. The delete-then-retype flow costs one explicit `H`.
+3. **Released-fret semantics** — recommended: the fret the predecessor's finger is on when it
+   releases, i.e. the last pitched waypoint (a predecessor that slid 5→7 hands over 7, so a
+   following 5 is a genuine pull), over the onset fret the shipped verb compares. D7 already
+   committed the scrape half (its released fret is the slide-out's). If adopted, the 2D
+   relationship drawing follows the same rule and Phase 7 waypoint edits join the invalidating
+   set.
+4. **Question B** — recommendation upgraded 2026-08-09 from defer to **reject**, on the user's
+   request for a genuine evaluation: no consumer distinguishes the two forms — the hand window
+   and chord spans treat both as left-hand onsets, detection *cannot hear the difference* (a
+   fretting finger striking the string is acoustically one event), and the player executes both
+   identically with the tab already showing the context. The split would buy one symmetric
+   validation row and cost a format field, an importer change, a case in every attack switch,
+   notation on both surfaces (the two-T legibility problem plus an unknown 3D cell), a
+   replacement for `Ctrl+H`, and a new invalid state to police (`LeftTap` with an ascending
+   predecessor). Reopen only if a consumer appears that must distinguish them.
+5. ~~**Layer 1's whole-stream sweep**~~ — **RULED 2026-08-09 (user): repair at IMPORT, so a chart
+   is never invalid in the first place.** The importer runs the same Layer 1 normalization at
+   import completion — import is a commit point, and "valid at every commit point" applies to it
+   too. There is real data for it: the hopo branch can produce a fret-0 no-node `Hammer` from
+   junk open-to-open hopo flags, which E4 rejects once enforced. The finalize-step sweep stays
+   whole-stream as the invariant keeper, but never finds imported junk — the first-edit
+   action-at-distance the earlier design documented as a surprise now cannot happen.
 
 ## Does this generalize?
 
