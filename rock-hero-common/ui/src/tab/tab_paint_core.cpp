@@ -917,14 +917,13 @@ void drawAttackIcon(
             break;
         }
         case common::core::NoteAttack::Pinch:
-        {
-            // Nothing here: a pinch's mark is the bar drawn beside the diamond head with the head
-            // itself, not a plate in this band. It reads as a harmonic cue rather than an attack
-            // cue even though the data now lives on the attack.
-            break;
-        }
         case common::core::NoteAttack::Pick:
         {
+            // Neither attack marks this band, for two different reasons. A pinch's mark is the bar
+            // drawn beside the diamond head with the head itself, not a plate here: it reads as a
+            // harmonic cue rather than an attack cue even though the data now lives on the attack.
+            // An ordinary pick is the unmarked default every other value in this band contrasts
+            // against.
             break;
         }
     }
