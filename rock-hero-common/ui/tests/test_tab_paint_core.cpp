@@ -409,7 +409,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     // the empty lane, which is what would fail first if the raise overshot the plectrum's broad
     // band or the silhouette were too narrow to hold a number unboxed. Checked for the two-digit
     // fret as well, on its own lane: that is the widest number the unboxed head has to hold.
-    const auto digitInkClearOfRim = [&image](int center_x, int center_y, int window) {
+    const auto digit_ink_clear_of_rim = [&image](int center_x, int center_y, int window) {
         int found = 0;
         bool clear = true;
         for (int y = center_y - 20; y <= center_y + 20; ++y)
@@ -436,14 +436,14 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     };
 
     const auto [one_digit_ink, one_digit_clear] =
-        digitInkClearOfRim(scrape_x, lane_y, g_digit_window);
+        digit_ink_clear_of_rim(scrape_x, lane_y, g_digit_window);
     CHECK(one_digit_ink > 0);
     CHECK(one_digit_clear);
 
     // The two-digit scrape sits on string 5 (lane center y = 60). Its window stops short of the
     // chip's own letters so only the fret number answers.
     constexpr int wide_lane_y = 60;
-    const auto [two_digit_ink, two_digit_clear] = digitInkClearOfRim(scrape_x, wide_lane_y, 6);
+    const auto [two_digit_ink, two_digit_clear] = digit_ink_clear_of_rim(scrape_x, wide_lane_y, 6);
     CHECK(two_digit_ink > one_digit_ink);
     CHECK(two_digit_clear);
     // And it is raised by the same three pixels as the one-digit number.
