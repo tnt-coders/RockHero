@@ -93,7 +93,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E21** | `harmonic_node` > the **physical stop**, strict — the fret, or the capo when `fret == 0` | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Generalized by D1 (2026-08-08): under the 0-means-open convention a capo'd open string stores `fret = 0`, so the stop the node must clear is derived, not stored. |
 | **E22** | A **fret-hand harmonic** (`fret == 0` + node + neither tapping-hand attack) requires `node <= g_max_fret` | **Enforced** (`chart_rules.cpp`), adopted with D1. The fretting hand touches the node, and a finger on the fretboard cannot be past the last fret; this is also what keeps the derived hand window inside `g_max_fret`. A pinch (thumb over the body) and a tap harmonic (picking-hand finger) escape the bound — only the universal 48 limit applies to them. Same discriminator as `fretFor`'s node branch, deliberately. |
 | **E23** | A **tap harmonic** (node + `Tap`) excludes `tremolo` | User, 2026-08-08: not executable fast enough. The model agrees structurally: the tap's damping finger *leaves* the string, so nothing holds the node under re-picking and the harmonic dies. A natural or artificial harmonic keeps a finger on the node, which is why those still allow tremolo (A.H. tremolo is "oddly actually possible" — user). Unenforced; enforcement pass. |
-| **E24** | `Full` mute **allows** `Hammer`, `Pull`, and `Tap` — the ghost legato | Walkthrough D5, user 2026-08-09. Muted hammer/pull "clucks" are standard funk and R&B vocabulary (bass especially) and dead-note taps are core percussive-fingerstyle material — executable, so the criterion allows them. E4's positive-sounding-position requirement still binds the hammered and tapped forms. The same ruling kept E10 whole: **pre-bend included in the bend exclusion** — bend points store semitone offsets from a pitch a dead note lacks (incoherent data, not merely pointless), no source notates the muted pre-bend, and the cell reopens only on real chart evidence (D6). |
+| **E24** | `Full` mute **allows** `Hammer`, `Pull`, and `Tap` — the **muted legato** ("ghost" is reserved for the emphasis axis, D8) | Walkthrough D5, user 2026-08-09. Muted hammer/pull "clucks" are standard funk and R&B vocabulary (bass especially) and dead-note taps are core percussive-fingerstyle material — executable, so the criterion allows them. E4's positive-sounding-position requirement still binds the hammered and tapped forms. The same ruling kept E10 whole: **pre-bend included in the bend exclusion** — bend points store semitone offsets from a pitch a dead note lacks (incoherent data, not merely pointless), no source notates the muted pre-bend, and the cell reopens only on real chart evidence (D6). |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
 slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
@@ -326,15 +326,15 @@ data); slides + slide_out (already structurally governed: the slide-out must end
 every waypoint); vibrato and tremolo on zero-sustain notes (coherent — the note still sounds).
 
 ~~**Newly recorded open cells for the ruling**~~ — **RULED 2026-08-09 (walkthrough D5/D6):** Full
-mute + `Hammer` / `Tap` / `Pull` all **allowed** as E24 (the ghost legato of funk and percussive
-fingerstyle), and E10 stays whole — the muted pre-bend remains excluded with the bend it belongs
-to, reopening only on real chart evidence.
+mute + `Hammer` / `Tap` / `Pull` all **allowed** as E24 (the muted legato of funk and percussive
+fingerstyle — not "ghost", which now names the emphasis tier), and E10 stays whole — the muted
+pre-bend remains excluded with the bend it belongs to, reopening only on real chart evidence.
 
 **Relational refinements recorded (enforcement-pass material, no format impact):** E5's
 "predecessor's fret" must mean the *released* fret (last slide waypoint, else the fret) or a
 predecessor that slid away breaks the comparison; a `PickSlide` predecessor cannot justify a pull
 (its fret is picking-hand travel — same physics as E19); a fully-muted predecessor CAN (its finger
-is a real press, and releasing it is the ghost pull); "which note is the predecessor" is
+is a real press, and releasing it is the muted pull); "which note is the predecessor" is
 unambiguous because duplicate onsets per (position, string) are already invalid; `Hammer`
 deliberately has no predecessor constraint (hammer-from-nowhere is the left-hand tap); `Pinch` has
 no relational constraints at all. The E5/E19 interplay and the exhaustive invalidating-edit
@@ -360,9 +360,9 @@ table) overrides the attack row.
 |---|---|---|---|---|---|---|---|---|---|
 | **Pick** | OK (picked natural) | OK | OK (dead note) | OK | OK | OK H3 | OK | OK | OK |
 | **Pinch** | **REQ E20 [enf]** | OK (muted squeal) | FORBID E8+E20 | OK E9 | OK | OK H3 | OK E9 (bent squeal) | OK | OK |
-| **Hammer** | OK E13 (rare) | OK | OK E24 (ghost hammer) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
-| **Pull** | **FORBID E12** | OK | OK E24 (ghost pull) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
-| **Tap** | OK E13 (tap harmonic) | OK | OK E24 (ghost tap) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Hammer** | OK E13 (rare) | OK | OK E24 (muted hammer) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Pull** | **FORBID E12** | OK | OK E24 (muted pull) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Tap** | OK E13 (tap harmonic) | OK | OK E24 (muted tap) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
 | **Pop** | OK E14 | OK E15 | OK E15 | OK | OK | OK H3 | OK | OK | OK |
 | **Slap** | OK E14 | OK E15 | OK E15 (slapped dead note) | OK | OK | OK H3 | OK | OK | OK |
 | **PickSlide** | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | **OK** (D4: aggressively played scrape) | FORBID E2 [enf] | OK (optional turnarounds) [enf] | **REQ E2 [enf]** (the unpitched terminal, at sustain) |
@@ -417,7 +417,7 @@ The open decisions now live as a worked queue with per-item guidance in
 **`docs/plans/in-progress/technique-review-walkthrough.md`** (opened 2026-08-08 at the user's
 direction, so the list survives any session): ~~the fret-floor/capo cluster (D1)~~ **adopted and
 shipped**, the scrape's payload shape (D2–D4, which absorbs H3 — the user now leans
-accent-on-everything, un-deferring the scrape cell), ghost legato and the pre-bend question
+accent-on-everything, un-deferring the scrape cell), muted legato and the pre-bend question
 (D5–D6), the E5 derivation-vs-validity split (D7), the emphasis axis (D8), and the GP capo-frame
 measurement (D9).
 
@@ -847,7 +847,7 @@ for it: `harmonic_node` already holds the strike position and already round-trip
 1. ~~User answers Q1–Q12.~~ **Done 2026-08-07** — rules E1–E19, plus the review's E20/E21. Wanting
    a ruling now: **H3** (accent compatible with everything but a scrape — H1 was *rejected*, not
    deferred), the **sign-off on the rendered matrix above**, and the review's open cluster (the
-   fretted harmonic / E22, the capo frame, ghost legato).
+   fretted harmonic / E22, the capo frame, muted legato).
 2. Enforce the settled rules as guards in the Phase 5 verbs, so no verb authors an invalid state,
    and as rules where a chart could already carry the violation from import. **Most of the matrix
    is unenforced today** — the E1 range remnant, E2, E20 and E21 exist in `chart_rules.cpp`;

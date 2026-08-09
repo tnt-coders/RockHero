@@ -93,21 +93,35 @@ recommendation so the user can rule with full context in front of them.
   closed as "accent is compatible with **everything**," no exception. The tight glow clearance
   (0.331 px at a 25 px head vs the disc's 1.560) is accepted as-is; `glow_size` is the joint
   retune knob if it ever needs air.
-- [x] **D5 — Ghost legato — ADOPTED 2026-08-09 ("your logic is reasonable"), recorded as E24.**
+- [x] **D5 — Muted legato — ADOPTED 2026-08-09 ("your logic is reasonable"), recorded as E24.**
   Full mute allows Hammer/Pull/Tap: muted legato clucks are standard funk and R&B vocabulary,
   dead-note taps core percussive-fingerstyle material. E4's positive-sounding-position rule still
   binds the hammered/tapped forms. Tweakable later if it feels wrong (user's caveat).
+  **Terminology corrected same day (user): NOT "ghost"** — ghost is the emphasis axis's soft tier
+  (D8); the muted-legato family says "muted".
 - [x] **D6 — Full mute + pre-bend — KEPT FORBIDDEN 2026-08-09**, pre-bend included in E10's bend
   exclusion: the data stores a pitch offset a dead note lacks (incoherent, not merely pointless),
   and no notation source writes the gesture. Reopens only on real chart evidence.
-- [ ] **D7 — E5: derivation vs validity (the user's deliberate-vs-derived distinction).** User:
-  pull-off from a scrape is "kind of" doable with gain, mute-into-pull maybe — but both are
-  DELIBERATE choices a group-`H` press should never infer. Recommendation: split the two
-  concerns — the *data* stays valid (executable under the criterion; import fidelity), but
-  group-`H` **derivation never infers legato across a scrape or fully-muted predecessor**;
-  `Ctrl+H` covers the deliberate hammer; pull-from-scrape remains reachable only via import until
-  a real authoring need appears. On practice: no charted pull-from-scrape example known; muted
-  ghost-pulls exist in funk. Flows into `legato-authoring-model.md` when closed.
+- [ ] **D7 — E5: derivation vs validity (the user's deliberate-vs-derived distinction).** Settled
+  so far (2026-08-09): the *data* is **valid** — pull-from-a-scrape stays legal because it CAN be
+  done (user), resting on the criterion alone: Guitar Pro cannot author it, so this is an
+  authoring-only concern, not import fidelity (an earlier claim here said otherwise; corrected by
+  the user). And plain `H` **derivation never infers legato across a scrape or fully-muted
+  predecessor** at ANY selection size — the uniform-scope law forbids a verb whose meaning
+  depends on how much is selected, which also rejected the single-note exception and the
+  three-press `H` cycle (the cycle additionally breaks the settled "second press undoes the
+  first" toggle contract and adds hidden modal state).
+  **The authoring route — user proposal, analysis favorable, awaiting confirm: `Shift+H` =
+  extended legato.** Same derivation, same eligible-subset toggle semantics, over the WIDER set
+  (scrape and full-mute predecessors count as releasable). The fit is clean on every axis:
+  `Shift+H` is verified free in the keymap (deliberately left unbound — GP's Shift+H is a
+  sheet-music slur with nothing to map onto); the grammar reads right (Shift = *extend*, here
+  extending the derivation's reach); it is uniform at every selection size; each verb toggles
+  its own eligible subset so no hidden state; and D2 conveniently gave the scrape a well-defined
+  released fret — its slide-out's — so the extended comparison is the ordinary released-fret
+  rule with the releasable filter dropped. `Ctrl+H` (force Hammer) stays orthogonal precision.
+  Implementation rides Phase 5/D12. Flows into `legato-authoring-model.md` and the keymap doc
+  when confirmed.
 - [ ] **D8 — The emphasis axis (ghost notes).** User proposes an emphasis concept replacing the
   accent bool: {heavy, accent, normal, soft, ghost}, normal implied, accent+ghost mutually
   exclusive by construction. Recommendation: adopt the *shape* but start at three values —
