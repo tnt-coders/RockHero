@@ -300,30 +300,45 @@ Defects in `planSetLegato` as of `4a98da55`, to fix when this design is implemen
 
 ## Remaining user calls
 
-1. **Recalculating-state chrome** — recommended: none initially; the honest live marks are the
-   feedback (the pull-off symbol visibly dropping to plain and rising to hammer-on IS the
-   signal). "Chrome" means extra decoration on the note while the window is open — an outline or
-   tint — and the recommendation is to add none unless real use shows confusion.
+1. ~~**Recalculating-state chrome**~~ — **RULED 2026-08-09 (user): none.** The honest live marks
+   are the feedback (the pull-off symbol visibly dropping to plain and rising to hammer-on IS
+   the signal); no outline or tint while the window is open. Reaffirmed in the same exchange:
+   the window has **no timer** — it lives exactly until a settle event (selection change, seek,
+   Esc, playback, undo/redo), the A2 timer having been rejected precisely because
+   typing-speed-dependent behavior confuses.
 2. ~~**Empty-selection scope after a delete**~~ — **RULED 2026-08-09 (user): delete clears
    everything; no effects that are not explicit.** And it is free: deleting the selected notes
    *changes the selection*, so the ordinary settle-on-selection-change rule already closes the
    window — the rejected option was an *exception* to keep it alive, so the ruling deletes a
    special case rather than adding one. The delete-then-retype flow costs one explicit `H`.
-3. **Released-fret semantics** — recommended: the fret the predecessor's finger is on when it
-   releases, i.e. the last pitched waypoint (a predecessor that slid 5→7 hands over 7, so a
-   following 5 is a genuine pull), over the onset fret the shipped verb compares. D7 already
-   committed the scrape half (its released fret is the slide-out's). If adopted, the 2D
-   relationship drawing follows the same rule and Phase 7 waypoint edits join the invalidating
-   set.
-4. **Question B** — recommendation upgraded 2026-08-09 from defer to **reject**, on the user's
-   request for a genuine evaluation: no consumer distinguishes the two forms — the hand window
-   and chord spans treat both as left-hand onsets, detection *cannot hear the difference* (a
-   fretting finger striking the string is acoustically one event), and the player executes both
-   identically with the tab already showing the context. The split would buy one symmetric
-   validation row and cost a format field, an importer change, a case in every attack switch,
-   notation on both surfaces (the two-T legibility problem plus an unknown 3D cell), a
-   replacement for `Ctrl+H`, and a new invalid state to police (`LeftTap` with an ascending
-   predecessor). Reopen only if a consumer appears that must distinguish them.
+3. ~~**Released-fret semantics**~~ — **RULED 2026-08-09 (user): adopted.** Derivation judges
+   against the fret the predecessor's finger releases from — the last pitched waypoint (a 5→7
+   slide hands over 7, so a following 5 is a genuine pull), and a scrape's slide-out fret (D7).
+   The 2D relationship drawing follows the same rule; Phase 7 waypoint edits join the
+   invalidating set.
+4. **Question B — deep analysis 2026-08-09, awaiting the ruling. Recommendation: adopt the
+   user's intermediate (Option C), reject the split.** Three options were weighed:
+   - **A (status quo):** plain `H` *infers* a left-hand tap for equal/absent predecessors —
+     inventing an articulation from nothing, and in quiet tension with the settled repair rule,
+     which refuses exactly that inference on edit.
+   - **B (full split, `LeftTap` + notation):** its unique benefit — `Hammer` strictly requiring
+     an ascending predecessor — is killed twice. The **alias zone**: with a predecessor present,
+     a fretting finger striking the string is the same motion and the same sound whether the
+     string was ringing (hammer-on) or not (tap), so `LeftTap`-with-a-predecessor is a second
+     spelling of one event — un-policeable duplication, worse than an invalid state. And the
+     readability gain is ~zero: a hammer mark with no predecessor is visibly from-nowhere, so
+     the tab's context already disambiguates — while the costs (format field, importer, every
+     attack switch, the two-T mark collision, a 3D cell, a `Ctrl+H` replacement) are all real.
+     Detection cannot hear the difference, so gameplay can never need it.
+   - **C (user's intermediate — strict derivation, merged notation):** one stored value, one
+     mark. Plain `H` infers only what the frets justify — ascending → hammer-on, descending →
+     pull-off, **equal or absent → refuse**. `Ctrl+H` is the sole author of the deliberate
+     left-hand tap (any positive sounding position). C captures B's entire deliberateness
+     benefit with none of its costs — equal/absent-predecessor Hammers exist only via `Ctrl+H`,
+     deliberate by construction, so the error class B's validation would catch is empty. It
+     resolves the derivation/repair tension (neither ever invents a tap), and it is
+     grammatically pure: Ctrl already means "state exactly, do not infer." The delta from the
+     settled table is one row: equal/absent goes from Hammer-as-tap to refuse.
 5. ~~**Layer 1's whole-stream sweep**~~ — **RULED 2026-08-09 (user): repair at IMPORT, so a chart
    is never invalid in the first place.** The importer runs the same Layer 1 normalization at
    import completion — import is a commit point, and "valid at every commit point" applies to it
