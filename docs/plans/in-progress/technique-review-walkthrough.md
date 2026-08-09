@@ -123,16 +123,13 @@ recommendation so the user can rule with full context in front of them.
     against the slide-out fret and keeps what stays justified.
   Folded into `legato-authoring-model.md` (Layer 1 rows, the scrape-predecessor defect note, the
   invalidating-edits row) and the matrix doc's E5 row.
-- [ ] **D8 — The emphasis axis (ghost notes).** User proposes an emphasis concept replacing the
-  accent bool: {heavy, accent, normal, soft, ghost}, normal implied, accent+ghost mutually
-  exclusive by construction. Recommendation: adopt the *shape* but start at three values —
-  `NoteEmphasis { Ghost, Normal, Accent }`, `Normal` omitted in serialization — because Guitar
-  Pro has exactly one soft tier (ghost) and one confirmed hard tier in our parser, extra tiers
-  are speculative, and very soft dynamics endanger note detection (the user's own worry). The
-  enum IS the hardening: accent-plus-ghost becomes unrepresentable rather than validated. Ghost
-  renders as a semi-transparent head; GP ghost notes map to `Ghost` (data the importer currently
-  ignores). `Heavy` can slot in later without disturbance if GP heavy-accent data is ever mined.
-  Becomes a `docs/plans/todo/` plan when confirmed.
+- [x] **D8 — The emphasis axis — ADOPTED 2026-08-09** as the three-value shape:
+  `NoteEmphasis { Ghost, Normal, Accent }` replacing the accent bool, `Normal` never serialized,
+  ghost+accent unrepresentable by construction (the enum IS the hardening). `Soft` dropped (GP
+  has one quiet tier; detection argues against a second), `Heavy` deferred — **GP heavy accents
+  import as regular accents for now, with a comment that Heavy may be supported later** (user
+  ruling). Full design recorded as `docs/plans/todo/note-emphasis-axis.md`; implementation
+  unscheduled.
 - [ ] **D9 — The GP capo frame, empirically.** Our storage convention closes with D1; what
   remains is whether GP's *ordinary* note frets are nut-absolute or capo-relative, which decides
   whether import must shift them by the capo. The harmonic labels now lean capo-relative (7.0 /
