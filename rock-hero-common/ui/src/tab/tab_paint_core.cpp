@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -292,7 +293,7 @@ void drawNoteTail(
 // hand produced it, which is what a present mark's DARKNESS says instead. So the plectrum names a
 // pick scrape while the head itself keeps the ordinary string colors, and only the beside-head
 // chip goes dark.
-enum class HeadShape
+enum class HeadShape : std::uint8_t
 {
     Round,
     Diamond,

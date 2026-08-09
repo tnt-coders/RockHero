@@ -271,6 +271,7 @@ all:
 | Release-only undefined behavior | debug timing and layout hide it | CI Release tests |
 | `juce::PNGImageFormat::decodeImage` pixel format | honors the file's color type (libpng path) | macOS CI tests — CoreImage cannot make a 24-bit image, so every PNG decodes to ARGB; the file's real alpha state survives only in the `originalImageHadAlpha` property |
 | `ModifierKeys::isPopupMenu()` | true for a right press only | macOS CI tests — `popupMenuClickModifier` expands to `rightButton \| ctrl`, so it is also true for Ctrl+left-click |
+| Any clang-tidy check on newly written code (`performance-enum-size`, `cppcoreguidelines-pro-bounds-constant-array-index`, `bugprone-branch-clone`, `misc-const-correctness`, `modernize-use-auto`, `readability-identifier-naming`) | never reported: lint is on-demand, so no build runs it | CI lint on all three platforms — one file reproduces it exactly without the machine-saturating whole-project target: `clang-tidy -p build/release --extra-arg=-Wno-unknown-warning-option --extra-arg=-Wno-unused-command-line-argument <file>` |
 
 No local command reports these, so the check is a reading pass over the diff, not another build.
 Before reporting a code change complete, re-read every touched hunk for the constructs that trigger
