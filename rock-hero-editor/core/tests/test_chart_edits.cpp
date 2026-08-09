@@ -943,12 +943,15 @@ TEST_CASE("planSetLegato derives hammer versus pull from the previous fret", "[c
     };
     const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
     REQUIRE(plan.has_value());
-    REQUIRE(plan->inserted.size() == 2);
-    // Insertions stay in chart order: the string-1 climb first, then the string-2 fall.
-    CHECK(plan->inserted[0].string == 1);
-    CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
-    CHECK(plan->inserted[1].string == 2);
-    CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pull);
+    if (plan.has_value())
+    {
+        REQUIRE(plan->inserted.size() == 2);
+        // Insertions stay in chart order: the string-1 climb first, then the string-2 fall.
+        CHECK(plan->inserted[0].string == 1);
+        CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+        CHECK(plan->inserted[1].string == 2);
+        CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pull);
+    }
 }
 
 // A direction that is not derivable is refused rather than guessed: the editor never invents a fact
@@ -1005,10 +1008,13 @@ TEST_CASE("planSetLegato applies to the derivable subset of a selection", "[core
     };
     const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
     REQUIRE(plan.has_value());
-    // Only the derivable note changes; the other keeps its plain pick and stays out of the plan.
-    REQUIRE(plan->inserted.size() == 1);
-    CHECK(plan->inserted[0].string == 1);
-    CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+    if (plan.has_value())
+    {
+        // Only the derivable note changes; the other keeps its plain pick and stays out of the plan.
+        REQUIRE(plan->inserted.size() == 1);
+        CHECK(plan->inserted[0].string == 1);
+        CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+    }
 }
 
 // A scrape's path is gesture geometry; retyping the attack drops it exactly as planSetAttack does,
@@ -1027,10 +1033,13 @@ TEST_CASE("planSetLegato drops a scrape's path with the attack", "[core][chart]"
     const auto plan =
         planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
     REQUIRE(plan.has_value());
-    REQUIRE(plan->inserted.size() == 1);
-    // The scrape starts at fret 9 above the fret-3 note, so it hammers on.
-    CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
-    CHECK(plan->inserted[0].slides.empty());
+    if (plan.has_value())
+    {
+        REQUIRE(plan->inserted.size() == 1);
+        // The scrape starts at fret 9 above the fret-3 note, so it hammers on.
+        CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+        CHECK(plan->inserted[0].slides.empty());
+    }
 }
 
 } // namespace rock_hero::editor::core

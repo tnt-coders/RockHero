@@ -1371,12 +1371,13 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
 
     controller.onChartPickSlideToggleRequested();
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
-    CHECK(chart->notes[0].fret == original.fret);
-    REQUIRE(chart->notes[0].slide_out.has_value());
-    if (chart->notes[0].slide_out.has_value())
+    const common::core::ChartNote& scrape = chart->notes[0];
+    CHECK(scrape.attack == common::core::NoteAttack::PickSlide);
+    CHECK(scrape.fret == original.fret);
+    REQUIRE(scrape.slide_out.has_value());
+    if (scrape.slide_out.has_value())
     {
-        CHECK(chart->notes[0].slide_out->offset == chart->notes[0].sustain);
+        CHECK(scrape.slide_out->offset == scrape.sustain);
     }
 
     // Toggling back restores the note field-for-field: the scrape's path clears and nothing
@@ -1465,12 +1466,13 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     controller.onChartFretDigitTyped(7);
     controller.onChartPickSlideToggleRequested();
     const auto* chart = chartOrNull(controller);
-    REQUIRE(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
-    REQUIRE(chart->notes[0].fret == 17);
-    REQUIRE(chart->notes[0].slide_out.has_value());
-    if (chart->notes[0].slide_out.has_value())
+    const common::core::ChartNote& scrape = chart->notes[0];
+    REQUIRE(scrape.attack == common::core::NoteAttack::PickSlide);
+    REQUIRE(scrape.fret == 17);
+    REQUIRE(scrape.slide_out.has_value());
+    if (scrape.slide_out.has_value())
     {
-        REQUIRE(chart->notes[0].slide_out->fret == 3);
+        REQUIRE(scrape.slide_out->fret == 3);
     }
 
     // "1" refuses (the terminal would leave the neck) but arms the window; "5" widens to 15
@@ -1480,11 +1482,12 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     CHECK(chart->notes[0].fret == 17);
     controller.onChartFretDigitTyped(5);
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].fret == 15);
-    REQUIRE(chart->notes[0].slide_out.has_value());
-    if (chart->notes[0].slide_out.has_value())
+    const common::core::ChartNote& widened = chart->notes[0];
+    CHECK(widened.fret == 15);
+    REQUIRE(widened.slide_out.has_value());
+    if (widened.slide_out.has_value())
     {
-        CHECK(chart->notes[0].slide_out->fret == 1);
+        CHECK(widened.slide_out->fret == 1);
     }
 }
 
