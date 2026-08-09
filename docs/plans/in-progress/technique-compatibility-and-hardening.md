@@ -93,6 +93,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E21** | `harmonic_node` > the **physical stop**, strict — the fret, or the capo when `fret == 0` | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Generalized by D1 (2026-08-08): under the 0-means-open convention a capo'd open string stores `fret = 0`, so the stop the node must clear is derived, not stored. |
 | **E22** | A **fret-hand harmonic** (`fret == 0` + node + neither tapping-hand attack) requires `node <= g_max_fret` | **Enforced** (`chart_rules.cpp`), adopted with D1. The fretting hand touches the node, and a finger on the fretboard cannot be past the last fret; this is also what keeps the derived hand window inside `g_max_fret`. A pinch (thumb over the body) and a tap harmonic (picking-hand finger) escape the bound — only the universal 48 limit applies to them. Same discriminator as `fretFor`'s node branch, deliberately. |
 | **E23** | A **tap harmonic** (node + `Tap`) excludes `tremolo` | User, 2026-08-08: not executable fast enough. The model agrees structurally: the tap's damping finger *leaves* the string, so nothing holds the node under re-picking and the harmonic dies. A natural or artificial harmonic keeps a finger on the node, which is why those still allow tremolo (A.H. tremolo is "oddly actually possible" — user). Unenforced; enforcement pass. |
+| **E24** | `Full` mute **allows** `Hammer`, `Pull`, and `Tap` — the ghost legato | Walkthrough D5, user 2026-08-09. Muted hammer/pull "clucks" are standard funk and R&B vocabulary (bass especially) and dead-note taps are core percussive-fingerstyle material — executable, so the criterion allows them. E4's positive-sounding-position requirement still binds the hammered and tapped forms. The same ruling kept E10 whole: **pre-bend included in the bend exclusion** — bend points store semitone offsets from a pitch a dead note lacks (incoherent data, not merely pointless), no source notates the muted pre-bend, and the cell reopens only on real chart evidence (D6). |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
 slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
@@ -324,10 +325,10 @@ dead note — texture, not pitch, so the full-mute principle allows it); bend + 
 data); slides + slide_out (already structurally governed: the slide-out must end strictly after
 every waypoint); vibrato and tremolo on zero-sustain notes (coherent — the note still sounds).
 
-**Newly recorded open cells for the ruling:** Full mute + `Hammer` / `Tap` / `Pull` — the hammered
-or tapped dead note (ghost legato) and the percussive pull-off release. All three are executable
-by the criterion's own test, so the review's recommendation is **allow**, but no user ruling
-exists yet.
+~~**Newly recorded open cells for the ruling**~~ — **RULED 2026-08-09 (walkthrough D5/D6):** Full
+mute + `Hammer` / `Tap` / `Pull` all **allowed** as E24 (the ghost legato of funk and percussive
+fingerstyle), and E10 stays whole — the muted pre-bend remains excluded with the bend it belongs
+to, reopening only on real chart evidence.
 
 **Relational refinements recorded (enforcement-pass material, no format impact):** E5's
 "predecessor's fret" must mean the *released* fret (last slide waypoint, else the fret) or a
@@ -359,9 +360,9 @@ table) overrides the attack row.
 |---|---|---|---|---|---|---|---|---|---|
 | **Pick** | OK (picked natural) | OK | OK (dead note) | OK | OK | OK H3 | OK | OK | OK |
 | **Pinch** | **REQ E20 [enf]** | OK (muted squeal) | FORBID E8+E20 | OK E9 | OK | OK H3 | OK E9 (bent squeal) | OK | OK |
-| **Hammer** | OK E13 (rare) | OK | OPEN (ghost hammer) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
-| **Pull** | **FORBID E12** | OK | OPEN (ghost pull) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
-| **Tap** | OK E13 (tap harmonic) | OK | OPEN (ghost tap) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Hammer** | OK E13 (rare) | OK | OK E24 (ghost hammer) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Pull** | **FORBID E12** | OK | OK E24 (ghost pull) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
+| **Tap** | OK E13 (tap harmonic) | OK | OK E24 (ghost tap) | OK | OK | OK H3 | OK | OK E17 | OK E17 |
 | **Pop** | OK E14 | OK E15 | OK E15 | OK | OK | OK H3 | OK | OK | OK |
 | **Slap** | OK E14 | OK E15 | OK E15 (slapped dead note) | OK | OK | OK H3 | OK | OK | OK |
 | **PickSlide** | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | **OK** (D4: aggressively played scrape) | FORBID E2 [enf] | OK (optional turnarounds) [enf] | **REQ E2 [enf]** (the unpitched terminal, at sustain) |

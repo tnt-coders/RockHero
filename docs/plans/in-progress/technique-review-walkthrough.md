@@ -93,14 +93,13 @@ recommendation so the user can rule with full context in front of them.
   closed as "accent is compatible with **everything**," no exception. The tight glow clearance
   (0.331 px at a 25 px head vs the disc's 1.560) is accepted as-is; `glow_size` is the joint
   retune knob if it ever needs air.
-- [ ] **D5 — Ghost legato: Full mute + Hammer / Pull / Tap.** User asked for practice evidence:
-  muted hammer-on/pull-off "clucks" are standard funk and R&B rhythm vocabulary (bass especially),
-  and dead-note taps are core percussive-fingerstyle material — these are real, charted idioms.
-  **Recommendation: allow all three.**
-- [ ] **D6 — Full mute + pre-bend: keep forbidden.** User floated "pre-bend might [make sense]
-  with no tail." Recommendation: keep E10 as-is, pre-bend included — the data still stores a
-  pitch offset a dead note does not have, the physical gesture barely changes the thud, and no
-  notation source writes it. Revisit only if a real chart surfaces.
+- [x] **D5 — Ghost legato — ADOPTED 2026-08-09 ("your logic is reasonable"), recorded as E24.**
+  Full mute allows Hammer/Pull/Tap: muted legato clucks are standard funk and R&B vocabulary,
+  dead-note taps core percussive-fingerstyle material. E4's positive-sounding-position rule still
+  binds the hammered/tapped forms. Tweakable later if it feels wrong (user's caveat).
+- [x] **D6 — Full mute + pre-bend — KEPT FORBIDDEN 2026-08-09**, pre-bend included in E10's bend
+  exclusion: the data stores a pitch offset a dead note lacks (incoherent, not merely pointless),
+  and no notation source writes the gesture. Reopens only on real chart evidence.
 - [ ] **D7 — E5: derivation vs validity (the user's deliberate-vs-derived distinction).** User:
   pull-off from a scrape is "kind of" doable with gain, mute-into-pull maybe — but both are
   DELIBERATE choices a group-`H` press should never infer. Recommendation: split the two
