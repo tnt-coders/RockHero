@@ -393,6 +393,53 @@ leaves the head outside the window 18 times and `round` 7 times; `ceil` never do
 [[nodiscard]] int fretFor(const ChartNote& note);
 
 /*!
+\brief The note as a saved document records it: in-memory latent overrides stripped.
+
+The one seam between memory and document. A pick slide overrides the pitched techniques in
+memory — kept so toggling the attack back restores them — but a saved scrape never carries them;
+the writer emits this form, and the editor's plan gate validates it, so the two can never
+disagree about what a legal document is.
+
+\param note Note as held in memory.
+
+\return The note as the document writer records it.
+*/
+[[nodiscard]] ChartNote savedChartNote(const ChartNote& note);
+
+/*!
+\brief True when the note is a harmonic damped by the fretting hand touching its node.
+
+The key E7/E9/E19 turn on: a node with no real stop (`fret == 0` — the string speaks from the nut
+or the capo) and neither picking-hand damping form. `Pinch` is excluded because its thumb grazes
+off the neck; `Tap` is NOT excluded here — an open-string tap harmonic has nothing pressed either,
+which is exactly what those rules test. Contrast `fretFor`'s node branch, which additionally
+excludes `Tap` because the hand-placement question cares which HAND owns the node, not whether a
+stop is pressed.
+
+\param note Note to classify.
+
+\return True when the fretting hand touches the node and presses nothing.
+*/
+[[nodiscard]] inline bool fretHandHarmonic(const ChartNote& note) noexcept
+{
+    return note.harmonic_node.has_value() && note.fret == 0 && note.attack != NoteAttack::Pinch;
+}
+
+/*!
+\brief The fret the note's finger occupies when the note ends — what a following pull-off
+releases from.
+
+A note that glided hands over its last pitched waypoint, not its onset fret (a 5→7 slide releases
+from 7); a scrape hands over its slide-out's end, the travel's terminus. An unpitched trail-off on
+an ordinary note is already a release, so the last pitched position still rules.
+
+\param note Note whose end position is read.
+
+\return Fret at the note's end.
+*/
+[[nodiscard]] int releasedFret(const ChartNote& note);
+
+/*!
 \brief Hand-posture span referencing a chord template.
 
 One mechanism covers strummed chords, chugged riffs on a held shape, and arpeggios: the notes

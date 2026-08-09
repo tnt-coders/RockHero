@@ -57,13 +57,19 @@ sustain ringing across the onset truncates (40-Q2-B), all in the one plan.
 
 /*!
 \brief Plans deleting the notes matching the given keys.
+
+Funnels through the shared finalize like every note plan, so a survivor whose legato the
+deletion disturbed is repaired in the same undo entry.
+
 \param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param keys Notes to delete, sorted ascending (the ChartSelection order — lookups binary-search
 this precondition); keys with no matching note are skipped.
 \return The plan, or empty when no key matched.
 */
 [[nodiscard]] std::optional<ChartNotesEditPlan> planDeleteNotes(
-    const common::core::Chart& chart, const std::vector<ChartNoteKey>& keys);
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys);
 
 /*!
 \brief Plans moving the keyed notes by an exact beat delta and/or a string delta.
@@ -96,18 +102,22 @@ every note. Members can never go below zero under transposition because the lowe
 the anchor; a member pushed past the fret cap refuses the whole plan, never clamps.
 
 The base is a snapshot rather than the live chart so the multi-digit entry window can replan
-the whole entry from the pre-entry originals while widening.
+the whole entry from the pre-entry originals while widening; the retyped values are swapped into
+the live stream for the shared finalize, whose whole-matrix gate replaces the old local fret
+caps — any out-of-range or rule-violating result refuses the plan outright.
 
 A pick-slide member's path translates with its start fret — the whole gesture shifts by the
-member's delta, preserving travel — and a path fret pushed outside the neck refuses the plan.
+member's delta, preserving travel.
 
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of the notes being retyped.
 \param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
 \param set_exact True to assign the target to every note instead of transposing.
-\return The plan (empty-removed when nothing changes), or nullopt when refused (fret cap) or
-the snapshot is empty.
+\return The plan, or nullopt when refused, nothing changes, or the snapshot is empty.
 */
 [[nodiscard]] std::optional<ChartNotesEditPlan> planRetypeFrets(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
 /*!

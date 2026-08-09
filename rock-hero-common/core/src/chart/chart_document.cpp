@@ -256,8 +256,11 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     return text.toStdString();
 }
 
-[[nodiscard]] std::string noteLine(const ChartNote& note)
+[[nodiscard]] std::string noteLine(const ChartNote& in_memory_note)
 {
+    // The saved form is the one seam between memory and document: latent overrides never reach
+    // the file, and the editor's plan gate validates exactly this form.
+    const ChartNote note = savedChartNote(in_memory_note);
     std::string line = R"({ "position": ")" + formatGridPositionToken(note.position) + '"';
     line += ", \"string\": " + std::to_string(note.string);
     line += ", \"fret\": " + std::to_string(note.fret);
@@ -307,31 +310,23 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
             break;
         }
     }
-    // A pick slide OVERRIDES the pitched techniques rather than forbidding them in memory:
-    // latent values survive the session so switching the attack back restores them, but the
-    // writer is the clearing seam — a saved pick-slide note never carries them, keeping the
-    // persisted format free of the contradictory combinations. Accent and the slide payloads
-    // are a scrape's own data and always write.
-    const bool scrape = note.attack == NoteAttack::PickSlide;
-    if (!scrape && note.mute == NoteMute::Palm)
+    if (note.mute == NoteMute::Palm)
     {
         line += R"(, "mute": "palm")";
     }
-    else if (!scrape && note.mute == NoteMute::Full)
+    else if (note.mute == NoteMute::Full)
     {
         line += R"(, "mute": "full")";
     }
-    // A pinch needs no suppression here: it lives on the attack, and a single-valued attack cannot
-    // be a scrape and a pinch at once.
-    if (!scrape && note.harmonic_node.has_value())
+    if (note.harmonic_node.has_value())
     {
         line += R"(, "harmonicNode": )" + doubleText(*note.harmonic_node);
     }
-    if (!scrape && note.vibrato)
+    if (note.vibrato)
     {
         line += R"(, "vibrato": true)";
     }
-    if (!scrape && note.tremolo)
+    if (note.tremolo)
     {
         line += R"(, "tremolo": true)";
     }
@@ -339,7 +334,7 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     {
         line += R"(, "accent": true)";
     }
-    if (!scrape && !note.bend.empty())
+    if (!note.bend.empty())
     {
         line += R"(, "bend": [)";
         for (std::size_t index = 0; index < note.bend.size(); ++index)

@@ -1,7 +1,9 @@
 # Legato Authoring Model — hammer-on, pull-off, and the left-hand tap
 
 Status: **FULLY SETTLED 2026-08-09 — every open question ruled; awaiting implementation** (plan 40
-Phase 5 plus the technique enforcement pass). The deep review established the design — the recalc
+Phase 5; the technique enforcement half shipped 2026-08-09 — validation, the finalize gate,
+`normalizeChartLegato` at import and in every plan — leaving Phase 5 the recalc window, the
+`Ctrl+H` verb, and the toggle UX). The deep review established the design — the recalc
 window that **settles on any undo or redo**, making the binding constraint (*undo must always
 restore exactly the pre-action state*) hold by construction — and the walkthrough then closed all
 five user calls and question B (Option C: strict derivation, merged notation, `Ctrl+H` the sole
@@ -325,8 +327,8 @@ Defects in `planSetLegato` as of `4a98da55`, to fix when this design is implemen
   iff a valid higher releasable predecessor exists and N carries no node; else **Hammer** iff
   `fret > 0 || harmonic_node.has_value()`; else refuse. Pressing `H` on a **pinch** needs its own
   guard: converting the attack away from `Pinch` silently reinterprets an off-neck node (24.0) as a
-  fret-hand node — teleporting the hand to fret 24 — so the verb must clear or refuse, a decision
-  for the matrix enforcement pass.
+  fret-hand node — teleporting the hand to fret 24 — so the verb must clear or refuse. Resolved
+  2026-08-09: it clears (the node leaves with the picking-hand attack that owned it).
 - **Doc fact corrected:** the coalescing window is **750 ms** and controller-owned
   (`g_fret_entry_window_ms`); `EditorUndoHistory::replaceTop` is only the splice mechanism, and it
   refuses when a reachable clean marker sits on the top entry — a mid-window save breaks coalescing

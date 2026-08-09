@@ -1,5 +1,6 @@
 #include "project/gp_chart_builder.h"
 
+#include "chart/legato_normalize.h"
 #include "chart/pick_slide_defaults.h"
 
 #include <algorithm>
@@ -1402,7 +1403,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 // docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
 [[nodiscard]] std::vector<common::core::FretHandPosition> generateFretHandPositions(
     const std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map,
-    const std::vector<Fraction>& phrase_boundary_beats)
+    const std::vector<Fraction>& phrase_boundary_beats, const int capo)
 {
     // One instant the fret hand must cover: the fretted extent of an onset group, or a pitched
     // slide waypoint mid-sustain. A nonzero shift marks a slide waypoint carrying its fret delta
@@ -1583,7 +1584,9 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                 continue;
             }
             next_width = std::max(4, event.max_fret - event.min_fret + 1);
-            const int lowest_anchor = std::max(1, event.max_fret - next_width + 1);
+            // The window can never sit below the capo: its lowest legal anchor is the first
+            // fret above it.
+            const int lowest_anchor = std::max(capo + 1, event.max_fret - next_width + 1);
             // At a boundary the hand re-places biased to the phrase's floor (the lowest fretted
             // note); otherwise it drags from the current anchor by the slide delta and clamps.
             next_anchor = reanchor
@@ -1666,14 +1669,16 @@ void upsertPlacement(
 }
 
 // The active window ridden by a gesture's fret travel, clamped so the ridden window still
-// covers covered_fret on the neck.
+// covers covered_fret on the neck; floor_fret is the lowest legal anchor (fret 1, or the first
+// fret above the capo).
 [[nodiscard]] int windowAnchorCovering(
-    const common::core::FretHandPosition& active, const int travel, const int covered_fret)
+    const common::core::FretHandPosition& active, const int travel, const int covered_fret,
+    const int floor_fret)
 {
     return std::clamp(
         active.fret + travel,
-        std::max(1, covered_fret - active.width + 1),
-        std::max(1, covered_fret));
+        std::max(floor_fret, covered_fret - active.width + 1),
+        std::max(floor_fret, covered_fret));
 }
 
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
@@ -1701,7 +1706,7 @@ void upsertPlacement(
 // into a held landing keeps its hold like any notated slide.
 void resolveSlideIns(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
-    const MeasureGrid& grid, std::vector<std::string>& notes)
+    const MeasureGrid& grid, std::vector<std::string>& notes, const int capo)
 {
     int unplaceable = 0;
     // Applied after the loop so every start fret derives from the pristine natural track — a
@@ -1743,10 +1748,12 @@ void resolveSlideIns(
                 }
             }
         }
-        start = std::clamp(start, 1, common::core::g_max_fret);
+        // The approach is a pressed position, so its floor is the first fret above the capo.
+        start = std::clamp(start, capo + 1, common::core::g_max_fret);
         if (start == note.fret)
         {
-            // Sliding into fret 1 from below (or the last fret from above): no start exists.
+            // Sliding into the neck's lowest playable fret from below (or the last fret from
+            // above): no start exists.
             ++unplaceable;
             continue;
         }
@@ -1785,7 +1792,8 @@ void resolveSlideIns(
             const auto active = after - 1;
             if (start < active->fret || start >= active->fret + active->width)
             {
-                const int dip_anchor = windowAnchorCovering(*active, start - note.fret, start);
+                const int dip_anchor =
+                    windowAnchorCovering(*active, start - note.fret, start, capo + 1);
                 dip_placements.push_back(
                     common::core::FretHandPosition{
                         .position = note.position,
@@ -1835,7 +1843,7 @@ void resolveSlideIns(
 // sustain trim so the end positions are the compressed ones the chart ships.
 void resolveSlideOutExits(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
-    const MeasureGrid& grid)
+    const MeasureGrid& grid, const int capo)
 {
     std::vector<common::core::FretHandPosition> exit_placements;
     std::vector<common::core::FretHandPosition> restore_placements;
@@ -1898,9 +1906,9 @@ void resolveSlideOutExits(
         // gesture ends — an exit with no restore.
 
         // The riding window derives from the active one by the gesture's travel, clamped to
-        // keep the exit fret covered on the neck.
-        const int anchor =
-            windowAnchorCovering(*active, note.slide_out->fret - departing, note.slide_out->fret);
+        // keep the exit fret covered on the neck — never below the capo, where no hand can sit.
+        const int anchor = windowAnchorCovering(
+            *active, note.slide_out->fret - departing, note.slide_out->fret, capo + 1);
         exit_placements.push_back(
             common::core::FretHandPosition{
                 .position = end_position,
@@ -2417,8 +2425,9 @@ void resolveSlideOutExits(
     // leaves the active window: the window dips with the scoop for exactly its duration and the
     // natural window returns at the scoop's end; an approach the window already covers stays a
     // planted finger gesture, like an unpitched slide.
-    chart.fret_hand_positions = generateFretHandPositions(built, tempo_map, phrase_boundary_beats);
-    resolveSlideIns(built, chart.fret_hand_positions, grid, notes);
+    chart.fret_hand_positions =
+        generateFretHandPositions(built, tempo_map, phrase_boundary_beats, chart.tuning.capo);
+    resolveSlideIns(built, chart.fret_hand_positions, grid, notes, chart.tuning.capo);
     if (!chart.fret_hand_positions.empty())
     {
         notes.push_back(
@@ -2432,7 +2441,7 @@ void resolveSlideOutExits(
 
     // Trail-off exits follow the hand's next move where it agrees; runs after the trim so
     // the compressed end positions are the ones the exit placements ride.
-    resolveSlideOutExits(built, chart.fret_hand_positions, grid);
+    resolveSlideOutExits(built, chart.fret_hand_positions, grid, chart.tuning.capo);
 
     // Shapes read the notated (pre-trim) note ends, so this runs on the built entries before
     // their notes move into the chart.
@@ -2476,6 +2485,49 @@ void resolveSlideOutExits(
     {
         chart.notes.push_back(std::move(entry.note));
     }
+
+    // Import is a commit point, so the chart leaves here already obeying the technique matrix:
+    // a harmonic sheds what it cannot execute (a fret-hand harmonic cannot slide, bend, or
+    // vibrato; no harmonic survives a full mute; a tap harmonic cannot be tremolo picked), and
+    // the legato repair runs now rather than on the first edit.
+    int harmonics_shed = 0;
+    for (ChartNote& note : chart.notes)
+    {
+        bool shed = false;
+        if (note.harmonic_node.has_value() && note.mute == NoteMute::Full)
+        {
+            note.mute = NoteMute::None;
+            shed = true;
+        }
+        if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value() && note.tremolo)
+        {
+            note.tremolo = false;
+            shed = true;
+        }
+        if (common::core::fretHandHarmonic(note))
+        {
+            if (!note.bend.empty() || note.vibrato)
+            {
+                note.bend.clear();
+                note.vibrato = false;
+                shed = true;
+            }
+            if (!note.slides.empty() || note.slide_out.has_value())
+            {
+                note.slides.clear();
+                note.slide_out.reset();
+                shed = true;
+            }
+        }
+        harmonics_shed += shed ? 1 : 0;
+    }
+    if (harmonics_shed > 0)
+    {
+        notes.push_back(
+            std::to_string(harmonics_shed) +
+            " harmonics shed techniques they cannot execute (bend, vibrato, slide, or mute)");
+    }
+    normalizeChartLegato(chart.notes);
 
     return chart;
 }

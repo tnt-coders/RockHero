@@ -207,7 +207,7 @@ TEST_CASE("planDeleteNotes removes matching keys and labels the count", "[core][
     const std::vector<ChartNoteKey> pair{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
-    const auto plan = planDeleteNotes(chart, pair);
+    const auto plan = planDeleteNotes(chart, makeTempoMap(), pair);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -218,7 +218,7 @@ TEST_CASE("planDeleteNotes removes matching keys and labels the count", "[core][
 
     // A single key uses the singular label.
     const std::vector<ChartNoteKey> single{keyAt({.measure = 3, .beat = 1}, 1)};
-    const auto single_plan = planDeleteNotes(chart, single);
+    const auto single_plan = planDeleteNotes(chart, makeTempoMap(), single);
     REQUIRE(single_plan.has_value());
     if (single_plan.has_value())
     {
@@ -233,7 +233,7 @@ TEST_CASE("planDeleteNotes returns nullopt when no key matches", "[core][chart]"
     const common::core::Chart chart = makeChart();
 
     const std::vector<ChartNoteKey> missing{keyAt({.measure = 5, .beat = 1}, 1)};
-    CHECK_FALSE(planDeleteNotes(chart, missing).has_value());
+    CHECK_FALSE(planDeleteNotes(chart, makeTempoMap(), missing).has_value());
 }
 
 // A move that would carry a note off either end of the string range is refused whole, never
@@ -337,7 +337,7 @@ TEST_CASE("planRetypeFrets sets an exact fret on every note", "[core][chart]")
     const common::core::Chart chart = makeChart();
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
-    const auto plan = planRetypeFrets(base, 9, true);
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 9, true);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -359,7 +359,7 @@ TEST_CASE("planRetypeFrets transposes from the lowest fret", "[core][chart]")
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
     // Lowest fret 3 to target 5 is a +2 shift: 3 to 5 and 5 to 7.
-    const auto plan = planRetypeFrets(base, 5, false);
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 5, false);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -380,31 +380,32 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
     const std::vector<common::core::ChartNote> base{
         makeNote({.measure = 1, .beat = 1}, 1, 25), makeNote({.measure = 1, .beat = 1}, 2, 28)
     };
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = base;
 
-    // Lowest fret 25 to the cap is a +5 shift; the higher member reaches 33, past the cap.
-    CHECK_FALSE(planRetypeFrets(base, common::core::g_max_fret, false).has_value());
+    // Lowest fret 25 to the cap is a +5 shift; the higher member reaches 33, past the cap —
+    // refused by the shared finalize gate, which replaced the old local caps.
+    CHECK_FALSE(
+        planRetypeFrets(chart, makeTempoMap(), base, common::core::g_max_fret, false).has_value());
 }
 
 // An empty snapshot has no anchor fret, so no plan is produced.
 TEST_CASE("planRetypeFrets returns nullopt for an empty snapshot", "[core][chart]")
 {
-    CHECK_FALSE(planRetypeFrets({}, 5, false).has_value());
+    CHECK_FALSE(planRetypeFrets(makeChart(), makeTempoMap(), {}, 5, false).has_value());
 }
 
-// Unlike the other planners, retype reports a populated-but-empty plan when the target already
-// matches, rather than nullopt.
-TEST_CASE("planRetypeFrets returns an empty plan when nothing changes", "[core][chart]")
+// A target already matching plans nothing, like every planner since the shared finalize took
+// over the diff.
+TEST_CASE("planRetypeFrets returns nullopt when nothing changes", "[core][chart]")
 {
     const std::vector<common::core::ChartNote> base{makeNote({.measure = 1, .beat = 1}, 1, 5)};
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = base;
 
-    const auto plan = planRetypeFrets(base, 5, true);
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
-    {
-        CHECK(plan->removed.empty());
-        CHECK(plan->inserted.empty());
-        CHECK(plan->label == "Set Fret 5");
-    }
+    CHECK_FALSE(planRetypeFrets(chart, makeTempoMap(), base, 5, true).has_value());
 }
 
 // Shrinking a sustain past zero floors it at zero rather than going negative.
@@ -686,7 +687,11 @@ TEST_CASE("planRetypeFrets translates a scrape's path with its start", "[core][c
 {
     const std::vector<common::core::ChartNote> base{makeScrape({.measure = 1, .beat = 1}, 1)};
 
-    const auto plan = planRetypeFrets(base, 11, /*set_exact=*/false);
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = base;
+
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 11, /*set_exact=*/false);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -701,14 +706,13 @@ TEST_CASE("planRetypeFrets translates a scrape's path with its start", "[core][c
             CHECK(retyped.slide_out->fret == 14);
         }
 
-        common::core::Chart chart;
-        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        chart.notes = base;
-        applyAndValidate(chart, makeTempoMap(), *plan);
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, makeTempoMap(), *plan);
     }
 
-    // Transposing to 28 lands the start inside the neck but pushes the terminal's 12 to 31.
-    CHECK_FALSE(planRetypeFrets(base, 28, /*set_exact=*/false).has_value());
+    // Transposing to 28 lands the start inside the neck but pushes the terminal's 12 to 31,
+    // which the finalize gate refuses.
+    CHECK_FALSE(planRetypeFrets(chart, makeTempoMap(), base, 28, /*set_exact=*/false).has_value());
 }
 
 // A sustain change re-terminates a scrape's path: shrink compresses the final point onto the

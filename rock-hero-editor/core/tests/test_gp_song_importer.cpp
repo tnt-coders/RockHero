@@ -294,13 +294,11 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         // The fretting hand is at the node it touches, not down at the capo.
         CHECK(common::core::fretFor(chart.notes[4]) == 6);
     }
-    REQUIRE(chart.notes[4].bend.size() == 3);
-    CHECK(chart.notes[4].bend[0].offset == Fraction{0});
-    CHECK(chart.notes[4].bend[0].semitones == Catch::Approx(0.0));
-    CHECK(chart.notes[4].bend[1].offset == Fraction{1, 4});
-    CHECK(chart.notes[4].bend[1].semitones == Catch::Approx(1.0));
-    CHECK(chart.notes[4].bend[2].offset == Fraction{1, 2});
-    CHECK(chart.notes[4].bend[2].semitones == Catch::Approx(2.0));
+    // The score notates a bend ON the natural harmonic — data a fretting hand touching a node
+    // cannot execute — so import sheds it rather than producing an invalid chart. The
+    // bend-mapping coverage lives in the plateau test, which strips the harmonic; the shed's
+    // conversion note is asserted in the harmonic-shedding section.
+    CHECK(chart.notes[4].bend.empty());
 
     // No two notes strike together in the fixture, so no chord furniture is derived.
     CHECK(chart.templates.empty());
@@ -414,13 +412,13 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
 
     // The natural walk is untouched by the gesture (no rule-9 drag), but the exit pass dips
     // the window with the trail-off — the fret-3 exit pulls the anchor down at the compressed
-    // end — and the real fret-9 landing placement (the minimal fret-6 window) takes over at
-    // the next onset, standing in for the restore.
+    // end, stopping at the capo-2 floor — and the real fret-9 landing placement (the minimal
+    // fret-6 window) takes over at the next onset, standing in for the restore.
     CHECK(chart.fret_hand_positions.front().fret == 5);
     const common::core::FretHandPosition* const dip =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
     REQUIRE(dip != nullptr);
-    CHECK(dip->fret == 1);
+    CHECK(dip->fret == 3);
     const common::core::FretHandPosition* const landing =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(landing != nullptr);
@@ -1112,10 +1110,16 @@ TEST_CASE("Guitar Pro import keeps the bend plateau between middle offsets", "[c
 
     // Distinct middle offsets hold the middle bend value from half to three quarters of the
     // eighth-note sustain, so the chart curve gains a fourth point instead of collapsing the
-    // plateau to a single point.
-    const std::string gpif = fixtureWithReplacement(
+    // plateau to a single point. The harmonic is stripped from the bend note first: a fret-hand
+    // harmonic sheds its bend on import, and this test is about the bend mapping.
+    std::string gpif = fixtureWithReplacement(
         "<Property name=\"BendMiddleOffset2\"><Float>50.000000</Float></Property>",
         "<Property name=\"BendMiddleOffset2\"><Float>75.000000</Float></Property>");
+    const std::string harmonic_marker =
+        "<Property name=\"HarmonicType\"><HType>Natural</HType></Property>";
+    const std::size_t harmonic_position = gpif.find(harmonic_marker);
+    REQUIRE(harmonic_position != std::string::npos);
+    gpif.replace(harmonic_position, harmonic_marker.size(), "");
     const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
 
     GpSongImporter importer;
@@ -1474,6 +1478,24 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
         CHECK(chart.notes[0].fret == 13);
         CHECK(anyNoteContains(built->notes, "matched no real node"));
+    }
+
+    SECTION("a fret-hand harmonic sheds what it cannot execute, loudly")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpNote bent_harmonic{.string = 1, .fret = 7, .harmonic_type = "Natural"};
+        bent_harmonic.vibrato = true;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{GpBeat{.duration_whole = Fraction{1, 4}, .notes = {bent_harmonic}}}}
+            });
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].harmonic_node.has_value());
+        CHECK_FALSE(chart.notes[0].vibrato);
+        CHECK(anyNoteContains(built->notes, "harmonics shed techniques"));
     }
 
     SECTION("capo-relative frets shift to absolute; the open string stays 0")

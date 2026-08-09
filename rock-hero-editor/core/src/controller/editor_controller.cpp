@@ -2802,8 +2802,8 @@ void EditorController::Impl::deleteChartSelection()
         return;
     }
 
-    static_cast<void>(
-        applyChartEditPlan(planDeleteNotes(*arrangement->chart, chartSelection().notes())));
+    static_cast<void>(applyChartEditPlan(planDeleteNotes(
+        *arrangement->chart, session().song().tempo_map, chartSelection().notes())));
 }
 
 // The Insert key's neutral create: the surface's neutral object appears at an armed EMPTY caret
@@ -2927,9 +2927,16 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
                            m_undo_history.snapshot().position == entry.history_position;
     if (widenable)
     {
+        common::core::Chart* const chart = m_session.currentChart();
+        if (chart == nullptr)
+        {
+            return true;
+        }
         // The widened whole-entry plan runs from the pre-entry originals: an insert entry
         // re-plans as the SAME insert carrying the combined fret, a retype entry from the
-        // captured base notes.
+        // captured base notes against the pre-entry stream — reconstructible by swapping the
+        // base values back, because a first digit that repaired notes beyond the selection
+        // settled the window at creation, so this entry touched only the captured keys.
         std::optional<ChartNotesEditPlan> widened;
         if (entry.insert_plan.has_value())
         {
@@ -2945,24 +2952,37 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
         }
         else
         {
-            widened = planRetypeFrets(entry.base_notes, combined, /*set_exact=*/true);
+            common::core::Chart pre_entry = *chart;
+            for (common::core::ChartNote& note : pre_entry.notes)
+            {
+                for (const common::core::ChartNote& original : entry.base_notes)
+                {
+                    if (ChartNoteKey{.position = original.position, .string = original.string} ==
+                        ChartNoteKey{.position = note.position, .string = note.string})
+                    {
+                        note = original;
+                        break;
+                    }
+                }
+            }
+            widened = planRetypeFrets(
+                pre_entry,
+                session().song().tempo_map,
+                entry.base_notes,
+                combined,
+                /*set_exact=*/true);
         }
         if (!widened.has_value())
         {
             return true;
         }
 
-        common::core::Chart* const chart = m_session.currentChart();
-        if (chart == nullptr)
-        {
-            return true;
-        }
         // Step the live chart from its current values to the combined target. The current
         // values are the base shape already moved by the first digit, so a plan that was
         // valid from base is valid from here too.
         const std::vector<common::core::ChartNote> current_notes = chartNotesForKeys(entry.keys);
-        if (const std::optional<ChartNotesEditPlan> incremental =
-                planRetypeFrets(current_notes, combined, /*set_exact=*/true);
+        if (const std::optional<ChartNotesEditPlan> incremental = planRetypeFrets(
+                *chart, session().song().tempo_map, current_notes, combined, /*set_exact=*/true);
             incremental.has_value() && !incremental->removed.empty())
         {
             if (!applyChartNotesChange(*chart, incremental->removed, incremental->inserted)
@@ -3061,15 +3081,36 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
 // second digit could still fit under the fret cap.
 void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t now_ms)
 {
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
     std::vector<common::core::ChartNote> base_notes = chartNotesForKeys(chartSelection().notes());
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
-    std::optional<ChartNotesEditPlan> plan = planRetypeFrets(base_notes, digit, /*set_exact=*/true);
+    std::optional<ChartNotesEditPlan> plan = planRetypeFrets(
+        *arrangement->chart, session().song().tempo_map, base_notes, digit, /*set_exact=*/true);
+    // A repair beyond the selection (a neighbour's legato riding this entry) settles the
+    // multi-digit window: a widen replans from the captured base notes alone, so an entry that
+    // touched more than them could not be reconstructed and its undo would lie.
+    const auto outside_keys = [&keys](const common::core::ChartNote& note) {
+        return !std::ranges::binary_search(
+            keys, ChartNoteKey{.position = note.position, .string = note.string});
+    };
+    const bool repairs_neighbours =
+        plan.has_value() && (std::ranges::any_of(plan->removed, outside_keys) ||
+                             std::ranges::any_of(plan->inserted, outside_keys));
     // A refused first digit (the fret cap, or a scrape's translated path leaving the neck)
     // still arms the entry window: the digit applies nothing, but the widen replans the
     // two-digit value from the same pre-entry base, so every in-range multi-digit target
     // stays reachable — a scrape's wide default path would otherwise dead-end all typing.
     const bool pushed =
         plan.has_value() && !plan->removed.empty() && applyChartEditPlan(std::move(plan));
+    if (repairs_neighbours)
+    {
+        m_chart_fret_entry.reset();
+        return;
+    }
     if (digit * 10 <= common::core::g_max_fret)
     {
         m_chart_fret_entry = ChartFretEntry{
@@ -3138,8 +3179,12 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
         return;
     }
 
-    static_cast<void>(applyChartEditPlan(
-        planRetypeFrets(selected, *lowest + (direction > 0 ? 1 : -1), /*set_exact=*/false)));
+    static_cast<void>(applyChartEditPlan(planRetypeFrets(
+        *arrangement->chart,
+        session().song().tempo_map,
+        selected,
+        *lowest + (direction > 0 ? 1 : -1),
+        /*set_exact=*/false)));
 }
 
 // Grows or shrinks the selection's sustains by one grid step — or one 1/960-beat fine step,

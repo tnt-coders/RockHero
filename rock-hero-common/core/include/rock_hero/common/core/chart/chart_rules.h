@@ -131,6 +131,22 @@ make an arpeggio.
     const Chart& chart, const ChartShape& shape, const TempoMap& tempo_map);
 
 /*!
+\brief Validates the note stream alone — every intra-note and note-relational rule.
+
+The single authority for the technique compatibility matrix's note rules, split out so the editor
+planners can gate a CANDIDATE stream through the same checks the document reader applies: a plan
+whose candidate fails here refuses, which is what makes authoring an invalid chart impossible by
+construction rather than by per-verb discipline.
+
+\param notes Note stream to validate, sorted by (position, string).
+\param tuning Tuning the notes play under; supplies the capo and string count.
+\param tempo_map Song tempo map the note positions must lie on.
+\return Empty success, or the first violated rule.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateChartNotes(
+    const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map);
+
+/*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
 Enforces the corpus-validated rule set: a usable tuning; template arrays matching the string

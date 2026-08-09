@@ -1,6 +1,7 @@
 #include "chart/chart_rules.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart_tokens.h>
@@ -154,7 +155,10 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
         for (const std::optional<int>& fret : chord_template.frets)
         {
-            if (fret.has_value() && (*fret < 0 || *fret > g_max_fret))
+            // Postures obey the capo floor exactly like notes: 0 is the capo'd open string, and
+            // the frets the capo covers do not exist to hold.
+            if (fret.has_value() &&
+                (*fret < 0 || *fret > g_max_fret || (*fret != 0 && *fret <= chart.tuning.capo)))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidTemplate,
@@ -165,8 +169,68 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
     }
 
+    if (auto notes_result = validateChartNotes(chart.notes, chart.tuning, tempo_map);
+        !notes_result.has_value())
+    {
+        return notes_result;
+    }
+
+    const ChartShape* previous_shape = nullptr;
+    for (const ChartShape& shape : chart.shapes)
+    {
+        if (shape.chord >= chart.templates.size() || shape.sustain.numerator <= 0 ||
+            !isValidGridPosition(shape.position, tempo_map))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidShape,
+                .message = "shape span is invalid at " + positionText(shape.position),
+            }};
+        }
+        if (previous_shape != nullptr && shape.position < previous_shape->position)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidShape,
+                .message = "shape spans must be sorted at " + positionText(shape.position),
+            }};
+        }
+        previous_shape = &shape;
+    }
+
+    const FretHandPosition* previous_fhp = nullptr;
+    for (const FretHandPosition& fhp : chart.fret_hand_positions)
+    {
+        // The hand cannot sit below the capo: the window's index-finger fret starts above it.
+        if (fhp.fret <= chart.tuning.capo || fhp.fret < 1 || fhp.fret > g_max_fret ||
+            fhp.width < 1 || !isValidGridPosition(fhp.position, tempo_map))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidFretHandPosition,
+                .message = "fret-hand position is invalid at " + positionText(fhp.position),
+            }};
+        }
+        if (previous_fhp != nullptr && fhp.position < previous_fhp->position)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidFretHandPosition,
+                .message = "fret-hand positions must be sorted at " + positionText(fhp.position),
+            }};
+        }
+        previous_fhp = &fhp;
+    }
+
+    return std::expected<void, ChartError>{};
+}
+
+std::expected<void, ChartError> validateChartNotes(
+    const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map)
+{
+    const auto string_count = static_cast<int>(tuning.strings.size());
+    // The last note seen per string, for the relational rules (E5/E19): the stream is sorted, so
+    // this IS each note's same-string predecessor when it is reached.
+    std::array<const ChartNote*, static_cast<std::size_t>(g_max_chart_strings) + 1>
+        last_per_string{};
     const ChartNote* previous_note = nullptr;
-    for (const ChartNote& note : chart.notes)
+    for (const ChartNote& note : notes)
     {
         if (note.string < 1 || note.string > string_count || note.fret < 0 ||
             note.fret > g_max_fret || !isValidGridPosition(note.position, tempo_map))
@@ -195,7 +259,7 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         // A node lies on the speaking length, so it cannot sit at or behind the physical stop —
         // nothing vibrates there. Fret 0 means the open string under the 0-means-open
         // convention, so the stop it names is the nut or the capo.
-        const int physical_stop = note.fret == 0 ? chart.tuning.capo : note.fret;
+        const int physical_stop = note.fret == 0 ? tuning.capo : note.fret;
         if (note.harmonic_node.has_value() &&
             *note.harmonic_node <= static_cast<double>(physical_stop))
         {
@@ -227,6 +291,111 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                 .code = ChartErrorCode::InvalidNote,
                 .message = "pinch harmonic must carry its node at " + positionText(note.position),
             }};
+        }
+        // The capo is the string's floor: 0 means the capo'd open string, and the frets it
+        // covers do not exist to play.
+        if (note.fret != 0 && note.fret <= tuning.capo)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "fret must be 0 or above the capo at " + positionText(note.position),
+            }};
+        }
+        // A hammer or tap needs somewhere to land: a fret, or a harmonic's node (the tap
+        // harmonic strikes the node itself).
+        if ((note.attack == NoteAttack::Hammer || note.attack == NoteAttack::Tap) &&
+            note.fret == 0 && !note.harmonic_node.has_value())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "hammered or tapped note needs a place to strike at " +
+                           positionText(note.position),
+            }};
+        }
+        // A full mute sounds no pitch, so it excludes every pitch-valued payload: a harmonic IS
+        // a pitch, and bend or vibrato modulate a pitch the dead note does not have. Positions
+        // (slides, slide-out) stay legal.
+        if (note.mute == NoteMute::Full &&
+            (note.harmonic_node.has_value() || !note.bend.empty() || note.vibrato))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "a full mute sounds no pitch, so it cannot carry a harmonic, bend, or "
+                           "vibrato at " +
+                           positionText(note.position),
+            }};
+        }
+        // A pull-off releases onto a lower stopped pitch ringing the full speaking length — an
+        // ordinary note by construction, never a harmonic.
+        if (note.attack == NoteAttack::Pull && note.harmonic_node.has_value())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "a pull-off cannot sound a harmonic at " + positionText(note.position),
+            }};
+        }
+        // A tap harmonic's damping finger leaves the string, so nothing holds the node under
+        // re-picking and the harmonic dies; tremolo therefore describes the unexecutable.
+        if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value() && note.tremolo)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message =
+                    "a tap harmonic cannot be tremolo picked at " + positionText(note.position),
+            }};
+        }
+        // A fret-hand harmonic touches its node with nothing pressed, so nothing can slide,
+        // bend, or oscillate — moving the touch off the node just stops the harmonic. A harmonic
+        // over a real stop (fret > 0) is the picking-hand-damped family and bends normally.
+        if (fretHandHarmonic(note))
+        {
+            if (!note.slides.empty() || note.slide_out.has_value())
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNote,
+                    .message =
+                        "a fret-hand harmonic cannot slide at " + positionText(note.position),
+                }};
+            }
+            if (!note.bend.empty() || note.vibrato)
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNote,
+                    .message = "a fret-hand harmonic cannot bend or vibrato at " +
+                               positionText(note.position),
+                }};
+            }
+        }
+        // A pull-off must release something: a same-string predecessor whose RELEASED fret — the
+        // last pitched waypoint, or a scrape's slide-out end — sits above the pulled note. A
+        // fret-hand harmonic predecessor touches without pressing, so nothing can be released.
+        if (note.attack == NoteAttack::Pull)
+        {
+            const ChartNote* const source = last_per_string[static_cast<std::size_t>(note.string)];
+            if (source == nullptr)
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNote,
+                    .message = "a pull-off needs a preceding note on its string at " +
+                               positionText(note.position),
+                }};
+            }
+            if (fretHandHarmonic(*source))
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNote,
+                    .message = "a pull-off cannot release a fret-hand harmonic at " +
+                               positionText(note.position),
+                }};
+            }
+            if (releasedFret(*source) <= note.fret)
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNote,
+                    .message = "a pull-off must release from a higher fret at " +
+                               positionText(note.position),
+                }};
+            }
         }
         if (previous_note != nullptr)
         {
@@ -271,6 +440,18 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                                positionText(note.position),
                 }};
             }
+            // Pitched glides obey the capo floor exactly like the note's own fret — the frets
+            // the capo covers cannot sound. A scrape's turnarounds are unpitched pick travel
+            // and exempt, like its slide-out.
+            if (note.attack != NoteAttack::PickSlide && waypoint.fret != 0 &&
+                waypoint.fret <= tuning.capo)
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNotePayload,
+                    .message = "slide waypoint must stay 0 or above the capo at " +
+                               positionText(note.position),
+                }};
+            }
             // A curve waypoint may never sit on a later onset of its own string: a glide into a
             // real note is the slideEnd "next" terminal, which stores no coordinates. Rejecting
             // the coordinate copy here is what keeps the desyncable encoding unrepresentable.
@@ -279,8 +460,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             const GridPosition waypoint_position =
                 advanceGridPosition(tempo_map, note.position, waypoint.offset);
             for (auto at_waypoint = std::ranges::lower_bound(
-                     chart.notes, waypoint_position, std::ranges::less{}, &ChartNote::position);
-                 at_waypoint != chart.notes.end() && at_waypoint->position == waypoint_position;
+                     notes, waypoint_position, std::ranges::less{}, &ChartNote::position);
+                 at_waypoint != notes.end() && at_waypoint->position == waypoint_position;
                  ++at_waypoint)
             {
                 if (at_waypoint->string == note.string)
@@ -358,49 +539,8 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             }
         }
 
+        last_per_string[static_cast<std::size_t>(note.string)] = &note;
         previous_note = &note;
-    }
-
-    const ChartShape* previous_shape = nullptr;
-    for (const ChartShape& shape : chart.shapes)
-    {
-        if (shape.chord >= chart.templates.size() || shape.sustain.numerator <= 0 ||
-            !isValidGridPosition(shape.position, tempo_map))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidShape,
-                .message = "shape span is invalid at " + positionText(shape.position),
-            }};
-        }
-        if (previous_shape != nullptr && shape.position < previous_shape->position)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidShape,
-                .message = "shape spans must be sorted at " + positionText(shape.position),
-            }};
-        }
-        previous_shape = &shape;
-    }
-
-    const FretHandPosition* previous_fhp = nullptr;
-    for (const FretHandPosition& fhp : chart.fret_hand_positions)
-    {
-        if (fhp.fret < 1 || fhp.fret > g_max_fret || fhp.width < 1 ||
-            !isValidGridPosition(fhp.position, tempo_map))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidFretHandPosition,
-                .message = "fret-hand position is invalid at " + positionText(fhp.position),
-            }};
-        }
-        if (previous_fhp != nullptr && fhp.position < previous_fhp->position)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidFretHandPosition,
-                .message = "fret-hand positions must be sorted at " + positionText(fhp.position),
-            }};
-        }
-        previous_fhp = &fhp;
     }
 
     return std::expected<void, ChartError>{};

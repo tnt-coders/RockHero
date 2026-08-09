@@ -31,7 +31,8 @@ namespace
     chart.templates = {
         ChordTemplate{
             .name = "F5",
-            .frets = {1, 3, 3, std::nullopt, std::nullopt, std::nullopt},
+            // Above the fixture's capo at 2: the capo floor binds postures like notes.
+            .frets = {3, 5, 5, std::nullopt, std::nullopt, std::nullopt},
             .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
         },
         ChordTemplate{
@@ -599,6 +600,185 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     const auto beyond_octave_result = validateChartRules(beyond_octave, tempo_map);
     REQUIRE_FALSE(beyond_octave_result.has_value());
     CHECK(beyond_octave_result.error().code == ChartErrorCode::InvalidTuning);
+}
+
+// The signed technique matrix, enforced: every forbidden combination refuses, and the allowed
+// staples that sit next to a forbid stay legal. validateChartNotes is the one authority; the
+// editor planners gate candidates through the same checks the reader applies.
+TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    const auto make_note = [](const int beat, const int string, const int fret) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = beat};
+        note.string = string;
+        note.fret = fret;
+        return note;
+    };
+    const auto validate = [&tempo_map](const std::vector<ChartNote>& notes, const int capo = 0) {
+        ChartTuning tuning;
+        tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        tuning.capo = capo;
+        return validateChartNotes(notes, tuning, tempo_map);
+    };
+
+    SECTION("a hammer or tap needs a place to strike")
+    {
+        ChartNote hammer = make_note(1, 1, 0);
+        hammer.attack = NoteAttack::Hammer;
+        CHECK_FALSE(validate({hammer}).has_value());
+
+        ChartNote tap = make_note(1, 1, 0);
+        tap.attack = NoteAttack::Tap;
+        CHECK_FALSE(validate({tap}).has_value());
+
+        // The open-string tap harmonic strikes the node itself, so a node satisfies the rule.
+        tap.harmonic_node = 12.0;
+        CHECK(validate({tap}).has_value());
+
+        hammer.fret = 5;
+        CHECK(validate({hammer}).has_value());
+    }
+
+    SECTION("a full mute excludes the pitch-valued payloads and keeps the positions")
+    {
+        ChartNote dead = make_note(1, 1, 5);
+        dead.mute = NoteMute::Full;
+        dead.sustain = Fraction{1};
+        CHECK(validate({dead}).has_value());
+
+        ChartNote muted_harmonic = dead;
+        muted_harmonic.harmonic_node = 17.0;
+        CHECK_FALSE(validate({muted_harmonic}).has_value());
+
+        ChartNote muted_bend = dead;
+        muted_bend.bend = {BendPoint{.offset = Fraction{0}, .semitones = 1.0}};
+        CHECK_FALSE(validate({muted_bend}).has_value());
+
+        ChartNote muted_vibrato = dead;
+        muted_vibrato.vibrato = true;
+        CHECK_FALSE(validate({muted_vibrato}).has_value());
+
+        // Positions survive the same test: the dragged muted slide is real music.
+        ChartNote muted_slide = dead;
+        muted_slide.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 9}};
+        CHECK(validate({muted_slide}).has_value());
+    }
+
+    SECTION("a pull-off can neither sound nor release a harmonic")
+    {
+        ChartNote source = make_note(1, 1, 9);
+        ChartNote pull = make_note(2, 1, 5);
+        pull.attack = NoteAttack::Pull;
+        CHECK(validate({source, pull}).has_value());
+
+        ChartNote pulled_harmonic = pull;
+        pulled_harmonic.harmonic_node = 17.0;
+        CHECK_FALSE(validate({source, pulled_harmonic}).has_value());
+
+        ChartNote harmonic_source = make_note(1, 1, 0);
+        harmonic_source.harmonic_node = 12.0;
+        CHECK_FALSE(validate({harmonic_source, pull}).has_value());
+    }
+
+    SECTION("a pull-off needs a higher released fret on its string")
+    {
+        ChartNote pull = make_note(2, 1, 5);
+        pull.attack = NoteAttack::Pull;
+        CHECK_FALSE(validate({pull}).has_value());
+
+        ChartNote equal_source = make_note(1, 1, 5);
+        CHECK_FALSE(validate({equal_source, pull}).has_value());
+
+        // The released fret is where the finger ENDS: a 3->7 glide hands over 7, justifying a
+        // pull to 5 that the onset frets alone would refuse.
+        ChartNote gliding_source = make_note(1, 1, 3);
+        gliding_source.sustain = Fraction{1, 2};
+        gliding_source.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 7}};
+        CHECK(validate({gliding_source, pull}).has_value());
+
+        // A scrape predecessor is valid data: its released fret is the slide-out's end.
+        ChartNote scrape_source = make_note(1, 1, 12);
+        scrape_source.sustain = Fraction{1, 2};
+        scrape_source.attack = NoteAttack::PickSlide;
+        scrape_source.slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 7};
+        CHECK(validate({scrape_source, pull}).has_value());
+    }
+
+    SECTION("a tap harmonic cannot be tremolo picked; a picked one over a stop can")
+    {
+        ChartNote tap_harmonic = make_note(1, 1, 5);
+        tap_harmonic.attack = NoteAttack::Tap;
+        tap_harmonic.harmonic_node = 17.0;
+        tap_harmonic.tremolo = true;
+        CHECK_FALSE(validate({tap_harmonic}).has_value());
+
+        // The artificial-harmonic family keeps a finger on the node, so re-picking works.
+        ChartNote artificial = make_note(1, 1, 5);
+        artificial.harmonic_node = 17.0;
+        artificial.tremolo = true;
+        CHECK(validate({artificial}).has_value());
+    }
+
+    SECTION("a fret-hand harmonic cannot slide, bend, or vibrato; one over a stop can")
+    {
+        ChartNote natural = make_note(1, 1, 0);
+        natural.harmonic_node = 12.0;
+        natural.sustain = Fraction{1};
+        CHECK(validate({natural}).has_value());
+
+        ChartNote sliding = natural;
+        sliding.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 14}};
+        CHECK_FALSE(validate({sliding}).has_value());
+
+        ChartNote trailing = natural;
+        trailing.slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 9};
+        CHECK_FALSE(validate({trailing}).has_value());
+
+        ChartNote bending = natural;
+        bending.bend = {BendPoint{.offset = Fraction{0}, .semitones = 1.0}};
+        CHECK_FALSE(validate({bending}).has_value());
+
+        ChartNote oscillating = natural;
+        oscillating.vibrato = true;
+        CHECK_FALSE(validate({oscillating}).has_value());
+
+        // A harmonic over a real stop is the picking-hand-damped family: the fretting hand is
+        // pressing, so bending it is ordinary work.
+        ChartNote fretted = make_note(1, 1, 5);
+        fretted.harmonic_node = 17.0;
+        fretted.sustain = Fraction{1};
+        fretted.bend = {BendPoint{.offset = Fraction{0}, .semitones = 1.0}};
+        CHECK(validate({fretted}).has_value());
+    }
+
+    SECTION("the capo floor binds notes")
+    {
+        CHECK(validate({make_note(1, 1, 5)}, 3).has_value());
+        CHECK(validate({make_note(1, 1, 0)}, 3).has_value());
+        CHECK_FALSE(validate({make_note(1, 1, 2)}, 3).has_value());
+        CHECK_FALSE(validate({make_note(1, 1, 3)}, 3).has_value());
+    }
+
+    SECTION("the capo floor binds pitched glide waypoints but not scrape travel")
+    {
+        ChartNote glide = make_note(1, 1, 5);
+        glide.sustain = Fraction{1};
+        glide.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4}};
+        CHECK(validate({glide}, 3).has_value());
+
+        glide.slides.front().fret = 2;
+        CHECK_FALSE(validate({glide}, 3).has_value());
+
+        // A scrape's turnaround is unpitched pick travel and may dip below the capo.
+        ChartNote scrape = make_note(1, 1, 5);
+        scrape.attack = NoteAttack::PickSlide;
+        scrape.sustain = Fraction{1};
+        scrape.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 1}};
+        scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 6};
+        CHECK(validate({scrape}, 3).has_value());
+    }
 }
 
 // Pick-slide notes: no pitched techniques in a saved document (the writer omits the in-memory

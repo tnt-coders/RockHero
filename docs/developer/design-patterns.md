@@ -171,6 +171,12 @@ Exemplar: `ChartNotesEditPlan` with `planInsertNote` / `planDeleteNotes` / `plan
 planner that diffs the cached index and returns a deterministic action list, no IO). Reach for
 it when a mutation needs undo, a truthful preview, or side-effect-free tests.
 
+Every chart-note planner builds a candidate stream and funnels it through the shared finalize
+(`finalizePlan` in `chart_edits.cpp`): sort, sustain-overlap normalization, legato repair, then
+the technique-matrix gate — `validateChartNotes` run on the candidate's *saved* form
+(`savedChartNote`), refusing the whole plan on any violation. A new planner must end there too;
+skipping the funnel is how a verb authors a chart the document reader would reject.
+
 ## Refuse, never clamp (edits)
 
 An *edit* that would cross a boundary refuses the whole operation (the planner returns empty)

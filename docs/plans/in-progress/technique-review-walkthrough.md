@@ -152,14 +152,20 @@ recommendation so the user can rule with full context in front of them.
   author of the left-hand tap across its matrix-verified domain, including overriding a derived
   Pull. (5) Legato repairs at IMPORT so charts are never born invalid. The legato doc is now
   fully settled; implementation rides Phase 5 + D12.
-- [ ] **D12 — Enforcement pass (#27).** D1–D9 are closed; this consumes their outcomes:
-  E4–E19 + E23/E24 guards and rules (E2/E20/E21/E22 already enforced; D4's E2 accent change
-  shipped), the pinch-verb node obligation and attack-away-from-pinch node clearing, the two
-  rule-violating test fixtures (tab-paint full-mute+pinch vs E8; GP fixture natural+bend vs E9),
-  and the **sub-capo family as one unit**: validation (note frets 1..capo invalid when capo > 0)
-  paired with the editor verb guards in the same change — never validation alone, or verbs could
-  author charts that cannot re-load — plus the template and fret-hand-position analogs. Gated on
-  D10 (the legato five) and the user's word that the matrix is signed.
+- [x] **D12 — Enforcement pass (#27) — SHIPPED 2026-08-09.** D1–D9 are closed; this consumed
+  their outcomes: E4–E19 + E23/E24 guards and rules (E2/E20/E21/E22 already enforced; D4's E2
+  accent change shipped), the pinch-verb node obligation and attack-away-from-pinch node
+  clearing, the two rule-violating test fixtures (tab-paint full-mute+pinch vs E8; GP fixture
+  natural+bend vs E9), and the **sub-capo family as one unit**: validation (note frets 1..capo
+  invalid when capo > 0) paired with the editor verb guards in the same change — never
+  validation alone, or verbs could author charts that cannot re-load — plus the template,
+  fret-hand-position, and pitched-glide-waypoint analogs (a scrape's turnarounds and every
+  slide-out stay exempt as unpitched travel). The shape that shipped: rules live once in
+  `validateChartNotes` (chart_rules.cpp); every planner funnels through the `finalizePlan` gate,
+  which validates the SAVED form (`savedChartNote`, the one memory-vs-document seam, now also
+  the document writer's source); `normalizeChartLegato` repairs legato in the finalize and at
+  import completion; import sheds harmonic-impossible techniques loudly (conversion note) and
+  the FHP generators floor every window, slide-in approach, and gesture dip at capo + 1.
 
 ## Recorded, no decision needed
 

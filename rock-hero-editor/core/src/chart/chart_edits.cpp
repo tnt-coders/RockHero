@@ -1,5 +1,6 @@
 #include "chart/chart_edits.h"
 
+#include "chart/legato_normalize.h"
 #include "chart/pick_slide_defaults.h"
 
 #include <algorithm>
@@ -152,13 +153,28 @@ void normalizeSustainOverlaps(
 }
 
 // Finalizes a candidate stream: restores (position, string) order, applies the 40-Q2-B overlap
-// normalization, and diffs against the current stream.
+// normalization and the legato repair, gates the result through the whole technique matrix, and
+// diffs against the current stream. The gate is what makes authoring an invalid chart impossible
+// by construction — a plan whose candidate the document reader would reject refuses here, for
+// every present and future verb, with no per-verb guard to forget. It validates the SAVED form,
+// because a scrape's latent overrides are legal in memory and stripped by the writer.
 [[nodiscard]] std::optional<ChartNotesEditPlan> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, keyLess);
     normalizeSustainOverlaps(candidate, tempo_map);
+    normalizeChartLegato(candidate);
+    std::vector<common::core::ChartNote> saved_form;
+    saved_form.reserve(candidate.size());
+    for (const common::core::ChartNote& note : candidate)
+    {
+        saved_form.push_back(common::core::savedChartNote(note));
+    }
+    if (!common::core::validateChartNotes(saved_form, chart.tuning, tempo_map).has_value())
+    {
+        return std::nullopt;
+    }
     return diffNotes(chart.notes, candidate, label);
 }
 
@@ -181,24 +197,28 @@ std::optional<ChartNotesEditPlan> planInsertNote(
 }
 
 std::optional<ChartNotesEditPlan> planDeleteNotes(
-    const common::core::Chart& chart, const std::vector<ChartNoteKey>& keys)
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys)
 {
-    ChartNotesEditPlan plan;
+    std::vector<common::core::ChartNote> candidate;
+    candidate.reserve(chart.notes.size());
+    std::size_t deleted = 0;
     for (const common::core::ChartNote& note : chart.notes)
     {
         if (std::ranges::binary_search(keys, keyOf(note)))
         {
-            plan.removed.push_back(note);
+            ++deleted;
+            continue;
         }
+        candidate.push_back(note);
     }
-    if (plan.removed.empty())
+    if (deleted == 0)
     {
         return std::nullopt;
     }
-    plan.label = plan.removed.size() == 1
-                     ? std::string{"Delete Note"}
-                     : "Delete " + std::to_string(plan.removed.size()) + " Notes";
-    return plan;
+    const std::string label =
+        deleted == 1 ? std::string{"Delete Note"} : "Delete " + std::to_string(deleted) + " Notes";
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
 std::optional<ChartNotesEditPlan> planMoveNotes(
@@ -266,6 +286,7 @@ std::optional<ChartNotesEditPlan> planMoveNotes(
 }
 
 std::optional<ChartNotesEditPlan> planRetypeFrets(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact)
 {
     // The transposition anchor: the shared delta comes from the snapshot's lowest fret.
@@ -283,49 +304,48 @@ std::optional<ChartNotesEditPlan> planRetypeFrets(
     }
 
     const int delta = set_exact ? 0 : target - *lowest;
-    ChartNotesEditPlan plan;
-    plan.label = (set_exact ? "Set Fret " : "Transpose to Fret ") + std::to_string(target);
+    const std::string label =
+        (set_exact ? "Set Fret " : "Transpose to Fret ") + std::to_string(target);
+    // Retyped values compute from the SNAPSHOT (the multi-digit window replans the whole entry
+    // from the pre-entry originals) and swap into the live stream for the shared finalize, whose
+    // whole-matrix gate replaces the local fret caps this once carried: any out-of-range or
+    // rule-violating result refuses the plan outright.
+    std::vector<common::core::ChartNote> retyped_notes;
+    retyped_notes.reserve(base.size());
     for (const common::core::ChartNote& note : base)
     {
         const int fret = set_exact ? target : note.fret + delta;
-        if (fret < 0 || fret > common::core::g_max_fret)
-        {
-            return std::nullopt;
-        }
-        if (fret == note.fret)
-        {
-            continue;
-        }
-        plan.removed.push_back(note);
         common::core::ChartNote retyped = note;
         retyped.fret = fret;
         // A scrape's path translates with its start (the plan-55 transposition special case):
-        // the whole gesture shifts by the same delta, preserving travel; a path fret pushed
-        // outside the neck refuses the plan exactly like a member fret would.
+        // the whole gesture shifts by the same delta, preserving travel.
         if (note.attack == common::core::NoteAttack::PickSlide)
         {
             const int path_delta = fret - note.fret;
             for (common::core::SlideWaypoint& waypoint : retyped.slides)
             {
                 waypoint.fret += path_delta;
-                if (waypoint.fret < 0 || waypoint.fret > common::core::g_max_fret)
-                {
-                    return std::nullopt;
-                }
             }
             if (retyped.slide_out.has_value())
             {
                 retyped.slide_out->fret += path_delta;
-                if (retyped.slide_out->fret < 0 ||
-                    retyped.slide_out->fret > common::core::g_max_fret)
-                {
-                    return std::nullopt;
-                }
             }
         }
-        plan.inserted.push_back(std::move(retyped));
+        retyped_notes.push_back(std::move(retyped));
     }
-    return plan;
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    for (common::core::ChartNote& note : candidate)
+    {
+        for (const common::core::ChartNote& retyped : retyped_notes)
+        {
+            if (keyOf(retyped) == keyOf(note))
+            {
+                note = retyped;
+                break;
+            }
+        }
+    }
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
 std::optional<ChartNotesEditPlan> planAdjustSustain(
@@ -456,11 +476,22 @@ std::optional<ChartNotesEditPlan> planSetLegato(
                 break;
             }
         }
-        if (previous == nullptr || previous->fret == note.fret)
+        // Option C: the verb infers only what the frets justify. A scrape predecessor is never
+        // inferred across (deliberate legato only — its pull is authorable by ordering the edits);
+        // a fret-hand harmonic never converts here, since deriving onto it would strip its
+        // harmonic; equal released frets justify nothing. The judged fret is the RELEASED one —
+        // where the predecessor's finger ends — so a glide hands over its last waypoint.
+        if (previous == nullptr || previous->attack == common::core::NoteAttack::PickSlide ||
+            common::core::fretHandHarmonic(note))
         {
             continue;
         }
-        const common::core::NoteAttack derived = note.fret > previous->fret
+        const int released = common::core::releasedFret(*previous);
+        if (released == note.fret)
+        {
+            continue;
+        }
+        const common::core::NoteAttack derived = note.fret > released
                                                      ? common::core::NoteAttack::Hammer
                                                      : common::core::NoteAttack::Pull;
         if (note.attack == derived)
@@ -468,6 +499,11 @@ std::optional<ChartNotesEditPlan> planSetLegato(
             continue;
         }
         const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
+        // A pinch or tap owns its node with the picking hand; under the derived attack the same
+        // number would silently become a fret-hand node, so it leaves with the attack.
+        const bool node_leaves =
+            note.harmonic_node.has_value() && (note.attack == common::core::NoteAttack::Pinch ||
+                                               note.attack == common::core::NoteAttack::Tap);
         note.attack = derived;
         if (was_scrape)
         {
@@ -475,6 +511,10 @@ std::optional<ChartNotesEditPlan> planSetLegato(
             // it would be a fiction, so it leaves with the attack exactly as in planSetAttack.
             note.slides.clear();
             note.slide_out.reset();
+        }
+        if (node_leaves)
+        {
+            note.harmonic_node.reset();
         }
         changed = true;
     }
@@ -503,8 +543,42 @@ std::optional<ChartNotesEditPlan> planSetAttack(
         {
             continue;
         }
+        // Eligible-subset skips, so a mixed selection applies to what CAN take the attack: a
+        // hammer or tap needs a place to strike, and a tap harmonic cannot be tremolo picked.
+        if ((attack == common::core::NoteAttack::Hammer ||
+             attack == common::core::NoteAttack::Tap) &&
+            note.fret == 0 && !note.harmonic_node.has_value())
+        {
+            continue;
+        }
+        if (attack == common::core::NoteAttack::Tap && note.harmonic_node.has_value() &&
+            note.tremolo)
+        {
+            continue;
+        }
         const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
+        // A pinch or tap owns its node with the picking hand. Moving to any other fretting-hand
+        // attack would silently re-read the same number as a fret-hand node, so it leaves with
+        // the attack; between the two picking-hand owners the position keeps its meaning.
+        const bool node_leaves = note.harmonic_node.has_value() &&
+                                 (note.attack == common::core::NoteAttack::Pinch ||
+                                  note.attack == common::core::NoteAttack::Tap) &&
+                                 attack != common::core::NoteAttack::Pinch &&
+                                 attack != common::core::NoteAttack::Tap;
         note.attack = attack;
+        if (node_leaves)
+        {
+            note.harmonic_node.reset();
+        }
+        // A pinch is picking while damping a node, so the verb authors one when none exists:
+        // the octave at the stop — the lowest-order harmonic available at any fret and the
+        // commonest squeal — matching the import default. An existing node keeps its position;
+        // it names the same physical point under either picking-hand reading.
+        if (attack == common::core::NoteAttack::Pinch && !note.harmonic_node.has_value())
+        {
+            const int stop = note.fret > 0 ? note.fret : chart.tuning.capo;
+            note.harmonic_node = static_cast<double>(stop) + 12.0;
+        }
         if (attack == common::core::NoteAttack::PickSlide)
         {
             // The note's own fret is the scrape start (unlike imported carriers, whose dead

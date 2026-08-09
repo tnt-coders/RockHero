@@ -15,6 +15,29 @@ int fretFor(const ChartNote& note)
     return note.fret;
 }
 
+ChartNote savedChartNote(const ChartNote& note)
+{
+    ChartNote saved = note;
+    if (saved.attack == NoteAttack::PickSlide)
+    {
+        saved.mute = NoteMute::None;
+        saved.harmonic_node.reset();
+        saved.vibrato = false;
+        saved.tremolo = false;
+        saved.bend.clear();
+    }
+    return saved;
+}
+
+int releasedFret(const ChartNote& note)
+{
+    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value())
+    {
+        return note.slide_out->fret;
+    }
+    return note.slides.empty() ? note.fret : note.slides.back().fret;
+}
+
 double snapHarmonicNode(const double notated, const int max_partial)
 {
     // The octave is the fallback as well as the commonest target, so `best` starts there rather
