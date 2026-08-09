@@ -308,13 +308,15 @@ the physical stop (capo when `fret == 0`); E22 enforced. Capo'd naturals store `
 the user's 0-means-open convention — the capo never appears as a fret number. See the E-table and
 overlay rows, all updated.
 
-**The capo frame question — the storage half is settled (D1), the import half is D9.** RockHero's
-`fret` is absolute with 0 meaning the open string, capo'd or not, and frets 1..capo are invalid
-(validation for that is gated on D9 — enforcing it before GP's frame is measured could reject
-valid imports). What remains empirical: whether GP's *ordinary* note frets are nut-absolute or
-capo-relative, which decides whether import must shift them by the capo. The harmonic labels lean
-capo-relative (the capo-1 score's 7.0/8.2 are standard open-string-family labels — correct
-capo-relative, junk absolute); the decisive test is whether capo'd scores use frets 1..capo.
+**The capo frame — FULLY SETTLED 2026-08-09 (D9): Guitar Pro is capo-relative.** Confirmed by the
+user's authored experiment — with a capo at 3, an entered "1" sounds the pitch at absolute fret 4
+— corroborated by a real capo'd tab and by the harmonic labels (the capo-1 score's 7.0/8.2 are
+standard open-string-family labels, correct capo-relative). **Import now shifts fretted notes by
+the capo** (relative F > 0 → absolute F + capo; 0 stays the open string per D1), the harmonic
+stop reads the shifted note fret, and the natural-label formula (`capo + snapped offset`) was
+already exactly right. GP cannot even express an absolute sub-capo fret, so imports never produce
+one; the sub-capo *validation* (frets 1..capo invalid) lands in the enforcement pass **together
+with the editor verb guards**, so no verb can ever author what validation would reject.
 
 **Newly recorded cells, closed by the criterion, flagged for the glance:** Palm + Pinch (the
 palm-muted squeal — the single most common pinch context, previously resting on silent
@@ -603,10 +605,11 @@ the field): the interim names were dissolved entirely into the two helpers in th
 `fretFor` absorbed the hand-fret question, and the anchor predicate became attack-only
 `nodeIsOnNeck` beside an inline `has_value()`.
 
-**Still inert:** `capo` is stored, imported, and surfaced in the package description, but consumed by
-nothing else — no projection or renderer offsets by it. Whether note frets are nut-absolute or
-capo-relative could not be settled from 2 capo'd scores; it does not block this, because `node > fret`
-holds under either convention and only the literal numbers differ.
+**Capo consumption (revised by D1/D9):** `capo` now drives the import shift (GP's frets are
+capo-relative, confirmed 2026-08-09, so fretted notes store `F + capo`), the physical-stop
+derivation in E21's validation, and the harmonic-node placement. Still unconsumed: no projection
+or renderer offsets by it — a capo'd chart displays absolute frets with 0 meaning the capo'd open
+string, which is the sight-readable convention the user chose.
 
 ## Recovering a node from a source that records only a fret
 

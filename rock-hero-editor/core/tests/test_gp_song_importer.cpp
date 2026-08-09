@@ -238,30 +238,32 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
 
     REQUIRE(chart.notes.size() == 5);
 
-    // Quarter palm mute on the low string. Its notated one-beat tail trims to 3/4 against the
-    // next onset one beat later (minimum-sustain-distance margin 1/4 in 4/4) and KEEPS that
-    // trimmed tail: the drop rule reads the notated length, and a full beat notated is a
-    // deliberate sustain.
+    // Quarter palm mute on the low string, notated at capo-relative fret 3 and stored at the
+    // absolute 5 (the fixture has a CAPO AT 2, and GP's frame is capo-relative). Its notated
+    // one-beat tail trims to 3/4 against the next onset one beat later (minimum-sustain-distance
+    // margin 1/4 in 4/4) and KEEPS that trimmed tail: the drop rule reads the notated length,
+    // and a full beat notated is a deliberate sustain.
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[0].string == 1);
-    CHECK(chart.notes[0].fret == 3);
+    CHECK(chart.notes[0].fret == 5);
     CHECK(chart.notes[0].mute == common::core::NoteMute::Palm);
     CHECK(chart.notes[0].sustain == Fraction{3, 4});
 
     // Hammer-on destination that shift-slides into the next note: an ordinary pitched waypoint
-    // glides to the fret-7 landing, ending the minimum sustain distance (1/16 whole note — a
-    // quarter beat in 4/4) before the landing's onset, and the sustain ends at the glide end.
+    // glides to the landing (absolute fret 9), ending the minimum sustain distance (1/16 whole
+    // note — a quarter beat in 4/4) before the landing's onset, and the sustain ends at the
+    // glide end.
     CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
     CHECK(chart.notes[1].attack == common::core::NoteAttack::Hammer);
     REQUIRE(chart.notes[1].slides.size() == 1);
     CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
-    CHECK(chart.notes[1].slides[0].fret == 7);
+    CHECK(chart.notes[1].slides[0].fret == 9);
     CHECK_FALSE(chart.notes[1].slide_out.has_value());
     CHECK(chart.notes[1].sustain == Fraction{1, 4});
 
     CHECK(
         chart.notes[2].position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
-    CHECK(chart.notes[2].fret == 7);
+    CHECK(chart.notes[2].fret == 9);
 
     // The tie chain merges into one note whose sustain crosses the barline: onset 1:3, a
     // quarter in bar one plus a half in bar two makes four notated beats. The ring only
@@ -280,11 +282,10 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     {
         // The score writes "3.2", a conventional label naming the 6th partial. Two corrections land
         // here: the label resolves to that partial's true offset (3.156, not 3.2, since a position
-        // even slightly off chokes the harmonic), and it is placed against the real stop — this
-        // fixture has a CAPO AT 2, so the string speaks from there and its 6th-partial node sits at
-        // 5.156. Reading the label as an open-string offset from the stop is right whether Guitar
-        // Pro's numbers are nut-referenced or capo-relative (the frame question is recorded in the
-        // technique-compatibility plan doc).
+        // even slightly off chokes the harmonic), and it is placed against the real stop — the
+        // capo at 2, so the string speaks from there and its 6th-partial node sits at 5.156.
+        // GP's frame is confirmed capo-relative, which is exactly what capo + snapped offset
+        // encodes.
         CHECK(*chart.notes[4].harmonic_node == Catch::Approx(5.1564).margin(0.001));
         // Under the 0-means-open convention a natural harmonic's fret is 0 even on a capo'd
         // string — the capo never appears as a fret number — while the node stays absolute.
@@ -305,16 +306,16 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.templates.empty());
     CHECK(chart.shapes.empty());
 
-    // The generated fret-hand track opens on the fret-3 palm mute, then the five-to-seven shift
-    // glide drags the anchor up by its own +2 delta to a fret-5 window at the pitched waypoint
+    // The generated fret-hand track opens on the fret-5 palm mute, then the seven-to-nine shift
+    // glide drags the anchor up by its own +2 delta to a fret-7 window at the pitched waypoint
     // (rule 9), keeping the fretting finger on its slot. (The full track shape is the
     // phrase-aware generator's own concern, so this asserts the slide-driven move, not the
     // whole sequence.)
-    CHECK(chart.fret_hand_positions.front().fret == 3);
+    CHECK(chart.fret_hand_positions.front().fret == 5);
     const common::core::FretHandPosition* const shift_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
     REQUIRE(shift_glide != nullptr);
-    CHECK(shift_glide->fret == 5);
+    CHECK(shift_glide->fret == 7);
     CHECK(shift_glide->width == 4);
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -344,31 +345,31 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     REQUIRE(song->arrangements.size() == 1);
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
-    // The fret-7 landing at 1:2+1/2 is no longer an onset: four notes remain.
+    // The absolute-fret-9 landing at 1:2+1/2 is no longer an onset: four notes remain.
     REQUIRE(chart.notes.size() == 4);
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[2].position == GridPosition{.measure = 1, .beat = 3});
 
     // The origin keeps its hammer attack and carries the junction waypoint; its sustain extends
     // through the landing's notated end (one beat), then the minimum-distance trim takes it to
-    // 3/4 — floored above the waypoint, so the glide still reaches fret 7.
+    // 3/4 — floored above the waypoint, so the glide still reaches fret 9.
     const common::core::ChartNote& origin = chart.notes[1];
     CHECK(origin.position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(origin.fret == 5);
+    CHECK(origin.fret == 7);
     CHECK(origin.attack == common::core::NoteAttack::Hammer);
     CHECK(origin.sustain == Fraction{3, 4});
     REQUIRE(origin.slides.size() == 1);
     CHECK(origin.slides[0].offset == Fraction{1, 2});
-    CHECK(origin.slides[0].fret == 7);
+    CHECK(origin.slides[0].fret == 9);
     CHECK_FALSE(origin.slide_out.has_value());
 
-    // With no landing onset, hand movement at fret 7 comes from the pitched waypoint alone: the
+    // With no landing onset, hand movement at fret 9 comes from the pitched waypoint alone: the
     // glide drags the window up by its own +2 delta at the waypoint's mid-sustain position
-    // (rule 9), landing a fret-5 window there.
+    // (rule 9), landing a fret-7 window there.
     const common::core::FretHandPosition* const legato_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(legato_glide != nullptr);
-    CHECK(legato_glide->fret == 5);
+    CHECK(legato_glide->fret == 7);
     CHECK(legato_glide->width == 4);
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -387,8 +388,8 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     const std::filesystem::path workspace = scratch / "song";
     std::filesystem::create_directories(workspace);
 
-    // Flags 4 is the downward slide-out; the fret-5 note now trails off unpitched toward
-    // fret 1 instead of gliding into the fret-7 landing (which stays a real onset).
+    // Flags 4 is the downward slide-out; the absolute-fret-7 note now trails off unpitched
+    // toward fret 3 instead of gliding into the fret-9 landing (which stays a real onset).
     const std::string gpif = fixtureWithReplacement(
         "<Property name=\"Slide\"><Flags>1</Flags></Property>",
         "<Property name=\"Slide\"><Flags>4</Flags></Property>");
@@ -404,18 +405,18 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     CHECK(chart.notes[1].slides.empty());
     const auto* const slide_out = common::core::slideOutOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
-    CHECK(slide_out->fret == 1);
+    CHECK(slide_out->fret == 3);
     // The trail-off is not a protected payload (rule 2 carve-out): its
     // notated half-beat end trims back with the sustain to the minimum-sustain-distance margin
-    // before the fret-7 onset.
+    // before the fret-9 onset.
     CHECK(slide_out->offset == Fraction{1, 4});
     CHECK(chart.notes[1].sustain == Fraction{1, 4});
 
     // The natural walk is untouched by the gesture (no rule-9 drag), but the exit pass dips
-    // the window with the trail-off — the fret-1 exit pulls the anchor down to the neck's
-    // edge at the compressed end — and the real fret-7 landing placement (the minimal fret-4
-    // window) takes over at the next onset, standing in for the restore.
-    CHECK(chart.fret_hand_positions.front().fret == 3);
+    // the window with the trail-off — the fret-3 exit pulls the anchor down at the compressed
+    // end — and the real fret-9 landing placement (the minimal fret-6 window) takes over at
+    // the next onset, standing in for the restore.
+    CHECK(chart.fret_hand_positions.front().fret == 5);
     const common::core::FretHandPosition* const dip =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
     REQUIRE(dip != nullptr);
@@ -423,7 +424,7 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     const common::core::FretHandPosition* const landing =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(landing != nullptr);
-    CHECK(landing->fret == 4);
+    CHECK(landing->fret == 6);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -463,10 +464,10 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     // The slide-in head stays on its notated onset, scooping from two frets below over an
     // eighth of a beat (a quarter of its notated duration, floored at the minimum window).
     const common::core::ChartNote& landing = chart.notes[2];
-    CHECK(landing.fret == 5);
+    CHECK(landing.fret == 7);
     REQUIRE_FALSE(landing.slides.empty());
     CHECK(landing.slides.front().offset == Fraction{1, 8});
-    CHECK(landing.slides.front().fret == 7);
+    CHECK(landing.slides.front().fret == 9);
     CHECK(landing.position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
 
     // With no fabricated head in the gap, the half-beat trail-off compresses the plain
@@ -509,7 +510,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
         REQUIRE(song.has_value());
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() >= 3);
-        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].fret == 9);
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
     }
 
@@ -519,7 +520,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
         REQUIRE(song.has_value());
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() >= 3);
-        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].fret == 9);
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
     }
 
@@ -532,7 +533,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
         REQUIRE(song.has_value());
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() >= 3);
-        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].fret == 9);
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
     }
 
@@ -540,9 +541,9 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
 }
 
 // A pitched glide drags the hand by its own fret delta even when the target already fits the
-// window (normalization policy rule 9): with the landing lowered to fret 6, the five-to-six
-// slide's target sits inside the opening 3-6 window, yet the +1 delta still moves the window to
-// 4-7 so the fretting finger keeps its slot.
+// window (normalization policy rule 9): with the landing lowered, the one-fret glide's target
+// sits inside the opening 5-8 window, yet the +1 delta still moves the window to 6-9 so the
+// fretting finger keeps its slot.
 TEST_CASE(
     "Guitar Pro import shifts the hand by the slide delta for in-window targets",
     "[core][gp-import]")
@@ -567,15 +568,15 @@ TEST_CASE(
 
     REQUIRE(chart.notes.size() == 5);
     REQUIRE(chart.notes[1].slides.size() == 1);
-    CHECK(chart.notes[1].slides[0].fret == 6);
+    CHECK(chart.notes[1].slides[0].fret == 8);
 
-    // Minimal-shift coverage alone would leave the window at 3-6 through the glide; the slide
-    // delta moves it anyway, to a fret-4 window at the waypoint's mid-sustain position.
-    CHECK(chart.fret_hand_positions.front().fret == 3);
+    // Minimal-shift coverage alone would leave the window at 5-8 through the glide; the slide
+    // delta moves it anyway, to a fret-6 window at the waypoint's mid-sustain position.
+    CHECK(chart.fret_hand_positions.front().fret == 5);
     const common::core::FretHandPosition* const in_window_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
     REQUIRE(in_window_glide != nullptr);
-    CHECK(in_window_glide->fret == 4);
+    CHECK(in_window_glide->fret == 6);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -919,13 +920,14 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
     REQUIRE(chart.notes.size() == 7);
 
-    // One deduplicated unnamed posture: fret 3 on the lowest string, fret 5 on the second.
+    // One deduplicated unnamed posture, in absolute frets (the fixture's capo is 2): absolute 5
+    // on the lowest string, absolute 7 on the second.
     REQUIRE(chart.templates.size() == 1);
     const common::core::ChordTemplate& posture = chart.templates.front();
     CHECK(posture.name.empty());
     REQUIRE(posture.frets.size() == 6);
-    CHECK(posture.frets[0] == std::optional{3});
-    CHECK(posture.frets[1] == std::optional{5});
+    CHECK(posture.frets[0] == std::optional{5});
+    CHECK(posture.frets[1] == std::optional{7});
     CHECK_FALSE(posture.frets[2].has_value());
     REQUIRE(posture.fingers.size() == 6);
     CHECK_FALSE(posture.fingers[0].has_value());
@@ -1472,6 +1474,31 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
         CHECK(chart.notes[0].fret == 13);
         CHECK(anyNoteContains(built->notes, "matched no real node"));
+    }
+
+    SECTION("capo-relative frets shift to absolute; the open string stays 0")
+    {
+        // Confirmed by authored experiment: with a capo at 3, Guitar Pro's "1" sounds the pitch
+        // at absolute fret 4. The chart stores absolute frets with 0 meaning the open string.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].capo = 3;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {GpBeat{
+                         .duration_whole = Fraction{1, 4}, .notes = {GpNote{.string = 1, .fret = 1}}
+                     },
+                     GpBeat{
+                         .duration_whole = Fraction{1, 4}, .notes = {GpNote{.string = 1, .fret = 0}}
+                     }}
+                }
+            });
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].fret == 4);
+        CHECK(chart.notes[1].fret == 0);
     }
 
     SECTION("an open-string pinch on a capo'd track speaks from the capo")
@@ -2736,9 +2763,9 @@ TEST_CASE("Guitar Pro import reads gpif grace placements", "[core][gp-import]")
         REQUIRE(song.has_value());
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() == 5);
-        CHECK(chart.notes[1].fret == 5);
+        CHECK(chart.notes[1].fret == 7);
         CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
-        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].fret == 9);
         CHECK(
             chart.notes[2].position ==
             GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 8}});
@@ -2756,11 +2783,11 @@ TEST_CASE("Guitar Pro import reads gpif grace placements", "[core][gp-import]")
         REQUIRE(song.has_value());
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() == 5);
-        CHECK(chart.notes[1].fret == 5);
+        CHECK(chart.notes[1].fret == 7);
         CHECK(
             chart.notes[1].position ==
             GridPosition{.measure = 1, .beat = 1, .offset = Fraction{7, 8}});
-        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].fret == 9);
         CHECK(chart.notes[2].position == GridPosition{.measure = 1, .beat = 2});
     }
 }

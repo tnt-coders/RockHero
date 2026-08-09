@@ -130,27 +130,32 @@ recommendation so the user can rule with full context in front of them.
   import as regular accents for now, with a comment that Heavy may be supported later** (user
   ruling). Full design recorded as `docs/plans/todo/note-emphasis-axis.md`; implementation
   unscheduled.
-- [ ] **D9 — The GP capo frame, empirically.** Our storage convention closes with D1; what
-  remains is whether GP's *ordinary* note frets are nut-absolute or capo-relative, which decides
-  whether import must shift them by the capo. The harmonic labels lean capo-relative (7.0 / 8.2
-  on the capo-1 score are standard open-string-family labels — correct capo-relative, junk
-  absolute). **Status 2026-08-09: blocked on data access.** The corpus was not found under the
-  searchable roots, and the below-capo-fret scan is weak anyway with capos of 1–2 (the
-  discriminating range is nearly empty). **The decisive experiment is authored, not mined**: in
-  Guitar Pro itself, new file → set capo 3 → enter notes at a low fret and at fret 5 → observe
-  what the tab displays and what pitch plays → save; the file's XML then states the frame
-  definitively (and also answers whether GP even permits sub-capo frets). Two minutes in the
-  application beats any corpus inference. Import shifts by the capo iff capo-relative is
-  confirmed; sub-capo validation (D1's gated piece) lands with the same answer.
+- [x] **D9 — The GP capo frame — ANSWERED 2026-08-09: capo-relative, and shipped.** The user ran
+  the authored experiment: with a capo at 3, an entered "1" resolves to the pitch at absolute
+  fret 4, corroborated by a real capo'd tab. Consequences implemented the same day: the importer
+  shifts fretted notes by the capo (relative F > 0 → absolute F + capo; 0 stays the open string
+  per D1); the harmonic stop reads the shifted note fret (the same physical-stop formula E21
+  validates); the natural-label formula (`capo + snapped offset`) was already exactly right —
+  the labels ARE capo-relative, which is why the capo-1 score's 7.0/8.2 read as standard
+  open-string-family values. The capo-2 fixture's expectations all moved by exactly +2, each
+  verified as the intended shift. GP cannot express an absolute sub-capo fret, so imports never
+  produce one; **sub-capo validation moves to D12, paired with the editor verb guards** (adding
+  the validation alone would let verbs author charts that cannot re-load — the silent-corruption
+  class the scrape work closed). D12 also inherits the template and fret-hand-position sub-capo
+  analogs (a posture or hand window below the capo is equally meaningless).
 - [ ] **D10 — The legato workflow's five calls**, one at a time, from
   `legato-authoring-model.md` ("Remaining user calls"): (1) no recalculating chrome initially;
   (2) empty-selection scope survives a delete; (3) released-fret semantics = last pitched
   waypoint; (4) defer the left-hand-tap concept; (5) whole-stream Layer 1 sweep. Each has a
   recommendation in place.
-- [ ] **D12 — Enforcement pass (#27).** Starts once D1–D7 close, consuming their outcomes:
-  E4–E19 + E22/E23 guards and rules, the pinch-verb node obligation and attack-away-from-pinch
-  node clearing, the two rule-violating test fixtures (tab-paint full-mute+pinch vs E8; GP
-  fixture natural+bend vs E9), and D4's E2/glow change.
+- [ ] **D12 — Enforcement pass (#27).** D1–D9 are closed; this consumes their outcomes:
+  E4–E19 + E23/E24 guards and rules (E2/E20/E21/E22 already enforced; D4's E2 accent change
+  shipped), the pinch-verb node obligation and attack-away-from-pinch node clearing, the two
+  rule-violating test fixtures (tab-paint full-mute+pinch vs E8; GP fixture natural+bend vs E9),
+  and the **sub-capo family as one unit**: validation (note frets 1..capo invalid when capo > 0)
+  paired with the editor verb guards in the same change — never validation alone, or verbs could
+  author charts that cannot re-load — plus the template and fret-hand-position analogs. Gated on
+  D10 (the legato five) and the user's word that the matrix is signed.
 
 ## Recorded, no decision needed
 

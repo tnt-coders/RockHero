@@ -2005,7 +2005,11 @@ void resolveSlideOutExits(
         note.position =
             GridPosition{.measure = event.measure, .beat = event.beat, .offset = event.offset};
         note.string = source.string + 1;
-        note.fret = source.fret;
+        // Guitar Pro's frets are CAPO-RELATIVE (confirmed by authored experiment: with a capo at
+        // 3, an entered "1" sounds the pitch at absolute fret 4), while the chart stores absolute
+        // frets with 0 meaning the open string, capo'd or not. So a fretted note shifts by the
+        // capo and the open string stays 0.
+        note.fret = source.fret > 0 ? source.fret + chart.tuning.capo : 0;
         note.sustain = event.duration_beats;
         note.vibrato = source.vibrato;
         note.tremolo = event.tremolo;
@@ -2079,9 +2083,10 @@ void resolveSlideOutExits(
                 {
                     note.attack = NoteAttack::Tap;
                 }
-                // The stop the harmonic speaks from: the note's own fret, or the capo when the
-                // string is open — the capo is what stops a capo'd string.
-                const int stop_fret = source.fret > 0 ? source.fret : chart.tuning.capo;
+                // The stop the harmonic speaks from: the note's (already capo-shifted, absolute)
+                // fret, or the capo when the string is open — the capo is what stops a capo'd
+                // string. Same formula E21 validates against.
+                const int stop_fret = note.fret > 0 ? note.fret : chart.tuning.capo;
                 // With no usable label the octave is the default: the 2nd partial is the
                 // lowest-order harmonic available at any fret and so the easiest to ring. Using
                 // the *fret* as a label here would read a stop as a partial number.
@@ -2104,11 +2109,10 @@ void resolveSlideOutExits(
             {
                 // A natural has no stop of its own — the string speaks from the nut or the capo,
                 // and the node carries the position, so `fret` never doubles as a rounded copy
-                // of it. The label (or, absent one, the note's own fret, which for a natural IS
-                // the touched position) resolves against an open string and lands on the real
-                // stop. That formula is right whether GP writes its numbers nut-referenced or
-                // capo-relative; the frame question for ordinary frets is recorded in the
-                // technique-compatibility plan doc.
+                // of it. The label (or, absent one, the SOURCE fret, which for a natural IS the
+                // touched position in GP's capo-relative frame) resolves against an open string
+                // and lands on the real stop — capo + offset, which is exactly right now that
+                // GP's frame is confirmed capo-relative.
                 const double notated =
                     source.harmonic_fret.value_or(static_cast<double>(source.fret));
                 const double offset =
