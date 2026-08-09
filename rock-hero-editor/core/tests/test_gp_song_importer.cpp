@@ -1399,7 +1399,7 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         CHECK(common::core::nodeIsOnNeck(note.attack));
     }
 
-    SECTION("semi and feedback harmonics drop the harmonic loudly, never corrupt the note")
+    SECTION("feedback harmonics drop the harmonic loudly, never corrupt the note")
     {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -1420,7 +1420,36 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         CHECK_FALSE(chart.notes[0].harmonic_node.has_value());
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::Pick);
-        CHECK(anyNoteContains(built->notes, "semi/feedback harmonics"));
+        CHECK(anyNoteContains(built->notes, "harmonics of unsupported types"));
+    }
+
+    SECTION("a semi-harmonic imports as a pinch, loudly")
+    {
+        // A semi-harmonic is a pinch whose fundamental keeps ringing — a pinch not fully
+        // executed — and the format does not distinguish them yet, so the pinch is the honest
+        // nearest technique and the approximation is reported.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{GpBeat{
+                    .duration_whole = Fraction{1, 4},
+                    .notes = {GpNote{
+                        .string = 1, .fret = 5, .harmonic_type = "Semi", .harmonic_fret = 12.0
+                    }}
+                }}}
+            });
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pinch);
+        CHECK(chart.notes[0].fret == 5);
+        REQUIRE(chart.notes[0].harmonic_node.has_value());
+        if (chart.notes[0].harmonic_node.has_value())
+        {
+            CHECK(*chart.notes[0].harmonic_node == Catch::Approx(17.0));
+        }
+        CHECK(anyNoteContains(built->notes, "semi-harmonics were imported as pinch"));
     }
 
     SECTION("a natural label matching no real node drops the harmonic loudly")

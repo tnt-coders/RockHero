@@ -91,6 +91,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E19** | A `Pull`'s predecessor cannot be a **fret-hand harmonic** — and pull-from-a-**pinch** is explicitly ALLOWED | User, 2026-08-07: *"Natural harmonic should be able to be followed by a hammer on, not a pull off. Pull off would be physically impossible."* The converse of E12 and a **separate cell**: E12 forbids pulling *into* a harmonic, this forbids pulling *from* one. The fretting hand is touching a node, not pressing, so nothing can be released. A pinch's fretting hand *is* pressing a real fret, so pulling off from a pinch works — promoted to rule status by the 2026-08-08 review. **Relational** — see the ceiling. A natural harmonic followed by a *hammer-on* is fine: the string is already ringing and a finger coming down stops it at a new pitch. |
 | **E20** | `Pinch` **requires** `harmonic_node` | **Enforced** (`chart_rules.cpp`). A pinch is picking while damping a node — the overtone that squeals is determined by where the thumb lands — so one without a node is missing data. This is what lets node presence alone assert the harmonic. Numbered by the 2026-08-08 review; previously narrated but never a table row. |
 | **E21** | `harmonic_node > fret`, **strict** | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Universal because a natural harmonic's `fret` is its actual stop (nut or capo), never a rounded copy of its node. Numbered by the 2026-08-08 review. |
+| **E23** | A **tap harmonic** (node + `Tap`) excludes `tremolo` | User, 2026-08-08: not executable fast enough. The model agrees structurally: the tap's damping finger *leaves* the string, so nothing holds the node under re-picking and the harmonic dies. A natural or artificial harmonic keeps a finger on the node, which is why those still allow tremolo (A.H. tremolo is "oddly actually possible" — user). Unenforced; enforcement pass. |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
 slated as a third `NoteHarmonic` value. Compare what the fields hold each way:
@@ -384,10 +385,14 @@ capo variant is open, above).
 
 | configuration | bend | vibrato | slides | slide_out | Palm | Full | tremolo | as Pull's predecessor |
 |---|---|---|---|---|---|---|---|---|
-| **Fret-hand harmonic** (node + Pick/Hammer/Slap/Pop, stop = 0/capo) | FORBID E9 | FORBID E9 | FORBID E7 | FORBID E7 | OK Q1 | FORBID E8 | OK | FORBID E19 |
-| **Tap harmonic** (node + Tap) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | OK | OPEN |
-| **Harp / artificial harmonic** (node + Pick, stop > capo) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | OK | OPEN |
+| **Fret-hand harmonic** (node + Pick/Hammer/Slap/Pop, `fret` = 0/capo) | FORBID E9 | FORBID E9 | FORBID E7 | FORBID E7 | OK Q1 | FORBID E8 | OK | FORBID E19 |
+| **Tap harmonic** (node + Tap) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | **FORBID E23** | OPEN |
+| **Harp / artificial harmonic** (node + Pick, `fret` > capo) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | OK ("oddly possible") | OPEN |
 | **Pinch** (node + Pinch) | OK E9 | OK E9 | OK | OK | OK | FORBID E8+E20 | OK | **OK** (E19 note) |
+
+("Stop" in this section is not a field — it is what `fret` *means*: the fret where the string's
+speaking length terminates. The user's 2026-08-08 capo convention — absolute frets, the capo'd
+open string stored as 0 — is decision D1 in the walkthrough doc.)
 
 Universal, both enforced: node in (0, 48] and node > fret (E21). Proposed **E22**:
 `nodeIsOnNeck(attack) ⇒ node <= g_max_fret`.
@@ -414,16 +419,20 @@ The full-mute principle: forbid everything **pitch-valued**, allow everything **
 
 ### Open items gating sign-off
 
-1. **H3** — accent compatible with everything except a scrape (still awaiting confirmation).
-2. **The fretted-harmonic cluster** (harp/A.H. representation, E7/E9/E19 keying, the fret-floor
-   rule, proposed E22) — one decision.
-3. **The capo frame** for ordinary note frets (gates the corpus re-import).
-4. **Full mute + Hammer/Tap/Pull** (ghost legato — recommendation: allow).
-5. Deferred by choice, unchanged: pinch-on-a-natural (unrepresentable — one node per note);
-   accent-on-a-scrape (E2; the glow_size measurement stands).
+The open decisions now live as a worked queue with per-item guidance in
+**`docs/plans/in-progress/technique-review-walkthrough.md`** (opened 2026-08-08 at the user's
+direction, so the list survives any session): the fret-floor/capo cluster (D1), the scrape's
+payload shape (D2–D4, which absorbs H3 — the user now leans accent-on-everything, un-deferring
+the scrape cell), ghost legato and the pre-bend question (D5–D6), the E5 derivation-vs-validity
+split (D7), the emphasis axis (D8), and the GP capo-frame measurement (D9).
 
 Enforcement reality after the review: **E1-remnant, E2, E20, E21 are enforced; everything else is
-recorded only** and becomes code in the enforcement pass (roadmap task, gated on this sign-off).
+recorded only** and becomes code in the enforcement pass (D12), gated on the walkthrough closing.
+
+**Recorded future technique (no decision needed):** the side-of-pick tap — a tap performed with
+the pick's edge, itself slidable — is distinct from the pick slide in many aspects (user,
+2026-08-08) and may need its own representation later. Do not force-fit it into `PickSlide` or
+`Tap` when it surfaces.
 
 ## SHIPPED 2026-08-08 — the collapse, and what it actually cost
 
@@ -621,11 +630,15 @@ label silently moved a whole fret. The importer now applies the half-fret thresh
 natural labels drop the harmonic with a conversion note; unusable stopped-harmonic labels fall to
 the octave with one), and the same pass fixed Guitar Pro's fuller harmonic-type vocabulary: `Tap`
 harmonics keep their stop and become the `Tap` attack (the natural path had been erasing the stop
-with the capo), `Semi`/`Feedback` drop the harmonic loudly instead of corrupting the note, and an
-open-string pinch on a capo'd track now speaks from the capo. `Artificial` still imports as
+with the capo), and an open-string pinch on a capo'd track now speaks from the capo. `Semi`
+imports as a **pinch** (user ruling, same day: a semi-harmonic is a pinch whose fundamental keeps
+ringing — a pinch not fully executed — so the pinch is the honest nearest technique until the
+format distinguishes them, kept loud with its own conversion note). `Feedback` stays deliberately
+unsupported — feedback needs a real amp in the room, which headphone play cannot produce — and
+drops the harmonic loudly along with unknown types. `Artificial` still imports as
 `Pick` + stop + node — faithful data whose hand placement awaits the fretted-harmonic cluster
-ruling above. The standalone converter has not received the threshold yet; verify it when its
-working-tree changes are reviewed.
+ruling above. The standalone converter's psarc source has no semi/feedback/tap types, so only the
+threshold parity matters there (already present).
 
 ## Hardening the format: what can become impossible, and the ceiling
 

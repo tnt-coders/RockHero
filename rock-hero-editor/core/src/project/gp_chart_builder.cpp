@@ -1939,6 +1939,7 @@ void resolveSlideOutExits(
     std::map<int, int> previous_fret_per_string;
     int dropped_duplicates = 0;
     int unsupported_harmonics = 0;
+    int semi_as_pinch = 0;
     int implausible_natural_labels = 0;
     int defaulted_fretted_nodes = 0;
 
@@ -2059,16 +2060,19 @@ void resolveSlideOutExits(
             // more, and snapping those anyway would move the touch a whole fret and sound a
             // different partial.
             constexpr double plausible_label_error = 0.5;
-            const bool fretted_harmonic = source.harmonic_type == "Pinch" ||
-                                          source.harmonic_type == "Artificial" ||
-                                          source.harmonic_type == "Tap";
+            const bool fretted_harmonic =
+                source.harmonic_type == "Pinch" || source.harmonic_type == "Semi" ||
+                source.harmonic_type == "Artificial" || source.harmonic_type == "Tap";
             if (fretted_harmonic)
             {
-                if (source.harmonic_type == "Pinch")
+                if (source.harmonic_type == "Pinch" || source.harmonic_type == "Semi")
                 {
                     // GP can notate a legato or tap mark beside the pinch; the single-attack
                     // model keeps one onset, and the pinch is the one the squeal makes audible.
+                    // A SEMI-harmonic is a pinch whose fundamental keeps ringing — a pinch not
+                    // fully executed — and imports as one until the format distinguishes them.
                     note.attack = NoteAttack::Pinch;
+                    semi_as_pinch += source.harmonic_type == "Semi" ? 1 : 0;
                 }
                 else if (source.harmonic_type == "Tap")
                 {
@@ -2121,8 +2125,9 @@ void resolveSlideOutExits(
             }
             else
             {
-                // Semi and feedback harmonics have no representation yet; the note survives as
-                // an ordinary note, and the count keeps the loss loud.
+                // Feedback harmonics are deliberately unsupported — feedback needs a real amp in
+                // the room, which headphone play cannot produce — and unknown types land here
+                // too. The note survives as an ordinary note; the count keeps the loss loud.
                 ++unsupported_harmonics;
             }
         }
@@ -2436,7 +2441,14 @@ void resolveSlideOutExits(
     {
         notes.push_back(
             std::to_string(unsupported_harmonics) +
-            " semi/feedback harmonics were imported without their harmonic");
+            " harmonics of unsupported types were imported without their harmonic");
+    }
+    if (semi_as_pinch > 0)
+    {
+        notes.push_back(
+            std::to_string(semi_as_pinch) +
+            " semi-harmonics were imported as pinch harmonics (the format does not distinguish "
+            "them yet)");
     }
     if (implausible_natural_labels > 0)
     {

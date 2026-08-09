@@ -1,0 +1,122 @@
+# Technique Review Walkthrough — the decision queue
+
+Status: **ACTIVE — combing through with the user, one decision at a time.** Opened 2026-08-08 at
+the user's direction after the Fable review produced more open items than a single reply could
+carry: *"perhaps we should break this out into a list of tasks to comb through methodically"* and
+*"keep your todo list clearly recorded somewhere it is recoverable."* This file is that record —
+it survives any session, and each item closes here first, then flows into
+`technique-compatibility-and-hardening.md` (the matrix authority), `legato-authoring-model.md`,
+or code.
+
+Working order: top to bottom unless the user redirects. Each open item carries the agent's
+recommendation so the user can rule with full context in front of them.
+
+## Ruled by the user 2026-08-08 (done or queued to enforcement)
+
+- [x] **R1 — Semi-harmonics import as pinch.** User: a semi-harmonic is "basically a pinch
+  harmonic where you didn't really FULLY execute the pinch" — the fundamental rings through.
+  Agent concurs: the squeal gesture is the technique's identity, and the pinch is the honest
+  nearest representation until the format distinguishes them. **Implemented** with its own
+  conversion note; revisit as a distinct technique only when a UI need appears.
+- [x] **R2 — Feedback harmonics stay unsupported.** Feedback needs a real amp in the room —
+  headphone play cannot produce it, and its pitch behavior is amp/room-dependent. Import drops
+  the harmonic loudly, note survives. **Implemented** (unknown types land in the same diagnostic).
+- [x] **R3 — Tap harmonic excludes tremolo (new E23).** User: not executable fast enough. The
+  model agrees for a structural reason: a tap harmonic's damping finger *leaves* the string, so
+  nothing holds the node under re-picking and the harmonic dies — while a natural or artificial
+  harmonic keeps a finger on the node, which is why those two still allow tremolo (user: A.H.
+  tremolo is "oddly actually possible"). **Recorded in the matrix doc**; enforcement with the
+  matrix pass (D12).
+- [x] **R4 — Hammer/Pull + tremolo stay allowed.** User confirmed the reading the matrix already
+  used: hammer or pull the onset, then tremolo the sustain. No change needed.
+
+## Open decisions
+
+- [ ] **D1 — The fret floor and the capo convention (one cluster).** The user's answers imply:
+  `fret` is **absolute**; the capo'd open string stores **0** (not the capo number — "0 means
+  open string even with a capo"); frets 1..capo are invalid. Clarification owed: "stop" was never
+  a field — it is what `fret` *means* (where the speaking length terminates). Consequences to
+  confirm as one package:
+  - A fret-hand harmonic is exactly `fret == 0` + node + non-`Pinch` attack — the discriminator
+    needs no capo context.
+  - A harmonic with `fret > 0` + node + non-`Pinch` attack becomes the **picking-hand-damped**
+    family (tap, harp, artificial): `fretFor` returns the fret (fixing the A.H. hand-window
+    misplacement), and E7/E9/E19 re-key on `fret == 0` so bends/slides/pulls over a real stop
+    stay legal.
+  - E22 refines to: `fret == 0` + non-`Pinch` + node ⇒ `node <= g_max_fret` (a fretting finger
+    cannot touch past the fretboard), which removes the FHP overflow tail risk.
+  - New validation: `node > capo` when `fret == 0` on a capo'd tuning (E21's `node > fret` no
+    longer carries it once the stored fret is 0).
+  - The just-shipped capo'd-natural import (`fret = capo`) flips to `fret = 0` — supersedes the
+    earlier "defined at the capo" wording; re-import was already owed.
+  **Recommendation: adopt all of it** — it is the user's own stated convention, and it resolves
+  the entire fretted-harmonic cluster in one move.
+- [ ] **D2 — The scrape's payload shape.** User proposes: `slide_out` **required** (a pick slide
+  always ends unpitched — a pitched waypoint terminal would imply a turnaround or a held
+  landing), `slides` **optional** (turnarounds only). Replaces E2's current "required traveling
+  path ending exactly at sustain, slide_out excluded." Agent analysis: within a scrape the
+  waypoints were never pitched anyway (fret data is right-hand travel), so the current shape is
+  not *wrong* — but the user's shape is more honest about the terminal, and "ends at sustain"
+  becomes the slide_out's own offset. **Recommendation: adopt, but bundle with hardening item 2**
+  (the scrape as its own variant carrying {fret, sustain, optional turnaround waypoints, terminal})
+  so E2's enforced shape restructures once, not twice. Cost: rules, writer, three planners,
+  renderer geometry, tests, scrape re-import.
+- [ ] **D3 — Pick slide + tremolo: keep excluded (NOT "required").** The user asked whether it
+  should be REQ. Recommendation: no — a scrape is not picked at all; the pick *drags* along the
+  string continuously, so "unmeasured repeated picking" describes something that never happens.
+  REQ would force every scrape to carry false data; the exclusion stands, as redundancy-refusal.
+- [ ] **D4 — Accent on a scrape: allow (un-defer).** User: "just an aggressively played pick
+  slide." Recommendation: agree — E2 drops `accent` from its exclusion list, the writer and
+  projections stop suppressing it on scrapes, and H3 closes as "accent is compatible with
+  **everything**," no exception. Cost: the measured glow clearance on the plectrum is tight
+  (0.331 px at a 25 px head vs the disc's 1.560) — acceptable as-is or a small `glow_size` bump
+  that the round head shares.
+- [ ] **D5 — Ghost legato: Full mute + Hammer / Pull / Tap.** User asked for practice evidence:
+  muted hammer-on/pull-off "clucks" are standard funk and R&B rhythm vocabulary (bass especially),
+  and dead-note taps are core percussive-fingerstyle material — these are real, charted idioms.
+  **Recommendation: allow all three.**
+- [ ] **D6 — Full mute + pre-bend: keep forbidden.** User floated "pre-bend might [make sense]
+  with no tail." Recommendation: keep E10 as-is, pre-bend included — the data still stores a
+  pitch offset a dead note does not have, the physical gesture barely changes the thud, and no
+  notation source writes it. Revisit only if a real chart surfaces.
+- [ ] **D7 — E5: derivation vs validity (the user's deliberate-vs-derived distinction).** User:
+  pull-off from a scrape is "kind of" doable with gain, mute-into-pull maybe — but both are
+  DELIBERATE choices a group-`H` press should never infer. Recommendation: split the two
+  concerns — the *data* stays valid (executable under the criterion; import fidelity), but
+  group-`H` **derivation never infers legato across a scrape or fully-muted predecessor**;
+  `Ctrl+H` covers the deliberate hammer; pull-from-scrape remains reachable only via import until
+  a real authoring need appears. On practice: no charted pull-from-scrape example known; muted
+  ghost-pulls exist in funk. Flows into `legato-authoring-model.md` when closed.
+- [ ] **D8 — The emphasis axis (ghost notes).** User proposes an emphasis concept replacing the
+  accent bool: {heavy, accent, normal, soft, ghost}, normal implied, accent+ghost mutually
+  exclusive by construction. Recommendation: adopt the *shape* but start at three values —
+  `NoteEmphasis { Ghost, Normal, Accent }`, `Normal` omitted in serialization — because Guitar
+  Pro has exactly one soft tier (ghost) and one confirmed hard tier in our parser, extra tiers
+  are speculative, and very soft dynamics endanger note detection (the user's own worry). The
+  enum IS the hardening: accent-plus-ghost becomes unrepresentable rather than validated. Ghost
+  renders as a semi-transparent head; GP ghost notes map to `Ghost` (data the importer currently
+  ignores). `Heavy` can slot in later without disturbance if GP heavy-accent data is ever mined.
+  Becomes a `docs/plans/todo/` plan when confirmed.
+- [ ] **D9 — The GP capo frame, empirically.** Our storage convention closes with D1; what
+  remains is whether GP's *ordinary* note frets are nut-absolute or capo-relative, which decides
+  whether import must shift them by the capo. The harmonic labels now lean capo-relative (7.0 /
+  8.2 on the capo-1 score are standard open-string-family labels — correct capo-relative, junk
+  absolute). Cheap decisive test: scan the capo'd corpus scores for frets in 1..capo (their
+  presence proves capo-relative). **Recommendation: run the measurement before the corpus
+  re-import; only 2 capo'd scores exist, so also spot-check against audio pitch if inconclusive.**
+- [ ] **D10 — The legato workflow's five calls**, one at a time, from
+  `legato-authoring-model.md` ("Remaining user calls"): (1) no recalculating chrome initially;
+  (2) empty-selection scope survives a delete; (3) released-fret semantics = last pitched
+  waypoint; (4) defer the left-hand-tap concept; (5) whole-stream Layer 1 sweep. Each has a
+  recommendation in place.
+- [ ] **D12 — Enforcement pass (#27).** Starts once D1–D7 close, consuming their outcomes:
+  E4–E19 + E22/E23 guards and rules, the pinch-verb node obligation and attack-away-from-pinch
+  node clearing, the two rule-violating test fixtures (tab-paint full-mute+pinch vs E8; GP
+  fixture natural+bend vs E9), and D4's E2/glow change.
+
+## Recorded, no decision needed
+
+- **D11 — The pick-side tap.** Rare technique: a tap performed with the side of the pick, itself
+  slidable — distinct from the pick slide in many aspects (user, 2026-08-08). May need its own
+  representation later; recorded here and in the matrix doc so nobody force-fits it into
+  `PickSlide` or `Tap` when it surfaces.
