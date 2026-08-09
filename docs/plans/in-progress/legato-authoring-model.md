@@ -191,6 +191,33 @@ shows the value being typed), and the flicker *is* the feedback that the edit br
 the legato. A subtle recalculating cue is a legitimate later addition if real use shows confusion —
 editor chrome like the insert ghost, not notation.
 
+## `Ctrl+H`'s validity domain, verified against the full matrix
+
+Checked rule-by-rule at the user's foundational-soundness request (2026-08-09), because the
+left-hand tap is stored as `Hammer` and therefore inherits every Hammer cell:
+
+- **E4 is the only intra-note gate.** E13 (node + Hammer, the rare hammer-form tap harmonic),
+  E24 (the muted tap), E17 (slide payloads), tremolo (H1 rejected) and accent (H3) all allow.
+  The load-bearing fact is the **superset relation**: a hammer-on needs an ascending ringing
+  predecessor, a left-hand tap needs only something to strike, so the shared value's boundary is
+  the tap's — `fret > 0 || harmonic_node.has_value()`. The one place BOTH forms are invalid is
+  exactly that boundary: the open string with no node, `Ctrl+H`'s sole matrix-grounds refusal.
+- **No relational gate, deliberately — including over a higher predecessor.** If the higher note
+  genuinely rings, sounding the lower fret means the upper finger lifts and the release IS a
+  pull-off, so a "tap" there is not a distinct event. But *genuinely rings* is not in the data
+  (the settled trap: sustain is the drawn tail, not the physical ring), and a **damped** higher
+  predecessor followed by a struck lower note is a real, common left-hand tap — descending
+  staccato tapping runs. Forbidding Hammer under a higher predecessor would reject genuine
+  music. Therefore **`Ctrl+H` may override a derived Pull into Hammer**: the author-is-authority
+  precedent exactly — only the author knows whether the predecessor was ringing. The repair
+  rules already protect the override (a Hammer on a descending pair is untouched), and a later
+  plain `H` re-derives it back to Pull — the correct symmetry between the inferring verb and the
+  stating one.
+- **Two conversion guards, both enforcement-pass items:** on a **pinch**, `Ctrl+H` must clear
+  the node as it converts (the attack-away-from-pinch hazard — an off-neck graze position would
+  silently become a fret-hand node); on a **scrape**, it is ordinary attack replacement, the
+  gesture leaving with the attack per `planSetAttack`.
+
 ## Rejected alternatives, ranked, each with the sequence that kills it
 
 1. **A4, flag survives undo** — the kill sequence above: destroys a deliberate `Ctrl+H`.
