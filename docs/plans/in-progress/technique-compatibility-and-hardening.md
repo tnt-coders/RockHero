@@ -658,9 +658,24 @@ So the constraint is blast radius, not compatibility.
    which hand; and the wrong-anchor defect died with the double encoding — the importer now always
    produces a node, and the renderer's absent-node path is gone. The one caveat is recorded under
    "One guarantee traded" — the *pinch* half of "required" is rule-enforced (E20), not structural.
-2. **Make the scrape its own variant.** A form carrying only `{fret, sustain, path}` makes all
-   **seven** of E2's exclusions structural in one move. Today they are seven separate checks in one
-   `if`.
+2. **Make the scrape its own variant — DEMOTED 2026-08-08, likely not worth it.** The user
+   challenged the cost (D2 discussion): scrapes must respect minimum note distance, sustain
+   overlap, and every other note-interaction rule, so wouldn't a variant duplicate all of that?
+   Two clarifications and a re-assessment, recorded so the reasoning survives:
+   - The proposal was never a separate entity — the variant lives **inside** `ChartNote` (this
+     section's own words: "position/string/fret/sustain plus a sum type for the articulation"),
+     so a scrape stays one event in the one sorted stream and every relational mechanism
+     (min-distance, 40-Q2-B overlap normalization, duplicate onsets, sorting, selection, FHP)
+     stays single-implementation. The real cost is **dispatch breadth**: every consumer reading
+     `note.mute` / `note.bend` / `note.vibrato` switches on the variant — the blast-radius bullet
+     below, mechanical but wide.
+   - The walkthrough shrank the payoff: D4 pulls `accent` out of the exclusion set, and D2 has
+     the scrape *using* `slides` and `slide_out`, so the variant's remaining structural win is
+     five excluded fields plus the required terminal — which one enforced rule already covers —
+     plus deleting the in-memory override mechanism. Weak against the breadth cost.
+   Current lean: enforced rules plus verb guards suffice; revisit only at the format-shape step
+   if validation churn proves otherwise. D2's semantics (required `slide_out` terminal, optional
+   turnaround waypoints) are decided independently and implemented in the flat struct.
 3. **Derive a scrape's `sustain` from its path.** If the variant stores the path and exposes `sustain`
    as the last waypoint's offset, then "the path ends exactly at `sustain`" is true by construction —
    an invariant that currently needs a rule, a normalization step, *and* care in three planners.

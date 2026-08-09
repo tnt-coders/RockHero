@@ -51,10 +51,17 @@ recommendation so the user can rule with full context in front of them.
   path ending exactly at sustain, slide_out excluded." Agent analysis: within a scrape the
   waypoints were never pitched anyway (fret data is right-hand travel), so the current shape is
   not *wrong* — but the user's shape is more honest about the terminal, and "ends at sustain"
-  becomes the slide_out's own offset. **Recommendation: adopt, but bundle with hardening item 2**
-  (the scrape as its own variant carrying {fret, sustain, optional turnaround waypoints, terminal})
-  so E2's enforced shape restructures once, not twice. Cost: rules, writer, three planners,
-  renderer geometry, tests, scrape re-import.
+  becomes the slide_out's own offset. **Recommendation (REVISED 2026-08-08 after the user's
+  variant challenge): adopt the semantics and implement directly in the flat struct** — one E2
+  rewrite plus writer, scrape-path planners, renderer terminal geometry, and tests — with **no
+  bundling to the variant**, which is demoted to its own later decision (see the hardening
+  section's item 2 in the matrix doc for the full exchange). Key clarifications from that
+  exchange: the variant was never "scrape stops being a note" (outer position/string/fret/sustain
+  stay shared, so min-distance, overlap normalization, sorting and selection remain
+  single-implementation — the cost is dispatch breadth across technique-field consumers, not
+  duplicated relational logic); and D2 + D4 shrink the variant's structural payoff to five
+  excluded fields plus the required terminal, which enforced rules already cover, so the current
+  lean is that the variant will not be worth it.
 - [ ] **D3 — Pick slide + tremolo: keep excluded (NOT "required").** The user asked whether it
   should be REQ. Recommendation: no — a scrape is not picked at all; the pick *drags* along the
   string continuously, so "unmeasured repeated picking" describes something that never happens.
