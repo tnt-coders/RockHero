@@ -406,7 +406,7 @@ The full-mute principle: forbid everything **pitch-valued**, allow everything **
 
 | rule | statement | status |
 |---|---|---|
-| E5 | `Pull` requires a same-string predecessor whose **released** fret is higher, and which is releasable (not a scrape, not a fret-hand harmonic) | recorded; unenforced |
+| E5 | `Pull` requires a same-string predecessor whose **released** fret is higher — the last pitched waypoint's, or a scrape's slide-out's. A scrape predecessor is VALID data (D7: executable with gain) that the `H` derivation never *creates* — the one derivation-vs-validity gap; its organic authoring route is pull-first-then-scrape. A fret-hand-harmonic predecessor is forbidden outright (E19). Fully-muted predecessors are ordinary (muted legato, E24). | recorded; unenforced |
 | E6 | Legato direction derives from that relationship | recorded; the editing workflow is specced in the legato doc |
 | E19 | No pull FROM a fret-hand harmonic; pull from a pinch is allowed | recorded; unenforced |
 | — | `Hammer` has no predecessor constraint (deliberate: the left-hand tap) | recorded |

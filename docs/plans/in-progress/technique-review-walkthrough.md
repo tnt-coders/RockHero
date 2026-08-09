@@ -102,26 +102,27 @@ recommendation so the user can rule with full context in front of them.
 - [x] **D6 — Full mute + pre-bend — KEPT FORBIDDEN 2026-08-09**, pre-bend included in E10's bend
   exclusion: the data stores a pitch offset a dead note lacks (incoherent, not merely pointless),
   and no notation source writes the gesture. Reopens only on real chart evidence.
-- [ ] **D7 — E5: derivation vs validity (the user's deliberate-vs-derived distinction).** Settled
-  so far (2026-08-09): the *data* is **valid** — pull-from-a-scrape stays legal because it CAN be
-  done (user), resting on the criterion alone: Guitar Pro cannot author it, so this is an
-  authoring-only concern, not import fidelity (an earlier claim here said otherwise; corrected by
-  the user). And plain `H` **derivation never infers legato across a scrape or fully-muted
-  predecessor** at ANY selection size — the uniform-scope law forbids a verb whose meaning
-  depends on how much is selected, which also rejected the single-note exception and the
-  three-press `H` cycle (the cycle additionally breaks the settled "second press undoes the
-  first" toggle contract and adds hidden modal state).
-  **The authoring route — user proposal, analysis favorable, awaiting confirm: `Shift+H` =
-  extended legato.** Same derivation, same eligible-subset toggle semantics, over the WIDER set
-  (scrape and full-mute predecessors count as releasable). The fit is clean on every axis:
-  `Shift+H` is verified free in the keymap (deliberately left unbound — GP's Shift+H is a
-  sheet-music slur with nothing to map onto); the grammar reads right (Shift = *extend*, here
-  extending the derivation's reach); it is uniform at every selection size; each verb toggles
-  its own eligible subset so no hidden state; and D2 conveniently gave the scrape a well-defined
-  released fret — its slide-out's — so the extended comparison is the ordinary released-fret
-  rule with the releasable filter dropped. `Ctrl+H` (force Hammer) stays orthogonal precision.
-  Implementation rides Phase 5/D12. Flows into `legato-authoring-model.md` and the keymap doc
-  when confirmed.
+- [x] **D7 — E5: derivation vs validity — CLOSED 2026-08-09, simpler than every draft.** The
+  user's second look used the D5 evidence against the first proposal and won: muted legato is
+  *common* vocabulary (funk/R&B, bass especially), so plain `H` **derives across fully-muted
+  predecessors normally** — requiring a modifier for the common case would surprise exactly the
+  charts that use it most. The final shape:
+  - **Validity (E5):** pull needs a same-string predecessor whose released fret is higher (a
+    scrape's released fret is its slide-out's). Scrape predecessors are valid — pull-from-a-scrape
+    "CAN be done" (user), authoring-only since Guitar Pro cannot write it (the earlier
+    import-fidelity claim was wrong). Fret-hand-harmonic predecessors stay forbidden (E19).
+  - **Derivation (`H`):** infers across ordinary, muted, and tapped predecessors alike; the one
+    thing it never *creates* is legato from a scrape predecessor — the single
+    derivation-vs-validity gap. Uniform at every selection size (which rejected the single-note
+    exception and the three-press cycle: uniform-scope law, and the toggle contract that a second
+    press undoes the first).
+  - **No `Shift+H`.** A keybind for one marginal case is unwarranted until proven needed (user);
+    the favorable analysis (free key, Shift-means-extend fit, own-subset toggling) stays here as
+    the ready candidate. And the case needs no affordance anyway — **it is reachable by edit
+    order**: author the pull, then scrape the predecessor; the value-based repair re-tests
+    against the slide-out fret and keeps what stays justified.
+  Folded into `legato-authoring-model.md` (Layer 1 rows, the scrape-predecessor defect note, the
+  invalidating-edits row) and the matrix doc's E5 row.
 - [ ] **D8 — The emphasis axis (ghost notes).** User proposes an emphasis concept replacing the
   accent bool: {heavy, accent, normal, soft, ghost}, normal implied, accent+ghost mutually
   exclusive by construction. Recommendation: adopt the *shape* but start at three values —

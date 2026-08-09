@@ -89,7 +89,8 @@ sustain pass, over the whole candidate stream, and repairs only **impossibility*
 | `Pull` with no same-string predecessor, or predecessor moved off-string/later | → `Pick` |
 | `Pull` whose predecessor's released fret is **equal** | → `Pick` (no direction ≠ left-hand tap) |
 | `Pull` whose predecessor's released fret is **lower** | → `Hammer` (a genuine hammer-on now) |
-| `Pull` whose predecessor cannot be released — a scrape, or a fret-hand harmonic (E19) — or which itself carries a node (E12) | → `Hammer` if a genuine lower fretted predecessor justifies it, else `Pick` |
+| `Pull` whose predecessor is a fret-hand harmonic (E19), or which itself carries a node (E12) | → `Hammer` if a genuine lower predecessor justifies it, else `Pick` |
+| `Pull` whose predecessor is a scrape | **left alone when still justified** — pull-from-a-scrape is valid data (D7), tested against the scrape's released fret, the slide-out's. Repairs only when that test fails, like any value change |
 | `Hammer` with sounding position 0 — fret 0 and no node (E4) | → `Pull` if a valid higher predecessor exists, else `Pick` |
 | `Hammer` in any other configuration | **untouched** — always possible as a left-hand tap; a deliberate `Ctrl+H` survives |
 
@@ -255,7 +256,7 @@ The inventory against every verb, under the value-based rule:
 | Retype either fret to equal/invert (including the wheel fret shift) | yes |
 | Retype N to fret 0 without a node (E4) | yes |
 | Insert between (typed digit, Alt+click, Insert) | yes |
-| `planSetAttack(PickSlide)` on the predecessor | **yes — new**: a scrape has no fretted press to release |
+| `planSetAttack(PickSlide)` on the predecessor | **yes**, value-based: the released fret becomes the slide-out's and the tuple re-tests — a pull that stays justified survives (valid pull-from-scrape data, and the organic route for authoring it: pull first, scrape after), an inverted one repairs |
 | Future harmonic verb: node set on the predecessor (E19) or on N (E12); node cleared on a fret-0 Hammer (E4) | **yes — new**, three cells |
 | Phase 6 L-merge (absorbed note changes predecessor identity) | yes, via the value rule |
 | Phase 6 split | **no** under the value rule — the tail keeps the fret; this is why the rule is value-based |
@@ -271,10 +272,16 @@ The inventory against every verb, under the value-based rule:
 Defects in `planSetLegato` as of `4a98da55`, to fix when this design is implemented:
 
 - **Scrape predecessor.** The derivation reads `previous->fret` even when the predecessor is a
-  `PickSlide`, whose fret is picking-hand travel rather than a press — it can derive a Pull from a
-  scrape. E5 must exclude right-hand-onset predecessors from justifying a Pull. (`Tap` predecessors
-  remain valid: pulling off from a tapped note is the standard tapping figure — the tapping finger
-  is a real fretboard press.)
+  `PickSlide`, whose fret is where the scrape *starts* — its released fret is the slide-out's. D7
+  settled the split (2026-08-09): pull-from-a-scrape is **valid data** (executable with gain,
+  authoring-only — Guitar Pro cannot write it), but the `H` derivation never *creates* it — the
+  one derivation-vs-validity gap. Its organic authoring route is edit order: author the pull,
+  then scrape the predecessor; the value-based repair keeps what stays justified. Every other
+  predecessor derives normally: `Tap` (the tapping finger is a real press), and **fully-muted
+  notes too** — muted legato is standard funk and R&B vocabulary, so requiring a modifier for it
+  would surprise exactly the charts that use it most (the user's revision that dissolved the
+  briefly-proposed `Shift+H` tier; that analysis stays on file in the walkthrough doc as the
+  candidate if a dedicated affordance is ever warranted).
 - **Onset fret vs released fret.** The derivation compares the predecessor's onset fret; a
   predecessor that slid 5→7 followed by a pull-off to 5 is musically a pull from 7, but the verb
   sees 5 vs 5 and refuses. User call 3 below.
