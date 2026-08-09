@@ -4283,7 +4283,7 @@ void HighwayRenderer::Impl::draw(
     {
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
-        const double capo_line = static_cast<double>(state.capo);
+        const auto capo_line = static_cast<double>(state.capo);
 
         const double nut_x = common::core::highwayFretLineX(0, metrics, mirrored);
         const double capo_x = common::core::highwayFretLineX(capo_line, metrics, mirrored);
