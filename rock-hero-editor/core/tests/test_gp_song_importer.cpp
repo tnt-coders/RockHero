@@ -1508,10 +1508,12 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
             GpBar{
                 .voices = {
                     {GpBeat{
-                         .duration_whole = Fraction{1, 4}, .notes = {GpNote{.string = 1, .fret = 1}}
+                         .duration_whole = Fraction{1, 4},
+                         .notes = {GpNote{.string = 1, .fret = 1, .harmonic_type = ""}}
                      },
                      GpBeat{
-                         .duration_whole = Fraction{1, 4}, .notes = {GpNote{.string = 1, .fret = 0}}
+                         .duration_whole = Fraction{1, 4},
+                         .notes = {GpNote{.string = 1, .fret = 0, .harmonic_type = ""}}
                      }}
                 }
             });
