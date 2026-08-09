@@ -132,11 +132,16 @@ recommendation so the user can rule with full context in front of them.
   unscheduled.
 - [ ] **D9 — The GP capo frame, empirically.** Our storage convention closes with D1; what
   remains is whether GP's *ordinary* note frets are nut-absolute or capo-relative, which decides
-  whether import must shift them by the capo. The harmonic labels now lean capo-relative (7.0 /
-  8.2 on the capo-1 score are standard open-string-family labels — correct capo-relative, junk
-  absolute). Cheap decisive test: scan the capo'd corpus scores for frets in 1..capo (their
-  presence proves capo-relative). **Recommendation: run the measurement before the corpus
-  re-import; only 2 capo'd scores exist, so also spot-check against audio pitch if inconclusive.**
+  whether import must shift them by the capo. The harmonic labels lean capo-relative (7.0 / 8.2
+  on the capo-1 score are standard open-string-family labels — correct capo-relative, junk
+  absolute). **Status 2026-08-09: blocked on data access.** The corpus was not found under the
+  searchable roots, and the below-capo-fret scan is weak anyway with capos of 1–2 (the
+  discriminating range is nearly empty). **The decisive experiment is authored, not mined**: in
+  Guitar Pro itself, new file → set capo 3 → enter notes at a low fret and at fret 5 → observe
+  what the tab displays and what pitch plays → save; the file's XML then states the frame
+  definitively (and also answers whether GP even permits sub-capo frets). Two minutes in the
+  application beats any corpus inference. Import shifts by the capo iff capo-relative is
+  confirmed; sub-capo validation (D1's gated piece) lands with the same answer.
 - [ ] **D10 — The legato workflow's five calls**, one at a time, from
   `legato-authoring-model.md` ("Remaining user calls"): (1) no recalculating chrome initially;
   (2) empty-selection scope survives a delete; (3) released-fret semantics = last pitched
