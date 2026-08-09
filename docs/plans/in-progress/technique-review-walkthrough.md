@@ -62,10 +62,27 @@ recommendation so the user can rule with full context in front of them.
   duplicated relational logic); and D2 + D4 shrink the variant's structural payoff to five
   excluded fields plus the required terminal, which enforced rules already cover, so the current
   lean is that the variant will not be worth it.
-- [ ] **D3 — Pick slide + tremolo: keep excluded (NOT "required").** The user asked whether it
-  should be REQ. Recommendation: no — a scrape is not picked at all; the pick *drags* along the
-  string continuously, so "unmeasured repeated picking" describes something that never happens.
-  REQ would force every scrape to carry false data; the exclusion stands, as redundancy-refusal.
+- [ ] **D3 — Pick slide + the noise flag (REOPENED 2026-08-08, now includes a rename).** The
+  user's reframe is correct and sharpened the item: the field never means tremolo picking in the
+  notation sense (measured repetition is always spelled out as separate heads), it means
+  *unmeasured noise texture* — and a scrape genuinely has that property, so "why not REQ?" is
+  legitimate. Recommendation, three parts:
+  - **Not REQ**, because a flag another field forces to true carries zero information: the attack
+    already asserts the scrape's noise, so REQ stores one fact twice and manufactures a new
+    invalid state (`PickSlide` + flag false) needing its own rule — the exact class the matrix
+    exists to eliminate, and the same shape as the rejected third tap-harmonic enum value.
+    Contrast E20: a pinch's node is required because it carries *independent* information. A
+    uniform "is this note noise?" read is a derived accessor, not authored duplication.
+  - **Rename `tremolo` → `noise_picking`** (the doc's own phrase): the misleading name has now
+    derailed three discussions (H1, E23, this one). The name choice settles the cell — naming
+    the *mechanism* gives two noise sources, one per axis (scrape noise on the attack, picked
+    noise on the flag), and the exclusion becomes self-evident; plain `noise` would name the
+    *property* and genuinely invite REQ plus double representation.
+  - Costs: identifiers, JSON key with a loud old-key tripwire (the `harmonic`/`touch` precedent —
+    silent ignoring would drop the flag from every saved package), docs; the tremolo-slash
+    notation mark is untouched; re-import already owed.
+  Options put to the user: (a) exclusion + rename to `noise_picking` (recommended); (b)
+  exclusion, keep the name; (c) REQ + rename to `noise` (argued against).
 - [ ] **D4 — Accent on a scrape: allow (un-defer).** User: "just an aggressively played pick
   slide." Recommendation: agree — E2 drops `accent` from its exclusion list, the writer and
   projections stop suppressing it on scrapes, and H3 closes as "accent is compatible with
