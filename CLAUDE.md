@@ -266,12 +266,12 @@ all:
 | `-Wmissing-designated-field-initializers` | omitted aggregate fields accepted | GCC, Clang |
 | `-Wshadow` against an *inherited* base member | silent | GCC |
 | `-Wunused-function` on internal-linkage helpers | unused anonymous-namespace functions accepted | GCC, Clang |
-| `bugprone-unchecked-optional-access` | zero findings against the MSVC STL | CI lint |
+| `bugprone-unchecked-optional-access` | partial against the MSVC STL, which is worse than silent: a local run reports some sites and misses others in the same sweep (a large Catch2 suite reported none while CI found four), so a clean local run proves nothing | CI lint |
 | `bugprone-use-after-move` | zero findings against the MSVC STL | CI lint |
 | Release-only undefined behavior | debug timing and layout hide it | CI Release tests |
 | `juce::PNGImageFormat::decodeImage` pixel format | honors the file's color type (libpng path) | macOS CI tests — CoreImage cannot make a 24-bit image, so every PNG decodes to ARGB; the file's real alpha state survives only in the `originalImageHadAlpha` property |
 | `ModifierKeys::isPopupMenu()` | true for a right press only | macOS CI tests — `popupMenuClickModifier` expands to `rightButton \| ctrl`, so it is also true for Ctrl+left-click |
-| Any clang-tidy check on newly written code (`performance-enum-size`, `cppcoreguidelines-pro-bounds-constant-array-index`, `bugprone-branch-clone`, `misc-const-correctness`, `modernize-use-auto`, `readability-identifier-naming`) | never reported: lint is on-demand, so no build runs it | CI lint on all three platforms — one file reproduces it exactly without the machine-saturating whole-project target: `clang-tidy -p build/release --extra-arg=-Wno-unknown-warning-option --extra-arg=-Wno-unused-command-line-argument <file>` |
+| Any clang-tidy check on newly written code (`performance-enum-size`, `cppcoreguidelines-pro-bounds-constant-array-index`, `bugprone-branch-clone`, `misc-const-correctness`, `modernize-use-auto`, `modernize-use-std-numbers`, `readability-identifier-naming`) | never reported: lint is on-demand, so no build runs it | CI lint on all three platforms — for the flow-insensitive classes above, one file reproduces CI without the machine-saturating whole-project target: `clang-tidy -p build/release --extra-arg=-Wno-unknown-warning-option --extra-arg=-Wno-unused-command-line-argument <file>`. Clean per-file output is still not proof: the two dataflow checks above stay unreliable against the MSVC compile database |
 
 No local command reports these, so the check is a reading pass over the diff, not another build.
 Before reporting a code change complete, re-read every touched hunk for the constructs that trigger

@@ -274,11 +274,13 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[3].sustain == Fraction{15, 4});
     CHECK(chart.notes[3].vibrato);
 
-    // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs.
-    CHECK(chart.notes[4].position == GridPosition{.measure = 2, .beat = 3});
-    CHECK(chart.notes[4].attack == common::core::NoteAttack::Pick);
-    REQUIRE(chart.notes[4].harmonic_node.has_value());
-    if (chart.notes[4].harmonic_node.has_value())
+    // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs. Bound to
+    // a local so the node check and its reads are provably the same object.
+    const common::core::ChartNote& harmonic = chart.notes[4];
+    CHECK(harmonic.position == GridPosition{.measure = 2, .beat = 3});
+    CHECK(harmonic.attack == common::core::NoteAttack::Pick);
+    REQUIRE(harmonic.harmonic_node.has_value());
+    if (harmonic.harmonic_node.has_value())
     {
         // The score writes "3.2", a conventional label naming the 6th partial. Two corrections land
         // here: the label resolves to that partial's true offset (3.156, not 3.2, since a position
@@ -286,13 +288,13 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         // capo at 2, so the string speaks from there and its 6th-partial node sits at 5.156.
         // GP's frame is confirmed capo-relative, which is exactly what capo + snapped offset
         // encodes.
-        CHECK(*chart.notes[4].harmonic_node == Catch::Approx(5.1564).margin(0.001));
+        CHECK(*harmonic.harmonic_node == Catch::Approx(5.1564).margin(0.001));
         // Under the 0-means-open convention a natural harmonic's fret is 0 even on a capo'd
         // string — the capo never appears as a fret number — while the node stays absolute.
-        CHECK(chart.notes[4].fret == 0);
-        CHECK(*chart.notes[4].harmonic_node > static_cast<double>(chart.tuning.capo));
+        CHECK(harmonic.fret == 0);
+        CHECK(*harmonic.harmonic_node > static_cast<double>(chart.tuning.capo));
         // The fretting hand is at the node it touches, not down at the capo.
-        CHECK(common::core::fretFor(chart.notes[4]) == 6);
+        CHECK(common::core::fretFor(harmonic) == 6);
     }
     // The score notates a bend ON the natural harmonic — data a fretting hand touching a node
     // cannot execute — so import sheds it rather than producing an invalid chart. The
@@ -1449,12 +1451,13 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
-        CHECK(chart.notes[0].attack == common::core::NoteAttack::Pinch);
-        CHECK(chart.notes[0].fret == 5);
-        REQUIRE(chart.notes[0].harmonic_node.has_value());
-        if (chart.notes[0].harmonic_node.has_value())
+        const common::core::ChartNote& pinch = chart.notes[0];
+        CHECK(pinch.attack == common::core::NoteAttack::Pinch);
+        CHECK(pinch.fret == 5);
+        REQUIRE(pinch.harmonic_node.has_value());
+        if (pinch.harmonic_node.has_value())
         {
-            CHECK(*chart.notes[0].harmonic_node == Catch::Approx(17.0));
+            CHECK(*pinch.harmonic_node == Catch::Approx(17.0));
         }
         CHECK(anyNoteContains(built->notes, "semi-harmonics were imported as pinch"));
     }
@@ -1542,11 +1545,12 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
-        REQUIRE(chart.notes[0].harmonic_node.has_value());
-        if (chart.notes[0].harmonic_node.has_value())
+        const common::core::ChartNote& octave = chart.notes[0];
+        REQUIRE(octave.harmonic_node.has_value());
+        if (octave.harmonic_node.has_value())
         {
             // The capo stops the open string, so the octave squeals from capo + 12, not the nut.
-            CHECK(*chart.notes[0].harmonic_node == Catch::Approx(14.0));
+            CHECK(*octave.harmonic_node == Catch::Approx(14.0));
         }
     }
 }
