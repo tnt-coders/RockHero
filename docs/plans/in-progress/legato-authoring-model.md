@@ -1,12 +1,13 @@
 # Legato Authoring Model — hammer-on, pull-off, and the left-hand tap
 
-Status: **DEEP REVIEW COMPLETE 2026-08-08 — recommendation ready for the user's ruling.** The
-in-depth review the user parked this for has run: candidate A4 survives, but only in one specific
-form (the recalc window **settles on any undo or redo**), and in that form the binding constraint —
-*undo must always restore exactly the pre-action state* — holds by construction rather than by
-discipline. The full design is below, with the sequences that killed every alternative. Plan 40
-Phase 5's first verb (`H`) shipped in `4a98da55` with the naive derivation; its defects are recorded
-in [What the shipped verb gets wrong](#what-the-shipped-verb-gets-wrong). Nothing beyond that commit
+Status: **FULLY SETTLED 2026-08-09 — every open question ruled; awaiting implementation** (plan 40
+Phase 5 plus the technique enforcement pass). The deep review established the design — the recalc
+window that **settles on any undo or redo**, making the binding constraint (*undo must always
+restore exactly the pre-action state*) hold by construction — and the walkthrough then closed all
+five user calls and question B (Option C: strict derivation, merged notation, `Ctrl+H` the sole
+author of the left-hand tap). Plan 40 Phase 5's first verb (`H`) shipped in `4a98da55` with the
+naive derivation; its defects are recorded in
+[What the shipped verb gets wrong](#what-the-shipped-verb-gets-wrong). Nothing beyond that commit
 is implemented.
 
 Scope note: this concerns **legato only**, and that is a finding rather than an assumption — see
@@ -40,19 +41,25 @@ tap only, and the two readings of `Hammer` are deliberately indistinguishable. T
 
 ## Settled before the review
 
-### 1. The derivation, and a force verb (user: "I think I agree")
+### 1. The derivation, and a force verb (Option C — RULED 2026-08-09)
+
+Plain `H` infers only what the frets justify; the left-hand tap is `Ctrl+H`'s to state:
 
 | Situation | Result |
 |---|---|
 | predecessor on the same string releasing a **higher** fret | **Pull** |
-| predecessor lower, equal, or absent — and sounding position positive | **Hammer** (hammer-on or left-hand tap, indistinguishable by design) |
-| `fret == 0`, no node, no higher predecessor | **refuse** — neither articulation is physically possible |
+| predecessor releasing a **lower** fret — and sounding position positive | **Hammer** (a genuine, fret-justified hammer-on) |
+| predecessor **equal or absent** | **refuse** — the frets justify nothing; no tap is invented (Option C's one change from the earlier table, which inferred `Hammer` here) |
+| sounding position 0 (`fret == 0`, no node) | **refuse** — nothing to press, nothing to strike |
 
-**`Ctrl+H` forces `Hammer`** (user's proposal), valid iff the sounding position is positive,
-covering the rare descending left-hand tap. It fits the grammar: `Ctrl` means *precision* when
-placing, and "I will state it exactly, do not infer" is that idea applied to a typed verb. There is
-deliberately **no force-Pull** — pulling off to a higher fret is physically impossible, so its
-absence is principled.
+**`Ctrl+H` forces `Hammer`** and is the **sole author of the left-hand tap**, valid across its
+verified domain (E4: positive sounding position — see the matrix verification section below),
+including overriding a derived Pull (the author knows the predecessor was damped). It fits the
+grammar: `Ctrl` means *precision* — "I will state it exactly, do not infer" — and a left-hand tap
+is precisely a statement the fret relationship cannot infer. There is deliberately **no
+force-Pull** — pulling off to a higher fret is physically impossible, so its absence is
+principled. Option C captures the rejected notation split's entire deliberateness benefit:
+equal/absent-predecessor Hammers exist only via `Ctrl+H`, deliberate by construction.
 
 ### 2. The toggle measures the eligible subset (user: "I also think I agree")
 
@@ -343,8 +350,8 @@ Defects in `planSetLegato` as of `4a98da55`, to fix when this design is implemen
    slide hands over 7, so a following 5 is a genuine pull), and a scrape's slide-out fret (D7).
    The 2D relationship drawing follows the same rule; Phase 7 waypoint edits join the
    invalidating set.
-4. **Question B — deep analysis 2026-08-09, awaiting the ruling. Recommendation: adopt the
-   user's intermediate (Option C), reject the split.** Three options were weighed:
+4. ~~**Question B**~~ — **RULED 2026-08-09: Option C accepted; the notation split rejected.**
+   Three options were weighed:
    - **A (status quo):** plain `H` *infers* a left-hand tap for equal/absent predecessors —
      inventing an articulation from nothing, and in quiet tension with the settled repair rule,
      which refuses exactly that inference on edit.

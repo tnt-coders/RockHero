@@ -143,11 +143,15 @@ recommendation so the user can rule with full context in front of them.
   the validation alone would let verbs author charts that cannot re-load — the silent-corruption
   class the scrape work closed). D12 also inherits the template and fret-hand-position sub-capo
   analogs (a posture or hand window below the capo is equally meaningless).
-- [ ] **D10 — The legato workflow's five calls**, one at a time, from
-  `legato-authoring-model.md` ("Remaining user calls"): (1) no recalculating chrome initially;
-  (2) empty-selection scope survives a delete; (3) released-fret semantics = last pitched
-  waypoint; (4) defer the left-hand-tap concept; (5) whole-stream Layer 1 sweep. Each has a
-  recommendation in place.
+- [x] **D10 — The legato workflow's five calls — ALL RULED, closed 2026-08-09.** (1) No
+  recalculating chrome; the window is settle-event-scoped with NO timer. (2) Delete clears
+  everything — which deleted a special case, since the ordinary settle-on-selection-change rule
+  already covers it. (3) Released-fret semantics adopted (last pitched waypoint; a scrape's
+  slide-out fret per D7). (4) **Option C accepted, the notation split rejected**: plain `H`
+  infers only fret-justified directions (equal/absent predecessor refuses), `Ctrl+H` is the sole
+  author of the left-hand tap across its matrix-verified domain, including overriding a derived
+  Pull. (5) Legato repairs at IMPORT so charts are never born invalid. The legato doc is now
+  fully settled; implementation rides Phase 5 + D12.
 - [ ] **D12 — Enforcement pass (#27).** D1–D9 are closed; this consumes their outcomes:
   E4–E19 + E23/E24 guards and rules (E2/E20/E21/E22 already enforced; D4's E2 accent change
   shipped), the pinch-verb node obligation and attack-away-from-pinch node clearing, the two
