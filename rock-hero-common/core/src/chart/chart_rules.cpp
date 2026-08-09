@@ -192,15 +192,30 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                     "harmonic node position is out of range at " + positionText(note.position),
             }};
         }
-        // A node lies on the speaking length, so it cannot sit at or behind the stop — nothing
-        // vibrates there. Universal because a natural harmonic's `fret` is its actual stop (the
-        // nut, or the capo), never a rounded copy of its own node.
-        if (note.harmonic_node.has_value() && *note.harmonic_node <= static_cast<double>(note.fret))
+        // A node lies on the speaking length, so it cannot sit at or behind the physical stop —
+        // nothing vibrates there. Fret 0 means the open string under the 0-means-open
+        // convention, so the stop it names is the nut or the capo.
+        const int physical_stop = note.fret == 0 ? chart.tuning.capo : note.fret;
+        if (note.harmonic_node.has_value() &&
+            *note.harmonic_node <= static_cast<double>(physical_stop))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNote,
                 .message =
                     "harmonic node must lie beyond the stop at " + positionText(note.position),
+            }};
+        }
+        // The fretting hand touches a fret-hand harmonic's node, and a finger on the fretboard
+        // cannot be past the last fret. Same discriminator as `fretFor`'s node branch: fret 0
+        // plus a node, damped by neither the picking hand off the neck (pinch) nor the picking
+        // hand on it (tap). This is also what keeps the derived hand window inside `g_max_fret`.
+        if (note.harmonic_node.has_value() && note.fret == 0 && nodeIsOnNeck(note.attack) &&
+            note.attack != NoteAttack::Tap && *note.harmonic_node > static_cast<double>(g_max_fret))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "fret-hand harmonic node must lie on the neck at " +
+                           positionText(note.position),
             }};
         }
         // A pinch is picking while damping a node, so a pinch without one is missing data rather

@@ -277,6 +277,12 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
     tapped.fret = 5;
     tapped.attack = NoteAttack::Tap;
     CHECK(fretFor(tapped) == 5);
+    // A picked harmonic over a real stop — the harp / artificial-harmonic family — holds that
+    // stop with the fretting hand while the picking hand damps the node, so the hand is at the
+    // fret, not twelve frets up at the node.
+    ChartNote artificial = natural(17.0);
+    artificial.fret = 5;
+    CHECK(fretFor(artificial) == 5);
     // A hammer harmonic IS the fretting hand rapping the node.
     ChartNote hammered = natural(12.0);
     hammered.attack = NoteAttack::Hammer;
@@ -363,15 +369,18 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 
     SECTION("a node past the bridge-side limit is refused, but a sub-fret-1 node is fine")
     {
-        // Higher harmonics crowd toward the nut, so a node below fret 1 is legitimate; the bound
-        // only refuses positions past the 16th harmonic's bridge-side node — and it is inclusive,
-        // since that node is itself real.
+        // Higher harmonics crowd toward the nut, so a node below fret 1 is legitimate; the
+        // universal bound only refuses positions past the 16th harmonic's bridge-side node — and
+        // it is inclusive, since that node is itself real. The far reaches are probed through a
+        // pinch, whose thumb damps off the neck: a fret-hand harmonic hits the neck-end bound
+        // first (the section below).
         Chart chart;
         chart.tuning.strings = {"E2"};
         chart.notes = {note_at(0)};
         chart.notes[0].harmonic_node = 1.1;
         CHECK(validateChartRules(chart, tempo_map).has_value());
 
+        chart.notes[0].attack = NoteAttack::Pinch;
         chart.notes[0].harmonic_node = g_max_harmonic_node;
         CHECK(validateChartRules(chart, tempo_map).has_value());
 
@@ -396,6 +405,47 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
 
         chart.notes[0].harmonic_node = 3.2;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+    }
+
+    SECTION("on a capo'd string, fret 0 speaks from the capo and the node must lie beyond it")
+    {
+        // The 0-means-open convention: the capo'd open string stores fret 0, so the physical
+        // stop the node must clear is the capo, not the stored fret.
+        Chart chart;
+        chart.tuning.strings = {"E2"};
+        chart.tuning.capo = 2;
+        chart.notes = {note_at(0)};
+        chart.notes[0].harmonic_node = 1.5;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = 2.0;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = 2.1;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+    }
+
+    SECTION("a fret-hand harmonic's node must lie on the neck; off-neck damping is exempt")
+    {
+        // The fretting hand touches a fret-hand harmonic's node, and a finger on the fretboard
+        // cannot be past the last fret — which is also what keeps the derived hand window inside
+        // g_max_fret. A pinch's thumb grazes over the body, and a tapped node belongs to the
+        // picking hand, so both escape the bound (only the universal 48 limit applies to them).
+        Chart chart;
+        chart.tuning.strings = {"E2"};
+        chart.notes = {note_at(0)};
+        chart.notes[0].harmonic_node = static_cast<double>(g_max_fret) + 1.0;
+        CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = static_cast<double>(g_max_fret);
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].harmonic_node = static_cast<double>(g_max_fret) + 1.0;
+        chart.notes[0].attack = NoteAttack::Pinch;
+        CHECK(validateChartRules(chart, tempo_map).has_value());
+
+        chart.notes[0].attack = NoteAttack::Tap;
         CHECK(validateChartRules(chart, tempo_map).has_value());
     }
 

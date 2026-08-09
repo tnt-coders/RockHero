@@ -286,9 +286,10 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         // Pro's numbers are nut-referenced or capo-relative (the frame question is recorded in the
         // technique-compatibility plan doc).
         CHECK(*chart.notes[4].harmonic_node == Catch::Approx(5.1564).margin(0.001));
-        // A natural harmonic has no stop of its own, so its fret IS the capo, not a node copy.
-        CHECK(chart.notes[4].fret == 2);
-        CHECK(*chart.notes[4].harmonic_node > static_cast<double>(chart.notes[4].fret));
+        // Under the 0-means-open convention a natural harmonic's fret is 0 even on a capo'd
+        // string — the capo never appears as a fret number — while the node stays absolute.
+        CHECK(chart.notes[4].fret == 0);
+        CHECK(*chart.notes[4].harmonic_node > static_cast<double>(chart.tuning.capo));
         // The fretting hand is at the node it touches, not down at the capo.
         CHECK(common::core::fretFor(chart.notes[4]) == 6);
     }

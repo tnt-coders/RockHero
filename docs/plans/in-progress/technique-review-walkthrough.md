@@ -32,25 +32,19 @@ recommendation so the user can rule with full context in front of them.
 
 ## Open decisions
 
-- [ ] **D1 — The fret floor and the capo convention (one cluster).** The user's answers imply:
-  `fret` is **absolute**; the capo'd open string stores **0** (not the capo number — "0 means
-  open string even with a capo"); frets 1..capo are invalid. Clarification owed: "stop" was never
-  a field — it is what `fret` *means* (where the speaking length terminates). Consequences to
-  confirm as one package:
-  - A fret-hand harmonic is exactly `fret == 0` + node + non-`Pinch` attack — the discriminator
-    needs no capo context.
-  - A harmonic with `fret > 0` + node + non-`Pinch` attack becomes the **picking-hand-damped**
-    family (tap, harp, artificial): `fretFor` returns the fret (fixing the A.H. hand-window
-    misplacement), and E7/E9/E19 re-key on `fret == 0` so bends/slides/pulls over a real stop
-    stay legal.
-  - E22 refines to: `fret == 0` + non-`Pinch` + node ⇒ `node <= g_max_fret` (a fretting finger
-    cannot touch past the fretboard), which removes the FHP overflow tail risk.
-  - New validation: `node > capo` when `fret == 0` on a capo'd tuning (E21's `node > fret` no
-    longer carries it once the stored fret is 0).
-  - The just-shipped capo'd-natural import (`fret = capo`) flips to `fret = 0` — supersedes the
-    earlier "defined at the capo" wording; re-import was already owed.
-  **Recommendation: adopt all of it** — it is the user's own stated convention, and it resolves
-  the entire fretted-harmonic cluster in one move.
+- [x] **D1 — The fret floor and the capo convention — ADOPTED 2026-08-08** (user: "Adopt all of
+  it") and **shipped**: `fret` is absolute with 0 meaning the open string, capo'd or not; capo'd
+  naturals now import as `fret = 0`; `fretFor` keys its node branch on `fret == 0` (fixing the
+  artificial-harmonic hand placement); E21 generalized to the physical stop (the capo when
+  `fret == 0`); E22 enforced; E7/E9/E19 re-keyed on "no real stop" in the matrix doc; E4's capo
+  caveat dissolved (`fret > 0` already means a real stop). Two refinements recorded while
+  implementing: E22 (and `fretFor`) exclude the `Tap` attack — an open-string tap harmonic's node
+  belongs to the picking hand, so only the universal 48 bound applies to it — while E7/E9/E19
+  *include* `Tap` (nothing pressed is nothing pressed). Sub-capo fret validation (frets 1..capo
+  invalid) is part of the convention but **gated on D9**: enforcing it before GP's frame is
+  measured could reject valid imports. A 2D display note for the notation pass, no action now:
+  a fretted tap harmonic's head currently shows the node, and the stop is carried nowhere on the
+  2D surface — a two-position technique may eventually want both.
 - [ ] **D2 — The scrape's payload shape.** User proposes: `slide_out` **required** (a pick slide
   always ends unpitched — a pitched waypoint terminal would imply a turnaround or a held
   landing), `slides` **optional** (turnarounds only). Replaces E2's current "required traveling

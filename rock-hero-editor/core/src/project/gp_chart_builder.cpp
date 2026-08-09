@@ -1346,9 +1346,9 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         {
             continue; // not sounding at this instant
         }
-        // A natural harmonic has no stop of its own, so its `fret` is the nut (or the capo) and
-        // its fretting hand is at the NODE instead — reading `fret` here would drop a 12th-fret
-        // harmonic passage out of hand derivation and leave the window at the nut.
+        // A natural harmonic has no stop of its own, so its `fret` is 0 and its fretting hand is
+        // at the NODE instead — reading `fret` here would drop a 12th-fret harmonic passage out
+        // of hand derivation and leave the window at the nut.
         const int other_hand_fret = common::core::fretFor(other.note);
         if (common::core::rightHandOnset(other.note.attack) || other_hand_fret <= 0)
         {
@@ -2114,8 +2114,11 @@ void resolveSlideOutExits(
                     common::core::snapHarmonicNode(notated, common::core::g_max_snapped_partial);
                 if (std::abs(offset - notated) <= plausible_label_error)
                 {
+                    // The node is an absolute position (measured from the physical stop), while
+                    // the stored fret follows the 0-means-open convention: 0 IS the capo'd open
+                    // string, so the capo never appears as a fret number.
                     note.harmonic_node = static_cast<double>(chart.tuning.capo) + offset;
-                    note.fret = chart.tuning.capo;
+                    note.fret = 0;
                 }
                 else
                 {

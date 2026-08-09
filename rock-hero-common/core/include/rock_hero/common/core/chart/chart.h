@@ -364,10 +364,12 @@ struct ChordTemplate
 /*!
 \brief The fret the **fretting hand** occupies for this note.
 
-Not the same as `note.fret`, which is the **stop**. A harmonic damped by the fretting hand has no
-stop of its own — its `fret` is the nut, or the capo — so the hand is at the node, the only place
-it touches the string. A pinch and a two-hand tap both *do* have a real stop, and their node
-belongs to the picking hand, so those stay on the fret.
+Not the same as `note.fret`, which is the **stop**. A fret-hand harmonic — `fret == 0` plus a
+node, with neither tapping-hand attack — holds no stop, so the hand is at the node, the only
+place it touches the string. Every other node-bearing note keeps the hand on its fret: a pinch
+and a two-hand tap because the node belongs to the picking hand, and a harmonic over a real stop
+(`fret > 0` — the harp and artificial-harmonic family) because the fretting hand is pressing that
+stop while the picking hand damps the node.
 
 Fret `N` occupies the neck from wire `N-1` to wire `N` (`highwayNoteCenterX` is the midpoint of
 those two), so the fret containing a node at `p` is `ceil(p)`: 2.669 lies in fret 3 and 3.156 in

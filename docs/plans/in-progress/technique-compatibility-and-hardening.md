@@ -90,7 +90,8 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E18** | `tremolo` **allows** `slides` and `bend` | Q12. A tremolo-picked bend is ordinary and the rising tremolo-picked slide is a standard metal figure. Consistent with H1, which constrains the *onset* to a pick while tremolo describes the sustain. |
 | **E19** | A `Pull`'s predecessor cannot be a **fret-hand harmonic** — and pull-from-a-**pinch** is explicitly ALLOWED | User, 2026-08-07: *"Natural harmonic should be able to be followed by a hammer on, not a pull off. Pull off would be physically impossible."* The converse of E12 and a **separate cell**: E12 forbids pulling *into* a harmonic, this forbids pulling *from* one. The fretting hand is touching a node, not pressing, so nothing can be released. A pinch's fretting hand *is* pressing a real fret, so pulling off from a pinch works — promoted to rule status by the 2026-08-08 review. **Relational** — see the ceiling. A natural harmonic followed by a *hammer-on* is fine: the string is already ringing and a finger coming down stops it at a new pitch. |
 | **E20** | `Pinch` **requires** `harmonic_node` | **Enforced** (`chart_rules.cpp`). A pinch is picking while damping a node — the overtone that squeals is determined by where the thumb lands — so one without a node is missing data. This is what lets node presence alone assert the harmonic. Numbered by the 2026-08-08 review; previously narrated but never a table row. |
-| **E21** | `harmonic_node > fret`, **strict** | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Universal because a natural harmonic's `fret` is its actual stop (nut or capo), never a rounded copy of its node. Numbered by the 2026-08-08 review. |
+| **E21** | `harmonic_node` > the **physical stop**, strict — the fret, or the capo when `fret == 0` | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Generalized by D1 (2026-08-08): under the 0-means-open convention a capo'd open string stores `fret = 0`, so the stop the node must clear is derived, not stored. |
+| **E22** | A **fret-hand harmonic** (`fret == 0` + node + neither tapping-hand attack) requires `node <= g_max_fret` | **Enforced** (`chart_rules.cpp`), adopted with D1. The fretting hand touches the node, and a finger on the fretboard cannot be past the last fret; this is also what keeps the derived hand window inside `g_max_fret`. A pinch (thumb over the body) and a tap harmonic (picking-hand finger) escape the bound — only the universal 48 limit applies to them. Same discriminator as `fretFor`'s node branch, deliberately. |
 | **E23** | A **tap harmonic** (node + `Tap`) excludes `tremolo` | User, 2026-08-08: not executable fast enough. The model agrees structurally: the tap's damping finger *leaves* the string, so nothing holds the node under re-picking and the harmonic dies. A natural or artificial harmonic keeps a finger on the node, which is why those still allow tremolo (A.H. tremolo is "oddly actually possible" — user). Unenforced; enforcement pass. |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
@@ -128,9 +129,9 @@ note.fret > 0 || note.harmonic_node.has_value()
 ```
 
 — node positivity needs no separate test because the enforced range rule already guarantees
-`node > 0`. One caveat rides the capo: with `fret` meaning the stop, `fret == capo` *is* the capo'd
-open string, so E4 arguably wants `fret > capo`. That hangs on the unsettled frame convention for
-ordinary note frets (below), so it is recorded rather than decided.
+`node > 0`. The capo caveat an earlier revision recorded here dissolved with D1: under the
+0-means-open convention a capo'd open string stores `fret = 0`, so `fret > 0` already means a
+real stop and no capo variant is needed.
 
 **Do not evaluate E5 on the sounding position.** E5 tests that a `Pull`'s predecessor sits at a
 *higher fret*. Reading it on the sounding position would make a harmonic at node 12 followed by a
@@ -294,38 +295,21 @@ from the settled criterion alone (see the rendered matrix below). What it could 
 question cluster, plus a handful of newly recorded default-allow cells the sign-off should glance
 at:
 
-**The fretted-harmonic cluster — the one real design question.** The model now represents a
-harmonic over a *real* stop with the fretting hand pressing: the tap harmonic (`Tap` + fret 5 +
-node 17) is settled, but the same shape with `Pick` — the **harp harmonic**, and Guitar Pro's
-**artificial harmonic** (A.H.), where the picking hand's finger rests on the node while the thumb
-or pick strikes — collides with three things at once:
+~~**The fretted-harmonic cluster**~~ — **SETTLED 2026-08-08 as walkthrough D1** ("Adopt all of
+it"): a fret-hand harmonic is exactly `fret == 0` + node + neither tapping-hand attack; `fret > 0`
++ node + non-`Pinch` is the picking-hand-damped family (fretted tap, harp, artificial), whose hand
+placement `fretFor` now reads correctly; E7/E9/E19 re-keyed on "no real stop"; E21 generalized to
+the physical stop (capo when `fret == 0`); E22 enforced. Capo'd naturals store `fret = 0` under
+the user's 0-means-open convention — the capo never appears as a fret number. See the E-table and
+overlay rows, all updated.
 
-1. **`fretFor` misplaces it.** For any non-`Pinch`, non-`Tap` attack with a node, `fretFor` puts
-   the fretting hand at `ceil(node)` — right for a natural, wrong for an A.H./harp harmonic, whose
-   fretting hand is at the *stop* while the *picking* hand touches the node. Every A.H. the GP
-   importer carries today drives the hand window ~12 frets too high.
-2. **E7/E9/E19 are keyed too broadly.** Their shared physics is "the fretting hand touches a node,
-   not a press — so nothing can slide, bend, oscillate, or be released." True when the stop is the
-   nut/capo; false for a harmonic over a real stop, where the fretting hand *is* pressing
-   (tap-harmonic-then-bend is a real figure). Keying them on "attack != Pinch" forbids executable
-   music.
-3. **A possible rule fixes both.** If a fret-hand harmonic's `fret` must be the string's floor
-   (0/capo) — which the user's own settlement wording implies — then "fret > floor + node present +
-   non-Pinch attack" *means* picking-hand-damped-on-neck, `fretFor` can read the distinction from
-   data that exists, E7/E9/E19 key on "no real stop," and a second bound becomes principled:
-   `nodeIsOnNeck(attack) ⇒ node <= g_max_fret` (a finger on the fretboard cannot be past the last
-   fret — proposed as **E22**), which also removes the tail risk of a legal bridge-side node
-   deriving a hand fret past `g_max_fret` and failing whole-chart validation. **All one user call.**
-
-**The capo frame question, sharpened.** The capo-1 corpus score's natural-harmonic labels 7.0 and
-8.2 are both standard open-string-family labels (3rd partial 7.02; 8th partial's third node 8.14).
-Under the old "GP is capo-blind" reading they are junk; under a **capo-relative** reading they are
-exactly right relative to the capo-as-nut. The import formula `capo + snap(label)` is identical
-either way — but the evidence now leans capo-relative, which would mean GP's *ordinary* note frets
-are capo-relative too, and our import stores them unshifted. Whether RockHero's `fret` under a capo
-means nut-absolute or capo-relative is the decision (the natural-harmonic settlement's "fret = the
-capo" wording implies absolute); it gates the corpus re-import, and E4's `fret > 0` vs
-`fret > capo` question above rides on it.
+**The capo frame question — the storage half is settled (D1), the import half is D9.** RockHero's
+`fret` is absolute with 0 meaning the open string, capo'd or not, and frets 1..capo are invalid
+(validation for that is gated on D9 — enforcing it before GP's frame is measured could reject
+valid imports). What remains empirical: whether GP's *ordinary* note frets are nut-absolute or
+capo-relative, which decides whether import must shift them by the capo. The harmonic labels lean
+capo-relative (the capo-1 score's 7.0/8.2 are standard open-string-family labels — correct
+capo-relative, junk absolute); the decisive test is whether capo'd scores use frets 1..capo.
 
 **Newly recorded cells, closed by the criterion, flagged for the glance:** Palm + Pinch (the
 palm-muted squeal — the single most common pinch context, previously resting on silent
@@ -378,24 +362,29 @@ table) overrides the attack row.
 | **Slap** | OK E14 | OK E15 | OK E15 (slapped dead note) | OK | OK | OK H3 | OK | OK | OK |
 | **PickSlide** | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] | FORBID E2 [enf] + DEFER | FORBID E2 [enf] | **REQ E2 [enf]** | FORBID E2 [enf] |
 
-Plus E4 (unenforced): `Hammer` and `Tap` require `fret > 0 || harmonic_node.has_value()` (the
-capo variant is open, above).
+Plus E4 (unenforced): `Hammer` and `Tap` require `fret > 0 || harmonic_node.has_value()` — the
+form is final; D1's 0-means-open convention removed the capo caveat.
 
 ### Harmonic overlay (node present — overrides the row above)
 
 | configuration | bend | vibrato | slides | slide_out | Palm | Full | tremolo | as Pull's predecessor |
 |---|---|---|---|---|---|---|---|---|
-| **Fret-hand harmonic** (node + Pick/Hammer/Slap/Pop, `fret` = 0/capo) | FORBID E9 | FORBID E9 | FORBID E7 | FORBID E7 | OK Q1 | FORBID E8 | OK | FORBID E19 |
-| **Tap harmonic** (node + Tap) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | **FORBID E23** | OPEN |
-| **Harp / artificial harmonic** (node + Pick, `fret` > capo) | OPEN (fretted cluster) | OPEN | OPEN | OPEN | OK | FORBID E8 | OK ("oddly possible") | OPEN |
+| **Fret-hand harmonic** (node + `fret == 0`, attack Pick/Hammer/Slap/Pop) | FORBID E9 | FORBID E9 | FORBID E7 | FORBID E7 | OK Q1 | FORBID E8 | OK | FORBID E19 |
+| **Open-string tap harmonic** (node + Tap, `fret == 0`) | FORBID E9 | FORBID E9 | FORBID E7 | FORBID E7 | OK | FORBID E8 | FORBID E23 | FORBID E19 |
+| **Harmonic over a real stop** (node + `fret > 0`, non-Pinch — the fretted tap, harp, and artificial family) | OK | OK | OK | OK | OK | FORBID E8 | FORBID E23 iff attack is `Tap`, else OK | OK (the stop is pressed) |
 | **Pinch** (node + Pinch) | OK E9 | OK E9 | OK | OK | OK | FORBID E8+E20 | OK | **OK** (E19 note) |
 
-("Stop" in this section is not a field — it is what `fret` *means*: the fret where the string's
-speaking length terminates. The user's 2026-08-08 capo convention — absolute frets, the capo'd
-open string stored as 0 — is decision D1 in the walkthrough doc.)
+**D1 re-keyed the natural-only rules (2026-08-08):** E7, E9 and E19's physics is "no real stop is
+pressed," so they apply to `fret == 0` + node + any non-`Pinch` attack — the open-string tap
+harmonic included — and stop applying the moment a real stop exists (`fret > 0`), where bending,
+sliding, and pulling off are ordinary fretting-hand work. Note the two discriminators differ
+deliberately: E7/E9/E19 include the `Tap` attack (nothing pressed is nothing pressed), while
+`fretFor` and E22 exclude it (an open-string tap harmonic's node belongs to the picking hand, so
+the fret hand is not there). "Stop" is not a field — it is what `fret` *means*; the physical stop
+is derived (`fret == 0` → nut or capo).
 
-Universal, both enforced: node in (0, 48] and node > fret (E21). Proposed **E22**:
-`nodeIsOnNeck(attack) ⇒ node <= g_max_fret`.
+Universal, all enforced: node in (0, 48]; node > the physical stop (E21 — the fret, or the capo
+when `fret == 0`); and a fret-hand harmonic's node on the neck (E22).
 
 ### Mute × payload
 
@@ -421,10 +410,11 @@ The full-mute principle: forbid everything **pitch-valued**, allow everything **
 
 The open decisions now live as a worked queue with per-item guidance in
 **`docs/plans/in-progress/technique-review-walkthrough.md`** (opened 2026-08-08 at the user's
-direction, so the list survives any session): the fret-floor/capo cluster (D1), the scrape's
-payload shape (D2–D4, which absorbs H3 — the user now leans accent-on-everything, un-deferring
-the scrape cell), ghost legato and the pre-bend question (D5–D6), the E5 derivation-vs-validity
-split (D7), the emphasis axis (D8), and the GP capo-frame measurement (D9).
+direction, so the list survives any session): ~~the fret-floor/capo cluster (D1)~~ **adopted and
+shipped**, the scrape's payload shape (D2–D4, which absorbs H3 — the user now leans
+accent-on-everything, un-deferring the scrape cell), ghost legato and the pre-bend question
+(D5–D6), the E5 derivation-vs-validity split (D7), the emphasis axis (D8), and the GP capo-frame
+measurement (D9).
 
 Enforcement reality after the review: **E1-remnant, E2, E20, E21 are enforced; everything else is
 recorded only** and becomes code in the enforcement pass (D12), gated on the walkthrough closing.
@@ -543,7 +533,19 @@ Switching a note's attack to `PickSlide` now destroys its pinch-ness, where the 
 one field cannot hold two attacks — and currently unreachable, since the scrape toggle has no UI
 route. Recorded so it is not mistaken for a regression later.
 
-## SETTLED 2026-08-08: `fret` is the stop, always
+## SETTLED 2026-08-08: `fret` is the stop — and 0 is the open string, capo'd or not (D1)
+
+**Revised the same day by D1** (user: *"Our fretting is absolute... the fret where the capo IS is
+treated as 0... 0 means 'open string' even with a capo and each fret is absolute"*): a capo'd
+natural harmonic stores `fret = 0`, not the capo number — the capo never appears as a fret. The
+*physical* stop is derived (`fret == 0` → the capo), which is what E21 now compares against, and
+`fret == 0` + node + neither tapping-hand attack becomes the complete fret-hand-harmonic
+discriminator: it needs no capo context, it fixes `fretFor` for the harp/artificial-harmonic
+family (`fret > 0` + node + non-`Pinch` = fretting hand pressing the stop, picking hand damping
+the node), and it re-keys E7/E9/E19 onto "no real stop" so bending or sliding a harmonic held
+over one stays legal. Sub-capo fret validation (frets 1..capo invalid) is part of the convention
+but **gated on D9** — enforcing it before the GP frame is measured could reject valid imports.
+The section below keeps its original wording as the record of the step that got here.
 
 The user asked whether `node >= fret` should be a rule, then settled the representation it depends on:
 *"natural harmonics do in fact need to have fret assigned to 0 OR in songs with a capo, it must be
