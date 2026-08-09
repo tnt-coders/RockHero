@@ -224,7 +224,10 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
 std::expected<void, ChartError> validateChartNotes(
     const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map)
 {
-    const auto string_count = static_cast<int>(tuning.strings.size());
+    // The model's cap bounds the string domain as much as the tuning does, because the relational
+    // table below is indexed by string number. validateChartRules refuses a wider tuning outright;
+    // a direct caller that passes one has no string past the cap this rule set can speak about.
+    const int string_count = std::min(static_cast<int>(tuning.strings.size()), g_max_chart_strings);
     // The last note seen per string, for the relational rules (E5/E19): the stream is sorted, so
     // this IS each note's same-string predecessor when it is reached.
     std::array<const ChartNote*, static_cast<std::size_t>(g_max_chart_strings) + 1>
@@ -371,7 +374,8 @@ std::expected<void, ChartError> validateChartNotes(
         // fret-hand harmonic predecessor touches without pressing, so nothing can be released.
         if (note.attack == NoteAttack::Pull)
         {
-            const ChartNote* const source = last_per_string[static_cast<std::size_t>(note.string)];
+            const ChartNote* const source =
+                last_per_string.at(static_cast<std::size_t>(note.string));
             if (source == nullptr)
             {
                 return std::unexpected{ChartError{
@@ -539,7 +543,7 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        last_per_string[static_cast<std::size_t>(note.string)] = &note;
+        last_per_string.at(static_cast<std::size_t>(note.string)) = &note;
         previous_note = &note;
     }
 

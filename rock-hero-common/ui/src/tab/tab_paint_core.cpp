@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <ranges>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -379,14 +380,15 @@ constexpr std::array<juce::Point<float>, 16> g_plectrum_half_outline{
     };
 
     shape.startNewSubPath(vertex(g_plectrum_half_outline.front(), 1.0f));
-    for (std::size_t i = 1; i < g_plectrum_half_outline.size(); ++i)
+    for (const juce::Point<float>& outline_point : g_plectrum_half_outline | std::views::drop(1))
     {
-        shape.lineTo(vertex(g_plectrum_half_outline[i], 1.0f));
+        shape.lineTo(vertex(outline_point, 1.0f));
     }
     // Back up the mirrored side, skipping the tip the two halves share.
-    for (std::size_t i = g_plectrum_half_outline.size() - 1; i-- > 0;)
+    for (const juce::Point<float>& outline_point :
+         g_plectrum_half_outline | std::views::reverse | std::views::drop(1))
     {
-        shape.lineTo(vertex(g_plectrum_half_outline[i], -1.0f));
+        shape.lineTo(vertex(outline_point, -1.0f));
     }
     shape.closeSubPath();
     return shape;

@@ -21,7 +21,7 @@ void normalizeChartLegato(std::vector<common::core::ChartNote>& notes)
         const bool string_in_range =
             note.string >= 1 && note.string <= common::core::g_max_chart_strings;
         const common::core::ChartNote* const source =
-            string_in_range ? last_per_string[static_cast<std::size_t>(note.string)] : nullptr;
+            string_in_range ? last_per_string.at(static_cast<std::size_t>(note.string)) : nullptr;
         if (note.attack == common::core::NoteAttack::Pull)
         {
             // A pull-off must release a real press above the pulled note, and can never sound a
@@ -53,7 +53,7 @@ void normalizeChartLegato(std::vector<common::core::ChartNote>& notes)
         }
         if (string_in_range)
         {
-            last_per_string[static_cast<std::size_t>(note.string)] = &note;
+            last_per_string.at(static_cast<std::size_t>(note.string)) = &note;
         }
     }
 }
