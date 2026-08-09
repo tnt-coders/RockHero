@@ -210,6 +210,15 @@ struct TabViewState
     /*! \brief Number of string lanes the chart uses; zero means no chart is loaded. */
     int string_count{0};
 
+    /*!
+    \brief Capo fret from the chart tuning; 0 means no capo.
+
+    Carried so the lane can indicate the string floor: the chart stores absolute frets with 0
+    meaning the capo'd open string, so without this nothing in the drawn content says a capo
+    exists at all.
+    */
+    int capo{0};
+
     /*! \brief Sounding notes in ascending onset order. */
     std::vector<TabNoteView> notes;
 

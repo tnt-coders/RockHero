@@ -52,6 +52,7 @@ HighwayViewState makeHighwayViewState(
     // amount, keeping the shared string-color palette anchored exactly as the 2D tab anchors it.
     const int chart_string_count = static_cast<int>(chart.tuning.strings.size());
     state.string_count = std::max(chart_string_count, options.minimum_string_count);
+    state.capo = chart.tuning.capo;
     const int displayed_lane_shift = state.string_count - chart_string_count;
 
     // Note onsets ascend, so the forward cursor resolves them in amortized constant time.

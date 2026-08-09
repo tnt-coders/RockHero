@@ -452,4 +452,54 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     CHECK(wide_plain_digit_top - wide_scrape_digit_top == 3);
 }
 
+// The capo chip is the lane's only capo indication (absolute frets say nothing about the string
+// floor), pinned to the bounds' top-left corner rather than the timeline, and absent without a
+// capo.
+TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::TabViewState state;
+    state.string_count = 6;
+    state.capo = 2;
+
+    const juce::Rectangle<int> bounds{0, 0, 400, 240};
+    const common::core::TimeRange visible_timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        bounds,
+        visible_timeline,
+        tabDisplayedStringCount(state.string_count, 0),
+        state.string_count);
+
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics graphics{image};
+    paintTabLane(graphics, metrics, state, tabPrefixMaxEndSeconds(state.notes));
+
+    // The chip's box fills the FHP-chip chrome color behind its centered letters; the probe sits
+    // inside the box near its left edge, clear of the text.
+    CHECK(image.getPixelAt(4, 7) == juce::Colour{0xff2a2f36});
+    // And its letters ink somewhere inside the box. The text is white at 0.85 alpha over the
+    // chrome, so its solid pixels blend to roughly (223, 224, 225) — far above anything the box
+    // or the empty lane can produce, but below the pure-white isWhiteInk floor.
+    bool found_ink = false;
+    for (int y = 2; y <= 12 && !found_ink; ++y)
+    {
+        for (int x = 2; x <= 60 && !found_ink; ++x)
+        {
+            const juce::Colour pixel = image.getPixelAt(x, y);
+            found_ink = pixel.getRed() >= 200 && pixel.getGreen() >= 200 && pixel.getBlue() >= 200;
+        }
+    }
+    CHECK(found_ink);
+
+    // Without a capo the corner stays empty lane.
+    state.capo = 0;
+    const juce::Image bare{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics bare_graphics{bare};
+    paintTabLane(bare_graphics, metrics, state, tabPrefixMaxEndSeconds(state.notes));
+    CHECK(bare.getPixelAt(4, 7).getAlpha() == 0);
+}
+
 } // namespace rock_hero::common::ui

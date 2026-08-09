@@ -130,6 +130,21 @@ constexpr ArgbColor g_fret_number_fhp_color = 0xFFFFA821;
 // Hand-window activity horizon for the active fret state.
 constexpr double g_fret_active_horizon_seconds = 0.5;
 
+// Capo display (crude first treatment, roadmap 25-Q6): the dead zone the capo silences between
+// the nut and its fret line, dimmed over the face; and the clamp itself, a steel bar with a
+// dark rim laid across the strings just behind its fret, overhanging the string grid so it
+// reads as hardware rather than another fret line.
+constexpr ArgbColor g_capo_dead_zone_color = 0xB4000000;
+constexpr ArgbColor g_capo_bar_color = 0xFFB9BEC6;
+constexpr ArgbColor g_capo_bar_rim_color = 0xFF14161A;
+// The clamp's span in fret-line coordinates behind the capo's line, and its overhang past the
+// string grid in string distances.
+constexpr double g_capo_bar_near_fraction = 0.08;
+constexpr double g_capo_bar_far_fraction = 0.45;
+constexpr double g_capo_bar_overhang_strings = 0.3;
+// The rim's outset around the steel body, in fret widths.
+constexpr double g_capo_bar_rim_fraction = 0.05;
+
 // Strike glow (the additive hit light; fret-hit-light-effect plan): the nominal release and
 // dark-trough guard feeding highwayHitGlowRelease, the light's colour (a hot orange whose
 // blue-channel lift lets a peak white out over already-lit content), the soft-edge falloff, the
@@ -4257,6 +4272,53 @@ void HighwayRenderer::Impl::draw(
             &inlays,
             g_board_view,
             g_premultiplied_state);
+    }
+
+    // --- Capo, over the skin like the hardware it is: the face from the nut to the capo's
+    // fret line dims (those frets do not exist to play — an absolute-fret chart is unreadable
+    // without seeing where its floor sits), and the clamp draws as a rimmed steel bar hugging
+    // the nut side of its line, overhanging the string grid. Crude first treatment (roadmap
+    // 25-Q6): flat quads, no art. ---
+    if (state.capo > 0 && state.capo <= g_face_fret_count)
+    {
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        const double capo_line = static_cast<double>(state.capo);
+
+        const double nut_x = common::core::highwayFretLineX(0, metrics, mirrored);
+        const double capo_x = common::core::highwayFretLineX(capo_line, metrics, mirrored);
+        const auto [dead_x0, dead_x1] = std::minmax(nut_x, capo_x);
+        pushFaceQuad(
+            vertices,
+            indices,
+            dead_x0,
+            dead_x1,
+            face_bottom_y,
+            face_top_y,
+            0.0,
+            packAbgr(g_capo_dead_zone_color));
+
+        const double near_x =
+            common::core::highwayFretLineX(capo_line - g_capo_bar_near_fraction, metrics, mirrored);
+        const double far_x =
+            common::core::highwayFretLineX(capo_line - g_capo_bar_far_fraction, metrics, mirrored);
+        const auto [bar_x0, bar_x1] = std::minmax(near_x, far_x);
+        const double overhang = metrics.string_distance * g_capo_bar_overhang_strings;
+        const double bar_y0 = face_bottom_y - overhang;
+        const double bar_y1 = face_top_y + overhang;
+        const double rim = g_capo_bar_rim_fraction * metrics.first_fret_distance;
+        pushFaceQuad(
+            vertices,
+            indices,
+            bar_x0 - rim,
+            bar_x1 + rim,
+            bar_y0 - rim,
+            bar_y1 + rim,
+            0.0,
+            packAbgr(g_capo_bar_rim_color));
+        pushFaceQuad(
+            vertices, indices, bar_x0, bar_x1, bar_y0, bar_y1, 0.0, packAbgr(g_capo_bar_color));
+        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
     // --- Fingering panel and arpeggio brackets for the active hand shape, on the board face

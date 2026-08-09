@@ -396,6 +396,15 @@ struct HighwayViewState
     /*! \brief Number of string lanes the chart uses; zero means no chart is loaded. */
     int string_count{0};
 
+    /*!
+    \brief Capo fret from the chart tuning; 0 means no capo.
+
+    Carried so the board can draw the capo and its dead zone: the chart stores absolute frets
+    with 0 meaning the capo'd open string, so without this the neck below the capo looks like
+    ordinary playable board.
+    */
+    int capo{0};
+
     /*! \brief Display-mapping flags the projection was built with. */
     HighwayDisplayOptions options{};
 

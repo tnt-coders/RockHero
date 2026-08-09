@@ -119,6 +119,17 @@ namespace
 
 } // namespace
 
+// The capo rides the projection so the board can draw the clamp and its dead zone (25-Q6).
+TEST_CASE("Highway projection carries the tuning's capo", "[core][highway]")
+{
+    Arrangement arrangement;
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.tuning.capo = 2;
+    arrangement.chart = std::move(chart);
+    CHECK(makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {}).capo == 2);
+}
+
 // The highway projection must resolve identical inputs to the identical seconds the editor's 2D
 // projection produces: same tempo-map queries, same onset/sustain/payload discipline.
 TEST_CASE("Highway projection resolves chart positions to seconds", "[core][highway]")

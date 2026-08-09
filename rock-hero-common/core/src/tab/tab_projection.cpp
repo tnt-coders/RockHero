@@ -20,6 +20,7 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
 
     const Chart& chart = *arrangement.chart;
     state.string_count = static_cast<int>(chart.tuning.strings.size());
+    state.capo = chart.tuning.capo;
 
     // Note onsets ascend, so the forward cursor resolves them in amortized constant time.
     // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the

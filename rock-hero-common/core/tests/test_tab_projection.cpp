@@ -110,6 +110,17 @@ namespace
 
 } // namespace
 
+// The capo rides the projection so the lane can indicate the string floor (roadmap 25-Q6).
+TEST_CASE("Tab projection carries the tuning's capo", "[editor-core][tab]")
+{
+    Arrangement arrangement;
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.tuning.capo = 2;
+    arrangement.chart = std::move(chart);
+    CHECK(makeTabViewState(arrangement, makeTempoMap()).capo == 2);
+}
+
 TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][tab]")
 {
     const TempoMap tempo_map = makeTempoMap();

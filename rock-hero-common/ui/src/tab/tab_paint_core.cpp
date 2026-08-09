@@ -1071,6 +1071,34 @@ void drawFhpMarker(
     g.drawText(text, box, juce::Justification::centred);
 }
 
+// Draws the capo chip pinned in the lane's top-left corner, in the FHP chips' boxed style. The
+// chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the
+// drawn content says where the string floor sits — this chip is the 2D capo indication (roadmap
+// 25-Q6, crude first treatment). Pinned to the bounds rather than the timeline because the capo
+// has no time; drawn last so scrolling content passes under it.
+void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int capo)
+{
+    if (capo <= 0 || !metrics.draw_text)
+    {
+        return;
+    }
+
+    const juce::String text = "Capo " + juce::String{capo};
+    const float width = static_cast<float>(textWidth(metrics.label_font, text)) + 6.0f;
+    constexpr float height = 12.0f;
+    const juce::Rectangle<float> box{
+        static_cast<float>(metrics.bounds.getX()) + 2.0f,
+        static_cast<float>(metrics.bounds.getY()) + 1.0f,
+        width,
+        height
+    };
+    g.setColour(juce::Colour{0xff2a2f36});
+    g.fillRoundedRectangle(box, 2.0f);
+    g.setColour(juce::Colours::white.withAlpha(0.85f));
+    g.setFont(metrics.label_font);
+    g.drawText(text, box, juce::Justification::centred);
+}
+
 } // namespace
 
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
@@ -1329,6 +1357,8 @@ void paintTabLane(
             drawFhpMarker(g, metrics, fhp);
         }
     }
+
+    drawCapoChip(g, metrics, tab.capo);
 }
 
 } // namespace rock_hero::common::ui
