@@ -9,14 +9,15 @@
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <stdexcept>
 #include <string>
-#include <string_view>
-#include <system_error>
 #include <utility>
 
 namespace rock_hero::editor::core
 {
+
+using testing::ScopedSettingsFile;
 
 namespace
 {
@@ -301,41 +302,6 @@ TEST_CASE(
 namespace
 {
 
-// Owns a build-local game audio-config file so a game-source test starts and ends clean.
-class ScopedGameFile final
-{
-public:
-    explicit ScopedGameFile(std::string_view file_name)
-        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
-    {
-        remove();
-    }
-
-    ~ScopedGameFile()
-    {
-        remove();
-    }
-
-    ScopedGameFile(const ScopedGameFile&) = delete;
-    ScopedGameFile& operator=(const ScopedGameFile&) = delete;
-    ScopedGameFile(ScopedGameFile&&) = delete;
-    ScopedGameFile& operator=(ScopedGameFile&&) = delete;
-
-    [[nodiscard]] const std::filesystem::path& path() const noexcept
-    {
-        return m_path;
-    }
-
-private:
-    void remove() const
-    {
-        std::error_code error;
-        std::filesystem::remove(m_path, error);
-    }
-
-    std::filesystem::path m_path;
-};
-
 // Persists a calibrated game route so the editor's config store arms and reads the game source.
 void writeCalibratedGameRoute(const std::filesystem::path& game_file, const std::string& blob)
 {
@@ -367,7 +333,7 @@ TEST_CASE(
     "[core][editor-controller][audio-device-failure]")
 {
     const ScopedControllerFiles files{"failure_prompt_recommendation_precedence"};
-    const ScopedGameFile game_file{"failure_prompt_precedence.settings"};
+    const ScopedSettingsFile game_file{"failure_prompt_precedence.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};

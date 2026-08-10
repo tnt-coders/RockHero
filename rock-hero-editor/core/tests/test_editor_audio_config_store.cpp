@@ -11,53 +11,15 @@
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
-#include <string_view>
-#include <system_error>
-
-#ifndef TEST_SETTINGS_DIR
-#define TEST_SETTINGS_DIR "."
-#endif
+#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 
 namespace rock_hero::editor::core
 {
 
+using testing::ScopedSettingsFile;
+
 namespace
 {
-
-// Owns a build-local game audio-config file so each test starts and ends with no stale game state.
-class ScopedGameFile final
-{
-public:
-    explicit ScopedGameFile(std::string_view file_name)
-        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
-    {
-        remove();
-    }
-
-    ~ScopedGameFile()
-    {
-        remove();
-    }
-
-    ScopedGameFile(const ScopedGameFile&) = delete;
-    ScopedGameFile& operator=(const ScopedGameFile&) = delete;
-    ScopedGameFile(ScopedGameFile&&) = delete;
-    ScopedGameFile& operator=(ScopedGameFile&&) = delete;
-
-    [[nodiscard]] const std::filesystem::path& path() const noexcept
-    {
-        return m_path;
-    }
-
-private:
-    void remove() const
-    {
-        std::error_code error;
-        std::filesystem::remove(m_path, error);
-    }
-
-    std::filesystem::path m_path;
-};
 
 [[nodiscard]] common::audio::InputDeviceIdentity guitarIdentity()
 {
@@ -113,7 +75,7 @@ TEST_CASE(
     "EditorAudioConfigStore reports the three-state readiness of the game source",
     "[core][audio][editor-config-store]")
 {
-    const ScopedGameFile game_file{"editor_config_available.settings"};
+    const ScopedSettingsFile game_file{"editor_config_available.settings"};
     common::audio::testing::InMemoryAudioConfigStore own_store;
     const EditorAudioConfigStore store{own_store, game_file.path()};
 
@@ -142,7 +104,7 @@ TEST_CASE(
     "EditorAudioConfigStore delegates reads and writes to the active source",
     "[core][audio][editor-config-store]")
 {
-    const ScopedGameFile game_file{"editor_config_source_select.settings"};
+    const ScopedSettingsFile game_file{"editor_config_source_select.settings"};
     const common::audio::ActiveDeviceRoute editor_route = routeFor("editor-blob", guitarIdentity());
     const common::audio::ActiveDeviceRoute game_route = routeFor("game-blob", guitarIdentity());
 
@@ -192,7 +154,7 @@ TEST_CASE(
     "EditorAudioConfigStore round-trips back to the editor route on source off",
     "[core][audio][editor-config-store]")
 {
-    const ScopedGameFile game_file{"editor_config_round_trip.settings"};
+    const ScopedSettingsFile game_file{"editor_config_round_trip.settings"};
     const common::audio::ActiveDeviceRoute editor_route = routeFor("editor-blob", guitarIdentity());
 
     common::audio::testing::InMemoryAudioConfigStore own_store;
@@ -214,7 +176,7 @@ TEST_CASE(
     "EditorAudioConfigStore reads the game file fresh on each source switch",
     "[core][audio][editor-config-store]")
 {
-    const ScopedGameFile game_file{"editor_config_fresh_read.settings"};
+    const ScopedSettingsFile game_file{"editor_config_fresh_read.settings"};
     common::audio::testing::InMemoryAudioConfigStore own_store;
     EditorAudioConfigStore store{own_store, game_file.path()};
 

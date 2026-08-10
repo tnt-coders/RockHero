@@ -46,6 +46,7 @@
 #include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
+#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -1694,24 +1695,25 @@ private:
     }
 };
 
-// Owns build-local settings and project files used by restore/exit persistence tests.
+// Owns build-local settings and project files used by restore/exit persistence tests. The settings
+// file (and the audio-config sibling that rides with it) belongs to the owned ScopedSettingsFile,
+// so the settings-family cleanup rule lives in one place.
 class ScopedControllerFiles final
 {
 public:
     // Creates paired settings/project paths and removes stale files from previous runs.
     explicit ScopedControllerFiles(std::string_view base_name)
-        : m_settings_file(
-              std::filesystem::path{TEST_SETTINGS_DIR} / (std::string{base_name} + ".settings"))
+        : m_settings_file(std::string{base_name} + ".settings")
         , m_project_file(
               std::filesystem::path{TEST_SETTINGS_DIR} / (std::string{base_name} + ".rhp"))
     {
-        removeFiles();
+        removeProjectFile();
     }
 
-    // Cleans up both files so restore tests do not leak persisted state.
+    // Cleans up the project file so restore tests do not leak persisted state.
     ~ScopedControllerFiles()
     {
-        removeFiles();
+        removeProjectFile();
     }
 
     ScopedControllerFiles(const ScopedControllerFiles&) = delete;
@@ -1722,7 +1724,7 @@ public:
     // Returns the settings file owned by this fixture.
     [[nodiscard]] const std::filesystem::path& settingsFile() const noexcept
     {
-        return m_settings_file;
+        return m_settings_file.path();
     }
 
     // Returns the project file path owned by this fixture.
@@ -1739,18 +1741,15 @@ public:
     }
 
 private:
-    // Removes every fixture file on a best-effort basis, including the sibling audio-config file
-    // the owned EditorSettings store opens, so calibration state cannot leak between runs.
-    void removeFiles() const
+    // Removes the project file on a best-effort basis.
+    void removeProjectFile() const
     {
         std::error_code error;
-        std::filesystem::remove(m_settings_file, error);
         std::filesystem::remove(m_project_file, error);
-        std::filesystem::remove(EditorSettings::audioConfigFileFor(m_settings_file), error);
     }
 
     // Build-local settings file used by restore and exit persistence tests.
-    std::filesystem::path m_settings_file;
+    testing::ScopedSettingsFile m_settings_file;
 
     // Build-local project file used by restore and exit persistence tests.
     std::filesystem::path m_project_file;

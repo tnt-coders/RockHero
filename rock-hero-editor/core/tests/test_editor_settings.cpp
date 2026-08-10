@@ -9,62 +9,18 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
+#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
-
-#ifndef TEST_SETTINGS_DIR
-#define TEST_SETTINGS_DIR "."
-#endif
 
 namespace rock_hero::editor::core
 {
 
+using testing::ScopedSettingsFile;
+
 namespace
 {
-
-// Owns one build-local settings file so each test starts with clean persisted state.
-class ScopedSettingsFile final
-{
-public:
-    // Creates a settings-file path and removes any stale file from a prior test run.
-    explicit ScopedSettingsFile(std::string_view file_name)
-        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
-    {
-        removeFile();
-    }
-
-    // Removes the settings file so persistence tests cannot leak state into later tests.
-    ~ScopedSettingsFile()
-    {
-        removeFile();
-    }
-
-    ScopedSettingsFile(const ScopedSettingsFile&) = delete;
-    ScopedSettingsFile& operator=(const ScopedSettingsFile&) = delete;
-    ScopedSettingsFile(ScopedSettingsFile&&) = delete;
-    ScopedSettingsFile& operator=(ScopedSettingsFile&&) = delete;
-
-    // Returns the test-owned settings-file path.
-    [[nodiscard]] const std::filesystem::path& path() const noexcept
-    {
-        return m_path;
-    }
-
-private:
-    // Removes the settings file and the sibling audio-config file the owned store opens, on a
-    // best-effort basis, so calibration state cannot leak between runs.
-    void removeFile() const
-    {
-        std::error_code error;
-        std::filesystem::remove(m_path, error);
-        std::filesystem::remove(EditorSettings::audioConfigFileFor(m_path), error);
-    }
-
-    // Build-local settings path owned by this fixture.
-    std::filesystem::path m_path;
-};
 
 // Builds explicit settings-file options so tests can seed obsolete/raw properties.
 [[nodiscard]] juce::PropertiesFile::Options testSettingsOptions()

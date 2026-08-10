@@ -1,61 +1,13 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
-#include <string_view>
-#include <system_error>
-
-#ifndef TEST_SETTINGS_DIR
-#define TEST_SETTINGS_DIR "."
-#endif
 
 namespace rock_hero::editor::core
 {
 
-namespace
-{
-
-// Owns one build-local settings file so grid note-value persistence starts from clean state.
-class ScopedControllerSettingsFile final
-{
-public:
-    // Creates a settings-file path and removes any stale file from a prior test run.
-    explicit ScopedControllerSettingsFile(std::string_view file_name)
-        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
-    {
-        removeFile();
-    }
-
-    // Removes the settings file so persistence tests cannot leak state into later tests.
-    ~ScopedControllerSettingsFile()
-    {
-        removeFile();
-    }
-
-    ScopedControllerSettingsFile(const ScopedControllerSettingsFile&) = delete;
-    ScopedControllerSettingsFile& operator=(const ScopedControllerSettingsFile&) = delete;
-    ScopedControllerSettingsFile(ScopedControllerSettingsFile&&) = delete;
-    ScopedControllerSettingsFile& operator=(ScopedControllerSettingsFile&&) = delete;
-
-    // Returns the test-owned settings-file path.
-    [[nodiscard]] const std::filesystem::path& path() const noexcept
-    {
-        return m_path;
-    }
-
-private:
-    // Removes the settings file on a best-effort basis.
-    void removeFile() const
-    {
-        std::error_code error;
-        std::filesystem::remove(m_path, error);
-    }
-
-    // Build-local settings path owned by this fixture.
-    std::filesystem::path m_path;
-};
-
-} // namespace
+using testing::ScopedSettingsFile;
 
 // Verifies editor state represents a single displayed arrangement without extra identity.
 TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controller]")
@@ -552,7 +504,7 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
 TEST_CASE(
     "EditorController publishes and persists the grid note value", "[core][editor-controller]")
 {
-    const ScopedControllerSettingsFile settings_file{"controller_grid_spacing.settings"};
+    const ScopedSettingsFile settings_file{"controller_grid_spacing.settings"};
     EditorSettings settings{settings_file.path()};
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -610,7 +562,7 @@ TEST_CASE("EditorController ignores invalid grid note values", "[core][editor-co
 TEST_CASE(
     "EditorController restores the project grid note value on open", "[core][editor-controller]")
 {
-    const ScopedControllerSettingsFile settings_file{"restore_grid_spacing.settings"};
+    const ScopedSettingsFile settings_file{"restore_grid_spacing.settings"};
     EditorSettings settings{settings_file.path()};
     REQUIRE(settings
                 .saveProjectGridNoteValue(
@@ -698,7 +650,7 @@ TEST_CASE("EditorController resets the grid note value on import", "[core][edito
 // note value under that path; without this, a selection made before the first save is lost.
 TEST_CASE("EditorController persists the grid note value on save-as", "[core][editor-controller]")
 {
-    const ScopedControllerSettingsFile settings_file{"save_as_grid_spacing.settings"};
+    const ScopedSettingsFile settings_file{"save_as_grid_spacing.settings"};
     EditorSettings settings{settings_file.path()};
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -729,7 +681,7 @@ TEST_CASE("EditorController persists the grid note value on save-as", "[core][ed
 TEST_CASE(
     "EditorController publishes and persists tab display preferences", "[core][editor-controller]")
 {
-    const ScopedControllerSettingsFile settings_file{"tab_display_preferences.settings"};
+    const ScopedSettingsFile settings_file{"tab_display_preferences.settings"};
     EditorSettings settings{settings_file.path()};
     FakeTransport transport;
     ConfigurableSongAudio audio;

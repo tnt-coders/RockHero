@@ -5,17 +5,16 @@
 #include <variant>
 #include <vector>
 
-namespace
+namespace rock_hero::game::core
 {
 
-using namespace std::chrono_literals;
-using rock_hero::game::core::ChartSourceWatcher;
-using rock_hero::game::core::DiagnosticsController;
-using rock_hero::game::core::DiagnosticsIntent;
-using rock_hero::game::core::ReloadChartIntent;
-using rock_hero::game::core::SeekToSectionIntent;
+using std::chrono_literals::operator""ms;
+using std::chrono_literals::operator""ns;
+using std::chrono_literals::operator""s;
 
-TEST_CASE("Diagnostics controller starts visible in dev mode", "[diagnostics]")
+// The dev flag decides activation and the initial overlay visibility together, so a player build
+// starts fully inert: no overlay, no autoplay.
+TEST_CASE("Diagnostics controller starts visible in dev mode", "[core][diagnostics]")
 {
     const DiagnosticsController dev_controller{true};
     CHECK(dev_controller.state().dev_mode);
@@ -27,7 +26,9 @@ TEST_CASE("Diagnostics controller starts visible in dev mode", "[diagnostics]")
     CHECK_FALSE(player_controller.state().overlay_visible);
 }
 
-TEST_CASE("Diagnostics controller toggles flip state in dev mode", "[diagnostics]")
+// Both toggles are flips rather than one-way latches, so a repeated key press hides the overlay
+// again and autoplay can be switched back off without restarting the session.
+TEST_CASE("Diagnostics controller toggles flip state in dev mode", "[core][diagnostics]")
 {
     DiagnosticsController controller{true};
 
@@ -42,7 +43,9 @@ TEST_CASE("Diagnostics controller toggles flip state in dev mode", "[diagnostics
     CHECK_FALSE(controller.state().autoplay_enabled);
 }
 
-TEST_CASE("Diagnostics controller ignores every mutation outside dev mode", "[diagnostics]")
+// The dev-mode gate is enforced here once instead of at each call site, so a key binding that
+// fires in a player build can neither change diagnostics state nor queue an intent for the shell.
+TEST_CASE("Diagnostics controller ignores every mutation outside dev mode", "[core][diagnostics]")
 {
     DiagnosticsController controller{false};
 
@@ -56,7 +59,9 @@ TEST_CASE("Diagnostics controller ignores every mutation outside dev mode", "[di
     CHECK(controller.takePendingIntents().empty());
 }
 
-TEST_CASE("Diagnostics controller queues and drains intents in order", "[diagnostics]")
+// Request order and payloads survive to the shell that executes them, and a drain empties the
+// queue so the shell can never run the same intent twice.
+TEST_CASE("Diagnostics controller queues and drains intents in order", "[core][diagnostics]")
 {
     DiagnosticsController controller{true};
 
@@ -73,7 +78,9 @@ TEST_CASE("Diagnostics controller queues and drains intents in order", "[diagnos
     CHECK(controller.takePendingIntents().empty());
 }
 
-TEST_CASE("Chart source watcher primes on the first observation", "[diagnostics]")
+// The first sample only records the baseline. The initial load already consumed that content, so
+// priming must never report a reload no matter how long the stamp then sits unchanged.
+TEST_CASE("Chart source watcher primes on the first observation", "[core][diagnostics]")
 {
     ChartSourceWatcher watcher{250ms};
 
@@ -82,7 +89,9 @@ TEST_CASE("Chart source watcher primes on the first observation", "[diagnostics]
     CHECK_FALSE(watcher.update(std::chrono::nanoseconds{100}, 10s));
 }
 
-TEST_CASE("Chart source watcher reports a change only after it settles", "[diagnostics]")
+// Editors and package writers touch a file several times per save, so reporting per sample would
+// reload mid-write. A settled change reports exactly once, and a later change repeats the cycle.
+TEST_CASE("Chart source watcher reports a change only after it settles", "[core][diagnostics]")
 {
     ChartSourceWatcher watcher{250ms};
     REQUIRE_FALSE(watcher.update(std::chrono::nanoseconds{100}, 0ns));
@@ -100,7 +109,10 @@ TEST_CASE("Chart source watcher reports a change only after it settles", "[diagn
     CHECK(watcher.update(std::chrono::nanoseconds{300}, 3s + 250ms));
 }
 
-TEST_CASE("Chart source watcher restarts settling while the stamp keeps moving", "[diagnostics]")
+// The settle window is measured from the last movement, not the first, so a write burst yields one
+// reload after the burst ends instead of one in the middle of it.
+TEST_CASE(
+    "Chart source watcher restarts settling while the stamp keeps moving", "[core][diagnostics]")
 {
     ChartSourceWatcher watcher{250ms};
     REQUIRE_FALSE(watcher.update(std::chrono::nanoseconds{100}, 0ns));
@@ -115,7 +127,9 @@ TEST_CASE("Chart source watcher restarts settling while the stamp keeps moving",
     CHECK(watcher.update(std::chrono::nanoseconds{400}, 1s + 660ms));
 }
 
-TEST_CASE("Chart source watcher ignores missing samples and reverts", "[diagnostics]")
+// The two ways a watched file lies: it vanishes briefly during an atomic replace, and a save can
+// restore the original stamp. Neither may cost a reload of content the consumer already holds.
+TEST_CASE("Chart source watcher ignores missing samples and reverts", "[core][diagnostics]")
 {
     ChartSourceWatcher watcher{250ms};
     REQUIRE_FALSE(watcher.update(std::chrono::nanoseconds{100}, 0ns));
@@ -130,4 +144,4 @@ TEST_CASE("Chart source watcher ignores missing samples and reverts", "[diagnost
     CHECK_FALSE(watcher.update(std::chrono::nanoseconds{100}, 10s));
 }
 
-} // namespace
+} // namespace rock_hero::game::core

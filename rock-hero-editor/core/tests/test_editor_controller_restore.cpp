@@ -7,51 +7,17 @@
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/testing/scoped_settings_file.h>
 #include <string>
-#include <string_view>
-#include <system_error>
 #include <vector>
 
 namespace rock_hero::editor::core
 {
 
+using testing::ScopedSettingsFile;
+
 namespace
 {
-
-// Owns a build-local game audio-config file so a game-source restore test starts and ends clean.
-class ScopedGameFile final
-{
-public:
-    explicit ScopedGameFile(std::string_view file_name)
-        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
-    {
-        remove();
-    }
-
-    ~ScopedGameFile()
-    {
-        remove();
-    }
-
-    ScopedGameFile(const ScopedGameFile&) = delete;
-    ScopedGameFile& operator=(const ScopedGameFile&) = delete;
-    ScopedGameFile(ScopedGameFile&&) = delete;
-    ScopedGameFile& operator=(ScopedGameFile&&) = delete;
-
-    [[nodiscard]] const std::filesystem::path& path() const noexcept
-    {
-        return m_path;
-    }
-
-private:
-    void remove() const
-    {
-        std::error_code error;
-        std::filesystem::remove(m_path, error);
-    }
-
-    std::filesystem::path m_path;
-};
 
 // Persists a calibrated game route so the editor's config store arms and reads the game source.
 void writeCalibratedGameRoute(const std::filesystem::path& game_file, const std::string& blob)
@@ -614,7 +580,7 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_source_persist_no_own_write"};
-    const ScopedGameFile game_file{"game_source_persist.settings"};
+    const ScopedSettingsFile game_file{"game_source_persist.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
@@ -662,7 +628,7 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_source_clear_no_own_write"};
-    const ScopedGameFile game_file{"game_source_clear.settings"};
+    const ScopedSettingsFile game_file{"game_source_clear.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
@@ -731,7 +697,7 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_toggle_instant"};
-    const ScopedGameFile game_file{"game_toggle_instant.settings"};
+    const ScopedSettingsFile game_file{"game_toggle_instant.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
@@ -805,7 +771,7 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_toggle_reopen"};
-    const ScopedGameFile game_file{"game_toggle_reopen.settings"};
+    const ScopedSettingsFile game_file{"game_toggle_reopen.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
@@ -875,7 +841,7 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_toggle_inline"};
-    const ScopedGameFile game_file{"game_toggle_inline.settings"};
+    const ScopedSettingsFile game_file{"game_toggle_inline.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
@@ -934,7 +900,7 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_startup_broken"};
-    const ScopedGameFile game_file{"game_startup_broken.settings"};
+    const ScopedSettingsFile game_file{"game_startup_broken.settings"};
 
     GameAudioSourceErrorCode expected_code{};
     SECTION("an uncalibrated game route reports the calibrate-in-game reason")
@@ -1008,7 +974,7 @@ TEST_CASE(
     "EditorController startup recommends an adoptable game source", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_startup_recommend"};
-    const ScopedGameFile game_file{"game_startup_recommend.settings"};
+    const ScopedSettingsFile game_file{"game_startup_recommend.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
@@ -1086,7 +1052,7 @@ TEST_CASE(
     "EditorController startup honors the recommendation suppression", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_startup_suppressed"};
-    const ScopedGameFile game_file{"game_startup_suppressed.settings"};
+    const ScopedSettingsFile game_file{"game_startup_suppressed.settings"};
     writeCalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
@@ -1124,7 +1090,7 @@ TEST_CASE(
 TEST_CASE("EditorController declines enabling a broken game source", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"game_toggle_declined"};
-    const ScopedGameFile game_file{"game_toggle_declined.settings"};
+    const ScopedSettingsFile game_file{"game_toggle_declined.settings"};
     writeUncalibratedGameRoute(game_file.path(), "game-device-state");
 
     EditorSettings settings{files.settingsFile()};
