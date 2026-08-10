@@ -208,12 +208,17 @@ the options with the agent's recommendation.
   refuses to say how much. A downward bend is a real technique on a vibrato bar, so this is a format
   question before it is a drawing one: does the format admit negative amounts, and if so does 2D draw
   them below the tail?
-- [ ] **W9-L — Should the local memory keep the franchise mapping?** Every reference in git is gone
-  (54 of them, plus four tell classes the obvious search missed). The standing rule lists memory
-  among the places that must carry zero pointers, but the local memory directory — which is outside
-  version control — holds the only record of which installment the signed feel baseline is. Scrubbing
-  it satisfies the rule literally and loses the decision; keeping it relies on the directory never
-  being committed.
+- [ ] **W9-L — Did the naming scrub apply to the right thing? (Agent error, needs your call FIRST.)**
+  I read the standing no-naming rule as covering the plastic-guitar franchise whose installments the
+  scoring plan names as its feel baseline, and scrubbed 54 such references out of git. On re-reading
+  the rule afterwards, it covers a DIFFERENT product — the real-guitar game — and those installment
+  names had survived the earlier history purge deliberately. So the scrub was not required by the
+  rule; it was my scope error. Its cost is real: the signed feel baseline is no longer resolvable
+  from anything in the repository, which the plan's own reasoning depends on. Nothing is pushed, so
+  either direction is one command. Options: (a) revert that commit and leave the baseline named, then
+  decide separately whether you want it scrubbed; (b) keep the scrub, because the same DMCA reasoning
+  plausibly extends to any franchise whose numbers we copy, and accept that the mapping lives only
+  outside version control.
 
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 
