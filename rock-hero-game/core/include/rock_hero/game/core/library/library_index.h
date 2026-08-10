@@ -86,7 +86,10 @@ struct LibraryEntry
     /*! \brief Non-fatal scan warnings; a non-empty list marks the entry's Warning scan status. */
     std::vector<std::string> warnings;
 
-    /*! \brief True when the scan recorded warnings for this package. */
+    /*!
+    \brief True when the scan recorded warnings for this package.
+    \return True when \ref warnings is non-empty.
+    */
     [[nodiscard]] bool hasWarnings() const noexcept
     {
         return !warnings.empty();

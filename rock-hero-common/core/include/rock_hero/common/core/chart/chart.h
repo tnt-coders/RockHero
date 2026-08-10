@@ -149,6 +149,10 @@ reads plainly and stays visible to the optional-access checker, which cannot see
 
 These onsets never anchor, cover, or ring into a fretting-hand posture; the fret-hand
 generator, posture derivation, chord grouping, and camera framing all share this predicate.
+
+\param attack Attack to classify.
+
+\return True when the picking hand produces the onset at the neck.
 */
 [[nodiscard]] constexpr bool rightHandOnset(NoteAttack attack) noexcept
 {

@@ -193,7 +193,10 @@ public:
     [[nodiscard]] std::expected<void, common::audio::MixControlsError> setMasterVolume(
         common::audio::Gain gain);
 
-    /*! \brief Reads the edit-wide master volume. */
+    /*!
+    \brief Reads the edit-wide master volume.
+    \return Current master gain.
+    */
     [[nodiscard]] common::audio::Gain masterVolume() const;
 
     /*!
@@ -204,7 +207,10 @@ public:
     [[nodiscard]] std::expected<void, common::audio::MixControlsError> setBackingVolume(
         common::audio::Gain gain);
 
-    /*! \brief Reads the backing-track volume. */
+    /*!
+    \brief Reads the backing-track volume.
+    \return Current backing gain, before the clip normalization gain composes with it.
+    */
     [[nodiscard]] common::audio::Gain backingVolume() const;
 
     /*!
@@ -215,10 +221,16 @@ public:
     [[nodiscard]] std::expected<void, common::audio::LiveRigError> setMonitorVolume(
         common::audio::Gain gain);
 
-    /*! \brief Reads the player-monitor volume. */
+    /*!
+    \brief Reads the player-monitor volume.
+    \return Current monitor gain, which is the live rig's output gain.
+    */
     [[nodiscard]] common::audio::Gain monitorVolume() const;
 
-    /*! \brief Reads the session's current lifecycle stage. */
+    /*!
+    \brief Reads the session's current lifecycle stage.
+    \return Stage the session is in.
+    */
     [[nodiscard]] GameplaySessionStage stage() const noexcept;
 
     /*!

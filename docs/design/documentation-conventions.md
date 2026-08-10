@@ -156,8 +156,15 @@ If a Doxygen comment contains only a `\brief`, keep the entire comment on one li
 within the 100-character line limit:
 
 \code{.cpp}
-/*! \brief Reports whether the transport is currently playing. */
+/*! \brief Stops the transport and returns the playhead to the loop start. */
 \endcode
+
+The one-line form is only available when the entity needs no other tag, so in practice it is for
+`void` functions, data members, types, and enumerators. A function that RETURNS something always
+needs a `\return` (see Required Fields below), which means it always needs the multi-line form — a
+brief-only one-liner on a value-returning function is wrong however well it fits. This paragraph
+exists because the example here used to be exactly that, and the two sections contradicted each
+other for long enough that eleven declarations followed the wrong one.
 
 The full Doxygen block must be indented to the same level as the declaration it documents. Every
 line inside the block uses that same indentation, including `\brief`, body paragraphs, tags, and

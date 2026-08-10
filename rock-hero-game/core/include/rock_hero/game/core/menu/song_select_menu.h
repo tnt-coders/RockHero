@@ -60,16 +60,28 @@ public:
     */
     void handle(MenuAction action);
 
-    /*! \brief The list currently shown. */
+    /*!
+    \brief The list currently shown.
+    \return Screen the menu is currently on.
+    */
     [[nodiscard]] SongSelectScreen screen() const noexcept;
 
-    /*! \brief The scanned library, for rendering the song list. */
+    /*!
+    \brief The scanned library, for rendering the song list.
+    \return Library the menu was built over; it outlives the menu.
+    */
     [[nodiscard]] const LibraryIndex& library() const noexcept;
 
-    /*! \brief Index of the highlighted song row. */
+    /*!
+    \brief Index of the highlighted song row.
+    \return Zero-based index into the library's songs.
+    */
     [[nodiscard]] std::size_t selectedSongIndex() const noexcept;
 
-    /*! \brief Index of the highlighted arrangement row (meaningful on the arrangement screen). */
+    /*!
+    \brief Index of the highlighted arrangement row (meaningful on the arrangement screen).
+    \return Zero-based index into the highlighted song's arrangements.
+    */
     [[nodiscard]] std::size_t selectedArrangementIndex() const noexcept;
 
     /*!
