@@ -2033,6 +2033,7 @@ void resolveSlideOutExits(
     int notes_off_the_instrument = 0;
     int frets_off_the_neck = 0;
     int nodes_off_the_string = 0;
+    int strikeless_taps = 0;
     int unsupported_harmonics = 0;
     int semi_as_pinch = 0;
     int implausible_natural_labels = 0;
@@ -2272,6 +2273,19 @@ void resolveSlideOutExits(
                 // too. The note survives as an ordinary note; the count keeps the loss loud.
                 ++unsupported_harmonics;
             }
+        }
+
+        // A tap needs somewhere to strike (E4): a fret, or a harmonic's node. A `Tapped` flag on an
+        // open string with no node is junk data, and the legato repair turns it into a plain pick —
+        // but that runs at the very END of the build, long after the chord-shape and hand-window
+        // passes have read the attack, and both treat a tap as a picking-hand onset that anchors
+        // nothing and closes no span. Deciding it here, the moment the node is known, is what keeps
+        // those passes from shaping a song around an attack that will not survive. It needs no
+        // context at all, which is why it can move this early and the rest of the repair cannot.
+        if (note.attack == NoteAttack::Tap && note.fret == 0 && !note.harmonic_node.has_value())
+        {
+            note.attack = NoteAttack::Pick;
+            ++strikeless_taps;
         }
 
         if (source.bend.has_value())
@@ -2590,6 +2604,12 @@ void resolveSlideOutExits(
         notes.push_back(
             std::to_string(nodes_off_the_string) +
             " harmonics named a node the note cannot reach and defaulted to the octave");
+    }
+    if (strikeless_taps > 0)
+    {
+        notes.push_back(
+            std::to_string(strikeless_taps) +
+            " tapped open strings had nothing to strike and read as plain picks");
     }
 
     // The generator reads onsets, waypoint positions, and — for held-note detection at slide
