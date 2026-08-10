@@ -551,6 +551,10 @@ void drawSlideWaypointHeads(
         fillHeadShape(g, style.border_inner, style.linked_inner, x, center_y, size, shape);
         if (metrics.draw_text)
         {
+            // A junction labels its own stop through the SAME rule the onset head uses, so one
+            // gesture cannot show two different quantities: on a harmonic the onset labels the
+            // node, and so does the junction, transposed to where the glide has arrived.
+            const juce::String text = tabNoteHeadText(note, waypoint.fret);
             // The plectrum's digit rides the same raise its onset head uses, so the two
             // plectrum numbers on one gesture cannot sit at different heights.
             const float digit_raise =
@@ -558,7 +562,7 @@ void drawSlideWaypointHeads(
             g.setColour(juce::Colours::white);
             g.setFont(metrics.fret_font);
             g.drawText(
-                juce::String{waypoint.fret},
+                text,
                 juce::Rectangle<float>{
                     x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
                 },
@@ -1000,7 +1004,7 @@ void drawNoteHead(
 
     if (metrics.draw_text)
     {
-        const juce::String head_text = tabNoteHeadText(note);
+        const juce::String head_text = tabNoteHeadText(note, note.fret);
         if (note.mute != common::core::NoteMute::None)
         {
             // Charter boxes the fret number on full mutes so it stays readable over the X;
@@ -1163,13 +1167,18 @@ void strokeTabNoteHeadOutline(
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
-juce::String tabNoteHeadText(const common::core::TabNoteView& note)
+juce::String tabNoteHeadText(const common::core::TabNoteView& note, const int fret_at_head)
 {
     if (!note.harmonic_node.has_value() || !common::core::nodeIsOnNeck(note.attack))
     {
-        return juce::String{note.fret};
+        return juce::String{fret_at_head};
     }
-    juce::String text{*note.harmonic_node, 1};
+    // The node rides its stop. Fret spacing is logarithmic, so a node's offset above the stop is
+    // constant in fret units and a glide that moves the stop moves the node by the same amount —
+    // which is what lets one rule label every head of a gesture. At an onset `fret_at_head` IS
+    // the note's fret and the shift is zero, so this is the node as stored.
+    const double node_at_head = *note.harmonic_node + static_cast<double>(fret_at_head - note.fret);
+    juce::String text{node_at_head, 1};
     if (text.endsWith(".0"))
     {
         text = text.dropLastCharacters(2);

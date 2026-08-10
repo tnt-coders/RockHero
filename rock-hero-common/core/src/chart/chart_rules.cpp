@@ -53,11 +53,16 @@ bool chartShapeArrivesAsArpeggio(
     // A held chord played under a right-hand onset reads as a held arpeggio, not a strummed
     // box: the fretting hand holds the shape while the other hand sounds above it — taps and
     // pick slides alike. Any such note sounding within the span flips the box.
+    //
+    // The scan rides the binary search above rather than restarting at begin(): the notes it
+    // wants are the contiguous sorted run [shape.position, span_end), which is exactly what
+    // `first_at_start` already resolved. Both projections call this once per shape and both
+    // rebuild on every chart revision, so the discarded prefix was shapes x notes of wasted
+    // walking on every keystroke of an edit.
     const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
-    for (const ChartNote& note : chart.notes)
+    for (auto it = first_at_start; it != chart.notes.end() && it->position < span_end; ++it)
     {
-        if (rightHandOnset(note.attack) && !(note.position < shape.position) &&
-            note.position < span_end)
+        if (rightHandOnset(it->attack))
         {
             return true;
         }

@@ -227,7 +227,7 @@ TEST_CASE("Tab paint core labels a harmonic head with its node", "[ui][tab-paint
         note.fret = fret;
         note.attack = attack;
         note.harmonic_node = node;
-        return common::ui::tabNoteHeadText(note);
+        return common::ui::tabNoteHeadText(note, note.fret);
     };
     constexpr auto pick = common::core::NoteAttack::Pick;
 

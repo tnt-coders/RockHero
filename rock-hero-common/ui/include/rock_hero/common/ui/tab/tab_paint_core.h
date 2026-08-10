@@ -45,7 +45,7 @@ projection must agree on it so a chip visually belongs to the rails below it.
 [[nodiscard]] juce::Colour tabShapeMarkColor(bool arpeggio);
 
 /*!
-\brief Returns the number a note head carries: its harmonic node when it has one, else its fret.
+\brief Returns the number a head carries for this note stopped at `fret_at_head`.
 
 A fret-hand harmonic names its **node** rather than its fret, because the node is what sets the
 pitch and is where the finger actually is — a natural harmonic's `fret` is only an integer anchor.
@@ -56,10 +56,17 @@ positions stay as narrow as an ordinary fret number.
 A **pinch** keeps its fret: its node sits off the neck over the pickups, and 2D has no axis to place
 that on, so drawing it would name a fret the hand is nowhere near (roadmap 25-Q5).
 
+The stop is a parameter because one gesture has more than one head: the onset passes the note's own
+fret, and a linked slide junction passes the fret the glide has reached, so every head of a gesture
+states the same QUANTITY (a harmonic labels nodes at all of them, not a node at the onset and a raw
+fret at the junctions).
+
 \param note Projected note to label.
+\param fret_at_head Fret the head being labeled sits at — `note.fret` at the onset, the waypoint's
+       fret at a linked junction.
 \return Head text, never empty.
 */
-[[nodiscard]] juce::String tabNoteHeadText(const common::core::TabNoteView& note);
+[[nodiscard]] juce::String tabNoteHeadText(const common::core::TabNoteView& note, int fret_at_head);
 
 /*!
 \brief Returns the vertical center of one string lane inside JUCE component bounds.

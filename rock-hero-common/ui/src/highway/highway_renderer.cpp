@@ -4303,10 +4303,16 @@ void HighwayRenderer::Impl::draw(
         const double far_x =
             common::core::highwayFretLineX(capo_line - g_capo_bar_far_fraction, metrics, mirrored);
         const auto [bar_x0, bar_x1] = std::minmax(near_x, far_x);
-        const double overhang = metrics.string_distance * g_capo_bar_overhang_strings;
-        const double bar_y0 = face_bottom_y - overhang;
-        const double bar_y1 = face_top_y + overhang;
         const double rim = g_capo_bar_rim_fraction * metrics.first_fret_distance;
+        const double overhang = metrics.string_distance * g_capo_bar_overhang_strings;
+        // The clamp lets the bar hang past the top lane freely but only as far DOWN as the floor
+        // allows: the floor is the origin and nothing draws below it, while the gap under the
+        // string grid is the chord box's bottom-bar thickness. At the shipped metrics the wanted
+        // overhang (0.105) is larger than that gap (0.075), so the unclamped bar sat at y = -0.03
+        // with its rim at -0.085 — punched through the board's floor from underneath.
+        const double overhang_below = std::clamp(overhang, 0.0, std::max(0.0, face_bottom_y - rim));
+        const double bar_y0 = face_bottom_y - overhang_below;
+        const double bar_y1 = face_top_y + overhang;
         pushFaceQuad(
             vertices,
             indices,

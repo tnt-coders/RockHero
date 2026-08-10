@@ -21,6 +21,33 @@ inference from surrounding code when one of them speaks to the question directly
 Trivial renames, formatting-only edits, factual answers, status checks, and narrow mechanical
 follow-ups should not trigger the full documentation bootstrap.
 
+## Simplicity Yields Only to Correctness
+
+The first bar, and it binds every task — not just reviews. **Strive extensively for simplicity of
+design. The only thing simplicity yields to is correctness.**
+
+The operational test: whenever a fix, a review finding, or a new feature points at a MORE
+COMPLICATED path — a new branch, flag, field, parameter, or helper — stop and scrutinize whether
+the EXISTING design is simply flawed, and whether a simpler model falls out that DELETES code
+instead of adding it. Adding is a signal to re-examine the design, never a conclusion. Prefer
+generalizing the one authority that already exists over introducing a second; treat two places
+that must agree by hand as a defect rather than a style question; and when only the more complex
+shape is correct, say plainly why the simple one is wrong instead of quietly adding.
+
+**And when simplicity does yield to correctness, that yield is itself a finding.** Needing extra
+complexity to be correct is evidence that something in the design underneath may be wrong, so it
+immediately warrants a deeper look at the core of that design rather than a shrug and a patch.
+Ask what shape would have made the complexity unnecessary — a different decomposition, a datum
+stored once instead of derived twice, an illegal state made unrepresentable — and if such a shape
+exists, say so even when it is larger than the task at hand. The yield is never a licence to stop
+looking; it is the moment to look hardest.
+
+A worked example, because the pattern recurs. A slide junction's head printed a raw fret where the
+note's onset head printed a harmonic node. The obvious fix added a second node-or-fret decision at
+the junction — a copy of the onset's rule. The simpler model instead generalized the ONE existing
+function to take the stop being labeled (`tabNoteHeadText(note, fret_at_head)`), so the junction
+reuses the rule rather than restating it: one authority, two call sites, net code removed.
+
 ## Design Quality Bar (No Shortcuts)
 
 This bar binds every model and overrides any process rule it conflicts with.
