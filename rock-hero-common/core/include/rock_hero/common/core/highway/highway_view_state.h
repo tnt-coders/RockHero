@@ -444,7 +444,15 @@ struct HighwaySectionView
     /*! \brief Absolute position the section starts at. */
     double seconds{0.0};
 
-    /*! \brief Free-form section name, such as "verse" or "chorus". */
+    /*!
+    \brief Section name upper-cased for the board, such as "VERSE" or "CHORUS".
+
+    Display-ready on purpose. The highway draws every section name upper-cased, and folding the case
+    here rather than in the renderer keeps a pure function of the chart out of the per-frame path,
+    where it was allocating and transforming a fresh string for every visible section every frame.
+    Only the 3D board reads this view, so the case fold cannot leak into the 2D ruler, which shows
+    the authored name.
+    */
     std::string name;
 
     /*!
@@ -535,54 +543,6 @@ struct HighwayViewState
     */
     friend bool operator==(const HighwayViewState& lhs, const HighwayViewState& rhs) = default;
 };
-
-/*!
-\brief Builds the running maximum of note sustain ends, one entry per note.
-
-The highway spelling of makeSustainPrefixMax, which carries the table's contract.
-
-\param notes Seconds-resolved notes sorted by start time.
-\return Non-decreasing prefix maximum of end_seconds, sized like notes.
-*/
-[[nodiscard]] inline std::vector<double> makeHighwaySustainPrefixMax(
-    const std::vector<HighwayNoteView>& notes)
-{
-    return makeSustainPrefixMax(notes | std::views::transform(&HighwayNoteView::end_seconds));
-}
-
-/*!
-\brief Builds the running maximum of per-note end times supplied directly.
-
-Overload for callers whose display end differs from the raw sustain end — the highway renderer
-feeds the hold ends from highwayDisplayHoldEnds so span-held strums stay in the visible range
-while their heads pin at the hit line.
-
-\param end_seconds Per-note end times, ordered like the note list they describe.
-\return Non-decreasing prefix maximum of the entries, sized like the input.
-*/
-[[nodiscard]] inline std::vector<double> makeHighwaySustainPrefixMax(
-    const std::vector<double>& end_seconds)
-{
-    return makeSustainPrefixMax(end_seconds);
-}
-
-/*!
-\brief Returns the note index range that can intersect a visible time span.
-
-The highway spelling of visibleEventRange, which carries the search and its invariants.
-
-\param notes Seconds-resolved notes sorted by start time.
-\param prefix_max_end_seconds Running maximum of note end times from makeHighwaySustainPrefixMax.
-\param span_start_seconds Visible span start.
-\param span_end_seconds Visible span end.
-\return Half-open [first, last) index range of candidate notes.
-*/
-[[nodiscard]] inline std::pair<std::size_t, std::size_t> highwayVisibleNoteRange(
-    const std::vector<HighwayNoteView>& notes, const std::vector<double>& prefix_max_end_seconds,
-    double span_start_seconds, double span_end_seconds) noexcept
-{
-    return visibleEventRange(notes, prefix_max_end_seconds, span_start_seconds, span_end_seconds);
-}
 
 /*!
 \brief Tolerance for matching an onset to another onset or a shape-span boundary.

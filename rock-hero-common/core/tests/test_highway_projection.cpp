@@ -369,7 +369,11 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.sections[0].name == "verse");
+    // Upper-cased by the projection, not the renderer: the board draws every section name that way,
+    // and folding the case here keeps a pure function of the chart out of the per-frame path, where
+    // it was allocating and transforming a string per visible section per frame. The authored name
+    // is untouched in the song, and the 2D ruler still shows it as written.
+    CHECK(state.sections[0].name == "VERSE");
 }
 
 // The two surfaces may never disagree about the same chart fact, so one chart is projected both
@@ -767,7 +771,8 @@ TEST_CASE("Highway projection is empty without a chart", "[core][highway]")
     CHECK(state.beats.empty());
     CHECK(state.camera_zone_starts.empty());
     REQUIRE(state.sections.size() == 1);
-    CHECK(state.sections[0].name == "verse");
+    // Sections are song-level, so they survive a chartless arrangement — and arrive board-ready.
+    CHECK(state.sections[0].name == "VERSE");
 }
 
 // The lefty mirror is a pure fret-axis reflection: mirrored X is the negation of unmirrored X
@@ -825,21 +830,22 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
     add_note(2.0, 2.2);
     add_note(10.0, 11.0);
 
-    const std::vector<double> prefix_max = makeHighwaySustainPrefixMax(notes);
+    const std::vector<double> prefix_max =
+        makeSustainPrefixMax(notes | std::views::transform(&HighwayNoteView::end_seconds));
     REQUIRE(prefix_max.size() == 4);
     CHECK(prefix_max[2] == Catch::Approx(5.0));
 
     // Span inside the long sustain: starts at the sustaining note, ends before the late note.
-    const auto mid = highwayVisibleNoteRange(notes, prefix_max, 3.0, 4.0);
+    const auto mid = visibleEventRange(notes, prefix_max, 3.0, 4.0);
     CHECK(mid.first == 0);
     CHECK(mid.second == 3);
 
     // Span between the sustain end and the late note: empty.
-    const auto gap = highwayVisibleNoteRange(notes, prefix_max, 6.0, 9.0);
+    const auto gap = visibleEventRange(notes, prefix_max, 6.0, 9.0);
     CHECK(gap.first == gap.second);
 
     // Span over the late note only.
-    const auto late = highwayVisibleNoteRange(notes, prefix_max, 10.5, 12.0);
+    const auto late = visibleEventRange(notes, prefix_max, 10.5, 12.0);
     CHECK(late.first == 3);
     CHECK(late.second == 4);
 }
@@ -894,7 +900,7 @@ TEST_CASE("Highway display hold ends span-extend sustainless strums", "[core][hi
     CHECK(hold_ends[10] == Catch::Approx(9.0));
 
     // The hold ends feed the visible range through the end-time prefix-max overload.
-    const std::vector<double> prefix_max = makeHighwaySustainPrefixMax(hold_ends);
+    const std::vector<double> prefix_max = makeSustainPrefixMax(hold_ends);
     REQUIRE(prefix_max.size() == hold_ends.size());
     CHECK(prefix_max[2] == Catch::Approx(5.0));
     CHECK(prefix_max[7] == Catch::Approx(8.0));

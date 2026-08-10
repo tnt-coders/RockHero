@@ -33,11 +33,18 @@ HighwayViewState makeHighwayViewState(
     state.sections.reserve(sections.size());
     for (const SongSection& section : sections)
     {
+        // Upper-cased here, once per projection, because the board draws every section name that way
+        // and doing it in the renderer meant a fresh allocation and transform per visible section per
+        // frame for a value that only changes when the chart does.
+        std::string name = section.name;
+        std::ranges::transform(name, name.begin(), [](const char character) {
+            return static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
+        });
         state.sections.push_back(
             HighwaySectionView{
                 .seconds = tempo_map.secondsAtGlobalBeatPosition(
                     globalBeatPosition(tempo_map, section.position)),
-                .name = section.name,
+                .name = std::move(name),
             });
     }
 

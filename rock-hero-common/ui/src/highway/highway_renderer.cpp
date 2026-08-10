@@ -1253,8 +1253,7 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     m_impl->state = std::move(state);
     m_impl->display_hold_ends =
         common::core::highwayDisplayHoldEnds(m_impl->state.notes, m_impl->state.shapes);
-    m_impl->sustain_prefix_max =
-        common::core::makeHighwaySustainPrefixMax(m_impl->display_hold_ends);
+    m_impl->sustain_prefix_max = common::core::makeSustainPrefixMax(m_impl->display_hold_ends);
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
 }
@@ -2005,7 +2004,7 @@ void HighwayRenderer::Impl::draw(
 
     // --- Notes: per-note geometry batched per onset group and flushed far-to-near (see
     // flush_note_batches below). ---
-    const auto [first_note, last_note] = common::core::highwayVisibleNoteRange(
+    const auto [first_note, last_note] = common::core::visibleEventRange(
         state.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
 
     std::vector<PosColorVertex> shadow_vertices;
@@ -2515,7 +2514,14 @@ void HighwayRenderer::Impl::draw(
                     .tap = &tap,
                 });
         }
-        std::ranges::sort(boxes, [](const BoxDraw& lhs, const BoxDraw& rhs) {
+        // Stable, because onset alone is not a total order here and the note sweep above learned
+        // this the hard way: two boxes at one onset (a tap-and-strum instant emits a plain box and
+        // a tapped box) compare equivalent, and a non-stable sort then orders their overlapping
+        // panels by whatever the pivot sequence happened to be, which flickers as other boxes
+        // scroll in and out. The build order above is deterministic, so making the sort stable is
+        // enough — no tiebreak key needed, unlike the note sweep where the draw order also has to
+        // resolve lane height.
+        std::ranges::stable_sort(boxes, [](const BoxDraw& lhs, const BoxDraw& rhs) {
             return lhs.start_seconds > rhs.start_seconds;
         });
 
@@ -4540,12 +4546,10 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            std::string label = section.name;
-            std::ranges::transform(label, label.begin(), [](const char c) {
-                return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-            });
+            // Already upper-cased by the projection, which is where a pure function of the chart
+            // belongs.
             (void)push_text(
-                label,
+                section.name,
                 handWindowXAt(state, section.seconds, metrics, mirrored).first,
                 section_y,
                 time_to_z(section.seconds),
@@ -4761,7 +4765,7 @@ void HighwayRenderer::Impl::draw(
         // machine-gun case the clamp exists for, and the per-line max absorbs overlap. The
         // sustain-aware range query covers a long sustain sliding or bending at its very end,
         // whose onset left the cluster walk's window long ago.
-        const auto [waypoint_first, waypoint_last] = common::core::highwayVisibleNoteRange(
+        const auto [waypoint_first, waypoint_last] = common::core::visibleEventRange(
             state.notes, sustain_prefix_max, now_seconds - g_hit_glow_release_seconds, now_seconds);
         for (std::size_t index = waypoint_first; index < waypoint_last; ++index)
         {
