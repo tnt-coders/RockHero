@@ -2,16 +2,15 @@
 
 #include <algorithm>
 #include <cctype>
-#include <charconv>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
 #include <expected>
 #include <filesystem>
+#include <optional>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <set>
 #include <string>
-#include <system_error>
 #include <utility>
 
 namespace rock_hero::common::core
@@ -177,38 +176,24 @@ constexpr double g_timing_epsilon = 1.0e-9;
     return std::expected<void, SongPackageError>{};
 }
 
-// Parses a grid position token: "<measure>:<beat>".
+// The whole-beat token is the shared grid grammar restricted to a zero offset, so it defers to that
+// grammar rather than re-deriving the colon split, the digit parse and the positivity rules. Only
+// the restriction is stated here.
 std::optional<BeatPositionToken> parseBeatPositionToken(const std::string& text)
 {
-    const std::size_t colon = text.find(':');
-    if (colon == std::string::npos || text.find('+') != std::string::npos)
+    const std::optional<GridPosition> position = parseGridPositionToken(text);
+    if (!position.has_value() || position->offset.numerator != 0)
     {
         return std::nullopt;
     }
 
-    int measure = 0;
-    if (const auto result = std::from_chars(text.data(), text.data() + colon, measure);
-        result.ec != std::errc{} || result.ptr != text.data() + colon || measure <= 0)
-    {
-        return std::nullopt;
-    }
-
-    const char* const beat_begin = text.data() + colon + 1;
-    const char* const beat_end = text.data() + text.size();
-
-    int beat = 0;
-    if (const auto result = std::from_chars(beat_begin, beat_end, beat);
-        result.ec != std::errc{} || result.ptr != beat_end || beat <= 0)
-    {
-        return std::nullopt;
-    }
-
-    return BeatPositionToken{.measure = measure, .beat = beat};
+    return BeatPositionToken{.measure = position->measure, .beat = position->beat};
 }
 
 std::string formatBeatPositionToken(int measure, int beat)
 {
-    return std::to_string(measure) + ":" + std::to_string(beat);
+    // A zero offset formats as the bare "<measure>:<beat>", so this is the shared formatter.
+    return formatGridPositionToken(GridPosition{.measure = measure, .beat = beat, .offset = {}});
 }
 
 // Translates shared tone-track domain rules into the package error surface.

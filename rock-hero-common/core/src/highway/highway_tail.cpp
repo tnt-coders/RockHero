@@ -221,10 +221,13 @@ std::vector<double> makeHighwayTailSampleTimes(
 
     std::ranges::sort(times);
     // Dedupe with a tolerance: a uniform sample landing on a control point must not produce a
-    // zero-length segment.
-    constexpr double epsilon = 1.0e-9;
-    const auto [first_dup, last_dup] = std::ranges::unique(
-        times, [](const double lhs, const double rhs) { return std::abs(rhs - lhs) < epsilon; });
+    // zero-length segment. Asking the same question as every other same-instant test on the board —
+    // are these two highway times the same moment — so it reads the same named tolerance rather than
+    // repeating the number, which is how the two would drift apart.
+    const auto [first_dup, last_dup] =
+        std::ranges::unique(times, [](const double lhs, const double rhs) {
+            return std::abs(rhs - lhs) < g_highway_onset_match_epsilon;
+        });
     times.erase(first_dup, last_dup);
     return times;
 }
