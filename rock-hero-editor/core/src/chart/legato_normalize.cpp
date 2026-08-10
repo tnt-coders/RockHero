@@ -14,11 +14,25 @@ void normalizeChartLegato(
     std::vector<common::core::ChartNote>& notes,
     const std::vector<common::core::ChartShape>& shapes, const common::core::TempoMap& tempo_map)
 {
+    // Judge against the SAVED form, never the in-memory one. The repair aims at what the gate
+    // will validate, and the gate validates saved notes — so reading in-memory values here would
+    // let the two disagree about the same note. They did: a pick slide's latent mute made an
+    // all-muted onset group read as choked in memory and as held once saved, which flipped a
+    // span's hold extension and silently downgraded a following pull-off that validation accepts.
+    // Judging the saved form retires that whole class rather than one field of it, and it stays
+    // correct as savedChartNote grows: the two streams are index-parallel because savedChartNote
+    // never touches position, string, or attack.
+    std::vector<common::core::ChartNote> judged;
+    judged.reserve(notes.size());
+    for (const common::core::ChartNote& note : notes)
+    {
+        judged.push_back(common::core::savedChartNote(note));
+    }
     // Held lengths for the hold test, span-extended where the spans imply a held shape. Computed
     // once up front: repairs only ever change an attack, never a position or a sustain, so the
     // table cannot go stale inside the walk.
     const std::vector<common::core::Fraction> effective_sustains =
-        common::core::chartEffectiveSustains(notes, shapes, tempo_map);
+        common::core::chartEffectiveSustains(judged, shapes, tempo_map);
     // The last note seen per string: the stream is sorted, so this IS each note's same-string
     // predecessor when it is reached. Repairs apply before a note is recorded, so a later note
     // judges against the repaired values.
@@ -34,8 +48,17 @@ void normalizeChartLegato(
         const std::size_t source_index =
             string_in_range ? last_per_string.at(static_cast<std::size_t>(note.string))
                             : no_predecessor;
+        // The predecessor is read from the judged (saved) stream; the note being repaired is not,
+        // because a Pull or a Hammer is never a pick slide, so savedChartNote leaves the fields
+        // these rules read on it untouched.
         const common::core::ChartNote* const source =
-            source_index == no_predecessor ? nullptr : &notes[source_index];
+            source_index == no_predecessor ? nullptr : &judged[source_index];
+        // Every repair writes through here so the two streams cannot drift: `judged` is what
+        // later notes are judged against, and it must carry the attack this walk just decided.
+        const auto repair = [&note, &judged, note_index](const common::core::NoteAttack attack) {
+            note.attack = attack;
+            judged[note_index].attack = attack;
+        };
         if (note.attack == common::core::NoteAttack::Pull)
         {
             // A pull-off must release a real press above the pulled note, still held at this
@@ -55,8 +78,8 @@ void normalizeChartLegato(
             {
                 const bool hammerable = releasable && released < note.fret &&
                                         (note.fret > 0 || note.harmonic_node.has_value());
-                note.attack =
-                    hammerable ? common::core::NoteAttack::Hammer : common::core::NoteAttack::Pick;
+                repair(
+                    hammerable ? common::core::NoteAttack::Hammer : common::core::NoteAttack::Pick);
             }
         }
         else if (
@@ -71,8 +94,7 @@ void normalizeChartLegato(
                 common::core::releasedFret(*source) > 0 &&
                 common::core::predecessorHoldReaches(
                     source->position, effective_sustains[source_index], note.position, tempo_map);
-            note.attack =
-                pullable ? common::core::NoteAttack::Pull : common::core::NoteAttack::Pick;
+            repair(pullable ? common::core::NoteAttack::Pull : common::core::NoteAttack::Pick);
         }
         if (string_in_range)
         {

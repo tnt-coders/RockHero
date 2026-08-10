@@ -28,6 +28,10 @@ Justification also requires the predecessor still holdable at the note's onset
 direction, so a Pull it once justified repairs to a plain pick — which is why a sustain edit
 that disconnects a tail repairs its dependent legato in the same undo entry.
 
+Predecessors are judged in their SAVED form (`savedChartNote`), because that is the form the gate
+validates: judging in-memory values instead let the repair and validation disagree about one note
+whenever a pick slide's latent overrides changed a rule's input.
+
 Runs inside the planners' shared finalize step so every edit repairs what it disturbed in the
 same undo entry, and at import completion so a chart is never invalid in the first place.
 
