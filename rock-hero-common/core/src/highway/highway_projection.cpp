@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <utility>
 
 namespace rock_hero::common::core
@@ -58,7 +59,7 @@ HighwayViewState makeHighwayViewState(
     // larger displayed lane range, so every note/posture string index shifts up by the padding
     // amount, keeping the shared string-color palette anchored exactly as the 2D tab anchors it.
     const int chart_string_count = static_cast<int>(chart.tuning.strings.size());
-    state.string_count = std::max(chart_string_count, options.minimum_string_count);
+    state.string_count = displayedStringCount(chart_string_count, options.minimum_string_count);
     state.capo = chart.tuning.capo;
     const int displayed_lane_shift = state.string_count - chart_string_count;
 

@@ -1,6 +1,7 @@
 #include "tab/tab_lane_layout.h"
 
 #include <algorithm>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 
 namespace rock_hero::common::ui
 {
@@ -13,15 +14,12 @@ constexpr float g_min_note_height_for_text{9.0f};
 
 } // namespace
 
-// The chart's string count floors the lane count so a user minimum can only add empty lanes.
+// Delegates to the shared authority so the 2D lane and the 3D board cannot disagree about how many
+// lanes one chart has; the 3D projection open-coded a bare maximum and differed on a stringless
+// chart. This wrapper is itself slated for deletion once its callers move to the core name.
 int tabDisplayedStringCount(int chart_string_count, int minimum_displayed_strings) noexcept
 {
-    if (chart_string_count <= 0)
-    {
-        return 0;
-    }
-
-    return std::max(chart_string_count, minimum_displayed_strings);
+    return common::core::displayedStringCount(chart_string_count, minimum_displayed_strings);
 }
 
 // Standard tablature orientation: highest string on top, lowest on the bottom. Hosts size the
