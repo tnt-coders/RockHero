@@ -266,8 +266,8 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     common::core::TabViewState state;
     state.string_count = 6;
     // Four zero-length notes on one lane, differing only in what should change the head. Zero
-    // length keeps every head clean: drawNoteTail returns early, so no sustain ribbon and no
-    // tremolo strip (which a scrape otherwise rides) reaches the probes.
+    // length keeps every head clean: drawNoteTail returns early, so no sustain ribbon reaches
+    // the probes.
     state.notes = {
         common::core::TabNoteView{
             .start_seconds = 4.0,

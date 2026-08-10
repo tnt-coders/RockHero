@@ -3361,8 +3361,12 @@ void HighwayRenderer::Impl::draw(
                 // The turning points are walked and handed to the sampler explicitly: without them
                 // the uniform grid rounds every apex unevenly and aliases the wave outright. The
                 // walk terminates because tail_to is clamped to the visible window.
-                const bool teethed =
-                    note.tremolo || note.attack == common::core::NoteAttack::PickSlide;
+                // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them — a scrape is one
+                // continuous drag and cannot be tremolo picked at all (E2), so teeth would
+                // assert a repetition it never performs. Its plectrum head states the unpitched
+                // noise instead, matching the 2D lane's division of the same fact (the head says
+                // what kind of attack, the tail says what happens over time).
+                const bool teethed = note.tremolo;
                 const auto tooth_phase = [&](const double seconds) {
                     return common::core::highwayTremoloTailCycles(seconds - note.start_seconds);
                 };
@@ -3425,10 +3429,6 @@ void HighwayRenderer::Impl::draw(
                         common::core::g_highway_tail_taper_fraction);
                     const SlideState slide = slide_state_at(note, base_x, seconds);
                     double x_offset = slide.x_offset;
-                    // A scrape tail rides the tremolo teeth outright: the teeth MEAN
-                    // unmeasured noise (the charting standard spells out measured
-                    // repetition as discrete notes), and a scrape is that noise dragged
-                    // along the string — same notation, same meaning, no differentiator.
                     if (teethed)
                     {
                         // The teeth ramp in their own phase units, not the tail's duration

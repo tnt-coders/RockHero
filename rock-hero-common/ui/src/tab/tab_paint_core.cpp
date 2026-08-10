@@ -250,11 +250,15 @@ void drawNoteTail(
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
-    // A scrape rides the tremolo strip outright: the teeth MEAN unmeasured noise (the
-    // charting standard spells out measured repetition as discrete notes), and a scrape is
-    // that noise dragged along the string — the slide diagonals over it carry the travel.
-    const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
-    if (note.tremolo || scrape)
+    // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them. A scrape is one continuous
+    // drag — teeth would assert a repetition it never performs, and it cannot be tremolo picked
+    // at all (E2) — so it draws the plain ribbon with its slide diagonals carrying the travel,
+    // and its plectrum head states that the noise is unpitched. That division is the rule for
+    // the whole tail axis: the head says what kind of attack, the tail says what happens over
+    // time (ribbon = duration, diagonal = travel, curve = bend, sine = vibrato, teeth =
+    // repetition). It is also what makes a muted tremolo slide — noisy travel — read apart from
+    // a plain muted slide's single drag.
+    if (note.tremolo)
     {
         drawTremoloTail(g, metrics, style, onset_x, length, center_y);
     }

@@ -24,15 +24,62 @@ item ships, mark it and name the commit.
   SHIPPED `d0b1d32b`: the entry carries its applied plan and the widen reverses it to
   reconstruct pre-entry exactly; the selection-follow rule no longer adopts repaired notes.
   **Superseded if W3 is adopted** (the pending model deletes the splice machinery entirely).
-- [ ] **W3 — Pending fret entry with invalid-red feedback (user proposal 2026-08-09; needs a
-  ruling).** Nothing commits mid-entry: the typed value is provisional, drawn on the head(s),
-  RED when it cannot be applied, committed as one undo entry when the window settles and
-  discarded (previous value preserved) when it is invalid. Recommended, with one refinement:
-  commit IMMEDIATELY for any digit that cannot be widened (`digit * 10 > g_max_fret`, i.e. 3–9),
-  so only 1 and 2 ever wait — otherwise every single-digit retype would feel laggy for the
-  length of the window. Deletes W2's reversal machinery, the history splice, and all mid-entry
-  chart mutation; needs provisional-value state on the chart-edit view model. Insert-at-caret
-  becomes a ghost note, which matches the existing Alt-hover insert-ghost idiom.
+- [ ] **W3 — Pending fret entry with invalid-red feedback (user proposal 2026-08-09; APPROVED to
+  build, ground-up design done).** Nothing commits mid-entry: the typed value is provisional,
+  drawn on the head(s), RED when it cannot be applied, committed as one undo entry when the
+  window settles and discarded (previous value preserved) when it is invalid. Deletes W2's
+  reversal machinery, the history splice, and all mid-entry chart mutation.
+  - **CORRECTED digit split — my refinement had an arithmetic error.** `g_max_fret` is **30**
+    (`chart_rules.h:34`), so `digit * 10 > g_max_fret` is FALSE for 3 (30 > 30) — committing 3
+    immediately would make **fret 30 untypable**, a refuse-never-clamp violation dressed as a UX
+    tweak. The predicate is *"could a second digit reach a value this digit alone cannot?"* —
+    `value >= 1 && value * 10 <= g_max_fret` — giving **provisional {1,2,3}, immediate
+    {0,4..9}**. `0` joins the immediate set deliberately: today it arms the window for a
+    leading-zero path nobody types, making the open string (the commonest value on the
+    instrument) wait out the window. Keep the predicate general so a raised cap needs no rework,
+    and note that at cap 30 a second digit always ends the entry, so a third digit is currently
+    unreachable.
+  - **Prerequisite (also fixes a standing blind spot): `finalizePlan` conflates "refused" with
+    "nothing changed"** — both return `nullopt` (`chart_edits.cpp:174-179` then `diffNotes`'
+    empty-diff `nullopt`). The pending model cannot paint a valid no-op red, so the seven
+    planners move to `std::expected<ChartNotesEditPlan, ChartPlanRefusal>` with
+    `{NoChange, Invalid}`. This is why **every refusal in the editor is silent today** — no
+    caller can tell one from the other — so it is also the channel W5's counted feedback needs.
+  - **Red plus a FORM change, never colour alone:** red is already a string lane colour with
+    documented protan/deutan hazards (plan 45), so the invalid state reuses the mute idiom's
+    filled chip behind the digit — shape says "flagged", colour says "invalid".
+  - **Provisional drawing is editor chrome, not the shared paint core** (the core's contract is
+    that both products produce identical notation pixels, and the game has no keyboard entry) —
+    but export ONE primitive, `paintTabNoteHead` with a text/colour substitution, so the digit's
+    typography and placement cannot drift from the committed head the way the insert ghost
+    already has.
+  - **The window rides the existing `IMessageThreadScheduler::callAfterDelay` port** with
+    `safeCallback`, and the injected clock is the authority so a stale or duplicated wake is a
+    no-op. Trap for the implementer: `ImmediateMessageThreadScheduler` runs the work
+    SYNCHRONOUSLY and every controller test gets it, so the harness needs a deferring scheduler
+    plus a settable clock (no test injects `now_milliseconds` today, which makes the Services
+    doc claim about it currently false).
+  - **`EditorUndoHistory::replaceTop` dies entirely** — its only production caller is the widen.
+    Do NOT keep it for W7: that needs to DROP the top entry, which `replaceTop` cannot do, so
+    W7 wants a new `dropTop()` regardless.
+  - **Esc claims its own rung** (discard the value, leave the caret armed — a behaviour change
+    from today's single rung), and **undo cancels the pending value and consumes the keystroke**,
+    which requires `undo_available` to include the pending entry and `undo_label` to read as the
+    cancel, or the menu affordance lies.
+  - **Chord semantics: red marks EVERY selected head.** `validateChartNotes` returns the first
+    violated rule with no note identity, and relational refusals (E5, the hold test) are
+    properties of a PAIR, so per-note attribution is both unavailable and often ill-defined.
+    "Which note" belongs in W5's feedback channel, not in the colour.
+  - **Two latent bugs die with it:** a paused seek does not settle the window today, so "1",
+    ruler-click, "2" widens to fret 12 on a dissolved caret; and a mid-window save splits one
+    typed number into two undo entries because `replaceTop` refuses when a clean marker sits on
+    the top entry.
+  - **Ruling 8's objection dissolves.** I argued deferral would either commit invalid data or
+    make the digit inert. Neither happens: `finalizePlan` runs in FULL every keystroke (repair
+    and gate included) and the digit visibly does something — only the *apply* waits. The
+    mid-entry legato flicker the user worried about is then gone by construction rather than
+    tuned. Do not preview the repaired neighbour in the overlay, though the plan is in hand:
+    that would re-import the flicker as chrome.
 - [ ] **W4 — Muted-tail consistency (D16 below; needs a ruling).** Blocks nothing but touches
   W1, E10, E24 and the display; settle before the lock/break work so the tail rules are stated
   once.
