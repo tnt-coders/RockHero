@@ -420,7 +420,38 @@ item ships, mark it and name the commit.
     scrape is unpitched noise, since a dragged muted slide IS noise rather than pitch (E10 allows
     the positions); (d) muted notes only carry a tail when a slide payload needs one to travel.
     Interacts with: E10 (muted slides allowed), E24 (muted legato allowed), the highway's held
-    bars and their hold scoring, and the import drop rule. **No R yet.**
+    bars and their hold scoring, and the import drop rule.
+  - **PROPOSED RULE SET (agent recommendation after the user's exploration, awaiting sign-off).**
+    The user's two observations settle it: a muted note CAN be tremolo picked (so a noise tail is
+    valid with or without a slide), but merely holding a dead note makes no sound (so a plain
+    muted tail is silence pretending to be sound). Three rules, and the third costs nothing:
+    1. **E25 (new): a `Full`-muted note may carry a sustain only when something keeps making
+       noise or travelling** — `tremolo`, or a slide payload (`slides` / `slide_out`). Otherwise
+       its sustain is zero. This is the whole rule; it is what the other two rest on.
+    2. **A muted tail always draws in the NOISE idiom** (the user's ruling, and now
+       unconditional): under E25 the only muted tails that CAN exist are noise or travel, so the
+       display needs no "is this a slide" branch. The tremolo band and a slide diagonal already
+       coexist on one tail (the band's always-covered core is the plain span), so nothing new is
+       needed there.
+    3. **Muted legato is thereby bounded to the sub-bound window, with ZERO new code** — a plain
+       muted note cannot carry a tail, so past the kept-sustain bound its hold can never reach
+       and D13 refuses it, while inside the bound nothing is proven and E24 applies untouched.
+       That is where muted legato actually lives (clucks are sixteenths, not two-beat gestures),
+       and past the bound the user's own reading is that a silently-held hand "may read odd."
+       **This retracts the sounding-vs-fretted hold split recommended earlier**: with E25 in
+       place the all-muted span carve-out is CORRECT rather than a bug, and one hold concept
+       serves both readers again. A muted note WITH tremolo keeps a long tail and can therefore
+       justify legato across any gap — the chug is the evidence that the hand stayed, which is
+       exactly what the hold test asks for.
+  - **Consequences to build with it:** import must zero the sustain of a `Full`-muted note
+    carrying neither tremolo nor a slide (otherwise re-read refuses the chart) — a muted variant
+    of the existing drop rule; the slide-authoring verb must grow a muted note's tail as part of
+    authoring the slide, the way the scrape verb already extends a zero sustain for its gesture
+    (otherwise tail-and-slide are chicken-and-egg); `Palm` mute is untouched, since palm-muted
+    notes do ring; the matrix test's plain `dead` note with a one-beat sustain becomes invalid
+    and must gain tremolo or lose its tail; and the highway's held bar on a muted note now
+    always means "keep chugging or dragging", whose hold-scoring treatment is a plan 24
+    question, not a chart one.
 
 ## Recorded, no decision needed
 
