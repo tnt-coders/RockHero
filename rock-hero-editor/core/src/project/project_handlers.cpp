@@ -940,6 +940,9 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
 
     state->project = std::move(project);
     state->song = std::move(song);
+    // Recorded WITH the song, since it names the state the song was captured from. See the field's
+    // own comment for why completion cannot just ask the history where it is now.
+    state->undo_depth_at_kickoff = m_undo_history.undoDepth();
     m_project.reset();
     return state;
 }
@@ -1257,7 +1260,10 @@ void EditorController::Impl::completeProjectWriteAction(
     }
 
     std::visit(
-        [this](const auto& alternative) { applyProjectWriteSuccess(alternative); }, state->action);
+        [this, depth = state->undo_depth_at_kickoff](const auto& alternative) {
+            applyProjectWriteSuccess(alternative, depth);
+        },
+        state->action);
 
     finishBusyOperation();
     if ((action_id == EditorAction::Id::SaveProject ||
@@ -1268,20 +1274,22 @@ void EditorController::Impl::completeProjectWriteAction(
     }
 }
 
-void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProject& /*action*/)
+void EditorController::Impl::applyProjectWriteSuccess(
+    const EditorAction::SaveProject& /*action*/, const std::size_t undo_depth_at_kickoff)
 {
     m_has_untracked_unsaved_changes = false;
-    markUndoHistoryClean("undo.mark_clean.save_project");
+    markUndoHistoryCleanIfUnmoved(undo_depth_at_kickoff, "undo.mark_clean.save_project");
     saveCurrentProjectMarkerBestEffort("store project marker after save");
 }
 
-void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action)
+void EditorController::Impl::applyProjectWriteSuccess(
+    const EditorAction::SaveProjectAs& action, const std::size_t undo_depth_at_kickoff)
 {
     m_save_requires_destination = false;
     m_project_file = action.file;
     m_displaced_project_file.clear();
     m_has_untracked_unsaved_changes = false;
-    markUndoHistoryClean("undo.mark_clean.save_project_as");
+    markUndoHistoryCleanIfUnmoved(undo_depth_at_kickoff, "undo.mark_clean.save_project_as");
     saveCurrentProjectMarkerBestEffort("store project marker after save-as");
     // Save As is the first moment an imported project has a path (and an existing project adopts
     // a new one), so the active grid note value is persisted here or a selection made before the
@@ -1307,7 +1315,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(
-    const EditorAction::PublishProject& /*action*/)
+    const EditorAction::PublishProject& /*action*/, const std::size_t /*undo_depth_at_kickoff*/)
 {
     // Publish does not change save destination or dirty state.
 }

@@ -1,4 +1,4 @@
-﻿#include "package/rock_song_package.h"
+#include "package/rock_song_package.h"
 #include "rock_song_package_format.h"
 
 #include <algorithm>
@@ -902,47 +902,67 @@ std::expected<void, ArchiveError> writeWorkspaceToArchive(
         }
     }
 
-    juce::FileOutputStream output_stream{juceFileFromPath(archive_path)};
-    if (output_stream.failedToOpen())
+    // Built beside the target and renamed over it only once every byte is on disk. Writing in place
+    // meant truncating the user's existing package FIRST and then streaming into it, so any failure
+    // partway — a full disk, an indexer holding one workspace file open — left a truncated archive
+    // with no central directory where the project used to be, unreadable and unrecoverable. JUCE's
+    // builder stops at the first entry it cannot write, so that window was real rather than
+    // theoretical. A failed save now leaves the previous package exactly as it was, and the only
+    // casualty is a temp file this function removes on the way out.
+    const std::filesystem::path staging_path = [&archive_path] {
+        std::filesystem::path path = archive_path;
+        path += ".saving";
+        return path;
+    }();
+    std::error_code discard_stale;
+    std::filesystem::remove(staging_path, discard_stale);
+
+    // Scoped so the stream is closed before the rename: a rename over an open handle fails on
+    // Windows, which would turn the safe path into a save that never lands.
+    if (auto stage_error = [&]() -> std::expected<void, ArchiveError> {
+            juce::FileOutputStream output_stream{juceFileFromPath(staging_path)};
+            if (output_stream.failedToOpen())
+            {
+                return std::unexpected{ArchiveError{
+                    ArchiveErrorCode::OpenForWritingFailed,
+                    "Could not open archive for writing: " +
+                        output_stream.getStatus().getErrorMessage().toStdString(),
+                }};
+            }
+            if (!archive_builder.writeToStream(output_stream, nullptr))
+            {
+                return std::unexpected{ArchiveError{
+                    ArchiveErrorCode::WriteFailed,
+                    "Could not write archive",
+                }};
+            }
+            output_stream.flush();
+            if (output_stream.getStatus().failed())
+            {
+                return std::unexpected{ArchiveError{
+                    ArchiveErrorCode::WriteFailed,
+                    "Could not flush archive: " +
+                        output_stream.getStatus().getErrorMessage().toStdString(),
+                }};
+            }
+            return std::expected<void, ArchiveError>{};
+        }();
+        !stage_error.has_value())
     {
-        return std::unexpected{ArchiveError{
-            ArchiveErrorCode::OpenForWritingFailed,
-            "Could not open archive for writing: " +
-                output_stream.getStatus().getErrorMessage().toStdString(),
-        }};
+        std::error_code discard_partial;
+        std::filesystem::remove(staging_path, discard_partial);
+        return std::unexpected{std::move(stage_error.error())};
     }
 
-    if (!output_stream.setPosition(0))
+    std::error_code rename_error;
+    std::filesystem::rename(staging_path, archive_path, rename_error);
+    if (rename_error)
     {
-        return std::unexpected{ArchiveError{
-            ArchiveErrorCode::OpenForWritingFailed,
-            "Could not seek archive for writing",
-        }};
-    }
-
-    const juce::Result truncate_result = output_stream.truncate();
-    if (truncate_result.failed())
-    {
-        return std::unexpected{ArchiveError{
-            ArchiveErrorCode::OpenForWritingFailed,
-            "Could not truncate archive for writing: " +
-                truncate_result.getErrorMessage().toStdString(),
-        }};
-    }
-
-    if (!archive_builder.writeToStream(output_stream, nullptr))
-    {
+        std::error_code discard_staged;
+        std::filesystem::remove(staging_path, discard_staged);
         return std::unexpected{ArchiveError{
             ArchiveErrorCode::WriteFailed,
-            "Could not write archive",
-        }};
-    }
-    output_stream.flush();
-    if (output_stream.getStatus().failed())
-    {
-        return std::unexpected{ArchiveError{
-            ArchiveErrorCode::WriteFailed,
-            "Could not flush archive: " + output_stream.getStatus().getErrorMessage().toStdString(),
+            "Could not replace the archive with the newly written one: " + rename_error.message(),
         }};
     }
 

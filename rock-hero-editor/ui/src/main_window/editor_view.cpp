@@ -535,7 +535,6 @@ EditorView::~EditorView()
     setApplicationCommandManagerToWatch(nullptr);
 }
 
-// Projects controller-derived state into child widgets and cursor mapping state.
 // Sets the top-level window title to "<project> - <app>" when a project is open, or the bare app
 // name otherwise, so the open project reads at a glance like REAPER's title bar.
 void EditorView::updateWindowTitle()
@@ -565,6 +564,9 @@ void EditorView::updateWindowTitle()
     top_level->setName(title);
 }
 
+// Projects controller-derived state into every child widget and into the cursor mapping. This is the
+// view's ONE entry point for that: the controller hands over a whole state value rather than calling
+// per-widget setters, so a frame can never show two widgets disagreeing about the same fact.
 void EditorView::setState(const core::EditorViewState& state)
 {
     const core::EditorViewState previous_state = m_state;
@@ -1065,9 +1067,10 @@ void EditorView::togglePreviewWindow()
     }
 }
 
-// Creates the keyboard-shortcuts window on first use, then shows it; the window survives closes
-// so its tree state and any in-progress inspection are kept across reopenings.
-bool EditorView::chartShown() const noexcept
+// True when there is a chart to act on at all: a projected tab scene with at least one string. The
+// chart verbs and the lane's own menu gate on this rather than on whether the lane is on screen,
+// because an off-screen lane still holds a selection an action can edit.
+bool EditorView::hasChart() const noexcept
 {
     return m_state.tab != nullptr && m_state.tab->string_count > 0;
 }
@@ -1088,7 +1091,7 @@ bool EditorView::chartShown() const noexcept
 // instead (walkthrough W5).
 void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
 {
-    if (!chartShown())
+    if (!hasChart())
     {
         return;
     }
@@ -1176,6 +1179,8 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
             .withDeletionCheck(*this));
 }
 
+// Creates the keyboard-shortcuts window on first use, then shows it; the window survives closes so
+// its tree state and any in-progress inspection are kept across reopenings.
 void EditorView::showActionsWindow()
 {
     if (m_actions_window == nullptr)
@@ -1569,7 +1574,7 @@ bool EditorView::perform(const InvocationInfo& info)
 
         case EditorCommandId::CaretStepLeft:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Left, false);
             }
@@ -1577,7 +1582,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::CaretStepRight:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Right, false);
             }
@@ -1585,7 +1590,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::ChartPickSlideToggle:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartPickSlideToggleRequested();
             }
@@ -1593,7 +1598,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::ChartLegatoToggle:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartLegatoToggleRequested();
             }
@@ -1601,7 +1606,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::CaretStepUp:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Up, false);
             }
@@ -1609,7 +1614,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::CaretStepDown:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Down, false);
             }
@@ -1617,7 +1622,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::CaretMeasureJumpLeft:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Left, true);
             }
@@ -1625,7 +1630,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::CaretMeasureJumpRight:
         {
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartCaretStepRequested(core::ChartStepDirection::Right, true);
             }
@@ -1836,7 +1841,7 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 return true;
             }
-            if (chartShown())
+            if (hasChart())
             {
                 m_controller.onChartFretDigitTyped(digit);
             }

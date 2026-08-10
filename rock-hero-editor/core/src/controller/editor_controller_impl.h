@@ -492,9 +492,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void resetSoleToneRegion(const std::string& region_id);
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
-    void applyProjectWriteSuccess(const EditorAction::SaveProject& action);
-    void applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action);
-    void applyProjectWriteSuccess(const EditorAction::PublishProject& action);
+    // Each takes the undo depth the write's content was captured at, because the history can move
+    // while a write runs (see ProjectWriteTaskState::undo_depth_at_kickoff).
+    void applyProjectWriteSuccess(
+        const EditorAction::SaveProject& action, std::size_t undo_depth_at_kickoff);
+    void applyProjectWriteSuccess(
+        const EditorAction::SaveProjectAs& action, std::size_t undo_depth_at_kickoff);
+    void applyProjectWriteSuccess(
+        const EditorAction::PublishProject& action, std::size_t undo_depth_at_kickoff);
+
+    // Marks the undo history clean only when it still sits where a write's content was captured.
+    void markUndoHistoryCleanIfUnmoved(std::size_t undo_depth_at_capture, std::string_view context);
     void replayDiscardedProjectAction(EditorAction::ProjectAction action);
     void replayDeferredProjectActionAfterSave();
     void clearDeferredProjectAction() noexcept;
@@ -1154,6 +1162,14 @@ struct EditorController::Impl::ProjectWriteTaskState
     Project project{};
     common::core::Song song{};
     std::expected<void, ProjectError> result{};
+
+    // The undo depth at KICKOFF, which is the state the song above was captured from. The write runs
+    // on a worker while the message thread stays live, and a plugin's own editor window sits outside
+    // the busy overlay — so a knob turned mid-save settles into a new entry that the write never
+    // saw. Marking the history clean at COMPLETION would declare that entry saved and let the app
+    // close without a prompt, losing it. Comparing against this instead keeps the project dirty
+    // whenever the history moved, which is the honest answer for a push and for an undo alike.
+    std::size_t undo_depth_at_kickoff{};
 };
 
 // Shared message-thread continuation for the live-rig restore stage of project open/import.

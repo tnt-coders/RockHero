@@ -3675,6 +3675,22 @@ void EditorController::Impl::markUndoHistoryClean(std::string_view context)
     logEditorUndoTransitionResult(context, result);
 }
 
+// Marks clean only when the history still sits where a write's content was captured. `markClean`
+// can only mark NOW, and a write runs on a worker with the message thread live, so an entry pushed
+// in between (a plugin's own window sits outside the busy overlay, and its dirty tracker settles on
+// a timer) would be declared saved though the write never saw it — and the app would then close
+// without a prompt. Leaving the project dirty is the honest answer, and it is also right when the
+// history moved by an UNDO rather than a push, since that state was not written either.
+void EditorController::Impl::markUndoHistoryCleanIfUnmoved(
+    const std::size_t undo_depth_at_capture, const std::string_view context)
+{
+    if (m_undo_history.undoDepth() != undo_depth_at_capture)
+    {
+        return;
+    }
+    markUndoHistoryClean(context);
+}
+
 // Records dirty state that cannot be tracked by a reachable undo-history clean marker.
 void EditorController::Impl::markUntrackedUnsavedChanges() noexcept
 {

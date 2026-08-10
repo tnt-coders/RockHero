@@ -487,7 +487,7 @@ private:
 
     // True when a chart with strings is loaded — the caret/typing surface the grammar-verb
     // commands act on exists.
-    [[nodiscard]] bool chartShown() const noexcept;
+    [[nodiscard]] bool hasChart() const noexcept;
 
     // Updates the top-level window title to reflect the open project name, REAPER-style.
     void updateWindowTitle();

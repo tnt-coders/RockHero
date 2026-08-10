@@ -1,4 +1,4 @@
-﻿#include "package/rock_song_package.h"
+#include "package/rock_song_package.h"
 #include "rock_song_package_format.h"
 #include "song_document_json.h"
 

@@ -75,7 +75,11 @@ std::expected<void, ProjectError> writeProjectDocument(
         {"formatVersion", juce::var{1}},
     });
 
-    std::ofstream project_document_file{workspace_directory / g_project_document_name};
+    // Binary, so the document is the bytes written on every platform rather than gaining CRLF here
+    // while song.json beside it gets LF.
+    std::ofstream project_document_file{
+        workspace_directory / g_project_document_name, std::ios::binary
+    };
     if (!project_document_file.is_open())
     {
         return std::unexpected{ProjectError{
@@ -84,6 +88,12 @@ std::expected<void, ProjectError> writeProjectDocument(
     }
 
     project_document_file << juce::JSON::toString(project_document).toStdString() << '\n';
+    // Closed BEFORE the check, because the destructor's implicit flush would otherwise run after it
+    // — and this document is small enough to sit entirely in the buffer, so a failing flush would
+    // be reported as success. The package writer beside it already closes for exactly this reason. A
+    // false success here is not a lost save but an unloadable one: the archive packages an empty
+    // project.json, the dirty flag clears, and reopening reports a malformed project.
+    project_document_file.close();
     if (!project_document_file.good())
     {
         return std::unexpected{ProjectError{
