@@ -1,11 +1,16 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
+#include <optional>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/tab/tab_projection.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
@@ -117,6 +122,179 @@ namespace
     };
 }
 
+// The ONE chart both surfaces project, carrying every fact their view types share: a strummed
+// chord under a hand-shape span, a sustained note with a bend point and a pitched glide, a
+// natural harmonic on a fractional node over a capo, a palm mute, a tremolo, a vibrato, an
+// accent, a hammer-on with the pull-off that releases it, an arpeggio span, two fret-hand
+// placements, and a pick slide with a turnaround plus its required unpitched terminal. Each
+// technique sits on its own note so a projection that drops one cannot hide behind another.
+[[nodiscard]] Chart makeAgreementChart()
+{
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.tuning.capo = 2;
+    chart.templates = {
+        ChordTemplate{
+            .name = "G#5",
+            .frets = {4, 6, 6, std::nullopt, std::nullopt, std::nullopt},
+            .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
+        },
+        ChordTemplate{
+            .name = "D5",
+            .frets = {std::nullopt, 5, 7, 7, std::nullopt, std::nullopt},
+            .fingers = {std::nullopt, 1, 3, 4, std::nullopt, std::nullopt},
+        },
+    };
+    chart.notes = {
+        // Scrape from fret 17 down to 5 and back to 12, its terminal parked exactly on the
+        // sustain. Outside every span, so it cannot flip a shape to arpeggio treatment.
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 6,
+            .fret = 17,
+            .sustain = Fraction{1},
+            .attack = NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}},
+            .slide_out = SlideOut{.offset = Fraction{1}, .fret = 12},
+        },
+        // Simultaneous chord at 2:1 covering the whole span's posture: reads as a chord box.
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 1,
+            .fret = 4,
+            .sustain = Fraction{1},
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 2,
+            .fret = 6,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 3,
+            .fret = 6,
+            .bend = {},
+            .slides = {},
+        },
+        // One technique each, in order: palm mute, tremolo, vibrato, accent.
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 2},
+            .string = 4,
+            .fret = 7,
+            .sustain = Fraction{1, 2},
+            .mute = NoteMute::Palm,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 3},
+            .string = 5,
+            .fret = 9,
+            .sustain = Fraction{1, 2},
+            .tremolo = true,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 4},
+            .string = 5,
+            .fret = 9,
+            .sustain = Fraction{1},
+            .vibrato = true,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1},
+            .string = 4,
+            .fret = 12,
+            .accent = true,
+            .bend = {},
+            .slides = {},
+        },
+        // Both payload kinds on one tail: a bend point mid-sustain and a pitched glide landing on
+        // the sustain end.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 2},
+            .string = 3,
+            .fret = 7,
+            .sustain = Fraction{2},
+            .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
+            .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+        },
+        // Fret 0 is the CAPO'd open string, so this node clears the capo rather than the nut: the
+        // harmonic's legality depends on the tuning both surfaces also carry.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 4},
+            .string = 5,
+            .fret = 0,
+            .sustain = Fraction{1, 2},
+            .harmonic_node = 7.02,
+            .bend = {},
+            .slides = {},
+        },
+        // Fret 5 picked, hammered up to 7, pulled back to 5: the legato pair plus the note it
+        // releases from, which is what makes the pull-off a legal chart.
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 1},
+            .string = 4,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 2},
+            .string = 4,
+            .fret = 7,
+            .sustain = Fraction{1},
+            .attack = NoteAttack::Hammer,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 3},
+            .string = 4,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .attack = NoteAttack::Pull,
+            .bend = {},
+            .slides = {},
+        },
+        // Lone onset at the second span's start: reads as an arpeggio.
+        ChartNote{
+            .position = GridPosition{.measure = 5, .beat = 1},
+            .string = 3,
+            .fret = 7,
+            .sustain = Fraction{1, 2},
+            .bend = {},
+            .slides = {},
+        },
+    };
+    chart.shapes = {
+        ChartShape{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .sustain = Fraction{1},
+            .chord = 0,
+        },
+        ChartShape{
+            .position = GridPosition{.measure = 5, .beat = 1},
+            .sustain = Fraction{2},
+            .chord = 1,
+        },
+    };
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 4, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 5, .beat = 1}, .fret = 5, .width = 4},
+    };
+    return chart;
+}
+
 } // namespace
 
 // The capo rides the projection so the board can draw the clamp and its dead zone (25-Q6).
@@ -130,8 +308,9 @@ TEST_CASE("Highway projection carries the tuning's capo", "[core][highway]")
     CHECK(makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {}).capo == 2);
 }
 
-// The highway projection must resolve identical inputs to the identical seconds the editor's 2D
-// projection produces: same tempo-map queries, same onset/sustain/payload discipline.
+// Absolute anchors for the board's own resolution: onsets, sustain ends, and intra-note payload
+// offsets against the 4/4 default map. That the 2D lane resolves the same inputs to the same
+// seconds is a separate claim, pinned mechanically by the agreement case below.
 TEST_CASE("Highway projection resolves chart positions to seconds", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
@@ -191,6 +370,166 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
     CHECK(state.sections[0].name == "verse");
+}
+
+// The two surfaces may never disagree about the same chart fact, so one chart is projected both
+// ways and every shared field is compared. Prose in a comment is what this used to be, while the
+// two fixtures drifted onto different charts — leaving no chart in the tree projected twice, and a
+// divergence with nowhere to show up.
+TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core][highway][tab]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    const Chart chart = makeAgreementChart();
+    // A fixture that rotted into an illegal chart would have the two surfaces agreeing about
+    // something no document can contain, so its legality is a precondition of the comparison.
+    REQUIRE(validateChartRules(chart, tempo_map).has_value());
+
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = chart;
+    const TabViewState flat = makeTabViewState(arrangement, tempo_map);
+    // No display padding and no sections: the padding default is what the game ships and what the
+    // editor's tab lane matches, and sections are song-level furniture the lane never draws.
+    const HighwayViewState board = makeHighwayViewState(arrangement, tempo_map, {}, {});
+
+    CHECK(flat.string_count == board.string_count);
+    CHECK(flat.capo == board.capo);
+    CHECK(flat.capo == 2);
+
+    REQUIRE(flat.notes.size() == chart.notes.size());
+    REQUIRE(board.notes.size() == chart.notes.size());
+
+    // Non-vacuity: the field loop below would pass just as happily comparing defaults, so every
+    // technique the two view types share has to be present in what was actually projected.
+    const auto any_note = [&flat](const auto& carries) {
+        return std::ranges::any_of(flat.notes, carries);
+    };
+    CHECK(any_note([](const TabNoteView& note) { return note.mute == NoteMute::Palm; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.tremolo; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.vibrato; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.accent; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.harmonic_node.has_value(); }));
+    CHECK(any_note([](const TabNoteView& note) { return !note.bend.empty(); }));
+    CHECK(any_note([](const TabNoteView& note) { return !note.slides.empty(); }));
+    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::Hammer; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::Pull; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::PickSlide; }));
+
+    for (std::size_t index = 0; index < flat.notes.size(); ++index)
+    {
+        CAPTURE(index);
+        const TabNoteView& flat_note = flat.notes[index];
+        const HighwayNoteView& board_note = board.notes[index];
+        // Exact, not Approx: both projections put the same grid position through the same
+        // tempo-map call, so any tolerance would accept precisely the drift this case exists to
+        // catch. WithinULP(x, 0) matches the identical bit pattern and prints both values.
+        CHECK_THAT(
+            flat_note.start_seconds, Catch::Matchers::WithinULP(board_note.start_seconds, 0));
+        CHECK_THAT(flat_note.end_seconds, Catch::Matchers::WithinULP(board_note.end_seconds, 0));
+        // The board resolves displayed-lane padding inside the projection while the lane resolves
+        // it up in the UI layer. With no padding configured — what both surfaces ship with — the
+        // string numbers are the chart's own on both sides, so they must match exactly.
+        CHECK(flat_note.string == board_note.string);
+        CHECK(flat_note.fret == board_note.fret);
+        CHECK(flat_note.attack == board_note.attack);
+        CHECK(flat_note.mute == board_note.mute);
+        // Compared as optionals, exactly as both view types' own operator== compares this field.
+        CHECK(flat_note.harmonic_node == board_note.harmonic_node);
+        CHECK(flat_note.vibrato == board_note.vibrato);
+        CHECK(flat_note.tremolo == board_note.tremolo);
+        CHECK(flat_note.accent == board_note.accent);
+
+        REQUIRE(flat_note.bend.size() == board_note.bend.size());
+        for (std::size_t point = 0; point < flat_note.bend.size(); ++point)
+        {
+            CAPTURE(point);
+            CHECK_THAT(
+                flat_note.bend[point].seconds,
+                Catch::Matchers::WithinULP(board_note.bend[point].seconds, 0));
+            CHECK_THAT(
+                flat_note.bend[point].semitones,
+                Catch::Matchers::WithinULP(board_note.bend[point].semitones, 0));
+        }
+
+        // One leg list per surface, the slide-out flattened onto the end of both.
+        REQUIRE(flat_note.slides.size() == board_note.slides.size());
+        for (std::size_t leg = 0; leg < flat_note.slides.size(); ++leg)
+        {
+            CAPTURE(leg);
+            CHECK_THAT(
+                flat_note.slides[leg].seconds,
+                Catch::Matchers::WithinULP(board_note.slides[leg].seconds, 0));
+            CHECK(flat_note.slides[leg].fret == board_note.slides[leg].fret);
+            CHECK(flat_note.slides[leg].unpitched == board_note.slides[leg].unpitched);
+        }
+    }
+
+    // The one shared-note field only the lane carries: `linked` decides whether a junction draws a
+    // continuation head, a 2D notation question with no board counterpart — the rail runs through
+    // the junction either way. So it is asserted on the tab side alone, in both its states: the
+    // scrape's turnaround is a continuation, its terminal is where the pick leaves.
+    const TabNoteView& scrape = flat.notes.front();
+    REQUIRE(scrape.attack == NoteAttack::PickSlide);
+    REQUIRE(scrape.slides.size() == 2);
+    CHECK(scrape.slides[0].linked);
+    CHECK_FALSE(scrape.slides[1].linked);
+
+    REQUIRE(flat.shapes.size() == chart.shapes.size());
+    REQUIRE(board.shapes.size() == chart.shapes.size());
+    for (std::size_t index = 0; index < flat.shapes.size(); ++index)
+    {
+        CAPTURE(index);
+        const TabShapeView& flat_shape = flat.shapes[index];
+        const HighwayShapeView& board_shape = board.shapes[index];
+        CHECK_THAT(
+            flat_shape.start_seconds, Catch::Matchers::WithinULP(board_shape.start_seconds, 0));
+        CHECK_THAT(flat_shape.end_seconds, Catch::Matchers::WithinULP(board_shape.end_seconds, 0));
+        CHECK(flat_shape.name == board_shape.name);
+        CHECK(flat_shape.arpeggio == board_shape.arpeggio);
+    }
+    // Both treatments are present, so the arrival flag is not agreeing against a constant.
+    CHECK(flat.shapes[0].name == "G#5");
+    CHECK_FALSE(flat.shapes[0].arpeggio);
+    CHECK(flat.shapes[1].name == "D5");
+    CHECK(flat.shapes[1].arpeggio);
+
+    // Both surfaces read one posture out of one template and each adds the fact its own notation
+    // needs — the lane which entries SOUND at the bracket start, the board which FINGER holds
+    // them — so only the strings and frets are a shared fact. Only an arpeggio brackets in 2D, so
+    // the lane leaves the chord-box span's list empty while the board fills it for the fingering
+    // panel regardless.
+    CHECK(flat.shapes[0].arpeggio_notes.empty());
+    CHECK(board.shapes[0].strings.size() == 3);
+    REQUIRE_FALSE(flat.shapes[1].arpeggio_notes.empty());
+    REQUIRE(flat.shapes[1].arpeggio_notes.size() == board.shapes[1].strings.size());
+    for (std::size_t entry = 0; entry < flat.shapes[1].arpeggio_notes.size(); ++entry)
+    {
+        CAPTURE(entry);
+        CHECK(flat.shapes[1].arpeggio_notes[entry].string == board.shapes[1].strings[entry].string);
+        CHECK(flat.shapes[1].arpeggio_notes[entry].fret == board.shapes[1].strings[entry].fret);
+    }
+
+    // Placements agree on where the hand arrives and what it covers; the board additionally
+    // derives the eased approach (ramp_seconds, unpitched_ramp), which the static 2D marker has
+    // no counterpart for.
+    REQUIRE(flat.fret_hand_positions.size() == chart.fret_hand_positions.size());
+    REQUIRE(board.fret_hand_positions.size() == chart.fret_hand_positions.size());
+    REQUIRE_FALSE(flat.fret_hand_positions.empty());
+    for (std::size_t index = 0; index < flat.fret_hand_positions.size(); ++index)
+    {
+        CAPTURE(index);
+        const TabFhpView& flat_fhp = flat.fret_hand_positions[index];
+        const HighwayFhpView& board_fhp = board.fret_hand_positions[index];
+        CHECK_THAT(flat_fhp.seconds, Catch::Matchers::WithinULP(board_fhp.seconds, 0));
+        CHECK(flat_fhp.fret == board_fhp.fret);
+        CHECK(flat_fhp.width == board_fhp.width);
+    }
+
+    // Board-only structure with no 2D counterpart at all — beat bars, camera framing zones, and
+    // the picking-hand light the scrape drives — so its absence from the lane is not a
+    // disagreement about anything.
+    CHECK_FALSE(board.beats.empty());
+    CHECK_FALSE(board.camera_zone_starts.empty());
+    CHECK(board.tap_onsets.size() == 1);
 }
 
 // The displayed-string minimum (the editor's "show at least N strings") raises the lane count and

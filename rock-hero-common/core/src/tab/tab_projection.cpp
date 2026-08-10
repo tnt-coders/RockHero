@@ -80,13 +80,13 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         }
         // The unpitched slide-out flattens into the view's slide list; it owns its geometry.
         // A scrape's slide-out is its required terminal and flattens the same way.
-        if (note.slide_out.has_value())
+        if (const SlideOut* const slide_out = slideOutOrNull(note); slide_out != nullptr)
         {
             view.slides.push_back(
                 TabSlideView{
                     .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                        onset_beat + note.slide_out->offset.toDouble()),
-                    .fret = note.slide_out->fret,
+                        onset_beat + slide_out->offset.toDouble()),
+                    .fret = slide_out->fret,
                     .unpitched = true,
                     .linked = false,
                 });

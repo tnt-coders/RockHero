@@ -53,8 +53,11 @@ struct HighwayHandWindow
 
 Placements are step values whose approaches ramp: inside a placement's
 [seconds - ramp_seconds, seconds] span both edges ease from the previous settled window toward
-the arriving one with the pitched slide curve, so the window travels in lockstep with a gliding
-note and morphs smoothly for ordinary moves. Outside every ramp the settled window holds, and
+the arriving one, so the window travels in lockstep with a gliding note and morphs smoothly for
+ordinary moves. Which easing applies is the placement's own `unpitched_ramp`: a pitched approach
+takes the slide curve, an unpitched one the release curve, which starts slowly because a hand
+letting go does not accelerate the way one arriving does. Outside every ramp the settled window
+holds, and
 arrivals are inclusive: at exactly \p seconds the placement has arrived. The first placement's
 settled window already holds from the start of time — the opening scroll shows where the hand
 belongs before the first note arrives — and the reference nut window (lines 0 to 4) applies
