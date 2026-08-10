@@ -103,6 +103,19 @@ struct MeasureGrid
 // The minimum gesture window and the corpus-derived default scrape live in the shared seam so
 // import and the editor's attack verb synthesize identical defaults (pick_slide_defaults.h).
 
+// Drops the bend and slide points a tail shortened to `target` no longer contains, so the model's
+// "payload within the sustain" invariant survives every trim. Every shortening owes this: a point
+// left behind hands validation a note it must refuse, and import refuses whole SONGS rather than
+// notes, so one such point costs the song. The slide-out is each caller's own business — one trim
+// here places it rather than dropping it — and `target` is a parameter because a caller may clip
+// before deciding what the sustain finally becomes.
+void clipPayloadsTo(ChartNote& note, const Fraction target)
+{
+    std::erase_if(note.bend, [target](const BendPoint& point) { return target < point.offset; });
+    std::erase_if(
+        note.slides, [target](const SlideWaypoint& waypoint) { return target < waypoint.offset; });
+}
+
 // Bumps a payload window landing on or before the note's last waypoint to one minimum step past
 // it, so the payload stays ascending.
 [[nodiscard]] Fraction keptStrictlyAfterLastWaypoint(const ChartNote& note, const Fraction window)
@@ -1061,13 +1074,10 @@ void normalizeImportedSustains(
                         // with the tail. Clipping here rather than after the assignment below
                         // keeps the model's "payload within the sustain" invariant AND lets the
                         // slide-out measure itself against the path that survives — a trailing
-                        // hold waypoint must not hold the gesture open through the margin.
-                        std::erase_if(note.bend, [target](const BendPoint& point) {
-                            return target < point.offset;
-                        });
-                        std::erase_if(note.slides, [target](const SlideWaypoint& waypoint) {
-                            return target < waypoint.offset;
-                        });
+                        // hold waypoint must not hold the gesture open through the margin. The
+                        // slide-out is deliberately not clipped here: the compression below PLACES
+                        // it rather than dropping it.
+                        clipPayloadsTo(note, target);
                     }
                     // The unpitched slide-out is NOT a protected payload: its end is gesture
                     // geometry derived from the notated duration, not a musical event, so it
@@ -2456,26 +2466,54 @@ void resolveSlideOutExits(
                 continue;
             }
 
-            // Shift: an ordinary pitched waypoint glides to the re-picked landing's fret,
-            // ending the minimum-sustain-distance margin before the landing's onset like any
-            // trimmed tail (policy rule 13); the landing keeps its own onset and head. The
-            // sustain ends at the glide end, floored at any INFORMATIVE payload the tie merge
-            // folded past it (rule 2 — a repeated bend value or a hold waypoint pins nothing)
-            // and kept strictly after the last chain waypoint (a degenerate gap glides through
-            // half of it instead).
+            // Shift: an ordinary pitched waypoint glides to the re-picked landing's fret, ending
+            // the minimum-sustain-distance margin before the landing's onset like any trimmed tail
+            // (policy rule 13); the landing keeps its own onset and head. The sustain ends at the
+            // glide end, floored at any INFORMATIVE payload the tie merge folded past it (rule 2 —
+            // a repeated bend value or a hold waypoint pins nothing) and kept strictly after the
+            // last chain waypoint (a degenerate gap glides through half of it instead).
+            //
+            // This trim cannot defer to normalizeImportedSustains even though that pass states the
+            // same rule: rule 1 exempts a deliberate hold from the margin trim, and a tie-merged
+            // note reaching past the next onset IS one — yet its glide must still arrive before the
+            // landing, because past that point it would be holding the landing's fret. So the two
+            // trims cover disjoint notes, and both owe the payload clip. Omitting it here refused
+            // whole songs: a note whose informative payload reached the landing left a waypoint
+            // sitting on the landing's own onset, and one whose bend values all repeat left a bend
+            // point past the shortened sustain.
             Fraction window = gap - sustainMarginAt(grid, note.position);
             if (window.numerator <= 0)
             {
                 window = gap * Fraction{1, 2};
             }
             const Fraction informative = lastChangingPayloadOffset(note);
-            if (window < informative)
+            // The floor yields to the LANDING, which it does nowhere else: a pitched waypoint may
+            // not sit on a later onset of its own string (that encoding stores no coordinates,
+            // which is what keeps it undesyncable), and past the onset the glide would be holding
+            // the landing's own fret. Where the folded payload reaches that far, the arrival keeps
+            // the margin instead of the information.
+            if (window < informative && informative < gap)
             {
                 window = informative;
             }
             window = keptStrictlyAfterLastWaypoint(note, window);
+            if (!(window < gap))
+            {
+                // The chain's own waypoints already fill the gap, so there is nowhere left to
+                // arrive before the landing sounds. The glide cannot be a pitched arrival at all
+                // and degrades to the unpitched trail-off the no-landing case uses.
+                flags |= 4;
+                break;
+            }
             note.slides.push_back(SlideWaypoint{.offset = window, .fret = next->note.fret});
             note.sustain = window;
+            clipPayloadsTo(note, window);
+            if (note.slide_out.has_value() && window < note.slide_out->offset)
+            {
+                // A trail-off the chain resolved earlier cannot outlive the tail it trails off
+                // from; the arrival is the gesture's end now.
+                note.slide_out.reset();
+            }
             flags = 0;
             break;
         }

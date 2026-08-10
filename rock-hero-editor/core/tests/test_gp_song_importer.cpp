@@ -3718,6 +3718,77 @@ TEST_CASE("Guitar Pro import rejects unusable sources", "[core][gp-import]")
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// A bend on a note that shift-slides into its landing. Ordinary lead vocabulary, and it used to
+// refuse the whole song two different ways: the trim that ends the glide before the landing set the
+// sustain without clipping the payload past it, so a flat prebend left a bend point outside the tail
+// — and when the bend's own last CHANGING point reached the landing, the informative floor pushed
+// the arrival onto the landing's own onset, where a pitched waypoint may not sit.
+TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // A quarter note that shift-slides (flag 1 = shift) into a re-picked landing a quarter later,
+    // with the bend shape under test, plus the landing itself.
+    const auto importWithBend = [&syncs](const GpBend& bend) {
+        GpScore score = makeLinearScore(1, syncs);
+        GpNote sliding{.string = 0, .fret = 5};
+        sliding.slide_flags = 1;
+        sliding.bend = bend;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {sliding}},
+                     GpBeat{
+                         .duration_whole = Fraction{1, 4}, .notes = {GpNote{.string = 0, .fret = 9}}
+                     }}
+                }
+            });
+        return buildGpSong(score);
+    };
+
+    SECTION("a flat prebend, whose points pin nothing")
+    {
+        // Every value equal: no point CHANGES anything, so the informative floor is zero and the
+        // tail trims to the margin — leaving the destination point outside it unless it is clipped.
+        GpBend flat;
+        flat.origin_value = 100.0;
+        flat.middle_value = 100.0;
+        flat.destination_value = 100.0;
+        const auto built = importWithBend(flat);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE_FALSE(chart.notes.empty());
+        const common::core::ChartNote& sliding = chart.notes.front();
+        for (const common::core::BendPoint& point : sliding.bend)
+        {
+            CHECK_FALSE(sliding.sustain < point.offset);
+        }
+    }
+
+    SECTION("a bend that keeps rising to the note's end")
+    {
+        // The last changing point sits at the note's end, which is the landing's onset, so the
+        // informative floor would place the arrival exactly there.
+        GpBend rising;
+        rising.origin_value = 0.0;
+        rising.middle_value = 50.0;
+        rising.destination_value = 100.0;
+        const auto built = importWithBend(rising);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        const common::core::ChartNote& sliding = chart.notes.front();
+        // Whatever the glide became, nothing pitched may sit on the landing's own onset.
+        const Fraction gap =
+            common::core::beatDistance(built->tempo_map, sliding.position, chart.notes[1].position);
+        for (const common::core::SlideWaypoint& waypoint : sliding.slides)
+        {
+            CHECK(waypoint.offset < gap);
+        }
+    }
+}
+
 // No single out-of-range value in a score may cost the whole song. Every field below arrives from
 // the file unvalidated and is bounded by the chart rules, so each one used to be able to reach
 // validation and refuse the import outright — a song lost to one junk integer. Import is a commit
