@@ -13,6 +13,7 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -499,8 +500,7 @@ struct HighwayViewState
 /*!
 \brief Builds the running maximum of note sustain ends, one entry per note.
 
-Companion table for highwayVisibleNoteRange: notes are sorted by onset but sustains overlap
-freely, so the visible-range lower bound needs the prefix maximum of end times.
+The highway spelling of makeSustainPrefixMax, which carries the table's contract.
 
 \param notes Seconds-resolved notes sorted by start time.
 \return Non-decreasing prefix maximum of end_seconds, sized like notes.
@@ -508,15 +508,7 @@ freely, so the visible-range lower bound needs the prefix maximum of end times.
 [[nodiscard]] inline std::vector<double> makeHighwaySustainPrefixMax(
     const std::vector<HighwayNoteView>& notes)
 {
-    std::vector<double> prefix_max;
-    prefix_max.reserve(notes.size());
-    double running = 0.0;
-    for (const HighwayNoteView& note : notes)
-    {
-        running = prefix_max.empty() ? note.end_seconds : std::max(running, note.end_seconds);
-        prefix_max.push_back(running);
-    }
-    return prefix_max;
+    return makeSustainPrefixMax(notes | std::views::transform(&HighwayNoteView::end_seconds));
 }
 
 /*!
@@ -532,24 +524,13 @@ while their heads pin at the hit line.
 [[nodiscard]] inline std::vector<double> makeHighwaySustainPrefixMax(
     const std::vector<double>& end_seconds)
 {
-    std::vector<double> prefix_max;
-    prefix_max.reserve(end_seconds.size());
-    double running = 0.0;
-    for (const double end : end_seconds)
-    {
-        running = prefix_max.empty() ? end : std::max(running, end);
-        prefix_max.push_back(running);
-    }
-    return prefix_max;
+    return makeSustainPrefixMax(end_seconds);
 }
 
 /*!
 \brief Returns the note index range that can intersect a visible time span.
 
-Sorted starts bound the range's end; the non-decreasing prefix maximum of sustain ends bounds its
-start, because every note before the first index whose running maximum reaches the span ends
-strictly before the span. The range is a tight superset — callers still intersect each note
-individually because an early short note inside the range may end before the span begins.
+The highway spelling of visibleEventRange, which carries the search and its invariants.
 
 \param notes Seconds-resolved notes sorted by start time.
 \param prefix_max_end_seconds Running maximum of note end times from makeHighwaySustainPrefixMax.
@@ -561,16 +542,7 @@ individually because an early short note inside the range may end before the spa
     const std::vector<HighwayNoteView>& notes, const std::vector<double>& prefix_max_end_seconds,
     double span_start_seconds, double span_end_seconds) noexcept
 {
-    const auto begin_it = std::ranges::lower_bound(prefix_max_end_seconds, span_start_seconds);
-    const auto end_it = std::ranges::upper_bound(
-        notes, span_end_seconds, std::ranges::less{}, [](const HighwayNoteView& note) {
-            return note.start_seconds;
-        });
-
-    const auto first =
-        static_cast<std::size_t>(std::distance(prefix_max_end_seconds.begin(), begin_it));
-    const auto last = static_cast<std::size_t>(std::distance(notes.begin(), end_it));
-    return {std::min(first, last), last};
+    return visibleEventRange(notes, prefix_max_end_seconds, span_start_seconds, span_end_seconds);
 }
 
 /*!

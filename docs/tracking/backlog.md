@@ -435,6 +435,23 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   feature while the header documents its constructor as taking "already validated" input with nothing
   to call. Not yet a duplication, but it is the shape that becomes one.
 
+### Left over from the conventions pass
+
+- **The three highway forwarders are now pure forwarders and can be deleted.** With
+  `visibleEventRange` and `makeSustainPrefixMax` shared, `highwayVisibleNoteRange` and both
+  `makeHighwaySustainPrefixMax` overloads add nothing but a name. Callers:
+  `highway_renderer.cpp:1257`, `:2008`, `:4759`, plus `test_highway_projection.cpp:828` — which is the
+  *only* caller of the notes-taking overload, so that one is test-only API.
+- **Two orphaned includes** the dedup left behind: `tab_lane_layout.h` still includes
+  `tab_view_state.h`, and `tab_view.h` still includes `<cstddef>`/`<utility>`. Removing either forces
+  an include into `test_chart_hit_testing.cpp` and three siblings, which is why they were left.
+- **Comment lines past 100 columns: the check is written and correct but parked** in the convention
+  checker's `PENDING_CHECKS`, because the tree carries **180 pre-existing violations across 81
+  files**. `python scripts/verify-project-conventions.py --pending` prints the full inventory.
+  **NEEDS A RULING: do the 81-file rewrap and flip one line to enable it, or drop the check.** It
+  cannot be enabled as-is — it would fail every commit in the repo. Note this overlaps the 33 sites
+  the documentation audit found independently.
+
 ### Documentation claims that are wrong
 
 Twelve verified-wrong header claims. Four were fixed with their code; these are the rest, each
