@@ -453,6 +453,37 @@ item ships, mark it and name the commit.
     always means "keep chugging or dragging", whose hold-scoring treatment is a plan 24
     question, not a chart one.
 
+- [x] **D17 — The teeth mean REPEATED ATTACKS, not noise (user proposal 2026-08-09; agent
+  endorses).** The user asked whether a pick slide should draw as a regular smooth slide, since
+  its motion is one clean drag and it can never be tremolo picked, and observed that a full mute
+  then gains a real distinction: "noisy travel" (a tremolo-picked muted slide, jagged) versus a
+  plain muted slide (smooth, one drag).
+  - **Shipped reading, with its rationale stated in code:** the teeth mean *unmeasured noise*, so
+    a scrape rides the tremolo strip outright — `tab_paint_core.cpp:253-259`
+    (`if (note.tremolo || scrape)`) and `highway_renderer.cpp:3364-3365` (`teethed = tremolo ||
+    PickSlide`), both carrying the same comment. Coherent, and both surfaces already agree.
+  - **Why the user's reading is better.** (1) It is factually accurate about the gesture: a
+    scrape is ONE continuous drag, and teeth assert a repetition that is not happening. (2) It
+    stops the tail duplicating the head: a scrape already says "noise" three ways at the head
+    (the plectrum silhouette, the PS chip, the required terminal) and a dead note says it with
+    the X, so spending the only jagged texture on restating that leaves nothing for
+    repetition-versus-continuous. (3) It buys a distinction otherwise UNREPRESENTABLE — the
+    user's noisy travel — which matters exactly because E25 makes muted tails either travel or
+    repetition. (4) The tail axis then means one thing per decoration: ribbon = duration,
+    diagonal = position travel, curve = bend, sine = vibrato, **teeth = repeated attacks** — and
+    pitched-versus-noise lives wholly at the head, which is where the attack is.
+  - **Cost, stated plainly:** a scrape's tail becomes visually similar to a pitched note's slide
+    tail, differing by the head alone. Mitigated by the plectrum's very distinct silhouette (a
+    0.94-aspect pick against a disc), its chip, and its always-at-sustain terminal. **Judge on
+    sight:** a scrape is a dramatic gesture and the teeth are visually loud, so the smooth form
+    may read milder than wanted — the same "look at it before believing the reasoning" caveat as
+    the fret-entry flip.
+  - **The change is a deletion, both surfaces together (no divergence):** drop the `|| scrape`
+    disjunct in the two places above, update the two comments and the one test comment that
+    mentions "the tremolo strip (which a scrape otherwise rides)". No data, format, or import
+    change. Nothing else changes: a pitched note slid without tremolo already draws smooth, and
+    with tremolo already draws teeth.
+
 ## Recorded, no decision needed
 
 - **D11 — The pick-side tap.** Rare technique: a tap performed with the side of the pick, itself

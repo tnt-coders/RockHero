@@ -93,6 +93,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E21** | `harmonic_node` > the **physical stop**, strict — the fret, or the capo when `fret == 0` | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Generalized by D1 (2026-08-08): under the 0-means-open convention a capo'd open string stores `fret = 0`, so the stop the node must clear is derived, not stored. |
 | **E22** | A **fret-hand harmonic** (`fret == 0` + node + neither tapping-hand attack) requires `node <= g_max_fret` | **Enforced** (`chart_rules.cpp`), adopted with D1. The fretting hand touches the node, and a finger on the fretboard cannot be past the last fret; this is also what keeps the derived hand window inside `g_max_fret`. A pinch (thumb over the body) and a tap harmonic (picking-hand finger) escape the bound — only the universal 48 limit applies to them. Same discriminator as `fretFor`'s node branch, deliberately. |
 | **E23** | A **tap harmonic** (node + `Tap`) excludes `tremolo` | User, 2026-08-08: not executable fast enough. The model agrees structurally: the tap's damping finger *leaves* the string, so nothing holds the node under re-picking and the harmonic dies. A natural or artificial harmonic keeps a finger on the node, which is why those still allow tremolo (A.H. tremolo is "oddly actually possible" — user). **Enforced 2026-08-09.** |
+| **E25** | A `Full`-muted note may carry a **sustain** only when something keeps making noise or travelling — `tremolo`, or a slide payload (`slides` / `slide_out`) | User exploration, signed 2026-08-09 (D16). A dead note does not ring, so a plain muted tail is silence pretending to be sound; the two things that legitimately fill it are repeated raking (you CAN tremolo pick a mute) and a dragged muted slide (E10 already allows the positions). Two consequences fall out for free: a muted tail therefore ALWAYS draws in the noise/travel idiom with no conditional, and **muted legato is bounded to the sub-bound window** — a plain muted note cannot carry a tail, so past the kept-sustain bound D13 refuses it while inside the bound nothing is proven and E24 applies untouched. That also makes the display's all-muted span carve-out correct rather than a bug, so ONE hold concept still serves both readers. A muted note WITH tremolo keeps its tail and can justify legato at any gap: the chug is the evidence the hand stayed. `Palm` is untouched — palm-muted notes ring. |
 | **E24** | `Full` mute **allows** `Hammer`, `Pull`, and `Tap` — the **muted legato** ("ghost" is reserved for the emphasis axis, D8) | Walkthrough D5, user 2026-08-09. Muted hammer/pull "clucks" are standard funk and R&B vocabulary (bass especially) and dead-note taps are core percussive-fingerstyle material — executable, so the criterion allows them. E4's positive-sounding-position requirement still binds the hammered and tapped forms. The same ruling kept E10 whole: **pre-bend included in the bend exclusion** — bend points store semitone offsets from a pitch a dead note lacks (incoherent data, not merely pointless), no source notates the muted pre-bend, and the cell reopens only on real chart evidence (D6). |
 
 **The tap harmonic needs no enum value — adding one would manufacture invalid states.** Tap was
@@ -407,6 +408,15 @@ when `fret == 0`); and a fret-hand harmonic's node on the neck (E22).
 
 The full-mute principle: forbid everything **pitch-valued**, allow everything **position-valued**
 (and textures).
+
+Plus **E25** on the mute's own duration (signed 2026-08-09): a `Full`-muted note's **sustain**
+requires `tremolo` or a slide payload — the two things that keep a dead string making noise or
+travelling — so a muted tail is never merely held. The display consequence pairs with **D17**
+(the walkthrough): the teeth mean REPEATED ATTACKS rather than noise, so a muted tremolo slide is
+"noisy travel" (teeth plus diagonal) while a plain muted slide is one smooth drag — and a pick
+slide, which can never be tremolo picked, loses its teeth and draws as the single continuous drag
+it is. Pitched-versus-noise is stated at the head (the plectrum silhouette, the mute X), never by
+the tail.
 
 ### Relational rules (validation only, never structural)
 
