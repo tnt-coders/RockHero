@@ -83,14 +83,22 @@ void normalizeChartLegato(
             }
         }
         else if (
-            note.attack == common::core::NoteAttack::Hammer && note.fret == 0 &&
-            !note.harmonic_node.has_value()
+            (note.attack == common::core::NoteAttack::Hammer ||
+             note.attack == common::core::NoteAttack::Tap) &&
+            note.fret == 0 && !note.harmonic_node.has_value()
         )
         {
-            // Nothing to strike: the pull a still-held higher predecessor justifies, else a
-            // plain pick — never an invented articulation.
+            // Nothing to strike (E4), which binds Hammer and Tap alike — the open string has no
+            // fret to land on and no node to strike. Only a HAMMER can be re-read as the pull-off
+            // a still-held higher predecessor justifies; a tap with nowhere to strike is simply
+            // not a tap, and turning it into a pull would invent legato out of a picking-hand
+            // articulation. Both fall back to the plain pick otherwise — never an invented
+            // articulation. Covering Tap here rather than in a second pass matters because a junk
+            // `Tapped` flag on an open string is real Guitar Pro data, and it used to fail E4 at
+            // validation and take the WHOLE song's import down.
             const bool pullable =
-                source != nullptr && !common::core::fretHandHarmonic(*source) &&
+                note.attack == common::core::NoteAttack::Hammer && source != nullptr &&
+                !common::core::fretHandHarmonic(*source) &&
                 common::core::releasedFret(*source) > 0 &&
                 common::core::predecessorHoldReaches(
                     source->position, effective_sustains[source_index], note.position, tempo_map);

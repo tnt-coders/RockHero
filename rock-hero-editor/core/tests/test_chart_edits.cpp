@@ -1101,4 +1101,63 @@ TEST_CASE("planAdjustSustain repairs legato its shrink disconnects", "[core][cha
     }
 }
 
+// E4's landing requirement binds Tap exactly as it binds Hammer, so the repair must cover both:
+// a Tap on an open string with no node is not a tap at all. A junk `Tapped` flag is real Guitar
+// Pro data, and before this the stream reached validation unrepaired and failed the whole import.
+TEST_CASE("the repair gives a strikeless tap and hammer somewhere to land", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> nothing{};
+
+    // A tap with nowhere to strike becomes a plain pick — never a pull, which would invent
+    // legato out of a picking-hand articulation even though a higher predecessor sits behind it.
+    common::core::Chart tapped;
+    tapped.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    tapped.notes = {
+        makeNote({.measure = 1, .beat = 1}, 1, 9),
+        makeNote({.measure = 1, .beat = 2}, 1, 0),
+    };
+    tapped.notes[0].sustain = common::core::Fraction{3, 4};
+    tapped.notes[1].attack = common::core::NoteAttack::Tap;
+    // Deleting nothing still funnels through the shared finalize, which is where the repair runs.
+    const auto tap_plan = planDeleteNotes(tapped, tempo_map, nothing);
+    CHECK_FALSE(tap_plan.has_value()); // nothing to delete, so no plan — the chart is untouched
+
+    // Through a real edit: retyping the predecessor leaves the strikeless tap in the stream, and
+    // the gate would refuse it if the repair had not converted it first.
+    const auto retyped =
+        planRetypeFrets(tapped, tempo_map, {tapped.notes[0]}, 7, /*set_exact=*/true);
+    REQUIRE(retyped.has_value());
+    if (retyped.has_value())
+    {
+        const auto struck = std::ranges::find_if(
+            retyped->inserted, [](const common::core::ChartNote& note) { return note.fret == 0; });
+        REQUIRE(struck != retyped->inserted.end());
+        if (struck != retyped->inserted.end())
+        {
+            CHECK(struck->attack == common::core::NoteAttack::Pick);
+        }
+    }
+
+    // The hammer keeps its rescue: a still-held higher predecessor makes it the pull-off the
+    // frets support, which is the one asymmetry between the two attacks.
+    common::core::Chart hammered = tapped;
+    hammered.notes[1].attack = common::core::NoteAttack::Hammer;
+    const auto hammer_plan =
+        planRetypeFrets(hammered, tempo_map, {hammered.notes[0]}, 7, /*set_exact=*/true);
+    REQUIRE(hammer_plan.has_value());
+    if (hammer_plan.has_value())
+    {
+        const auto struck =
+            std::ranges::find_if(hammer_plan->inserted, [](const common::core::ChartNote& note) {
+                return note.fret == 0;
+            });
+        REQUIRE(struck != hammer_plan->inserted.end());
+        if (struck != hammer_plan->inserted.end())
+        {
+            CHECK(struck->attack == common::core::NoteAttack::Pull);
+        }
+    }
+}
+
 } // namespace rock_hero::editor::core

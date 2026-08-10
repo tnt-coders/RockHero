@@ -2291,12 +2291,11 @@ void resolveSlideOutExits(
             BuiltNote& kept = built[member];
             ChartNote& note = kept.note;
             note.attack = NoteAttack::PickSlide;
-            note.mute = NoteMute::None;
-            note.harmonic_node.reset();
-            note.vibrato = false;
-            note.tremolo = false;
-            note.accent = false;
-            note.bend.clear();
+            // The suppression set lives in savedChartNote alone. Restating it here had already
+            // drifted from it: this cleared `accent` too, but an accented scrape is legal and
+            // meaningful — an aggressively played one (H3/D4) — so an accent the score marked was
+            // silently discarded on import.
+            note = common::core::savedChartNote(note);
             // Carriers are dead strings with meaningless frets, so the import owns the start too;
             // the editor's toggle keeps a real note's fret instead. The start is floored above the
             // capo because a note's `fret` is capo-validated whatever its attack: an upward

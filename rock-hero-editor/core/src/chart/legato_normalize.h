@@ -18,7 +18,8 @@ namespace rock_hero::editor::core
 Normalizes impossibility, never preference: a `Pull` whose justification the stream no longer
 supports becomes the hammer-on a lower released predecessor justifies, else a plain pick; a
 `Hammer` with nothing to strike becomes the pull-off a higher predecessor justifies, else a plain
-pick. Every other `Hammer` is untouched — always possible as a left-hand tap, so a deliberate
+pick; and a `Tap` with nothing to strike becomes a plain pick, since E4's landing requirement binds
+both attacks and a tap is a picking-hand articulation no predecessor can rescue into a pull. Every other `Hammer` is untouched — always possible as a left-hand tap, so a deliberate
 `Ctrl+H` survives every later edit. Judgments are value-based against the RELEASED fret (a glide
 hands over its last waypoint, a scrape its slide-out's end), never predecessor identity, and a
 valid pull-from-a-scrape is deliberately left standing.

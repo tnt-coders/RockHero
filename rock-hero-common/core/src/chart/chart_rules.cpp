@@ -529,8 +529,13 @@ std::expected<void, ChartError> validateChartNotes(
         // cannot sit still, unlike note slides, whose equal-fret segments are holds).
         if (note.attack == NoteAttack::PickSlide)
         {
-            if (note.mute != NoteMute::None || note.harmonic_node.has_value() || note.vibrato ||
-                note.tremolo || !note.bend.empty())
+            // Stated as a FIXPOINT rather than by listing the overridden fields: a saved note must
+            // already equal its own saved form. Enumerating mute/node/vibrato/tremolo/bend here
+            // duplicated exactly the set savedChartNote strips, so the writer and the validator
+            // had to agree by hand and a sixth overridden field would have updated only one of
+            // them. (If another attack ever gains latent overrides, lift this check out of the
+            // PickSlide branch — the comparison is identity for every attack that has none.)
+            if (!(savedChartNote(note) == note))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidPickSlide,
