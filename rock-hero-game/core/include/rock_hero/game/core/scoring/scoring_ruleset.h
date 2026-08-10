@@ -18,9 +18,9 @@ All hit windows, ladder thresholds, and score constants live here so a score is 
 together with the ruleset that produced it: every score record carries the version string, and
 ANY constant change bumps the version — records are self-describing, so old records stay honest
 and comparable per version. The member initializers ARE ruleset `rh-score-1`; construct with
-`ScoringRuleset{}` to score under the current rules. The named feel baseline for these constants
-is Guitar Hero: Warriors of Rock (plan 24 §1) — values documented only for earlier GH eras are
-proxies, recorded as such in the plan.
+`ScoringRuleset{}` to score under the current rules. These constants track the signed feel baseline
+(plan 24 §1); the ones carried over from earlier-generation variants are proxies, recorded as such
+in the plan.
 */
 struct ScoringRuleset
 {
@@ -30,10 +30,10 @@ struct ScoringRuleset
     /*!
     \brief Half-width of the onset hit window in real milliseconds around the expected time.
 
-    ±100 ms is the GH3/RB-era number, kept at v1 as margin for detection timing jitter. The WoR
-    baseline is community-attested tighter (no published figure; Clone Hero's 140 ms total is
-    the Neversoft-feel reference), so the recorded tuning direction is toward ~±70 ms by ruleset
-    version once plan 23 measures real jitter.
+    ±100 ms is the widest window the genre documents, kept at v1 as margin for detection timing
+    jitter. The signed feel baseline is attested tighter (no published figure of its own; Clone
+    Hero's 140 ms total is the closest published equivalent), so the recorded tuning direction is
+    toward ~±70 ms by ruleset version once plan 23 measures real jitter.
     */
     double onset_window_half_width_ms{100.0};
 
@@ -41,7 +41,7 @@ struct ScoringRuleset
     \brief Ascending committed-streak thresholds that raise the multiplier ladder.
 
     The multiplier is 1 plus the number of satisfied thresholds, so `{10, 20, 30}` is the
-    GH-style 1x/2x/3x/4x ladder.
+    genre-standard 1x/2x/3x/4x ladder.
     */
     std::vector<int> multiplier_streak_thresholds{10, 20, 30};
 
@@ -51,8 +51,8 @@ struct ScoringRuleset
     /*!
     \brief Base score of one hit note; a chord scores the sum of its member notes.
 
-    GH-authentic: a two-note chord banks 100, a three-note chord 150 — chord risk is rewarded in
-    score while staying one unit for streak, multiplier, and meter purposes.
+    A two-note chord banks 100, a three-note chord 150 — chord risk is rewarded in score while
+    staying one unit for streak, multiplier, and meter purposes.
     */
     int base_note_score{50};
 
@@ -69,7 +69,7 @@ struct ScoringRuleset
     double sustain_tolerance_cents{100.0};
 
     /*!
-    \brief Whether a qualifying unmatched onset breaks the committed streak (GH overstrum feel).
+    \brief Whether a qualifying unmatched onset breaks the committed streak (overstrum penalty).
 
     Deliberately one flag to walk back: flipping this to false (with a version bump) yields
     no-penalty play without touching the state machine. An overstrum never marks any
@@ -103,11 +103,11 @@ struct ScoringRuleset
     below 0.2, then 1/2/3/4/5 stars at 0.2/0.6/1.2/2.0/2.8. The lowest cutoff makes 0 and 1 stars
     reachable — in practice only in no-fail mode, since a fail-enabled run that would score that
     low fails out before it can complete (plan 24 §6). A failed, incomplete run records 0 stars
-    by override at finalization, independent of these cutoffs. All five values are WoR-baseline
-    proxies (only the upper cutoffs have GH-era documentation; the 0.2 floor is RockHero's,
-    pending plan-23 tuning). Ratio stars cap at 5: a strict full combo (every note hit, zero
-    qualifying overstrums) is a separate predicate the state machine records as `fullCombo`, and
-    presentation renders it as 5 GOLD stars — never a sixth star, and never decided by a ratio.
+    by override at finalization, independent of these cutoffs. All five values are proxies for the
+    signed feel baseline (only the upper cutoffs have documented genre precedent; the 0.2 floor is
+    RockHero's, pending plan-23 tuning). Ratio stars cap at 5: a strict full combo (every note hit,
+    zero qualifying overstrums) is a separate predicate the state machine records as `fullCombo`,
+    and presentation renders it as 5 GOLD stars — never a sixth star, and never decided by a ratio.
     */
     std::vector<double> star_ratio_thresholds{0.2, 0.6, 1.2, 2.0, 2.8};
 };

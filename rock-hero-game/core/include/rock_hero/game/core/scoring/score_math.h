@@ -21,7 +21,7 @@ on the gem, and no banked note is ever retroactively mis-scored.
 \param ruleset Constants defining the ladder thresholds and the star-power factor.
 \param committed_streak Consecutive committed hits entering the note being scored (the streak
        BEFORE this note commits): the note whose commit makes the streak 10 still scores at 1x,
-       and the next one earns 2x — the GH fencepost. Non-negative.
+       and the next one earns 2x — the genre-standard fencepost. Non-negative.
 \param star_power_active True while a star-power deployment is draining.
 \return Ladder multiplier, doubled by the star-power factor when active.
 */

@@ -463,8 +463,8 @@ item ships, mark it and name the commit.
   (like slides); `Ctrl+H` stays self-addressed (an attack property, no transition). Costs and
   opens: 2D connector rendering (thin connector vs the sustain ribbon — a visual design pass;
   interacts with the parked bend redesign's connected family), the 3D highway treatment (HOPO
-  gems with tiny connection sustains — render/scoring idiom vs the WoR baseline), import keeps
-  legato predecessors' tails (exempt from the drop rule — GP notates slur origins full-duration,
+  gems with tiny connection sustains — render/scoring idiom vs the signed feel baseline), import
+  keeps legato predecessors' tails (exempt from the drop rule — GP notates slur origins full-duration,
   so they connect naturally; verify by corpus scan), and corpus re-import (no legacy handling,
   per the standing rule). Evidence to pre-assemble for the gate: corpus measurement of legato
   pairs — gap distribution and whether notated origin durations reach the destination.

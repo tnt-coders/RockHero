@@ -7,7 +7,7 @@
 namespace rock_hero::game::core
 {
 
-// The GH ladder under rh-score-1: 1x/2x/3x/4x at committed streaks 0/10/20/30, with each
+// The multiplier ladder under rh-score-1: 1x/2x/3x/4x at committed streaks 0/10/20/30, with each
 // threshold inclusive and the top rung open-ended. A pre-song negative streak can't exist, but
 // the math treats it as zero rather than misbehaving.
 TEST_CASE("Multiplier ladder rises at the committed streak thresholds", "[core][scoring]")
@@ -36,7 +36,7 @@ TEST_CASE("Empty ruleset thresholds pin the ladder and star floors", "[core][sco
     CHECK(starsForScoreRatio(ruleset, 100.0) == 0);
 }
 
-// Star power doubles whatever rung the ladder is on, up to the GH-style 8x ceiling.
+// Star power doubles whatever rung the ladder is on, up to the 8x ceiling.
 TEST_CASE("Star power doubles the ladder multiplier", "[core][scoring]")
 {
     const ScoringRuleset ruleset{};

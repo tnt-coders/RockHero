@@ -686,7 +686,7 @@ the one close call (SDL_GPU) trades proven in-repo evidence, D3D11 reach, and an
 pipeline for one fewer dependency, and would need its own spike to tie the confidence bgfx
 already has.
 
-**Future-proofing note (2026-07-10, user question at sign-off):** a classic-GH-style 3D stage
+**Future-proofing note (2026-07-10, user question at sign-off):** a genre-classic 3D stage
 with an animated band was assessed against this stack and requires no structural change: bgfx's
 altitude (GPU abstraction, not scene system) supports skinned characters/venues/effects; the
 addition would be an animation/asset layer in game-land (e.g. ozz-animation + glTF loading +
