@@ -152,7 +152,14 @@ item ships, mark it and name the commit.
   invalid) is part of the convention but **gated on D9**: enforcing it before GP's frame is
   measured could reject valid imports. A 2D display note for the notation pass, no action now:
   a fretted tap harmonic's head currently shows the node, and the stop is carried nowhere on the
-  2D surface — a two-position technique may eventually want both.
+  2D surface — a two-position technique may eventually want both. 3D already carries both, which
+  settles what "both" should look like: the note (head, tail, glide) sounds from the node, while
+  the board's own furniture — glow post and fret-span line — marks the stop the hand presses. That
+  division is now stated once, in `noteFretboardX`, which takes the stop as a parameter so every
+  point of a gesture reads the same axis: a node RIDES its stop (fret spacing is logarithmic, so
+  the offset above the stop is constant in fret units), which is the same rule `tabNoteHeadText`
+  labels each head by. Before that, an artificial harmonic's glide left the node axis and landed on
+  the raw fret slot of its waypoint, so its tail traveled to a place 2D never labeled.
 - [x] **D2 — The scrape's payload shape — ADOPTED 2026-08-08 and shipped flat.** `slide_out` is
   the required unpitched terminal (offset exactly at the sustain), `slides` are optional
   turnaround waypoints, the whole path always traveling — implemented across the rules, writer,

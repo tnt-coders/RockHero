@@ -309,26 +309,39 @@ struct PosColorUvVertex
     float v;
 };
 
-// The note's x on the fretboard axis, and the ONE authority for it.
+// Where a note SOUNDS on the fretboard axis, and the ONE authority for it.
 //
 // A natural harmonic is touched AT its node rather than behind a fret wire, so its head, its tail
-// and its slide anchor must all read the same value: the node lands just past a wire while the
-// fret slot's middle sits between the two wires behind it, half a slot away.
+// and every point its glide passes through must all read the same value: the node lands just past
+// a wire while the fret slot's middle sits between the two wires behind it, half a slot away.
 //
-// A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on `fret` and
+// The stop is a parameter because a gesture sounds from more than one of them — the onset from the
+// note's own fret, a slide from each fret it travels to — and a harmonic's node RIDES its stop:
+// fret spacing is logarithmic, so the node's offset above the stop is constant in fret units and a
+// glide that moves the stop moves the node by the same amount. Passing `note.fret` therefore gives
+// the onset's anchor, and the shift is zero there. This is the same rule `tabNoteHeadText` labels
+// every head of a gesture by, so the two surfaces cannot disagree about what a glide arrives at.
+//
+// Note the asymmetry with the board's own furniture (glow posts, fret-span lines), which marks
+// where the HAND goes and so stays on the stop: on an artificial harmonic the hand presses at
+// `fret` while the sound comes from the node twelve-or-so frets up, and both facts are drawn.
+//
+// A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on the stop and
 // this returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).
 [[nodiscard]] double noteFretboardX(
-    const common::core::HighwayNoteView& note, const common::core::HighwayMetrics& metrics,
-    const bool mirrored)
+    const common::core::HighwayNoteView& note, const int fret_at_point,
+    const common::core::HighwayMetrics& metrics, const bool mirrored)
 {
     if (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack))
     {
         // The fret axis takes a fractional coordinate directly, so the node needs no rounding of
         // any kind here. This is NOT the ceil that `fretFor` applies: that one asks which integer
         // fret *contains* the node, for the hand window; this wants the node's exact position.
-        return common::core::highwayFretLineX(*note.harmonic_node, metrics, mirrored);
+        const double node_at_point =
+            *note.harmonic_node + static_cast<double>(fret_at_point - note.fret);
+        return common::core::highwayFretLineX(node_at_point, metrics, mirrored);
     }
-    return common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+    return common::core::highwayNoteCenterX(fret_at_point, metrics, mirrored);
 }
 
 // Lazily built layouts. begin()'s default RendererType::Noop merely selects an attribute-size
@@ -2731,8 +2744,7 @@ void HighwayRenderer::Impl::draw(
         for (std::size_t index = 0; index < note.slides.size(); ++index)
         {
             const common::core::HighwaySlideView& waypoint = note.slides[index];
-            const double waypoint_x =
-                common::core::highwayNoteCenterX(waypoint.fret, metrics, mirrored);
+            const double waypoint_x = noteFretboardX(note, waypoint.fret, metrics, mirrored);
             if (seconds <= waypoint.seconds)
             {
                 const double span = waypoint.seconds - segment_start_seconds;
@@ -2754,7 +2766,7 @@ void HighwayRenderer::Impl::draw(
         // Past the last waypoint the glide holds its target (and any unpitched dimming).
         const common::core::HighwaySlideView& last = note.slides.back();
         return SlideState{
-            .x_offset = common::core::highwayNoteCenterX(last.fret, metrics, mirrored) - base_x,
+            .x_offset = noteFretboardX(note, last.fret, metrics, mirrored) - base_x,
             .alpha = last.unpitched ? g_unpitched_slide_end_alpha : 1.0,
         };
     };
@@ -3144,7 +3156,9 @@ void HighwayRenderer::Impl::draw(
         // Slide state at the anchor: a sounding head glides with its slide, and an unpitched
         // release dims the head and its post in step with the tail.
         const SlideState head_slide = slide_state_at(
-            note, note.fret > 0 ? noteFretboardX(note, metrics, mirrored) : 0.0, head_seconds);
+            note,
+            note.fret > 0 ? noteFretboardX(note, note.fret, metrics, mirrored) : 0.0,
+            head_seconds);
 
         // Bend geometry: lift per semitone, inverted on the upper displayed half so curves stay
         // inside the board. The chart-truth station is the curve's anchor-time value (a pinned
@@ -3250,7 +3264,7 @@ void HighwayRenderer::Impl::draw(
             double base_x = 0.0;
             if (note.fret > 0)
             {
-                base_x = noteFretboardX(note, metrics, mirrored);
+                base_x = noteFretboardX(note, note.fret, metrics, mirrored);
                 const double half = common::core::highwayTailHalfWidth(metrics);
                 band = {base_x - half, base_x - (half / 2.0), base_x + (half / 2.0), base_x + half};
             }
@@ -3822,12 +3836,9 @@ void HighwayRenderer::Impl::draw(
             continue;
         }
 
-        // Fretted head anchor: the fret-slot middle, or — for a harmonic whose node lies on the
-        // fretboard — that node, because the damping finger is standing on it. A pinch is the one
-        // harmonic excluded: its thumb grazes over the body, so there is no neck coordinate to
-        // place it at and the head keeps the fret anchor. A cue for where the thumb DOES land is
-        // deferred to 25-Q5.
-        double x = noteFretboardX(note, metrics, mirrored);
+        // Fretted head anchor: where the note sounds from at its own stop (noteFretboardX states
+        // the rule, including which harmonics move onto their node).
+        double x = noteFretboardX(note, note.fret, metrics, mirrored);
         // A sounding head travels with its glide, so it stays glued to the tail through bends,
         // vibrato, and slides. It does NOT ride the tremolo teeth: the teeth are a texture the
         // tail carries, and a head shaking with them reads as a jitter fighting its own digit
