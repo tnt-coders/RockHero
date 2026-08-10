@@ -206,13 +206,13 @@ void RenderDevice::printDebugText(
     {
         return;
     }
-    constexpr std::uint8_t g_white_on_transparent = 0x0f;
+    constexpr std::uint8_t white_on_transparent = 0x0f;
     std::vector<std::uint8_t> cells;
     cells.reserve(text.size() * 2);
     for (const char character : text)
     {
         cells.push_back(static_cast<std::uint8_t>(character));
-        cells.push_back(g_white_on_transparent);
+        cells.push_back(white_on_transparent);
     }
     bgfx::dbgTextImage(
         column,

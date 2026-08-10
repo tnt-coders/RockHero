@@ -128,10 +128,10 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
                                 const double stroke_half_guard) {
         std::ranges::fill(samples, std::array<double, 3>{});
         std::vector<double> weights(samples.size(), 0.0);
-        constexpr int g_stations = 6;
-        for (int station = 0; station < g_stations; ++station)
+        constexpr int stations = 6;
+        for (int station = 0; station < stations; ++station)
         {
-            const double along = arm_length * (0.45 + (0.35 * station / (g_stations - 1)));
+            const double along = arm_length * (0.45 + (0.35 * station / (stations - 1)));
             for (const double along_sign : {-1.0, 1.0})
             {
                 for (const double mirror : {1.0, -1.0})
@@ -196,9 +196,9 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
 
     // First pass: a fine survey over the largest reach any art can have — from the centerline
     // out past the faint bounding box — locates the stroke edge and the last visible art.
-    constexpr std::size_t g_survey_samples = 256;
+    constexpr std::size_t survey_samples = 256;
     const double survey_extent = ((faint_max_y - faint_min_y + 1) / 2.0) + 2.0;
-    std::array<std::array<double, 3>, g_survey_samples> survey{};
+    std::array<std::array<double, 3>, survey_samples> survey{};
     accumulate(survey_extent, survey, 0.0);
 
     // The stroke boundary anchors to the rim's outer falloff at HALF THE GLYPH'S PEAK coverage
@@ -219,9 +219,9 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
     double stroke_half = -1.0;
     double last_visible = 0.0;
     double previous_coverage = 0.0;
-    for (std::size_t i = 0; i < g_survey_samples; ++i)
+    for (std::size_t i = 0; i < survey_samples; ++i)
     {
-        const double distance = survey_extent * (static_cast<double>(i) + 0.5) / g_survey_samples;
+        const double distance = survey_extent * (static_cast<double>(i) + 0.5) / survey_samples;
         const double coverage = survey.at(i)[2];
         // Take the OUTERMOST falling crossing — not the first — so the anchor stays on the
         // rim even when the art's core is faint or fully hollow, where coverage starts below

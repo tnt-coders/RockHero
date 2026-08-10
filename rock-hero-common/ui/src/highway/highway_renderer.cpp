@@ -675,10 +675,10 @@ void pushOpenNoteBar(
     const double x1, const double lane_y, const double z, const ArgbColor argb, const double alpha,
     const double thickness_scale)
 {
-    constexpr auto g_ring_size = static_cast<std::size_t>(g_open_note_segments);
-    std::array<double, g_ring_size> ring_y{};
-    std::array<double, g_ring_size> ring_z{};
-    for (std::size_t point = 0; point < g_ring_size; ++point)
+    constexpr auto ring_size = static_cast<std::size_t>(g_open_note_segments);
+    std::array<double, ring_size> ring_y{};
+    std::array<double, ring_size> ring_z{};
+    for (std::size_t point = 0; point < ring_size; ++point)
     {
         const double angle =
             2.0 * std::numbers::pi * static_cast<double>(point) / g_open_note_segments;
@@ -717,9 +717,9 @@ void pushOpenNoteBar(
     // Prism sides between adjacent stations.
     for (std::size_t station = 0; station + 1 < station_x.size(); ++station)
     {
-        for (std::size_t point = 0; point < g_ring_size; ++point)
+        for (std::size_t point = 0; point < ring_size; ++point)
         {
-            const std::size_t next_point = (point + 1) % g_ring_size;
+            const std::size_t next_point = (point + 1) % ring_size;
             pushQuad(
                 vertices,
                 indices,
@@ -3341,15 +3341,15 @@ void HighwayRenderer::Impl::draw(
                 // vertical lift or a slide's lateral travel can dominate a tail's on-screen
                 // length, and the flat measure starved exactly those tails of samples, so
                 // their smooth curves rendered as chunky polylines with visible corners.
-                constexpr std::size_t g_arc_probe_segments = 16;
+                constexpr std::size_t arc_probe_segments = 16;
                 double pixels = 0.0;
                 double probe_x = 0.0;
                 double probe_y = 0.0;
                 double probe_z = 0.0;
-                for (std::size_t probe = 0; probe <= g_arc_probe_segments; ++probe)
+                for (std::size_t probe = 0; probe <= arc_probe_segments; ++probe)
                 {
                     const double mix =
-                        static_cast<double>(probe) / static_cast<double>(g_arc_probe_segments);
+                        static_cast<double>(probe) / static_cast<double>(arc_probe_segments);
                     const double seconds = tail_from + ((tail_to - tail_from) * mix);
                     const double taper = common::core::highwayTailTaper(
                         (seconds - note.start_seconds) / duration,
@@ -3769,7 +3769,7 @@ void HighwayRenderer::Impl::draw(
                                 g_tail_inner_alpha * post_floor_alpha * station.alpha_scale),
                         };
                     };
-                    constexpr std::array<std::array<std::size_t, 2>, 3> g_band_colors{
+                    constexpr std::array<std::array<std::size_t, 2>, 3> band_colors{
                         {{0, 1}, {2, 2}, {1, 0}}
                     };
                     for (std::size_t segment = 0; segment + 1 < stations.size(); ++segment)
@@ -3778,9 +3778,9 @@ void HighwayRenderer::Impl::draw(
                         const LStation& b = stations.at(segment + 1);
                         const std::array<std::uint32_t, 3> colors_a = station_colors(a);
                         const std::array<std::uint32_t, 3> colors_b = station_colors(b);
-                        for (std::size_t band = 0; band < g_band_colors.size(); ++band)
+                        for (std::size_t band = 0; band < band_colors.size(); ++band)
                         {
-                            const auto [from_color, to_color] = g_band_colors.at(band);
+                            const auto [from_color, to_color] = band_colors.at(band);
                             pushQuad(
                                 shadow_vertices,
                                 shadow_indices,
@@ -4242,8 +4242,12 @@ void HighwayRenderer::Impl::draw(
     {
         std::vector<PosColorUvVertex> vertices;
         std::vector<std::uint16_t> indices;
-        constexpr int g_inlay_columns = 8;
-        constexpr int g_inlay_rows = 4;
+        constexpr int inlay_columns = 8;
+        constexpr int inlay_rows = 4;
+        // Every fret addresses its own cell below (cell = fret - 1), so the grid must hold the
+        // whole drawn neck. A shorter grid would sample past the texture and smear the last row
+        // across every fret beyond it rather than failing.
+        static_assert(inlay_columns * inlay_rows >= g_face_fret_count);
         // Half-texel inset so a cell samples strictly inside its own texels; the inlay PNG is not
         // square, so u and v inset by different amounts. Zero dimensions (decode failed) fall back
         // to no inset.
@@ -4251,15 +4255,15 @@ void HighwayRenderer::Impl::draw(
             inlay_texture_width > 0 ? 0.5F / static_cast<float>(inlay_texture_width) : 0.0F;
         const float half_texel_v =
             inlay_texture_height > 0 ? 0.5F / static_cast<float>(inlay_texture_height) : 0.0F;
-        const float cell_u = 1.0F / g_inlay_columns;
-        const float cell_v = 1.0F / g_inlay_rows;
+        const float cell_u = 1.0F / inlay_columns;
+        const float cell_v = 1.0F / inlay_rows;
         for (int fret = 1; fret <= g_face_fret_count; ++fret)
         {
             const int cell = fret - 1;
             // Named row/column: the integer division is the grid addressing, kept out of the
             // float expressions on purpose.
-            const int cell_column = cell % g_inlay_columns;
-            const int cell_row = cell / g_inlay_columns;
+            const int cell_column = cell % inlay_columns;
+            const int cell_row = cell / inlay_columns;
             const float u0 = (static_cast<float>(cell_column) * cell_u) + half_texel_u;
             const float v0 = (static_cast<float>(cell_row) * cell_v) + half_texel_v;
             const float u1 = (static_cast<float>(cell_column + 1) * cell_u) - half_texel_u;
