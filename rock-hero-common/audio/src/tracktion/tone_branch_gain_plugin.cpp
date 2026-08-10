@@ -177,10 +177,14 @@ void ToneBranchGainPlugin::applyToBuffer(const tracktion::PluginRenderContext& c
 }
 
 // Restores the persisted branch gain value; automation curves restore through base plugin state.
+//
+// The smoother is deliberately left alone: it holds four non-atomic fields that the audio thread is
+// writing in applyToBuffer, so setting its target from this message-thread call tears against a
+// mid-block skip(). It is also unnecessary, because applyToBuffer sets the target from the attached
+// parameter every block and that parameter reflects the restored cached value immediately.
 void ToneBranchGainPlugin::restorePluginStateFromValueTree(const juce::ValueTree& tree)
 {
     tracktion::copyPropertiesToCachedValues(tree, m_branch_gain);
-    m_smoothed_gain.setTargetValue(m_branch_gain.get());
 }
 
 // Exposes the parameter so the rack adapter can bake schedules and toggle preview bypass.

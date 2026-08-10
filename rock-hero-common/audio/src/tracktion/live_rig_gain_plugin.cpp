@@ -161,7 +161,6 @@ void LiveRigGainPlugin::restorePluginStateFromValueTree(const juce::ValueTree& t
     const Gain restored_gain = clampGain(Gain{static_cast<double>(m_gain_db.get())});
     m_gain_db = static_cast<float>(restored_gain.db);
     setTargetGainDb(static_cast<float>(restored_gain.db));
-    setSmoothedGainTarget(targetLinearGain());
 }
 
 // Stores the clamped dB value in Tracktion state and realtime target memory.
@@ -194,6 +193,12 @@ void LiveRigGainPlugin::setTargetGainDb(float gain_db) noexcept
 }
 
 // Updates the smoother target only when the value has changed meaningfully.
+//
+// Audio thread only, and deliberately not called from any message-thread path. juce::SmoothedValue
+// holds four non-atomic fields, so a message-thread write tears against the audio thread's own
+// skip() mid-block. No message-thread caller needs one either: applyToBuffer re-reads the atomic
+// target and calls this every block, so storing through setTargetGainDb is enough for the change to
+// be picked up on the next block.
 void LiveRigGainPlugin::setSmoothedGainTarget(float linear_gain) noexcept
 {
     if (std::abs(linear_gain - m_last_target_linear_gain) <= g_linear_gain_change_epsilon)
@@ -214,7 +219,6 @@ void LiveRigGainPlugin::valueTreePropertyChanged(
         m_gain_db.forceUpdateOfCachedValue();
         const Gain changed_gain = clampGain(Gain{static_cast<double>(m_gain_db.get())});
         setTargetGainDb(static_cast<float>(changed_gain.db));
-        setSmoothedGainTarget(targetLinearGain());
     }
 
     tracktion::Plugin::valueTreePropertyChanged(changed_tree, changed_property);

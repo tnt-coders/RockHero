@@ -126,14 +126,14 @@ Engine::Engine()
     m_impl->publishClockBoundary(common::core::TimePosition{});
 }
 
-// Stops transport activity before destroying Tracktion objects in dependency order.
+// Stops transport activity and detaches listeners while the Tracktion objects are still alive.
+// Destroying them is Impl's job, not this body's -- see the note above the rack reset below.
 Engine::~Engine()
 {
     // The clock republisher's tick dereferences m_edit; retire it before any teardown below.
     m_impl->m_clock_republish_timer.reset();
 
     m_impl->m_alive.reset();
-    m_impl->m_load_op.reset();
 
     if (m_impl->m_engine)
     {
@@ -148,11 +148,18 @@ Engine::~Engine()
         m_impl->stopTransportAndReleaseContext();
     }
 
-    // The rack state holds reference-counted plugins owned by the edit; release it while the
-    // edit is still alive or the deferred plugin destructors dereference a destroyed Edit.
+    // Removes the rack type from the edit, so this one has to be a call and has to happen here,
+    // while the edit is still alive.
     m_impl->resetToneRackState();
-    m_impl->m_edit.reset();
-    m_impl->m_engine.reset();
+
+    // m_edit and m_engine are deliberately NOT reset here, and neither is any other plugin-holding
+    // member. They are declared first in Impl, so ~Impl destroys them last -- after every member
+    // that can hold a tracktion::Plugin::Ptr. Resetting them here destroyed the Edit early, and a
+    // plugin still held by a later-declared member then ran ~AutomatableEditItem against the freed
+    // Edit, which writes into the Edit's item cache. m_replace_op is the reachable case: close the
+    // editor while a tone-chain swap is mid-flight and its candidate plugins outlive the Edit.
+    // Declaration order is the single authority for teardown order; the hand-maintained list that
+    // used to live here was a second one, and it was missing m_replace_op.
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.
