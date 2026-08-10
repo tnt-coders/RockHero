@@ -1,4 +1,4 @@
-﻿/*!
+/*!
 \file editor_controller_test_harness.h
 \brief Shared editor-controller test fakes and setup helpers.
 */
