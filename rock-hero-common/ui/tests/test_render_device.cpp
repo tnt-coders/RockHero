@@ -45,13 +45,12 @@ TEST_CASE("Render device rejects a windowed backend without a native handle", "[
     CHECK(device.error().code == RenderDeviceErrorCode::MissingNativeWindowHandle);
 }
 
-// Pins the production platform table: Windows builds render with the spike-proven Direct3D 11
-// backend, never bgfx auto-selection.
-TEST_CASE("Default render backend is Direct3D11 on Windows", "[ui][surface]")
+// Pins the production platform table: its single entry is the spike-proven Direct3D 11 backend,
+// never bgfx auto-selection. The selection carries no OS conditional, so the pin holds on every
+// platform that builds the library and adding a second entry must update this case.
+TEST_CASE("Default render backend is the pinned Direct3D11 entry", "[ui][surface]")
 {
-#if defined(_WIN32)
     CHECK(defaultRenderBackend() == RenderBackend::Direct3D11);
-#endif
 }
 
 } // namespace rock_hero::common::ui
