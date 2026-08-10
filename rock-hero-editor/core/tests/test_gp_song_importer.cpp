@@ -3718,4 +3718,78 @@ TEST_CASE("Guitar Pro import rejects unusable sources", "[core][gp-import]")
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// No single out-of-range value in a score may cost the whole song. Every field below arrives from
+// the file unvalidated and is bounded by the chart rules, so each one used to be able to reach
+// validation and refuse the import outright — a song lost to one junk integer. Import is a commit
+// point: it reduces what it cannot represent and says so in the conversion notes.
+TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // Builds a one-note score and returns the built song, so each case below differs only in the
+    // field it puts out of range.
+    const auto importWith = [&syncs](const GpNote& note, const int capo, const bool nine_strings) {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].capo = capo;
+        if (nine_strings)
+        {
+            score.tracks[0].tuning_midi = {28, 33, 40, 45, 50, 55, 59, 64, 69};
+        }
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{GpBeat{.duration_whole = Fraction{1, 4}, .notes = {note}}}}});
+        return buildGpSong(score);
+    };
+
+    SECTION("a capo past the last usable fret")
+    {
+        const auto built = importWith(GpNote{.string = 0, .fret = 3}, 40, false);
+        REQUIRE(built.has_value());
+        CHECK(built->arrangements.front().chart.tuning.capo == 12);
+        CHECK(anyNoteContains(built->notes, "capo at fret 40"));
+    }
+
+    SECTION("a string the tuning does not have")
+    {
+        const auto built = importWith(GpNote{.string = 8, .fret = 3}, 0, false);
+        REQUIRE(built.has_value());
+        CHECK(built->arrangements.front().chart.notes.empty());
+        CHECK(anyNoteContains(built->notes, "string the tuning does not have"));
+    }
+
+    SECTION("more strings than the model speaks about")
+    {
+        const auto built = importWith(GpNote{.string = 0, .fret = 3}, 0, true);
+        REQUIRE(built.has_value());
+        CHECK(built->arrangements.front().chart.tuning.strings.size() == 8);
+        CHECK(anyNoteContains(built->notes, "more than 8 strings"));
+    }
+
+    SECTION("a fret that lands past the neck once the capo shifts it")
+    {
+        // Capo 12 plus a fret-24 note is absolute fret 36, past the 30 the model bounds notes by.
+        const auto built = importWith(GpNote{.string = 0, .fret = 24}, 12, false);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].fret == common::core::g_max_fret);
+        CHECK(anyNoteContains(built->notes, "past fret 30"));
+    }
+
+    SECTION("a natural harmonic whose node would sit off the neck")
+    {
+        // The node carries the fretting finger, so the neck is its ceiling; a high partial's
+        // bridge-side alternate plus a capo pushes it past the last fret.
+        GpNote harmonic{.string = 0, .fret = 0};
+        harmonic.harmonic_type = "Natural";
+        harmonic.harmonic_fret = 24.0;
+        const auto built = importWith(harmonic, 12, false);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].harmonic_node.has_value());
+        CHECK(*chart.notes[0].harmonic_node <= common::core::harmonicNodeCeiling(chart.notes[0]));
+    }
+}
+
 } // namespace rock_hero::editor::core

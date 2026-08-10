@@ -51,6 +51,29 @@ partial) lives in `docs/plans/in-progress/technique-compatibility-and-hardening.
 inline constexpr double g_max_harmonic_node{48.0};
 
 /*!
+\brief Highest capo position a chart tuning may declare.
+
+Twelve is an octave: a capo above it leaves too little neck to play on, and no real part asks for
+one. Shared with import code so capo clamping and validation agree on one authority.
+*/
+inline constexpr int g_max_capo{12};
+
+/*!
+\brief The highest node this note can carry, in fret units.
+
+One authority for a bound that is not one number. Every node is capped by \ref g_max_harmonic_node,
+but a FRET-HAND harmonic's is capped by the neck instead: the fretting finger is standing on that
+node, and a finger cannot be past the last fret. Which cap applies therefore depends on the note,
+which is why import cannot just compare against a constant — and why it used to hand validation
+nodes it had no way to know were unreachable, failing a whole song's import over one label.
+
+\param note Note whose node is in question.
+
+\return The node ceiling, in fret units.
+*/
+[[nodiscard]] double harmonicNodeCeiling(const ChartNote& note);
+
+/*!
 \brief Highest harmonic partial a *notated* node may be snapped onto during import.
 
 **8, taken from Guitar Pro's own output**: measured corpus labels form the unbroken run 12, 7, 5,

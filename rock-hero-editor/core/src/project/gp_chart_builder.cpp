@@ -1980,17 +1980,38 @@ void resolveSlideOutExits(
     const std::vector<Fraction>& phrase_boundary_beats, std::vector<std::string>& notes)
 {
     Chart chart;
+    // Every value below arrives unvalidated from the score file, and each one the chart rules bound.
+    // Import is a commit point, so an out-of-range value is reduced and reported rather than allowed
+    // to reach validation, where it would refuse the WHOLE song over one field.
     for (const int midi : track.tuning_midi)
     {
+        if (static_cast<int>(chart.tuning.strings.size()) >= common::core::g_max_chart_strings)
+        {
+            // The model speaks about eight strings, so a wider instrument loses its extra courses
+            // and the notes on them (dropped below, where a note names a string the tuning lacks).
+            notes.push_back(
+                "track declares more than " + std::to_string(common::core::g_max_chart_strings) +
+                " strings; the extra ones and their notes are dropped");
+            break;
+        }
         chart.tuning.strings.push_back(midiNoteName(midi));
     }
-    chart.tuning.capo = track.capo;
+    chart.tuning.capo = std::clamp(track.capo, 0, common::core::g_max_capo);
+    if (chart.tuning.capo != track.capo)
+    {
+        notes.push_back(
+            "capo at fret " + std::to_string(track.capo) + " is out of range and reads as " +
+            std::to_string(chart.tuning.capo));
+    }
 
     const std::vector<NoteEvent> events = collectEvents(track, grid, notes);
 
     std::vector<BuiltNote> built;
     std::map<int, std::size_t> open_note_per_string;
     int dropped_duplicates = 0;
+    int notes_off_the_instrument = 0;
+    int frets_off_the_neck = 0;
+    int nodes_off_the_string = 0;
     int unsupported_harmonics = 0;
     int semi_as_pinch = 0;
     int implausible_natural_labels = 0;
@@ -2045,6 +2066,15 @@ void resolveSlideOutExits(
             }
         }
 
+        // A note naming a string the tuning does not have cannot be placed at all: the lane it
+        // belongs on does not exist. Dropped and counted, rather than carried to validation, which
+        // would refuse the song.
+        if (source.string < 0 || source.string + 1 > static_cast<int>(chart.tuning.strings.size()))
+        {
+            ++notes_off_the_instrument;
+            continue;
+        }
+
         BuiltNote entry;
         entry.global_beat = event.global_beat;
         entry.end_global_beat = event_end;
@@ -2059,8 +2089,15 @@ void resolveSlideOutExits(
         // Guitar Pro's frets are CAPO-RELATIVE (confirmed by authored experiment: with a capo at
         // 3, an entered "1" sounds the pitch at absolute fret 4), while the chart stores absolute
         // frets with 0 meaning the open string, capo'd or not. So a fretted note shifts by the
-        // capo and the open string stays 0.
+        // capo and the open string stays 0. Clamped to the neck the model speaks about, which the
+        // bound's own definition says import shares: a capo'd score can name a fret past the last
+        // one, and that is junk rather than an instrument we do not know about.
         note.fret = source.fret > 0 ? source.fret + chart.tuning.capo : 0;
+        if (note.fret > common::core::g_max_fret)
+        {
+            note.fret = common::core::g_max_fret;
+            ++frets_off_the_neck;
+        }
         note.sustain = event.duration_beats;
         note.vibrato = source.vibrato;
         note.tremolo = event.tremolo;
@@ -2161,6 +2198,16 @@ void resolveSlideOutExits(
                 }
                 defaulted_fretted_nodes += defaulted ? 1 : 0;
                 note.harmonic_node = static_cast<double>(stop_fret) + offset;
+                if (*note.harmonic_node > common::core::harmonicNodeCeiling(note))
+                {
+                    // A label naming a node this note cannot reach is junk, not data, so the
+                    // octave takes over — the same fallback a missing label gets, and the
+                    // lowest-order harmonic available at any stop. It always fits: a fret-hand
+                    // stop is the capo, so at most 12 + 12 against the neck's 30, and any other
+                    // stop is at most g_max_fret, so 30 + 12 against the string's 48.
+                    note.harmonic_node = static_cast<double>(stop_fret) + 12.0;
+                    ++nodes_off_the_string;
+                }
             }
             else if (source.harmonic_type == "Natural")
             {
@@ -2181,6 +2228,15 @@ void resolveSlideOutExits(
                     // string, so the capo never appears as a fret number.
                     note.harmonic_node = static_cast<double>(chart.tuning.capo) + offset;
                     note.fret = 0;
+                    if (*note.harmonic_node > common::core::harmonicNodeCeiling(note))
+                    {
+                        // A natural's node carries the fretting finger, so the neck is its ceiling:
+                        // high partials crowd toward the nut but their bridge-side alternates climb
+                        // past the last fret, and a capo pushes every one of them further up. The
+                        // octave takes over, as it does for a missing label.
+                        note.harmonic_node = static_cast<double>(chart.tuning.capo) + 12.0;
+                        ++nodes_off_the_string;
+                    }
                 }
                 else
                 {
@@ -2465,6 +2521,26 @@ void resolveSlideOutExits(
     {
         notes.push_back(
             std::to_string(dropped_duplicates) + " duplicate simultaneous notes were dropped");
+    }
+    if (notes_off_the_instrument > 0)
+    {
+        notes.push_back(
+            std::to_string(notes_off_the_instrument) +
+            " notes named a string the tuning does not have and were dropped");
+    }
+    if (frets_off_the_neck > 0)
+    {
+        notes.push_back(
+            std::to_string(frets_off_the_neck) + " notes sat past fret " +
+            std::to_string(common::core::g_max_fret) +
+            " once shifted by the capo and were pulled "
+            "back to it");
+    }
+    if (nodes_off_the_string > 0)
+    {
+        notes.push_back(
+            std::to_string(nodes_off_the_string) +
+            " harmonics named a node the note cannot reach and defaulted to the octave");
     }
 
     // The generator reads onsets, waypoint positions, and — for held-note detection at slide

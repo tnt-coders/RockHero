@@ -16,7 +16,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-constexpr int g_max_capo{12};
 // A full octave: fine tuning stays within a semitone, but real bass arrangements charted on
 // guitar strings pitch down a whole octave via -1200 cents (a common charting practice).
 constexpr double g_max_cent_offset{1200.0};
@@ -262,6 +261,16 @@ ChartNote executableChartNote(ChartNote note)
     return note;
 }
 
+double harmonicNodeCeiling(const ChartNote& note)
+{
+    // The fretting hand touches a fret-hand harmonic's node, and a finger on the fretboard cannot
+    // be past the last fret. Same discriminator the hand-placement rule uses: fret 0 plus a node,
+    // damped by neither the picking hand off the neck (pinch) nor the picking hand on it (tap).
+    const bool fretting_finger_stands_on_it =
+        note.fret == 0 && nodeIsOnNeck(note.attack) && note.attack != NoteAttack::Tap;
+    return fretting_finger_stands_on_it ? static_cast<double>(g_max_fret) : g_max_harmonic_node;
+}
+
 NoteAttack derivedLegatoAttack(
     const ChartNote& note, const ChartNote* const predecessor,
     const Fraction predecessor_effective_sustain, const TempoMap& tempo_map)
@@ -342,12 +351,12 @@ std::expected<void, ChartError> validateChartNotes(
                     "harmonic node must lie beyond the stop at " + positionText(note.position),
             }};
         }
-        // The fretting hand touches a fret-hand harmonic's node, and a finger on the fretboard
-        // cannot be past the last fret. Same discriminator as `fretFor`'s node branch: fret 0
-        // plus a node, damped by neither the picking hand off the neck (pinch) nor the picking
-        // hand on it (tap). This is also what keeps the derived hand window inside `g_max_fret`.
-        if (note.harmonic_node.has_value() && note.fret == 0 && nodeIsOnNeck(note.attack) &&
-            note.attack != NoteAttack::Tap && *note.harmonic_node > static_cast<double>(g_max_fret))
+        // A fret-hand harmonic's node carries the fretting finger, so it must lie on the neck; the
+        // ceiling states which notes that binds and is shared with import, so a builder can tell
+        // an unreachable node from a reachable one instead of handing this rule a whole song to
+        // refuse. Only the neck ceiling reaches here — the universal bound above already caught
+        // everything else — which is also what keeps the derived hand window inside `g_max_fret`.
+        if (note.harmonic_node.has_value() && *note.harmonic_node > harmonicNodeCeiling(note))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNote,
