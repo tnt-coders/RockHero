@@ -29,7 +29,15 @@ namespace
 // "offsets within the sustain" keeps holding after a 40-Q2-B truncation. A slide-out past the
 // sustain drops like any payload. Latent payloads on a scrape clip too — they must still fit
 // the sustain when a toggle-back makes them real again.
-void clipPayloadsToSustain(common::core::ChartNote& note)
+//
+// `end_lands_on_onset` says the new sustain end IS a following same-string onset, which the
+// 40-Q2-B truncation always makes it. A pitched waypoint may not sit on a later onset of its own
+// string (the glide-into-a-real-note case stores no coordinates, which is what keeps that
+// encoding undesyncable), so there the last point must go too: keeping it turned an ordinary
+// note placement into a silent refusal of the whole plan, because the truncation left behind
+// exactly the payload the gate then rejected. A sustain that merely ends where the user put it
+// keeps a point at its end, which is the normal shift-slide glide-end.
+void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_on_onset = false)
 {
     std::erase_if(note.bend, [&note](const common::core::BendPoint& point) {
         return note.sustain < point.offset;
@@ -62,9 +70,11 @@ void clipPayloadsToSustain(common::core::ChartNote& note)
         note.slide_out = common::core::SlideOut{.offset = note.sustain, .fret = terminal_fret};
         return;
     }
-    std::erase_if(note.slides, [&note](const common::core::SlideWaypoint& waypoint) {
-        return note.sustain < waypoint.offset;
-    });
+    std::erase_if(
+        note.slides, [&note, end_lands_on_onset](const common::core::SlideWaypoint& waypoint) {
+            return end_lands_on_onset ? !(waypoint.offset < note.sustain)
+                                      : note.sustain < waypoint.offset;
+        });
     if (note.slide_out.has_value() && note.sustain < note.slide_out->offset)
     {
         note.slide_out.reset();
@@ -95,7 +105,7 @@ void normalizeSustainOverlaps(
             if (next.position < sustain_end)
             {
                 note.sustain = common::core::beatDistance(tempo_map, note.position, next.position);
-                clipPayloadsToSustain(note);
+                clipPayloadsToSustain(note, /*end_lands_on_onset=*/true);
             }
             break;
         }

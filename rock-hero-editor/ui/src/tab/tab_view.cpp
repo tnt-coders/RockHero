@@ -277,7 +277,9 @@ void TabView::paint(juce::Graphics& g)
     // centered on the edge, at one and a half border-widths thick, so it sits between the
     // head's own border ring and the accent glow while leaving the glow annulus readable on
     // accented notes (a fully-outward cut buried the glow, and a double-width stroke still
-    // covered too much of it); harmonic heads get the matching diamond.
+    // covered too much of it). The silhouette comes from the paint core, so the ring always
+    // traces the head that is actually under it — this used to re-derive the shape here and
+    // drew a circle around every plectrum once the scrape head shipped.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= m_tab->notes.size())
@@ -286,28 +288,14 @@ void TabView::paint(juce::Graphics& g)
         }
         const common::core::TabNoteView& note = m_tab->notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
-        const float stroke = overlayRingStroke(layout.head_size);
-        const float extent = layout.head_size;
         g.setColour(accent);
-        if (note.harmonic_node.has_value())
-        {
-            juce::Path shape;
-            shape.startNewSubPath(layout.onset_x, layout.center_y - extent / 2.0f);
-            shape.lineTo(layout.onset_x + extent / 2.0f, layout.center_y);
-            shape.lineTo(layout.onset_x, layout.center_y + extent / 2.0f);
-            shape.lineTo(layout.onset_x - extent / 2.0f, layout.center_y);
-            shape.closeSubPath();
-            g.strokePath(shape, juce::PathStrokeType{stroke});
-        }
-        else
-        {
-            g.drawEllipse(
-                layout.onset_x - extent / 2.0f,
-                layout.center_y - extent / 2.0f,
-                extent,
-                extent,
-                stroke);
-        }
+        common::ui::strokeTabNoteHeadOutline(
+            g,
+            note,
+            layout.onset_x,
+            layout.center_y,
+            layout.head_size,
+            overlayRingStroke(layout.head_size));
     }
 
     // The in-flight marquee: translucent accent fill with a crisp border.

@@ -441,6 +441,25 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     };
 }
 
+// True when a position the builder DERIVED (rather than read from a beat) is a position the chart
+// rules will accept. The measure always lands in range because the lookup above clamps it, but the
+// beat does not: a global beat past the final bar's last beat — a trail-off or a scoop window
+// running off the end of the score — yields a beat past that measure's own count, and a fabricated
+// hand placement there fails validateChartRules and takes the WHOLE song's import down with it.
+// Callers that fabricate furniture check this and simply omit the furniture: there is no board
+// past the end of the song to put a hand on.
+[[nodiscard]] bool withinGrid(const MeasureGrid& grid, const GridPosition& position)
+{
+    if (position.measure < 1 ||
+        static_cast<std::size_t>(position.measure) > grid.beats_per_measure.size())
+    {
+        return false;
+    }
+    const auto measure_index = static_cast<std::size_t>(position.measure - 1);
+    return position.beat >= 1 && position.beat <= grid.beats_per_measure[measure_index] &&
+           position.offset.numerator >= 0 && position.offset < Fraction{1};
+}
+
 // The GP bend model evaluated at a percent of the note duration: the origin value holds to
 // its offset, rises to the middle plateau, holds between the middle offsets, rises to the
 // destination, and holds to the end. Equal offsets read as a step.
@@ -1809,12 +1828,20 @@ void resolveSlideIns(
                         .fret = dip_anchor,
                         .width = active->width,
                     });
-                restore_placements.push_back(
-                    common::core::FretHandPosition{
-                        .position = gridPositionForGlobalBeat(grid, entry.global_beat + window),
-                        .fret = active->fret,
-                        .width = active->width,
-                    });
+                // The restore rides the scoop's end, which can run off the end of the score; a
+                // placement outside the grid would fail validation for the whole song, and the
+                // dip alone is a coherent state (the window simply stays where the scoop left it).
+                if (const GridPosition restore_position =
+                        gridPositionForGlobalBeat(grid, entry.global_beat + window);
+                    withinGrid(grid, restore_position))
+                {
+                    restore_placements.push_back(
+                        common::core::FretHandPosition{
+                            .position = restore_position,
+                            .fret = active->fret,
+                            .width = active->width,
+                        });
+                }
             }
         }
 
@@ -1882,6 +1909,15 @@ void resolveSlideOutExits(
         }
         const GridPosition end_position =
             gridPositionForGlobalBeat(grid, entry.global_beat + note.slide_out->offset);
+        if (!withinGrid(grid, end_position))
+        {
+            // The trail-off ends past the last bar (a hold-exempt ring the trim never compressed
+            // at the very end of the score). A placement there is not a representable position,
+            // and fabricating one failed validation for the whole song; the gesture keeps its
+            // default exit fret and the hand simply stays put, which is what happens anyway when
+            // there is no room to ride.
+            continue;
+        }
         const bool has_next = next_note < built.size();
         const bool has_room = !has_next || end_position < built[next_note].note.position;
         if (has_next && !has_room)
@@ -2262,8 +2298,17 @@ void resolveSlideOutExits(
             note.accent = false;
             note.bend.clear();
             // Carriers are dead strings with meaningless frets, so the import owns the start too;
-            // the editor's toggle keeps a real note's fret instead.
-            note.fret = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;
+            // the editor's toggle keeps a real note's fret instead. The start is floored above the
+            // capo because a note's `fret` is capo-validated whatever its attack: an upward
+            // scrape's default start is fret 3, so any capo at 3 or higher made the synthesized
+            // carrier refuse validation and took the WHOLE song's import down with it. (Whether a
+            // scrape's frets should be capo-floored at all is a real open question — its
+            // waypoints are exempt today as unpitched travel, so one scrape currently has its
+            // start judged as a pressed stop and its path judged as travel. Flooring here fixes
+            // the failure without settling that; the question is recorded for the user.)
+            note.fret = std::max(
+                chart.tuning.capo + 1,
+                upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret);
             note.sustain = span;
             applyDefaultPickSlidePath(note, upward);
             kept.end_global_beat = kept.global_beat + span;

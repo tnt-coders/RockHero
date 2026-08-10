@@ -1135,6 +1135,33 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
         displayed_string, displayed_string_count, charterClassicPalette())};
 }
 
+// Rationale lives on the declaration in tab_paint_core.h. The silhouette comes from headShapeFor,
+// the same authority the drawn head uses, which is the whole point of exporting this.
+void strokeTabNoteHeadOutline(
+    juce::Graphics& g, const common::core::TabNoteView& note, const float center_x,
+    const float center_y, const float extent, const float stroke_thickness)
+{
+    const float half = extent / 2.0f;
+    juce::Path outline;
+    switch (headShapeFor(note))
+    {
+        case HeadShape::Diamond:
+            outline.startNewSubPath(center_x, center_y - half);
+            outline.lineTo(center_x + half, center_y);
+            outline.lineTo(center_x, center_y + half);
+            outline.lineTo(center_x - half, center_y);
+            outline.closeSubPath();
+            break;
+        case HeadShape::Plectrum:
+            outline = plectrumPath(center_x, center_y, extent);
+            break;
+        case HeadShape::Round:
+            outline.addEllipse(center_x - half, center_y - half, extent, extent);
+            break;
+    }
+    g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
+}
+
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::String tabNoteHeadText(const common::core::TabNoteView& note)
 {
