@@ -603,16 +603,31 @@ std::optional<ChartNotesEditPlan> planSetAttack(
         {
             continue;
         }
-        // Eligible-subset skips, so a mixed selection applies to what CAN take the attack: a
-        // hammer or tap needs a place to strike, and a tap harmonic cannot be tremolo picked.
-        if ((attack == common::core::NoteAttack::Hammer ||
-             attack == common::core::NoteAttack::Tap) &&
-            note.fret == 0 && !note.harmonic_node.has_value())
+        // Eligible-subset skip, so a mixed selection applies to what CAN take the attack. Asked of
+        // the per-note rule authority rather than restated: two of its predicates used to be copied
+        // here, which meant any OTHER rule the target attack could break went unskipped, and the
+        // whole-stream gate then refused the edit for every note in the selection instead of just
+        // that one. Asked of the note as it would be WRITTEN, since the conversions below are part
+        // of what makes it legal.
+        common::core::ChartNote retyped = note;
+        retyped.attack = attack;
+        if (nodeLeavesWithAttack(note, attack))
         {
-            continue;
+            retyped.harmonic_node.reset();
         }
-        if (attack == common::core::NoteAttack::Tap && note.harmonic_node.has_value() &&
-            note.tremolo)
+        if (attack != common::core::NoteAttack::PickSlide &&
+            note.attack == common::core::NoteAttack::PickSlide)
+        {
+            retyped.slides.clear();
+            retyped.slide_out.reset();
+        }
+        if (attack == common::core::NoteAttack::Pinch && !retyped.harmonic_node.has_value())
+        {
+            const int stop = note.fret > 0 ? note.fret : chart.tuning.capo;
+            retyped.harmonic_node = static_cast<double>(stop) + 12.0;
+        }
+        if (attack != common::core::NoteAttack::PickSlide &&
+            !common::core::validateChartNoteAlone(retyped, chart.tuning, tempo_map).has_value())
         {
             continue;
         }

@@ -228,7 +228,29 @@ pull-off, a tap being a picking-hand articulation no predecessor can convert.
     const TempoMap& tempo_map);
 
 /*!
-\brief Validates the note stream alone — every intra-note and note-relational rule.
+\brief Validates every rule a single note can break on its own.
+
+The technique matrix splits cleanly in two: most rules read one note (which techniques may share it,
+what range each field may hold, where a node may lie relative to its stop) and a few read a note's
+NEIGHBOURS (a pull-off needs something to release, a waypoint may not sit on a later onset of its
+string). This is the first half, and \ref validateChartNotes calls it per note before applying the
+second — so a rule written here is enforced by every consumer at once.
+
+Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
+this question per note: the whole-stream gate refuses an entire plan when one note is ineligible, so
+before this existed the verbs hand-copied a couple of these predicates to skip such notes, and any
+rule the copy did not name silently killed the edit for the whole selection instead.
+
+\param note Note to validate.
+\param tuning Tuning the note plays under; supplies the capo and the string count.
+\param tempo_map Song tempo map the note's position must lie on.
+\return Empty success, or the first violated rule.
+*/
+[[nodiscard]] std::expected<void, ChartError> validateChartNoteAlone(
+    const ChartNote& note, const ChartTuning& tuning, const TempoMap& tempo_map);
+
+/*!
+\brief Validates the note stream — every intra-note and note-relational rule.
 
 The single authority for the technique compatibility matrix's note rules, split out so the editor
 planners can gate a CANDIDATE stream through the same checks the document reader applies: a plan

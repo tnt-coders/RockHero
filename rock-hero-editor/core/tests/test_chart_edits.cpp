@@ -706,6 +706,35 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
     }
 }
 
+// The eligible-subset skip covers EVERY per-note rule, not a hand-picked pair of them. It used to
+// copy two of the validator's predicates, so a note the target attack broke some other rule on was
+// not skipped — and the whole-stream gate then refused the plan for every note in the selection, not
+// just that one. Here a fully muted note cannot become a pinch (a dead note sounds no pitch, so it
+// carries no harmonic, and a pinch must carry a node), which neither copied predicate named.
+TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[0].mute = common::core::NoteMute::Full; // measure 2 / string 1, fret 3
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{
+        keyAt({.measure = 2, .beat = 1}, 1),
+        keyAt({.measure = 2, .beat = 1}, 2),
+    };
+
+    const auto plan =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pinch, "Pinch Harmonic");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        // The unmuted partner converts; the dead note is left exactly as it was.
+        REQUIRE(plan->inserted.size() == 1);
+        CHECK(plan->inserted.front().string == 2);
+        CHECK(plan->inserted.front().attack == common::core::NoteAttack::Pinch);
+        CHECK(noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1) == nullptr);
+        applyAndValidate(chart, tempo_map, *plan);
+    }
+}
+
 // A zero-sustain note first extends to the minimum gesture window so the path can travel.
 TEST_CASE("planSetAttack extends a zero sustain to the minimum window", "[core][chart]")
 {

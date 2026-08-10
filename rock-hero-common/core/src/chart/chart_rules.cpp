@@ -301,14 +301,149 @@ NoteAttack derivedLegatoAttack(
     return NoteAttack::Pick;
 }
 
+std::expected<void, ChartError> validateChartNoteAlone(
+    const ChartNote& note, const ChartTuning& tuning, const TempoMap& tempo_map)
+{
+    // The model's cap bounds the string domain as much as the tuning does. validateChartRules
+    // refuses a wider tuning outright; a direct caller that passes one has no string past the cap
+    // this rule set can speak about.
+    const int string_count = std::min(static_cast<int>(tuning.strings.size()), g_max_chart_strings);
+    if (note.string < 1 || note.string > string_count || note.fret < 0 || note.fret > g_max_fret ||
+        !isValidGridPosition(note.position, tempo_map))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "note is out of range at " + positionText(note.position),
+        }};
+    }
+    if (note.sustain.numerator < 0)
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "note sustain must not be negative at " + positionText(note.position),
+        }};
+    }
+    if (note.harmonic_node.has_value() &&
+        (*note.harmonic_node <= 0.0 || *note.harmonic_node > g_max_harmonic_node))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "harmonic node position is out of range at " + positionText(note.position),
+        }};
+    }
+    // A node lies on the speaking length, so it cannot sit at or behind the physical stop —
+    // nothing vibrates there. Fret 0 means the open string under the 0-means-open
+    // convention, so the stop it names is the nut or the capo.
+    const int physical_stop = note.fret == 0 ? tuning.capo : note.fret;
+    if (note.harmonic_node.has_value() && *note.harmonic_node <= static_cast<double>(physical_stop))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "harmonic node must lie beyond the stop at " + positionText(note.position),
+        }};
+    }
+    // A fret-hand harmonic's node carries the fretting finger, so it must lie on the neck; the
+    // ceiling states which notes that binds and is shared with import, so a builder can tell
+    // an unreachable node from a reachable one instead of handing this rule a whole song to
+    // refuse. Only the neck ceiling reaches here — the universal bound above already caught
+    // everything else — which is also what keeps the derived hand window inside `g_max_fret`.
+    if (note.harmonic_node.has_value() && *note.harmonic_node > harmonicNodeCeiling(note))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message =
+                "fret-hand harmonic node must lie on the neck at " + positionText(note.position),
+        }};
+    }
+    // A pinch is picking while damping a node, so a pinch without one is missing data rather
+    // than a different technique — the overtone that squeals is *determined* by where the thumb
+    // lands. Enforcing it is what lets node presence alone assert the harmonic.
+    if (note.attack == NoteAttack::Pinch && !note.harmonic_node.has_value())
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "pinch harmonic must carry its node at " + positionText(note.position),
+        }};
+    }
+    // The capo is the string's floor: 0 means the capo'd open string, and the frets it
+    // covers do not exist to play.
+    if (note.fret != 0 && note.fret <= tuning.capo)
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "fret must be 0 or above the capo at " + positionText(note.position),
+        }};
+    }
+    // A hammer or tap needs somewhere to land: a fret, or a harmonic's node (the tap
+    // harmonic strikes the node itself).
+    if ((note.attack == NoteAttack::Hammer || note.attack == NoteAttack::Tap) && note.fret == 0 &&
+        !note.harmonic_node.has_value())
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message =
+                "hammered or tapped note needs a place to strike at " + positionText(note.position),
+        }};
+    }
+    // A full mute sounds no pitch, so it excludes every pitch-valued payload: a harmonic IS
+    // a pitch, and bend or vibrato modulate a pitch the dead note does not have. Positions
+    // (slides, slide-out) stay legal.
+    if (note.mute == NoteMute::Full &&
+        (note.harmonic_node.has_value() || !note.bend.empty() || note.vibrato))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "a full mute sounds no pitch, so it cannot carry a harmonic, bend, or "
+                       "vibrato at " +
+                       positionText(note.position),
+        }};
+    }
+    // A pull-off releases onto a lower stopped pitch ringing the full speaking length — an
+    // ordinary note by construction, never a harmonic.
+    if (note.attack == NoteAttack::Pull && note.harmonic_node.has_value())
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "a pull-off cannot sound a harmonic at " + positionText(note.position),
+        }};
+    }
+    // A tap harmonic's damping finger leaves the string, so nothing holds the node under
+    // re-picking and the harmonic dies; tremolo therefore describes the unexecutable.
+    if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value() && note.tremolo)
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "a tap harmonic cannot be tremolo picked at " + positionText(note.position),
+        }};
+    }
+    // A fret-hand harmonic touches its node with nothing pressed, so nothing can slide,
+    // bend, or oscillate — moving the touch off the node just stops the harmonic. A harmonic
+    // over a real stop (fret > 0) is the picking-hand-damped family and bends normally.
+    if (fretHandHarmonic(note))
+    {
+        if (!note.slides.empty() || note.slide_out.has_value())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "a fret-hand harmonic cannot slide at " + positionText(note.position),
+            }};
+        }
+        if (!note.bend.empty() || note.vibrato)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message =
+                    "a fret-hand harmonic cannot bend or vibrato at " + positionText(note.position),
+            }};
+        }
+    }
+    return std::expected<void, ChartError>{};
+}
+
 std::expected<void, ChartError> validateChartNotes(
     const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const ChartTuning& tuning, const TempoMap& tempo_map)
 {
-    // The model's cap bounds the string domain as much as the tuning does, because the relational
-    // table below is indexed by string number. validateChartRules refuses a wider tuning outright;
-    // a direct caller that passes one has no string past the cap this rule set can speak about.
-    const int string_count = std::min(static_cast<int>(tuning.strings.size()), g_max_chart_strings);
     // Held lengths for the hold test, span-extended where the spans imply a held shape.
     const std::vector<Fraction> effective_sustains =
         chartEffectiveSustains(notes, shapes, tempo_map);
@@ -322,139 +457,11 @@ std::expected<void, ChartError> validateChartNotes(
     for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
         const ChartNote& note = notes[note_index];
-        if (note.string < 1 || note.string > string_count || note.fret < 0 ||
-            note.fret > g_max_fret || !isValidGridPosition(note.position, tempo_map))
+        // Every rule a note can break on its own, asked of the one authority for them rather than
+        // restated here. What remains below is only what reads a note's NEIGHBOURS.
+        if (auto alone = validateChartNoteAlone(note, tuning, tempo_map); !alone.has_value())
         {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "note is out of range at " + positionText(note.position),
-            }};
-        }
-        if (note.sustain.numerator < 0)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "note sustain must not be negative at " + positionText(note.position),
-            }};
-        }
-        if (note.harmonic_node.has_value() &&
-            (*note.harmonic_node <= 0.0 || *note.harmonic_node > g_max_harmonic_node))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message =
-                    "harmonic node position is out of range at " + positionText(note.position),
-            }};
-        }
-        // A node lies on the speaking length, so it cannot sit at or behind the physical stop —
-        // nothing vibrates there. Fret 0 means the open string under the 0-means-open
-        // convention, so the stop it names is the nut or the capo.
-        const int physical_stop = note.fret == 0 ? tuning.capo : note.fret;
-        if (note.harmonic_node.has_value() &&
-            *note.harmonic_node <= static_cast<double>(physical_stop))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message =
-                    "harmonic node must lie beyond the stop at " + positionText(note.position),
-            }};
-        }
-        // A fret-hand harmonic's node carries the fretting finger, so it must lie on the neck; the
-        // ceiling states which notes that binds and is shared with import, so a builder can tell
-        // an unreachable node from a reachable one instead of handing this rule a whole song to
-        // refuse. Only the neck ceiling reaches here — the universal bound above already caught
-        // everything else — which is also what keeps the derived hand window inside `g_max_fret`.
-        if (note.harmonic_node.has_value() && *note.harmonic_node > harmonicNodeCeiling(note))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "fret-hand harmonic node must lie on the neck at " +
-                           positionText(note.position),
-            }};
-        }
-        // A pinch is picking while damping a node, so a pinch without one is missing data rather
-        // than a different technique — the overtone that squeals is *determined* by where the thumb
-        // lands. Enforcing it is what lets node presence alone assert the harmonic.
-        if (note.attack == NoteAttack::Pinch && !note.harmonic_node.has_value())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "pinch harmonic must carry its node at " + positionText(note.position),
-            }};
-        }
-        // The capo is the string's floor: 0 means the capo'd open string, and the frets it
-        // covers do not exist to play.
-        if (note.fret != 0 && note.fret <= tuning.capo)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "fret must be 0 or above the capo at " + positionText(note.position),
-            }};
-        }
-        // A hammer or tap needs somewhere to land: a fret, or a harmonic's node (the tap
-        // harmonic strikes the node itself).
-        if ((note.attack == NoteAttack::Hammer || note.attack == NoteAttack::Tap) &&
-            note.fret == 0 && !note.harmonic_node.has_value())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "hammered or tapped note needs a place to strike at " +
-                           positionText(note.position),
-            }};
-        }
-        // A full mute sounds no pitch, so it excludes every pitch-valued payload: a harmonic IS
-        // a pitch, and bend or vibrato modulate a pitch the dead note does not have. Positions
-        // (slides, slide-out) stay legal.
-        if (note.mute == NoteMute::Full &&
-            (note.harmonic_node.has_value() || !note.bend.empty() || note.vibrato))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "a full mute sounds no pitch, so it cannot carry a harmonic, bend, or "
-                           "vibrato at " +
-                           positionText(note.position),
-            }};
-        }
-        // A pull-off releases onto a lower stopped pitch ringing the full speaking length — an
-        // ordinary note by construction, never a harmonic.
-        if (note.attack == NoteAttack::Pull && note.harmonic_node.has_value())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "a pull-off cannot sound a harmonic at " + positionText(note.position),
-            }};
-        }
-        // A tap harmonic's damping finger leaves the string, so nothing holds the node under
-        // re-picking and the harmonic dies; tremolo therefore describes the unexecutable.
-        if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value() && note.tremolo)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message =
-                    "a tap harmonic cannot be tremolo picked at " + positionText(note.position),
-            }};
-        }
-        // A fret-hand harmonic touches its node with nothing pressed, so nothing can slide,
-        // bend, or oscillate — moving the touch off the node just stops the harmonic. A harmonic
-        // over a real stop (fret > 0) is the picking-hand-damped family and bends normally.
-        if (fretHandHarmonic(note))
-        {
-            if (!note.slides.empty() || note.slide_out.has_value())
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNote,
-                    .message =
-                        "a fret-hand harmonic cannot slide at " + positionText(note.position),
-                }};
-            }
-            if (!note.bend.empty() || note.vibrato)
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNote,
-                    .message = "a fret-hand harmonic cannot bend or vibrato at " +
-                               positionText(note.position),
-                }};
-            }
+            return alone;
         }
         // A pull-off must release something: a same-string predecessor whose RELEASED fret — the
         // last pitched waypoint, or a scrape's slide-out end — sits above the pulled note. A
