@@ -2219,8 +2219,11 @@ void resolveSlideOutExits(
                     }
                 }
                 defaulted_fretted_nodes += defaulted ? 1 : 0;
-                note.harmonic_node = static_cast<double>(stop_fret) + offset;
-                if (*note.harmonic_node > common::core::harmonicNodeCeiling(note))
+                // The node has to be ON the note before the ceiling is asked, because which ceiling
+                // binds depends on whether the note is a harmonic at all.
+                const double proposed_node = static_cast<double>(stop_fret) + offset;
+                note.harmonic_node = proposed_node;
+                if (proposed_node > common::core::harmonicNodeCeiling(note))
                 {
                     // A label naming a node this note cannot reach is junk, not data, so the
                     // octave takes over — the same fallback a missing label gets, and the
@@ -2248,9 +2251,10 @@ void resolveSlideOutExits(
                     // The node is an absolute position (measured from the physical stop), while
                     // the stored fret follows the 0-means-open convention: 0 IS the capo'd open
                     // string, so the capo never appears as a fret number.
-                    note.harmonic_node = static_cast<double>(chart.tuning.capo) + offset;
+                    const double proposed_node = static_cast<double>(chart.tuning.capo) + offset;
+                    note.harmonic_node = proposed_node;
                     note.fret = 0;
-                    if (*note.harmonic_node > common::core::harmonicNodeCeiling(note))
+                    if (proposed_node > common::core::harmonicNodeCeiling(note))
                     {
                         // A natural's node carries the fretting finger, so the neck is its ceiling:
                         // high partials crowd toward the nut but their bridge-side alternates climb
