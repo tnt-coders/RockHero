@@ -43,8 +43,10 @@ item ships, mark it and name the commit.
     and note that at cap 30 a second digit always ends the entry, so a third digit is currently
     unreachable.
   - **Prerequisite (also fixes a standing blind spot): `finalizePlan` conflates "refused" with
-    "nothing changed"** — both return `nullopt` (`chart_edits.cpp:174-179` then `diffNotes`'
-    empty-diff `nullopt`). The pending model cannot paint a valid no-op red, so the seven
+    "nothing changed"** — both return `nullopt` (the technique gate's own `nullopt` inside
+    `finalizePlan`, then `diffNotes`' empty-diff `nullopt`, both in `chart_edits.cpp`; cited by
+    name rather than by line, which has drifted twice). The pending model cannot paint a valid
+    no-op red, so the seven
     planners move to `std::expected<ChartNotesEditPlan, ChartPlanRefusal>` with
     `{NoChange, Invalid}`. This is why **every refusal in the editor is silent today** — no
     caller can tell one from the other — so it is also the channel W5's counted feedback needs.
@@ -104,20 +106,30 @@ item ships, mark it and name the commit.
     mid-entry legato flicker the user worried about is then gone by construction rather than
     tuned. Do not preview the repaired neighbour in the overlay, though the plan is in hand:
     that would re-import the flicker as chrome.
-- [ ] **W4 — Muted-tail consistency (D16 below; needs a ruling).** Blocks nothing but touches
-  W1, E10, E24 and the display; settle before the lock/break work so the tail rules are stated
-  once.
-- [ ] **W5 — `H` eligible-subset fix + counted feedback.** `H` is currently inert on any mixed
-  selection (its all-legato test is never true, so the toggle sticks and the plan finds nothing
-  to change), and every refusal is silent. The feedback channel is load-bearing for W6.
+- [ ] **W4 — Implement E25's muted-tail rules (D16 below; SIGNED, unbuilt).** The ruling is done;
+  what remains is code, in three parts: the validation rule (a `Full`-muted note's sustain requires
+  `tremolo` or a slide payload), the import normalization that zeroes such a sustain so a re-read
+  cannot refuse the chart, and the noise-idiom tail display. Blocks nothing but touches W1, E10,
+  E24 and the display; build before the lock/break work so the tail rules are stated once.
+- [ ] **W5 — `H` eligible-subset fix + counted feedback.** The APPLY half already behaves as
+  intended: the controller's `all_legato` test is false on a mixed selection, so the verb runs and
+  sets legato on every derivable note, leaving the rest — the mixed-validity policy's "apply where
+  valid". The defect is narrower and sits entirely on the CLEAR half: `all_legato` reads each
+  note's current attack, so a selection containing a note that can *never* carry `Hammer` or `Pull`
+  (an open string with no node and no predecessor — the gate refuses both attacks) can never
+  satisfy it, and the toggle is therefore stuck in apply mode forever. The fix is the settled one:
+  compute the toggle over the **eligible subset**, so a second press always undoes the first. And
+  every refusal is still silent — the feedback channel is load-bearing for W6.
 - [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5).** One shared mechanism for
   legato and slides; the break verb frees a tail from the origin's side; the feedback is
   **editor-only** (user ruling: not visible in 3D).
 - [ ] **W7 — D14 assist + the `H` toggle window.** The assist extends a predecessor's tail when
   that is the only blocker, groups included; the second press reverses this verb's own entry.
 - [ ] **W8 — Cleanups found by the design agents.** Import junk-hopo flags to `Pick` with a
-  conversion note (ruled); doc staleness in `file-formats.md` (retired `harmonic`/`touch` keys,
-  missing `pinch` token) and the recalc-window settle-list wording.
+  conversion note (ruled); ~~doc staleness in `file-formats.md` (retired `harmonic`/`touch` keys,
+  missing `pinch` token)~~ **done 2026-08-10** — the chart-note table now documents `harmonicNode`,
+  the `pinch` token, the `slideOut` terminal, and the capo convention; and the recalc-window
+  settle-list wording.
 
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 
@@ -469,8 +481,9 @@ item ships, mark it and name the commit.
   per the standing rule). Evidence to pre-assemble for the gate: corpus measurement of legato
   pairs — gap distribution and whether notated origin durations reach the destination.
 
-- [ ] **D16 — What a FULLY MUTED note's tail means (user-spotted inconsistency, 2026-08-09;
-  needs a ruling).** The user asked whether the all-muted carve-out reverses E24 (muted legato)
+- [x] **D16 — What a FULLY MUTED note's tail means (user-spotted inconsistency, 2026-08-09;
+  RULED — the rule set below is signed as E25, implementation tracked as W4).** The user asked
+  whether the all-muted carve-out reverses E24 (muted legato)
   and observed that the design around muted tails "has not been fully thought through."
   - **Diagnosed root: a DISPLAY rule got imported into a PHYSICAL rule.** `chartEffectiveSustains`
     mirrors the highway's display rule, whose all-muted exemption exists because *a dead chug does
@@ -499,8 +512,8 @@ item ships, mark it and name the commit.
     the positions); (d) muted notes only carry a tail when a slide payload needs one to travel.
     Interacts with: E10 (muted slides allowed), E24 (muted legato allowed), the highway's held
     bars and their hold scoring, and the import drop rule.
-  - **PROPOSED RULE SET (agent recommendation after the user's exploration, awaiting sign-off).**
-    The user's two observations settle it: a muted note CAN be tremolo picked (so a noise tail is
+  - **SIGNED RULE SET (2026-08-09, after the user's exploration).** The user's two observations
+    settle it: a muted note CAN be tremolo picked (so a noise tail is
     valid with or without a slide), but merely holding a dead note makes no sound (so a plain
     muted tail is silence pretending to be sound). Three rules, and the third costs nothing:
     1. **E25 (new): a `Full`-muted note may carry a sustain only when something keeps making

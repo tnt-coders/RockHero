@@ -253,7 +253,8 @@ tours, then use the recipes as checklists while you work:
   *(Editor + game)*
 - \subpage guide_project_lifecycle — open/save/import/publish and the dirty gate. *(Editor-only)*
 - \subpage guide_file_formats — every serialized format, field by field. *(Repo-wide)*
-- \subpage guide_musical_time — grid positions, the tempo map, and the playback clock.
+- \subpage guide_musical_time — grid positions, grid arithmetic, the tempo map, and the playback
+  clock.
   *(Repo-wide)*
 - \subpage guide_undo — the unified memento history and the engine's capture machinery.
   *(Editor-only)*

@@ -21,9 +21,35 @@ author; **seconds** are what renderers and audio consume. Exactly one type conve
 
 The chart itself — "the true tab" of notes, hand shapes, and postures — is the arrangement-owned
 model in `common/core/chart/chart.h`, addressed entirely in `GridPosition`s and consumed by the
-tab and highway projections and by package IO. It gets no full tour yet on purpose: chart
-*editing* is unbuilt roadmap work (`docs/plans/roadmap/40-chart-editing.md`), and the model's
-editing-facing surface will be documented when that lands.
+tab and highway projections and by package IO. Chart *editing* is partly built rather than unbuilt:
+seven pure planners live in editor core (`editor/core/src/chart/chart_edits.h`), two of them
+technique verbs, all funnelling through one shared finalize gate. The model still gets no
+field-by-field tour here — see \ref guide_file_formats for the persisted shape and
+`docs/plans/roadmap/40-chart-editing.md` for the remaining phases.
+
+# Grid arithmetic (`chart/grid_arithmetic.h`)
+
+Exact arithmetic *on* the grid lives in one header, and it is the shared authority the 2D and 3D
+projections, the editor's duration verb, the Guitar Pro import trims, the legato repair and the
+validation gate all resolve through — so a spacing rule cannot mean two things:
+
+- `g_minimum_sustain_distance_whole_note` (1/16 of a whole note) and
+  `minimumSustainDistanceBeats(signature_denominator)` — the one settled gap every element keeps
+  before the next event, expressed in signature beats so it scales with the meter.
+- `g_minimum_kept_sustain_beats` (one beat) — the shortest notated ring that earns a tail. Import's
+  drop rule and the legato hold test share it deliberately: that is what lets a missing tail read
+  as a *proven* release.
+- `chartEffectiveSustains(notes, shapes, tempo_map)` — per-note held lengths, extending a
+  sustainless member of a strum that a hand-shape span holds. Callers pass notes in **saved** form.
+  Spans may overlap, so what it remembers is the **furthest-reaching** span already started, not the
+  latest-starting one: an earlier span running longer holds the same strum just as well, and
+  tracking the latest start let a short span beginning inside a long one shadow it, so a held chord
+  silently lost its extension and the legato that extension justified was repaired away.
+- `predecessorHoldReaches(...)` — the legato hold test: true unless the chart proves the
+  same-string predecessor was released before the onset.
+- `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
+  `snapGridPosition` — the exact `GridPosition` ↔ beat conversions, signed and inverse-exact, all
+  crossing beat, measure, and meter boundaries without floating-point drift.
 
 # The TempoMap
 
@@ -68,6 +94,12 @@ side-effecting `ITransport`:
   sample the same way.
 
 # Grid and snapping (editor)
+
+Distinct from the grid arithmetic above, and the split is intentional: `grid_arithmetic.h` in
+common/core answers *musical* questions every consumer shares (how far apart, where does this
+sustain end, snap to a note value), while `tempo_grid_geometry.h` in editor/core answers the
+editor's *timeline* questions — which grid lines are visible, which line is nearest this pixel,
+where does one keyboard step land.
 
 The editor's grid note value (a `Fraction` of a whole note, default 1/4) is the *shared
 authority* for both drawing and snapping: `tempo_grid_geometry.cpp` computes visible grid lines

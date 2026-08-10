@@ -322,9 +322,11 @@ struct PosColorUvVertex
 // the onset's anchor, and the shift is zero there. This is the same rule `tabNoteHeadText` labels
 // every head of a gesture by, so the two surfaces cannot disagree about what a glide arrives at.
 //
-// Note the asymmetry with the board's own furniture (glow posts, fret-span lines), which marks
-// where the HAND goes and so stays on the stop: on an artificial harmonic the hand presses at
-// `fret` while the sound comes from the node twelve-or-so frets up, and both facts are drawn.
+// Note the asymmetry with the fret-span line, which marks where the HAND goes and so stays on the
+// stop: on an artificial harmonic the hand presses at `fret` while the sound comes from the node
+// twelve-or-so frets up, and both facts are drawn. A note's own glow post is not furniture — it is
+// the head's shadow, so it travels with the head, node shift and glide included. A WAYPOINT's post
+// is furniture and does stay on its stop, because that is a place the hand goes.
 //
 // A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on the stop and
 // this returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).

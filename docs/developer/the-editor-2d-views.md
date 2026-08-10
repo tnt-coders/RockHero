@@ -166,8 +166,14 @@ comes from the asset's normalization gain (`pow(10.0, gain_db / 20.0)`).
 
 ## Tablature — `TabView`
 
-`TabView` (`ui/src/tab/tab_view.cpp`) is purely presentational — it intercepts no mouse clicks;
-gestures fall through to the cursor overlay. Its data is a seconds-resolved projection built once
+`TabView` (`ui/src/tab/tab_view.cpp`) **owns its pointer events while a chart is displayed**: it
+claims the whole lane band through `wantsPointerAt` / `hitTest` and forwards Down, Drag, Up, Move
+and Exit to the controller as `ChartPointerEvent` intents, plus a right-press context menu; the
+controller decides what a press means (select, caret arming, marquee, or a plain seek while
+playing). With no chart the lane is pointer-transparent. The yielding component is the *cursor
+overlay*, whose `hitTest` returns false wherever a pass-through predicate — installed in
+`editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the point. Its data is a
+seconds-resolved projection built once
 per edit in **common/core** (`tab/tab_projection.cpp`,
 `common::core::makeTabViewState(arrangement, tempo_map)` — promoted from editor/core by plan 30
 Phase 1 so the game's 2D tab view shares the same scene model), so painting never queries musical
@@ -189,6 +195,35 @@ common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after 
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
 surface so editor widgets and tests are unaffected; the paint core's pixel output is pinned by
 exact-color tests in `rock_hero_common_ui_tests`.
+
+Three notation rules inside the paint core are worth knowing before touching a head, because each
+is deliberately single-sourced:
+
+- **The head silhouette names the note's kind**, never which hand produced it (a present mark's
+  *darkness* says that). `headShapeFor(note)` maps to `HeadShape::{Round, Diamond, Plectrum}` — a
+  diamond for anything carrying a harmonic node, a plectrum for a scrape, a circle otherwise. The
+  enum is file-local on purpose, so host chrome that must trace a head it did not draw calls the
+  exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor left every pick
+  slide wearing a circular selection ring around a plectrum head.
+- **`tabNoteHeadText(note, fret_at_head)` decides the number a head carries**, and it takes *the
+  stop being labeled* rather than reading the note's own fret. A fret-hand harmonic names its node
+  (the node sets the pitch and is where the finger is; a trailing `.0` is dropped so 12 / 7 / 5 stay
+  as narrow as an ordinary fret, and a pinch keeps its fret because its node sits off the neck).
+  Passing the stop is what lets one rule label *every* head of a gesture: the onset passes
+  `note.fret`, a linked slide junction passes the fret the glide has reached, so a harmonic labels
+  nodes at all of them instead of a node at the onset and a raw fret at the junctions.
+- **The capo is drawn**, as a "Capo N" chip pinned in the lane's top-left corner in the fret-hand
+  chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.
+  The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the
+  drawn content says where the string floor sits. Crude first treatment (roadmap 25-Q6).
+
+One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
+(the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via
+`visibleTailRun`. Both are functions of the distance from the onset alone, so a clipped run lands
+the identical shape — phase never depends on where generation began — and each generator snaps its
+run outward onto its own vertex spacing, so the rasterized result is *identical* rather than merely
+similar. At full zoom a held tremolo chord would otherwise cost tens of thousands of off-screen
+vertices every frame. A test pins that a tail looks the same however the repaint is clipped.
 
 ## Tone track — `ToneTrackView`
 

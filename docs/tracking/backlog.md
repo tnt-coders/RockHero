@@ -12,13 +12,15 @@ entry when it's done — git history is the record.
   silent loading, which would have dropped every harmonic in the chart without a word. This affects
   the converter-sourced `.rock` corpus too, unlike the GP-only item below. The refusal in
   `chart_document.cpp` is a tripwire, not compatibility: delete it once the corpus is re-imported.
-  Two conversion notes to expect when re-running the converter: every natural harmonic gains a node
-  equal to its touched fret (the source represents one as a note at that fret, so this is faithful, and
-  without it the note would no longer read as a harmonic at all — 1960 of them in the packages
-  measured), and **pinch harmonics import as plain picks**, because the source records only a flag while
-  RockHero requires the node that sets the squeal's pitch. Measured 2026-08-08: 5 such notes across the
-  whole corpus, so the loss is negligible. Guitar Pro imports are unaffected — GP always records a
-  harmonic fret (207 of 207 across 118 files).
+  **The converter's own conversion notes need re-verifying before you trust them** (2026-08-10): the
+  two recorded here — every natural harmonic gains a node equal to its touched fret (1960 of them in
+  the packages measured), and pinch harmonics import as plain picks (5 notes corpus-wide, so a
+  negligible loss) — describe the standalone converter, which lives in a **separate repository** and
+  is not covered by this repo's audits. RockHero's own Guitar Pro importer has since moved on: a
+  natural's node is the *snapped* value placed against the physical stop rather than the raw fret,
+  and a pinch imports as `Pinch` carrying a node. Re-read the converter before re-running it and
+  restate these two notes from what it actually does. Guitar Pro imports are unaffected either way —
+  GP always records a harmonic fret (207 of 207 across 118 files).
 
 - Re-import GP-derived projects/packages saved before 2026-08-06: charts imported before the
   scoop/trail-off model (commits 6b5c9894/4d33abbf) still embed moved-head slide-ins and
@@ -81,9 +83,6 @@ entry when it's done — git history is the record.
   Phase 5's per-tone latency surfacing on the rig-load result. DEFERRED follow-on, recorded so
   it is not lost: a save-file flag marking high-latency tones so players could be alerted — a
   format change routed through plan 10 if ever adopted.
-- Inlay UV half-texel bleed — the fretboard-skin inlay quads skip the half-texel inset the atlas
-  layout applies to note/glyph cells, so linear filtering can bleed a sliver of the neighboring
-  cell at a marker edge (cosmetic).
 - Chord-box filling no longer tints its own chord's heads — accepted cost of drawing boxes before
   the notes (our board view has no depth writes); revisit only if it reads wrong in practice.
 - Eyeball the un-witnessed Phase 4 technique renders — hammer-on/pull-off/tap icons, harmonic

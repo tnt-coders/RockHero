@@ -25,7 +25,8 @@ item retired as resolved — see *Retired*).
 `install(DIRECTORY DESTINATION ...)` creates empty `resources/{fonts,sfx,textures}` under
 `cmake --install`, but whether the NSIS-packaged artifact preserves empty directories is
 unverified. `GameResources::create` only checks the root today
-(`rock-hero-game/core/src/resources/game_resources.cpp:136`), so nothing breaks either way —
+(`rock-hero-game/core/src/resources/game_resources.cpp:142-156` — a single `is_directory` probe at
+`:148`), so nothing breaks either way —
 verify once when inspecting a packaged installer (dovetails with the Windows CI installer work),
 and re-check the moment a resolver method starts requiring one of those subdirectories.
 

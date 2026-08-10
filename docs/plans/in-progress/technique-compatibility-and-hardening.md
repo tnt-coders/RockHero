@@ -1,6 +1,9 @@
 # Technique Compatibility Matrix, and Hardening the Format Against Invalid Combinations
 
-Status: **REVIEWED 2026-08-08, awaiting the user's sign-off on the full matrix.** Started
+Status: **SIGNED AND ENFORCED 2026-08-09.** The full matrix is signed and every rule in it lives in
+`validateChartNotes`, with one exception: **E25 is signed but not yet implemented** — it still needs
+its validation rule, the import normalization, and the noise-idiom display (tracked as W4 in the
+walkthrough). Started
 2026-08-07 after the user observed that *"tap and pinch harmonic cannot be executed together"* and
 that nothing in the format or the rules prevents it. Their direction: *"establish this full matrix
 then re-analyze the save file format to see it can be hardened even more to make invalid
@@ -111,7 +114,10 @@ single kind **cannot say which hand tapped** — a distinction the attack axis d
 notation would otherwise have to invent a mark for. Worse, the kind creates a new invalid combination
 (`Tap` kind + `Pick` attack) for the format to forbid, which is the class of state this document
 exists to eliminate. Same shape as the whammy resolution: the distinction was already carried by
-fields that exist. **Keep `NoteHarmonic` two-valued.**
+fields that exist. **The durable rule: never add a harmonic *kind* for something the attack axis
+already says.** (This argument was written against the two-valued `NoteHarmonic`, which the
+2026-08-08 collapse then deleted outright — the rule survives the enum, because the axis that made
+the third value unnecessary is the one that remains.)
 
 Two consequences follow.
 
@@ -427,15 +433,17 @@ the tail.
 | E19 | No pull FROM a fret-hand harmonic; pull from a pinch is allowed | **enforced 2026-08-09** |
 | — | `Hammer` has no predecessor constraint (deliberate: the left-hand tap) | recorded |
 
-### Open items gating sign-off
+### The items that gated sign-off — all ruled
 
-The open decisions now live as a worked queue with per-item guidance in
+They were worked as a queue with per-item guidance in
 **`docs/plans/in-progress/technique-review-walkthrough.md`** (opened 2026-08-08 at the user's
-direction, so the list survives any session): ~~the fret-floor/capo cluster (D1)~~ **adopted and
-shipped**, the scrape's payload shape (D2–D4, which absorbs H3 — the user now leans
-accent-on-everything, un-deferring the scrape cell), muted legato and the pre-bend question
-(D5–D6), the E5 derivation-vs-validity split (D7), the emphasis axis (D8), and the GP capo-frame
-measurement (D9).
+direction, so the list survives any session), and every one is now closed: ~~the fret-floor/capo
+cluster (D1)~~ **adopted and shipped**, ~~the scrape's payload shape (D2–D4, which absorbed H3 —
+accent on everything, un-deferring the scrape cell)~~, ~~muted legato and the pre-bend question
+(D5–D6)~~, ~~the E5 derivation-vs-validity split (D7)~~, ~~the emphasis axis (D8)~~, and ~~the GP
+capo-frame measurement (D9)~~. The walkthrough's remaining `W` items are implementation work rather
+than rulings; the one live *decision* there, D15's connected-legato model, arrived after sign-off
+and changes the display and verb grammar, not this matrix.
 
 Enforcement reality: at the 2026-08-08 review only E1-remnant, E2, E20 and E21 existed in code.
 **The 2026-08-09 enforcement pass (D12) made every E-rule THEN SIGNED into code** — the one
@@ -535,6 +543,15 @@ sure how we should represent the node in 2D for pinches"* — which is exactly t
 `nodeIsOnNeck` already draws, so no new predicate was needed. Worth an eye on screen: labels
 can now reach four characters (`14.7`) where a fret reached two.
 
+**Generalized 2026-08-10: the rule takes the stop being labeled.** A slide junction's head printed a
+raw fret where the onset printed a node, so `tabNoteHeadText(note, fret_at_head)` now receives the
+stop instead of reading `note.fret` — the onset passes its own fret, a linked junction passes the
+fret the glide has reached, and the node rides the stop (fret spacing is logarithmic, so the node's
+offset above the stop is constant in fret units). One authority, two call sites, net code removed:
+every head of a gesture states the same *quantity* rather than a node at the onset and a fret at the
+junctions. The 3D fretboard axis took the same parameter for the same reason (`noteFretboardX`), so
+the two surfaces cannot disagree about what a glide arrives at.
+
 ### A live data-loss bug the collapse exposed
 
 Import stored the node **only when it differed from the fret** — harmless when a separate field
@@ -627,11 +644,15 @@ the field): the interim names were dissolved entirely into the two helpers in th
 `fretFor` absorbed the hand-fret question, and the anchor predicate became attack-only
 `nodeIsOnNeck` beside an inline `has_value()`.
 
-**Capo consumption (revised by D1/D9):** `capo` now drives the import shift (GP's frets are
-capo-relative, confirmed 2026-08-09, so fretted notes store `F + capo`), the physical-stop
-derivation in E21's validation, and the harmonic-node placement. Still unconsumed: no projection
-or renderer offsets by it — a capo'd chart displays absolute frets with 0 meaning the capo'd open
-string, which is the sight-readable convention the user chose.
+**Capo consumption (revised by D1/D9, then displayed):** `capo` drives the import shift (GP's frets
+are capo-relative, confirmed 2026-08-09, so fretted notes store `F + capo`), the physical-stop
+derivation in E21's validation, and the harmonic-node placement. It is now **displayed on both
+surfaces** too: both projections carry it, both view states publish it, and both renderers draw it
+— 3D dims the face from the nut to the capo's fret line and clamps a rimmed steel bar on it, 2D
+pins a "Capo N" chip in the lane's corner (both crude first treatments, roadmap 25-Q6). The one
+narrow claim that survives: **no displayed fret NUMBER is offset by it.** Head text, the 3D floor
+numbers, and the fret-hand chips all print absolute frets with 0 meaning the capo'd open string,
+which is the sight-readable convention the user chose.
 
 ## Recovering a node from a source that records only a fret
 
@@ -869,10 +890,12 @@ for it: `harmonic_node` already holds the strike position and already round-trip
 
 ## Next steps
 
-1. ~~User answers Q1–Q12.~~ **Done 2026-08-07** — rules E1–E19, plus the review's E20/E21. Wanting
-   a ruling now: **H3** (accent compatible with everything but a scrape — H1 was *rejected*, not
-   deferred), the **sign-off on the rendered matrix above**, and the review's open cluster (the
-   fretted harmonic / E22, the capo frame, muted legato).
+1. ~~User answers Q1–Q12.~~ **Done 2026-08-07** — rules E1–E19, plus the review's E20/E21.
+   ~~Wanting a ruling: H3, the matrix sign-off, and the review's open cluster (the fretted
+   harmonic / E22, the capo frame, muted legato).~~ **All closed**: H3 confirmed in its strongest
+   form 2026-08-08 (accent compatible with everything, scrape included), the matrix signed, E22
+   adopted with D1 and enforced, the capo frame settled by D9, and muted legato ruled as E24.
+   Nothing in this document awaits a ruling; the only rule still awaiting *code* is E25.
 2. ~~Enforce the settled rules.~~ **Done 2026-08-09 (D12)** — the matrix is a guarantee now, and
    the shape is stronger than per-verb guards: rules live once in `validateChartNotes`, every
    planner funnels through the shared `finalizePlan` gate (validating the saved form via

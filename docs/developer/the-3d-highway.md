@@ -136,6 +136,36 @@ HWND), the frame driver (main loop vs vblank ticks), device lifetime policy (pro
 survives-hides), and display options (the editor forces `invert_string_order` and a minimum
 string count to match its 2D tab lane).
 
+# The fretboard axis: one function, and a deliberate stop/node split
+
+Where a note sits on the board's fret axis is decided by exactly one function in the renderer,
+`noteFretboardX(note, fret_at_point, metrics, mirrored)`, and **every point of a gesture reads it** —
+the head, the tail band's base, and each glide station. The stop is a parameter because one gesture
+sounds from more than one of them: the onset from the note's own fret, a slide from each fret it
+travels to. A harmonic's node *rides* its stop — fret spacing is logarithmic, so the node's offset
+above the stop is constant in fret units and a glide that moves the stop moves the node by the same
+amount — which is why passing `note.fret` gives the onset's anchor with a zero shift. This is the
+same rule 2D labels heads by (`tabNoteHeadText`), so the two surfaces cannot disagree about what a
+glide arrives at.
+
+The split worth stating plainly: **the note sounds from its node while the board's own furniture
+stays on the stop.** On an artificial harmonic the hand presses at `fret` while the sound comes from
+a node a dozen-or-so frets up, and both facts are drawn — the head moves onto the node, the
+fret-span line marks the pressed slot. A pinch is the exception in the other direction: its node
+belongs to the picking hand, so the fretting hand stays on the stop and the ordinary fret slot is
+returned (that node still awaits its own right-hand cue, 25-Q5).
+
+The capo is drawn too: the face from the nut to the capo's fret line dims (those frets do not exist
+to play, and an absolute-fret chart is unreadable without seeing where its floor sits) and the clamp
+draws as a rimmed steel bar hugging the nut side of its line. Crude first treatment, flat quads and
+no art (roadmap 25-Q6). No displayed fret *number* is offset by the capo, on either surface.
+
+Head marks arrive as atlas overlay cells seated on the head quad, not as silhouettes: a harmonic
+cell, a pinch cell, and a split-plectrum cell for a scrape (which also suppresses the full-mute X
+beneath it, whose core showed through the fracture and read as a second mark). 2D expresses the same
+distinctions as actual head *shapes* — see the head-shape rule in \ref guide_2d_views. Per-surface
+idiom for one fact is fine; the two must never carry *different* facts.
+
 # Two visual paths: chart visuals vs screen-space overlays
 
 Before extending anything, pick the right path — they do not share a checklist:
@@ -159,6 +189,13 @@ Adding a new *visual element* (a new marker, lane decoration, feedback effect):
 3. Extend the headless projection/camera tests; the renderer itself has GPU-free coverage via the
    Noop-backend tests (`test_render_device.cpp`).
 4. Both products pick the change up with no further wiring — that is the payoff of the seam.
+5. **Answer the 2D lane in the same change.** The two surfaces must not diverge: never add highway
+   notation the 2D tab cannot show, or 2D notation the highway cannot. If the element states a
+   *fact* about a note, the tab needs its own idiom for that fact — the idioms may differ (a 3D
+   atlas overlay against a 2D head silhouette; a 3D capo bar against a 2D capo chip) but the set of
+   facts stated may not. Where the answer is genuinely per-surface — 2D has no fretboard axis, so a
+   node has nowhere to sit there and becomes a *number* instead — say so where the element is
+   documented, so a later reader can tell a decided asymmetry from a forgotten one.
 
 If the element is *textured*, the asset fan-out is its own silent list:
 

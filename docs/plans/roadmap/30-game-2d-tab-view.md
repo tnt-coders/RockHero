@@ -93,18 +93,23 @@ gains a display-mode selector mirroring the game's three modes.
 Verified against code on 2026-07-11, `master @ 7ba93b90` (session audit plus two independent
 review passes; line numbers from that audit):
 
-- **The notation authority is already a paint core wearing a thin JUCE jacket.**
-  `rock-hero-editor/ui/src/tab/tab_view.cpp` (1,051 lines): every drawer is a free function in
-  an anonymous namespace taking `(juce::Graphics&, metrics, style, …view)` — `drawNoteTail`
-  (:274), `fillHeadShape` (:325), `drawSlideLines` (:359), `drawBendLines` (:436),
-  `drawMuteIcon` (:523), `drawAttackIcon` (:600), `drawShapeSpan` (:723), `drawChordBoxPill`
-  (:762). `paint()` (:896) derives everything per call from `g.getClipBounds()` plus fixed
-  slack (:917-925) — i.e. it already renders **any clip window of an infinite strip**, which is
-  exactly the contract tile rasterization needs.
+- **The notation authority is already a paint core wearing a thin JUCE jacket.** Every drawer is a
+  free function in an anonymous namespace taking `(juce::Graphics&, metrics, style, …view)`, and
+  `paint()` derives everything per call from `g.getClipBounds()` plus fixed slack — i.e. it already
+  renders **any clip window of an infinite strip**, which is exactly the contract tile
+  rasterization needs. *(Phase 2 has since executed: the drawers moved out of
+  `rock-hero-editor/ui/src/tab/tab_view.cpp` into
+  `rock-hero-common/ui/src/tab/tab_paint_core.cpp`, so the line numbers this audit recorded no
+  longer exist. `paintTabLane` is the orchestrator there, and the editor view now only derives
+  metrics and calls it.)*
 - **`TabView` is purely presentational**: `setInterceptsMouseClicks(false, false)` (:855-858);
   no mouse handling exists in the tab lane (confirmed by docs/plans/roadmap/40-chart-editing.md's own
   inventory). The playhead lives in `timeline/timeline_cursor.h`; seeking in
-  `cursor_overlay.cpp`.
+  `cursor_overlay.cpp`. *(No longer true: plan 40's editing work gave the lane its own pointer
+  ownership — it claims its band through `wantsPointerAt`/`hitTest`, forwards Down/Drag/Up/Move/Exit
+  to the controller, and raises a right-press menu, while the cursor overlay yields through a
+  pass-through predicate. Nothing in this plan depends on the lane being transparent, but a game
+  strip must decide its own pointer stance rather than inherit this line.)*
 - **Full primitive inventory** (drives the §7 rejections): rects, rounded rects, ellipses,
   straight-segment polygons/polylines — including a concave 12-vertex mute "X" (:538-558),
   tremolo gem zigzags under a `reduceClipRegion` clip (:257-269), and a per-pixel vibrato sine
@@ -115,11 +120,12 @@ review passes; line numbers from that audit):
 - **Scale coupling**: metrics cap note height at Charter's 25 px (`g_charter_note_height`,
   :37, :155) — right for the editor lane, too small for a fullscreen game view; every size
   (fonts included) derives from note height, so a scale knob is contained.
-- **The scene model is already pure and promotable.**
-  `rock-hero-editor/core/include/rock_hero/editor/core/tab/tab_view_state.h` is plain structs
-  depending only on `common/core/chart`; `makeTabViewState` (tab_projection) is a pure
-  `(Arrangement, TempoMap) → state` function — deliberately mirroring the
-  `common/core/highway/` projection discipline.
+- **The scene model is already pure and promotable.** It is plain structs depending only on
+  `common/core/chart`; `makeTabViewState` (tab_projection) is a pure `(Arrangement, TempoMap) →
+  state` function — deliberately mirroring the `common/core/highway/` projection discipline.
+  *(Phase 1 has since executed: it now lives at
+  `rock-hero-common/core/include/rock_hero/common/core/tab/tab_view_state.h`, not the editor-core
+  path this audit recorded.)*
 - **Style color authority is already shared**: Charter's palette and derivation multipliers live
   in rock-hero-common/ui `string_colors/string_color_palette.h`, consumed by both `TabView`
   (tab_view.cpp:47-82, :816-820) and the highway renderer. Geometry/metrics are what §9 Phase 2
@@ -129,9 +135,10 @@ review passes; line numbers from that audit):
   runtime-rasterized with `juce::Graphics` on `juce::SoftwareImageType` (:189-220);
   `rock-hero-common/ui` links `juce_graphics` and `bgfx` PRIVATE (CMakeLists.txt:25-28).
 - **The game process already runs the JUCE GUI runtime**:
-  `const juce::ScopedJuceInitialiser_GUI juce_runtime;` at
-  `rock-hero-game/ui/src/surface/game_shell.cpp:159` — in-game JUCE software rasterization is
-  current production behavior, not new machinery.
+  `const juce::ScopedJuceInitialiser_GUI juce_runtime;` at `rock-hero-game/app/main.cpp:223` —
+  in-game JUCE software rasterization is current production behavior, not new machinery. *(This
+  audit cited `rock-hero-game/ui/src/surface/game_shell.cpp:159`; plan 49 deleted that file, and
+  the runtime is now the composition root's first object in `app/`.)*
 - **The existing game text stack is inadequate for notation** (and stays highway-only): the 3D
   view's `pushGlyphText` is fixed-advance ASCII quads (`advance = glyph_height * 0.62`,
   highway_renderer.cpp:431-456; cell index range `'!'..'~'`, highway_atlas.h:65). Proportional,

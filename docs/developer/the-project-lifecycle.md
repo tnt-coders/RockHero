@@ -79,7 +79,8 @@ conversion. This section is deliberately written as numbered rules so a behavior
 made by editing a rule here and re-aligning the code
 (`gp_chart_builder.cpp` — `normalizeImportedSustains`, `generateFretHandPositions`,
 `resolveSlideIns` (rule 16's scoops), and `resolveSlideOutExits` (rule 9's trail-off rides and
-rule 13's exit fret), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
+rule 13's exit fret), closing with the shared `executableChartNote` shed and
+`normalizeChartLegato` (rule 25), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
 only: `.rock` imports and editor-authored charts are never rewritten.
 
 **Sustain policy** (GP notates every note at its full duration; a chart only shows deliberate
@@ -362,9 +363,16 @@ through the trim rules):
     as a dead note carrying Slide flag 64 (down) or 128 (up); the carrier is the encoding
     vehicle, so it sheds its mute and becomes an `attack: pickSlide` note with the
     corpus-derived default path (down 17 → 3, up the mirror) across the notated span, ready
-    for the user to reshape. Simultaneous same-direction carriers are one scrape: the
-    lowest-string carrier survives with the longest span; a conflicting direction at the same
-    onset is dropped with a conversion note. As ordinary notes, scrapes participate in every
+    for the user to reshape. The path is the required unpitched `slideOut` terminal at exactly
+    the sustain; turnaround waypoints are the user's to author, never synthesized. Simultaneous
+    same-direction carriers are ONE scrape sounding on EVERY string the pick crosses, so each
+    carrier becomes its own note on its own string, all of them sharing the gesture's longest
+    notated span — the pick reaches the end of its travel once. Collapsing them onto the lowest
+    string (the behavior originally shipped) understated a two-string scrape as a one-string one.
+    A conflicting direction at the same onset is a notation error rather than a chord, so the
+    first direction wins and the opposed carrier drops with a conversion note. The synthesized
+    start fret is floored above the capo, because a note's `fret` is capo-validated whatever its
+    attack. As ordinary notes, scrapes participate in every
     distance rule — margin trims, the deliberate-hold exemption (a scrape notated ringing
     strictly past a later onset is a hold; scraping through sounding strings is physically
     real), string occupancy — with one twist: the path is *derived* gesture geometry,
@@ -409,6 +417,67 @@ through the trim rules):
     narrows to that single prebend point generally (a zero-sustain pick has exactly one
     pitch). Only slide payloads keep the mark, with a conversion note: per-stroke frets along
     a glide would be fabricated data, and the payloads include the pick-slide carriers.
+
+**The capo frame** (Guitar Pro's frets are capo-*relative*; the chart's are absolute):
+
+21. **A fretted note imports as source fret + capo; an open string stays 0.** Confirmed by an
+    authored experiment — with a capo at 3, an entered "1" sounds the pitch at absolute fret 4.
+    The chart stores absolute frets with `0` meaning the open string, capo'd or not, so the capo
+    never appears as a fret number, and frets `1..capo` are invalid. Every *pressed* position the
+    importer generates therefore floors at **capo + 1**: the fret-hand window's anchor, a
+    slide-in's approach fret, a slide-out's exit window, and a scrape's synthesized start. The
+    capo itself is clamped to `0..12` (`g_max_capo`) with a conversion note when it was out of
+    range.
+
+**Harmonics** (Guitar Pro's `HarmonicFret` means two different things, so the two families resolve
+differently):
+
+22. **A natural's label is its node; every other harmonic's is a partial label against its stop.**
+    For `Natural`, the notated value (or, absent one, the source fret — which for a natural *is*
+    the touched position in GP's capo-relative frame) resolves against an open string and lands on
+    the real stop as `capo + offset`, with the note's own `fret` set to 0. For the fretted family —
+    `Pinch`, `Semi`, `Artificial`, `Tap` — the label is a partial spelled as the familiar
+    open-string position (18 of 56 corpus pinches name a position *below* their own fret, which no
+    thumb can reach), so the node is `stop + offset`, the stop being the note's absolute fret or
+    the capo when the string is open. `Pinch` and `Semi` take the `Pinch` attack (a semi-harmonic
+    is a pinch whose fundamental keeps ringing — the honest nearest technique until the format
+    distinguishes them, kept loud with its own conversion note), `Tap` takes the `Tap` attack, and
+    `Artificial` keeps whatever attack the note had. **`Feedback` and unknown types are
+    deliberately unsupported** — feedback needs a real amp in the room, which headphone play cannot
+    produce — so the note survives as an ordinary one and the loss is counted.
+23. **Labels snap to the node they name, inside a half-fret window.** Notation writes rounded
+    labels, not measurements, and a touch even slightly off a node chokes the harmonic, so each
+    label snaps to the true node nearest it, capped at the 8th partial
+    (`g_max_snapped_partial` — taken from Guitar Pro's own output). Real labels land within 0.331
+    of a node while the integer frets with no harmonic near them (1, 11, 13, …) miss by 0.669 or
+    more, so a label farther than **half a fret** from every node names nothing: on a natural the
+    harmonic is dropped and the note stays ordinary; on the fretted family the **octave** takes
+    over (the lowest-order harmonic available at any stop, hence the easiest to ring), as it does
+    when the source supplies no label at all. A node that would then sit past what the note can
+    reach — `harmonicNodeCeiling`, the neck for a fret-hand harmonic and the string for every other
+    — also falls back to the octave. All four cases carry their own counted conversion note.
+
+**Reductions, and the closing repairs** (import is a commit point, so nothing invalid leaves here):
+
+24. **An out-of-range value is reduced and reported, never carried to validation** — where it would
+    refuse the *whole* song over one field. A note naming a string the tuning does not have is
+    dropped (the lane does not exist); a fret past the last one, once shifted by the capo, is
+    pulled back to `g_max_fret`; a track declaring more than eight courses loses the extra ones.
+    Each reduction is counted and named in the import log.
+25. **Each note sheds what it cannot execute, then the stream's legato is repaired.** The per-note
+    shed is `executableChartNote`, which lives beside the rules it satisfies in `chart_rules` —
+    a list kept in the importer drifted from the list there twice, and a dead note carrying a bend
+    reached validation intact and failed a whole import. It covers exactly what a single note can
+    be made to obey by *dropping* something, ranked by how much of the note each fact determines:
+    a harmonic's node outranks the mute, which outranks bend and vibrato. The rules that read a
+    note's *neighbours* are then `normalizeChartLegato`'s, run as the last step of the build — the
+    same repair the editor's planners funnel through, so a chart is never born invalid and the
+    first-edit-repairs-old-data surprise cannot happen. The importer *depends* on it rather than
+    merely calling it: every Guitar Pro hammer-on/pull-off destination imports marked `Pull` and
+    leaves the direction to this pass, because the direction turns on the predecessor's *released*
+    fret and the slide chains (rules 13-15) that decide that are not built until the note loop has
+    finished. It also reads rule 3's kept-sustain bound — past it a missing tail is a proven
+    release, so a predecessor that no longer reaches supports no legato at all.
 
 Every generated track logs a conversion note ("phrase-aware; verify", "derived N chord
 spans", "imported N pick slides") so the guesses stay observable in the import log.

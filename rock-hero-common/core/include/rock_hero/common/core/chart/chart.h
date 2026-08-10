@@ -441,10 +441,12 @@ one asks whether anything is PRESSED, so an open-string tap harmonic counts; thi
 HAND owns the node, so a tap does not — a two-hand tap harmonic's node belongs to the picking hand,
 which is on the neck rather than off it.
 
-Three things turn on this one fact and each used to spell it out: where the fretting hand sits
-(\ref fretFor returns the node's fret instead of the note's), how far up the node may lie (a finger
-cannot be past the last fret, so the neck caps it rather than the string), and, on the 3D board,
-that the note SOUNDS from the node while the board's own furniture stays on the stop.
+Two things turn on this one fact and each used to spell it out: where the fretting hand sits
+(\ref fretFor returns the node's fret instead of the note's), and how far up the node may lie — a
+finger cannot be past the last fret, so the neck caps it rather than the string.
+
+Deliberately NOT what the 3D board asks when placing a note: a note sounds from its node whichever
+hand is damping it, so the board's own axis ignores which hand that is.
 
 \param note Note to classify.
 

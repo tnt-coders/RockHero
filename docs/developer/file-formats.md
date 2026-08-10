@@ -10,6 +10,14 @@ truth; per the guide's maintenance rule, a commit that changes any field updates
 same commit. Field tables mark keys **req** (read rejects absence) or *opt* (absence gets the
 stated default — the normalize-don't-reject rule in action).
 
+**One authority writes a JSON number**: `Json::numberText` (`common/core/shared/json.h`), the
+shortest text that reads back as the same `double`, with a `.0` kept on an integral value so a
+field that means a double never reads back as an integer. A fixed precision cannot be that
+authority — it rounds silently, so a document stops equalling itself across a save, and rounding
+*launders*: a value the rules refuse can round to one they accept, turning a validation error into
+corruption. The one deliberate exception is tempo-map timing, which keeps its fixed package
+precision (`anchors[].seconds` below).
+
 # The containers
 
 ```text
@@ -126,7 +134,7 @@ like every other format.
 | key | type | req | meaning (default) |
 |---|---|---|---|
 | `tuning.strings` | string[] | req | Per-string tuning labels. |
-| `tuning.capo` | int | opt | (`0`) |
+| `tuning.capo` | int | opt | (`0`) Capo fret, `0..12`. Frets are **absolute**, and `0` means the open string capo'd or not — so the capo never appears as a fret number, and frets `1..capo` are invalid on notes, postures, pitched slide waypoints, and fret-hand positions. |
 | `tuning.centOffset` | number | opt | (`0.0`) |
 | `chords[].name` | string | opt | Chord template name (`""`). |
 | `chords[].frets` / `.fingers` | (int\|null)[] | req | Per-string; `null` = not played. |
@@ -134,10 +142,9 @@ like every other format.
 | `notes[].string` | int | opt | String index (`0`). |
 | `notes[].fret` | int | opt | (`-1` = unset). |
 | `notes[].sustain` | fraction | opt | Omitted when zero. |
-| `notes[].attack` | string | opt | `hammer`\|`pull`\|`tap`\|`pop`\|`slap`\|`pickSlide`; absent = pick. A `pickSlide` note is a right-hand scrape: `fret` is where the scrape starts and `slides` is the traveled path (pick coordinates, never fingerings), required, always traveling, with the last offset equal to the sustain. The writer omits every other technique key on such notes (in-memory values are session-only overrides), and the rules reject a document carrying them. |
+| `notes[].attack` | string | opt | `pinch`\|`hammer`\|`pull`\|`tap`\|`pop`\|`slap`\|`pickSlide`; absent = pick (there is no `pick` token — an explicit one is a read error). A `pickSlide` note is a right-hand scrape: `fret` is where the scrape starts, `slideOut` is the **required** unpitched terminal at exactly the sustain (nothing rings past a scrape), and `slides` is **optional** direction-turnaround waypoints — pick coordinates, never fingerings, with the whole path always traveling (consecutive neck positions strictly differ, the start fret included). The writer omits the five pitched keys on such notes — `mute`, `harmonicNode`, `vibrato`, `tremolo`, `bend` (in-memory values are session-only overrides) — and the rules reject a document carrying them; `accent` is a scrape's own technique and IS written. |
 | `notes[].mute` | string | opt | `palm`\|`full`. |
-| `notes[].harmonic` | string | opt | `natural`\|`pinch`. |
-| `notes[].touch` | number | opt | Touch-harmonic fret point. |
+| `notes[].harmonicNode` | number | opt | Harmonic node position in fret units, **and the assertion that the note is a harmonic** — there is no separate harmonic key. In `(0, 48]`, strictly beyond the physical stop (the fret, or the capo when `fret` is 0), and additionally on the neck (`≤ 30`) when the fretting finger is the one touching it. A `pinch` attack must carry one. The removed `harmonic` and `touch` keys are **refused** rather than ignored, so an un-reimported package fails to load with a message naming the fix. |
 | `notes[].vibrato` / `.tremolo` / `.accent` | bool | opt | Written only when true. `tremolo` means UNMEASURED noise picking (as fast as possible, no real timing) — the charting standard spells out measured fast repetition as discrete notes instead. |
 | `notes[].bend` | [fraction, number][] | opt | Offset + semitone pairs. |
 | `notes[].slides[]` | object[] | opt | Pitched curve waypoints `{offset: <fraction> req, fret (-1)}` — legato junctions, holds, and shift-slide glides; never sits on a later onset of the string (a shift glide ends the minimum sustain distance before its re-picked landing, at exactly the sustain end). |

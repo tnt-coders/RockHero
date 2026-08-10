@@ -27,8 +27,9 @@ overlay UI.
 
 Every undoable domain contributes an `*_edits.h` family of small memento structs:
 `signal_chain_edits.h` (insert/remove/move/placement/display-type/state/gain),
-`chart_edits.h` (one plan-replaying note edit per gesture — insert/delete/move/retype/sustain,
-see the plan/apply split in \ref guide_patterns),
+`chart_edits.h` (one plan-replaying note edit per gesture —
+insert/delete/move/retype/sustain/legato/attack, all seven planners funnelled through the same
+finalize step, see the plan/apply split in \ref guide_patterns),
 `tone_region_edits.h` (create/delete/resize/rename/boundary-move/reset),
 `tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
 (document replace, tone import). Capture rules that keep fidelity:

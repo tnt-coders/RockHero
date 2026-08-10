@@ -9,8 +9,18 @@ restore exactly the pre-action state*) hold by construction — and the walkthro
 five user calls and question B (Option C: strict derivation, merged notation, `Ctrl+H` the sole
 author of the left-hand tap). Plan 40 Phase 5's first verb (`H`) shipped in `4a98da55` with the
 naive derivation; its defects are recorded in
-[What the shipped verb gets wrong](#what-the-shipped-verb-gets-wrong). Nothing beyond that commit
-is implemented.
+[What the shipped verb gets wrong](#what-the-shipped-verb-gets-wrong) and are all fixed.
+
+**What is built.** `planSetLegato` judges the predecessor's **released** fret, requires it still
+holdable at the onset, refuses a fret-hand-harmonic predecessor, and declines to derive across a
+scrape — all of it by delegating to the one shared authority, `derivedLegatoAttack`
+(`chart_rules.h`). Layer 1's repair is `normalizeChartLegato` (`legato_normalize.h`), which runs in
+the planners' shared `finalizePlan` step and again at Guitar Pro import completion.
+
+**What remains**, all of it plan 40 Phase 5: Layer 2's recalc window, the `Ctrl+H` force verb (no
+command is registered for that chord today), and the toggle's eligible-subset UX — the controller
+still computes `all_legato` over the whole selection, so a selection holding a permanently
+ineligible note can never clear.
 
 Scope note: this concerns **legato only**, and that is a finding rather than an assumption — see
 [Does this generalize?](#does-this-generalize) at the end.
@@ -91,20 +101,28 @@ when the relationship becomes valid again* and *no surprises later* — which no
 ### Layer 1 — always-on impossibility normalization, in the planners
 
 Every chart-note planner finalizes through a shared normalization that runs after the 40-Q2-B
-sustain pass, over the whole candidate stream, and repairs only **impossibility**:
+sustain pass, over the whole candidate stream, and repairs only **impossibility**.
+
+The repair states no direction rule of its own: it asks `derivedLegatoAttack` what the predecessor
+justifies and writes that. Its own decisions are only *when* the stream's attack is impossible, and
+which repairs may reach for a derived direction at all:
 
 | Invalid state found in the candidate stream | Repair |
 |---|---|
 | `Pull` with no same-string predecessor, or predecessor moved off-string/later | → `Pick` |
+| `Pull` whose predecessor is no longer holdable at the onset (D13) | → `Pick` — a disconnected tail is a proven release |
 | `Pull` whose predecessor's released fret is **equal** | → `Pick` (no direction ≠ left-hand tap) |
 | `Pull` whose predecessor's released fret is **lower** | → `Hammer` (a genuine hammer-on now) |
-| `Pull` whose predecessor is a fret-hand harmonic (E19), or which itself carries a node (E12) | → `Hammer` if a genuine lower predecessor justifies it, else `Pick` |
+| `Pull` whose predecessor is a fret-hand harmonic (E19) | → `Pick`, always. A touch holds nothing to hand over, so it disqualifies the predecessor outright — neither direction survives it, and no lower fret can rescue one |
+| `Pull` which itself carries a node (E12) | → `Hammer` when a lower released predecessor justifies one, else `Pick` |
 | `Pull` whose predecessor is a scrape | **left alone when still justified** — pull-from-a-scrape is valid data (D7), tested against the scrape's released fret, the slide-out's. Repairs only when that test fails, like any value change |
-| `Hammer` with sounding position 0 — fret 0 and no node (E4) | → `Pull` if a valid higher predecessor exists, else `Pick` |
+| `Hammer` with sounding position 0 — fret 0 and no node (E4) | → `Pull` if a still-held higher predecessor exists, else `Pick` |
+| `Tap` with sounding position 0 — fret 0 and no node (E4) | → `Pick`, always. E4 binds both striking attacks, but a tap is a picking-hand articulation no predecessor can convert into a pull-off. (Not a hypothetical: a junk `Tapped` flag on an open string is real Guitar Pro data, and it used to fail E4 at validation and take the whole song's import down.) |
 | `Hammer` in any other configuration | **untouched** — always possible as a left-hand tap; a deliberate `Ctrl+H` survives |
 
-"Released fret" of a predecessor = the fret of its last pitched slide waypoint when it carries one,
-else its `fret` (user call 3 below). Repairs ride the same undo entry as the edit that exposed them,
+"Released fret" of a predecessor (`releasedFret`) = a scrape's slide-out fret, else the fret of its
+last slide waypoint when it carries one, else its `fret` (user call 3 below) — where the finger
+*ends*, never where the note began. Repairs ride the same undo entry as the edit that exposed them,
 exactly like 40-Q2-B truncations — one plan, one entry, exact inverse. `ChartNotesEdit` replays
 stored values, so undo/redo restore both halves atomically with **no derivation at undo time**.
 

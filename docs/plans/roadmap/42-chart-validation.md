@@ -50,21 +50,41 @@ advisory content layer above it.
 Structural validation exists and is a hard gate:
 
 - `rock-hero-common/core/include/rock_hero/common/core/chart/chart_rules.h` — `ChartErrorCode`
-  (9 codes), `ChartError`, `validateChartRules(const Chart&, const TempoMap&)`; returns the
-  FIRST violation only. Constants: `g_max_chart_strings = 8`, `g_max_fret = 30` (public);
-  `g_max_capo = 12`, cent-offset cap ±1200.0 (private in
-  `rock-hero-common/core/src/chart/chart_rules.cpp:14-17`).
-- Enforced rules (`chart_rules.cpp:33-227`): usable tuning (1..8 strings, each non-empty; capo
-  0..12; |centOffset| ≤ 1200); template `frets`/`fingers` arrays match string count, template
-  frets in 0..30; notes sorted by (position, string) with unique onsets, valid grid positions,
-  string/fret in range, non-negative sustain; `touch` only on harmonics, in (0, 30]; bend offsets
-  ascending within sustain; slide offsets strictly positive, ascending, within sustain, frets in
-  range; shape spans positive, sorted, `chord` index in range; FHPs fret 1..30, width ≥ 1,
-  sorted; sections non-empty type, sorted.
+  (9 codes, `InvalidPickSlide` the last), `ChartError`,
+  `validateChartRules(const Chart&, const TempoMap&)`; returns the FIRST violation only. Constants,
+  all public in the header: `g_max_chart_strings = 8`, `g_max_fret = 30`, `g_max_harmonic_node = 48.0`,
+  `g_max_capo = 12`, `g_max_snapped_partial = 8`, plus `harmonicNodeCeiling(note)` — a *per-note*
+  node bound, because a fret-hand harmonic's node is capped by the neck while every other node is
+  capped by the string. The cent-offset cap (±1200.0) is the one private constant
+  (`g_max_cent_offset` in `rock-hero-common/core/src/chart/chart_rules.cpp`).
+- **The note rules live in their own authority, `validateChartNotes`** (`chart_rules.cpp:300-652`),
+  split out of `validateChartRules` (`chart_rules.cpp:119-234`)
+  so the editor's chart planners can gate a CANDIDATE stream through exactly the checks the
+  document reader applies. Every planner funnels through the shared `finalizePlan`
+  (`rock-hero-editor/core/src/chart/chart_edits.cpp`), which validates the candidate's *saved*
+  form and refuses the whole plan on any violation — so authoring an invalid chart is impossible
+  by construction rather than by per-verb discipline, and lint never has to advise on a rule the
+  editor could break.
+- Enforced rules: usable tuning (1..8 strings, each non-empty; capo 0..12; |centOffset| ≤ 1200);
+  template `frets`/`fingers` arrays match string count, template frets 0..30 and clear of the
+  capo; notes sorted by (position, string) with unique onsets, valid grid positions, string/fret in
+  range, non-negative sustain; **the capo floor as a hard error** (a fret must be 0 or above the
+  capo — on notes, postures, pitched slide waypoints, and FHPs alike); `harmonic_node` in (0, 48],
+  strictly beyond the physical stop, and within `harmonicNodeCeiling(note)`; the technique
+  compatibility matrix's note rules (a `Pinch` requires its node; `Hammer`/`Tap` need somewhere to
+  strike; a full mute excludes node/bend/vibrato; a `Pull` carries no node and needs a
+  higher-released, still-held, non-fret-hand-harmonic predecessor; a tap harmonic excludes
+  tremolo; a fret-hand harmonic neither slides nor bends); bend offsets ascending within sustain;
+  slide offsets strictly positive, ascending, within sustain, frets in range, never on a later
+  onset of the string; a `slide_out` after every waypoint and within the sustain; the four
+  `InvalidPickSlide` checks (the saved-form fixpoint, the required slide-out terminal exactly at
+  the sustain, and an always-traveling path); shape spans positive, sorted, `chord` index in range;
+  FHPs above the capo, fret ≤ 30, width ≥ 1, sorted. **No section validation exists here** —
+  sections are song-level (`SongSection`), validated by the song document reader.
 - Package read HARD-REJECTS structural violations: chart load + `validateChartRules` failures
   become `SongPackageError{InvalidArrangement}` in
-  `rock-hero-common/core/src/package/rock_song_package_read.cpp:730-745`. The GP importer also
-  validates post-build (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:740`).
+  `rock-hero-common/core/src/package/rock_song_package_read.cpp:800-815`. The GP importer also
+  validates post-build (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:2755-2763`).
 - Tone-track structural validation:
   `rock-hero-common/core/src/tone/tone_track_rules.cpp` checks canonical unique region ids,
   valid endpoints, start-before-end, not past the terminal anchor, sorted/non-overlapping,
@@ -80,29 +100,31 @@ Gaps this plan fills (verified absent):
   `docs/plans/in-progress/note-format-and-tablature-plan.md` (Open Questions) records same-string
   sustain overlap as unvalidated for exactly this reason.
 - No note-name → pitch parser anywhere in common. Tuning strings ("E2") are validated only as
-  non-empty (`chart_rules.cpp:44-53`); `"X9"` passes. A private MIDI→name formatter exists in
+  non-empty (in `validateChartRules`); `"X9"` passes. A private MIDI→name formatter exists in
   `rock-hero-editor/core/src/project/gp_chart_builder.cpp:92` (`midiNoteName`).
 - Chart positions are not bounded by the tempo map's terminal anchor (`isValidGridPosition`,
-  `chart_rules.cpp:19-24`), unlike tone regions (`tone_track_rules.cpp:73-79`). Notes past the
+  `chart_rules.cpp:30-35`), unlike tone regions (`tone_track_rules.cpp:73-79`). Notes past the
   terminal anchor load silently.
 - Dangling chord-template references are ALREADY a structural error (`shape.chord` out of range,
-  `chart_rules.cpp:167`). The remaining lint scope is unused templates and note-vs-template
+  the shape-span check in `validateChartRules`). The remaining lint scope is unused templates and note-vs-template
   disagreement, which `docs/plans/in-progress/note-format-and-tablature-plan.md` explicitly anticipates
   ("Validation can advise when sounding notes under a span disagree with the template posture").
 - No lint/advisory layer, no all-findings collection, no editor validation report, no CLI or
   corpus harness. `rock-hero-game/` is a build-system skeleton (placeholder libs).
-- Chart files write `formatVersion: 1` (`rock-hero-common/core/src/chart/chart_document.cpp:505`)
-  but no reader validates it — plan 10's concern, noted here because rule-id stability follows
-  the same discipline.
+- Chart files write `formatVersion: 1` (`rock-hero-common/core/src/chart/chart_document.cpp:518`)
+  and the reader gates on it (`chart_document.cpp:391-394`) — noted here because rule-id stability
+  follows the same discipline.
 - Tests: `rock-hero-common/core/tests/test_chart.cpp` covers the structural rules; the test
   target is `rock_hero_common_core_tests`
   (`rock-hero-common/core/tests/CMakeLists.txt`). Grid-token formatting for messages already
-  exists (`formatGridPositionToken`, reused by `chart_rules.cpp:26-29`).
+  exists (`formatGridPositionToken`, reused by `positionText` in `chart_rules.cpp`).
 - Corpus: 39 converted source-format packages with linked charts under the local
   `Rock Hero Stuff/Chart References` folder (outside the repo), with `_conversion_report.json`
   statistics (docs/plans/in-progress/note-format-and-tablature-plan.md, "Corpus validation").
 
-Verified against code on 2026-07-06, refactor @ 13e82fb0.
+Inventory re-verified against code on 2026-08-10 (`master @ 0262aadb`). Intra-function sites are
+cited by rule or helper name rather than by line, because `chart_rules.cpp` line numbers have
+drifted three times since this plan was written and a named citation cannot go stale silently.
 
 ## Dependencies
 
@@ -243,7 +265,6 @@ the same arithmetic plan 40's link/merge and plan 11's density windows need.
   | Token | Rule | Default |
   |---|---|---|
   | `sustain_overlap` | same-string sustain strictly past next onset (endpoint == onset is legal adjacency) | Warning (Q1) |
-  | `fret_behind_capo` | fretted note with 1 ≤ fret ≤ capo (capo occupies those frets) | Warning |
   | `open_string_bend` | bend payload on fret 0 | Warning |
   | `slide_to_open` | slide waypoint targeting fret 0 | Warning |
   | `impossible_span` | fretted-span width over threshold: simultaneous notes at one onset, chord-template posture, or FHP width | Warning |
@@ -256,6 +277,9 @@ the same arithmetic plan 40's link/merge and plan 11's density windows need.
   | `past_terminal_anchor` | note/shape/FHP/section position or endpoint past the tempo map's terminal anchor | Warning |
   | `tuning_name_unparseable` | tuning string fails Phase 2's parser | Warning |
   | `tone_coverage_gap` | tone regions leave a gap in [1:1, terminal anchor] | Warning |
+
+  A `fret_behind_capo` advisory was planned here and is deliberately gone: a fret at or below the
+  capo is now a hard structural error, so lint would only restate what already refuses to load.
 
   `ChartLintOptions` carries the span threshold model only (default: flag fretted spans > 5
   frets at or below fret 11, > 6 above — hand span grows up the neck; exact numbers are Phase 5

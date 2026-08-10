@@ -220,10 +220,13 @@ headless MVC, views send intents), "Separate State From Side Effects", "Preferre
 - **Chart model** (`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h`): `Chart`
   = `ChartTuning` (strings[], capo, cent_offset) + `ChordTemplate` table (name, per-string
   optional frets/fingers) + `ChartNote` stream (GridPosition, string, fret, sustain Fraction,
-  attack enum Pick/Hammer/Pull/Tap/Pop/Slap, mute None/Palm/Full, harmonic None/Natural/Pinch,
-  optional `touch` double, vibrato/tremolo/accent bools, bend points, slide waypoints) +
-  `ChartShape` spans (position, sustain, template index) + `FretHandPosition` (fret, width) +
-  `ChartSection` (position, type string). Positions are exact rational grid tokens, never seconds.
+  attack enum Pick/**Pinch**/Hammer/Pull/Tap/Pop/Slap/**PickSlide**, mute None/Palm/Full,
+  optional `harmonic_node` double, vibrato/tremolo/accent bools, bend points, slide waypoints,
+  optional `slide_out`) + `ChartShape` spans (position, sustain, template index) +
+  `FretHandPosition` (fret, width). There is **no harmonic enum**: a `harmonic_node`'s presence
+  *is* the assertion that the note is a harmonic, and the attack says which hand damps it. There is
+  **no `ChartSection`** either — sections are song-level (`SongSection` in `song/song.h`), shared by
+  every arrangement. Positions are exact rational grid tokens, never seconds.
 - **Rules** (`chart/chart_rules.h`): `validateChartRules(chart, tempo_map)` enforces the
   corpus-validated set (sorted (position,string) notes, no duplicate onsets, payload windows,
   template arity, shape references). `g_max_chart_strings = 8` (line 24), `g_max_fret = 30`
@@ -498,8 +501,9 @@ it (a pick-slide carrier sheds its other techniques and synthesizes its default 
 what attack coverage exists before executing this phase; the mute/harmonic/vibrato/tremolo/accent
 properties and the §9a mixed-validity feedback are what remain.
 
-- **Scope**: attack (pick/hammer/pull/tap/pop/slap), mute (none/palm/full), harmonic
-  (none/natural/pinch) with optional `touch` numeric entry, vibrato (whole-note bool until
+- **Scope**: attack (pick/pinch/hammer/pull/tap/pop/slap/pickSlide), mute (none/palm/full), the
+  harmonic — which is the `harmonic_node` numeric entry, since a node's presence is what makes a
+  note a harmonic and `Pinch` is an attack — vibrato (whole-note bool until
   Phase 7's gated sub-scope), tremolo, accent. Shortcuts follow the settlement's §9a
   mixed-validity policy (2026-07-18 rewrite — the earlier "cycle or toggle on the selection"
   wording predates it): validate per note, apply where valid with explicit counted feedback,
@@ -511,8 +515,10 @@ properties and the §9a mixed-validity feedback are what remain.
 - **Files**: editor-core `src/chart/` edits/handlers; `tab_view.cpp` (context menu), possibly a
   small properties component under `rock-hero-editor/ui/src/tab/`.
 - **Public-header impact**: intents + view-state only.
-- **Testing**: per-technique set/unset round-trips; illegal-combination guards (touch only with
-  harmonic); multi-apply undo atomicity.
+- **Testing**: per-technique set/unset round-trips; illegal-combination guards — the rule runs the
+  other way now, a `Pinch` MUST carry a node (the overtone that squeals is set by where the thumb
+  lands), and the rest of the matrix is enforced once in `validateChartNotes` behind the planners'
+  shared finalize gate rather than per verb; multi-apply undo atomicity.
 - **Exit criteria**: every `ChartNote` field authorable except bend/slides/vibrato-spans.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 

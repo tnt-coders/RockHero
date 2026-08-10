@@ -1,8 +1,13 @@
 # Plan 55 — Pick-Slide Notation
 
-**Status**: Phases 1–2 complete 2026-08-03 (note-carried model, format, rules, import — built and
-green). Phase 3 executes next behind one open sight gate: the 55-Q1 head pick from mockup sheets.
-55-Q2 (authoring) largely dissolved into ordinary note verbs; its remainder folds into plan 40.
+**Status**: **Phases 1–5 all shipped** — the note-carried model, format, rules and import
+2026-08-03; the projection and 2D tab 2026-08-04 (tail and junctions revised 2026-08-09); the
+highway treatment signed on sight 2026-08-05; the verb layer 2026-08-05. No sight gate remains:
+55-Q1's head was signed 2026-08-04, and the 3D mark was superseded 2026-08-06 by the split
+plectrum. Remaining: the acceptance bundle (the measure-20 sight sign, the measure-3 local byte
+check, corpus smoke) and the queued head-texture revision as its own later pass. 55-Q2 (authoring)
+largely dissolved into ordinary note verbs; its remainder — the toggle's UI surface and chord, and
+path-waypoint reshaping — folds into plan 40.
 Baseline `master @ 84bdfe32`.
 
 ## Goal
@@ -49,8 +54,9 @@ language on the 3D highway and the 2D tab.
      projections suppress them and the document writer omits them, so a saved scrape is always
      clean and validation rejects a hand-made file that is not.
    - **Accepted trades**, chosen deliberately over the stream's structural purity: technique
-     exclusions are validation conjunctions (`InvalidPickSlide`), `sustain == slides.back().offset`
-     is a validated invariant rather than an impossibility, transposition/retype needs a
+     exclusions are validation conjunctions (`InvalidPickSlide`), "the path ends exactly at the
+     sustain" is a validated invariant rather than an impossibility (since D2 it is
+     `slide_out->offset == sustain`), transposition/retype needs a
      pick-slide special case (editor phase), and scrape-through-scrape follows the shared
      deliberate-hold rule instead of a bespoke one-hand hard cap.
    - The interim two-stream binding-timeline refactor was deleted with the stream: pick-slide
@@ -71,8 +77,14 @@ language on the 3D highway and the 2D tab.
 ## Shipped (Phases 1–2, 2026-08-03)
 
 - `NoteAttack::PickSlide` + attack token `pickSlide`; writer omits overridden technique keys on
-  scrape notes; rules: no other techniques in a saved document, non-empty always-traveling path
-  (consecutive neck positions strictly differ, start fret included), path end == sustain.
+  scrape notes (`accent` excepted — a scrape's own technique, H3/D4); rules: no other techniques in
+  a saved document — stated as the fixpoint `savedChartNote(note) == note`, so the field list lives
+  in one place — plus an always-traveling path (consecutive neck positions strictly differ, the
+  start fret included). **Reshaped 2026-08-08 by D2/D4:** the path's required terminal is the
+  unpitched `slide_out` at exactly the sustain, since the terminal is definitionally unpitched and a
+  pitched waypoint there would imply a turnaround or a held landing; `slides` became **optional**
+  turnaround waypoints, so an empty `slides` is legal and the invariant is
+  `slide_out->offset == sustain` rather than `slides.back().offset == sustain`.
 - Import: carriers (flags 64/128) convert in place — shed the mute, gain the attack and the
   corpus-derived default path (**down 17 → 3, up 3 → 17**; ~70% of corpus down-slides start at
   fret 13+ and ~80% end at or below fret 7). **Revised 2026-08-06:** simultaneous same-direction

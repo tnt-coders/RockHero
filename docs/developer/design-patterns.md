@@ -164,8 +164,9 @@ checks preconditions and swaps the change in. Undo replays the same plan in reve
 trips are exact by construction — and the hover ghost can run the *same* planner the click
 runs, so an affordance can never promise an edit the commit would refuse.
 
-Exemplar: `ChartNotesEditPlan` with `planInsertNote` / `planDeleteNotes` / `planMoveNotes` /
-`planRetypeFrets` / `planAdjustSustain`, applied by `applyChartNotesChange` and replayed by
+Exemplar: `ChartNotesEditPlan` with the seven planners — `planInsertNote` / `planDeleteNotes` /
+`planMoveNotes` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` —
+applied by `applyChartNotesChange` and replayed by
 `ChartNotesEdit` (`editor/core/src/chart/chart_edits.h`). Recurring: `planLanePointAtCaret` →
 `plantLanePoint` (`editor_controller.cpp`), and the game's `library_scan_plan.h` (a pure
 planner that diffs the cached index and returns a deterministic action list, no IO). Reach for
