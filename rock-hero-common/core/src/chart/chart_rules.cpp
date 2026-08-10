@@ -227,6 +227,41 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     return std::expected<void, ChartError>{};
 }
 
+ChartNote executableChartNote(ChartNote note)
+{
+    // A harmonic outranks the mute: the node names the pitch, the mute only says how the string was
+    // articulated. Every other pitch payload loses to it instead, because a dead note has no pitch
+    // for a bend or a vibrato to act on.
+    if (note.mute == NoteMute::Full)
+    {
+        if (note.harmonic_node.has_value())
+        {
+            note.mute = NoteMute::None;
+        }
+        else
+        {
+            note.bend.clear();
+            note.vibrato = false;
+        }
+    }
+    // A tap harmonic's damping finger leaves the string, so nothing holds the node under
+    // re-picking.
+    if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value())
+    {
+        note.tremolo = false;
+    }
+    // A fret-hand harmonic touches its node with nothing pressed: there is no press to bend,
+    // shake, or carry anywhere, and moving the touch off the node just stops the harmonic.
+    if (fretHandHarmonic(note))
+    {
+        note.bend.clear();
+        note.vibrato = false;
+        note.slides.clear();
+        note.slide_out.reset();
+    }
+    return note;
+}
+
 std::expected<void, ChartError> validateChartNotes(
     const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const ChartTuning& tuning, const TempoMap& tempo_map)

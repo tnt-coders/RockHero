@@ -1498,7 +1498,7 @@ TEST_CASE("Guitar Pro import always gives a fret-hand harmonic its node", "[core
         REQUIRE(chart.notes.size() == 1);
         REQUIRE(chart.notes[0].harmonic_node.has_value());
         CHECK_FALSE(chart.notes[0].vibrato);
-        CHECK(anyNoteContains(built->notes, "harmonics shed techniques"));
+        CHECK(anyNoteContains(built->notes, "notes shed techniques"));
     }
 
     SECTION("capo-relative frets shift to absolute; the open string stays 0")

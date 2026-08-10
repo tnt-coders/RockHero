@@ -131,6 +131,33 @@ make an arpeggio.
     const Chart& chart, const ChartShape& shape, const TempoMap& tempo_map);
 
 /*!
+\brief The note with every technique it cannot execute stripped off.
+
+For importers, which must not lose a whole song to one contradictory note. The editor's planners
+take the opposite policy on purpose — they refuse the edit, because an author who asked for the
+impossible should be told — but an imported score is not an author's request, and a bend on a note
+the same score marks dead has already told us it is junk.
+
+Lives beside the rules it satisfies so a new incompatibility cannot be written without its shed
+here in view. It covers exactly the rules a single note can be made to obey by DROPPING something:
+range violations are the importer's own clamping, a missing pinch node is data to supply rather
+than technique to remove, and the rules that read a note's neighbours (a hammer needing somewhere
+to land, a pull-off needing something to release) are `normalizeChartLegato`'s.
+
+Which side loses is settled by how much of the note each fact determines: the pitch identity (a
+harmonic's node) outranks how the string is articulated (the mute), which outranks modulation of a
+pitch over time (bend, vibrato). A dead note's own mute therefore survives against a bend, and
+falls against a harmonic. Dropping the lower-ranked side is always the smaller lie: keeping the
+mute over a harmonic would silence a note the score named precisely, and keeping a bend over the
+mute would give a dead note a pitch to bend.
+
+\param note Note as a source described it.
+
+\return The note reduced to what a player can actually execute.
+*/
+[[nodiscard]] ChartNote executableChartNote(ChartNote note);
+
+/*!
 \brief Validates the note stream alone — every intra-note and note-relational rule.
 
 The single authority for the technique compatibility matrix's note rules, split out so the editor

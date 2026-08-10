@@ -1,7 +1,9 @@
 #include "chart/chart_edits.h"
+#include "chart/legato_normalize.h"
 #include "chart/pick_slide_defaults.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -97,6 +99,127 @@ void applyAndValidate(
 }
 
 } // namespace
+
+// Import's whole contract, over every technique combination a source can hand us: a note the shed
+// has reduced and the repair has settled always validates. Import is a commit point, so a note it
+// cannot make legal takes the WHOLE song down — which has now happened three times, each time
+// because a hand-kept list of what to shed had fallen behind the rules. An exhaustive sweep is what
+// retires that: a new incompatibility with no shed clause fails here rather than on someone's
+// import.
+//
+// The two exclusions are the cases neither pass owns. A pinch's missing node is data to supply
+// rather than technique to remove (the importer defaults it to the octave), so pinches are given
+// one here. A pick slide's payload is authored wholesale by the scrape defaults rather than reduced
+// from a source's flags, and `test_pick_slide_defaults` covers that path.
+TEST_CASE("the import shed and repair make every technique combination legal", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    int combinations = 0;
+    int shed_or_repaired = 0;
+    for (const common::core::NoteAttack attack :
+         {common::core::NoteAttack::Pick,
+          common::core::NoteAttack::Pinch,
+          common::core::NoteAttack::Hammer,
+          common::core::NoteAttack::Pull,
+          common::core::NoteAttack::Tap})
+    {
+        for (const int fret : {0, 5})
+        {
+            for (const common::core::NoteMute mute :
+                 {common::core::NoteMute::None,
+                  common::core::NoteMute::Palm,
+                  common::core::NoteMute::Full})
+            {
+                for (const bool node : {false, true})
+                {
+                    for (const bool vibrato : {false, true})
+                    {
+                        for (const bool tremolo : {false, true})
+                        {
+                            for (const bool bent : {false, true})
+                            {
+                                for (const bool slid : {false, true})
+                                {
+                                    common::core::Chart chart;
+                                    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+                                    // A predecessor a measure earlier, holding through the onset and
+                                    // stopped above it, so a pull-off has something real to release
+                                    // and the repair's justified branch is reached rather than
+                                    // always falling through to a plain pick.
+                                    common::core::ChartNote subject = makeNote(
+                                        {.measure = 2, .beat = 1},
+                                        1,
+                                        fret,
+                                        common::core::Fraction{1});
+                                    subject.attack = attack;
+                                    subject.mute = mute;
+                                    // A pinch must carry a node, and every node must lie beyond the
+                                    // stop it speaks from.
+                                    if (node || attack == common::core::NoteAttack::Pinch)
+                                    {
+                                        subject.harmonic_node = 12.0;
+                                    }
+                                    subject.vibrato = vibrato;
+                                    subject.tremolo = tremolo;
+                                    if (bent)
+                                    {
+                                        subject.bend = {
+                                            common::core::BendPoint{
+                                                .offset = common::core::Fraction{1, 2},
+                                                .semitones = 1.0
+                                            },
+                                        };
+                                    }
+                                    if (slid)
+                                    {
+                                        subject.slides = {
+                                            common::core::SlideWaypoint{
+                                                .offset = common::core::Fraction{1, 2}, .fret = 9
+                                            },
+                                        };
+                                    }
+                                    chart.notes = {
+                                        makeNote(
+                                            {.measure = 1, .beat = 1},
+                                            1,
+                                            9,
+                                            common::core::Fraction{4}),
+                                        subject,
+                                    };
+
+                                    for (common::core::ChartNote& note : chart.notes)
+                                    {
+                                        note = common::core::executableChartNote(note);
+                                    }
+                                    normalizeChartLegato(chart.notes, chart.shapes, tempo_map);
+
+                                    ++combinations;
+                                    shed_or_repaired += chart.notes[1] == subject ? 0 : 1;
+                                    CAPTURE(
+                                        static_cast<int>(attack),
+                                        fret,
+                                        static_cast<int>(mute),
+                                        node,
+                                        vibrato,
+                                        tremolo,
+                                        bent,
+                                        slid);
+                                    CHECK(
+                                        common::core::validateChartRules(chart, tempo_map)
+                                            .has_value());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // The sweep really swept, and it really had work to do — a pass cannot come from a loop that
+    // never ran or from combinations that were all legal to begin with.
+    CHECK(combinations == 960);
+    CHECK(shed_or_repaired > 100);
+}
 
 // Placing a note on a free slot plans a pure insertion: nothing removed, the note inserted.
 TEST_CASE("planInsertNote adds a note on an empty slot", "[core][chart]")

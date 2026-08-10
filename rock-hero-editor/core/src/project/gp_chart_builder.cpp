@@ -2539,46 +2539,24 @@ void resolveSlideOutExits(
         chart.notes.push_back(std::move(entry.note));
     }
 
-    // Import is a commit point, so the chart leaves here already obeying the technique matrix:
-    // a harmonic sheds what it cannot execute (a fret-hand harmonic cannot slide, bend, or
-    // vibrato; no harmonic survives a full mute; a tap harmonic cannot be tremolo picked), and
-    // the legato repair runs now rather than on the first edit.
-    int harmonics_shed = 0;
+    // Import is a commit point, so the chart leaves here already obeying the technique matrix: each
+    // note sheds what it cannot execute, and the legato repair (the rules that read a note's
+    // neighbours) runs now rather than on the first edit. The shed lives beside the rules in
+    // `chart_rules`, because a list of them kept here drifted from the list there twice — a dead
+    // note carrying a bend or a vibrato reached validation intact and failed the WHOLE song's
+    // import.
+    int notes_shed = 0;
     for (ChartNote& note : chart.notes)
     {
-        bool shed = false;
-        if (note.harmonic_node.has_value() && note.mute == NoteMute::Full)
-        {
-            note.mute = NoteMute::None;
-            shed = true;
-        }
-        if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value() && note.tremolo)
-        {
-            note.tremolo = false;
-            shed = true;
-        }
-        if (common::core::fretHandHarmonic(note))
-        {
-            if (!note.bend.empty() || note.vibrato)
-            {
-                note.bend.clear();
-                note.vibrato = false;
-                shed = true;
-            }
-            if (!note.slides.empty() || note.slide_out.has_value())
-            {
-                note.slides.clear();
-                note.slide_out.reset();
-                shed = true;
-            }
-        }
-        harmonics_shed += shed ? 1 : 0;
+        ChartNote executable = common::core::executableChartNote(note);
+        notes_shed += executable == note ? 0 : 1;
+        note = std::move(executable);
     }
-    if (harmonics_shed > 0)
+    if (notes_shed > 0)
     {
         notes.push_back(
-            std::to_string(harmonics_shed) +
-            " harmonics shed techniques they cannot execute (bend, vibrato, slide, or mute)");
+            std::to_string(notes_shed) +
+            " notes shed techniques they cannot execute (bend, vibrato, slide, tremolo, or mute)");
     }
     normalizeChartLegato(chart.notes, chart.shapes, tempo_map);
 
