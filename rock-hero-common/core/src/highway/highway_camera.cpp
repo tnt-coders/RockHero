@@ -225,6 +225,21 @@ HighwayCameraTarget makeHighwayCameraTarget(
         }
         low_line = std::min(low_line, static_cast<double>(note.fret - 1));
         high_line = std::max(high_line, static_cast<double>(note.fret));
+
+        // The head does not always draw over the stop. On a non-pinch harmonic the hand presses at
+        // `fret` while the head is drawn on the node, which can be a dozen frets up the neck, so
+        // framing the stop alone can leave the head, tail, and chevron entirely outside the
+        // viewport. Ask the same authority the renderer places the head with rather than restating
+        // the node-or-fret rule here; the stop above still widens the range, because the hand goes
+        // there and the fret-span line is drawn there.
+        const SoundingPosition sounding =
+            soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret);
+        if (sounding.at_node)
+        {
+            low_line = std::min(low_line, sounding.position);
+            high_line = std::max(high_line, sounding.position);
+        }
+
         // A pick slide's head rides its whole traveled path with no fret-hand anchor chasing
         // it (the scrape is excluded from the fret-hand track like the tap above), so the
         // framing must cover every neck position the path reaches, not just the start.
