@@ -6,6 +6,9 @@ CMakeUserPresets.json
 
 # Build files
 build
+
+# Python bytecode cache, written whenever a scripts/ module is imported
+__pycache__/
 # Local-only Claude config + content-guard hook (not shared)
 .claude/settings.local.json
 .claude/hooks/local-content-guard.ps1
