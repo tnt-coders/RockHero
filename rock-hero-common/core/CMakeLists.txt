@@ -21,6 +21,7 @@ target_sources(
             src/package/rock_song_package_read.cpp
             src/package/rock_song_package_write.cpp
             src/package/song_package_error.cpp
+            src/package/workspace_paths.cpp
             src/session/session.cpp
             src/shared/json.cpp
             src/shared/juce_path.cpp

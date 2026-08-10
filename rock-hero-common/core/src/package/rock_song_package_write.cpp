@@ -1,7 +1,6 @@
 #include "package/rock_song_package.h"
 #include "rock_song_package_format.h"
 
-#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cctype>
@@ -43,13 +42,6 @@ namespace
 {
 
 constexpr int g_zip_compression_level = 9;
-
-// Returns true when a relative path tries to escape its base.
-[[nodiscard]] bool startsWithParentTraversal(const std::filesystem::path& path)
-{
-    return std::ranges::any_of(
-        path, [](const std::filesystem::path& part) { return part == ".."; });
-}
 
 // Replaces path characters that would be awkward or unsafe in generated song package entries.
 [[nodiscard]] std::string sanitizeFileName(std::string file_name, std::size_t fallback_index)
@@ -466,8 +458,11 @@ struct SongDocumentForSave
 [[nodiscard]] std::expected<void, SongPackageError> validateToneDocumentOnDisk(
     const std::filesystem::path& workspace_directory, const std::string& tone_document_ref)
 {
+    // The canonical shape ("tones/" + a 36-character canonical UUID + "/tone.json") is the whole
+    // check: it admits no traversal, root, or drive letter, so a separate path-escape clause could
+    // not reject anything this accepts.
     const std::filesystem::path tone_document_path{tone_document_ref};
-    if (!isSafeRelativePath(tone_document_path) || !isCanonicalToneDocumentRef(tone_document_ref))
+    if (!isCanonicalToneDocumentRef(tone_document_ref))
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
@@ -498,8 +493,10 @@ struct SongDocumentForSave
     const std::filesystem::path& workspace_directory, const Arrangement& arrangement)
 {
     const std::string& chart_ref = arrangement.chart_ref;
+    // As with tone documents, the canonical shape ("charts/" + a 36-character canonical UUID +
+    // ".chart.json") already excludes every escape a path-safety clause would look for.
     const std::filesystem::path chart_path{chart_ref};
-    if (!isSafeRelativePath(chart_path) || !isCanonicalChartDocumentRef(chart_ref))
+    if (!isCanonicalChartDocumentRef(chart_ref))
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
@@ -783,8 +780,7 @@ struct SongDocumentForSave
 {
     const std::filesystem::path relative_path =
         file_path.lexically_normal().lexically_relative(workspace_directory.lexically_normal());
-    if (relative_path.empty() || startsWithParentTraversal(relative_path) ||
-        !isSafeRelativePath(relative_path))
+    if (!isSafeRelativePath(relative_path))
     {
         return std::unexpected{ArchiveError{
             ArchiveErrorCode::UnsafeWorkspacePath,
@@ -811,31 +807,6 @@ struct SongDocumentForSave
 }
 
 } // namespace
-
-// Extracts a zip archive through JUCE while preserving project-owned safety checks.
-// Resolves an asset path and reports its workspace-relative spelling.
-std::optional<std::filesystem::path> relativeWorkspacePath(
-    const std::filesystem::path& workspace_directory, const std::filesystem::path& asset_path)
-{
-    const std::filesystem::path workspace = workspace_directory.lexically_normal();
-    const std::filesystem::path resolved_path =
-        (asset_path.is_absolute() ? asset_path : workspace / asset_path).lexically_normal();
-    std::error_code error;
-    if (!std::filesystem::is_regular_file(resolved_path, error))
-    {
-        return std::nullopt;
-    }
-
-    // Intentionally non-const so return-by-value can move the path.
-    std::filesystem::path relative_path = resolved_path.lexically_relative(workspace);
-    if (relative_path.empty() || startsWithParentTraversal(relative_path) ||
-        !isSafeRelativePath(relative_path))
-    {
-        return std::nullopt;
-    }
-
-    return relative_path;
-}
 
 // Writes native song files into a Rock song package content directory.
 std::expected<std::vector<std::string>, SongPackageError> writeRockSongPackageDirectory(

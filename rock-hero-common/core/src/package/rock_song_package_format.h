@@ -31,13 +31,6 @@ Anchor seconds are the only absolute time stored in a package, persisted at a fi
 inline constexpr int g_timing_decimals = 3;
 
 /*!
-\brief Reports whether a package-relative reference stays inside its workspace.
-\param path Package-relative path taken from a song document.
-\return True when the path is relative and never escapes upward.
-*/
-[[nodiscard]] bool isSafeRelativePath(const std::filesystem::path& path);
-
-/*!
 \brief Reports whether an audio path names a FLAC file, RockHero's only package audio format.
 \param path Package-relative or source audio path.
 \return True when the extension is `.flac`, compared case-insensitively.

@@ -54,6 +54,29 @@ double Engine::Impl::clampToLoadedRange(double seconds) const noexcept
     return std::clamp(seconds, 0.0, m_loaded_length_seconds);
 }
 
+// The one authority for "which song time is audible right now". Reads audible playback time while
+// running so Tracktion's post-seek UI hold does not stall consumers for the first few frames after
+// a live seek, and falls back to the transport position when stopped.
+//
+// The read is lifetime-safe: the playback context pointer is only ever mutated on this (message)
+// thread, and getAudibleTimelineTime() is one null check plus one atomic load (source-verified
+// against the vendored engine; findings recorded in plan 12's inventory).
+common::core::TimePosition Engine::Impl::audiblePositionNow() const noexcept
+{
+    auto& transport = m_edit->getTransport();
+    double position_seconds = transport.getPosition().inSeconds();
+    if (transport.isPlaying())
+    {
+        if (auto* const playback_context = transport.getCurrentPlaybackContext();
+            playback_context != nullptr)
+        {
+            position_seconds = playback_context->getAudibleTimelineTime().inSeconds();
+        }
+    }
+
+    return common::core::TimePosition{clampToLoadedRange(position_seconds)};
+}
+
 bool Engine::Impl::loadedAudioEndReached(double position_seconds) const
 {
     return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
@@ -177,14 +200,18 @@ std::expected<void, TransportError> Engine::setPlaybackSpeed(double factor)
         }};
     }
 
-    m_impl->m_playback_speed = factor;
+    // The clock is the only store for the rate: its extrapolator multiplies elapsed time by the
+    // published rate, so a separate port-level copy would let the views advance at one speed while
+    // the audio ran at another.
+    m_impl->m_playback_clock.publishRate(factor);
     return {};
 }
 
-// Reports the port-level speed factor; always 1.0 until practice-speed support lands.
+// Reports the port-level speed factor from the clock, the one place the rate lives; always 1.0
+// until practice-speed support lands.
 double Engine::playbackSpeed() const noexcept
 {
-    return m_impl->m_playback_speed;
+    return m_impl->m_playback_clock.snapshot().playback_rate;
 }
 
 // Engages Tracktion transport looping over the normalized, content-clamped region. Range is
@@ -249,22 +276,11 @@ TransportState Engine::state() const noexcept
     return m_impl->currentTransportState();
 }
 
-// Reads audible playback time while running so Tracktion's post-seek UI hold does not stall the
-// editor cursor for the first few frames after a live seek.
+// Feeds the editor cursor from the same audible-time authority the playback clock publishes, so the
+// 2D cursor and the 3D highway can never report different song times for the same instant.
 common::core::TimePosition Engine::position() const noexcept
 {
-    auto& transport = m_impl->m_edit->getTransport();
-    double position_seconds = transport.getPosition().inSeconds();
-    if (transport.isPlaying())
-    {
-        if (auto* const playback_context = transport.getCurrentPlaybackContext();
-            playback_context != nullptr)
-        {
-            position_seconds = playback_context->getAudibleTimelineTime().inSeconds();
-        }
-    }
-
-    return common::core::TimePosition{m_impl->clampToLoadedRange(position_seconds)};
+    return m_impl->audiblePositionNow();
 }
 
 } // namespace rock_hero::common::audio

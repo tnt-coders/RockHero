@@ -207,11 +207,6 @@ private:
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
-    // Port-level playback speed factor. Only 1.0 is storable until practice-speed support
-    // (docs/plans/roadmap/28-practice-mode.md) implements real time-stretch over the proxy-off backing
-    // clip; the port rejects every other value with a typed error.
-    double m_playback_speed{1.0};
-
     // Last coarse state used to suppress duplicate listener notifications.
     TransportState m_last_notified_transport_state{};
 
@@ -374,9 +369,14 @@ private:
     void publishClockBoundary(common::core::TimePosition position);
 
     // Republishes the current audible playback time into the clock with a fresh capture stamp.
-    // Same lifetime-safe read Engine::position() performs; called by the republish timer at
-    // render-adjacent cadence while playing.
+    // Called by the republish timer at render-adjacent cadence while playing.
     void publishAudibleTimeNow();
+
+    // Returns the song time that is audible right now, clamped into the loaded content. The single
+    // authority behind both Engine::position() (the editor cursor) and the clock snapshots the game
+    // frame loop and the 3D preview consume, so those surfaces cannot disagree about the same
+    // instant. Message thread only: it reads the transport's playback context pointer.
+    [[nodiscard]] common::core::TimePosition audiblePositionNow() const noexcept;
 
     // Creates the edit and gives its two audio tracks explicit product roles.
     void createEdit();

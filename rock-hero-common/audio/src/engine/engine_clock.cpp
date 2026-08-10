@@ -73,26 +73,12 @@ void Engine::Impl::publishClockBoundary(common::core::TimePosition position)
     }
 }
 
-// Republishes audible playback time while playing. The read is the same lifetime-safe pattern
-// Engine::position() proves out: the playback context pointer is only ever mutated on this
-// (message) thread, and getAudibleTimelineTime() is one null check plus one atomic load
-// (source-verified against the vendored engine; findings recorded in plan 12's inventory).
+// Republishes audible playback time while playing, through the same audible-time authority
+// Engine::position() reads, so the clock's consumers and the editor cursor cannot drift apart.
 void Engine::Impl::publishAudibleTimeNow()
 {
-    auto& transport = m_edit->getTransport();
-    double position_seconds = transport.getPosition().inSeconds();
-    if (transport.isPlaying())
-    {
-        if (auto* const playback_context = transport.getCurrentPlaybackContext();
-            playback_context != nullptr)
-        {
-            position_seconds = playback_context->getAudibleTimelineTime().inSeconds();
-        }
-    }
-
     m_playback_clock.publishPosition(
-        common::core::TimePosition{clampToLoadedRange(position_seconds)},
-        std::chrono::steady_clock::now().time_since_epoch());
+        audiblePositionNow(), std::chrono::steady_clock::now().time_since_epoch());
 }
 
 } // namespace rock_hero::common::audio

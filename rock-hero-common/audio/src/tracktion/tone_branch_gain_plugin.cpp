@@ -1,14 +1,18 @@
 #include "tracktion/tone_branch_gain_plugin.h"
 
+#include <rock_hero/common/core/tone/tone_schedule.h>
+
 namespace rock_hero::common::audio
 {
 
 namespace
 {
 
-// De-zippers block-rate automation updates only; the audible switch ramp is authored in the
-// baked curve, so this must stay at or below the shortest baked crossfade (5 ms).
-constexpr double g_smoothing_ramp_seconds{0.005};
+// De-zippers block-rate automation updates only; the audible switch ramp is authored in the baked
+// curve, so this must stay below the baked crossfade or the smoother would stretch it. Derived from
+// the crossfade's one authority at half its length, which leaves the de-zipper settled well inside
+// the ramp instead of trailing it.
+constexpr double g_smoothing_ramp_seconds{core::g_tone_switch_ramp_seconds / 2.0};
 
 [[nodiscard]] const juce::Identifier& branchGainProperty()
 {

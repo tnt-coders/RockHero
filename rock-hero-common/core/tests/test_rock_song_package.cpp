@@ -12,6 +12,7 @@
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
+#include <rock_hero/common/core/package/workspace_paths.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <string>
 #include <string_view>
@@ -1595,6 +1596,174 @@ TEST_CASE(
     CHECK(extracted.error().message.find("unsafe") != std::string::npos);
     // The escaping entry would have landed in the workspace's parent; the guard must prevent it.
     CHECK_FALSE(std::filesystem::exists(temporary_directory.path() / "escape.flac"));
+}
+
+// Covers the one path-escape rule shared by the package reader, the package writer, and the audio
+// library's tone/plugin document validation. It is the security boundary for a package authored
+// somewhere else, so its shape is asserted directly rather than only through the callers.
+TEST_CASE("Safe relative workspace paths reject every escape shape", "[core][rock-song-package]")
+{
+    CHECK(isSafeRelativePath(std::filesystem::path{"audio/backing.flac"}));
+    CHECK(isSafeRelativePath(std::filesystem::path{"tones/x/state/plugin-1.tracktion-plugin"}));
+
+    CHECK_FALSE(isSafeRelativePath(std::filesystem::path{}));
+    CHECK_FALSE(isSafeRelativePath(std::filesystem::path{"../escape.flac"}));
+    CHECK_FALSE(isSafeRelativePath(std::filesystem::path{"audio/../../escape.flac"}));
+    CHECK_FALSE(isSafeRelativePath(std::filesystem::path{"./audio/backing.flac"}));
+    CHECK_FALSE(isSafeRelativePath(std::filesystem::path{"/etc/passwd"}));
+
+    // A drive-relative reference names a per-drive working directory, so it addresses the workspace
+    // no more definitely than a root does. It is rejected on every platform: where it is not a root
+    // name it is a single component containing a colon.
+    CHECK_FALSE(isSafeRelativePath(std::filesystem::path{"C:audio/backing.flac"}));
+    CHECK_FALSE(isSafeRelativePath(std::filesystem::path{"audio/C:backing.flac"}));
+}
+
+// Verifies a present-but-non-numeric startOffset is refused rather than read as zero, which would
+// silently shift the whole backing track against the score.
+TEST_CASE("Rock song package rejects a non-numeric audio start offset", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.flac",
+                    "startOffset": "0.5"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
+    CHECK(read_song.error().message.find("startOffset") != std::string::npos);
+}
+
+// Verifies an overflowing decimal literal - JSON's only spelling for a non-finite number - is
+// refused. Accepting it would put an infinity in TimeDuration and make the next save emit the bare
+// token `inf`, leaving song.json permanently unparseable.
+TEST_CASE("Rock song package rejects a non-finite audio start offset", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.flac",
+                    "startOffset": 1e400
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
+    CHECK(read_song.error().message.find("startOffset") != std::string::npos);
+}
+
+// Verifies two sections at one grid position are refused. Sortedness alone would admit them, and
+// then "which section governs this moment" would answer arbitrarily.
+TEST_CASE("Rock song package rejects duplicate section positions", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.sections = {
+        SongSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "verse"},
+        SongSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "chorus"},
+    };
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
+    CHECK(read_song.error().message.find("sorted") != std::string::npos);
+}
+
+// Verifies a present-but-non-numeric automation shape is refused rather than read as the linear
+// default, which would silently straighten an authored curve.
+TEST_CASE("Rock song package rejects a non-numeric automation shape", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.flac"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing",
+                    "toneAutomation": [
+                        {
+                            "plugin": "plugin-1",
+                            "param": "gain",
+                            "points": [
+                                { "position": "1:1", "value": 0.5, "shape": "linear" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
+    CHECK(read_song.error().message.find("shape") != std::string::npos);
 }
 
 } // namespace rock_hero::common::core

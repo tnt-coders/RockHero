@@ -43,7 +43,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Lightweight parsed form of a persisted tempo-map anchor address.
 // Finds the required native song document in an extracted song package directory.
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
     const std::filesystem::path& directory)
@@ -84,8 +83,11 @@ namespace
     return normalized;
 }
 
-// Rejects archive-relative paths that could escape or ambiguously address a workspace directory.
-// Rejects ZIP entry names that could escape or ambiguously address the workspace directory.
+// Rejects ZIP entry names that could escape or ambiguously address the workspace directory. This
+// stays separate from core::isSafeRelativePath even though the rules read alike: a ZIP name carries
+// archive separators rather than the platform's, and a directory entry ends in one, which a
+// std::filesystem::path can only represent as an empty final component that the workspace rule must
+// reject.
 [[nodiscard]] bool isSafeZipEntryName(std::string_view entry_name)
 {
     if (entry_name.empty())
@@ -227,11 +229,22 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         const auto normalization =
             readOptionalNormalization(Json::value(asset_json, "normalization"));
 
-        // Absent offset means the audio starts at the score's first beat; pre-offset packages
-        // simply omit the field.
-        const TimeDuration start_offset{
-            Json::tryReadDouble(asset_json, "startOffset").value_or(0.0)
-        };
+        // Absent offset means the audio starts at the score's first beat; pre-offset packages simply
+        // omit the field. A field that is PRESENT but not a finite number is refused rather than
+        // read as zero: falling back would shift the whole backing track against the score with no
+        // word to the user, and a non-finite value survives to the next save, where the writer would
+        // emit the bare token `nan` and leave song.json permanently unparseable.
+        const juce::var& start_offset_json = Json::value(asset_json, "startOffset");
+        const auto start_offset_seconds = Json::tryReadDouble(asset_json, "startOffset");
+        if (!start_offset_json.isVoid() &&
+            (!start_offset_seconds.has_value() || !std::isfinite(*start_offset_seconds)))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidAudioAsset,
+                "audio asset startOffset must be a finite number: " + *relative_path,
+            }};
+        }
+        const TimeDuration start_offset{start_offset_seconds.value_or(0.0)};
 
         const auto inserted = audio_assets.emplace(
             *id,
@@ -380,7 +393,6 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     return anchors;
 }
 
-// Validates the package-level tempo-map invariants before arrangements use the grid.
 // Reads and validates the required song-level tempo map.
 [[nodiscard]] std::expected<TempoMap, SongPackageError> readTempoMap(const juce::var& song_document)
 {
@@ -456,11 +468,13 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        if (!sections.empty() && *position < sections.back().position)
+        // Strictly ascending, not merely non-descending: two sections at one grid position would
+        // make "which section governs this moment" answer arbitrarily.
+        if (!sections.empty() && *position <= sections.back().position)
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
-                "sections must be sorted at " + *position_text,
+                "sections must be sorted and must not repeat a position at " + *position_text,
             }};
         }
 
@@ -674,12 +688,25 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                 }};
             }
 
+            // The writer omits the linear default, so an absent shape means 0. A PRESENT but
+            // non-numeric shape is refused rather than read as 0, which would silently straighten an
+            // authored curve; the range and finiteness of a numeric one are
+            // validateToneAutomationEntries' business below.
+            const juce::var& shape_json = Json::value(point_json, "shape");
+            const auto shape = Json::tryReadDouble(point_json, "shape");
+            if (!shape_json.isVoid() && !shape.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "toneAutomation point shape must be a number at " + *position_text,
+                }};
+            }
+
             entry.points.push_back(
                 ToneAutomationPoint{
                     .position = *position,
                     .norm_value = static_cast<float>(*value),
-                    .curve_shape =
-                        static_cast<float>(Json::tryReadDouble(point_json, "shape").value_or(0.0)),
+                    .curve_shape = static_cast<float>(shape.value_or(0.0)),
                 });
         }
 
@@ -982,7 +1009,6 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
     return std::expected<void, ArchiveError>{};
 }
 
-// Converts arrangement parts into the stable song-document spelling.
 } // namespace
 
 // Extracts a zip archive through JUCE while preserving project-owned safety checks.

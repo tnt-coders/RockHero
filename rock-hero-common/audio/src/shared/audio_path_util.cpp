@@ -84,26 +84,6 @@ namespace rock_hero::common::audio
     return static_cast<int>(juce::String::fromUTF8(value.c_str()).getHexValue64());
 }
 
-// Reports whether a package-relative reference stays inside the song workspace.
-[[nodiscard]] bool isSafeRelativePath(const std::filesystem::path& path)
-{
-    if (path.empty() || path.is_absolute() || path.has_root_name() || path.has_root_directory())
-    {
-        return false;
-    }
-
-    for (const std::filesystem::path& part : path)
-    {
-        const std::string text = part.generic_string();
-        if (text.empty() || text == "." || text == ".." || text.find(':') != std::string::npos)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 // Converts text to the opaque byte shape carried by PluginInstanceState.
 [[nodiscard]] std::vector<std::byte> bytesFromString(std::string_view text)
 {

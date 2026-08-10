@@ -66,23 +66,6 @@ constexpr double g_timing_epsilon = 1.0e-9;
 
 } // namespace
 
-[[nodiscard]] bool isSafeRelativePath(const std::filesystem::path& path)
-{
-    if (path.empty() || path.has_root_name() || path.has_root_directory())
-    {
-        return false;
-    }
-
-    if (path.string().find(':') != std::string::npos)
-    {
-        return false;
-    }
-
-    return std::ranges::none_of(path, [](const std::filesystem::path& part) {
-        return part.empty() || part == "." || part == "..";
-    });
-}
-
 [[nodiscard]] bool hasFlacExtension(const std::filesystem::path& path)
 {
     std::string extension = path.extension().string();

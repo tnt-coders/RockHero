@@ -4,6 +4,7 @@
 
 #include <fstream>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/package/workspace_paths.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -27,7 +28,7 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     const std::filesystem::path& song_directory, const std::string& relative_path)
 {
     const std::filesystem::path package_path{relative_path};
-    if (!isSafeRelativePath(package_path))
+    if (!core::isSafeRelativePath(package_path))
     {
         return std::nullopt;
     }
@@ -70,7 +71,7 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 {
     const std::filesystem::path plugin_state_path{plugin_state_ref};
     const std::string extension = plugin_state_path.extension().generic_string();
-    return isSafeRelativePath(plugin_state_path) &&
+    return core::isSafeRelativePath(plugin_state_path) &&
            plugin_state_path.parent_path().generic_string() ==
                expected_state_directory.generic_string() &&
            extension == g_plugin_state_extension;

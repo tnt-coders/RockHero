@@ -80,13 +80,6 @@ module inside Contents; both forms normalize to the bundle for UI display and pa
 [[nodiscard]] int fromHexString(const std::string& value);
 
 /*!
-\brief Reports whether a package-relative reference stays inside the song workspace.
-\param path Package-relative path to validate.
-\return True when the path never escapes the package root.
-*/
-[[nodiscard]] bool isSafeRelativePath(const std::filesystem::path& path);
-
-/*!
 \brief Converts text into the opaque byte shape carried by PluginInstanceState.
 \param text Text to convert.
 \return Byte copy of the text.

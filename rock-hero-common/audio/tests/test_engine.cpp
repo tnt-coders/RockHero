@@ -586,6 +586,13 @@ TEST_CASE("Engine playback speed accepts only 1.0", "[audio][engine][integration
     REQUIRE_FALSE(rejected.has_value());
     CHECK(rejected.error().code == TransportErrorCode::SpeedNotSupported);
     CHECK_THAT(transport.playbackSpeed(), Catch::Matchers::WithinULP(1.0, 0));
+
+    // The port and the clock must never be able to disagree about the rate: the extrapolator scales
+    // elapsed time by the published rate, so a second store would let the views advance at one speed
+    // while the audio ran at another.
+    CHECK_THAT(
+        harness.engine.snapshot().playback_rate,
+        Catch::Matchers::WithinULP(transport.playbackSpeed(), 0));
 }
 
 // Verifies loop engage/read/clear round-trips through the Tracktion-backed adapter.
@@ -2247,6 +2254,13 @@ TEST_CASE("Engine clock publishes clamped seek positions", "[audio][engine][cloc
 
     harness.engine.seek(common::core::TimePosition{duration.seconds + 100.0});
     CHECK(std::abs(harness.engine.snapshot().position.seconds - duration.seconds) < 1.0e-9);
+
+    // The cursor-facing position() and the clock the highway reads must answer the same audible time
+    // for the same instant: they share one authority, so this can only fail if a second one appears.
+    harness.engine.seek(common::core::TimePosition{mid_seconds});
+    CHECK(
+        std::abs(harness.engine.position().seconds - harness.engine.snapshot().position.seconds) <
+        1.0e-9);
 }
 
 // After each transport verb the clock's playing flag must agree with the listener-facing coarse

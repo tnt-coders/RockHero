@@ -119,10 +119,9 @@ Engine::Engine()
     // Seeds the project-owned state from the freshly created empty edit.
     m_impl->updateTransportState();
 
-    // Seed the playback clock: the rate is published once here (1.0 until a product publishes
-    // real speed control) and the zero boundary makes the clock meaningful before the first
-    // audio block.
-    m_impl->m_playback_clock.publishRate(1.0);
+    // Seed the playback clock's zero boundary so it is meaningful before the first audio block. The
+    // rate needs no seeding: the clock stores 1.0 until setPlaybackSpeed() publishes another, and
+    // re-stating that default here would be a second place to keep in step by hand.
     m_impl->publishClockBoundary(common::core::TimePosition{});
 }
 
