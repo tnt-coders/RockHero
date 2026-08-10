@@ -130,6 +130,90 @@ item ships, mark it and name the commit.
   missing `pinch` token)~~ **done 2026-08-10** — the chart-note table now documents `harmonicNode`,
   the `pinch` token, the `slideOut` terminal, and the capo convention; and the recalc-window
   settle-list wording.
+- [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below. Nothing else
+  from that review is waiting: the rest was fixed in place on 2026-08-10.
+
+## W9 — Rulings the deep review needs (opened 2026-08-10)
+
+A multi-pass review of everything the technique work touched produced these, and only these, as
+questions the user has to answer. Everything else it found was fixed in place; the fixes are in the
+commit log for 2026-08-10. Each item states the defect, why it needs a ruling rather than a fix, and
+the options with the agent's recommendation.
+
+- [ ] **W9-A — Is a span-held strum notation, or a 3D affordance?** The rule that a sustainless note
+  in a two-or-more onset group under a hand-shape span is held for the whole span is implemented for
+  the highway (`highwayDisplayHoldEnds`) and NOT for the 2D lane, which draws bare heads with
+  zero-width tails for the same chart. The walkthrough calls it "the chart convention", so the
+  omission looks like a gap rather than a choice — but fixing it the obvious way makes a THIRD
+  implementation of one rule. Options: (a) one shared display helper both view states feed from
+  (recommended — it is the only option that does not add a copy); (b) the tab projection gains its
+  own derivation; (c) drop the 3D extension and let the span rail carry the hold on both surfaces.
+- [ ] **W9-B — Should the two projections become one?** `TabNoteView` and `HighwayNoteView` are
+  field-for-field identical; the bend views are identical; the slide views differ by exactly one
+  field (`linked`, which D18 already ruled is a per-surface READ of one fact rather than per-surface
+  data). The two projection functions differ only by that field and by where display string padding
+  is resolved. This is the root cause of several smaller findings: because the view types are
+  distinct, no shared helper can read a projected note, so every derivation over one gets copied for
+  the other or omitted. Folding them would delete roughly 120 lines and make the surfaces agree by
+  construction, at the cost of a mechanical rename sweep through both renderers. **Needs a ruling
+  because of its size, not its direction.**
+- [ ] **W9-C — What does an arpeggio bracket's `sounded` mean?** 2D marks a posture string
+  `sounded` when ANY note sounds there at the span start, a two-hand tap included — so on a held
+  chord under a tap it brackets the TAP's fret and never states the posture's, while 3D brackets the
+  posture's. `rightHandOnset`'s own contract says those onsets "never anchor, cover, or ring into a
+  fretting-hand posture", which argues for the first reading. Options: (a) `sounded` means the
+  FRETTING hand struck this posture string, so picking-hand onsets are excluded and the highway
+  gains the flag (recommended); (b) it means a head is drawn here whichever hand, and 3D adopts it.
+- [ ] **W9-D — Does a glide end state its fret when a landing exists?** `TabSlideView::linked` is
+  documented as false when a re-picked note sounds exactly at the waypoint — a condition validation
+  makes impossible — and is implemented as `offset < sustain`, which assumes a waypoint at the
+  sustain end implies a landing shortly after. A pitched glide ending at the sustain with NO landing
+  note therefore draws a diagonal and states its arrival fret nowhere in 2D (3D draws the waypoint's
+  post and fret-span line). Options: (a) drop the `unpitched &&` term from the chip guard so every
+  unlinked leg states its arrival, which double-states the fret when a landing does exist; (b)
+  derive `linked` from an actual re-picked note within the margin, which makes the doc true and costs
+  about eight lines.
+- [ ] **W9-E — Where does the attack mark go on a muted head?** The beside-head mark (the hammer
+  triangle and friends) sizes its slot from the head's rim and the fret digits, never from the mute
+  X, and draws AFTER the X — so on a muted legato note, which E24 explicitly allows as the funk and
+  percussive-fingerstyle vocabulary, the mark overpaints most of the X's upper-left arm and the X
+  reads as broken. The root flaw is two independent size authorities on one head, so adding a third
+  `max()` term is the wrong instinct. Options: (a) the mark moves to a shoulder the X does not use;
+  (b) the X yields that arm when a mark is present.
+- [ ] **W9-F — Should 2D distinguish an unpitched slide?** Every slide diagonal is stroked plain
+  white whatever `unpitched` says, while the highway dims an unpitched run to a quarter alpha. So a
+  note that glides 5 to 7 and then trails off shows two identical diagonals in 2D and two visibly
+  different ones in 3D. D17 already named the lever — "the unpitched diagonal's own treatment, broken
+  rather than solid". Options: pull it now, or record the divergence deliberately.
+- [ ] **W9-G — Does a mute restate at each slide junction?** A linked junction head draws the full
+  layered head with a plain white number and neither the X nor the mute plate the onset head gets, so
+  a muted slide's continuation asserts a pitched landing. Partly mitigated by the linked fill reading
+  darker. Options: the mute restates at every junction, or it is a once-at-the-onset property.
+- [ ] **W9-H — Is the scrape toggle a true ON/OFF?** Toggling a zero-sustain note into a pick slide
+  grows its sustain to the minimum gesture window (correctly — a path needs room to travel), and
+  toggling back clears the path but leaves the grown sustain, so the note ends carrying a tail it
+  never had. D14 ruling 4 settled the analogous question for the legato verb in favour of a true
+  toggle through entry reversal, which W7 needs anyway and which would be shared rather than copied;
+  the other signed position is that Ctrl+Z is the revert. Which applies here is the user's call.
+- [ ] **W9-I — Which chord does the scrape toggle get?** It ships registered with no default chord,
+  reachable only from the lane's right-click menu, because the signed keymap never assigned it one.
+  `Ctrl+H` is reserved for the unbuilt left-hand-tap verb, so the scrape needs its own.
+- [ ] **W9-J — Is a scrape's start a stop or travel?** A scrape's start fret is floored at `capo + 1`
+  like a pressed note, while its waypoints are exempt as unpitched travel — so one gesture has its
+  start judged as a stop and its path as travel. Both readings are defensible; the code records the
+  tension without resolving it.
+- [ ] **W9-K — Is a negative bend amount legal?** Nothing validates a bend's AMOUNT: the rules check
+  only offsets and the reader takes the value raw. A negative one renders a chip with no number at
+  all (the formatter's fraction lookup clamps to an empty string), so the mark says a bend exists and
+  refuses to say how much. A downward bend is a real technique on a vibrato bar, so this is a format
+  question before it is a drawing one: does the format admit negative amounts, and if so does 2D draw
+  them below the tail?
+- [ ] **W9-L — Should the local memory keep the franchise mapping?** Every reference in git is gone
+  (54 of them, plus four tell classes the obvious search missed). The standing rule lists memory
+  among the places that must carry zero pointers, but the local memory directory — which is outside
+  version control — holds the only record of which installment the signed feel baseline is. Scrubbing
+  it satisfies the rule literally and loses the decision; keeping it relies on the directory never
+  being committed.
 
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 
