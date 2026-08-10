@@ -19,6 +19,16 @@ constexpr int g_glyph_cell_size = 51;
 constexpr char g_first_glyph = '!';
 constexpr char g_last_glyph = '~';
 
+constexpr HighwayAtlasLayout g_glyph_layout{
+    .texture_width = g_glyph_texture_size,
+    .texture_height = g_glyph_texture_size,
+    .cell_size = g_glyph_cell_size,
+};
+
+// cellRect() clamps an out-of-range index, so a grid the cell size left too small for the range
+// would draw the last glyph for every character past it instead of failing.
+static_assert(g_glyph_layout.capacity() >= g_last_glyph - g_first_glyph + 1);
+
 // Uploads a JUCE ARGB image as an immutable BGRA8 bgfx texture. JUCE's ARGB is premultiplied
 // BGRA in memory on little-endian Windows, which BGRA8 maps to natively on D3D11 — no swizzle.
 // createTexture2D with initial data expects tightly packed rows, and JUCE's lineStride may be
@@ -51,21 +61,6 @@ constexpr char g_last_glyph = '~';
 }
 
 } // namespace
-
-int HighwayAtlasLayout::columns() const noexcept
-{
-    return cell_size > 0 ? texture_width / cell_size : 0;
-}
-
-int HighwayAtlasLayout::rows() const noexcept
-{
-    return cell_size > 0 ? texture_height / cell_size : 0;
-}
-
-int HighwayAtlasLayout::capacity() const noexcept
-{
-    return columns() * rows();
-}
 
 std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcept
 {
@@ -123,11 +118,7 @@ UploadedTexture uploadPngTexture(const std::span<const std::byte> png_bytes)
 HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_png)
 {
     HighwayAtlases atlases;
-    atlases.glyph_layout = HighwayAtlasLayout{
-        .texture_width = g_glyph_texture_size,
-        .texture_height = g_glyph_texture_size,
-        .cell_size = g_glyph_cell_size,
-    };
+    atlases.glyph_layout = g_glyph_layout;
 
     // Head atlas: the reference 4x4 channel-scheme asset (one art set for every consumer)
     // uploads verbatim when it decodes; empty or undecodable bytes leave the handle invalid
@@ -165,7 +156,7 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
             juce::Font{juce::FontOptions{static_cast<float>(g_glyph_cell_size) * 0.82F}.withStyle(
                 "Bold")});
 
-        const int columns = g_glyph_texture_size / g_glyph_cell_size;
+        const int columns = g_glyph_layout.columns();
         for (char character = g_first_glyph; character <= g_last_glyph; ++character)
         {
             const int index = character - g_first_glyph;

@@ -13,7 +13,10 @@ TEST_CASE("Highway atlas layout reports its grid capacity", "[ui][highway]")
 
     CHECK(layout.columns() == 10);
     CHECK(layout.rows() == 10);
-    CHECK(layout.capacity() == 100);
+    // The glyph grid's covenant is a relationship, not a number: cellRect() clamps an
+    // out-of-range index, so the cell size must leave room for the whole printable-ASCII range
+    // ('!'..'~') or every character past the end silently draws the last glyph.
+    CHECK(layout.capacity() >= '~' - '!' + 1);
 
     // The head atlas is square and holds exactly the cells the renderer names.
     const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 256, .cell_size = 64};

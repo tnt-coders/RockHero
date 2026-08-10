@@ -19,7 +19,9 @@ namespace rock_hero::common::ui
 /*!
 \brief Pure grid layout of equal square cells inside a rectangular atlas texture.
 
-Kept free of any rasterization or bgfx state so the arithmetic is unit-testable headlessly.
+Kept free of any rasterization or bgfx state so the arithmetic is unit-testable headlessly. The
+cell counts are constexpr so a grid's capacity can be tied to whatever addresses it at compile
+time, rather than checked at runtime or not at all.
 */
 struct HighwayAtlasLayout
 {
@@ -36,19 +38,28 @@ struct HighwayAtlasLayout
     \brief Number of cells per row.
     \return Cells per row; zero when the layout is empty.
     */
-    [[nodiscard]] int columns() const noexcept;
+    [[nodiscard]] constexpr int columns() const noexcept
+    {
+        return cell_size > 0 ? texture_width / cell_size : 0;
+    }
 
     /*!
     \brief Number of cell rows.
     \return Cell rows; zero when the layout is empty.
     */
-    [[nodiscard]] int rows() const noexcept;
+    [[nodiscard]] constexpr int rows() const noexcept
+    {
+        return cell_size > 0 ? texture_height / cell_size : 0;
+    }
 
     /*!
     \brief Total number of cells the layout holds.
     \return Cell capacity.
     */
-    [[nodiscard]] int capacity() const noexcept;
+    [[nodiscard]] constexpr int capacity() const noexcept
+    {
+        return columns() * rows();
+    }
 
     /*!
     \brief Returns a cell's normalized texture rectangle.
