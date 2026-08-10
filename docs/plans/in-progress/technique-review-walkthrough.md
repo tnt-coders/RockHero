@@ -45,9 +45,19 @@ item ships, mark it and name the commit.
     planners move to `std::expected<ChartNotesEditPlan, ChartPlanRefusal>` with
     `{NoChange, Invalid}`. This is why **every refusal in the editor is silent today** — no
     caller can tell one from the other — so it is also the channel W5's counted feedback needs.
-  - **Red plus a FORM change, never colour alone:** red is already a string lane colour with
-    documented protan/deutan hazards (plan 45), so the invalid state reuses the mute idiom's
-    filled chip behind the digit — shape says "flagged", colour says "invalid".
+  - **An ENTRY BOX for the whole pending state, red text inside it for invalid (user ruling
+    2026-08-09, better than the agent's invalid-only chip).** The box is drawn for as long as the
+    value is provisional — valid or not — and disappears when the entry settles, reusing the plate
+    the mute heads already draw permanently. Three things fall out that the invalid-only chip did
+    not give: the provisional state itself becomes visible (my chip left a VALID pending value
+    looking exactly like a committed one, which is a lie about whether the value landed); the box
+    supplies a known background, so red text is readable over any string-lane colour and the
+    red-on-a-red-lane hazard is structurally gone; and red versus white text inside it differ in
+    LUMINANCE as well as hue (~0.21 against 1.0), so the valid/invalid signal survives protan and
+    deutan vision without a second shape. **One conflict to resolve in the build:** a muted head
+    already draws a plate permanently, so the pending box must differ from it — give the box the
+    editor accent as a border (pending is an editor state and accent is the editor's active
+    colour), which also keeps shape-plus-colour redundancy on muted heads.
   - **Provisional drawing is editor chrome, not the shared paint core** (the core's contract is
     that both products produce identical notation pixels, and the game has no keyboard entry) —
     but export ONE primitive, `paintTabNoteHead` with a text/colour substitution, so the digit's
@@ -62,10 +72,21 @@ item ships, mark it and name the commit.
   - **`EditorUndoHistory::replaceTop` dies entirely** — its only production caller is the widen.
     Do NOT keep it for W7: that needs to DROP the top entry, which `replaceTop` cannot do, so
     W7 wants a new `dropTop()` regardless.
-  - **Esc claims its own rung** (discard the value, leave the caret armed — a behaviour change
-    from today's single rung), and **undo cancels the pending value and consumes the keystroke**,
-    which requires `undo_available` to include the pending entry and `undo_label` to read as the
-    cancel, or the menu affordance lies.
+  - **Undo is NOT special (user ruling 2026-08-09, and it deletes work).** Nothing is committed
+    until the entry settles, so undo has nothing of its own to cancel: it is just another action,
+    and the uniform prologue — *every action and intent settles the pending entry first, commit
+    if valid, discard if invalid* — already covers it. That drops the agent's `undo_available`
+    and `undo_label` changes, i.e. two lying-affordance risks, and leaves ONE settle rule instead
+    of a rule plus an exception. Consequence to accept: `Ctrl+Z` pressed inside the window on a
+    VALID pending value commits it and then undoes it, so the value appears and is removed with a
+    redo entry left behind — which is the visible result the user asked for, and honest, because
+    the value really was a valid edit.
+  - **Esc's rung is claimed by an INVALID pending value only** (user reasoning): Esc cancels the
+    *problem*, so an invalid value discards and the caret survives for an immediate retype, while
+    a VALID pending value is not a cancellable thing — it falls through to the caret rung and
+    commits on the way through the uniform settle. That matches the ladder's own semantics (one
+    press takes the topmost APPLICABLE rung) instead of adding an Esc special case, and it means
+    a valid typed value is a value you meant.
   - **Chord semantics: red marks EVERY selected head.** `validateChartNotes` returns the first
     violated rule with no note identity, and relational refusals (E5, the hold test) are
     properties of a PAIR, so per-note attribution is both unavailable and often ill-defined.
