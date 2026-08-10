@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
 #include <vector>
@@ -119,20 +120,24 @@ TEST_CASE("TabView finds notes intersecting a visible span", "[ui][tab-view]")
     const std::vector<double> prefix_max = prefixMaxEnds();
 
     // A span in the middle of the long sustain starts the range at that note.
-    const auto [mid_first, mid_last] = tabVisibleNoteRange(tab->notes, prefix_max, 5.0, 6.0);
+    const auto [mid_first, mid_last] =
+        common::core::visibleEventRange(tab->notes, prefix_max, 5.0, 6.0);
     CHECK(mid_first == 0);
     CHECK(mid_last == 2);
 
     // A span before every note is empty.
-    const auto [early_first, early_last] = tabVisibleNoteRange(tab->notes, prefix_max, 0.0, 0.5);
+    const auto [early_first, early_last] =
+        common::core::visibleEventRange(tab->notes, prefix_max, 0.0, 0.5);
     CHECK(early_first == early_last);
 
     // A span after every sustain is empty.
-    const auto [late_first, late_last] = tabVisibleNoteRange(tab->notes, prefix_max, 13.0, 14.0);
+    const auto [late_first, late_last] =
+        common::core::visibleEventRange(tab->notes, prefix_max, 13.0, 14.0);
     CHECK(late_first == late_last);
 
     // A span across the late zero-length note includes it.
-    const auto [end_first, end_last] = tabVisibleNoteRange(tab->notes, prefix_max, 11.0, 13.0);
+    const auto [end_first, end_last] =
+        common::core::visibleEventRange(tab->notes, prefix_max, 11.0, 13.0);
     CHECK(end_first <= 2);
     CHECK(end_last == 3);
 }

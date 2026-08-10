@@ -97,26 +97,6 @@ division yields the reference per-lane spacing at every count.
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept;
 
 /*!
-\brief Returns the note index range that can intersect a visible time span.
-
-Notes are sorted by start time but sustains overlap freely, so the lower bound comes from a
-prefix-maximum table of sustain ends: the first note whose running maximum end reaches the span
-can be the earliest visible one, and every note starting past the span's end is invisible. The
-range is a tight superset — callers still intersect each note individually because an early
-short note inside the range may end before the span begins.
-
-\param notes Seconds-resolved notes sorted by start time.
-\param prefix_max_end_seconds Running maximum of note end times, one entry per note.
-\param span_start_seconds Visible span start.
-\param span_end_seconds Visible span end.
-\return Half-open [first, last) index range of candidate notes.
-*/
-[[nodiscard]] std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
-    const std::vector<common::core::TabNoteView>& notes,
-    const std::vector<double>& prefix_max_end_seconds, double span_start_seconds,
-    double span_end_seconds) noexcept;
-
-/*!
 \brief Renders the chart tablature over the arrangement waveform lane in Charter's visual style.
 
 The view draws string lines with Charter's modern-theme note presentation — layered circular

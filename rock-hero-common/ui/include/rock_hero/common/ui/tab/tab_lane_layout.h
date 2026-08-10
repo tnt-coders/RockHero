@@ -5,11 +5,8 @@
 
 #pragma once
 
-#include <cstddef>
 #include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <utility>
-#include <vector>
 
 namespace rock_hero::common::ui
 {
@@ -75,7 +72,7 @@ struct TabLaneGeometry
     /*! \brief Timeline range represented by the lane width. */
     common::core::TimeRange visible_timeline{};
 
-    /*! \brief Left edge of the lane bounds. */
+    /*! \brief Left edge of the lane bounds; \ref x measures horizontal positions from it. */
     float bounds_x{};
 
     /*! \brief Top of the lane bounds. */
@@ -164,33 +161,5 @@ struct TailSpan
 \return Tail span in the bounds' coordinate space.
 */
 [[nodiscard]] TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept;
-
-/*!
-\brief Returns the note index range that can intersect a visible time span.
-
-Notes are sorted by start time but sustains overlap freely, so the lower bound comes from a
-prefix-maximum table of sustain ends: the first note whose running maximum end reaches the span
-can be the earliest visible one, and every note starting past the span's end is invisible. The
-range is a tight superset — callers still intersect each note individually because an early
-short note inside the range may end before the span begins.
-
-\param notes Seconds-resolved notes sorted by start time.
-\param prefix_max_end_seconds Running maximum of note end times, one entry per note.
-\param span_start_seconds Visible span start.
-\param span_end_seconds Visible span end.
-\return Half-open [first, last) index range of candidate notes.
-*/
-[[nodiscard]] std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
-    const std::vector<common::core::TabNoteView>& notes,
-    const std::vector<double>& prefix_max_end_seconds, double span_start_seconds,
-    double span_end_seconds) noexcept;
-
-/*!
-\brief Builds the running maximum of note end times for tabVisibleNoteRange.
-\param notes Seconds-resolved notes sorted by start time.
-\return Prefix-maximum table aligned with the note order.
-*/
-[[nodiscard]] std::vector<double> tabPrefixMaxEndSeconds(
-    const std::vector<common::core::TabNoteView>& notes);
 
 } // namespace rock_hero::common::ui

@@ -160,7 +160,8 @@ head slack, so hosts repaint partial regions (tile strips, dirty rectangles) cor
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
 \param tab Seconds-resolved tab projection; string_count must be positive.
-\param prefix_max_end_seconds Running maximum of note end times (tabPrefixMaxEndSeconds).
+\param prefix_max_end_seconds Running maximum of note end times
+       (common::core::makeSustainPrefixMax).
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabViewState& tab,

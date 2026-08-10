@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <optional>
 #include <ranges>
+#include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -93,6 +95,21 @@ struct StringStyle
     {}
 };
 
+// Every per-string style one paint can need, indexed by chart string minus one. A StringStyle is a
+// palette lookup plus Charter's whole derivation chain and depends on nothing but the string, so
+// the tail, bracket and head passes index this table rather than rebuilding it per note. Sized by
+// the chart-string cap, which needs no precondition on the chart's own string count.
+[[nodiscard]] std::vector<StringStyle> makeLaneStyles(const TabLaneMetrics& metrics)
+{
+    std::vector<StringStyle> styles;
+    styles.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
+    for (int chart_string = 1; chart_string <= common::core::g_max_chart_strings; ++chart_string)
+    {
+        styles.emplace_back(metrics.baseColor(chart_string));
+    }
+    return styles;
+}
+
 // A floating label chip collected during the tail passes and drawn above every note head.
 struct LabelChip
 {
@@ -102,16 +119,27 @@ struct LabelChip
     juce::Colour border;
 };
 
-// Draws one string line per displayed lane across the visible clip, exactly like Charter's lane
-// lines: one pixel, the string's base color at 80%.
-// Draws the lane lines, leaving gaps over the given per-lane x ranges (indexed by displayed
-// string minus one, each lane's ranges in ascending order) so arpeggio "[ fret ]" posture
-// marks sit on a clean background instead of the line cutting through them.
-void drawStringLines(
-    juce::Graphics& g, const TabLaneMetrics& metrics,
-    const std::vector<std::vector<juce::Range<float>>>& exclusions)
+// One visible arpeggio bracket: the posture note it marks and the pixel-snapped outer extent of
+// the "[ fret ]" pair drawn around it. Resolved once per paint, because the string-line gaps and
+// the brackets themselves must agree on where a bracket sits to the pixel.
+struct ArpeggioBracket
 {
-    const juce::Rectangle<int> clip = g.getClipBounds();
+    common::core::TabArpeggioNoteView note;
+    // The span start in pixels: the pair's center, and the column the held fret number centers on.
+    float center_x{};
+    int left{};
+    int right{};
+};
+
+// Draws one string line per displayed lane across the given clip (the repaint region held to the
+// lane bounds), exactly like Charter's lane lines: one pixel, the string's base color at 80%. Each
+// lane's line leaves a gap over every arpeggio bracket on it, so the "[ fret ]" posture marks sit
+// on a clean background instead of the line cutting through them. Brackets arrive in ascending
+// span order, which is what lets one left-to-right cursor walk per lane cover them.
+void drawStringLines(
+    juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<int> clip,
+    const std::vector<ArpeggioBracket>& brackets)
+{
     for (int displayed_string = 1; displayed_string <= metrics.displayed_count; ++displayed_string)
     {
         const float y = tabLaneCenterY(displayed_string, metrics.displayed_count, metrics.bounds);
@@ -121,15 +149,20 @@ void drawStringLines(
         const auto row = static_cast<float>(static_cast<int>(y));
         auto cursor = static_cast<float>(clip.getX());
         const auto right = static_cast<float>(clip.getRight());
-        for (const juce::Range<float>& range :
-             exclusions[static_cast<std::size_t>(displayed_string - 1)])
+        for (const ArpeggioBracket& bracket : brackets)
         {
-            const float gap_start = std::min(right, std::max(cursor, range.getStart()));
+            if (bracket.note.string + metrics.extra_lanes != displayed_string)
+            {
+                continue;
+            }
+
+            const float gap_start =
+                std::min(right, std::max(cursor, static_cast<float>(bracket.left)));
             if (gap_start > cursor)
             {
                 g.fillRect(juce::Rectangle<float>{cursor, row, gap_start - cursor, 1.0f});
             }
-            cursor = std::max(cursor, range.getEnd());
+            cursor = std::max(cursor, static_cast<float>(bracket.right));
         }
         if (cursor < right)
         {
@@ -1311,59 +1344,91 @@ void paintTabLane(
     const std::vector<double>& prefix_max_end_seconds)
 {
     // Heads and icons extend a fixed pixel slack around their onset, so the visible span grows
-    // by that slack before the visibility queries.
-    const juce::Rectangle<int> clip = g.getClipBounds();
+    // by that slack before the visibility queries. The clip is held to the lane bounds first: the
+    // lane occupies only its own bounds, so a host drawing it inside a larger component must not
+    // have that component's other columns read as visible time or carry lane lines.
+    const juce::Rectangle<int> clip = g.getClipBounds().getIntersection(metrics.bounds);
     const double duration = metrics.visible_timeline.duration().seconds;
     const double seconds_per_pixel = duration / static_cast<double>(metrics.bounds.getWidth());
     const double slack_seconds =
         static_cast<double>(metrics.max_note_height) * 3.0 * seconds_per_pixel;
+    // Clip columns relative to the lane's left edge, which is where x() measures time from.
+    const int clip_from = clip.getX() - metrics.bounds.getX();
+    const int clip_to = clip.getRight() - metrics.bounds.getX();
     const double span_start = metrics.visible_timeline.start.seconds +
-                              static_cast<double>(clip.getX()) * seconds_per_pixel - slack_seconds;
+                              static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds;
     const double span_end = metrics.visible_timeline.start.seconds +
-                            static_cast<double>(clip.getRight()) * seconds_per_pixel +
-                            slack_seconds;
+                            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds;
 
     // Bracket geometry shared by the string-line gaps below and the bracket pass further
     // down; the values depend only on the lane metrics, not on the individual note.
     const float bracket_size = metrics.note_height + 1.0f;
     const float bracket_border = std::max(1.0f, bracket_size / 15.0f);
     const float bracket_radius = bracket_size / 2.0f + bracket_border;
+    constexpr int bracket_bar = g_arpeggio_bracket_thickness;
 
-    // The lane lines hide inside each visible arpeggio bracket so the "[ fret ]" marks read
-    // on a clean background.
-    std::vector<std::vector<juce::Range<float>>> line_exclusions(
-        static_cast<std::size_t>(metrics.displayed_count));
-    for (const common::core::TabShapeView& shape : tab.shapes)
+    // Both shape passes stop at the same index, since a span starting past the window cannot show.
+    // The arpeggio pass also skips every span starting before the window, because a bracket sits AT
+    // the span start; the rails pass cannot, because a span that began earlier still covers the
+    // window and nothing orders spans by end — its exact first index would need a prefix maximum of
+    // span ends, the way the notes have one.
+    const auto shape_start = &common::core::TabShapeView::start_seconds;
+    const auto shapes_end =
+        std::ranges::upper_bound(tab.shapes, span_end, std::ranges::less{}, shape_start);
+
+    // Every visible bracket, resolved once: the lane lines hide inside each one so the "[ fret ]"
+    // marks read on a clean background, and the bracket pass draws the identical rectangles.
+    std::vector<ArpeggioBracket> brackets;
+    for (const common::core::TabShapeView& shape : std::ranges::subrange{
+             std::ranges::lower_bound(tab.shapes, span_start, std::ranges::less{}, shape_start),
+             shapes_end
+         })
     {
-        if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
+        if (!shape.arpeggio)
         {
             continue;
         }
 
         const float start_x = metrics.x(shape.start_seconds);
+        const int left =
+            juce::roundToInt(start_x - bracket_radius - static_cast<float>(bracket_bar) / 2.0f);
+        const int right =
+            juce::roundToInt(start_x + bracket_radius + static_cast<float>(bracket_bar) / 2.0f);
         for (const common::core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
             const int displayed = arpeggio_note.string + metrics.extra_lanes;
             if (displayed >= 1 && displayed <= metrics.displayed_count)
             {
-                line_exclusions[static_cast<std::size_t>(displayed - 1)].emplace_back(
-                    start_x - bracket_radius, start_x + bracket_radius);
+                brackets.push_back(
+                    ArpeggioBracket{
+                        .note = arpeggio_note, .center_x = start_x, .left = left, .right = right
+                    });
             }
         }
     }
 
-    drawStringLines(g, metrics, line_exclusions);
+    drawStringLines(g, metrics, clip, brackets);
 
-    for (const common::core::TabShapeView& shape : tab.shapes)
+    for (const common::core::TabShapeView& shape :
+         std::ranges::subrange{tab.shapes.begin(), shapes_end})
     {
-        if (shape.end_seconds >= span_start && shape.start_seconds <= span_end)
+        if (shape.end_seconds >= span_start)
         {
             drawShapeSpan(g, metrics, shape);
         }
     }
 
+    const std::vector<StringStyle> lane_styles = makeLaneStyles(metrics);
+    // Clamped like the palette itself, which cycles defensively past its tiers: a string outside
+    // the chart's range is already drawn off the lane band by laneY, so it wants a color here, not
+    // a branch.
+    const auto lane_style = [&lane_styles](const int chart_string) -> const StringStyle& {
+        return lane_styles[static_cast<std::size_t>(
+            std::clamp(chart_string, 1, common::core::g_max_chart_strings) - 1)];
+    };
+
     const auto [first, last] =
-        tabVisibleNoteRange(tab.notes, prefix_max_end_seconds, span_start, span_end);
+        common::core::visibleEventRange(tab.notes, prefix_max_end_seconds, span_start, span_end);
 
     // Floating labels collected during the note passes and drawn above every head.
     std::vector<LabelChip> slide_labels;
@@ -1378,7 +1443,7 @@ void paintTabLane(
             continue;
         }
 
-        const StringStyle style{metrics.baseColor(note.string)};
+        const StringStyle& style = lane_style(note.string);
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
         drawNoteTail(g, metrics, style, note, onset_x, center_y);
@@ -1389,62 +1454,49 @@ void paintTabLane(
     // Arpeggio spans draw "( fret )" bracket marks around every posture string at the
     // bracket start. Onsets carry no vertical bars — the heads themselves already mark them, so
     // the span rails and these brackets are the only shape furniture.
-    for (const common::core::TabShapeView& shape : tab.shapes)
+    //
+    // Left and right square brackets hugging the head's ring, in the head's muted interior color
+    // so they mark the posture without competing with real heads. A string sounded exactly at the
+    // start keeps its full head (drawn by the note pass) inside the brackets; a string struck
+    // later in the arpeggio shows only its held fret number between them.
+    //
+    // The note's VISIBLE top and bottom are the bright ring's edges: the head's outermost layer is
+    // the near-black backing, which melts into the dark lane. The brackets stop a bar-width inside
+    // that visible edge, so they never rise above or dip below what reads as the note. Every
+    // rectangle snaps to whole pixels so the brackets stay perfectly square instead of
+    // antialiasing into fuzz.
+    const float bracket_half_height =
+        bracket_size / 2.0f - bracket_border - static_cast<float>(bracket_bar);
+    const int bracket_serif = juce::roundToInt(bracket_size / 8.0f) + bracket_bar;
+    for (const ArpeggioBracket& bracket : brackets)
     {
-        if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
+        const StringStyle& style = lane_style(bracket.note.string);
+        const float center_y = metrics.laneY(bracket.note.string);
+        const int top = juce::roundToInt(center_y - bracket_half_height);
+        const int bottom = juce::roundToInt(center_y + bracket_half_height);
+
+        g.setColour(style.inner);
+        g.fillRect(bracket.left, top, bracket_bar, bottom - top);
+        g.fillRect(bracket.left, top, bracket_serif, bracket_bar);
+        g.fillRect(bracket.left, bottom - bracket_bar, bracket_serif, bracket_bar);
+        g.fillRect(bracket.right - bracket_bar, top, bracket_bar, bottom - top);
+        g.fillRect(bracket.right - bracket_serif, top, bracket_serif, bracket_bar);
+        g.fillRect(bracket.right - bracket_serif, bottom - bracket_bar, bracket_serif, bracket_bar);
+
+        if (!bracket.note.sounded && metrics.draw_text)
         {
-            continue;
-        }
-
-        const float start_x = metrics.x(shape.start_seconds);
-        for (const common::core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
-        {
-            // Left and right square brackets hugging the head's ring, in the head's muted
-            // interior color so they mark the posture without competing with real heads. A
-            // string sounded exactly at the start keeps its full head (drawn by the note
-            // pass) inside the brackets; a string struck later in the arpeggio shows only its
-            // held fret number between them.
-            const StringStyle style{metrics.baseColor(arpeggio_note.string)};
-            const float center_y = metrics.laneY(arpeggio_note.string);
-            // The note's VISIBLE top and bottom are the bright ring's edges: the head's
-            // outermost layer is the near-black backing, which melts into the dark lane. The
-            // brackets stop a bar-width inside that visible edge, so they never rise above or
-            // dip below what reads as the note. Every rectangle snaps to whole pixels so the
-            // brackets stay perfectly square instead of antialiasing into fuzz.
-            const float half_height = bracket_size / 2.0f - bracket_border -
-                                      static_cast<float>(g_arpeggio_bracket_thickness);
-            const int bar = g_arpeggio_bracket_thickness;
-            const int serif = juce::roundToInt(bracket_size / 8.0f) + bar;
-            const int top = juce::roundToInt(center_y - half_height);
-            const int bottom = juce::roundToInt(center_y + half_height);
-            const int left =
-                juce::roundToInt(start_x - bracket_radius - static_cast<float>(bar) / 2.0f);
-            const int right =
-                juce::roundToInt(start_x + bracket_radius + static_cast<float>(bar) / 2.0f);
-
-            g.setColour(style.inner);
-            g.fillRect(left, top, bar, bottom - top);
-            g.fillRect(left, top, serif, bar);
-            g.fillRect(left, bottom - bar, serif, bar);
-            g.fillRect(right - bar, top, bar, bottom - top);
-            g.fillRect(right - serif, top, serif, bar);
-            g.fillRect(right - serif, bottom - bar, serif, bar);
-
-            if (!arpeggio_note.sounded && metrics.draw_text)
-            {
-                // The same centering box drawNoteHead uses for a plain fret number.
-                g.setColour(juce::Colours::white);
-                g.setFont(metrics.fret_font);
-                g.drawText(
-                    juce::String{arpeggio_note.fret},
-                    juce::Rectangle<float>{
-                        start_x - bracket_size,
-                        center_y - bracket_size,
-                        bracket_size * 2.0f,
-                        bracket_size * 2.0f
-                    },
-                    juce::Justification::centred);
-            }
+            // The same centering box drawNoteHead uses for a plain fret number.
+            g.setColour(juce::Colours::white);
+            g.setFont(metrics.fret_font);
+            g.drawText(
+                juce::String{bracket.note.fret},
+                juce::Rectangle<float>{
+                    bracket.center_x - bracket_size,
+                    center_y - bracket_size,
+                    bracket_size * 2.0f,
+                    bracket_size * 2.0f
+                },
+                juce::Justification::centred);
         }
     }
 
@@ -1456,7 +1508,7 @@ void paintTabLane(
             continue;
         }
 
-        const StringStyle style{metrics.baseColor(note.string)};
+        const StringStyle& style = lane_style(note.string);
         const float center_y = metrics.laneY(note.string);
         drawSlideWaypointHeads(g, metrics, style, note, center_y);
         drawNoteHead(g, metrics, style, note, metrics.x(note.start_seconds), center_y);
@@ -1500,12 +1552,17 @@ void paintTabLane(
     // roadmap 25-Q6 for the real capo treatment.)
     drawCapoChip(g, metrics, tab.capo);
 
-    for (const common::core::TabFhpView& fhp : tab.fret_hand_positions)
+    // Each marker shows at its own position and they ascend in time, so the visible ones are one
+    // bounded slice rather than a walk of the whole song's placements.
+    const auto fhp_seconds = &common::core::TabFhpView::seconds;
+    for (const common::core::TabFhpView& fhp : std::ranges::subrange{
+             std::ranges::lower_bound(
+                 tab.fret_hand_positions, span_start, std::ranges::less{}, fhp_seconds),
+             std::ranges::upper_bound(
+                 tab.fret_hand_positions, span_end, std::ranges::less{}, fhp_seconds)
+         })
     {
-        if (fhp.seconds >= span_start && fhp.seconds <= span_end)
-        {
-            drawFhpMarker(g, metrics, fhp);
-        }
+        drawFhpMarker(g, metrics, fhp);
     }
 }
 

@@ -1,8 +1,6 @@
 #include "tab/tab_lane_layout.h"
 
 #include <algorithm>
-#include <iterator>
-#include <limits>
 
 namespace rock_hero::common::ui
 {
@@ -37,12 +35,15 @@ float tabLaneCenterY(
     return bounds_y + (lane_index + 0.5f) * lane_height;
 }
 
-// Maps a timeline time onto the lane's horizontal axis.
+// Maps a timeline time onto the lane's horizontal axis, measured from the bounds' left edge just
+// as laneY measures from its top: a host that places the lane inside a larger component reads
+// positions in that component's own space.
 float TabLaneGeometry::x(double seconds) const noexcept
 {
     const double duration = visible_timeline.duration().seconds;
-    return static_cast<float>(
-        (seconds - visible_timeline.start.seconds) / duration * static_cast<double>(bounds_width));
+    return bounds_x + static_cast<float>(
+                          (seconds - visible_timeline.start.seconds) / duration *
+                          static_cast<double>(bounds_width));
 }
 
 // Vertical lane center for a chart string, accounting for extra user lanes below the chart.
@@ -88,39 +89,6 @@ TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
         .top = center_y - geometry.tail_height / 3.0f,
         .bottom = center_y + geometry.tail_height / 3.0f + 1.0f,
     };
-}
-
-// Sorted starts bound the range's end; the non-decreasing prefix maximum of sustain ends bounds
-// its start, because every note before the first index whose running maximum reaches the span
-// ends strictly before the span.
-std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
-    const std::vector<common::core::TabNoteView>& notes,
-    const std::vector<double>& prefix_max_end_seconds, double span_start_seconds,
-    double span_end_seconds) noexcept
-{
-    const auto begin_it = std::ranges::lower_bound(prefix_max_end_seconds, span_start_seconds);
-    const auto end_it = std::ranges::upper_bound(
-        notes, span_end_seconds, std::ranges::less{}, [](const common::core::TabNoteView& note) {
-            return note.start_seconds;
-        });
-
-    const auto first =
-        static_cast<std::size_t>(std::distance(prefix_max_end_seconds.begin(), begin_it));
-    const auto last = static_cast<std::size_t>(std::distance(notes.begin(), end_it));
-    return {std::min(first, last), last};
-}
-
-std::vector<double> tabPrefixMaxEndSeconds(const std::vector<common::core::TabNoteView>& notes)
-{
-    std::vector<double> prefix_max_end_seconds;
-    prefix_max_end_seconds.reserve(notes.size());
-    double running_max = -std::numeric_limits<double>::infinity();
-    for (const common::core::TabNoteView& note : notes)
-    {
-        running_max = std::max(running_max, note.end_seconds);
-        prefix_max_end_seconds.push_back(running_max);
-    }
-    return prefix_max_end_seconds;
 }
 
 } // namespace rock_hero::common::ui

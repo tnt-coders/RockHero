@@ -54,15 +54,6 @@ float tabLaneCenterY(
     return common::ui::tabLaneCenterY(displayed_string, displayed_string_count, bounds);
 }
 
-std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
-    const std::vector<common::core::TabNoteView>& notes,
-    const std::vector<double>& prefix_max_end_seconds, double span_start_seconds,
-    double span_end_seconds) noexcept
-{
-    return common::ui::tabVisibleNoteRange(
-        notes, prefix_max_end_seconds, span_start_seconds, span_end_seconds);
-}
-
 void TabView::setPointerEventCallback(PointerEventCallback on_pointer_event)
 {
     m_on_pointer_event = std::move(on_pointer_event);
@@ -423,7 +414,7 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(
 void TabView::rebuildVisibilityIndex()
 {
     m_prefix_max_end_seconds =
-        m_tab == nullptr ? std::vector<double>{} : common::ui::tabPrefixMaxEndSeconds(m_tab->notes);
+        m_tab == nullptr ? std::vector<double>{} : common::core::makeSustainPrefixMax(m_tab->notes);
 }
 
 } // namespace rock_hero::editor::ui

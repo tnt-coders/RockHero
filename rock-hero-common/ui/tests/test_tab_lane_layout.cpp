@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <vector>
@@ -119,8 +120,9 @@ TEST_CASE("Tab lane geometry maps time and strings to pixels", "[ui][tab-layout]
     CHECK(tabLaneCenterY(1, 6, 0.0f, 240.0f) == Catch::Approx(220.0f));
 }
 
-// The prefix table is the running maximum of sustain ends, aligned with the note order.
-TEST_CASE("Tab prefix table tracks the running sustain maximum", "[ui][tab-layout]")
+// The tab surface reads the one shared visible-range search: the prefix table is the running
+// maximum of sustain ends, aligned with the note order, and the query consumes it.
+TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][tab-layout]")
 {
     const std::vector<common::core::TabNoteView> notes{
         common::core::TabNoteView{
@@ -149,14 +151,14 @@ TEST_CASE("Tab prefix table tracks the running sustain maximum", "[ui][tab-layou
         },
     };
 
-    const std::vector<double> prefix = tabPrefixMaxEndSeconds(notes);
+    const std::vector<double> prefix = common::core::makeSustainPrefixMax(notes);
     REQUIRE(prefix.size() == 3);
     CHECK_THAT(prefix[0], Catch::Matchers::WithinULP(9.0, 0));
     CHECK_THAT(prefix[1], Catch::Matchers::WithinULP(9.0, 0));
     CHECK_THAT(prefix[2], Catch::Matchers::WithinULP(12.0, 0));
 
     // The visibility query consumes the table exactly like the paint core does.
-    const auto [first, last] = tabVisibleNoteRange(notes, prefix, 5.0, 6.0);
+    const auto [first, last] = common::core::visibleEventRange(notes, prefix, 5.0, 6.0);
     CHECK(first == 0);
     CHECK(last == 2);
 }
