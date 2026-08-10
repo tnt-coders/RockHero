@@ -75,4 +75,4 @@ target_compile_definitions(rock_hero_editor_core_tests
                            PRIVATE TEST_SETTINGS_DIR="${CMAKE_CURRENT_BINARY_DIR}")
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
-catch_discover_tests(rock_hero_editor_core_tests ADD_TAGS_AS_LABELS REPORTER JSON)
+catch_discover_tests(rock_hero_editor_core_tests ADD_TAGS_AS_LABELS)
