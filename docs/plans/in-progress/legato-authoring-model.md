@@ -303,8 +303,9 @@ reasons, and re-derive B with the E-rule table together then.
 
 The enumeration question is dissolved structurally: with Layer 1 in the shared finalize step, every
 present and future planner gets the repair by construction — "did we miss a verb" becomes "cannot."
-(Two planners bypass `finalizePlan` today and must be funneled: `planDeleteNotes` and
-`planRetypeFrets`, the latter not even receiving the chart. Same-TU refactor.)
+(Shipped 2026-08-09: all seven planners now funnel, `planDeleteNotes` and `planRetypeFrets`
+included — the latter gained the chart and the tempo map, and lost its local fret caps to the
+gate.)
 
 The inventory against every verb, under the value-based rule:
 
@@ -322,7 +323,7 @@ The inventory against every verb, under the value-based rule:
 | Phase 6 split | **no** under the value rule — the tail keeps the fret; this is why the rule is value-based |
 | Phase 7 waypoint edits changing the predecessor's last waypoint fret | yes, iff released-fret semantics are adopted (user call 3) |
 | Paste / range move / range delete (plan 52) | reduce to the classes above; covered by the funnel |
-| Sustain edits | no — settled (predecessor need not still sound) |
+| Sustain edits | **yes since D13** — the predecessor's hold IS part of the tuple past the kept-sustain bound, so a shrink that disconnects a tail invalidates the legato it justified. (The row's original "no" rested on "predecessor need not still sound", which D13 narrowed to "unknowable only within the bound".) The tail-lock ruling then makes the explicit duration verb REFUSE such a shrink rather than repair it, so the repair path here covers only the implicit truncations. |
 | Bend, vibrato, tremolo, accent, mute edits | no — none enters the tuple (a fully-muted predecessor is still a press) |
 | Tuning capo/cent edits | no; a future string-count edit reduces to move-off-string |
 | Undo/redo themselves | **never** — they replay stored plans and bypass the planners, which is required for exactness |

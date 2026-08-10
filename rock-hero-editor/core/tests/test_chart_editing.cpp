@@ -40,10 +40,12 @@ namespace
     return chart;
 }
 
-// Loads the chart-bearing song fixture through the controller's normal open route.
+// Loads the chart-bearing song fixture through the controller's normal open route. A scenario
+// needing a different note stream passes its own chart; the shared fixture is the default.
 [[nodiscard]] bool loadChartArrangement(
     EditorController& controller, FakeProjectServices& project_services,
-    ConfigurableSongAudio& audio, std::vector<common::core::SongSection> sections = {})
+    ConfigurableSongAudio& audio, std::vector<common::core::SongSection> sections = {},
+    common::core::Chart chart = makeTestChart())
 {
     const common::core::TimeRange timeline_range = loadedTimelineRange(30.0);
     audio.next_prepared_audio_duration = timeline_range.duration();
@@ -53,7 +55,7 @@ namespace
     // there; cover the whole fixture timeline the way real imports do.
     song.tempo_map = common::core::TempoMap::defaultMap(timeline_range.duration());
     song.sections = std::move(sections);
-    song.arrangements.front().chart = makeTestChart();
+    song.arrangements.front().chart = std::move(chart);
     project_services.next_song = std::move(song);
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     // Every scenario in this file states its times in quarter-note grid steps (0.5s at the
@@ -1277,6 +1279,83 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     controller.onChartFretDigitTyped(3);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 3);
+}
+
+// Two-digit entry survives a plan that repairs a neighbour. Retyping a note another note pulls
+// off from can break that pull's justification, so the first digit's plan carries the repair;
+// the widen reverses the whole plan to reconstruct the pre-entry stream, which restores the
+// neighbour too. Before that reversal existed, the repair settled the window and the second
+// digit landed as a fresh single-digit value.
+TEST_CASE("EditorController widens a fret entry that repaired a neighbour", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    // String 1: fret 9 at measure 2 held to the margin before a pull-off to fret 5 at measure 3
+    // (four beats on, minus the quarter-beat margin), so the pull is justified.
+    common::core::Chart chart_with_pull;
+    chart_with_pull.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart_with_pull.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 9,
+            .sustain = common::core::Fraction{15, 4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 5,
+            .attack = common::core::NoteAttack::Pull,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, chart_with_pull));
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    // The first digit drops the predecessor under the pulled fret, so the pull loses its
+    // justification and the shared finalize repairs it to the hammer-on the frets now support.
+    controller.onChartFretDigitTyped(1);
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == 2);
+    CHECK(chart->notes[0].fret == 1);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Hammer);
+    // The repair does not drag the neighbour into the selection: the armed caret's selection is
+    // still exactly the note under it, which is what keeps the window open for the next digit.
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+
+    // The second digit widens the SAME entry to fret 12, and because the widen replans from the
+    // reversed pre-entry stream the neighbour's pull-off comes back with it.
+    controller.onChartFretDigitTyped(2);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 12);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Pull);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+    CHECK(state->undo_label == std::optional<std::string>{"Set Fret 12"});
+
+    // One undo restores both notes in one step.
+    controller.onUndoRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 9);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Pull);
 }
 
 // Sustain growth clamps to the minimum-sustain-distance margin — the shared 1/16-whole-note

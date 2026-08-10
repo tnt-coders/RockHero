@@ -747,10 +747,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::uint32_t last_keystroke_ms{};
         std::vector<common::core::ChartNote> base_notes{};
         std::vector<ChartNoteKey> keys{};
-        // Set when the entry began as a caret insert: widening rebuilds this plan with the
+        // Set when the entry began as a caret insert: widening re-plans the insert with the
         // combined fret so the entry stays ONE insert (undo removes the note), never
         // degrading into a retype that would strand it.
-        std::optional<ChartNotesEditPlan> insert_plan{};
+        bool began_as_insert{false};
+        // What this entry has applied to the chart so far. Widening REVERSES it to reconstruct
+        // the pre-entry stream exactly — including any neighbour the shared finalize repaired,
+        // which swapping the captured base values back could never restore.
+        std::optional<ChartNotesEditPlan> applied_plan{};
         bool pushed{false};
         std::size_t history_position{};
     };

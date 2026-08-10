@@ -2069,25 +2069,38 @@ bool EditorController::Impl::applyChartEditPlan(
     {
         // (selection - removed keys) + inserted keys: retyped/resized notes stay selected even
         // when the edit left some of them unchanged, moved notes follow to their new keys, and
-        // deleted notes drop out. Plans never carry unrelated notes, so this never grows the
-        // selection past what the user had plus what the edit produced at new keys.
+        // deleted notes drop out.
+        const auto in_plan = [](const std::vector<common::core::ChartNote>& side,
+                                const ChartNoteKey& key) {
+            return std::ranges::any_of(side, [&key](const common::core::ChartNote& note) {
+                return ChartNoteKey{.position = note.position, .string = note.string} == key;
+            });
+        };
         std::vector<ChartNoteKey> next_selection;
         next_selection.reserve(chartSelection().notes().size() + plan->inserted.size());
         for (const ChartNoteKey& key : chartSelection().notes())
         {
-            const bool removed =
-                std::ranges::any_of(plan->removed, [&key](const common::core::ChartNote& note) {
-                    return ChartNoteKey{.position = note.position, .string = note.string} == key;
-                });
-            if (!removed)
+            if (!in_plan(plan->removed, key))
             {
                 next_selection.push_back(key);
             }
         }
         for (const common::core::ChartNote& note : plan->inserted)
         {
-            next_selection.push_back(
-                ChartNoteKey{.position = note.position, .string = note.string});
+            const ChartNoteKey key{.position = note.position, .string = note.string};
+            // A note rewritten IN PLACE that the user had not selected is a repair the plan
+            // carried, not the edit's subject — the shared finalize repairs a neighbour's legato
+            // whenever an edit disturbs its justification — so it must not join the selection.
+            // Selecting it would break the armed-caret invariant (armed means the selection is
+            // exactly what sits under the caret) and would silently widen the next keystroke's
+            // scope. A note inserted at a NEW key is the edit's own product (a moved or created
+            // note) and follows as before.
+            if (in_plan(plan->removed, key) &&
+                !std::ranges::binary_search(chartSelection().notes(), key))
+            {
+                continue;
+            }
+            next_selection.push_back(key);
         }
         chartSelectionMutable().applyBox(next_selection, false);
     }
@@ -2932,39 +2945,32 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
         {
             return true;
         }
-        // The widened whole-entry plan runs from the pre-entry originals: an insert entry
-        // re-plans as the SAME insert carrying the combined fret, a retype entry from the
-        // captured base notes against the pre-entry stream — reconstructible by swapping the
-        // base values back, because a first digit that repaired notes beyond the selection
-        // settled the window at creation, so this entry touched only the captured keys.
-        std::optional<ChartNotesEditPlan> widened;
-        if (entry.insert_plan.has_value())
+        // The widened whole-entry plan runs from the PRE-ENTRY stream, reconstructed by
+        // reversing exactly what this entry applied — a plan's own inverse restores everything
+        // it touched, including a neighbour whose legato the shared finalize repaired. (Swapping
+        // the captured base values back could not restore such a neighbour, which is why a
+        // repair used to settle the window and strand two-digit entry on every note that is
+        // another note's legato predecessor.)
+        common::core::Chart pre_entry = *chart;
+        if (entry.applied_plan.has_value() &&
+            !applyChartNotesChange(
+                 pre_entry, entry.applied_plan->inserted, entry.applied_plan->removed)
+                 .has_value())
         {
-            widened = entry.insert_plan;
-            for (common::core::ChartNote& inserted : widened->inserted)
-            {
-                if (ChartNoteKey{.position = inserted.position, .string = inserted.string} ==
-                    entry.keys.front())
-                {
-                    inserted.fret = combined;
-                }
-            }
+            m_chart_fret_entry.reset();
+            return true;
+        }
+        std::optional<ChartNotesEditPlan> widened;
+        if (entry.began_as_insert)
+        {
+            common::core::ChartNote note;
+            note.position = entry.keys.front().position;
+            note.string = entry.keys.front().string;
+            note.fret = combined;
+            widened = planInsertNote(pre_entry, session().song().tempo_map, std::move(note));
         }
         else
         {
-            common::core::Chart pre_entry = *chart;
-            for (common::core::ChartNote& note : pre_entry.notes)
-            {
-                for (const common::core::ChartNote& original : entry.base_notes)
-                {
-                    if (ChartNoteKey{.position = original.position, .string = original.string} ==
-                        ChartNoteKey{.position = note.position, .string = note.string})
-                    {
-                        note = original;
-                        break;
-                    }
-                }
-            }
             widened = planRetypeFrets(
                 pre_entry,
                 session().song().tempo_map,
@@ -2977,21 +2983,25 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
             return true;
         }
 
-        // Step the live chart from its current values to the combined target. The current
-        // values are the base shape already moved by the first digit, so a plan that was
-        // valid from base is valid from here too.
-        const std::vector<common::core::ChartNote> current_notes = chartNotesForKeys(entry.keys);
-        if (const std::optional<ChartNotesEditPlan> incremental = planRetypeFrets(
-                *chart, session().song().tempo_map, current_notes, combined, /*set_exact=*/true);
-            incremental.has_value() && !incremental->removed.empty())
+        // Walk the live chart back to pre-entry and then to the combined target, so the state
+        // the history top describes is exactly the state the chart holds. Re-planning forward
+        // from the current values cannot do that: the legato repair is not invertible by
+        // re-running it, so a first digit that flipped a neighbour would leave the chart and the
+        // history entry disagreeing and undo would preflight-fail.
+        if (entry.applied_plan.has_value() &&
+            !applyChartNotesChange(
+                 *chart, entry.applied_plan->inserted, entry.applied_plan->removed)
+                 .has_value())
         {
-            if (!applyChartNotesChange(*chart, incremental->removed, incremental->inserted)
-                     .has_value())
-            {
-                reportError("Could not apply chart edit: " + incremental->label);
-                m_chart_fret_entry.reset();
-                return true;
-            }
+            reportError("Could not apply chart edit: " + widened->label);
+            m_chart_fret_entry.reset();
+            return true;
+        }
+        if (!applyChartNotesChange(*chart, widened->removed, widened->inserted).has_value())
+        {
+            reportError("Could not apply chart edit: " + widened->label);
+            m_chart_fret_entry.reset();
+            return true;
         }
 
         bool now_pushed = entry.pushed;
@@ -3022,7 +3032,8 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
             .last_keystroke_ms = now_ms,
             .base_notes = entry.base_notes,
             .keys = entry.keys,
-            .insert_plan = entry.insert_plan.has_value() ? widened : std::nullopt,
+            .began_as_insert = entry.began_as_insert,
+            .applied_plan = widened,
             .pushed = now_pushed,
             .history_position = m_undo_history.snapshot().position,
         };
@@ -3069,7 +3080,8 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
             .last_keystroke_ms = now_ms,
             .base_notes = {},
             .keys = {key},
-            .insert_plan = inserted,
+            .began_as_insert = true,
+            .applied_plan = inserted,
             .pushed = true,
             .history_position = m_undo_history.snapshot().position,
         };
@@ -3090,26 +3102,23 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
     std::optional<ChartNotesEditPlan> plan = planRetypeFrets(
         *arrangement->chart, session().song().tempo_map, base_notes, digit, /*set_exact=*/true);
-    // A repair beyond the selection (a neighbour's legato riding this entry) settles the
-    // multi-digit window: a widen replans from the captured base notes alone, so an entry that
-    // touched more than them could not be reconstructed and its undo would lie.
-    const auto outside_keys = [&keys](const common::core::ChartNote& note) {
-        return !std::ranges::binary_search(
-            keys, ChartNoteKey{.position = note.position, .string = note.string});
-    };
-    const bool repairs_neighbours =
-        plan.has_value() && (std::ranges::any_of(plan->removed, outside_keys) ||
-                             std::ranges::any_of(plan->inserted, outside_keys));
     // A refused first digit (the fret cap, or a scrape's translated path leaving the neck)
     // still arms the entry window: the digit applies nothing, but the widen replans the
     // two-digit value from the same pre-entry base, so every in-range multi-digit target
     // stays reachable — a scrape's wide default path would otherwise dead-end all typing.
-    const bool pushed =
-        plan.has_value() && !plan->removed.empty() && applyChartEditPlan(std::move(plan));
-    if (repairs_neighbours)
+    // The applied plan travels with the entry so the widen can reverse it exactly; a plan that
+    // repaired a neighbour's legato is reconstructible that way, which is what keeps two-digit
+    // entry working on a note another note hammers on from.
+    std::optional<ChartNotesEditPlan> applied;
+    bool pushed = false;
+    if (plan.has_value() && !plan->removed.empty())
     {
-        m_chart_fret_entry.reset();
-        return;
+        applied = plan;
+        pushed = applyChartEditPlan(std::move(plan));
+        if (!pushed)
+        {
+            applied.reset();
+        }
     }
     if (digit * 10 <= common::core::g_max_fret)
     {
@@ -3118,7 +3127,8 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
             .last_keystroke_ms = now_ms,
             .base_notes = std::move(base_notes),
             .keys = keys,
-            .insert_plan = std::nullopt,
+            .began_as_insert = false,
+            .applied_plan = std::move(applied),
             .pushed = pushed,
             .history_position = m_undo_history.snapshot().position,
         };
