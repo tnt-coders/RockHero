@@ -84,7 +84,9 @@ one arrangement's tab). Every arrangement and the 3D highway share this one list
 | `position` | string | req | Grid token `"m:b"` / `"m:b+n/d"`; must be on the tempo-map grid. |
 | `name` | string | req | Free-form non-empty label, verbatim from import. |
 
-Sections must be sorted ascending by position; the reader rejects unsorted or unnamed entries.
+Sections must be sorted STRICTLY ascending by position; the reader rejects unsorted or unnamed
+entries, and also rejects two sections claiming one position (which would leave every later
+which-section-governs-this-moment question answering arbitrarily).
 
 ## audioAssets[]
 
@@ -95,7 +97,7 @@ Sections must be sorted ascending by position; the reader rejects unsorted or un
 | `normalization` | object | opt | Absent/incomplete → dropped and re-analyzed on load. |
 | `normalization.gainDb` | number | req* | Loudness gain in dB (*required within the object). |
 | `normalization.validationSha256` | string | req* | Hash tying the gain to the analyzed audio. |
-| `startOffset` | number | opt | Signed seconds of the file's first sample from beat 1: positive delays the audio, negative means its head precedes the score and is skipped at playback (`0`; omitted on write when 0). |
+| `startOffset` | number | opt | Signed seconds of the file's first sample from beat 1: positive delays the audio, negative means its head precedes the score and is skipped at playback (`0`; omitted on write when 0). Present-but-not-a-finite-number is REFUSED rather than defaulted — silently reading 0 would shift the whole backing track against the score, and a non-finite value would be written back as a bare `nan`, permanently breaking the document. |
 
 ## arrangements[]
 
@@ -218,6 +220,8 @@ never in the manifest (see \ref guide_project_lifecycle).
   tempo-map rule breaks, non-FLAC audio).
 - **Round-trip stability**: default-valued optionals (`startOffset` 0, automation `shape` 0, FHP
   `width` 4, false booleans, pick attacks) are omitted on write, so packages that predate a
-  feature round-trip byte-for-byte.
+  feature round-trip byte-for-byte. ABSENT is what defaults — `startOffset` and automation
+  `shape` present with the wrong type are refused, not silently defaulted, because a wrong type is
+  a malformed document rather than an old one.
 - Save validates every chart/tone reference *before* any side effect, so a bad reference fails
   cleanly with nothing half-written.

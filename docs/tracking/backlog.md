@@ -47,49 +47,16 @@ rest, each verified against the code, each a fix rather than a question unless m
   documented promise that construction precomputes indices — and three callers ask it once per note.
 - **The seconds-grid check rounds before anything bounds the magnitude**, so a hostile value makes the
   validity check itself undefined behavior; today the garbage result happens to fail the epsilon test.
-- **`isSafeRelativePath` is implemented twice, across a library boundary** — the path-escape rule that
-  keeps a package-supplied reference inside the workspace exists at
-  `rock-hero-common/core/src/package/rock_song_package_format.cpp:69` and again at
-  `rock-hero-common/audio/src/shared/audio_path_util.cpp:88`, with a third partial variant
-  (`isSafeZipEntryName`) at `rock-hero-common/core/src/package/rock_song_package_read.cpp:89`. Two of
-  the three agree today only by luck, and they are the security boundary for a downloaded package: the
-  core copy tests the whole path for a colon while the audio copy tests each part, and only the audio
-  copy rejects `is_absolute()`. Unifying DELETES two copies — the rule is workspace-relative-path
-  safety, so it belongs in the public `package/workspace_paths.h` that both libraries already include,
-  not in a private format header the audio library cannot reach. That unreachable-header detail is
-  precisely why the second copy was written, which makes the placement the root cause rather than the
-  duplication.
-- **The ZIP-safety check narrows package-supplied text** with the conversion this codebase elsewhere
-  documents as throwing on MSVC outside the active code page, from inside a typed-failure API. Five
-  error-message constructions do the same while building a failure report. The core
-  `isSafeRelativePath` above shares the defect (`path.string()`), and the audio copy does not — one
-  more reason the surviving copy should be the audio one's shape.
-- **The package reader silently accepts a present-but-wrong-type number.** `startOffset`
-  (`rock_song_package_read.cpp:232`) and an automation point's `shape` (line 682) both read through
-  `tryReadDouble(...).value_or(0.0)`, so a string or object where a number belongs loads as 0.0 — for
-  `startOffset` that silently shifts the whole backing track against the score. The chart reader was
-  fixed this session to REFUSE a present-but-wrong-type field for exactly this reason; the same rule
-  belongs here. Neither value is bounded either, so a non-finite `startOffset` reaches `TimeDuration`.
-- **Two sections may share one grid position.** The sortedness check at
-  `rock_song_package_read.cpp:459` uses `<` rather than `<=`, so a document naming one instant twice
-  loads and every later question of which section governs that moment answers arbitrarily.
 - **A package can be a decompression bomb.** `extractZipToWorkspace` caps neither the total extracted
   size nor the expansion ratio, so a small `.rock` from an untrusted source can fill the disk. A cap
   ADDS code, which is the signal to check the design first — but here the reader genuinely is the
   trust boundary and there is nowhere cheaper to put it, so the yield looks real. **NEEDS A NUMBER
   FROM THE USER**: the ceiling is a policy choice, not something to invent.
-- **Four orphaned or duplicated comments in the package reader**, each describing code that no longer
-  exists beside it: `rock_song_package_read.cpp:46` documents a deleted anchor-address struct above
-  `findSongDocument`, lines 87-88 and 383-384 are each a leftover comment stacked on the real one, and
-  line 985 documents a deleted part-spelling converter immediately above the namespace close. Same
-  class as the orphans already fixed in the editor view this session.
 - **`Arrangement::difficulty` and `Arrangement::audio_duration` are never persisted or computed** —
   the reader default-constructs both (`rock_song_package_read.cpp:838`, `:840`) and nothing in the
   package layer writes them. They are runtime-derived fields sitting in a value type whose other
   members are persisted truth, so a reader cannot tell which fields a package actually carries.
   Confirm nothing outside the package layer fills them, then delete or relocate them.
-- **A dead guard whose name also lies** (`startsWithParentTraversal` is an `any_of`), with a subsumed
-  disjunct at both call sites.
 - **Timeline zoom persists through a 6-significant-digit formatter** while the sibling value the same
   reader parses uses an exact one for exactly this reason, so one zoom notch does not survive a
   reopen. The test picks a value that survives 6 digits, then asserts exact equality.
@@ -218,31 +185,6 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### Audio
 
-- **Audible playback position is computed twice, byte for byte** — `engine_transport.cpp:254-268`
-  (`Engine::position()`, feeding the editor cursor) and `engine_clock.cpp:80-96`
-  (`publishAudibleTimeNow()`, feeding the clock snapshots the game frame loop and 3D preview read).
-  They agree today. Change one and the editor cursor and the highway report different song times for
-  the same instant — the dual-timing drift the architecture doc rates High. One private
-  `Impl::audiblePositionNow()` deletes ~8 duplicated lines.
-- **Playback speed lives in two unlinked places** — `Impl::m_playback_speed`
-  (`engine_transport.cpp:180`) and the clock's published rate, set once in the constructor
-  (`engine.cpp:125`) and never republished. Latent only because the port rejects every value except
-  1.0. The day practice speed lands, `setPlaybackSpeed(0.75)` leaves the clock publishing 1.0, the
-  extrapolator advances view time at 1.0x against audio at 0.75x, and the highway judders and snaps
-  back on each republish. Scoring would take speed from a third path
-  (`game/core/src/scoring/timing_window.cpp:56`). Fix deletes the field: publish through the clock
-  and read the rate back from the snapshot.
-- **The de-zipper constant restates a number and gets it wrong.**
-  `tone_branch_gain_plugin.cpp:9-11` hard-codes a 5 ms smoothing ramp and claims it stays at or
-  below a 5 ms baked crossfade; the authority is `tone_schedule.h:64-71` at 10 ms. The invariant
-  still holds, so this is a false fact rather than a live bug — but `makeToneGainEnvelope` clamps the
-  crossfade to half the incoming span, so a sub-10 ms tone span bakes a shorter crossfade than the
-  de-zipper, which is the failure the comment claims to prevent (PLAUSIBLE, needs an extreme tempo).
-  Derive the local constant from core and delete the literal.
-- **A redundant path-escape clause** at `engine_live_rig.cpp:700`: `isCanonicalToneDocumentRef`
-  already constrains the string to `tones/<canonical uuid>/tone.json`, a shape that cannot contain a
-  traversal, root, or drive letter, so the `isSafeRelativePath` clause beside it cannot reject
-  anything. Deletes a clause.
 - **Full device enumeration plus two heap allocations per meter tick** —
   `engine_live_input.cpp:294-312` calls `currentInstrumentWaveInput()`, which enumerates every wave
   input device and copies two `juce::StringArray`s, to re-derive a pointer that only changes on a
@@ -251,6 +193,29 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   threshold are named functions. `i_live_input.h:22-26` describes a dry-tap ring buffer in the
   present tense before it exists. `multi_tone_rack.cpp` failure paths can leave a plugin in the rack
   tree but absent from `branch.chain` (error-path only, PLAUSIBLE whether reachable).
+
+### Found while fixing the audio and package findings
+
+- **`Arrangement::difficulty` is dead, and deleting it is a design call.** Nothing in the tree writes
+  it: three sites default-construct it (the package reader, `gp_song_importer.cpp:211`, tests) and no
+  production code reads it. `library_entry_projection.cpp:37` records that intensity stays "Unknown"
+  until roadmap plan 11 ships a calculator, and `library_index.h` carries its own separate derived
+  field. So it is currently a field that lies about what a package carries, but plan 11 is its
+  intended owner — **decide whether an arrangement carries a difficulty at all** before deleting,
+  since the removal reaches `song/arrangement.h`, `editor/core`, and ~10 test files.
+- **`Arrangement` mixes persisted truth with runtime-derived state.** `audio_duration` turned out NOT
+  to be dead — `engine_song_audio.cpp:75` fills it at arrangement-prepare time and three callers read
+  it — which confirms the smell rather than clearing it: a reader of that struct cannot tell which
+  fields a package actually carries and which appear only after the engine has been asked. Splitting
+  the persisted shape from the prepared shape is the fix, and it is a design change, not a cleanup.
+- **A tone span shorter than the de-zipper ramp is reachable, though not through the editor.**
+  `makeToneGainEnvelope` clamps the crossfade to half the incoming span, so a span under 20 ms bakes
+  one shorter than the 10 ms authority and under 10 ms drops below the 5 ms de-zipper.
+  `validateToneTrackRules` imposes ordering and non-overlap but **no minimum spacing**, and endpoints
+  carry arbitrary sub-beat offsets, so a hand-edited `song.json` with two tone changes a 1/64 beat
+  apart reaches it. A second route: `makeToneSchedule` floors the final span with `max(end, start)`,
+  so a song length earlier than the last region's start yields a zero-length span. The consequence is
+  a slightly smeared, already-inaudible switch rather than a click, which is why it was not chased.
 
 ### The 3D highway and the game
 
