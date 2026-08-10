@@ -739,10 +739,13 @@ strum under the span holds like a full restatement, and no posture matching appl
     {
         hold_ends.push_back(note.end_seconds);
     }
-    // Both streams ascend, so one shape cursor tracks the latest span starting at or before
-    // each onset group.
+    // Both streams ascend, so one shape cursor consumes each span once, remembering the FURTHEST
+    // end any already-started span reaches rather than which span started last. Spans may overlap,
+    // and an earlier one running longer holds the same strum; the chart-side twin
+    // (chartEffectiveSustains) had the same shape and the same defect, where a long shape shadowed
+    // by a short one that began inside it silently lost its hold.
     std::size_t next_shape = 0;
-    const HighwayShapeView* covering = nullptr;
+    double covering_end = -std::numeric_limits<double>::infinity();
     for (std::size_t index = 0; index < notes.size();)
     {
         const double onset = notes[index].start_seconds;
@@ -757,17 +760,17 @@ strum under the span holds like a full restatement, and no posture matching appl
         while (next_shape < shapes.size() &&
                shapes[next_shape].start_seconds <= onset + g_highway_onset_match_epsilon)
         {
-            covering = &shapes[next_shape];
+            covering_end = std::max(covering_end, shapes[next_shape].end_seconds);
             ++next_shape;
         }
-        if (group_end - index >= 2 && !all_full_muted && covering != nullptr &&
-            onset <= covering->end_seconds + g_highway_onset_match_epsilon)
+        if (group_end - index >= 2 && !all_full_muted &&
+            onset <= covering_end + g_highway_onset_match_epsilon)
         {
             for (std::size_t member = index; member < group_end; ++member)
             {
                 if (notes[member].end_seconds <= notes[member].start_seconds)
                 {
-                    hold_ends[member] = std::max(hold_ends[member], covering->end_seconds);
+                    hold_ends[member] = std::max(hold_ends[member], covering_end);
                 }
             }
         }

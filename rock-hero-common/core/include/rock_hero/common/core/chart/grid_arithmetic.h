@@ -72,7 +72,13 @@ musical positions that land within its epsilon (a grace-shifted pair, say), and 
 draw a held bar this function does not credit. The chart side is the stricter and more literal
 of the two, which is the right way round for a rule that refuses user edits.
 
-\param notes Note stream sorted by (position, string).
+Callers must pass notes in their SAVED form (`savedChartNote`). A pick slide's latent mute is the
+difference that matters: in memory an onset group can read as all-muted, and so choked, where the
+saved chart reads it as held. Judging the saved form is what keeps the `H` verb, the legato repair
+and the validation gate from disagreeing about whether a shape is held — each had to learn this
+separately, so it is a contract here now rather than a habit at three call sites.
+
+\param notes Note stream in saved form, sorted by (position, string).
 \param shapes Hand-posture spans sorted by position.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 \return Per-note effective held length in beats, sized like notes; never shorter than the

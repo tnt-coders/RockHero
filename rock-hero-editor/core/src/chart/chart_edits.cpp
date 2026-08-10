@@ -467,9 +467,19 @@ std::optional<ChartNotesEditPlan> planSetLegato(
     }
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
-    // Held lengths for the hold test, span-extended where the spans imply a held shape.
+    // Held lengths for the hold test, span-extended where the spans imply a held shape, judged in
+    // the SAVED form — the form the gate validates. A pick slide's latent mute is the difference
+    // that matters: in memory it can make an onset group read as all-muted (choked, no extension)
+    // where the saved chart reads it as held, so the verb would deny a connection the gate, the
+    // repair and the 3D preview all agree exists.
+    std::vector<common::core::ChartNote> saved_notes;
+    saved_notes.reserve(chart.notes.size());
+    for (const common::core::ChartNote& note : chart.notes)
+    {
+        saved_notes.push_back(common::core::savedChartNote(note));
+    }
     const std::vector<common::core::Fraction> effective_sustains =
-        common::core::chartEffectiveSustains(chart.notes, chart.shapes, tempo_map);
+        common::core::chartEffectiveSustains(saved_notes, chart.shapes, tempo_map);
     bool changed = false;
     for (std::size_t index = 0; index < candidate.size(); ++index)
     {
@@ -478,13 +488,14 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         {
             continue;
         }
-        // The previous note on this string, read from the ORIGINAL stream so that setting one
-        // note's attack cannot change what the next one derives from.
+        // The previous note on this string, read from the saved form of the ORIGINAL stream: the
+        // original so that setting one note's attack cannot change what the next one derives from,
+        // and the saved form so the verb judges the same values the gate will.
         const common::core::ChartNote* previous = nullptr;
         std::size_t previous_index = 0;
         for (std::size_t behind = index; behind > 0; --behind)
         {
-            const common::core::ChartNote& earlier = chart.notes[behind - 1];
+            const common::core::ChartNote& earlier = saved_notes[behind - 1];
             if (earlier.string == note.string)
             {
                 previous = &earlier;

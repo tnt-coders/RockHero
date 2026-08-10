@@ -99,10 +99,15 @@ std::vector<Fraction> chartEffectiveSustains(
     {
         held.push_back(note.sustain);
     }
-    // Both streams ascend, so one cursor tracks the latest span starting at or before each
-    // onset group.
+    // Both streams ascend, so one cursor consumes each span exactly once. What it has to remember
+    // is the FURTHEST point any already-started span reaches — not which span started last. Spans
+    // may overlap, and an earlier one running longer holds the same strum just as well; tracking
+    // the latest STARTING span let a long shape be shadowed by a short one that began inside it,
+    // so a held chord silently lost its extension and the legato that extension justified was
+    // repaired away. Advancing each span once here is also less work than re-advancing the
+    // remembered span at every onset group.
     std::size_t next_shape = 0;
-    const ChartShape* covering = nullptr;
+    std::optional<GridPosition> covering_end;
     for (std::size_t index = 0; index < notes.size();)
     {
         const GridPosition onset = notes[index].position;
@@ -115,22 +120,23 @@ std::vector<Fraction> chartEffectiveSustains(
         }
         while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
         {
-            covering = &shapes[next_shape];
+            const GridPosition span_end = advanceGridPosition(
+                tempo_map, shapes[next_shape].position, shapes[next_shape].sustain);
+            if (!covering_end.has_value() || *covering_end < span_end)
+            {
+                covering_end = span_end;
+            }
             ++next_shape;
         }
-        if (group_end - index >= 2 && !all_full_muted && covering != nullptr)
+        if (group_end - index >= 2 && !all_full_muted && covering_end.has_value() &&
+            !(*covering_end < onset))
         {
-            const GridPosition span_end =
-                advanceGridPosition(tempo_map, covering->position, covering->sustain);
-            if (!(span_end < onset))
+            const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
+            for (std::size_t member = index; member < group_end; ++member)
             {
-                const Fraction span_hold = beatDistance(tempo_map, onset, span_end);
-                for (std::size_t member = index; member < group_end; ++member)
+                if (notes[member].sustain.numerator <= 0 && held[member] < span_hold)
                 {
-                    if (notes[member].sustain.numerator <= 0 && held[member] < span_hold)
-                    {
-                        held[member] = span_hold;
-                    }
+                    held[member] = span_hold;
                 }
             }
         }

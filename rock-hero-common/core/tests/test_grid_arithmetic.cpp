@@ -186,4 +186,50 @@ TEST_CASE("Grid snapping ignores non-positive note values", "[core][chart]")
     CHECK(snapGridPosition(map, position, Fraction{-1, 4}) == position);
 }
 
+// The hold a strum inherits from a hand-shape span comes from the span that reaches FURTHEST, not
+// the one that started last. Nothing forbids spans from overlapping, and a shape that began earlier
+// and runs longer holds the same strum just as well — but a single cursor remembering the latest
+// STARTING span let a short one beginning inside a long one shadow it, so the strum read as
+// released and every hammer-on or pull-off it justified was repaired away.
+TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[core][chart]")
+{
+    const TempoMap map = TempoMap::defaultMap(TimeDuration{32.0});
+    // Two sustainless notes at measure 3 beat 1, which is inside span A (measures 1 through 5) and
+    // also inside span B (measure 2, one beat long) — B starts later but ends long before.
+    const std::vector<ChartNote> notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1},
+            .string = 2,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = GridPosition{.measure = 1, .beat = 1}, .sustain = Fraction{16}},
+        ChartShape{.position = GridPosition{.measure = 2, .beat = 1}, .sustain = Fraction{1}},
+    };
+
+    const std::vector<Fraction> held = chartEffectiveSustains(notes, shapes, map);
+    REQUIRE(held.size() == 2);
+    // Span A runs 16 beats from measure 1 beat 1, so it ends at measure 5 beat 1 — eight beats past
+    // the onset at measure 3 beat 1.
+    CHECK(held[0] == Fraction{8});
+    CHECK(held[1] == Fraction{8});
+
+    // Order in the vector must not matter either: the same two spans listed the other way round
+    // give the same answer, which a last-writer-wins cursor could not promise.
+    const std::vector<ChartShape> reversed = {shapes[1], shapes[0]};
+    const std::vector<Fraction> held_reversed = chartEffectiveSustains(notes, reversed, map);
+    REQUIRE(held_reversed.size() == 2);
+    CHECK(held_reversed[0] == Fraction{8});
+}
+
 } // namespace rock_hero::common::core
