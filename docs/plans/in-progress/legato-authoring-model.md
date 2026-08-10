@@ -329,7 +329,9 @@ The inventory against every verb, under the value-based rule:
 
 ## What the shipped verb gets wrong
 
-Defects in `planSetLegato` as of `4a98da55`, to fix when this design is implemented:
+**ALL FIXED by the 2026-08-09 enforcement pass (D12)** — the scrape-predecessor skip, the
+released-fret judgment, the folded E-rules, and the pinch node clearing all shipped with the
+finalize gate. Kept for the record; the defects below describe `planSetLegato` as of `4a98da55`:
 
 - **Scrape predecessor.** The derivation reads `previous->fret` even when the predecessor is a
   `PickSlide`, whose fret is where the scrape *starts* — its released fret is the slide-out's. D7

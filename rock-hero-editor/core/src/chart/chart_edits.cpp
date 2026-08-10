@@ -164,14 +164,15 @@ void normalizeSustainOverlaps(
 {
     std::ranges::sort(candidate, keyLess);
     normalizeSustainOverlaps(candidate, tempo_map);
-    normalizeChartLegato(candidate, tempo_map);
+    normalizeChartLegato(candidate, chart.shapes, tempo_map);
     std::vector<common::core::ChartNote> saved_form;
     saved_form.reserve(candidate.size());
     for (const common::core::ChartNote& note : candidate)
     {
         saved_form.push_back(common::core::savedChartNote(note));
     }
-    if (!common::core::validateChartNotes(saved_form, chart.tuning, tempo_map).has_value())
+    if (!common::core::validateChartNotes(saved_form, chart.shapes, chart.tuning, tempo_map)
+             .has_value())
     {
         return std::nullopt;
     }
@@ -456,6 +457,9 @@ std::optional<ChartNotesEditPlan> planSetLegato(
     }
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
+    // Held lengths for the hold test, span-extended where the spans imply a held shape.
+    const std::vector<common::core::Fraction> effective_sustains =
+        common::core::chartEffectiveSustains(chart.notes, chart.shapes, tempo_map);
     bool changed = false;
     for (std::size_t index = 0; index < candidate.size(); ++index)
     {
@@ -467,12 +471,14 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         // The previous note on this string, read from the ORIGINAL stream so that setting one
         // note's attack cannot change what the next one derives from.
         const common::core::ChartNote* previous = nullptr;
+        std::size_t previous_index = 0;
         for (std::size_t behind = index; behind > 0; --behind)
         {
             const common::core::ChartNote& earlier = chart.notes[behind - 1];
             if (earlier.string == note.string)
             {
                 previous = &earlier;
+                previous_index = behind - 1;
                 break;
             }
         }
@@ -486,7 +492,8 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         // predecessor's finger ends — so a glide hands over its last waypoint.
         if (previous == nullptr || previous->attack == common::core::NoteAttack::PickSlide ||
             common::core::fretHandHarmonic(note) ||
-            !common::core::predecessorHoldReaches(*previous, note.position, tempo_map))
+            !common::core::predecessorHoldReaches(
+                previous->position, effective_sustains[previous_index], note.position, tempo_map))
         {
             continue;
         }

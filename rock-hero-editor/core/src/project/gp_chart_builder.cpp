@@ -2529,7 +2529,7 @@ void resolveSlideOutExits(
             std::to_string(harmonics_shed) +
             " harmonics shed techniques they cannot execute (bend, vibrato, slide, or mute)");
     }
-    normalizeChartLegato(chart.notes, tempo_map);
+    normalizeChartLegato(chart.notes, chart.shapes, tempo_map);
 
     return chart;
 }

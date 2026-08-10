@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -53,23 +54,52 @@ Currently one beat.
 inline constexpr Fraction g_minimum_kept_sustain_beats{1};
 
 /*!
+\brief Resolves each note's effective held length: its sustain, span-extended for chord strums.
+
+The chart convention the hold test must judge against, and the exact musical twin of the
+display's `highwayDisplayHoldEnds`: a strum under a hand-shape span is held for the whole span
+even when its notes carry no sustain, because the span is what tells the player how long to keep
+the shape fretted. Each SUSTAINLESS note in a same-onset group of two or more covered by a span
+therefore holds to the span's end. Groups whose notes are all fully muted stay unextended (a
+dead chug is choked, not held), as do single notes and notes carrying an explicit sustain, whose
+tails already state their hold. Coverage is positional only, with no posture matching — the two
+readers stay in lockstep by mirroring that rule exactly rather than restating it.
+
+\param notes Note stream sorted by (position, string).
+\param shapes Hand-posture spans sorted by position.
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+\return Per-note effective held length in beats, sized like notes; never shorter than the
+        note's own sustain.
+*/
+[[nodiscard]] std::vector<Fraction> chartEffectiveSustains(
+    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
+    const TempoMap& tempo_map);
+
+/*!
 \brief True unless the chart proves the predecessor was released before the onset.
 
 The legato hold test: a hammer-on or pull-off is real only while its predecessor can still be
 held when the new note starts. Under an onset gap shorter than
 \ref g_minimum_kept_sustain_beats that is assumed — tails below the bound are legitimately
 absent. At or beyond it, a held-through predecessor necessarily carries a tail reaching the
-minimum-sustain-distance margin before the onset, so a sustain ending short of that margin —
+minimum-sustain-distance margin before the onset, so a hold ending short of that margin —
 evaluated at the predecessor's measure, the same margin every trim derives — proves the string
-was released. A scrape's sustain is its gesture's end, so the same comparison covers it.
+was released.
 
-\param predecessor Previous note on the same string.
+The held length is the EFFECTIVE one (\ref chartEffectiveSustains), never the stored sustain: a
+sustainless member of a strum under a hand-shape span is held by the span, and reading its zero
+would call a held shape released. A scrape's sustain is its gesture's end, so the same
+comparison covers it.
+
+\param predecessor Onset of the previous note on the same string.
+\param effective_sustain That note's effective held length from \ref chartEffectiveSustains.
 \param onset Onset of the note taking the hammer-on or pull-off.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
 \return True when a hammer-on or pull-off from the predecessor is not disproven.
 */
 [[nodiscard]] bool predecessorHoldReaches(
-    const ChartNote& predecessor, const GridPosition& onset, const TempoMap& tempo_map);
+    const GridPosition& predecessor, Fraction effective_sustain, const GridPosition& onset,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Converts a grid position onto the tempo map's fractional global-beat axis.

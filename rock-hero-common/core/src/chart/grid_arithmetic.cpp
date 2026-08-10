@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdint>
 #include <numeric>
 #include <rock_hero/common/core/chart/chart.h>
@@ -86,21 +87,74 @@ GridPosition sustainEndPosition(const TempoMap& tempo_map, const ChartNote& note
     return advanceGridPosition(tempo_map, note.position, note.sustain);
 }
 
-// The gap, the sustain, and the margin all live on the predecessor's beat frame, so the whole
+// Mirrors highwayDisplayHoldEnds exactly, in beats instead of seconds: only a SUSTAINLESS member
+// of a 2+ onset group under a covering span extends, and never when the whole group is dead.
+std::vector<Fraction> chartEffectiveSustains(
+    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
+    const TempoMap& tempo_map)
+{
+    std::vector<Fraction> held;
+    held.reserve(notes.size());
+    for (const ChartNote& note : notes)
+    {
+        held.push_back(note.sustain);
+    }
+    // Both streams ascend, so one cursor tracks the latest span starting at or before each
+    // onset group.
+    std::size_t next_shape = 0;
+    const ChartShape* covering = nullptr;
+    for (std::size_t index = 0; index < notes.size();)
+    {
+        const GridPosition onset = notes[index].position;
+        std::size_t group_end = index + 1;
+        bool all_full_muted = notes[index].mute == NoteMute::Full;
+        while (group_end < notes.size() && notes[group_end].position == onset)
+        {
+            all_full_muted = all_full_muted && notes[group_end].mute == NoteMute::Full;
+            ++group_end;
+        }
+        while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
+        {
+            covering = &shapes[next_shape];
+            ++next_shape;
+        }
+        if (group_end - index >= 2 && !all_full_muted && covering != nullptr)
+        {
+            const GridPosition span_end =
+                advanceGridPosition(tempo_map, covering->position, covering->sustain);
+            if (!(span_end < onset))
+            {
+                const Fraction span_hold = beatDistance(tempo_map, onset, span_end);
+                for (std::size_t member = index; member < group_end; ++member)
+                {
+                    if (notes[member].sustain.numerator <= 0 && held[member] < span_hold)
+                    {
+                        held[member] = span_hold;
+                    }
+                }
+            }
+        }
+        index = group_end;
+    }
+    return held;
+}
+
+// The gap, the held length, and the margin all live on the predecessor's beat frame, so the whole
 // test is one exact-rational comparison. The margin reads the predecessor's measure because
 // that is the margin every trim derives (the import trim and the editor clamp alike), so a
 // legally-maximal tail always passes.
 bool predecessorHoldReaches(
-    const ChartNote& predecessor, const GridPosition& onset, const TempoMap& tempo_map)
+    const GridPosition& predecessor, const Fraction effective_sustain, const GridPosition& onset,
+    const TempoMap& tempo_map)
 {
-    const Fraction gap = beatDistance(tempo_map, predecessor.position, onset);
+    const Fraction gap = beatDistance(tempo_map, predecessor, onset);
     if (gap < g_minimum_kept_sustain_beats)
     {
         return true;
     }
-    const Fraction margin = minimumSustainDistanceBeats(
-        tempo_map.timeSignatureAt(predecessor.position.measure).denominator);
-    return predecessor.sustain + margin >= gap;
+    const Fraction margin =
+        minimumSustainDistanceBeats(tempo_map.timeSignatureAt(predecessor.measure).denominator);
+    return effective_sustain + margin >= gap;
 }
 
 // Mirrors the editor timeline grid's semantics exactly (tempo_grid_geometry.h): measure-anchored

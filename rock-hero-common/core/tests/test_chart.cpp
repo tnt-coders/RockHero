@@ -620,7 +620,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         ChartTuning tuning;
         tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         tuning.capo = capo;
-        return validateChartNotes(notes, tuning, tempo_map);
+        return validateChartNotes(notes, {}, tuning, tempo_map);
     };
 
     SECTION("a hammer or tap needs a place to strike")
@@ -740,6 +740,40 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         close_pull.position.offset = Fraction{1, 2};
         close_pull.attack = NoteAttack::Pull;
         CHECK(validate({make_note(1, 1, 9), close_pull}).has_value());
+    }
+
+    SECTION("a hand-shape span holds its strum, so a covered member can be pulled off")
+    {
+        // The chart convention: a strum under a span is held for the span even with no sustain,
+        // because the span is what tells the player to keep the shape fretted. A pull-off from a
+        // sustainless member must therefore read as held, not as a proven release.
+        const ChartNote low = make_note(1, 1, 9);
+        const ChartNote high = make_note(1, 2, 9);
+        ChartNote pull = make_note(2, 1, 5);
+        pull.attack = NoteAttack::Pull;
+
+        ChartTuning tuning;
+        tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        const std::vector<ChartNote> notes{low, high, pull};
+        const std::vector<ChartShape> covering{ChartShape{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .sustain = Fraction{2},
+            .chord = 0,
+        }};
+
+        // Bare, the sustainless predecessor reads as released; under the span it is held.
+        CHECK_FALSE(validateChartNotes(notes, {}, tuning, tempo_map).has_value());
+        CHECK(validateChartNotes(notes, covering, tuning, tempo_map).has_value());
+
+        // A single note is not a strum, so a span does not extend it.
+        const std::vector<ChartNote> lone{low, pull};
+        CHECK_FALSE(validateChartNotes(lone, covering, tuning, tempo_map).has_value());
+
+        // A dead chug is choked, not held: an all-muted group stays unextended.
+        std::vector<ChartNote> muted = notes;
+        muted[0].mute = NoteMute::Full;
+        muted[1].mute = NoteMute::Full;
+        CHECK_FALSE(validateChartNotes(muted, covering, tuning, tempo_map).has_value());
     }
 
     SECTION("a tap harmonic cannot be tremolo picked; a picked one over a stop can")

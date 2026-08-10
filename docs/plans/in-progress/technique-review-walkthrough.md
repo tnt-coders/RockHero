@@ -195,6 +195,165 @@ recommendation so the user can rule with full context in front of them.
     dependent Pull inside the same undo entry via the finalize gate (tested); imports
     normalize before validation, so charts are never born invalid.
 
+- **USER RULINGS on the reconciliation, 2026-08-09 — these override the recommendation below
+  where they differ:**
+  1. **The 2D connector is REJECTED.** Reason (user): it would further diverge the 2D view from
+     what the player sees in 3D, and rejecting the data half strengthens that — the surfaces
+     should teach the same reading. The rules are enforced in validation/repair regardless, so
+     drawing the connection simplifies nothing. The floating triangle stays; the tap-vs-hammer
+     display disambiguation is NOT bought (status quo, author-is-authority). **Consequence to
+     design for:** the tail lock (2) has no visual affordance, so its refusal feedback (issue
+     (d) below) becomes load-bearing rather than nice-to-have.
+  2. **Tail LOCKING replaces repair-on-shrink for explicit sustain edits, family-wide.** When a
+     note's tail is load-bearing for a dependent transition — a legato successor that needs the
+     connection, or its own slide payload — the explicit duration verb REFUSES to shrink it
+     rather than silently repairing the transition away (refuse-never-clamp; "no code that
+     lies"). Stated uniformly: *a sustain edit may not shrink a tail below what a dependent
+     transition requires* — per-kind requirement (legato: the connection point, only where D13
+     makes it load-bearing; slide: the last waypoint), no stored lock state, all derived. This
+     also fixes an existing silent data loss: shrinking a slide's tail currently clips its
+     waypoints. **Legato and slides get ONE shared mechanism** — Phase 7 inherits it rather than
+     inventing its own. Sub-call recorded: the lock binds the EXPLICIT verb; implicit 40-Q2-B
+     truncation (placing a note in front of a tail) keeps truncate-and-repair, since refusing a
+     placement would be worse.
+  3. **A break verb** severs the transition from the ORIGIN's side — deletes the successor's
+     hopo attack or the origin's slide payload and frees the tail — so the user never walks
+     forward to fix a tail. One hotkey, same behavior for both kinds. This is the one place
+     forward addressing is right: a delete needs no derivation, and its intent is local to the
+     selected note's own constraint. Binding TBD in the keymap review (`L` is already reserved
+     for link/slide).
+  4. **The `H` toggle-restore is ADOPTED (reversing the recommendation below).** Until the
+     selection changes, `H` again returns to the exact previous state INCLUDING any tails the
+     assist grew — a true ON/OFF toggle; leaving tails behind would not feel right. After the
+     selection changes, tails stay and `Ctrl+Z` is the revert. **Clean mechanism (dissolves the
+     "remote note memory" objection):** store only `{keys, history_position}` — the shape
+     `ChartFretEntry` already uses — and let the second press REVERSE THE ENTRY THIS VERB
+     PUSHED (the plan's exact inverse already exists in `ChartNotesEditPlan`) and drop it, the
+     same history splice the multi-digit fret window performs. Nothing remembers a remote
+     note's old value; exactness is structural. Settles on the standard set (selection change,
+     seek, Esc, playback, undo/redo). Verify the history-splice API before implementing.
+
+  5. **Locked-tail feedback is required, not optional, and lands WITH the lock** — raised by the
+     user as "pretty important" once the connector was rejected. Recorded as roadmap **40-Q5**
+     with the user's constraint: a display indicator must sit on the PREVIOUS NOTE'S NOTEHEAD,
+     because a hammer-on's origin may show no tail at all, so the tail is not a place to put it.
+  6. **Junk hopo flags are cleaned at import (user ruling, 2026-08-09):** a Guitar Pro hopo
+     destination with no fret motion — equal or absent same-string predecessor — imports as a
+     plain `Pick` with a conversion note, rather than the accidental `Hammer` (an unintended
+     left-hand-tap claim) the builder produces today. An open-to-open hopo flag is junk data,
+     and Option C's derivation refuses exactly this case, so import must not create what the
+     verb would refuse.
+  7. **The span-blind hold rule is a confirmed bug in D13's implementation, to fix.** The chart
+     convention (verified: `highway_view_state.h` `highwayDisplayHoldEnds`, honored by
+     `planAdjustSustain`'s `shares_span`) is that a sustainless note in a same-onset group of
+     TWO OR MORE covered by a hand-shape span is held to the SPAN's end — the span is what tells
+     the player how long to keep the shape fretted. `validateChartNotes` receives no shapes, so
+     `predecessorHoldReaches` reads such a member's zero sustain as a proven release: an
+     arpeggiated chord whose held shape is hammered onto across the bound is refused by the `H`
+     verb and repaired away at import. Fix: the hold test must judge the predecessor's EFFECTIVE
+     hold end (its sustain, or its covering span's end when it is a member of a 2+ onset group),
+     not its stored sustain.
+  8. **The multi-digit fret fix keeps the repair LIVE (discussed 2026-08-09; user raised
+     deferring recalculation until the entry timer settles).** Deferral is attractive but
+     collides with two settled things: the finalize gate requires every committed plan's saved
+     form to be valid, and a retype that orphans a neighbour's `Pull` is invalid *until* the
+     repair runs — so suppressing the repair mid-window would either commit invalid data or make
+     the digit do nothing; and D10 call 1 settled that the honest live marks ARE the feedback
+     (the pull-off symbol visibly dropping to plain and rising to hammer-on IS the signal), so a
+     neighbour's mark flipping during entry is the designed behavior rather than a defect. The
+     adopted fix therefore stores the first digit's PLAN in the entry and widens by reversing it
+     and re-planning from the pre-entry originals — exact regardless of what was repaired, one
+     coalesced undo entry either way, and it retires the settle-on-repair hack. The user's
+     concern that the live flip may read as jarring is recorded as a tuning question to judge on
+     sight once it is visible.
+
+- [ ] **D14+D15 — RECONCILED RECOMMENDATION (three-agent ground-up pass, 2026-08-09; superseded
+  in part by the user rulings above).** Three parallel design agents (data model / authoring grammar /
+  display+surfaces) enumerated the full option space; one agent measured the local GP corpus
+  (102 scores, 4,317 legato transitions). The reconciled shape:
+  - **Adopt D15's connected LOOK as derived notation, not data.** 2D: a thin white connector on
+    the string line from origin to destination — deliberately DISTINCT from the sustain ribbon
+    — with the direction arrowhead at the junction (down = hammer, up = pull), drawn from the
+    justifying-predecessor relation validation already computes. A left-hand tap (no justifying
+    predecessor) keeps the floating triangle — connected-vs-disconnected disambiguates the
+    merged notation with zero format change. 3D: unchanged head-marker idiom (no connector, no
+    bars); one shared relation resolved in common core, consumed by both projections,
+    per-surface idiom. Nothing forced on data, import, scoring, or the corpus.
+  - **Reject D15's data half (connection required/stored at all gaps).** Corpus arithmetic:
+    73.8% of real legato pairs are a sixteenth apart or closer, where the spacing margin makes
+    the maximum representable connection tail exactly ZERO — the rule is vacuous yet
+    undrawable for most legato; above that it converts routine sustain edits into silent
+    legato loss for 26.2% of pairs (vs 1.0% under D13); and connection-as-normalized-data
+    would hold-score every fast run (60–125 ms held fractions detection cannot resolve) or
+    demand scoring carve-outs. D13 as shipped is the right and sufficient data rule (its
+    strict zone bites on 1.0% of corpus pairs). The enum split (Legato/LeftTap with derived
+    direction) falls with the data half: without stored connection it recreates the ascending
+    damped-tap alias zone that killed Question B.
+  - **Reject forward-addressed `H`** (eight concrete kills, three against SHIPPED mechanisms:
+    the selection-follow rule enlarges the verb's own scope each press and breaks the
+    armed-caret invariant; the any-string growth clamp turns unreachable extensions into
+    mutating no-ops labeled "Legato"; the multi-digit fret window settles on the hot path so
+    two-digit frets die on any legato predecessor; plus Ctrl+H fabrication, chain-gutting
+    toggle, span-splitting on chords). Its real GP-muscle-memory benefit is outweighed; the
+    connector teaches backward addressing by appearing behind the selected note on first press.
+  - **Adopt D14's assist on backward `H`, groups allowed, with three corrections:** (1)
+    pre-check reachability under the growth clamp and SKIP the note (counted feedback) rather
+    than partially extend; (2) pin the selection (`select_exactly` = original keys) so the
+    extended predecessor does not join the selection; (3) the toggle contract governs the
+    TECHNIQUE only — H-again clears to Pick; geometry reversal is Ctrl+Z, exactly (no
+    window-scoped restore; it would need remote-note memory in a rejected shape). Provably
+    order-independent on groups; assist fires on ~1% of real pairs.
+  - **Found en route, needs verification then fixes (agent-reported, cited against code):**
+    (a) LIVE: out-of-selection repair enlarges the selection and breaks the armed-caret
+    invariant (applyChartEditPlan union; comment predates D13; untested); (b) LIVE: `H` is
+    inert on mixed selections (all_legato never true; the eligible-subset fix is the unshipped
+    #26 item); (c) LIVE: two-digit fret entry is unreachable on any note that is a legato
+    predecessor (the D12 repairs_neighbours settle fires on the hot path — needs its own
+    ruling); (d) refusals are silent (counted feedback unbuilt — may dissolve most felt
+    friction); (e) the hold rule is blind to shape spans (a zero-sustain member under a span
+    reads as proven release; arpeggiated hammer-ons refused/repaired at import); (f) import
+    yields Hammer on equal/absent-predecessor hopo flags where Option C refuses — corpus
+    contains accidental tap claims, unrepaired by design; (g) doc staleness: legato doc's
+    planner-bypass claim, the recalc-window settle list wording, file-formats.md's retired
+    harmonic/touch keys and missing pinch token.
+
+  *Original D14 entry (superseded by the reconciliation above):*
+  With D13, `H` across a gap at or past the kept-sustain bound refuses even when the predecessor
+  would justify legato if connected — annoying to fix by hand every time. Proposal: `H` extends
+  the tail to the margin point and sets the derived legato in ONE plan/undo entry (precedent:
+  the scrape verb extends a zero sustain for its gesture; the pinch verb authors its node).
+  Refinements from the discussion: **groups allowed** (pressing `H` on a selection IS intent —
+  one uniform rule, no single-vs-group branch); **`Ctrl+H` never extends** (a left-hand tap has
+  no predecessor prerequisite); the assist honors the duration verb's any-string growth clamp
+  (never authors what a manual drag could not — the cross-string-hold authorability gap is a
+  separate watch item); **shrinking a connecting tail repairs the dependent Pull to Pick in the
+  same undo entry** (already shipped and tested with D13 — repair over refusal, per the settled
+  philosophy; a disconnected Hammer legitimately stands as the left-hand tap under the merged
+  notation). The window-scoped toggle-restore idea is dissolved by D15's forward addressing.
+
+- [ ] **D15 — The connected-legato model with forward `H` (user direction, 2026-08-09).**
+  Adopt the connected display (the user's reference: Bandfuse): legato ALWAYS shows as the
+  origin's tail connecting to the destination, with the transition symbol on the connection —
+  hammer/pull arrows join slides and bends in the connected-technique family, replacing the
+  floating triangle. Data model: E5's hold requirement extends to ALL gaps (the D13 predicate
+  drops its threshold branch — legato simply requires the connection; `g_minimum_kept_sustain_beats`
+  remains the import drop rule's bound for non-legato tails). Verb model: **`H` becomes
+  forward-addressed, GP-style** — select the origin, `H` derives the successor's attack from
+  released-fret comparison and extends the origin's own tail as needed, per selected note,
+  uniformly for singles/chords/groups. What this dissolves: the D14 assist machinery (the
+  extension IS the verb, at every range), the window-scoped toggle-restore (the extended tail
+  belongs to the SELECTED note — shrink it right there; repair drops the dependent legato),
+  and the derived-Hammer-vs-tap display ambiguity (connected = hammer-on, disconnected = tap —
+  structural, no repair agonizing). Verb grammar: `H` = transition verb anchored at the origin
+  (like slides); `Ctrl+H` stays self-addressed (an attack property, no transition). Costs and
+  opens: 2D connector rendering (thin connector vs the sustain ribbon — a visual design pass;
+  interacts with the parked bend redesign's connected family), the 3D highway treatment (HOPO
+  gems with tiny connection sustains — render/scoring idiom vs the WoR baseline), import keeps
+  legato predecessors' tails (exempt from the drop rule — GP notates slur origins full-duration,
+  so they connect naturally; verify by corpus scan), and corpus re-import (no legacy handling,
+  per the standing rule). Evidence to pre-assemble for the gate: corpus measurement of legato
+  pairs — gap distribution and whether notated origin durations reach the destination.
+
 ## Recorded, no decision needed
 
 - **D11 — The pick-side tap.** Rare technique: a tap performed with the side of the pick, itself

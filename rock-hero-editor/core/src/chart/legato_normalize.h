@@ -32,9 +32,12 @@ Runs inside the planners' shared finalize step so every edit repairs what it dis
 same undo entry, and at import completion so a chart is never invalid in the first place.
 
 \param notes Note stream sorted by (position, string); repaired in place.
+\param shapes Hand-posture spans the notes play under; a span implies its strum is held, so the
+hold test judges span-extended lengths (chartEffectiveSustains).
 \param tempo_map Tempo map supplying the beat axis for the hold test.
 */
 void normalizeChartLegato(
-    std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map);
+    std::vector<common::core::ChartNote>& notes,
+    const std::vector<common::core::ChartShape>& shapes, const common::core::TempoMap& tempo_map);
 
 } // namespace rock_hero::editor::core

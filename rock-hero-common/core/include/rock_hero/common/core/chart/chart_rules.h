@@ -139,12 +139,15 @@ whose candidate fails here refuses, which is what makes authoring an invalid cha
 construction rather than by per-verb discipline.
 
 \param notes Note stream to validate, sorted by (position, string).
+\param shapes Hand-posture spans the notes play under; a span implies its strum is held, which
+the legato hold test must judge against (chartEffectiveSustains).
 \param tuning Tuning the notes play under; supplies the capo and string count.
 \param tempo_map Song tempo map the note positions must lie on.
 \return Empty success, or the first violated rule.
 */
 [[nodiscard]] std::expected<void, ChartError> validateChartNotes(
-    const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map);
+    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
+    const ChartTuning& tuning, const TempoMap& tempo_map);
 
 /*!
 \brief Validates the chart's structural rules against the song's tempo map.

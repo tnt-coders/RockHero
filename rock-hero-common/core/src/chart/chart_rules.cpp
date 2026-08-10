@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <tuple>
@@ -169,7 +170,7 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
     }
 
-    if (auto notes_result = validateChartNotes(chart.notes, chart.tuning, tempo_map);
+    if (auto notes_result = validateChartNotes(chart.notes, chart.shapes, chart.tuning, tempo_map);
         !notes_result.has_value())
     {
         return notes_result;
@@ -222,19 +223,26 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
 }
 
 std::expected<void, ChartError> validateChartNotes(
-    const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map)
+    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
+    const ChartTuning& tuning, const TempoMap& tempo_map)
 {
     // The model's cap bounds the string domain as much as the tuning does, because the relational
     // table below is indexed by string number. validateChartRules refuses a wider tuning outright;
     // a direct caller that passes one has no string past the cap this rule set can speak about.
     const int string_count = std::min(static_cast<int>(tuning.strings.size()), g_max_chart_strings);
+    // Held lengths for the hold test, span-extended where the spans imply a held shape.
+    const std::vector<Fraction> effective_sustains =
+        chartEffectiveSustains(notes, shapes, tempo_map);
     // The last note seen per string, for the relational rules (E5/E19): the stream is sorted, so
-    // this IS each note's same-string predecessor when it is reached.
-    std::array<const ChartNote*, static_cast<std::size_t>(g_max_chart_strings) + 1>
-        last_per_string{};
+    // this IS each note's same-string predecessor when it is reached. Indices rather than
+    // pointers, because the hold test reads the predecessor's entry in the table above.
+    constexpr std::size_t no_predecessor = std::numeric_limits<std::size_t>::max();
+    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
+    last_per_string.fill(no_predecessor);
     const ChartNote* previous_note = nullptr;
-    for (const ChartNote& note : notes)
+    for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
     {
+        const ChartNote& note = notes[note_index];
         if (note.string < 1 || note.string > string_count || note.fret < 0 ||
             note.fret > g_max_fret || !isValidGridPosition(note.position, tempo_map))
         {
@@ -374,9 +382,9 @@ std::expected<void, ChartError> validateChartNotes(
         // fret-hand harmonic predecessor touches without pressing, so nothing can be released.
         if (note.attack == NoteAttack::Pull)
         {
-            const ChartNote* const source =
+            const std::size_t source_index =
                 last_per_string.at(static_cast<std::size_t>(note.string));
-            if (source == nullptr)
+            if (source_index == no_predecessor)
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidNote,
@@ -384,7 +392,8 @@ std::expected<void, ChartError> validateChartNotes(
                                positionText(note.position),
                 }};
             }
-            if (fretHandHarmonic(*source))
+            const ChartNote& source = notes[source_index];
+            if (fretHandHarmonic(source))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidNote,
@@ -392,7 +401,7 @@ std::expected<void, ChartError> validateChartNotes(
                                positionText(note.position),
                 }};
             }
-            if (releasedFret(*source) <= note.fret)
+            if (releasedFret(source) <= note.fret)
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidNote,
@@ -402,8 +411,9 @@ std::expected<void, ChartError> validateChartNotes(
             }
             // The predecessor must also still be holdable when this note starts: past the
             // kept-sustain bound a held note necessarily carries a tail reaching the margin,
-            // so a shorter tail is a proven release with nothing left to pull.
-            if (!predecessorHoldReaches(*source, note.position, tempo_map))
+            // so a shorter hold is a proven release with nothing left to pull.
+            if (!predecessorHoldReaches(
+                    source.position, effective_sustains[source_index], note.position, tempo_map))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidNote,
@@ -554,7 +564,7 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        last_per_string.at(static_cast<std::size_t>(note.string)) = &note;
+        last_per_string.at(static_cast<std::size_t>(note.string)) = note_index;
         previous_note = &note;
     }
 
