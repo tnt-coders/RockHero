@@ -410,11 +410,18 @@ disagree about what a legal document is.
 \brief True when the note is a harmonic damped by the fretting hand touching its node.
 
 The key E7/E9/E19 turn on: a node with no real stop (`fret == 0` — the string speaks from the nut
-or the capo) and neither picking-hand damping form. `Pinch` is excluded because its thumb grazes
-off the neck; `Tap` is NOT excluded here — an open-string tap harmonic has nothing pressed either,
-which is exactly what those rules test. Contrast `fretFor`'s node branch, which additionally
-excludes `Tap` because the hand-placement question cares which HAND owns the node, not whether a
-stop is pressed.
+or the capo) and no attack whose node belongs to the OTHER hand or to nothing at all. `Pinch` is
+excluded because its thumb grazes off the neck. `PickSlide` is excluded because a scrape's node is
+never a sounding node at all: E2 forbids one in any saved chart, so a node found on a scrape is
+purely the in-memory latent the attack toggle preserves (chart.h's override contract), and reading
+it as a fretting-hand touch made three things go wrong at once — the legato repair (which runs on
+the in-memory stream) refused to release from a scrape while validation (which runs on the SAVED
+stream, where the node is stripped) allowed it, silently downgrading a pull-off that D7 ruled
+valid; and the importer's shed pass stripped the scrape's REQUIRED slide-out terminal, producing a
+chart that E2 then rejected on re-read. `Tap` is NOT excluded — an open-string tap harmonic has
+nothing pressed either, which is exactly what those rules test. Contrast `fretFor`'s node branch,
+which additionally excludes `Tap` because the hand-placement question cares which HAND owns the
+node, not whether a stop is pressed.
 
 \param note Note to classify.
 
@@ -422,7 +429,8 @@ stop is pressed.
 */
 [[nodiscard]] inline bool fretHandHarmonic(const ChartNote& note) noexcept
 {
-    return note.harmonic_node.has_value() && note.fret == 0 && note.attack != NoteAttack::Pinch;
+    return note.harmonic_node.has_value() && note.fret == 0 && note.attack != NoteAttack::Pinch &&
+           note.attack != NoteAttack::PickSlide;
 }
 
 /*!

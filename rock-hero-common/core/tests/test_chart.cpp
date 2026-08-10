@@ -742,6 +742,37 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK(validate({make_note(1, 1, 9), close_pull}).has_value());
     }
 
+    SECTION("a scrape's latent node is not a fret-hand harmonic")
+    {
+        // E2 forbids a node on any SAVED scrape, so a node found on one is purely the in-memory
+        // latent the attack toggle preserves. Reading it as a fretting-hand touch made the legato
+        // repair (which walks the in-memory stream) refuse to release from a scrape while
+        // validation (which walks the saved stream, node stripped) allowed it — the two
+        // disagreeing about one note, which silently downgraded a pull-off D7 ruled valid.
+        ChartNote latent_scrape = make_note(1, 1, 0);
+        latent_scrape.attack = NoteAttack::PickSlide;
+        latent_scrape.sustain = Fraction{1};
+        latent_scrape.harmonic_node = 12.0;
+        latent_scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 7};
+        CHECK_FALSE(fretHandHarmonic(latent_scrape));
+
+        // The exclusion is about the ATTACK owning the node, not about having a slide-out: the
+        // same note as an ordinary open-string harmonic is still a fret-hand harmonic.
+        ChartNote natural = make_note(1, 1, 0);
+        natural.harmonic_node = 12.0;
+        CHECK(fretHandHarmonic(natural));
+
+        // The in-memory form itself is not valid DATA — E2 rejects a scrape carrying a node, which
+        // is exactly why the editor's gate validates the saved form. What matters is that the two
+        // forms now AGREE about releasability: the saved scrape allows the pull-off (D7: it
+        // releases from the slide-out's end), and the classifier above says the same about the
+        // in-memory note the repair walks. Before the fix these two disagreed.
+        ChartNote pull = make_note(2, 1, 5);
+        pull.attack = NoteAttack::Pull;
+        CHECK_FALSE(validate({latent_scrape, pull}).has_value());
+        CHECK(validate({savedChartNote(latent_scrape), pull}).has_value());
+    }
+
     SECTION("a hand-shape span holds its strum, so a covered member can be pulled off")
     {
         // The chart convention: a strum under a span is held for the span even with no sustain,
