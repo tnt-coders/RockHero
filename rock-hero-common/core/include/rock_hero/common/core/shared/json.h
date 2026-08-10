@@ -99,6 +99,27 @@ struct Json
     [[nodiscard]] static juce::var makeString(const std::string& text);
 
     /*!
+    \brief Renders a double as JSON text that reads back as the same double.
+
+    The write-side counterpart of \ref tryReadDouble, and the one authority for a JSON number in
+    every document this project writes. A fixed precision cannot be that authority: it rounds
+    silently, so the value the reader recovers is not the value that was saved, and a document
+    stops equalling itself across a save. Worse, rounding *launders* — a value the rules refuse
+    can round to one they accept, which turns a validation error into corruption. `std::format`'s
+    default for a floating-point value is the shortest text that recovers it exactly.
+
+    An integral value keeps a trailing `.0`, so a field that means a double never reads back as an
+    integer and stays self-describing.
+
+    Finite values only. JSON has no spelling for an infinity or a NaN, so no output could be
+    honest; keeping them out of a document is validation's job, not this function's.
+
+    \param value Finite value to render.
+    \return JSON number text.
+    */
+    [[nodiscard]] static std::string numberText(double value);
+
+    /*!
     \brief Creates an empty JUCE JSON array value.
     \return JUCE array value.
     */

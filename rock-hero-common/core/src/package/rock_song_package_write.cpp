@@ -153,10 +153,12 @@ constexpr int g_zip_compression_level = 9;
     return std::format("{:.{}f}", value, g_timing_decimals);
 }
 
-// Formats non-timing JSON numbers compactly without introducing string values.
+// Formats non-timing JSON numbers through the shared round-trip-exact form. Unlike the timing
+// values above, these carry no fixed package precision, so rounding them would only lose data the
+// reader cannot recover.
 [[nodiscard]] std::string formatJsonDouble(double value)
 {
-    return std::format("{:.15g}", value);
+    return Json::numberText(value);
 }
 
 // Renders one time-signature change as a compact object line.

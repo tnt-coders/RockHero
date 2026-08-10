@@ -246,14 +246,13 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     out += ']';
 }
 
+// A chart's doubles are measurements — a harmonic node is `12 * log2(partial)`, a bend height a
+// fraction of a step — so the writer needs the shared round-trip-exact form. `juce::String{double}`
+// was NOT that: it leaves the stream at its default six significant digits, which silently rounded
+// every node and semitone, and could round an out-of-range value back into range on the way out.
 [[nodiscard]] std::string doubleText(double value)
 {
-    juce::String text{value};
-    if (!text.containsChar('.') && !text.containsChar('e'))
-    {
-        text += ".0";
-    }
-    return text.toStdString();
+    return Json::numberText(value);
 }
 
 [[nodiscard]] std::string noteLine(const ChartNote& in_memory_note)

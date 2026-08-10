@@ -89,9 +89,13 @@ namespace
             .fret = 5,
             .sustain = Fraction{1},
             .attack = NoteAttack::Pinch,
-            // Beyond the stop at fret 5, because nothing vibrates behind the fretting finger: this
-            // is the octave node of the stopped string (5 + 12), the commonest pinch target.
-            .harmonic_node = 17.0,
+            // Beyond the stop at fret 5, because nothing vibrates behind the fretting finger. The
+            // 5th partial's node rather than the octave's, COMPUTED rather than typed: it is what
+            // import actually stores (a node is 12*log2(partial) above the stop), and no rounded
+            // spelling of it survives a round trip. A fixture built only from values a writer
+            // cannot damage — 17.0, 0.5, 2.0 — lets the round-trip assertion below pass while the
+            // writer silently truncates every real measurement, which is what it did.
+            .harmonic_node = 5.0 + (12.0 * std::log2(5.0 / 4.0)),
             .tremolo = true,
             .accent = true,
             .bend = {},

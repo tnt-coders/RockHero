@@ -1,5 +1,7 @@
 #include "shared/json.h"
 
+#include <format>
+#include <string>
 #include <utility>
 
 namespace rock_hero::common::core
@@ -38,6 +40,21 @@ const juce::var& Json::value(const juce::var& object, std::string_view property_
 juce::var Json::makeString(const std::string& text)
 {
     return juce::var{juce::String::fromUTF8(text.c_str())};
+}
+
+// Round-trip-exact by construction: `std::format`'s default floating-point form is the shortest
+// text that recovers the same double, so no caller has to pick a precision and none can pick one
+// that silently rounds. A value with no '.' and no exponent would read back as an integer, so an
+// integral double keeps its ".0"; a non-finite value is validation's business (see the header) and
+// simply passes through the same test.
+std::string Json::numberText(double value)
+{
+    std::string text = std::format("{}", value);
+    if (text.find('.') == std::string::npos && text.find('e') == std::string::npos)
+    {
+        text += ".0";
+    }
+    return text;
 }
 
 // Creates a mutable JUCE array value for callers that append entries incrementally.
