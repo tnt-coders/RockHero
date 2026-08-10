@@ -191,13 +191,13 @@ struct HighwayMetrics
     /*! \brief Sway rate in cycles per second; deliberately slow. */
     double background_sway_hertz{0.05};
 
-    /*!
-    \brief Compares two metrics structs by their stored fields.
-    \param lhs Left-hand metrics.
-    \param rhs Right-hand metrics.
-    \return True when every constant is bit-equal.
-    */
-    friend bool operator==(const HighwayMetrics& lhs, const HighwayMetrics& rhs) = default;
+    // Deliberately NOT comparable. Every field above is a double of this struct's OWN, so a
+    // defaulted operator== compares floats directly and trips -Wfloat-equal on GCC, Clang, and
+    // clang-cl -- and because a defaulted comparison is only defined once it is odr-used, an unused
+    // one breaks all three at once on the day someone first writes `a == b`, on a line nobody
+    // edited. Nothing compared two metrics structs, so the operator was deleted rather than
+    // hand-written. If a comparison is ever needed, spell it out with std::is_eq(lhs.x <=> rhs.x)
+    // per the coding conventions; HighwayHandWindow next door is the worked example.
 };
 
 /*!

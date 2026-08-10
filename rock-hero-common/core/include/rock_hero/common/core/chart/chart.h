@@ -484,10 +484,15 @@ fret line and a fret at its slot's midpoint.
 /*!
 \brief True when the FRETTING finger is standing on the note's node.
 
-The near twin of \ref fretHandHarmonic, and the distinction is which question is being asked. That
-one asks whether anything is PRESSED, so an open-string tap harmonic counts; this one asks which
-HAND owns the node, so a tap does not — a two-hand tap harmonic's node belongs to the picking hand,
-which is on the neck rather than off it.
+A refinement of \ref fretHandHarmonic rather than a near twin, and it is spelled as one so the two
+can never drift: that predicate asks whether anything is PRESSED at a node on the neck, and this
+adds the one further question of which HAND owns it. A two-hand tap harmonic's node belongs to the
+picking hand, which is on the neck rather than off it, so a tap is the single exclusion.
+
+Restating the conditions here instead let the two disagree about a pick slide. This one used to
+read `nodeIsOnNeck`, which excludes only a pinch, so a scrape carrying a latent node at fret 0
+counted as a fretting finger and \ref fretFor sent the hand to the node — exactly the failure
+\ref fretHandHarmonic excludes the scrape to avoid.
 
 Two things turn on this one fact and each used to spell it out: where the fretting hand sits
 (\ref fretFor returns the node's fret instead of the note's), and how far up the node may lie — a
@@ -502,8 +507,7 @@ hand is damping it, so the board's own axis ignores which hand that is.
 */
 [[nodiscard]] inline bool frettingFingerOnNode(const ChartNote& note) noexcept
 {
-    return note.harmonic_node.has_value() && note.fret == 0 && nodeIsOnNeck(note.attack) &&
-           note.attack != NoteAttack::Tap;
+    return fretHandHarmonic(note) && note.attack != NoteAttack::Tap;
 }
 
 /*!

@@ -62,8 +62,10 @@ inline constexpr int g_max_capo{12};
 \brief The highest node this note can carry, in fret units.
 
 One authority for a bound that is not one number. Every node is capped by \ref g_max_harmonic_node,
-but a FRET-HAND harmonic's is capped by the neck instead: the fretting finger is standing on that
-node, and a finger cannot be past the last fret. Which cap applies therefore depends on the note,
+but the neck caps it instead when \ref frettingFingerOnNode holds: the fretting finger is standing
+on that node, and a finger cannot be past the last fret. Note that is narrower than a fret-hand
+harmonic — a tap harmonic's node belongs to the picking hand, so the string's bound still applies to
+it. Which cap applies therefore depends on the note,
 which is why import cannot just compare against a constant — and why it used to hand validation
 nodes it had no way to know were unreachable, failing a whole song's import over one label.
 

@@ -60,6 +60,18 @@ constexpr StringColorPalette g_charter_classic_palette{
     },
 };
 
+// This is what makes the header's compiler-enforced claim true. Sizing `extended` from the string
+// cap does NOT by itself refuse to compile when the cap rises: a braced list shorter than the array
+// zero-fills, so a ninth lane would silently become fully transparent and `stringLaneColor`'s
+// defensive cycle would serve it. Every authored color is opaque, so requiring that is exactly the
+// test that catches a zero-filled slot.
+static_assert(
+    std::ranges::none_of(
+        g_charter_classic_palette.extended,
+        [](const ArgbColor color) { return (color & g_opaque_alpha) == 0U; }),
+    "every extended lane color must be authored opaque: a transparent entry means "
+    "g_max_chart_strings grew and this preset was not given the new lane's color");
+
 // Accent brightening that keeps the string's hue: java's brighter() clamps each channel
 // independently, so Charter's ring.brighter().brighter() bleaches saturated hues toward yellow
 // or white (an orange or green accent glow rendered yellow). One shared gain preserves the
