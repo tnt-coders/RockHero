@@ -5,6 +5,70 @@ Small fixes and evaluations to do when there's time — short entries, not plans
 that needs a design or multiple steps belongs in a `docs/plans/todo/` plan instead. Delete an
 entry when it's done — git history is the record.
 
+## Found by the 2026-08-10 save/undo and timeline reviews
+
+The severe half shipped the same day: the package write is atomic, a NaN automation value is refused,
+`project.json` closes before its success check, the undo clean marker compares against the depth the
+write captured, and openness no longer reads an optional a write deliberately empties. These are the
+rest, each verified against the code, each a fix rather than a question unless marked.
+
+- **A superseded busy token drops its `after_cleared` continuation**, so a caller whose continuation
+  RESTORES state never gets it. Applying an audio device and then triggering Close or Exit leaves the
+  settings dialog hidden and non-modal forever, live-input monitoring permanently disabled because its
+  closed notification never fires, and the controller's destructor cancelling the device change the
+  user successfully applied. Fix DELETES the asymmetry — run it on both supersede returns, matching
+  the invariant the audio-device refusal path already upholds. `test_busy_operation_workflow.cpp`
+  currently ASSERTS the drop, so the test encodes the defect and changes with it.
+- **A plugin-state undo entry is applied against whichever tone is audible.** Once playback crosses
+  into a region on another tone, the entry's preflight fails and every later Ctrl+Z hits the same top
+  entry, so undo is dead for the rest of the session. The entry captures a tone name but uses it only
+  for the label. Fix wants the tone ref on the edit (as the remove edit already carries) plus a "make
+  this tone audible" step on the edit context. **NEEDS A RULING: may Ctrl+Z change what the user is
+  hearing, or must it refuse loudly?** Either way a refused undo must not leave the stack silently
+  dead.
+- **The song-document builder writes while it validates.** Its per-arrangement loop writes the chart
+  file and copies audio in the same iteration that validates, so a failure on arrangement N leaves
+  N-1 rewritten and its audio copied while `song.json` still describes the old state. Its own comment
+  claims the opposite and is true only within one iteration.
+- **Arrangements sharing one external backing file each get a copy.** The dedup map is consulted after
+  the import and keyed on the destination, so three arrangements pointing at one external file produce
+  three identical copies. It self-corrects on the second save, which is why no test caught it.
+- **Two authorities for which meter governs a moment.** The seconds-keyed lookup reads a column filled
+  through a CLAMPING resolver, so every signature change past the terminal anchor collapses onto the
+  last anchor's time and disagrees with the measure-keyed lookup. Bounding a signature's measure by
+  the terminal anchor in validation is the fix; deriving one from the other is precision-fragile
+  exactly at a meter-change downbeat, and that yield is the signal the clamped column was wrong.
+- **`isValidGridPosition` is hand-written in three validators**, one already drifted stylistically.
+  Related: the terminal-anchor bound applies to tone regions but not to sections or automation points,
+  so a marker past the end loads and silently piles onto the song's last instant.
+- **A second parser for the `measure:beat` grammar** in the package format TU, existing only to be the
+  chart token parser restricted to a zero offset. Deleting it removes ~45 lines.
+- **The measure-keyed signature lookup linearly rescans** the authored list, contradicting the class's
+  documented promise that construction precomputes indices — and three callers ask it once per note.
+- **The seconds-grid check rounds before anything bounds the magnitude**, so a hostile value makes the
+  validity check itself undefined behavior; today the garbage result happens to fail the epsilon test.
+- **The ZIP-safety check narrows package-supplied text** with the conversion this codebase elsewhere
+  documents as throwing on MSVC outside the active code page, from inside a typed-failure API. Five
+  error-message constructions do the same while building a failure report.
+- **A dead guard whose name also lies** (`startsWithParentTraversal` is an `any_of`), with a subsumed
+  disjunct at both call sites.
+- **Timeline zoom persists through a 6-significant-digit formatter** while the sibling value the same
+  reader parses uses an exact one for exactly this reason, so one zoom notch does not survive a
+  reopen. The test picks a value that survives 6 digits, then asserts exact equality.
+- **Two sample-rate integrality epsilons, identical constants, different units** (kHz versus Hz), so
+  the settings combo and the menu-bar status already disagree about 44100.5 Hz.
+- **Save's "needs a destination first" is stated three ways** — the action silently no-ops, the
+  availability predicate says Save is enabled, and the view re-implements the redirect. The deferral
+  state machine already has the phase this belongs in.
+- **`Session::loadSong` returns bool-as-failure at a `common/core` boundary**, so its one caller
+  fabricates a wrong-domain error code. The conventions doc's own parameter-passing example
+  demonstrates this signature, so fix both.
+- **Four hot keystroke paths snapshot the whole history** to read one integer an accessor returns,
+  building up to a hundred label strings per keystroke.
+- **Every save re-deflates the whole backing FLAC at level 9** for a one-note edit, and the workspace
+  is never pruned, so orphaned audio copies and abandoned tone documents accumulate in every future
+  save.
+
 - **Re-import EVERY package and project (2026-08-08, hard break).** The harmonic collapse replaced
   the `harmonic` and `touch` note fields with a single `harmonicNode`, and moved the pinch to
   `"attack": "pinch"`. The chart reader now **refuses** a document carrying either old key rather than
