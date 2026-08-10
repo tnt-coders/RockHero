@@ -462,7 +462,7 @@ private:
 } // namespace
 
 // Verifies Editor owns the concrete view and pushes initial controller state during construction.
-TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
+TEST_CASE("Editor constructs a wired editor view", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeTransport transport;

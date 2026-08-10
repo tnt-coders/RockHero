@@ -260,7 +260,7 @@ struct ToneTrackHarness
 
 // Alt+click inside a region requests a tone change at the grid-snapped click position; a plain
 // click on the same spot selects the region instead of inserting anything.
-TEST_CASE("Tone track Alt-click requests a tone change at the position", "[ui][tone-track]")
+TEST_CASE("Tone track Alt-click requests a tone change at the position", "[ui][tone]")
 {
     ToneTrackHarness harness;
 
@@ -276,7 +276,7 @@ TEST_CASE("Tone track Alt-click requests a tone change at the position", "[ui][t
 }
 
 // A plain click never mutates: it emits exactly one selection intent for the clicked region.
-TEST_CASE("Tone track plain click selects without inserting", "[ui][tone-track]")
+TEST_CASE("Tone track plain click selects without inserting", "[ui][tone]")
 {
     ToneTrackHarness harness;
 
@@ -290,7 +290,7 @@ TEST_CASE("Tone track plain click selects without inserting", "[ui][tone-track]"
 }
 
 // Cancelling an in-flight edge drag (the editor routes Esc here) commits nothing on release.
-TEST_CASE("Tone track cancels an in-flight edge drag on request", "[ui][tone-track]")
+TEST_CASE("Tone track cancels an in-flight edge drag on request", "[ui][tone]")
 {
     ToneTrackHarness harness;
 
@@ -313,7 +313,7 @@ TEST_CASE("Tone track cancels an in-flight edge drag on request", "[ui][tone-tra
 // fill/border geometry to the clip neighborhood; this guards that the clamped drawing still
 // paints complete borders through viewport-sized windows and cursor-strip-sized slivers anywhere
 // along the region.
-TEST_CASE("Tone track paints region borders through a window at high zoom", "[ui][tone-track]")
+TEST_CASE("Tone track paints region borders through a window at high zoom", "[ui][tone]")
 {
     ToneTrackHarness harness;
 
@@ -367,7 +367,7 @@ TEST_CASE("Tone track paints region borders through a window at high zoom", "[ui
 
 // Alt+drag places the ghost boundary before committing: the release position, not the press
 // position, becomes the requested tone change.
-TEST_CASE("Tone track Alt-drag places the insert before committing", "[ui][tone-track]")
+TEST_CASE("Tone track Alt-drag places the insert before committing", "[ui][tone]")
 {
     ToneTrackHarness harness;
 

@@ -22,7 +22,7 @@ using common::core::SongSection;
 
 } // namespace
 
-TEST_CASE("Section projection resolves song sections to seconds", "[editor-core][sections]")
+TEST_CASE("Section projection resolves song sections to seconds", "[core][sections]")
 {
     const std::vector<SongSection> sections{
         SongSection{.position = GridPosition{.measure = 1, .beat = 1}, .name = "intro"},
@@ -39,7 +39,7 @@ TEST_CASE("Section projection resolves song sections to seconds", "[editor-core]
     CHECK(views[1].name == "verse");
 }
 
-TEST_CASE("Section projection of an empty song is empty", "[editor-core][sections]")
+TEST_CASE("Section projection of an empty song is empty", "[core][sections]")
 {
     CHECK(makeSongSectionViews({}, makeTempoMap()).empty());
 }

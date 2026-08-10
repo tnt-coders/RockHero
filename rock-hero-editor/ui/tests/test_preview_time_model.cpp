@@ -40,7 +40,7 @@ constexpr double g_frame_dt = 1.0 / 60.0;
 
 // The first paused frame snaps straight to the target: there is no prior displayed time to glide
 // from, so a fresh open lands exactly on the caret.
-TEST_CASE("Preview time snaps to the paused target on the first frame", "[editor-ui][preview]")
+TEST_CASE("Preview time snaps to the paused target on the first frame", "[ui][preview]")
 {
     PreviewTimeModel model;
     CHECK(model.advance(pausedSnapshot(), 12.0, g_any_now, 0.0) == Catch::Approx(12.0));
@@ -48,7 +48,7 @@ TEST_CASE("Preview time snaps to the paused target on the first frame", "[editor
 
 // After the first frame establishes a displayed time, a new paused target is approached by an
 // exponential glide (strictly partway on any one frame) that provably terminates on the target.
-TEST_CASE("Preview time glides toward a new paused target and terminates", "[editor-ui][preview]")
+TEST_CASE("Preview time glides toward a new paused target and terminates", "[ui][preview]")
 {
     PreviewTimeModel model;
     CHECK(model.advance(pausedSnapshot(), 0.0, g_any_now, 0.0) == Catch::Approx(0.0));
@@ -68,7 +68,7 @@ TEST_CASE("Preview time glides toward a new paused target and terminates", "[edi
 }
 
 // A zero frame delta makes no glide progress: 1 - exp(0) is zero, so the displayed time holds.
-TEST_CASE("Preview time holds across a zero-length frame", "[editor-ui][preview]")
+TEST_CASE("Preview time holds across a zero-length frame", "[ui][preview]")
 {
     PreviewTimeModel model;
     CHECK(model.advance(pausedSnapshot(), 4.0, g_any_now, 0.0) == Catch::Approx(4.0));
@@ -78,7 +78,7 @@ TEST_CASE("Preview time holds across a zero-length frame", "[editor-ui][preview]
 
 // Pausing resumes from the played stop point, not from the paused target: the playing frame pins
 // the glide state, so the next paused frame glides FROM the played time rather than snapping.
-TEST_CASE("Preview time resumes the glide from the played stop point", "[editor-ui][preview]")
+TEST_CASE("Preview time resumes the glide from the played stop point", "[ui][preview]")
 {
     PreviewTimeModel model;
     CHECK(model.advance(playingSnapshot(5.0), 0.0, g_any_now, 0.0) == Catch::Approx(5.0));
@@ -91,7 +91,7 @@ TEST_CASE("Preview time resumes the glide from the played stop point", "[editor-
 
 // resetForSnap forgets the glide state so the next paused frame snaps rather than eases — the
 // resume-after-a-hidden-gap behavior that must never slew across the gap.
-TEST_CASE("Preview time snaps again after resetForSnap", "[editor-ui][preview]")
+TEST_CASE("Preview time snaps again after resetForSnap", "[ui][preview]")
 {
     PreviewTimeModel model;
     CHECK(model.advance(pausedSnapshot(), 0.0, g_any_now, 0.0) == Catch::Approx(0.0));

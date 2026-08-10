@@ -111,7 +111,7 @@ namespace
 } // namespace
 
 // The capo rides the projection so the lane can indicate the string floor (roadmap 25-Q6).
-TEST_CASE("Tab projection carries the tuning's capo", "[editor-core][tab]")
+TEST_CASE("Tab projection carries the tuning's capo", "[core][tab]")
 {
     Arrangement arrangement;
     Chart chart;
@@ -121,7 +121,7 @@ TEST_CASE("Tab projection carries the tuning's capo", "[editor-core][tab]")
     CHECK(makeTabViewState(arrangement, makeTempoMap()).capo == 2);
 }
 
-TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][tab]")
+TEST_CASE("Tab projection resolves chart positions to seconds", "[core][tab]")
 {
     const TempoMap tempo_map = makeTempoMap();
     const TabViewState state = makeTabViewState(makeArrangementWithChart(), tempo_map);
@@ -181,7 +181,7 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][t
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
 }
 
-TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
+TEST_CASE("Tab projection is empty without a chart", "[core][tab]")
 {
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart.reset();
@@ -195,7 +195,7 @@ TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
 
 // The pick-slide seam: latent overridden techniques never reach the view, and the path renders
 // unpitched with no linked continuation heads.
-TEST_CASE("Tab projection suppresses pick-slide latents", "[editor-core][tab]")
+TEST_CASE("Tab projection suppresses pick-slide latents", "[core][tab]")
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};

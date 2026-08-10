@@ -26,7 +26,7 @@ namespace
 
 } // namespace
 
-TEST_CASE("createToneRegion splits the region containing the position", "[core][tone-edits]")
+TEST_CASE("createToneRegion splits the region containing the position", "[core][tone]")
 {
     ToneTrack track;
     track.regions.push_back(makeRegion(
@@ -46,7 +46,7 @@ TEST_CASE("createToneRegion splits the region containing the position", "[core][
     CHECK(track.regions[1].tone_document_ref == "tones/y/tone.json");
 }
 
-TEST_CASE("createToneRegion splits the correct region among several", "[core][tone-edits]")
+TEST_CASE("createToneRegion splits the correct region among several", "[core][tone]")
 {
     ToneTrack track;
     track.regions = {
@@ -68,7 +68,7 @@ TEST_CASE("createToneRegion splits the correct region among several", "[core][to
     CHECK(track.regions[2].end == GridPosition{.measure = 5, .beat = 1});
 }
 
-TEST_CASE("createToneRegion rejects a position not inside any region", "[core][tone-edits]")
+TEST_CASE("createToneRegion rejects a position not inside any region", "[core][tone]")
 {
     ToneTrack track;
     track.regions.push_back(makeRegion(
@@ -88,8 +88,7 @@ TEST_CASE("createToneRegion rejects a position not inside any region", "[core][t
     CHECK(track.regions.size() == 1); // unchanged on failure
 }
 
-TEST_CASE(
-    "deleteToneRegion extends the previous region over the removed span", "[core][tone-edits]")
+TEST_CASE("deleteToneRegion extends the previous region over the removed span", "[core][tone]")
 {
     ToneTrack track;
     track.regions = {
@@ -111,7 +110,7 @@ TEST_CASE(
     CHECK(track.regions[1].start == GridPosition{.measure = 5, .beat = 1});
 }
 
-TEST_CASE("deleteToneRegion on the first region extends the next backward", "[core][tone-edits]")
+TEST_CASE("deleteToneRegion on the first region extends the next backward", "[core][tone]")
 {
     ToneTrack track;
     track.regions = {
@@ -130,7 +129,7 @@ TEST_CASE("deleteToneRegion on the first region extends the next backward", "[co
     CHECK(track.regions[0].end == GridPosition{.measure = 5, .beat = 1});
 }
 
-TEST_CASE("deleteToneRegion refuses to remove the only region", "[core][tone-edits]")
+TEST_CASE("deleteToneRegion refuses to remove the only region", "[core][tone]")
 {
     ToneTrack track;
     track.regions.push_back(makeRegion(
@@ -143,7 +142,7 @@ TEST_CASE("deleteToneRegion refuses to remove the only region", "[core][tone-edi
     CHECK(track.regions.size() == 1); // the song must always stay covered
 }
 
-TEST_CASE("deleteToneRegion rejects an unknown region", "[core][tone-edits]")
+TEST_CASE("deleteToneRegion rejects an unknown region", "[core][tone]")
 {
     ToneTrack track;
     track.regions = {

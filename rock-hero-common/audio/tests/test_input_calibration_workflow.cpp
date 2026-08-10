@@ -56,7 +56,7 @@ namespace
 } // namespace
 
 // Invalid persisted calibration should not attach to a newly detected input route.
-TEST_CASE("Input calibration workflow ignores invalid saved identity", "[audio][workflow]")
+TEST_CASE("Input calibration workflow ignores invalid saved identity", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity identity = makeIdentity();
@@ -73,7 +73,9 @@ TEST_CASE("Input calibration workflow ignores invalid saved identity", "[audio][
 }
 
 // Startup restore should make a matching saved calibration immediately available.
-TEST_CASE("Input calibration workflow preserves matching startup calibration", "[audio][workflow]")
+TEST_CASE(
+    "Input calibration workflow preserves matching startup calibration",
+    "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity identity = makeIdentity();
@@ -91,7 +93,8 @@ TEST_CASE("Input calibration workflow preserves matching startup calibration", "
 }
 
 // Physical channels may be renamed by the OS while still representing the same input route.
-TEST_CASE("Input calibration workflow accepts renamed physical channel", "[audio][workflow]")
+TEST_CASE(
+    "Input calibration workflow accepts renamed physical channel", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity saved_identity = makeIdentity("ASIO", "Interface A", 0, "Input 1");
@@ -118,7 +121,8 @@ TEST_CASE("Input calibration workflow accepts renamed physical channel", "[audio
 
 // Switching to a different unsaved route clears prompt and measurement state together.
 TEST_CASE(
-    "Input calibration workflow clears active state on unsaved route change", "[audio][workflow]")
+    "Input calibration workflow clears active state on unsaved route change",
+    "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity initial_identity = makeIdentity();
@@ -147,7 +151,8 @@ TEST_CASE(
 }
 
 // Switching routes should adopt the saved calibration supplied for the new route.
-TEST_CASE("Input calibration workflow selects saved state on route change", "[audio][workflow]")
+TEST_CASE(
+    "Input calibration workflow selects saved state on route change", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity initial_identity = makeIdentity();
@@ -173,7 +178,8 @@ TEST_CASE("Input calibration workflow selects saved state on route change", "[au
 
 // Returning to a route should restore its matching saved calibration.
 TEST_CASE(
-    "Input calibration workflow restores saved state when returning to route", "[audio][workflow]")
+    "Input calibration workflow restores saved state when returning to route",
+    "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity initial_identity = makeIdentity();
@@ -203,7 +209,8 @@ TEST_CASE(
 
 // Settings dialogs may briefly report no route; that should not erase current calibration.
 TEST_CASE(
-    "Input calibration workflow ignores transient null route in settings", "[audio][workflow]")
+    "Input calibration workflow ignores transient null route in settings",
+    "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity identity = makeIdentity();
@@ -230,7 +237,8 @@ TEST_CASE(
 
 // Temporary route loss should stop prompt/measurement state but preserve saved calibration.
 TEST_CASE(
-    "Input calibration workflow preserves calibration through route loss", "[audio][workflow]")
+    "Input calibration workflow preserves calibration through route loss",
+    "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity identity = makeIdentity();
@@ -270,7 +278,8 @@ TEST_CASE(
 }
 
 // Backend failure should hide the prompt while preserving the last usable calibration value.
-TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[audio][workflow]")
+TEST_CASE(
+    "Input calibration workflow closes prompt on backend unavailable", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity identity = makeIdentity();
@@ -291,7 +300,8 @@ TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[a
 }
 
 // Measurement start is rejected when no calibration state has been selected for the route.
-TEST_CASE("Input calibration workflow rejects stale measurement start", "[audio][workflow]")
+TEST_CASE(
+    "Input calibration workflow rejects stale measurement start", "[audio][input-calibration]")
 {
     const InputCalibrationWorkflow workflow;
     const InputDeviceIdentity identity = makeIdentity();
@@ -305,7 +315,7 @@ TEST_CASE("Input calibration workflow rejects stale measurement start", "[audio]
 // Commit failure should restore the prior calibration and mark live audition unavailable.
 TEST_CASE(
     "Input calibration workflow preserves previous calibration on commit failure",
-    "[audio][workflow]")
+    "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
     const InputDeviceIdentity identity = makeIdentity();
@@ -332,7 +342,8 @@ TEST_CASE(
 }
 
 // The monitoring gate reports each disabling reason in the same order as the controller's gate.
-TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio][workflow]")
+TEST_CASE(
+    "Input calibration workflow evaluateMonitoring branch matrix", "[audio][input-calibration]")
 {
     const InputDeviceIdentity identity = makeIdentity();
 

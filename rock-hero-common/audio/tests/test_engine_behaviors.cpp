@@ -13,7 +13,7 @@ namespace rock_hero::common::audio
 // granularity, and that path draws nothing for Tracktion's reader-fed thumbnails once a cached
 // thumbnail is restored (the reader is gone and cannot be recreated). The stored granularity is
 // serialized directly after the "jatm" magic, so the invariant is checked through the format.
-TEST_CASE("UI behaviour builds fine-grained waveform thumbnails", "[audio][engine-behaviors]")
+TEST_CASE("UI behaviour builds fine-grained waveform thumbnails", "[audio][engine]")
 {
     juce::AudioFormatManager format_manager;
     juce::AudioThumbnailCache cache{4};

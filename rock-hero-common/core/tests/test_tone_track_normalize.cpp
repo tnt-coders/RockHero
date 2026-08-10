@@ -24,7 +24,7 @@ constexpr const char* g_default_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30
 
 } // namespace
 
-TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core][tone-normalize]")
+TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core][tone]")
 {
     Song song = makeSong();
     Arrangement arrangement;
@@ -45,7 +45,7 @@ TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core
     CHECK(normalized.tones.front().name == "Clean Verse");
 }
 
-TEST_CASE("ensureExplicitToneRegions leaves authored regions untouched", "[core][tone-normalize]")
+TEST_CASE("ensureExplicitToneRegions leaves authored regions untouched", "[core][tone]")
 {
     Song song = makeSong();
     Arrangement arrangement;
@@ -67,8 +67,7 @@ TEST_CASE("ensureExplicitToneRegions leaves authored regions untouched", "[core]
     CHECK(normalized.tone_track.regions.front().id == "existing");
 }
 
-TEST_CASE(
-    "ensureExplicitToneRegions leaves a tone-less arrangement empty", "[core][tone-normalize]")
+TEST_CASE("ensureExplicitToneRegions leaves a tone-less arrangement empty", "[core][tone]")
 {
     Song song = makeSong();
     song.arrangements.emplace_back(); // empty catalog: the load baseline mints before this runs

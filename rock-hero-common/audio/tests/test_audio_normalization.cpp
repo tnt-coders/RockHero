@@ -125,8 +125,7 @@ private:
 
 // Verifies analyzeAudioForGainNormalization surfaces InputFileMissing for a missing file.
 TEST_CASE(
-    "analyzeAudioForGainNormalization returns InputFileMissing",
-    "[common-audio][audio-normalization]")
+    "analyzeAudioForGainNormalization returns InputFileMissing", "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto result = analyzeAudioForGainNormalization(
@@ -138,8 +137,7 @@ TEST_CASE(
 
 // Verifies silent inputs fail with SilentInputCannotBeNormalized instead of producing nonsense
 // gain.
-TEST_CASE(
-    "analyzeAudioForGainNormalization rejects silent input", "[common-audio][audio-normalization]")
+TEST_CASE("analyzeAudioForGainNormalization rejects silent input", "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSilentWav(temporary_directory.path() / "input.wav");
@@ -154,7 +152,7 @@ TEST_CASE(
 // Verifies analyzeAudioForGainNormalization computes a non-zero gain and a 64-char validation hash.
 TEST_CASE(
     "analyzeAudioForGainNormalization computes gain and validation hash",
-    "[common-audio][audio-normalization]")
+    "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
@@ -168,8 +166,7 @@ TEST_CASE(
 }
 
 // Verifies validateAudioNormalization confirms a freshly computed normalization record.
-TEST_CASE(
-    "validateAudioNormalization confirms fresh analysis", "[common-audio][audio-normalization]")
+TEST_CASE("validateAudioNormalization confirms fresh analysis", "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
@@ -182,7 +179,7 @@ TEST_CASE(
 }
 
 // Verifies validateAudioNormalization rejects a normalization record with a tampered gain.
-TEST_CASE("validateAudioNormalization rejects tampered gain", "[common-audio][audio-normalization]")
+TEST_CASE("validateAudioNormalization rejects tampered gain", "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
@@ -196,8 +193,7 @@ TEST_CASE("validateAudioNormalization rejects tampered gain", "[common-audio][au
 }
 
 // Verifies the validation hash covers the raw backing audio bytes, not only the stored gain.
-TEST_CASE(
-    "validateAudioNormalization rejects changed audio bytes", "[common-audio][audio-normalization]")
+TEST_CASE("validateAudioNormalization rejects changed audio bytes", "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
@@ -212,8 +208,7 @@ TEST_CASE(
 
 // Verifies validateAudioNormalization returns false for a missing input file.
 TEST_CASE(
-    "validateAudioNormalization returns false for missing input",
-    "[common-audio][audio-normalization]")
+    "validateAudioNormalization returns false for missing input", "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const common::core::AudioNormalization normalization{

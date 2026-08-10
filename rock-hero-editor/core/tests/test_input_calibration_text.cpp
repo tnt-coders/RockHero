@@ -8,7 +8,8 @@ namespace rock_hero::editor::core
 
 // Each signal-chain calibration status maps to a fixed English disabled message. This pins the
 // editor English the text module owns after the calibration workflow moved to common/audio.
-TEST_CASE("Input calibration text maps each status to its disabled message", "[core][text]")
+TEST_CASE(
+    "Input calibration text maps each status to its disabled message", "[core][input-calibration]")
 {
     CHECK(inputCalibrationDisabledMessageFor(InputCalibrationStatus::Calibrated).empty());
     CHECK(

@@ -102,7 +102,7 @@ public:
 } // namespace
 
 // A ready session with no input route disables monitoring after the ordered preamble teardown.
-TEST_CASE("LiveInputMonitor gate disables with no input device", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor gate disables with no input device", "[audio][live-input]")
 {
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
@@ -122,7 +122,7 @@ TEST_CASE("LiveInputMonitor gate disables with no input device", "[common][audio
 }
 
 // An unready session reports SessionNotReady before the route or calibration is inspected.
-TEST_CASE("LiveInputMonitor gate disables when session not ready", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor gate disables when session not ready", "[audio][live-input]")
 {
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
@@ -137,7 +137,7 @@ TEST_CASE("LiveInputMonitor gate disables when session not ready", "[common][aud
 }
 
 // A ready route with no stored calibration reports MissingCalibration and stays disabled.
-TEST_CASE("LiveInputMonitor gate disables without calibration", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor gate disables without calibration", "[audio][live-input]")
 {
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
@@ -152,7 +152,7 @@ TEST_CASE("LiveInputMonitor gate disables without calibration", "[common][audio]
 }
 
 // refresh re-reads the store, finds the matching calibration, and arms in the pinned order.
-TEST_CASE("LiveInputMonitor refresh arms matching route in order", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor refresh arms matching route in order", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;
@@ -178,9 +178,7 @@ TEST_CASE("LiveInputMonitor refresh arms matching route in order", "[common][aud
 }
 
 // A corrupt store read surfaces CalibrationStoreUnavailable and does not arm any monitoring.
-TEST_CASE(
-    "LiveInputMonitor refresh surfaces corrupt store and does not arm",
-    "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor refresh surfaces corrupt store and does not arm", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;
@@ -203,7 +201,7 @@ TEST_CASE(
 }
 
 // A route-unavailable gain rejection during arming rolls the gate into BackendUnavailable.
-TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;
@@ -229,7 +227,7 @@ TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[common][audio][l
 }
 
 // A route-unavailable monitoring rejection after gain succeeds still disables and marks the backend.
-TEST_CASE("LiveInputMonitor gate rolls back on enable failure", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor gate rolls back on enable failure", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;
@@ -255,7 +253,7 @@ TEST_CASE("LiveInputMonitor gate rolls back on enable failure", "[common][audio]
 }
 
 // disableMonitoring tears down both the calibration and processed monitoring paths.
-TEST_CASE("LiveInputMonitor disableMonitoring tears down both paths", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor disableMonitoring tears down both paths", "[audio][live-input]")
 {
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
@@ -274,8 +272,7 @@ TEST_CASE("LiveInputMonitor disableMonitoring tears down both paths", "[common][
 }
 
 // Measurement start rolls back the captured route when the neutral-gain reset is rejected.
-TEST_CASE(
-    "LiveInputMonitor measurement start rolls back on gain failure", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor measurement start rolls back on gain failure", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;
@@ -309,8 +306,7 @@ TEST_CASE(
 
 // A completed measurement commit disables audition, applies the gain, enables monitoring, and
 // persists the calibration through the store.
-TEST_CASE(
-    "LiveInputMonitor commit applies gain and persists calibration", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor commit applies gain and persists calibration", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;
@@ -345,7 +341,7 @@ TEST_CASE(
 
 // A store write failure at commit surfaces the failure only through logging, not a hard error, and
 // the workflow keeps the committed calibration.
-TEST_CASE("LiveInputMonitor commit tolerates a store write failure", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor commit tolerates a store write failure", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;
@@ -372,8 +368,7 @@ TEST_CASE("LiveInputMonitor commit tolerates a store write failure", "[common][a
 
 // The input identity is sampled exactly once per commit operation, so a route that changes between
 // the expected-identity check and the plan build cannot be observed mid-operation.
-TEST_CASE(
-    "LiveInputMonitor samples the input identity once per operation", "[common][audio][live-input]")
+TEST_CASE("LiveInputMonitor samples the input identity once per operation", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeIdentity();
     FakeLiveInput live_input;

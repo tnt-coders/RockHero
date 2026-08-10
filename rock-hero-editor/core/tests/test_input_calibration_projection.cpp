@@ -50,7 +50,8 @@ constexpr common::audio::LiveInputMonitoringContext g_ready{
 // Each monitoring reason projects to a fixed signal-chain status. This pins the enum mapping the
 // projection module owns after the calibration workflow moved to common/audio.
 TEST_CASE(
-    "Input calibration projection maps each monitoring reason to status", "[core][projection]")
+    "Input calibration projection maps each monitoring reason to status",
+    "[core][input-calibration]")
 {
     struct Case
     {
@@ -99,7 +100,8 @@ TEST_CASE(
 
 // A calibrated matching route on a ready session projects an auditionable, calibrated projection.
 TEST_CASE(
-    "Input calibration projection builds an active calibrated projection", "[core][projection]")
+    "Input calibration projection builds an active calibrated projection",
+    "[core][input-calibration]")
 {
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     common::audio::testing::FakeLiveInput live_input;
@@ -124,7 +126,7 @@ TEST_CASE(
 // projection that ignores the settings-open early-out the ordered gate reports first.
 TEST_CASE(
     "Input calibration projection keeps calibrated status while settings are open",
-    "[core][projection]")
+    "[core][input-calibration]")
 {
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     common::audio::testing::FakeLiveInput live_input;
@@ -146,7 +148,8 @@ TEST_CASE(
 
 // A visible prompt carries the matching stored gain and the disabled message for the route.
 TEST_CASE(
-    "Input calibration projection projects the prompt with the stored gain", "[core][projection]")
+    "Input calibration projection projects the prompt with the stored gain",
+    "[core][input-calibration]")
 {
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     common::audio::testing::FakeLiveInput live_input;

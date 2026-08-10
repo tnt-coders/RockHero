@@ -1,4 +1,4 @@
-﻿#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/session/session.h>
@@ -42,7 +42,7 @@ namespace
 } // namespace
 
 // Verifies audio asset references compare by their stored filesystem path.
-TEST_CASE("AudioAsset equality compares stored paths", "[core][audio_asset]")
+TEST_CASE("AudioAsset equality compares stored paths", "[core][audio-asset]")
 {
     const AudioAsset first{
         .path = std::filesystem::path{"mix.wav"}, .normalization = std::nullopt, .start_offset = {}
@@ -59,7 +59,7 @@ TEST_CASE("AudioAsset equality compares stored paths", "[core][audio_asset]")
 }
 
 // Verifies a default asset is explicitly empty until a file-like path is assigned.
-TEST_CASE("AudioAsset default construction is empty", "[core][audio_asset]")
+TEST_CASE("AudioAsset default construction is empty", "[core][audio-asset]")
 {
     const AudioAsset audio_asset;
 
