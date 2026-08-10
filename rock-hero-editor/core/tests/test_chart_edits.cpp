@@ -1140,6 +1140,95 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
             CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
         }
     }
+
+    SECTION("the earlier note is a fret-hand harmonic")
+    {
+        // A touch holds nothing to hand over, so neither direction is derivable across it (E19
+        // says as much for the pull-off). The verb used to ask this only of the note it was
+        // changing, never of the predecessor, and was safe purely because `releasedFret` happens
+        // to report 0 for a fret-hand harmonic — an accident, not the rule.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{3, 4}),
+            makeNote({.measure = 1, .beat = 2}, 1, 7),
+        };
+        chart.notes[0].harmonic_node = 12.0;
+        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
+                        .has_value());
+    }
+}
+
+// A note's node comes along only where it keeps meaning the same thing. The verb used to send it
+// away on a pinch or a tap attack and keep it otherwise, which asked about the wrong thing: what
+// matters is whether the DERIVED attack changes who owns the node, or forbids one outright.
+TEST_CASE("planSetLegato keeps a picking-hand node only where it survives", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a hammer-on onto a stopped harmonic keeps its node")
+    {
+        // Fret 9 under a node at 21 is the tapped-harmonic gesture: the fretting hand presses the
+        // stop while the picking hand keeps damping the node, so the hammer-on changes neither.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{3, 4}),
+            makeNote({.measure = 1, .beat = 2}, 1, 9),
+        };
+        chart.notes[1].harmonic_node = 21.0;
+        const auto plan =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+            CHECK(plan->inserted[0].harmonic_node.has_value());
+        }
+    }
+
+    SECTION("a pull-off sends any node away")
+    {
+        // A pull-off releases onto a plain stopped pitch and can sound no harmonic at any fret.
+        // Keeping the node here left the verb silently inert: the repair inside the gate turned the
+        // whole thing back into a plain pick, so pressing H on a stopped harmonic did nothing.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{3, 4}),
+            makeNote({.measure = 1, .beat = 2}, 1, 5),
+        };
+        chart.notes[1].harmonic_node = 17.0;
+        const auto plan =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Pull);
+            CHECK_FALSE(plan->inserted[0].harmonic_node.has_value());
+        }
+    }
+
+    SECTION("an open string sends its node away, because the hand owning it would change")
+    {
+        // On fret 0 the same number re-reads as a fret-hand node — a different technique — so a
+        // tap harmonic's node cannot follow the note into a hammer-on.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{3, 4}),
+            makeNote({.measure = 1, .beat = 2}, 1, 0),
+        };
+        chart.notes[1].attack = common::core::NoteAttack::Tap;
+        chart.notes[1].harmonic_node = 12.0;
+        const auto plan =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        // Fret 0 against a fret-0 predecessor releases nothing above or below, so there is no
+        // direction to derive and the verb leaves the note alone rather than stripping its node.
+        CHECK_FALSE(plan.has_value());
+    }
 }
 
 // Mixed selections edit what they can and leave the rest, rather than refusing wholesale — the

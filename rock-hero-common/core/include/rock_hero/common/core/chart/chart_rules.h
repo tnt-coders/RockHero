@@ -158,6 +158,49 @@ mute would give a dead note a pitch to bend.
 [[nodiscard]] ChartNote executableChartNote(ChartNote note);
 
 /*!
+\brief The legato attack a note's same-string predecessor justifies, or `Pick` when none does.
+
+The one authority for which direction a hammer-on/pull-off connection runs, and the only place the
+question is answered. It was answered in four — the importer, the `H` verb, the repair and the gate
+— and three had drifted: the importer compared Guitar Pro's ONSET frets, the verb never asked
+whether the predecessor was a fret-hand harmonic and never refused a pull-off onto a harmonic. The
+gate stays the checker rather than a fifth copy, because its per-clause messages say which rule a
+document broke.
+
+Judged against the RELEASED fret — where the predecessor's finger ends, so a glide hands over its
+last waypoint and a scrape its slide-out's end — never against predecessor identity. Three things
+disqualify a predecessor outright: none exists, it is a fret-hand harmonic (a touch holds nothing
+to hand over), or it is no longer holdable at this onset. Past the kept-sustain bound a
+disconnected tail is a proven release, which is why a sustain edit that breaks the connection
+repairs the legato that depended on it, in the same undo entry.
+
+Then the released fret picks the direction: above the note is a pull-off, below it a hammer-on. A
+pull-off carries no harmonic (it releases onto a plain stopped pitch), and a hammer-on needs
+somewhere to land (a fret, or a node to strike). Equal frets justify nothing — there is no
+connection to record, and inventing one would be inventing data.
+
+Deliberately unbounded in time: a hammer-on from a note eight bars back is musically odd, but a
+predecessor still holding is a predecessor, and the author asserting legato is the authority on
+whether the notes connect.
+
+Callers add their own policy on top rather than finding it here. The `H` verb refuses to derive
+across a scrape predecessor even though this accepts one, because deriving *onto* a gesture is a
+guess while accepting an authored pull from one is not; and the repair never lets a `Tap` become a
+pull-off, a tap being a picking-hand articulation no predecessor can convert.
+
+\param note Note whose attack is in question.
+\param predecessor Nearest earlier note on the same string, or `nullptr` when there is none.
+\param predecessor_effective_sustain That predecessor's held length, span-extended
+       (\ref chartEffectiveSustains) — a span implies its strum is held.
+\param tempo_map Song tempo map supplying the beat axis for the hold test.
+
+\return `Pull`, `Hammer`, or `Pick` when nothing is justified.
+*/
+[[nodiscard]] NoteAttack derivedLegatoAttack(
+    const ChartNote& note, const ChartNote* predecessor, Fraction predecessor_effective_sustain,
+    const TempoMap& tempo_map);
+
+/*!
 \brief Validates the note stream alone — every intra-note and note-relational rule.
 
 The single authority for the technique compatibility matrix's note rules, split out so the editor

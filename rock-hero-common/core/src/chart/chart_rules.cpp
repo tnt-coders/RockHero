@@ -262,6 +262,28 @@ ChartNote executableChartNote(ChartNote note)
     return note;
 }
 
+NoteAttack derivedLegatoAttack(
+    const ChartNote& note, const ChartNote* const predecessor,
+    const Fraction predecessor_effective_sustain, const TempoMap& tempo_map)
+{
+    if (predecessor == nullptr || fretHandHarmonic(*predecessor) ||
+        !predecessorHoldReaches(
+            predecessor->position, predecessor_effective_sustain, note.position, tempo_map))
+    {
+        return NoteAttack::Pick;
+    }
+    const int released = releasedFret(*predecessor);
+    if (released > note.fret && !note.harmonic_node.has_value())
+    {
+        return NoteAttack::Pull;
+    }
+    if (released < note.fret && (note.fret > 0 || note.harmonic_node.has_value()))
+    {
+        return NoteAttack::Hammer;
+    }
+    return NoteAttack::Pick;
+}
+
 std::expected<void, ChartError> validateChartNotes(
     const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const ChartTuning& tuning, const TempoMap& tempo_map)

@@ -492,39 +492,45 @@ std::optional<ChartNotesEditPlan> planSetLegato(
                 break;
             }
         }
-        // Option C: the verb infers only what the frets justify. A scrape predecessor is never
-        // inferred across (deliberate legato only — its pull is authorable by ordering the edits);
-        // a fret-hand harmonic never converts here, since deriving onto it would strip its
-        // harmonic; equal released frets justify nothing; and the predecessor must still be
-        // holdable at this onset (predecessorHoldReaches) — past the kept-sustain bound a
-        // disconnected tail is a proven release, and dragging the tail to reach the note is how
-        // legato across such a gap is authored. The judged fret is the RELEASED one — where the
-        // predecessor's finger ends — so a glide hands over its last waypoint.
-        if (previous == nullptr || previous->attack == common::core::NoteAttack::PickSlide ||
-            common::core::fretHandHarmonic(note) ||
-            !common::core::predecessorHoldReaches(
-                previous->position, effective_sustains[previous_index], note.position, tempo_map))
+        // Option C: the verb records only what the predecessor justifies, which
+        // `derivedLegatoAttack` is the one authority for — including that the judged fret is the
+        // RELEASED one (a glide hands over its last waypoint), that the predecessor must still be
+        // holdable at this onset, and that equal frets justify nothing. Past the kept-sustain bound
+        // a disconnected tail is a proven release, and dragging the tail to reach the note is how
+        // legato across such a gap is authored.
+        //
+        // The one policy the verb adds is refusing to derive ACROSS a scrape: deriving onto a
+        // gesture is a guess, while accepting a pull an author already wrote from one is not, so
+        // the repair keeps such a pull standing and this never invents one. A scrape's pull stays
+        // authorable by ordering the edits.
+        if (previous != nullptr && previous->attack == common::core::NoteAttack::PickSlide)
         {
             continue;
         }
-        const int released = common::core::releasedFret(*previous);
-        if (released == note.fret)
-        {
-            continue;
-        }
-        const common::core::NoteAttack derived = note.fret > released
-                                                     ? common::core::NoteAttack::Hammer
-                                                     : common::core::NoteAttack::Pull;
-        if (note.attack == derived)
+        // Asked of the note the verb intends to WRITE rather than the one on the page. A harmonic's
+        // node vetoes a pull-off, and the verb is willing to send a picking-hand node away for the
+        // conversion — so asking with it still attached would refuse the very edit it would have
+        // dropped the node for, which is how pressing H on a stopped harmonic came to do nothing.
+        common::core::ChartNote asked = note;
+        asked.harmonic_node.reset();
+        const common::core::NoteAttack derived = common::core::derivedLegatoAttack(
+            asked,
+            previous,
+            previous == nullptr ? common::core::Fraction{} : effective_sustains[previous_index],
+            tempo_map);
+        if (derived == common::core::NoteAttack::Pick || note.attack == derived)
         {
             continue;
         }
         const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
-        // A pinch or tap owns its node with the picking hand; under the derived attack the same
-        // number would silently become a fret-hand node, so it leaves with the attack.
-        const bool node_leaves =
-            note.harmonic_node.has_value() && (note.attack == common::core::NoteAttack::Pinch ||
-                                               note.attack == common::core::NoteAttack::Tap);
+        // A node here is always the PICKING hand's, since a fret-hand harmonic justifies no legato
+        // at all. It comes along in exactly one case: a hammer-on onto a real stop, the tapped-
+        // harmonic gesture, where the fretting hand takes the stop and the picking hand keeps
+        // damping the node. A pull-off releases onto a plain stopped pitch and sounds no harmonic at
+        // any fret, and on an open string the same number would silently re-read as a fret-hand
+        // node — a different technique.
+        const bool node_leaves = note.harmonic_node.has_value() &&
+                                 !(derived == common::core::NoteAttack::Hammer && note.fret > 0);
         note.attack = derived;
         if (was_scrape)
         {

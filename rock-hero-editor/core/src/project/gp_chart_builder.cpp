@@ -1990,7 +1990,6 @@ void resolveSlideOutExits(
 
     std::vector<BuiltNote> built;
     std::map<int, std::size_t> open_note_per_string;
-    std::map<int, int> previous_fret_per_string;
     int dropped_duplicates = 0;
     int unsupported_harmonics = 0;
     int semi_as_pinch = 0;
@@ -2042,7 +2041,6 @@ void resolveSlideOutExits(
                 {
                     open_note_per_string.erase(open);
                 }
-                previous_fret_per_string[source.string] = source.fret;
                 continue;
             }
         }
@@ -2085,11 +2083,17 @@ void resolveSlideOutExits(
         }
         else if (source.hopo_destination)
         {
-            const auto previous = previous_fret_per_string.find(source.string);
-            note.attack =
-                previous != previous_fret_per_string.end() && source.fret < previous->second
-                    ? NoteAttack::Pull
-                    : NoteAttack::Hammer;
+            // The score says these notes connect but not which way. Marked `Pull` and left for
+            // `normalizeChartLegato` to settle, because the direction turns on the predecessor's
+            // RELEASED fret — where its finger ends, after any glide — and the slide chains that
+            // decide that are not built until this whole loop has finished. Comparing Guitar Pro's
+            // onset frets here instead read the wrong quantity at the wrong time: a note shift-
+            // sliding 5 to 9 followed by a hopo at 7 was called a hammer-on, though the hand
+            // released from 9 and the score notated a pull-off. Only an impossible `Pull` is
+            // re-derived by the repair, never a possible-but-wrong `Hammer`, so the wrong direction
+            // shipped and validated clean; marking the direction that CAN be re-derived hands the
+            // decision to the one authority for it.
+            note.attack = NoteAttack::Pull;
         }
 
         if (source.full_mute)
@@ -2217,7 +2221,6 @@ void resolveSlideOutExits(
         {
             open_note_per_string.erase(source.string);
         }
-        previous_fret_per_string[source.string] = source.fret;
         built.push_back(std::move(entry));
     }
 
