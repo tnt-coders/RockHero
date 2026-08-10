@@ -7,8 +7,7 @@ namespace rock_hero::common::core
 
 int fretFor(const ChartNote& note)
 {
-    if (note.harmonic_node.has_value() && note.fret == 0 && nodeIsOnNeck(note.attack) &&
-        note.attack != NoteAttack::Tap)
+    if (frettingFingerOnNode(note))
     {
         return static_cast<int>(std::ceil(*note.harmonic_node));
     }

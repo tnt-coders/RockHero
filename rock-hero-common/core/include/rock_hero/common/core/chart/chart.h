@@ -434,6 +434,29 @@ node, not whether a stop is pressed.
 }
 
 /*!
+\brief True when the FRETTING finger is standing on the note's node.
+
+The near twin of \ref fretHandHarmonic, and the distinction is which question is being asked. That
+one asks whether anything is PRESSED, so an open-string tap harmonic counts; this one asks which
+HAND owns the node, so a tap does not — a two-hand tap harmonic's node belongs to the picking hand,
+which is on the neck rather than off it.
+
+Three things turn on this one fact and each used to spell it out: where the fretting hand sits
+(\ref fretFor returns the node's fret instead of the note's), how far up the node may lie (a finger
+cannot be past the last fret, so the neck caps it rather than the string), and, on the 3D board,
+that the note SOUNDS from the node while the board's own furniture stays on the stop.
+
+\param note Note to classify.
+
+\return True when the fretting hand's finger is the one touching the node.
+*/
+[[nodiscard]] inline bool frettingFingerOnNode(const ChartNote& note) noexcept
+{
+    return note.harmonic_node.has_value() && note.fret == 0 && nodeIsOnNeck(note.attack) &&
+           note.attack != NoteAttack::Tap;
+}
+
+/*!
 \brief The fret the note's finger occupies when the note ends — what a following pull-off
 releases from.
 

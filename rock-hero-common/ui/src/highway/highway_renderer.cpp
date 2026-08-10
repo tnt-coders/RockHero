@@ -334,6 +334,11 @@ struct PosColorUvVertex
 {
     if (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack))
     {
+        // Not `frettingFingerOnNode`: that asks which HAND owns the node, and a note sounds from
+        // its node whichever hand is damping it — an artificial harmonic's fretting hand presses
+        // the stop while the picking hand damps a node twelve-or-so frets up, and the SOUND comes
+        // from the node either way.
+        //
         // The fret axis takes a fractional coordinate directly, so the node needs no rounding of
         // any kind here. This is NOT the ceil that `fretFor` applies: that one asks which integer
         // fret *contains* the node, for the hand window; this wants the node's exact position.

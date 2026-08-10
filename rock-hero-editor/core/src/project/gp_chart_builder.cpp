@@ -1624,7 +1624,14 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             // refusing sub-capo notes, the import shift, E21 putting a node past the stop, the
             // skips for open strings and scrape travel) is external to this walk, and this walk
             // runs on untrusted files BEFORE validation.
-            const int highest_anchor = std::max(lowest_anchor, event.min_fret);
+            // The window must also FIT on the neck: a hand anchored high enough that its span runs
+            // past the last fret describes frets that do not exist, and the 3D board would light
+            // them. Where that would happen the hand sits LOWER instead, which is what a player
+            // reaching the top of the neck actually does — the note stays inside the window either
+            // way, at its top rather than its bottom. The outer max keeps the capo floor winning,
+            // since std::clamp is UB when its low bound exceeds its high one.
+            const int highest_anchor = std::max(
+                lowest_anchor, std::min(event.min_fret, common::core::g_max_fret - next_width + 1));
             // At a boundary the hand re-places biased to the phrase's floor (the lowest fretted
             // note); otherwise it drags from the current anchor by the slide delta and clamps.
             next_anchor = reanchor
@@ -1713,10 +1720,14 @@ void upsertPlacement(
     const common::core::FretHandPosition& active, const int travel, const int covered_fret,
     const int floor_fret)
 {
-    return std::clamp(
-        active.fret + travel,
-        std::max(floor_fret, covered_fret - active.width + 1),
-        std::max(floor_fret, covered_fret));
+    const int lowest = std::max(floor_fret, covered_fret - active.width + 1);
+    // The window has to cover the fret AND fit on the neck: an anchor whose span runs past the last
+    // fret names frets that do not exist, which near the top of the neck simply means the hand sits
+    // lower and covers the fret at its top instead. The low bound wins if the two ever cross — the
+    // capo floor is not negotiable, and std::clamp is UB with a low bound above its high one.
+    const int highest =
+        std::max(lowest, std::min(covered_fret, common::core::g_max_fret - active.width + 1));
+    return std::clamp(active.fret + travel, lowest, highest);
 }
 
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new

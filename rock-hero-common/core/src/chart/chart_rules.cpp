@@ -174,12 +174,10 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
     }
 
-    if (auto notes_result = validateChartNotes(chart.notes, chart.shapes, chart.tuning, tempo_map);
-        !notes_result.has_value())
-    {
-        return notes_result;
-    }
-
+    // Shapes and fret-hand positions are checked BEFORE the notes, because note validation reads
+    // the shapes: its hold test walks them with a cursor that assumes both streams ascend, so an
+    // unsorted shape stream would make it select the wrong covering span and report the failure as
+    // a note rule at a note's position instead of as the unsorted shapes it is.
     const ChartShape* previous_shape = nullptr;
     for (const ChartShape& shape : chart.shapes)
     {
@@ -204,9 +202,12 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     const FretHandPosition* previous_fhp = nullptr;
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
-        // The hand cannot sit below the capo: the window's index-finger fret starts above it.
-        if (fhp.fret <= chart.tuning.capo || fhp.fret < 1 || fhp.fret > g_max_fret ||
-            fhp.width < 1 || !isValidGridPosition(fhp.position, tempo_map))
+        // The hand cannot sit below the capo (the window's index-finger fret starts above it, which
+        // subsumes the fret-1 floor for every capo), and the WHOLE window must fit on the neck —
+        // bounding only its index finger let a wide hand run off the end, which is the very thing
+        // the node's neck ceiling exists to prevent for a harmonic.
+        if (fhp.fret <= chart.tuning.capo || fhp.width < 1 ||
+            fhp.fret + fhp.width - 1 > g_max_fret || !isValidGridPosition(fhp.position, tempo_map))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
@@ -221,6 +222,12 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             }};
         }
         previous_fhp = &fhp;
+    }
+
+    if (auto notes_result = validateChartNotes(chart.notes, chart.shapes, chart.tuning, tempo_map);
+        !notes_result.has_value())
+    {
+        return notes_result;
     }
 
     return std::expected<void, ChartError>{};
@@ -263,12 +270,9 @@ ChartNote executableChartNote(ChartNote note)
 
 double harmonicNodeCeiling(const ChartNote& note)
 {
-    // The fretting hand touches a fret-hand harmonic's node, and a finger on the fretboard cannot
-    // be past the last fret. Same discriminator the hand-placement rule uses: fret 0 plus a node,
-    // damped by neither the picking hand off the neck (pinch) nor the picking hand on it (tap).
-    const bool fretting_finger_stands_on_it =
-        note.fret == 0 && nodeIsOnNeck(note.attack) && note.attack != NoteAttack::Tap;
-    return fretting_finger_stands_on_it ? static_cast<double>(g_max_fret) : g_max_harmonic_node;
+    // A finger on the fretboard cannot be past the last fret, so where the FRETTING finger is the
+    // one touching the node, the neck caps it rather than the string.
+    return frettingFingerOnNode(note) ? static_cast<double>(g_max_fret) : g_max_harmonic_node;
 }
 
 NoteAttack derivedLegatoAttack(

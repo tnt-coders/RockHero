@@ -37,11 +37,12 @@ inline constexpr int g_pick_slide_default_low_fret{3};
 /*!
 \brief Synthesizes the default scrape path onto a note, traveling away from its start fret.
 
-Leaves `fret` alone — the note's fret is the path start — and replaces `slides` with the single
-default waypoint at the far default endpoint (the low end for a downward scrape, the high end
-for an upward one; a start already sitting on the far endpoint travels to the other, so the
-path always moves). A zero sustain first extends to the minimum slide window so the path has
-somewhere to go, and the waypoint lands exactly at the sustain per the pick-slide invariant.
+Leaves `fret` alone — the note's fret is the path start — clears `slides`, and makes the whole
+gesture the required unpitched `slide_out` terminal: its offset exactly at the sustain, its fret
+the far default endpoint (the low end for a downward scrape, the high end for an upward one; a
+start already sitting on the far endpoint travels to the other, so the path always moves). A zero
+sustain first extends to the minimum slide window so the path has somewhere to go. Turnaround
+waypoints are authored later, never synthesized here — a default scrape is one straight drag.
 
 \param note Note receiving the path; the caller owns setting the attack itself.
 \param upward True to scrape toward the neck's high end, false toward the low end.
