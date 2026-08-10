@@ -1,6 +1,7 @@
 #include "chart/chart_hit_testing.h"
 
 #include <cmath>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <utility>
 
@@ -27,8 +28,8 @@ namespace
     // The prefix table is rebuilt per query: hit resolution runs once per pointer event, not per
     // frame, and the controller does not retain a per-projection index the way the lane view
     // does for painting.
-    const std::vector<double> prefix = common::ui::tabPrefixMaxEndSeconds(tab.notes);
-    return common::ui::tabVisibleNoteRange(tab.notes, prefix, span_start, span_end);
+    const std::vector<double> prefix = common::core::makeSustainPrefixMax(tab.notes);
+    return common::core::visibleEventRange(tab.notes, prefix, span_start, span_end);
 }
 
 } // namespace

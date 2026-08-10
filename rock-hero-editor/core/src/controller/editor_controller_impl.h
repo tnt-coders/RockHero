@@ -1073,6 +1073,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // normalization rewrites, undo-recording failures after a mutation, and faulted sessions.
     bool m_has_untracked_unsaved_changes{false};
 
+    // True while a project write owns the Project. `m_project` is legitimately empty for that whole
+    // window, so it cannot answer "is a project open" — and close and exit supersede busy, so
+    // without this the unsaved-changes prompt was skipped for the duration of every save.
+    bool m_project_write_in_flight{false};
+
     // True after an undo/redo rollback-contract violation makes the live backend untrusted.
     bool m_session_faulted{false};
 

@@ -944,6 +944,7 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
     // own comment for why completion cannot just ask the history where it is now.
     state->undo_depth_at_kickoff = m_undo_history.undoDepth();
     m_project.reset();
+    m_project_write_in_flight = true;
     return state;
 }
 
@@ -1240,6 +1241,7 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
 void EditorController::Impl::completeProjectWriteAction(
     const std::shared_ptr<ProjectWriteTaskState>& state)
 {
+    m_project_write_in_flight = false;
     assert(isBusy() && "completeProjectWriteAction called outside a busy operation");
 
     const EditorAction::Id action_id = idOf(state->action);

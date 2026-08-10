@@ -4417,11 +4417,18 @@ void EditorController::Impl::detachView()
 
 // Dirty state comes from imported unsaved projects, undo-history clean markers, and narrow
 // untracked cases such as load-time normalization rewrites or faulted sessions.
+//
+// "A project is open" is asked of `m_project_file` and the write in flight, NOT of `m_project`,
+// which a write legitimately empties for its whole duration: a project is moved out to the worker so
+// background IO never shares mutable ownership with message-thread actions. Reading openness from
+// that optional made this return false for the entire write — and close and exit both SUPERSEDE
+// busy, so a close during a publish (which deliberately leaves the project dirty) skipped the
+// unsaved-changes prompt entirely and dropped the edits with no warning.
 bool EditorController::Impl::hasUnsavedChanges() const noexcept
 {
-    return m_project.has_value() &&
-           (m_has_untracked_unsaved_changes || m_undo_history.hasUnsavedEdits() ||
-            m_save_requires_destination);
+    const bool project_open = m_project.has_value() || m_project_write_in_flight;
+    return project_open && (m_has_untracked_unsaved_changes || m_undo_history.hasUnsavedEdits() ||
+                            m_save_requires_destination);
 }
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to
