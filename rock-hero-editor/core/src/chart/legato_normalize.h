@@ -36,12 +36,17 @@ whenever a pick slide's latent overrides changed a rule's input.
 Runs inside the planners' shared finalize step so every edit repairs what it disturbed in the
 same undo entry, and at import completion so a chart is never invalid in the first place.
 
+Returns that saved stream, because it has to build one to do its job and its caller needs exactly
+the same thing next: the plan gate validates the saved form, and re-deriving it would be a second
+deep copy of every note — two vectors and an optional each — on every keystroke.
+
 \param notes Note stream sorted by (position, string); repaired in place.
 \param shapes Hand-posture spans the notes play under; a span implies its strum is held, so the
 hold test judges span-extended lengths (chartEffectiveSustains).
 \param tempo_map Tempo map supplying the beat axis for the hold test.
+\return The repaired stream in its saved form (`savedChartNote`), index-parallel to `notes`.
 */
-void normalizeChartLegato(
+[[nodiscard]] std::vector<common::core::ChartNote> normalizeChartLegato(
     std::vector<common::core::ChartNote>& notes,
     const std::vector<common::core::ChartShape>& shapes, const common::core::TempoMap& tempo_map);
 

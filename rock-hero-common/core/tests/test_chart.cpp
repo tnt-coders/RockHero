@@ -520,6 +520,31 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
                     R"( "notes": [ { "position": "1:1", "string": 1, "fret": 3,)"
                     R"( "slideOut": { "fret": 15 } } ] })")
                     .has_value());
+
+    // A property of the WRONG TYPE is malformed, not absent. Each of these used to load: the
+    // fallback silently changed the music and the note then validated clean, so nothing downstream
+    // could notice. A numeric sustain read as no tail, a numeric attack as a plain pick, a numeric
+    // mute as unmuted, a string fret as fret -1 (which validation does catch, unlike the rest), and
+    // a string bend height as a flat zero-semitone bend.
+    const auto parseNote = [](const std::string& note_body) {
+        return parseChartDocument(
+            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
+            R"( } ] })");
+    };
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": 2)").has_value());
+    CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "attack": 7)").has_value());
+    CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "mute": 1)").has_value());
+    CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": "3")").has_value());
+    CHECK_FALSE(
+        parseNote(
+            R"("position": "1:1", "string": 1, "fret": 3, "sustain": "1", "bend": [["0", "half"]])")
+            .has_value());
+    // And the well-typed forms of the same fields still load, so the check refuses types rather
+    // than fields.
+    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "2")").has_value());
+    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "attack": "tap")").has_value());
+    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "mute": "palm")").has_value());
 }
 
 TEST_CASE("Chart rules reject structural violations", "[core][chart]")

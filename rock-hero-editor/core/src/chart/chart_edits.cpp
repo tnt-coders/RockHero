@@ -174,13 +174,11 @@ void normalizeSustainOverlaps(
 {
     std::ranges::sort(candidate, keyLess);
     normalizeSustainOverlaps(candidate, tempo_map);
-    normalizeChartLegato(candidate, chart.shapes, tempo_map);
-    std::vector<common::core::ChartNote> saved_form;
-    saved_form.reserve(candidate.size());
-    for (const common::core::ChartNote& note : candidate)
-    {
-        saved_form.push_back(common::core::savedChartNote(note));
-    }
+    // The repair hands back the saved form it had to build to judge against, which is exactly what
+    // the gate validates — deriving it again here was a second deep copy of every note per
+    // keystroke.
+    const std::vector<common::core::ChartNote> saved_form =
+        normalizeChartLegato(candidate, chart.shapes, tempo_map);
     if (!common::core::validateChartNotes(saved_form, chart.shapes, chart.tuning, tempo_map)
              .has_value())
     {

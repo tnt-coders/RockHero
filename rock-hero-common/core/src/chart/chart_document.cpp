@@ -77,6 +77,28 @@ namespace
         return std::unexpected{std::move(position.error())};
     }
 
+    // A chart means exactly what it says, so a property that is PRESENT but of the wrong JSON type
+    // is malformed rather than absent. The lenient readers below are built for draft metadata, where
+    // a fallback beats a refusal; on a note a fallback silently changes the music — a numeric
+    // "attack" read as a plain pick, `"sustain": 2` read as no tail at all — and the note then
+    // validates clean, so nothing downstream can notice.
+    for (const std::string_view key : {"string", "fret", "sustain", "attack", "mute"})
+    {
+        const juce::var& property = Json::value(note_json, key);
+        if (property.isVoid())
+        {
+            continue;
+        }
+        const bool expected_type = key == "sustain" || key == "attack" || key == "mute"
+                                       ? property.isString()
+                                       : property.isInt();
+        if (!expected_type)
+        {
+            return std::unexpected{malformed(
+                "chart note \"" + std::string{key} + "\" has the wrong type")};
+        }
+    }
+
     ChartNote note;
     note.position = *position;
     note.string = Json::readOptionalInt(note_json, "string", 0);
@@ -167,7 +189,10 @@ namespace
         for (int index = 0; index < bend_json.size(); ++index)
         {
             const juce::var& pair = bend_json[index];
-            if (!pair.isArray() || pair.size() != 2 || !pair[0].isString())
+            // The semitone side is checked as strictly as the offset side: an unchecked cast made
+            // `["0", "half"]` a flat zero-semitone bend that validates clean.
+            if (!pair.isArray() || pair.size() != 2 || !pair[0].isString() ||
+                !(pair[1].isDouble() || pair[1].isInt()))
             {
                 return std::unexpected{malformed("chart bend pair must be [offset, semitones]")};
             }

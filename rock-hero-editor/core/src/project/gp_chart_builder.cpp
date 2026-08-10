@@ -2686,7 +2686,9 @@ void resolveSlideOutExits(
             std::to_string(notes_shed) +
             " notes shed techniques they cannot execute (bend, vibrato, slide, tremolo, or mute)");
     }
-    normalizeChartLegato(chart.notes, chart.shapes, tempo_map);
+    // Import repairs in place and has no gate to feed, so the saved stream the repair returns is
+    // not needed here.
+    static_cast<void>(normalizeChartLegato(chart.notes, chart.shapes, tempo_map));
 
     return chart;
 }

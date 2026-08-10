@@ -10,7 +10,7 @@
 namespace rock_hero::editor::core
 {
 
-void normalizeChartLegato(
+std::vector<common::core::ChartNote> normalizeChartLegato(
     std::vector<common::core::ChartNote>& notes,
     const std::vector<common::core::ChartShape>& shapes, const common::core::TempoMap& tempo_map)
 {
@@ -101,6 +101,7 @@ void normalizeChartLegato(
             last_per_string.at(static_cast<std::size_t>(note.string)) = note_index;
         }
     }
+    return judged;
 }
 
 } // namespace rock_hero::editor::core

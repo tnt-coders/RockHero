@@ -191,7 +191,8 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
                                     {
                                         note = common::core::executableChartNote(note);
                                     }
-                                    normalizeChartLegato(chart.notes, chart.shapes, tempo_map);
+                                    static_cast<void>(
+                                        normalizeChartLegato(chart.notes, chart.shapes, tempo_map));
 
                                     ++combinations;
                                     shed_or_repaired += chart.notes[1] == subject ? 0 : 1;
