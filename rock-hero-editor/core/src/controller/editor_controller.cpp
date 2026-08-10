@@ -1680,14 +1680,19 @@ const TimeSelection* EditorController::Impl::selectedTimeSelection() const
     return std::get_if<TimeSelection>(&m_selection);
 }
 
-// Every selection replacement outside the chart typing flow funnels through here so the
-// invalidation rule below can never be skipped at one of the assignment sites.
+// Replaces the whole selection, and drops any in-flight multi-digit fret entry with it: the entry is
+// keyed to the chart selection it retypes, so leaving it armed against a vanished selection could
+// widen an undo entry for notes no longer selected.
+//
+// This reset is belt-and-braces, NOT the guarantee — several chart paths replace the selection
+// through `chartSelectionMutable` without coming through here, so a comment promising that every
+// replacement funnels through this one function would be false and would invite someone to rely on
+// it. What actually protects the entry is the widen's own key check: it proceeds only while the
+// entry's keys still equal the current chart selection, so any selection change of any shape
+// declines the widen.
 void EditorController::Impl::setSelection(EditorSelection selection)
 {
     m_selection = std::move(selection);
-    // A replaced or cleared selection invalidates any in-flight multi-digit fret entry: the
-    // entry is keyed to the chart selection it retypes, and leaving it armed against a
-    // vanished selection could widen an undo entry for notes no longer selected.
     m_chart_fret_entry.reset();
 }
 
