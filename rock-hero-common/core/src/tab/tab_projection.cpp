@@ -31,8 +31,9 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
     {
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         // A pick slide overrides its other techniques in memory (chart.h): the projection is
-        // the one seam that suppresses the latents, and its path renders unpitched with no
-        // linked continuation heads — the chips at each leg carry the traveled positions.
+        // the one seam that suppresses the latents. Its path renders unpitched, and its
+        // turnarounds ARE linked continuations — the pick never leaves the string at a
+        // direction change, so each junction carries a head like any linked slide.
         const bool scrape = note.attack == NoteAttack::PickSlide;
         TabNoteView view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
@@ -62,9 +63,11 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
             }
         }
         // A waypoint strictly inside the sustain is a legato junction or hold — the same note
-        // continues, so it draws the linked continuation head. A waypoint at exactly the
-        // sustain end is a shift-slide glide-end: the note stops there and the re-picked
-        // landing renders its own head, so no linked glyph.
+        // continues, so it draws the linked continuation head, in the note's own head shape.
+        // A waypoint at exactly the sustain end is a shift-slide glide-end: the note stops
+        // there and the re-picked landing renders its own head, so no linked glyph. Being
+        // unpitched does not unlink a waypoint: a scrape's turnaround is still one gesture
+        // continuing, and its head is what keeps the corner from reading as a break.
         view.slides.reserve(note.slides.size() + 1);
         for (const SlideWaypoint& waypoint : note.slides)
         {
@@ -74,7 +77,7 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
                         onset_beat + waypoint.offset.toDouble()),
                     .fret = waypoint.fret,
                     .unpitched = scrape,
-                    .linked = !scrape && waypoint.offset < note.sustain,
+                    .linked = waypoint.offset < note.sustain,
                 });
         }
         // The unpitched slide-out flattens into the view's slide list; it owns its geometry.

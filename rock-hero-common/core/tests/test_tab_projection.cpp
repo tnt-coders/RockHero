@@ -224,14 +224,18 @@ TEST_CASE("Tab projection suppresses pick-slide latents", "[editor-core][tab]")
     CHECK_FALSE(view.tremolo);
     CHECK_FALSE(view.vibrato);
     CHECK(view.bend.empty());
-    // The turnaround waypoint and the slide-out terminal flatten into one leg list, all
-    // unpitched and unlinked (chips, not continuation heads, mark the traveled positions).
+    // The turnaround waypoint and the slide-out terminal flatten into one leg list, both
+    // unpitched — but the turnaround is LINKED and the terminal is not: the pick stays on the
+    // string through a direction change, so the junction carries a continuation head (in the
+    // note's plectrum shape), while the terminal is where the pick leaves and only its chip
+    // marks the position.
     REQUIRE(view.slides.size() == 2);
     for (const TabSlideView& leg : view.slides)
     {
         CHECK(leg.unpitched);
-        CHECK_FALSE(leg.linked);
     }
+    CHECK(view.slides[0].linked);
+    CHECK_FALSE(view.slides[1].linked);
 }
 
 } // namespace rock_hero::common::core

@@ -321,6 +321,20 @@ enum class HeadShape : std::uint8_t
     return HeadShape::Round;
 }
 
+// How far the fret number rides above the string line on a plectrum head, as a fraction of the
+// head. The plectrum is upper-heavy — its widest row sits 0.1515 of the head above the box center
+// and it tapers to a tip below — so a digit centered on the line straddles the narrowing half. The
+// raise moves it onto the broad band, and the beside-head chip is what caps it: the chip's lower
+// edge sits 5.520 px above the line at a 25 px note height, and this is the largest raise that
+// still leaves the digit's ink all but clear of it.
+//
+// The number is NOT boxed here. A plate would answer a question the silhouette has already
+// answered, and the raise buys the same legibility from the art itself.
+//
+// Shared by the onset head and a scrape's junction heads: both are plectrums on one gesture, so
+// their digits must sit at the same height.
+constexpr float g_plectrum_digit_raise = 0.1154f;
+
 // Half of the plectrum silhouette, measured off the pick-slide cell of the shipped note atlas
 // (cell 9, g_head_cell_pick_slide) at its 0.5-coverage line — the same level the atlas's own
 // fracture is pinned to — in units of the head's extent, with the silhouette's box center at the
@@ -487,7 +501,10 @@ void drawSlideLines(
         g.setColour(juce::Colours::white);
         g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
 
-        if (waypoint.unpitched && metrics.draw_text)
+        // A junction that carries a continuation head shows its fret ON the head, so the chip
+        // would be the same number twice. Only an unpitched END keeps the chip: a trail-off and a
+        // scrape's terminal have no head, because nothing lands where the string is released.
+        if (waypoint.unpitched && !waypoint.linked && metrics.draw_text)
         {
             const float label_y = upward ? span.top - metrics.note_height / 3.0f
                                          : span.bottom + metrics.note_height / 3.0f;
@@ -505,34 +522,46 @@ void drawSlideLines(
     }
 }
 
-// Draws Charter's linked-note head (the same layered circle with a doubly darkened center) with
+// Draws Charter's linked-note head (the same layered shape with a doubly darkened center) with
 // its fret number at each linked slide waypoint. Charter charts express unpicked slide chains as
 // linked notes and draw one of these at every link; our format merges the chain into waypoints,
 // so the linked waypoints are exactly where Charter's linked heads sit. A shift slide's landing
 // is not linked — the re-picked target note's own head renders there instead, and painting the
 // linked head over it would make a picked note look like a continuation.
+//
+// A scrape's turnarounds are linked too, and they wear the note's OWN head shape — the plectrum —
+// so each junction reads as one continuous gesture changing direction rather than a chain of
+// disconnected diagonals. Without a head the corner is a bare kink in a white line, which reads
+// as discontinuous even though the pick never leaves the string; the head is also where the
+// traveled fret is stated, replacing the chip that used to float above the line.
 void drawSlideWaypointHeads(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::TabNoteView& note, float center_y)
 {
+    const HeadShape shape = headShapeFor(note);
     for (const common::core::TabSlideView& waypoint : note.slides)
     {
-        if (waypoint.unpitched || !waypoint.linked)
+        if (!waypoint.linked)
         {
             continue;
         }
 
         const float x = metrics.x(waypoint.seconds);
         const float size = metrics.note_height + 1.0f;
-        fillHeadShape(
-            g, style.border_inner, style.linked_inner, x, center_y, size, HeadShape::Round);
+        fillHeadShape(g, style.border_inner, style.linked_inner, x, center_y, size, shape);
         if (metrics.draw_text)
         {
+            // The plectrum's digit rides the same raise its onset head uses, so the two
+            // plectrum numbers on one gesture cannot sit at different heights.
+            const float digit_raise =
+                shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
             g.setColour(juce::Colours::white);
             g.setFont(metrics.fret_font);
             g.drawText(
                 juce::String{waypoint.fret},
-                juce::Rectangle<float>{x - size, center_y - size, size * 2.0f, size * 2.0f},
+                juce::Rectangle<float>{
+                    x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
+                },
                 juce::Justification::centred);
         }
     }
@@ -934,17 +963,6 @@ void drawAttackIcon(
         }
     }
 }
-
-// How far the fret number rides above the string line on a plectrum head, as a fraction of the
-// head. The plectrum is upper-heavy — its widest row sits 0.1515 of the head above the box center
-// and it tapers to a tip below — so a digit centered on the line straddles the narrowing half. The
-// raise moves it onto the broad band, and the beside-head chip is what caps it: the chip's lower
-// edge sits 5.520 px above the line at a 25 px note height, and this is the largest raise that
-// still leaves the digit's ink all but clear of it.
-//
-// The number is NOT boxed here. A plate would answer a question the silhouette has already
-// answered, and the raise buys the same legibility from the art itself.
-constexpr float g_plectrum_digit_raise = 0.1154f;
 
 // Draws the complete note head stack in Charter's order: accent glow, layered head shape, the
 // pinch-harmonic edge line, mute icon, fret number, then the attack icon.
