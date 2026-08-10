@@ -1,3 +1,4 @@
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
@@ -451,6 +452,166 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     const int wide_scrape_digit_top = topDigitInkRow(image, scrape_x, wide_lane_y);
     const int wide_plain_digit_top = topDigitInkRow(image, plain_x, wide_lane_y);
     CHECK(wide_plain_digit_top - wide_scrape_digit_top == 3);
+}
+
+// A scrape's tail is a PLAIN ribbon and every turnaround wears the note's own head.
+//
+// The teeth mean repeated attacks, so only tremolo wears them: a scrape is one continuous drag and
+// the rules forbid tremolo picking it outright, so teeth there would assert a repetition it never
+// performs. The division across the whole tail axis is that the head says what kind of attack and
+// the tail says what happens over time, which leaves the scrape's noise to its plectrum head and
+// its travel to the slide diagonals. Each turnaround then repeats that head, so a change of
+// direction reads as one gesture continuing rather than a chain of disconnected diagonals — and it
+// is where the traveled fret is stated. The unpitched terminal is not a turnaround and gets no
+// head: nothing continues past it.
+TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::Rectangle<int> bounds{0, 0, 400, 240};
+    const common::core::TimeRange visible_timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+
+    // One sustained note on string 3, painted twice: as a scrape with two turnarounds and an
+    // unpitched terminal, and as a plain tremolo of the same span. 20 px per second puts the onset
+    // at x = 80, the turnarounds at 120 and 200, and the terminal at 240.
+    const auto paint = [&](const bool scrape) {
+        common::core::TabViewState state;
+        state.string_count = 6;
+        common::core::TabNoteView note{
+            .start_seconds = 4.0,
+            .end_seconds = 12.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        };
+        if (scrape)
+        {
+            note.attack = common::core::NoteAttack::PickSlide;
+            note.slides = {
+                common::core::TabSlideView{.seconds = 6.0, .fret = 9, .unpitched = true},
+                common::core::TabSlideView{.seconds = 10.0, .fret = 3, .unpitched = true},
+                common::core::TabSlideView{
+                    .seconds = 12.0, .fret = 12, .unpitched = true, .linked = false
+                },
+            };
+        }
+        else
+        {
+            note.tremolo = true;
+        }
+        state.notes = {note};
+
+        const TabLaneMetrics metrics = makeTabLaneMetrics(
+            bounds,
+            visible_timeline,
+            tabDisplayedStringCount(state.string_count, 0),
+            state.string_count);
+        REQUIRE(metrics.draw_text);
+        juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state, tabPrefixMaxEndSeconds(state.notes));
+        return image;
+    };
+
+    const juce::Image scraped = paint(true);
+    const juce::Image tremoloed = paint(false);
+
+    constexpr int lane_y = 140; // string 3 of six in 240 px
+    // Columns well inside the tail and clear of every head: the onset and turnaround heads are 26 px
+    // wide, so they reach 133 and 187 at the most.
+    constexpr std::array<int, 4> open_columns{150, 160, 170, 180};
+
+    // Topmost inked row of the tail in a column, which is the band's upper edge there.
+    const auto top_row = [&lane_y](const juce::Image& image, const int x) {
+        for (int y = lane_y - 20; y <= lane_y + 20; ++y)
+        {
+            if (image.getPixelAt(x, y).getAlpha() != 0)
+            {
+                return y;
+            }
+        }
+        return 0;
+    };
+
+    // A PLAIN RIBBON HAS A STRAIGHT EDGE. The scrape's upper edge sits on the same row in every
+    // sampled column; the tremolo band swings its whole strip, so its edge moves between them.
+    // Both are drawn, so neither reading comes from an empty lane.
+    int scrape_low = 999;
+    int scrape_high = 0;
+    int tremolo_low = 999;
+    int tremolo_high = 0;
+    for (const int x : open_columns)
+    {
+        scrape_low = std::min(scrape_low, top_row(scraped, x));
+        scrape_high = std::max(scrape_high, top_row(scraped, x));
+        tremolo_low = std::min(tremolo_low, top_row(tremoloed, x));
+        tremolo_high = std::max(tremolo_high, top_row(tremoloed, x));
+    }
+    CHECK(scrape_high > 0);
+    CHECK(scrape_high == scrape_low);
+    CHECK(tremolo_high - tremolo_low >= 2);
+    // And the ribbon stays inside the band the teeth swing through, so the plain tail is the
+    // toothed one's core rather than a differently sized shape.
+    CHECK(scrape_low >= tremolo_low);
+
+    // A TURNAROUND WEARS THE NOTE'S OWN HEAD, row for row. A head is taller than the ribbon, so the
+    // rows BELOW the ribbon hold nothing but head, which isolates the silhouette from the ribbon the
+    // columns share. Measured against the onset's own head rather than re-deriving the plectrum's
+    // shape: the scrape-head case above already pins that shape, and the ruling here is precisely
+    // that a junction repeats it.
+    int ribbon_bottom = 0;
+    for (int y = lane_y + 20; y >= lane_y - 20; --y)
+    {
+        if (scraped.getPixelAt(160, y).getAlpha() != 0)
+        {
+            ribbon_bottom = y;
+            break;
+        }
+    }
+    REQUIRE(ribbon_bottom > lane_y);
+    const auto below_ribbon_profile = [&](const int center_x) {
+        std::vector<double> rows;
+        for (int y = ribbon_bottom + 1; y <= lane_y + 20; ++y)
+        {
+            rows.push_back(rowCoverage(scraped, y, center_x - 15, center_x + 15));
+        }
+        return rows;
+    };
+    const std::vector<double> onset_profile = below_ribbon_profile(80);
+    double onset_ink = 0.0;
+    for (const double row : onset_profile)
+    {
+        onset_ink += row;
+    }
+    CHECK(onset_ink > 10.0);
+    for (const int turnaround_x : {120, 200})
+    {
+        const std::vector<double> profile = below_ribbon_profile(turnaround_x);
+        double worst = 0.0;
+        for (std::size_t row = 0; row < profile.size(); ++row)
+        {
+            worst = std::max(worst, std::abs(profile[row] - onset_profile[row]));
+        }
+        CHECK(worst < 1.0);
+        // And each states its own traveled fret, in the head's own raised digit position.
+        CHECK(topDigitInkRow(scraped, turnaround_x, lane_y) > 0);
+    }
+
+    // THE TERMINAL IS NOT A TURNAROUND. Nothing continues past an unpitched release, so it draws no
+    // head — only the chip naming where the string was let go — and the rows below the ribbon that
+    // every turnaround fills stay empty at its column.
+    int terminal_pixels = 0;
+    for (int y = ribbon_bottom + 1; y <= lane_y + 20; ++y)
+    {
+        for (int x = 240 - 15; x <= 240 + 15; ++x)
+        {
+            terminal_pixels += scraped.getPixelAt(x, y).getAlpha() != 0 ? 1 : 0;
+        }
+    }
+    CHECK(terminal_pixels == 0);
 }
 
 // The capo chip is the lane's only capo indication (absolute frets say nothing about the string
