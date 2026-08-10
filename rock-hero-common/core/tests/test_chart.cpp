@@ -164,6 +164,18 @@ namespace
     return chart;
 }
 
+// Classifies ONE shape through the batch rule, by giving the chart that single span. The rule reads
+// `chart.shapes` because it resolves every span in one forward pass; the cases below vary the notes
+// against a fixed span, so each asks about a chart holding just that span.
+[[nodiscard]] bool arrivesAsArpeggio(
+    Chart chart, const ChartShape& shape, const TempoMap& tempo_map)
+{
+    chart.shapes = {shape};
+    const std::vector<bool> arrivals = chartShapeArrivals(chart, tempo_map);
+    REQUIRE(arrivals.size() == 1);
+    return arrivals.front();
+}
+
 } // namespace
 
 TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
@@ -1080,7 +1092,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     };
 
     // String 2's fret 6 is posture, un-restruck, and still ringing at the strum: arpeggio.
-    CHECK(chartShapeArrivesAsArpeggio(chart, strum_under_ring, tempo_map));
+    CHECK(arrivesAsArpeggio(chart, strum_under_ring, tempo_map));
 
     // A single onset at the span start is sequential arrival: arpeggio regardless of ringing.
     const ChartShape sequential{
@@ -1088,12 +1100,12 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
         .sustain = Fraction{1},
         .chord = 0,
     };
-    CHECK(chartShapeArrivesAsArpeggio(chart, sequential, tempo_map));
+    CHECK(arrivesAsArpeggio(chart, sequential, tempo_map));
 
     // With the ring ended before the strum, the posture string is merely silent — a partial
     // strum of the shape keeps the chord box.
     chart.notes[0].sustain = Fraction{1, 2};
-    CHECK_FALSE(chartShapeArrivesAsArpeggio(chart, strum_under_ring, tempo_map));
+    CHECK_FALSE(arrivesAsArpeggio(chart, strum_under_ring, tempo_map));
 
     // A tapped note sounding within the span turns that box into a held arpeggio: the fretting
     // hand holds the shape while the right hand taps above it (held-chord-under-tap).
@@ -1107,7 +1119,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .bend = {},
             .slides = {},
         });
-    CHECK(chartShapeArrivesAsArpeggio(tapped_over_hold, strum_under_ring, tempo_map));
+    CHECK(arrivesAsArpeggio(tapped_over_hold, strum_under_ring, tempo_map));
 
     // A pick slide inside the span flips the box exactly like a tap: both are right-hand
     // onsets sounding over the held shape.
@@ -1123,7 +1135,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .slides = {},
             .slide_out = SlideOut{.offset = Fraction{1, 4}, .fret = 3},
         });
-    CHECK(chartShapeArrivesAsArpeggio(scraped_over_hold, strum_under_ring, tempo_map));
+    CHECK(arrivesAsArpeggio(scraped_over_hold, strum_under_ring, tempo_map));
 
     // A tap OUTSIDE the span (after it ends) leaves the box a box.
     Chart tapped_after = chart;
@@ -1136,7 +1148,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .bend = {},
             .slides = {},
         });
-    CHECK_FALSE(chartShapeArrivesAsArpeggio(tapped_after, strum_under_ring, tempo_map));
+    CHECK_FALSE(arrivesAsArpeggio(tapped_after, strum_under_ring, tempo_map));
 
     // A ringing note on a string outside the posture never flips the box: sustained content
     // under an unrelated chord is ordinary.
@@ -1145,7 +1157,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     no_ring_string.templates[0].frets = {
         3, std::nullopt, 8, std::nullopt, std::nullopt, std::nullopt
     };
-    CHECK_FALSE(chartShapeArrivesAsArpeggio(no_ring_string, strum_under_ring, tempo_map));
+    CHECK_FALSE(arrivesAsArpeggio(no_ring_string, strum_under_ring, tempo_map));
 
     // A ring from an earlier chord member is still a ring: the re-strum picks around the held
     // string, so it is an arpeggio too (a tied passage with a hand move splits into two
@@ -1160,7 +1172,7 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
             .bend = {},
             .slides = {},
         });
-    CHECK(chartShapeArrivesAsArpeggio(chord_sourced_ring, strum_under_ring, tempo_map));
+    CHECK(arrivesAsArpeggio(chord_sourced_ring, strum_under_ring, tempo_map));
 }
 
 } // namespace rock_hero::common::core

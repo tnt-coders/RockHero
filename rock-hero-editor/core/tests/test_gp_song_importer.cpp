@@ -857,13 +857,13 @@ TEST_CASE(
     CHECK(
         chart.templates[chart.shapes[0].chord].frets ==
         std::vector<std::optional<int>>{3, 6, 8, std::nullopt, std::nullopt, std::nullopt});
-    CHECK(common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[0], song->tempo_map));
+    CHECK(common::core::chartShapeArrivals(chart, song->tempo_map)[0]);
     CHECK(chart.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
     REQUIRE(chart.shapes[1].chord < chart.templates.size());
     CHECK(
         chart.templates[chart.shapes[1].chord].frets ==
         std::vector<std::optional<int>>{3, 2, 4, std::nullopt, std::nullopt, std::nullopt});
-    CHECK(common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[1], song->tempo_map));
+    CHECK(common::core::chartShapeArrivals(chart, song->tempo_map)[1]);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -2691,7 +2691,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         REQUIRE(chart.shapes.size() == 1);
         CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(chart.shapes[0].sustain == Fraction{2});
-        CHECK(common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[0], built->tempo_map));
+        CHECK(common::core::chartShapeArrivals(chart, built->tempo_map)[0]);
     }
 
     SECTION("a short-ringing chord's span still ends before the taps")
@@ -2703,8 +2703,7 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         // notated duration, the taps land outside it, and the box stays a strummed box.
         REQUIRE(chart.shapes.size() == 1);
         CHECK(chart.shapes[0].sustain == Fraction{1});
-        CHECK_FALSE(
-            common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[0], built->tempo_map));
+        CHECK_FALSE(common::core::chartShapeArrivals(chart, built->tempo_map)[0]);
     }
 
     SECTION("a left-hand note under simultaneous right-hand taps derives no chord")

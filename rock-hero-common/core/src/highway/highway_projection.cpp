@@ -184,6 +184,9 @@ HighwayViewState makeHighwayViewState(
     state.tap_onsets = makeHighwayTapOnsets(state.notes, tap_rise_seconds);
 
     state.shapes.reserve(chart.shapes.size());
+    // The shared arrival rule, answered for every span in one pass.
+    const std::vector<bool> arrivals = chartShapeArrivals(chart, tempo_map);
+    std::size_t shape_index = 0;
     for (const ChartShape& shape : chart.shapes)
     {
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
@@ -221,11 +224,12 @@ HighwayViewState makeHighwayViewState(
                 .end_seconds =
                     tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
                 .name = std::move(name),
-                // The shared arrival rule: a strummed chord is a box; sequential arrival, or a
-                // posture string ringing through the start un-restruck, renders arpeggio-style.
-                .arpeggio = chartShapeArrivesAsArpeggio(chart, shape, tempo_map),
+                // A strummed chord is a box; sequential arrival, or a posture string ringing
+                // through the start un-restruck, renders arpeggio-style.
+                .arpeggio = arrivals[shape_index],
                 .strings = std::move(strings),
             });
+        ++shape_index;
     }
 
     // Every placement gets an eased approach ramp (fhp-window-motion plan): a slide-matched

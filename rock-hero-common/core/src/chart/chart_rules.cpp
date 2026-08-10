@@ -34,86 +34,90 @@ bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map
            position.offset.numerator >= 0 && position.offset < Fraction{1};
 }
 
-bool chartShapeArrivesAsArpeggio(
-    const Chart& chart, const ChartShape& shape, const TempoMap& tempo_map)
+std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_map)
 {
-    // Chart notes are sorted, so the onsets at the span start are contiguous.
-    const auto first_at_start = std::ranges::lower_bound(
-        chart.notes, shape.position, std::ranges::less{}, &ChartNote::position);
-    std::size_t simultaneous = 0;
-    for (auto it = first_at_start; it != chart.notes.end() && it->position == shape.position; ++it)
+    std::vector<bool> arpeggio;
+    arpeggio.reserve(chart.shapes.size());
+    // Both streams ascend, so one note cursor serves every shape. It carries the one thing the rule
+    // needs from the past — the most recent note on each string — which is what turns the whole
+    // classification into a single forward pass. Answering it per shape instead meant walking BACK
+    // through the note stream from each span, all the way to the first note whenever a posture
+    // string had none, and both projections do this for every shape on every chart revision.
+    constexpr std::size_t no_note = std::numeric_limits<std::size_t>::max();
+    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
+    last_per_string.fill(no_note);
+    std::size_t next_note = 0;
+    for (const ChartShape& shape : chart.shapes)
     {
-        ++simultaneous;
-    }
-    if (simultaneous < 2)
-    {
-        return true;
-    }
-    // A held chord played under a right-hand onset reads as a held arpeggio, not a strummed
-    // box: the fretting hand holds the shape while the other hand sounds above it — taps and
-    // pick slides alike. Any such note sounding within the span flips the box.
-    //
-    // The scan rides the binary search above rather than restarting at begin(): the notes it
-    // wants are the contiguous sorted run [shape.position, span_end), which is exactly what
-    // `first_at_start` already resolved. Both projections call this once per shape and both
-    // rebuild on every chart revision, so the discarded prefix was shapes x notes of wasted
-    // walking on every keystroke of an edit.
-    const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
-    for (auto it = first_at_start; it != chart.notes.end() && it->position < span_end; ++it)
-    {
-        if (rightHandOnset(it->attack))
+        while (next_note < chart.notes.size() && chart.notes[next_note].position < shape.position)
         {
-            return true;
+            const int string = chart.notes[next_note].string;
+            if (string >= 1 && string <= g_max_chart_strings)
+            {
+                last_per_string.at(static_cast<std::size_t>(string)) = next_note;
+            }
+            ++next_note;
         }
-    }
-    if (shape.chord >= chart.templates.size())
-    {
-        return false;
-    }
-    // A posture string still ringing at the start without an onset there was not re-struck —
-    // the strum picks around the held note, so the span cannot be one full strum. The backward
-    // scan resolves each such string to its most recent earlier note (the only one that can
-    // still be ringing) and stops once every candidate string is settled.
-    const ChordTemplate& chord_template = chart.templates[shape.chord];
-    std::vector<bool> pending(chord_template.frets.size(), false);
-    std::size_t pending_count = 0;
-    for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& fret = chord_template.frets[index];
-        if (!fret.has_value())
+        // The cursor now sits on the first note AT the span start, and the notes sharing that onset
+        // are the contiguous run from there.
+        std::size_t after_start = next_note;
+        while (after_start < chart.notes.size() &&
+               chart.notes[after_start].position == shape.position)
         {
+            ++after_start;
+        }
+        if (after_start - next_note < 2)
+        {
+            // A single onset at the span start is a sequential arrival, whatever else is ringing.
+            arpeggio.push_back(true);
             continue;
         }
-        const int string = static_cast<int>(index) + 1;
-        bool struck = false;
-        for (auto it = first_at_start; it != chart.notes.end() && it->position == shape.position;
-             ++it)
+
+        // A held chord played under a right-hand onset reads as a held arpeggio, not a strummed
+        // box: the fretting hand holds the shape while the other hand sounds above it — taps and
+        // pick slides alike. Any such note sounding within the span flips the box.
+        const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
+        bool held_under_right_hand = false;
+        for (std::size_t scan = next_note;
+             scan < chart.notes.size() && chart.notes[scan].position < span_end;
+             ++scan)
         {
-            struck = struck || it->string == string;
+            held_under_right_hand =
+                held_under_right_hand || rightHandOnset(chart.notes[scan].attack);
         }
-        if (!struck)
+        if (held_under_right_hand || shape.chord >= chart.templates.size())
         {
-            pending[index] = true;
-            ++pending_count;
-        }
-    }
-    for (auto it = first_at_start; pending_count > 0 && it != chart.notes.begin();)
-    {
-        --it;
-        const auto index = static_cast<std::size_t>(it->string - 1);
-        if (index >= pending.size() || !pending[index])
-        {
+            arpeggio.push_back(held_under_right_hand);
             continue;
         }
-        pending[index] = false;
-        --pending_count;
-        if (shape.position < sustainEndPosition(tempo_map, *it))
+
+        // A posture string still ringing at the start without an onset there was not re-struck —
+        // the strum picks around the held note, so the span cannot be one full strum. Only that
+        // string's most recent earlier note can still be ringing, which the cursor already knows.
+        const ChordTemplate& chord_template = chart.templates[shape.chord];
+        bool rings_unstruck = false;
+        for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
         {
-            return true;
+            // Bound to a local so the optional check and the access are provably the same object.
+            const std::optional<int>& fret = chord_template.frets[index];
+            const int string = static_cast<int>(index) + 1;
+            if (!fret.has_value() || string > g_max_chart_strings)
+            {
+                continue;
+            }
+            bool struck = false;
+            for (std::size_t scan = next_note; scan < after_start; ++scan)
+            {
+                struck = struck || chart.notes[scan].string == string;
+            }
+            const std::size_t earlier = last_per_string.at(static_cast<std::size_t>(string));
+            rings_unstruck = rings_unstruck ||
+                             (!struck && earlier != no_note &&
+                              shape.position < sustainEndPosition(tempo_map, chart.notes[earlier]));
         }
+        arpeggio.push_back(rings_unstruck);
     }
-    return false;
+    return arpeggio;
 }
 
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)

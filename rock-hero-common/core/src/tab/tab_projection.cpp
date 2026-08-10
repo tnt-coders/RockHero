@@ -95,8 +95,11 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
     }
 
     state.shapes.reserve(chart.shapes.size());
-    for (const ChartShape& shape : chart.shapes)
+    // The shared arrival rule, answered for every span in one pass.
+    const std::vector<bool> arrivals = chartShapeArrivals(chart, tempo_map);
+    for (std::size_t shape_index = 0; shape_index < chart.shapes.size(); ++shape_index)
     {
+        const ChartShape& shape = chart.shapes[shape_index];
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
         // Chart notes are sorted, so the onsets at the span start are contiguous (used for the
         // per-string sounded flags below).
@@ -105,9 +108,9 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
 
         std::string name = shape.chord < chart.templates.size() ? chart.templates[shape.chord].name
                                                                 : std::string{};
-        // The shared arrival rule: a strummed chord is a box; sequential arrival, or a posture
-        // string ringing through the start un-restruck, renders as arpeggio brackets.
-        const bool arpeggio = chartShapeArrivesAsArpeggio(chart, shape, tempo_map);
+        // A strummed chord is a box; sequential arrival, or a posture string ringing through the
+        // start un-restruck, renders as arpeggio brackets.
+        const bool arpeggio = arrivals[shape_index];
 
         // An arpeggio bracket start marks the whole held posture: every template string, each
         // flagged by whether a chart note actually sounds there at the start. Template array

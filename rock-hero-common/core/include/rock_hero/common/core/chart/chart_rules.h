@@ -134,24 +134,28 @@ cannot drift between chart and song documents.
 [[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map);
 
 /*!
-\brief Reports whether a shape span arrives as an arpeggio rather than a strummed chord box.
+\brief Classifies every shape span as an arpeggio or a strummed chord box.
 
 The arrival rule shared by the highway and tab projections: a span is an arpeggio when fewer
 than two notes strike at its start, when a posture string is still ringing there without being
 re-struck (an earlier note's sustain crosses the span start on a template string with no onset
-at it), or when a tapped note sounds anywhere within the span — a strum under held content is
-picking around it, and a held chord under two-hand tapping is sustained through the taps, not a
-full strum, so the shape renders as brackets around individual notes rather than one strummed
-box. A posture string that is merely silent at the start (a partial strum of the shape) does not
-make an arpeggio.
+at it), or when a picking-hand onset — a tap or a pick slide — sounds anywhere within the span. A
+strum under held content is picking around it, and a held chord under two-hand tapping is sustained
+through the taps rather than fully strummed, so the shape renders as brackets around individual
+notes instead of one strummed box. A posture string that is merely silent at the start (a partial
+strum of the shape) does not make an arpeggio.
 
-\param chart Chart holding the sorted note stream and template table.
-\param shape Shape span to classify.
+Answers all the shapes at once because the rule needs to look BACKWARD — to each posture string's
+most recent earlier note — and one forward cursor over the sorted notes carries exactly that, for
+every span, in a single pass. Asked one span at a time it instead walked back from each span, as far
+as the first note in the song whenever a posture string had none, which both projections then paid
+for every shape on every chart revision.
+
+\param chart Chart holding the sorted note stream, shape spans, and template table.
 \param tempo_map Song tempo map, for signature-exact sustain-crossing checks.
-\return True when the span renders arpeggio-style.
+\return One flag per shape, in `chart.shapes` order: true where the span renders arpeggio-style.
 */
-[[nodiscard]] bool chartShapeArrivesAsArpeggio(
-    const Chart& chart, const ChartShape& shape, const TempoMap& tempo_map);
+[[nodiscard]] std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_map);
 
 /*!
 \brief The note with every technique it cannot execute stripped off.
