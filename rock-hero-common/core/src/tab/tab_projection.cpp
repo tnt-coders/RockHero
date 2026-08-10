@@ -27,13 +27,14 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
     // plain resolver instead of a second cursor.
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
     state.notes.reserve(chart.notes.size());
-    for (const ChartNote& note : chart.notes)
+    for (const ChartNote& in_memory_note : chart.notes)
     {
-        const double onset_beat = globalBeatPosition(tempo_map, note.position);
-        // A pick slide overrides its other techniques in memory (chart.h): the projection is
-        // the one seam that suppresses the latents. Its path renders unpitched, and its
-        // turnarounds ARE linked continuations — the pick never leaves the string at a
-        // direction change, so each junction carries a head like any linked slide.
+        const double onset_beat = globalBeatPosition(tempo_map, in_memory_note.position);
+        // A pick slide overrides its other techniques in memory (chart.h) and the display must
+        // show the scrape without them — which is exactly the SAVED form, so the projection
+        // reads savedChartNote rather than restating which fields a scrape suppresses. Stating
+        // that list twice is how the lane and the document drift apart.
+        const ChartNote note = savedChartNote(in_memory_note);
         const bool scrape = note.attack == NoteAttack::PickSlide;
         TabNoteView view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
@@ -44,23 +45,20 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
-        view.mute = scrape ? NoteMute::None : note.mute;
-        view.harmonic_node = scrape ? std::optional<double>{} : note.harmonic_node;
-        view.vibrato = !scrape && note.vibrato;
-        view.tremolo = !scrape && note.tremolo;
+        view.mute = note.mute;
+        view.harmonic_node = note.harmonic_node;
+        view.vibrato = note.vibrato;
+        view.tremolo = note.tremolo;
         view.accent = note.accent;
-        if (!scrape)
+        view.bend.reserve(note.bend.size());
+        for (const BendPoint& point : note.bend)
         {
-            view.bend.reserve(note.bend.size());
-            for (const BendPoint& point : note.bend)
-            {
-                view.bend.push_back(
-                    TabBendPointView{
-                        .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                            onset_beat + point.offset.toDouble()),
-                        .semitones = point.semitones,
-                    });
-            }
+            view.bend.push_back(
+                TabBendPointView{
+                    .seconds =
+                        tempo_map.secondsAtGlobalBeatPosition(onset_beat + point.offset.toDouble()),
+                    .semitones = point.semitones,
+                });
         }
         // A waypoint strictly inside the sustain is a legato junction or hold — the same note
         // continues, so it draws the linked continuation head, in the note's own head shape.

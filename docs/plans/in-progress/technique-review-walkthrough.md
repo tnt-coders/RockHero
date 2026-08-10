@@ -18,8 +18,11 @@ item ships, mark it and name the commit.
 
 - [x] **W1 — Span-blind hold rule** (defect in D13's implementation). SHIPPED `4f1e793c`:
   `chartEffectiveSustains` resolves span-extended held lengths; three call sites pass shapes.
-  **Reopened in part by D16 below** — its all-muted carve-out is a display rule that should not
-  bind validation.
+  **Its all-muted carve-out is CORRECT and stays** — an earlier note here called it a display
+  rule leaking into validation and proposed splitting sounding-hold from fretted-hold; D16's
+  signed E25 retracts that, because once a plain muted note cannot carry a tail at all, "a dead
+  chug is not held" is a physical statement and not merely a display one. One hold concept, both
+  readers. Do not implement the split.
 - [x] **W2 — Two-digit fret entry on a legato predecessor** (defect in D12's settle hack).
   SHIPPED `d0b1d32b`: the entry carries its applied plan and the widen reverses it to
   reconstruct pre-entry exactly; the selection-follow rule no longer adopts repaired notes.
@@ -474,10 +477,10 @@ item ships, mark it and name the commit.
     untouched. The bite is exactly: a sustainless fully-muted strum under a span, pulled off from
     across the bound — refused today though the span says the shape is held. E24 is not reversed
     in general; one path contradicts it.
-  - **Recommended fix (the narrow half):** name the two questions separately — a SOUNDING hold
-    for display (keeps the all-muted carve-out) and a FRETTED hold for validation (span extension
-    regardless of mute), each documented as to why it differs, so the divergence is deliberate
-    rather than an accident waiting to be "unified" by a later reader.
+  - ~~**Recommended fix (the narrow half):** name the two questions separately — a SOUNDING hold
+    for display and a FRETTED hold for validation.~~ **RETRACTED by the rule set below** — E25
+    makes the existing single hold concept correct, so this split would add a concept to solve a
+    problem that no longer exists. Kept only so the reasoning trail is legible; do not build it.
   - **The wider question the user raised, for the ruling:** should a fully muted note carry a tail
     at all? It does not ring, yet today a muted note with a sustain draws an ordinary sustain
     ribbon in 2D (`drawNoteTail` never consults `mute`), which reads as ringing. Options: (a)
@@ -551,6 +554,41 @@ item ships, mark it and name the commit.
     mentions "the tremolo strip (which a scrape otherwise rides)". No data, format, or import
     change. Nothing else changes: a pitched note slid without tremolo already draws smooth, and
     with tremolo already draws teeth.
+  - **SHIPPED `0cebd5cf`, and MEASURED.** A render pass at the editor's true default zoom
+    (316 px/s — note that the test-suite geometry of 20 px/s is 15.8x zoomed out and flatters the
+    change) found: with waypoint times matched, the new scrape tail is **byte-identical** to an
+    ordinary pitched slide chain (0 differing pixels), so the tail now carries no scrape identity
+    at all. What carries it is the head band: of 3024 differing pixels, 1191 sit in the head and
+    the strip above the line — the plectrum silhouette (508), the `PS` plate (135), and the boxed
+    unpitched fret chips (396), against a pitched slide's round linked heads ON the line. The
+    silhouette ALONE (24 px wide against the disc's 26, same height) is not enough; the plate is
+    what makes it plain at 1x. The real cost is salience, not identification: the identity is
+    ~12% of the note's ink packed into the first 40 px of a 632 px object, so where the old
+    serration was a full-length signal the new look is a point signal. **If scannability ever
+    complains, the lever is the unpitched diagonal's own treatment** (broken rather than solid) —
+    the one tail element a scrape does not share in kind with the pitched case — NOT a return to
+    the teeth, which would resume asserting a repetition that never happens.
+
+- [x] **D18 — A scrape's junctions carry continuation heads (user direction 2026-08-09; SHIPPED
+  `9b2c9dd0`).** With the teeth gone, a multi-leg scrape read as disconnected diagonals: each
+  turnaround was a bare kink in a white line although the pick never leaves the string. The user
+  asked for junction heads "just like a regular slide would", carrying the pick shape.
+  - **The fix was a deletion, not an addition.** `tab_projection.cpp` had been marking a scrape's
+    turnarounds `linked = false`, but `linked` means "the same note continues through here",
+    which is simply TRUE for a scrape — being unpitched had been conflated with not continuing.
+    The condition is now the `offset < sustain` test alone, and the painter already knew what to
+    do with a linked waypoint.
+  - **Three consequences, all falling out rather than being built:** the junction draws in the
+    note's OWN head shape via `headShapeFor` (so a scrape junction is a plectrum); it carries the
+    traveled fret at the shared `g_plectrum_digit_raise`, which moved up beside the head-shape
+    helpers so the onset and junction digits cannot sit at different heights; and a junction that
+    carries a head no longer ALSO gets the floating chip (the same number twice), which should
+    also relieve the three-chip collision the render pass found at wide zoom.
+  - **The terminal deliberately keeps its chip and gets no head:** that is where the pick leaves
+    the string, and nothing lands there — the same reading a pitched trail-off already has.
+  - **No 3D change:** the highway sweeps its ribbon continuously, so it has no junction
+    discontinuity to answer, and `linked` is read by the tab painter alone. Per-surface idiom for
+    one fact, not divergence.
 
 ## Recorded, no decision needed
 

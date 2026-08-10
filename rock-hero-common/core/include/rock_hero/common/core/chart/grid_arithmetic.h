@@ -56,14 +56,21 @@ inline constexpr Fraction g_minimum_kept_sustain_beats{1};
 /*!
 \brief Resolves each note's effective held length: its sustain, span-extended for chord strums.
 
-The chart convention the hold test must judge against, and the exact musical twin of the
-display's `highwayDisplayHoldEnds`: a strum under a hand-shape span is held for the whole span
-even when its notes carry no sustain, because the span is what tells the player how long to keep
-the shape fretted. Each SUSTAINLESS note in a same-onset group of two or more covered by a span
-therefore holds to the span's end. Groups whose notes are all fully muted stay unextended (a
-dead chug is choked, not held), as do single notes and notes carrying an explicit sustain, whose
-tails already state their hold. Coverage is positional only, with no posture matching — the two
-readers stay in lockstep by mirroring that rule exactly rather than restating it.
+The chart convention the hold test must judge against, and the musical twin of the display's
+`highwayDisplayHoldEnds`: a strum under a hand-shape span is held for the whole span even when
+its notes carry no sustain, because the span is what tells the player how long to keep the shape
+fretted. Each SUSTAINLESS note in a same-onset group of two or more covered by a span therefore
+holds to the span's end. Groups whose notes are all fully muted stay unextended (a dead chug is
+choked, not held), as do single notes and notes carrying an explicit sustain, whose tails already
+state their hold. Coverage is positional only, with no posture matching.
+
+The two readers deliberately differ in ONE respect, and only because each uses the sharpest tool
+its domain offers: simultaneity here is exact `GridPosition` equality, while the display compares
+resolved seconds against an epsilon. Exact positions always resolve to equal seconds, so this
+grouping is a subset of the display's; the display can additionally group two notes at DISTINCT
+musical positions that land within its epsilon (a grace-shifted pair, say), and there it will
+draw a held bar this function does not credit. The chart side is the stricter and more literal
+of the two, which is the right way round for a rule that refuses user edits.
 
 \param notes Note stream sorted by (position, string).
 \param shapes Hand-posture spans sorted by position.

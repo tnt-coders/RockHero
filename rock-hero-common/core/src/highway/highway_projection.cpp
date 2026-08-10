@@ -77,13 +77,16 @@ HighwayViewState makeHighwayViewState(
     };
     std::map<GridPosition, SlideRamp> slide_ramp_starts;
     state.notes.reserve(chart.notes.size());
-    for (const ChartNote& note : chart.notes)
+    for (const ChartNote& in_memory_note : chart.notes)
     {
-        const double onset_beat = globalBeatPosition(tempo_map, note.position);
-        // A pick slide overrides its other techniques in memory (chart.h): the projection is
-        // the one seam that suppresses the latents. Its path renders through the unpitched
-        // machinery — dimmed glide, no waypoint furniture, no hand-window contribution — and
-        // never feeds the slide-locked placement ramps.
+        const double onset_beat = globalBeatPosition(tempo_map, in_memory_note.position);
+        // A pick slide overrides its other techniques in memory (chart.h) and the display must
+        // show the scrape without them — which is exactly the SAVED form, so the projection
+        // reads savedChartNote rather than restating which fields a scrape suppresses. Stating
+        // that list twice is how the board and the document drift apart. What stays local is how
+        // the path RENDERS: through the unpitched machinery (dimmed glide, no waypoint
+        // furniture, no hand-window contribution) and never feeding the slide-locked ramps.
+        const ChartNote note = savedChartNote(in_memory_note);
         const bool scrape = note.attack == NoteAttack::PickSlide;
         HighwayNoteView view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
@@ -94,23 +97,20 @@ HighwayViewState makeHighwayViewState(
         view.string = note.string + displayed_lane_shift;
         view.fret = note.fret;
         view.attack = note.attack;
-        view.mute = scrape ? NoteMute::None : note.mute;
-        view.harmonic_node = scrape ? std::optional<double>{} : note.harmonic_node;
-        view.vibrato = !scrape && note.vibrato;
-        view.tremolo = !scrape && note.tremolo;
+        view.mute = note.mute;
+        view.harmonic_node = note.harmonic_node;
+        view.vibrato = note.vibrato;
+        view.tremolo = note.tremolo;
         view.accent = note.accent;
-        if (!scrape)
+        view.bend.reserve(note.bend.size());
+        for (const BendPoint& point : note.bend)
         {
-            view.bend.reserve(note.bend.size());
-            for (const BendPoint& point : note.bend)
-            {
-                view.bend.push_back(
-                    HighwayBendPointView{
-                        .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                            onset_beat + point.offset.toDouble()),
-                        .semitones = point.semitones,
-                    });
-            }
+            view.bend.push_back(
+                HighwayBendPointView{
+                    .seconds =
+                        tempo_map.secondsAtGlobalBeatPosition(onset_beat + point.offset.toDouble()),
+                    .semitones = point.semitones,
+                });
         }
         view.slides.reserve(note.slides.size() + 1);
         double glide_segment_start_seconds = view.start_seconds;

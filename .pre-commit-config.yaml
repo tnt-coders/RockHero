@@ -8,6 +8,13 @@ repos:
     rev: v22.1.2
     hooks:
       - id: clang-format
+        # The upstream hook claims javascript and json alongside the C family
+        # (types_or: [c++, c, c#, cuda, java, javascript, json, objective-c, proto, ...]), and
+        # clang-format does not merely restyle JavaScript — it reformats it with C++ rules and
+        # joins statements, which left .claude/workflows/rockhero-deep-review.js syntactically
+        # INVALID (`const x = [] for (...)`) and silently broken. This project formats only C and
+        # C++ with clang-format, so it should claim only those.
+        types_or: [c, c++]
   - repo: local
     hooks:
       - id: verify-project-conventions

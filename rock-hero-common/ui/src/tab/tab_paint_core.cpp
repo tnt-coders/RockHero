@@ -1376,6 +1376,13 @@ void paintTabLane(
         draw_chips(bend_chips, metrics.bend_font, 2.0f);
     }
 
+    // The capo chip shares the lane's top-left band with the fret-hand markers, and a placement
+    // at the very start of the visible window lands under it. The chip goes down FIRST so the
+    // marker wins that overlap: the capo is static information the reader learns once, while the
+    // marker's fret is time-critical and scrolls away. (Both wanting the same corner is noted in
+    // roadmap 25-Q6 for the real capo treatment.)
+    drawCapoChip(g, metrics, tab.capo);
+
     for (const common::core::TabFhpView& fhp : tab.fret_hand_positions)
     {
         if (fhp.seconds >= span_start && fhp.seconds <= span_end)
@@ -1383,8 +1390,6 @@ void paintTabLane(
             drawFhpMarker(g, metrics, fhp);
         }
     }
-
-    drawCapoChip(g, metrics, tab.capo);
 }
 
 } // namespace rock_hero::common::ui

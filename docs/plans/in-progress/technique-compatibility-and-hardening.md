@@ -438,7 +438,9 @@ accent-on-everything, un-deferring the scrape cell), muted legato and the pre-be
 measurement (D9).
 
 Enforcement reality: at the 2026-08-08 review only E1-remnant, E2, E20 and E21 existed in code.
-**The 2026-08-09 enforcement pass (D12) made every E-rule code**: the rules live once in
+**The 2026-08-09 enforcement pass (D12) made every E-rule THEN SIGNED into code** — the one
+exception is **E25**, signed later the same day and NOT yet implemented (it needs the validation
+rule, the import normalization, and the noise-idiom display; tracked as W4). Everything else: the rules live once in
 `validateChartNotes` (`chart_rules.cpp`), every editor planner funnels its candidate through the
 shared `finalizePlan` gate — which validates the SAVED form via `savedChartNote`, the one
 memory-vs-document seam the writer also uses — and import sheds harmonic-impossible techniques

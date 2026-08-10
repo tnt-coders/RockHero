@@ -156,6 +156,11 @@ language on the 3D highway and the 2D tab.
     solid axis, half a pixel right of the cell's middle. The original X-collision objection
     dissolved once the V and the glowing tremolo tail carry the scrape identity over the mute
     reading.
+- **SUPERSEDED 2026-08-09 on the tail treatment — see the entry directly below.** The
+  teeth-as-shared-noise reading recorded here was reversed: the teeth now mean REPEATED ATTACKS
+  and a scrape wears none. Everything else in this bullet (the unpitched-machinery routing, the
+  import rules, the sampling work, the deleted flourishes) still stands, so it is kept intact
+  rather than rewritten.
 - **Settled rendering (both surfaces), simplified 2026-08-04 (user redesign)**: the path
   renders through the unpitched slide machinery (dimmed glide, head rides the path, no board
   furniture, no hand-window contribution — all by the projection marking scrape waypoints
@@ -211,6 +216,25 @@ language on the 3D highway and the 2D tab.
   direction 2026-08-05) — which is hit-moment gameplay feedback, not board notation: probably
   game-only, editor participation undecided, and not wanted now. That idea belongs with plan
   24's hit-feedback territory if it ever graduates.
+- **Tail treatment REVERSED 2026-08-09 (user), and junctions gained heads.** Two changes,
+  recorded fully as D17 and D18 in `docs/plans/in-progress/technique-review-walkthrough.md`:
+  1. **The teeth mean REPEATED ATTACKS, so a scrape wears none** (`0cebd5cf`). It is one
+     continuous drag and E2 forbids it tremolo anyway, so teeth asserted a repetition it never
+     performs; the head band states the unpitched noise instead. Dropped the `|| scrape` disjunct
+     in `tab_paint_core.cpp` `drawNoteTail` and `highway_renderer.cpp`'s `teethed` — both surfaces
+     together. What this BUYS is a distinction the shared notation had spent: a muted tremolo
+     slide (teeth plus diagonal, "noisy travel") now reads apart from a plain muted slide's single
+     drag, which matters because E25 makes every muted tail either travel or repetition.
+     Measured: the new scrape tail is byte-identical to a pitched slide chain's, so identity rests
+     entirely on the head, the `PS` plate, and the above-line chips (~12% of the note's ink). The
+     cost is salience, not identification; the lever if it ever bites is the unpitched diagonal's
+     own treatment, never the teeth.
+  2. **A scrape's turnarounds are LINKED and carry continuation heads in the plectrum shape**
+     (`9b2c9dd0`). Without them each direction change read as a break in a white line. This
+     REPLACES "per-leg chips" for the turnarounds: the junction head carries the traveled fret
+     (at the shared plectrum digit raise), and only the unpitched TERMINAL keeps a chip, because
+     that is where the pick leaves and nothing lands there. `linked` had been false for scrape
+     waypoints, which was simply wrong — the pick never leaves the string at a turnaround.
 - **55-Q2 — authoring.** Mostly dissolved by the note-carried model: scrapes select, move,
   delete, and undo as ordinary notes. Remaining verbs for plan 40 Phase 5's technique surface:
   the attack toggle to/from `PickSlide` (synthesizing the default path on entry, restoring
@@ -219,13 +243,19 @@ language on the 3D highway and the 2D tab.
 
 ## Remaining phases
 
-3. **Projection + 2D tab. FIRST CUT SHIPPED 2026-08-04.** Both projections suppress the latent
-   overrides (the one seam) and mark scrape waypoints unpitched/unlinked — which routes the
-   whole 3D path through the existing unpitched-glide machinery and keeps scrape legs out of
-   the hand window's slide-locked ramps (pinned by test; the scrape drives the Phase 4 moving
-   right-hand light while contributing nothing to the hand window). The tab
-   now draws the 2026-08-04 composite: mute X + plate over the digit, white mute-styled V
-   above the head, white-framed tremolo strip with plain slide diagonals, per-leg chips.
+3. **Projection + 2D tab. FIRST CUT SHIPPED 2026-08-04; tail and junctions revised 2026-08-09.**
+   Both projections suppress the latent overrides — and since 2026-08-09 they do it by calling
+   `savedChartNote` rather than restating the field list, so the document and both surfaces cannot
+   disagree about what a saved scrape is (the rule had been written three times, each site
+   claiming to be "the one seam"). Scrape waypoints are marked unpitched, and their turnarounds
+   are LINKED (revised: they were unlinked, which denied that the pick stays on the string through
+   a direction change). The unpitched marking routes the whole 3D path through the existing
+   unpitched-glide machinery and keeps scrape legs out of the hand window's slide-locked ramps
+   (pinned by test; the scrape drives the Phase 4 moving right-hand light while contributing
+   nothing to the hand window). The tab draws: mute X + plate over the digit, white mute-styled V
+   above the head, a PLAIN ribbon (no teeth — see the reversal above) with slide diagonals
+   carrying the travel, a plectrum continuation head at each turnaround, and a chip only at the
+   unpitched terminal.
    **Exit.** Tab renders a down-then-up chain per the signed head. **Verify.** Build; suites —
    green 2026-08-04.
 4. **Highway treatment. SIGHT ROUNDS 1-2 SHIPPED 2026-08-04** (user directions after the first

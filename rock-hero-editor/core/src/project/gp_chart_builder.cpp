@@ -1589,11 +1589,18 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             // The window can never sit below the capo: its lowest legal anchor is the first
             // fret above it.
             const int lowest_anchor = std::max(capo + 1, event.max_fret - next_width + 1);
+            // The floor wins if it ever crosses the covered extent. std::clamp is UB when its
+            // low bound exceeds its high one, and the capo term makes that reachable in
+            // principle: every guarantee that a covered fret sits above the capo (validation
+            // refusing sub-capo notes, the import shift, E21 putting a node past the stop, the
+            // skips for open strings and scrape travel) is external to this walk, and this walk
+            // runs on untrusted files BEFORE validation.
+            const int highest_anchor = std::max(lowest_anchor, event.min_fret);
             // At a boundary the hand re-places biased to the phrase's floor (the lowest fretted
             // note); otherwise it drags from the current anchor by the slide delta and clamps.
             next_anchor = reanchor
-                              ? std::clamp(event.min_fret, lowest_anchor, event.min_fret)
-                              : std::clamp(anchor + event.shift, lowest_anchor, event.min_fret);
+                              ? std::clamp(event.min_fret, lowest_anchor, highest_anchor)
+                              : std::clamp(anchor + event.shift, lowest_anchor, highest_anchor);
         }
         if (have_anchor && next_anchor == anchor && next_width == width)
         {
