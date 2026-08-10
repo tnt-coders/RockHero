@@ -87,8 +87,10 @@ GridPosition sustainEndPosition(const TempoMap& tempo_map, const ChartNote& note
     return advanceGridPosition(tempo_map, note.position, note.sustain);
 }
 
-// Mirrors highwayDisplayHoldEnds exactly, in beats instead of seconds: only a SUSTAINLESS member
-// of a 2+ onset group under a covering span extends, and never when the whole group is dead.
+// The ONE authority for this rule. The highway used to restate it in seconds and both copies
+// carried the same defect; the projection now resolves this answer instead. Only a SUSTAINLESS
+// member of a 2+ onset group under a covering span extends, and never when the whole group is
+// dead.
 std::vector<Fraction> chartEffectiveSustains(
     const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map)

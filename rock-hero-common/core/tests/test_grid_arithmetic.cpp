@@ -232,4 +232,63 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
     CHECK(held_reversed[0] == Fraction{8});
 }
 
+// The whole case matrix of the span-hold rule, in beats. This lives here rather than beside the
+// highway because the highway used to restate the rule in seconds and both copies carried the same
+// defect; the projection now resolves this answer, so this is the one place the cases are pinned.
+TEST_CASE("Only a sustainless live strum inherits its span's hold", "[core][chart]")
+{
+    const TempoMap map = TempoMap::defaultMap(TimeDuration{32.0});
+    const auto note = [](int measure, int beat, int string, Fraction sustain, NoteMute mute) {
+        return ChartNote{
+            .position = GridPosition{.measure = measure, .beat = beat},
+            .string = string,
+            .fret = 5,
+            .sustain = sustain,
+            .mute = mute,
+            .bend = {},
+            .slides = {},
+        };
+    };
+    // Span A covers global beats 0 through 8; span B covers 12 through 14.
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = GridPosition{.measure = 1, .beat = 1}, .sustain = Fraction{8}},
+        ChartShape{.position = GridPosition{.measure = 4, .beat = 1}, .sustain = Fraction{2}},
+    };
+    const std::vector<ChartNote> notes = {
+        // A sustainless chord exactly ON span A's start is held for the whole span.
+        note(1, 1, 1, Fraction{}, NoteMute::None),
+        note(1, 1, 2, Fraction{}, NoteMute::None),
+        // A LONE note under the span is not a strum, so nothing holds it.
+        note(1, 3, 1, Fraction{}, NoteMute::None),
+        // A mixed chord: the member with a real sustain keeps its own, and only its sustainless
+        // partner inherits the span — the rule never shortens or overrides an authored sustain.
+        note(2, 1, 1, Fraction{1}, NoteMute::None),
+        note(2, 1, 2, Fraction{}, NoteMute::None),
+        // A fully dead chug is choked rather than held, so the span does not reach it.
+        note(2, 3, 1, Fraction{}, NoteMute::Full),
+        note(2, 3, 2, Fraction{}, NoteMute::Full),
+        // The second span holds its own strum, which proves the cursor advances rather than
+        // remembering only the first span it ever saw.
+        note(4, 1, 1, Fraction{}, NoteMute::None),
+        note(4, 1, 2, Fraction{}, NoteMute::None),
+        // Past every span: no cover, no hold.
+        note(5, 1, 1, Fraction{}, NoteMute::None),
+        note(5, 1, 2, Fraction{}, NoteMute::None),
+    };
+
+    const std::vector<Fraction> held = chartEffectiveSustains(notes, shapes, map);
+    REQUIRE(held.size() == notes.size());
+    CHECK(held[0] == Fraction{8});
+    CHECK(held[1] == Fraction{8});
+    CHECK(held[2] == Fraction{});
+    CHECK(held[3] == Fraction{1});
+    CHECK(held[4] == Fraction{4});
+    CHECK(held[5] == Fraction{});
+    CHECK(held[6] == Fraction{});
+    CHECK(held[7] == Fraction{2});
+    CHECK(held[8] == Fraction{2});
+    CHECK(held[9] == Fraction{});
+    CHECK(held[10] == Fraction{});
+}
+
 } // namespace rock_hero::common::core

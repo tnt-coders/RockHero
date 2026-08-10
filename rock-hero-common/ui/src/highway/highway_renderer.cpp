@@ -208,7 +208,7 @@ constexpr double g_flip_flat_lead_seconds = 0.25;
 
 // Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
 // The core constant (see its rationale there) is shared so this file's chord grouping agrees
-// with highwayDisplayHoldEnds, whose span-held notes drive the visible range.
+// with HighwayViewState::display_hold_ends, whose span-held notes drive the visible range.
 constexpr double g_onset_match_epsilon = common::core::g_highway_onset_match_epsilon;
 
 // Open-note bar cross-section (Charter's OpenNoteModel): a thin hexagonal prism spanning the
@@ -1044,9 +1044,6 @@ struct HighwayRenderer::Impl
     std::uint32_t face_index_count{0};
 
     common::core::HighwayViewState state;
-    // Per-note display hold end (the sustain end, span-extended for sustainless strums): feeds
-    // the visibility prefix max and pins chord heads at the hit line through their span.
-    std::vector<double> display_hold_ends;
     std::vector<double> sustain_prefix_max;
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
@@ -1251,9 +1248,8 @@ HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = 
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
 {
     m_impl->state = std::move(state);
-    m_impl->display_hold_ends =
-        common::core::highwayDisplayHoldEnds(m_impl->state.notes, m_impl->state.shapes);
-    m_impl->sustain_prefix_max = common::core::makeSustainPrefixMax(m_impl->display_hold_ends);
+    m_impl->sustain_prefix_max =
+        common::core::makeSustainPrefixMax(m_impl->state.display_hold_ends);
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
 }
@@ -2024,7 +2020,7 @@ void HighwayRenderer::Impl::draw(
         // The hold end, not the sustain end: a span-held strum stays drawable while its head
         // pins at the hit line long after its sustainless onset has passed.
         if (note.start_seconds <= span_end_seconds &&
-            display_hold_ends[index] >= span_start_seconds)
+            state.display_hold_ends[index] >= span_start_seconds)
         {
             visible.push_back(index);
         }
@@ -3145,8 +3141,8 @@ void HighwayRenderer::Impl::draw(
         // pin persists while repeat boxes restate the chord underneath), released early when
         // a later strum re-shows the chord and takes over the pinned display. For a plain
         // sustainless note it is the onset, the original behavior.
-        const double hold_end_seconds =
-            std::max(note.end_seconds, std::min(display_hold_ends[index], group.hold_cap_seconds));
+        const double hold_end_seconds = std::max(
+            note.end_seconds, std::min(state.display_hold_ends[index], group.hold_cap_seconds));
         const double head_seconds = std::clamp(now_seconds, note.start_seconds, hold_end_seconds);
         const double fade =
             hold_end_seconds >= now_seconds

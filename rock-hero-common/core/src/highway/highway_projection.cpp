@@ -191,6 +191,18 @@ HighwayViewState makeHighwayViewState(
     // Tapping-hand onsets derive purely from the resolved notes (right-hand tap lighting).
     state.tap_onsets = makeHighwayTapOnsets(state.notes, tap_rise_seconds);
 
+    // Display hold ends, resolved from the one effective-sustain authority rather than recomputed in
+    // seconds. The loop above pushes exactly one view per chart note, so the indices line up.
+    const std::vector<Fraction> effective_sustains =
+        chartEffectiveSustains(chart.notes, chart.shapes, tempo_map);
+    state.display_hold_ends.reserve(chart.notes.size());
+    for (std::size_t index = 0; index < chart.notes.size(); ++index)
+    {
+        const double onset_beat = globalBeatPosition(tempo_map, chart.notes[index].position);
+        state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
+            onset_beat + effective_sustains[index].toDouble()));
+    }
+
     state.shapes.reserve(chart.shapes.size());
     // The shared arrival rule, answered for every span in one pass.
     const std::vector<bool> arrivals = chartShapeArrivals(chart, tempo_map);

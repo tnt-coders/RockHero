@@ -57,7 +57,8 @@ inline constexpr Fraction g_minimum_kept_sustain_beats{1};
 \brief Resolves each note's effective held length: its sustain, span-extended for chord strums.
 
 The chart convention the hold test must judge against, and the musical twin of the display's
-`highwayDisplayHoldEnds`: a strum under a hand-shape span is held for the whole span even when
+\ref HighwayViewState::display_hold_ends, which resolves this answer into seconds rather than
+restating it: a strum under a hand-shape span is held for the whole span even when
 its notes carry no sustain, because the span is what tells the player how long to keep the shape
 fretted. Each SUSTAINLESS note in a same-onset group of two or more covered by a span therefore
 holds to the span's end. Groups whose notes are all fully muted stay unextended (a dead chug is
