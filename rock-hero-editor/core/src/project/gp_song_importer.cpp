@@ -178,8 +178,8 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
     // engine skips the pre-score head for negative values. The offset is snapped to the same
     // millisecond grid as the tempo map so audio and notes stay on one time base and the
     // package stores it cleanly.
-    constexpr double g_gp_frame_rate{44100.0};
-    const double raw_offset_seconds = score->frame_padding / g_gp_frame_rate;
+    constexpr double gp_frame_rate{44100.0};
+    const double raw_offset_seconds = score->frame_padding / gp_frame_rate;
     const common::core::TimeDuration audio_start_offset{
         static_cast<double>(std::llround(raw_offset_seconds * 1000.0)) / 1000.0
     };

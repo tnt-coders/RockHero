@@ -222,9 +222,9 @@ std::vector<double> makeHighwayTailSampleTimes(
     std::ranges::sort(times);
     // Dedupe with a tolerance: a uniform sample landing on a control point must not produce a
     // zero-length segment.
-    constexpr double g_epsilon = 1.0e-9;
+    constexpr double epsilon = 1.0e-9;
     const auto [first_dup, last_dup] = std::ranges::unique(
-        times, [](const double lhs, const double rhs) { return std::abs(rhs - lhs) < g_epsilon; });
+        times, [](const double lhs, const double rhs) { return std::abs(rhs - lhs) < epsilon; });
     times.erase(first_dup, last_dup);
     return times;
 }
