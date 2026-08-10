@@ -1,4 +1,4 @@
-﻿#include "live_rig/tone_document.h"
+#include "live_rig/tone_document.h"
 #include "live_rig/tone_file.h"
 
 #include <algorithm>

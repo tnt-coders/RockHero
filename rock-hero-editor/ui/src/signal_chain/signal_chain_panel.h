@@ -55,7 +55,7 @@ public:
     void setState(const core::SignalChainViewState& state);
 
     /*!
-    rief Names the tone the hosted view is editing; the header shows "Signal Chain - <tone>".
+    \brief Names the tone the hosted view is editing; the header shows "Signal Chain - <tone>".
     \param tone_name Selected tone's user-facing name, or empty for the bare title.
     */
     void setToneName(std::string tone_name);

@@ -1,4 +1,4 @@
-﻿#include <catch2/catch_approx.hpp>
+#include <catch2/catch_approx.hpp>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
 namespace rock_hero::editor::core

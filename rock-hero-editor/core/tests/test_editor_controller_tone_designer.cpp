@@ -1,4 +1,4 @@
-﻿#include <algorithm>
+#include <algorithm>
 #include <optional>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <vector>

@@ -1,4 +1,4 @@
-﻿#include "clock/playback_clock_extrapolator.h"
+#include "clock/playback_clock_extrapolator.h"
 
 #include <algorithm>
 #include <cmath>

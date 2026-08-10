@@ -1,4 +1,4 @@
-﻿/*!
+/*!
 \file playback_clock_extrapolator.h
 \brief Consumer-side smoothing policy turning clock snapshots into per-frame monotonic time.
 */
