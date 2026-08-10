@@ -335,7 +335,7 @@ struct PosColorUvVertex
     const common::core::HighwayMetrics& metrics, const bool mirrored)
 {
     const common::core::SoundingPosition sounding =
-        common::core::soundingPositionAt(note.harmonic_node, note.attack, note.fret, fret_at_point);
+        common::core::highwayDrawnSoundingPosition(note, fret_at_point);
     if (sounding.at_node)
     {
         // The fret axis takes a fractional coordinate directly, so the node needs no rounding of

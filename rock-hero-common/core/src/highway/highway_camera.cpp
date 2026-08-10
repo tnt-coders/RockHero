@@ -229,11 +229,11 @@ HighwayCameraTarget makeHighwayCameraTarget(
         // The head does not always draw over the stop. On a non-pinch harmonic the hand presses at
         // `fret` while the head is drawn on the node, which can be a dozen frets up the neck, so
         // framing the stop alone can leave the head, tail, and chevron entirely outside the
-        // viewport. Ask the same authority the renderer places the head with rather than restating
-        // the node-or-fret rule here; the stop above still widens the range, because the hand goes
-        // there and the fret-span line is drawn there.
-        const SoundingPosition sounding =
-            soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret);
+        // viewport. Ask the same authority the renderer places the head with -- the DRAWN position,
+        // so the frame follows a node held at the board's edge instead of chasing it off the board
+        // -- rather than restating the node-or-fret rule here. The stop above still widens the
+        // range, because the hand goes there and the fret-span line is drawn there.
+        const SoundingPosition sounding = highwayDrawnSoundingPosition(note, note.fret);
         if (sounding.at_node)
         {
             low_line = std::min(low_line, sounding.position);

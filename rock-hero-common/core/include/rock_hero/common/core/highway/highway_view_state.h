@@ -13,6 +13,7 @@
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
 #include <utility>
@@ -172,6 +173,44 @@ struct HighwayNoteView
                lhs.slides == rhs.slides;
     }
 };
+
+/*!
+\brief Where a note sounds on the DRAWN 3D board, in fret units.
+
+\ref soundingPositionAt answers the chart question and is deliberately unbounded by the board: a
+string has harmonic nodes past its last fret, so a node runs to \ref g_max_harmonic_node, which is
+48 fret units. The drawn board lays out \ref g_highway_fret_count frets and has nowhere to put a
+position past the last one, so this holds a node at the board's edge.
+
+The cap is a DISPLAY limit and nothing else. The chart still carries the exact node, validation still
+accepts it, and the 2D lane still prints it as a number, so the two surfaces deliberately disagree
+about a node past the board: 2D names it, 3D draws the note at the last fret. That is a decided
+asymmetry rather than a latent bug, pending a decision on how a node past the board should read.
+
+Every 3D consumer must ask this rather than \ref soundingPositionAt, or the board and the camera
+frame different places — which is exactly how a third-partial artificial harmonic came to be framed
+at its stop while drawn at its node, entirely off screen.
+
+NOT clamped here: a plain fret. Chart validation accepts frets to \ref g_max_fret, which is 30, so a
+fret-25-and-up note already draws past a 24-fret board with or without a harmonic. That is the same
+board-versus-domain mismatch and wants the same single decision, so it is left visible rather than
+quietly clamped to a fret the chart did not ask for.
+
+\param note Note whose sounding place is wanted.
+\param fret_at_point Stop being labeled — the onset fret, or a slide waypoint's fret.
+\return Where to draw, with a node held inside the board.
+*/
+[[nodiscard]] inline SoundingPosition highwayDrawnSoundingPosition(
+    const HighwayNoteView& note, int fret_at_point)
+{
+    SoundingPosition sounding =
+        soundingPositionAt(note.harmonic_node, note.attack, note.fret, fret_at_point);
+    if (sounding.at_node)
+    {
+        sounding.position = std::min(sounding.position, static_cast<double>(g_highway_fret_count));
+    }
+    return sounding;
+}
 
 /*! \brief What the hand holds on one string under a shape span (fingering-panel data). */
 struct HighwayShapeStringView
@@ -597,9 +636,9 @@ tap onset's release.
         double previous_seconds = note.start_seconds;
         // Where the note SOUNDS, not its stop: a tap harmonic strikes its node, and on an open
         // string that node is the only position it has. Waypoints ride the same rule, since a node
-        // travels with the stop it rides.
-        double previous_fret =
-            soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret).position;
+        // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off the
+        // board while the head it belongs to is held at the edge.
+        double previous_fret = highwayDrawnSoundingPosition(note, note.fret).position;
         for (const HighwaySlideView& waypoint : note.slides)
         {
             if ((waypoint.unpitched && !scrape) || waypoint.fret <= 0)
@@ -660,9 +699,10 @@ tap onset's release.
             // guard exists to keep a malformed chart from putting a light off the board, and the
             // sounding position is what has to be on the board — reading `fret` instead dropped the
             // light from a note the rules explicitly allow, since E4 accepts a tap that strikes a
-            // node in place of a fret.
-            const SoundingPosition sounding =
-                soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret);
+            // node in place of a fret. Asking for the DRAWN position closes the other end of that
+            // guard: the zero test below catches a light below the nut, and the board cap catches
+            // one past the last fret, which a node legally can be.
+            const SoundingPosition sounding = highwayDrawnSoundingPosition(note, note.fret);
             // The integer fret CONTAINING the sounding place, since the light spans fret slots: a
             // node at 12.0 lies in fret 12, one at 2.669 in fret 3.
             const int sounding_fret =
