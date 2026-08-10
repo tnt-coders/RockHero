@@ -18,8 +18,8 @@ namespace
 // so the offset cancels everywhere.
 [[nodiscard]] std::chrono::nanoseconds nanosecondsAt(double seconds)
 {
-    constexpr double g_base_seconds = 3600.0;
-    return std::chrono::nanoseconds{std::llround((g_base_seconds + seconds) * 1.0e9)};
+    constexpr double base_seconds = 3600.0;
+    return std::chrono::nanoseconds{std::llround((base_seconds + seconds) * 1.0e9)};
 }
 
 // Builds a playing/paused snapshot without repeating designated-init boilerplate per test.
