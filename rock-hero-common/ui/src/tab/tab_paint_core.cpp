@@ -162,6 +162,47 @@ void drawStringLines(
     return text;
 }
 
+// The stretch of a tail that has to be generated, as distances from the onset. Both wavy tail
+// overlays are functions of the distance from the onset alone, so each can be generated across
+// just this stretch and land the identical shape — phase comes from the distance, never from
+// where generation began.
+struct TailRun
+{
+    float from_dx{};
+    float to_dx{};
+
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return to_dx <= from_dx;
+    }
+};
+
+// The part of a tail the clip can actually show. A tail is as long as its note, which at full
+// zoom is many screens wide, so generating one vertex per pixel (or per tremolo apex) of the
+// whole length spends nearly all of it off-screen: a held tremolo chord costs tens of thousands
+// of invisible vertices every frame. Clamped to the tail, so a run never reports geometry past
+// the note's own end.
+//
+// Overshoots the clip, which is what keeps a narrowed repaint from showing a seam at its own
+// edge: a generated run ENDS where the whole-length one merely passed through, and an end differs
+// from a pass-through — a filled band closes on a vertical edge there, a stroked overlay caps
+// instead of joining. The overshoot has to exceed how far back that difference reaches, which is
+// half the widest stroke an overlay wears (the vibrato sine's, tail_height/8) plus the one-pixel
+// sample step; a quarter of the tail height clears that at every lane scale. Each generator then
+// snaps the run outward onto its own vertex spacing, so the vertices inside the clip are exactly
+// the ones the whole-length geometry would have placed and the rasterized result is identical
+// rather than merely similar.
+[[nodiscard]] TailRun visibleTailRun(
+    const juce::Graphics& g, const TabLaneMetrics& metrics, float onset_x, float length)
+{
+    const float slack = std::max(2.0f, metrics.tail_height / 4.0f);
+    const juce::Rectangle<float> clip = g.getClipBounds().toFloat();
+    return TailRun{
+        .from_dx = std::clamp(clip.getX() - slack - onset_x, 0.0f, length),
+        .to_dx = std::clamp(clip.getRight() + slack - onset_x, 0.0f, length),
+    };
+}
+
 // Draws the tremolo tail as a constant-thickness zigzag band: the plain sustain's ribbon with
 // its top and bottom borders displaced TOGETHER, so the strip snakes instead of pulsing in
 // thickness the way the ported pointed-gem chain did. This matches the 3D highway's teeth,
@@ -173,13 +214,17 @@ void drawStringLines(
 // core is exactly the plain span, so a slide diagonal, which is drawn to that span, sits
 // entirely inside the band at every x instead of crossing its teeth. Apexes come twice per
 // gem cell, double the chain's rate, which reads as picking rather than as a slow wave. Drawn
-// edge-colored with the tail color inset by the edge size, like every other tail. Vertices run
-// past the end and the clip cuts them, so the final tooth keeps its true shape and the strip
-// ends on a clean vertical edge.
+// edge-colored with the tail color inset by the edge size, like every other tail.
 void drawTremoloTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
     float length, float center_y)
 {
+    const TailRun run = visibleTailRun(g, metrics, x, length);
+    if (run.empty())
+    {
+        return;
+    }
+
     const TailSpan span = tailSpan(metrics, center_y);
     const float band_center = (span.top + span.bottom) / 2.0f;
     // Half the tremolo size each way: the swing the band adds to its thickness is the swing it
@@ -189,29 +234,50 @@ void drawTremoloTail(
     const float half_thickness = ((span.bottom - span.top) / 2.0f) + amplitude;
     const float apex_step = std::max(2.0f, metrics.note_height / 4.0f);
 
-    // Triangle wave along the tail, zero at the onset so the band leaves the head centered and
-    // alternating apexes every apex_step.
+    // Triangle wave along the tail, zero at the onset so the band leaves the head centered, which
+    // puts apex n on the half-odd multiple (n + 1/2) of the step.
     const auto centerline_at = [&](const float dx) {
         const float cycles = (dx / (2.0f * apex_step)) - 0.25f;
         const float phase = cycles - std::floor(cycles);
         return band_center + (amplitude * (std::abs(phase - 0.5f) - 0.25f) * 4.0f);
     };
-    // Vertex 0 sits at the onset; the rest are the apexes, one past the end so the clip can cut
-    // the last tooth mid-stroke instead of the path closing short of it.
-    const int apex_count = static_cast<int>(length / apex_step) + 2;
+    const auto apex_dx = [&](const int apex) {
+        return (static_cast<float>(apex) + 0.5f) * apex_step;
+    };
+    // The band's ends: the visible run widened outward to the apexes bracketing it, then held to
+    // the tail itself. Every vertex is therefore one the whole-length band would also have placed
+    // — an apex, the onset, or the tail's end — which is what makes a narrowed repaint rasterize
+    // identically. Wherever the run stops, the band closes on a clean vertical edge with no tooth
+    // left half-drawn, because centerline_at is exact and the wave is straight between apexes.
+    const int first_apex = static_cast<int>(std::floor((run.from_dx / apex_step) - 0.5f));
+    const int last_apex = static_cast<int>(std::ceil((run.to_dx / apex_step) - 0.5f));
+    const float from_dx = std::max(0.0f, apex_dx(first_apex));
+    const float to_dx = std::min(length, apex_dx(last_apex));
+    // Those two ends, plus every apex strictly between them.
+    const int inner_first = std::max(first_apex + 1, 0);
+    const int inner_last = last_apex - 1;
+    const int vertex_count = std::max(0, inner_last - inner_first + 1) + 2;
     const auto vertex_dx = [&](const int index) {
-        return index == 0 ? 0.0f : ((static_cast<float>(index) - 0.5f) * apex_step);
+        if (index == 0)
+        {
+            return from_dx;
+        }
+        if (index == vertex_count - 1)
+        {
+            return to_dx;
+        }
+        return apex_dx(inner_first + index - 1);
     };
 
     const auto add_band = [&](juce::Path& path, const float inset) {
         const float half = std::max(1.0f, half_thickness - inset);
-        path.startNewSubPath(x, centerline_at(0.0f) - half);
-        for (int index = 1; index <= apex_count; ++index)
+        path.startNewSubPath(x + from_dx, centerline_at(from_dx) - half);
+        for (int index = 1; index < vertex_count; ++index)
         {
             const float dx = vertex_dx(index);
             path.lineTo(x + dx, centerline_at(dx) - half);
         }
-        for (int index = apex_count; index >= 0; --index)
+        for (int index = vertex_count - 1; index >= 0; --index)
         {
             const float dx = vertex_dx(index);
             path.lineTo(x + dx, centerline_at(dx) + half);
@@ -219,11 +285,6 @@ void drawTremoloTail(
         path.closeSubPath();
     };
 
-    g.saveState();
-    const float reach = half_thickness + amplitude;
-    g.reduceClipRegion(
-        juce::Rectangle<float>{x, band_center - reach, length, 2.0f * reach}
-            .getSmallestIntegerContainer());
     juce::Path edge_band;
     add_band(edge_band, 0.0f);
     g.setColour(style.tail_edge);
@@ -233,7 +294,6 @@ void drawTremoloTail(
     add_band(inner_band, metrics.tail_edge_size);
     g.setColour(style.tail);
     g.fillPath(inner_band);
-    g.restoreState();
 }
 
 // Draws the sustain tail: Charter's filled bar with a brighter stroked border, the tremolo gem
@@ -279,15 +339,27 @@ void drawNoteTail(
     {
         const float amplitude = metrics.tail_height / 3.0f;
         const float period = amplitude * 3.0f;
+        // Sampled on whole-pixel distances from the onset, so the run the clip can show carries
+        // the same vertices at the same places the whole tail would have put there.
+        const TailRun run = visibleTailRun(g, metrics, onset_x, length);
+        const auto first_step = static_cast<int>(std::ceil(run.from_dx));
+        const auto last_step = static_cast<int>(std::floor(run.to_dx));
         juce::Path wave;
-        wave.startNewSubPath(onset_x, center_y);
-        const auto wave_pixels = static_cast<int>(length);
-        for (int step = 1; step <= wave_pixels; ++step)
+        for (int step = first_step; step <= last_step; ++step)
         {
             const auto dx = static_cast<float>(step);
-            wave.lineTo(
+            const juce::Point<float> point{
                 onset_x + dx,
-                center_y + amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period));
+                center_y + amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period)
+            };
+            if (step == first_step)
+            {
+                wave.startNewSubPath(point);
+            }
+            else
+            {
+                wave.lineTo(point);
+            }
         }
         g.setColour(g_vibrato_sine_color);
         g.strokePath(wave, juce::PathStrokeType{std::max(1.0f, metrics.tail_height / 8.0f)});

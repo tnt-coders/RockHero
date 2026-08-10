@@ -5,6 +5,7 @@
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::ui
 {
@@ -500,6 +501,100 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
     juce::Graphics bare_graphics{bare};
     paintTabLane(bare_graphics, metrics, state, tabPrefixMaxEndSeconds(state.notes));
     CHECK(bare.getPixelAt(4, 7).getAlpha() == 0);
+}
+
+// A tail looks the same however the repaint is clipped. Both wavy tail overlays generate only the
+// stretch the clip can show, which is what keeps a note tail's cost proportional to the visible
+// width rather than to its own length; that only holds up if the narrowed render lands what the
+// whole-lane render would have. A repaint window is an arbitrary rectangle, so it cuts mid-tail
+// all the time, and a seam, a dropped tooth, or a shifted phase at its edge would surface here as
+// a column that disagrees.
+TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::TabViewState state;
+    state.string_count = 6;
+    // Two tails far longer than the window they are probed in: a tremolo band and a vibrato sine,
+    // the two overlays whose geometry is generated per apex and per pixel.
+    state.notes = {
+        common::core::TabNoteView{
+            .start_seconds = 1.0,
+            .end_seconds = 18.0,
+            .string = 2,
+            .fret = 7,
+            .tremolo = true,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::TabNoteView{
+            .start_seconds = 1.0,
+            .end_seconds = 18.0,
+            .string = 4,
+            .fret = 9,
+            .vibrato = true,
+            .bend = {},
+            .slides = {},
+        },
+    };
+
+    const juce::Rectangle<int> bounds{0, 0, 400, 240};
+    const common::core::TimeRange visible_timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        bounds,
+        visible_timeline,
+        tabDisplayedStringCount(state.string_count, 0),
+        state.string_count);
+    const std::vector<double> prefix_max_end = tabPrefixMaxEndSeconds(state.notes);
+
+    const juce::Image whole{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics whole_graphics{whole};
+    paintTabLane(whole_graphics, metrics, state, prefix_max_end);
+
+    // A window deep inside both tails, so its every column is tail interior — no onset, no head,
+    // no tail end.
+    const juce::Rectangle<int> window{160, 0, 40, 240};
+    const juce::Image narrowed{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics narrowed_graphics{narrowed};
+    narrowed_graphics.reduceClipRegion(window);
+    paintTabLane(narrowed_graphics, metrics, state, prefix_max_end);
+
+    int worst_delta = 0;
+    int worst_x = 0;
+    int worst_y = 0;
+    double covered = 0.0;
+    for (int x = window.getX(); x < window.getRight(); ++x)
+    {
+        for (int y = 0; y < bounds.getHeight(); ++y)
+        {
+            const juce::Colour from_whole = whole.getPixelAt(x, y);
+            const juce::Colour from_narrowed = narrowed.getPixelAt(x, y);
+            covered += static_cast<double>(from_whole.getAlpha()) / 255.0;
+            const int delta = std::max(
+                {std::abs(from_whole.getAlpha() - from_narrowed.getAlpha()),
+                 std::abs(from_whole.getRed() - from_narrowed.getRed()),
+                 std::abs(from_whole.getGreen() - from_narrowed.getGreen()),
+                 std::abs(from_whole.getBlue() - from_narrowed.getBlue())});
+            if (delta > worst_delta)
+            {
+                worst_delta = delta;
+                worst_x = x;
+                worst_y = y;
+            }
+        }
+    }
+    CAPTURE(worst_x, worst_y);
+    // Both generated overlays land bit-identical; the residue is JUCE's own antialiasing of the
+    // plain ribbon, a float-height fillRect whose two edge rows already came out a step lighter or
+    // darker with the clip before any of this existed (it is still there with both overlays
+    // switched off). Two steps of 255 on a soft edge is invisible, and it is four decimal orders
+    // below what an actual seam scores: a dropped tooth swaps ribbon for empty lane at full alpha.
+    CHECK(worst_delta <= 2);
+    // And the window really did hold both tails, so a pass cannot come from comparing two empty
+    // regions. Two ribbons ~10px tall across 40 columns clear this floor several times over.
+    CHECK(covered > 200.0);
 }
 
 } // namespace rock_hero::common::ui
