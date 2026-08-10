@@ -26,7 +26,10 @@ drawer are pure functions of the returned state plus per-frame time.
 \param tempo_map Tempo map resolving musical positions to seconds.
 \param sections Song-structure section markers, resolved into the state's section list even when
        the arrangement has no chart.
-\param options Display-mapping flags (lefty mirror, string-order invert) baked into the state.
+\param options Display mapping baked into the state: the lefty mirror, the string-order invert, and
+       the minimum string count — that last one is not a flag and has the widest consequence, since
+       padding to more lanes than the chart uses shifts every note and posture string index into the
+       padded range and sets \ref HighwayViewState::string_count above the tuning's size.
 \return Seconds-resolved highway content for rendering.
 */
 [[nodiscard]] HighwayViewState makeHighwayViewState(

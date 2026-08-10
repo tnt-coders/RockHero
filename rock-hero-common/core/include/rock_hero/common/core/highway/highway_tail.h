@@ -57,7 +57,7 @@ TEETH rather than as a fraction of the tail's duration, so the eased entry alway
 same number of ridges instead of a dozen on one sustain and less than one on another. One tooth
 in and one tooth out keeps the run uniform at any length.
 
-Because a tooth is a fixed length of tail (see \ref g_highway_tremolo_apexes_per_note_height), a
+Because a tooth is a fixed length of TIME (see \ref highwayTremoloTailCycles), a
 tail shorter than about two teeth is ramp the whole way through and reads as a ripple rather than
 a saw. That affects very short tremolo sustains only, and unlike the depth-ratio spacing this
 replaced, it no longer varies with viewing distance.
@@ -232,8 +232,7 @@ The teeth mean UNMEASURED noise picking (the charting standard spells out measur
 as discrete notes), so pick-slide tails ride this same wave outright — a scrape is that noise
 dragged along the string.
 
-\param cycles Phase in cycles of tail length from the onset (see
-       \ref highwayTremoloToothCycleWorld).
+\param cycles Phase in cycles from the onset (see \ref highwayTremoloTailCycles).
 \return Wobble factor within plus-or-minus \ref g_highway_tremolo_depth.
 */
 [[nodiscard]] double highwayTremoloWobble(double cycles) noexcept;
@@ -261,7 +260,8 @@ points instead of aliasing across them. A teethed tail's wobble turning points c
 the only samples its shape actually needs, and without them the uniform grid rounds every apex
 by up to half its spacing — unevenly, tooth to tooth — and aliases the wave outright once the
 teeth crowd that spacing. They arrive as times rather than being derived here because their
-placement is projection state (see \ref highwayTremoloCycles), which this module does not hold.
+placement is projection state (the onset time each phase in \ref highwayTremoloTailCycles is
+measured from), which this module does not hold.
 
 \param note The note whose bend and slide times are folded in.
 \param from_seconds Visible span start (already clamped to the hit line by the caller).

@@ -420,8 +420,10 @@ never a sounding node at all: E2 forbids one in any saved chart, so a node found
 purely the in-memory latent the attack toggle preserves (chart.h's override contract), and reading
 it as a fretting-hand touch made three things go wrong at once — the legato repair (which runs on
 the in-memory stream) refused to release from a scrape while validation (which runs on the SAVED
-stream, where the node is stripped) allowed it, silently downgrading a pull-off that D7 ruled
-valid; and the importer's shed pass stripped the scrape's REQUIRED slide-out terminal, producing a
+stream, where the node is stripped) allowed it, silently downgrading a pull-off the derivation-
+versus-validity split rules valid (the decision recorded under E5; the earlier D7 row it was raised
+as no longer exists); and the importer's shed pass stripped the scrape's REQUIRED slide-out
+terminal, producing a
 chart that E2 then rejected on re-read. `Tap` is NOT excluded — an open-string tap harmonic has
 nothing pressed either, which is exactly what those rules test. Contrast `fretFor`'s node branch,
 which additionally excludes `Tap` because the hand-placement question cares which HAND owns the

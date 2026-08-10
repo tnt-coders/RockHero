@@ -87,7 +87,13 @@ struct HighwaySlideView
     /*! \brief Target fret reached at this waypoint. */
     int fret{0};
 
-    /*! \brief True when the glide trails off unpitched. */
+    /*!
+    \brief True when this waypoint is unpitched travel rather than a pitched arrival.
+
+    NOT "the glide trails off here" — see \ref TabSlideView::unpitched, which carries the same rule
+    for the 2D lane and drifted into the same wrong wording. A pick slide's every waypoint carries
+    this, because a scrape's whole path is unpitched travel.
+    */
     bool unpitched{false};
 
     /*!
@@ -477,7 +483,15 @@ per-frame time.
 */
 struct HighwayViewState
 {
-    /*! \brief Number of string lanes the chart uses; zero means no chart is loaded. */
+    /*!
+    \brief Number of string lanes DISPLAYED; zero means no chart is loaded.
+
+    Not the chart's own string count whenever display padding applies: this is
+    \ref displayedStringCount over the chart's tuning and
+    \ref HighwayDisplayOptions::minimum_string_count, so it can exceed the tuning's size and must
+    NOT be used to index the tuning. \ref HighwayNoteView::string is shifted into this same padded
+    range, which is what keeps the shared string-color palette anchored as the 2D lane anchors it.
+    */
     int string_count{0};
 
     /*!
@@ -499,7 +513,8 @@ struct HighwayViewState
     std::vector<HighwayShapeView> shapes;
 
     /*!
-    \brief Tapping-hand onsets in ascending order, derived from the notes' Tap attacks.
+    \brief Tapping-hand onsets in ascending order, derived from the notes' picking-hand-at-the-neck
+    attacks — taps AND pick slides, per \ref rightHandOnset.
 
     Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): these
     feed the per-tap light envelopes and the tapped chord boxes, and carry no user-editable data.
@@ -571,8 +586,11 @@ onset through the hand's travel (a tap's pitched glides, or a scrape's whole way
 the light rides the slide either way) to the release: the sustain end for held contact and for
 scrapes (the pick leaves at the path's end), or the last pitched station when an unpitched
 trail-off is already releasing pressure. Fretting-hand notes sharing the onset contribute
-nothing. Fret-zero notes are skipped, so a malformed chart can never place a light off the
-board.
+nothing. Notes are judged on where they SOUND, not on `fret`: an open-string tap harmonic strikes
+its node, and reading `fret` instead dropped the light from a note the rules explicitly allow.
+A sounding place at or below the nut is skipped, and one past the last fret is held at the board's
+edge by \ref highwayDrawnSoundingPosition, so a malformed chart cannot place a light off the board
+at either end.
 
 Each onset also carries a light-rise ramp, derived with the fret-hand placements' own arrival
 rule: the caller supplies each note's margin-based rise duration (the minimum-sustain-distance

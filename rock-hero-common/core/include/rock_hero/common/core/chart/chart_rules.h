@@ -170,8 +170,10 @@ the same score marks dead has already told us it is junk.
 Lives beside the rules it satisfies so a new incompatibility cannot be written without its shed
 here in view. It covers exactly the rules a single note can be made to obey by DROPPING something:
 range violations are the importer's own clamping, a missing pinch node is data to supply rather
-than technique to remove, and the rules that read a note's neighbours (a hammer needing somewhere
-to land, a pull-off needing something to release) are `normalizeChartLegato`'s.
+than technique to remove, and the rules that read a note's PREDECESSOR (a pull-off needing
+something to release) are `normalizeChartLegato`'s. A hammer's landing rule is not among those: it
+reads only the note itself — an open string with no node has nowhere to hammer onto — so it belongs
+to the one-note half and is enforced in \ref validateChartNoteAlone.
 
 Which side loses is settled by how much of the note each fact determines: the pitch identity (a
 harmonic's node) outranks how the string is articulated (the mute), which outranks modulation of a
@@ -273,13 +275,23 @@ the legato hold test must judge against (chartEffectiveSustains).
 /*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
-Enforces the corpus-validated rule set: a usable tuning; template arrays matching the string
-count; notes sorted by (position, string) with no duplicate onsets, on valid grid positions,
-with strings and frets in range; positive sustains; slide offsets strictly positive, ascending,
-and within the sustain; bend offsets non-negative, ascending, and within the sustain; shape
-spans positive, sorted, and referencing existing templates; sorted fret-hand positions; and, on
-pick-slide notes, no pitched techniques (a saved scrape carries none — the writer omits the
-in-memory overrides; accent is a scrape's own technique) plus the required unpitched slide-out
+The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
+the structural checks over the chart's own arrays and then delegates the per-note and relational
+rules to \ref validateChartNotes, so the authoritative list is the two functions' code rather than
+this paragraph — a summary here drifts, and this one did, describing "positive sustains" when zero
+is the normal encoding for a note with no sustain (\ref ChartNote::sustain) and only a NEGATIVE
+sustain is refused.
+
+Broadly: a usable tuning; template arrays matching the string count; notes sorted by
+(position, string) with no duplicate onsets, on valid grid positions, with strings and frets in
+range; non-negative sustains; slide offsets strictly positive, ascending, and within the sustain;
+bend offsets non-negative, ascending, and within the sustain; shape spans positive, sorted, and
+referencing existing templates; sorted fret-hand positions whose window fits the neck; capo
+floors; harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node;
+full-mute exclusions; hammer and tap landing rules; tap-harmonic tremolo; the fret-hand-harmonic
+slide, bend, and vibrato exclusions; the four relational pull-off rules; the cent-offset bound;
+and, on pick-slide notes, no pitched techniques (a saved scrape carries none — the writer omits
+the in-memory overrides; accent is a scrape's own technique) plus the required unpitched slide-out
 terminal exactly at the sustain and an always-traveling path (consecutive neck positions, the
 start fret included, must strictly differ — a scrape cannot sit still).
 

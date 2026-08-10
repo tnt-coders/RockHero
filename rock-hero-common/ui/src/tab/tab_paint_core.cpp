@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -1318,6 +1319,14 @@ TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
     int chart_string_count, TabLaneStyle style)
 {
+    // The header states these as preconditions and the geometry below DIVIDES by both, so a
+    // violation is undefined behaviour rather than a wrong picture: an empty bounds zeroes the
+    // seconds-per-pixel denominator and a non-positive count zeroes the lane-height one. Asserted
+    // rather than clamped, because a host asking for a zero-lane tab has a bug upstream that a
+    // silently invented lane would hide.
+    assert(!bounds.isEmpty());
+    assert(displayed_count > 0);
+
     TabLaneMetrics metrics;
     static_cast<TabLaneGeometry&>(metrics) = makeTabLaneGeometry(
         static_cast<float>(bounds.getX()),
@@ -1347,6 +1356,10 @@ void paintTabLane(
     // by that slack before the visibility queries. The clip is held to the lane bounds first: the
     // lane occupies only its own bounds, so a host drawing it inside a larger component must not
     // have that component's other columns read as visible time or carry lane lines.
+    // Stated as a precondition in the header and divided by immediately below.
+    assert(tab.string_count > 0);
+    assert(metrics.bounds.getWidth() > 0);
+
     const juce::Rectangle<int> clip = g.getClipBounds().getIntersection(metrics.bounds);
     const double duration = metrics.visible_timeline.duration().seconds;
     const double seconds_per_pixel = duration / static_cast<double>(metrics.bounds.getWidth());

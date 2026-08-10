@@ -47,8 +47,10 @@ projection must agree on it so a chip visually belongs to the rails below it.
 /*!
 \brief Returns the number a head carries for this note stopped at `fret_at_head`.
 
-A fret-hand harmonic names its **node** rather than its fret, because the node is what sets the
-pitch and is where the finger actually is — a natural harmonic's `fret` is only an integer anchor.
+Any harmonic whose node lies on the neck names its **node** rather than its fret, because the node
+is what sets the pitch. That is \ref rock_hero::common::core::nodeIsOnNeck, so it covers a tap
+harmonic and an artificial or harp harmonic over a real stop as well as a natural one — the stop is
+a genuine fret in those cases, and the label still names the node, because the node is what sounds.
 One decimal is exactly enough: it separates every distinct node through the 17th harmonic, far
 past the ~8th a fingertip can still isolate. A trailing ".0" is dropped so the common 12 / 7 / 5
 positions stay as narrow as an ordinary fret number.

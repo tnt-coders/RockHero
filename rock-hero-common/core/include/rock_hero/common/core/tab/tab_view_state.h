@@ -50,16 +50,26 @@ struct TabSlideView
     /*! \brief Target fret reached at this waypoint. */
     int fret{0};
 
-    /*! \brief True when the glide trails off unpitched. */
+    /*!
+    \brief True when this waypoint is unpitched travel rather than a pitched arrival.
+
+    NOT "the glide trails off here". A pick slide's every waypoint carries this, because a scrape's
+    whole path is unpitched travel — the turnarounds included — so reading it as an ending mis-draws
+    every scrape. An ordinary note's unpitched trail-off also sets it, and there the release reading
+    does hold, but the field itself only ever says "this position is not a pitched stop".
+    */
     bool unpitched{false};
 
     /*!
-    \brief True when the glide lands as an unpicked continuation of the same note.
+    \brief True when the glide continues the same note rather than ending it.
 
-    A legato landing renders the linked continuation head at the waypoint. False when a
-    re-picked note sounds on the same string exactly at the waypoint (a shift slide's target):
-    that note's own head renders, and drawing the linked head too would over-paint a picked
-    note into looking unpicked.
+    Decided by the waypoint's place in the sustain and nothing else: strictly inside means the note
+    is still sounding, so the linked continuation head draws in the note's own head shape; exactly at
+    the sustain end means a shift-slide glide-end, where the note stops and the re-picked landing
+    draws its own head, so no linked glyph.
+
+    Being \ref unpitched does not unlink a waypoint — a scrape's turnaround is one gesture
+    continuing, and its head is what keeps the corner from reading as a break.
     */
     bool linked{true};
 

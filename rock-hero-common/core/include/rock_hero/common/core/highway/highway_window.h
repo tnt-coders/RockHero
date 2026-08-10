@@ -73,8 +73,11 @@ only when there are no placements at all.
 /*!
 \brief Returns how deeply the window contains a fret line, as [0, 1] coverage.
 
-One inside the window with at least a whole lane to spare, zero at least a whole lane outside,
-ramping linearly across each moving edge. This is the shared signal driving the hit-line
+Exactly one ON the window's own edge lines and anywhere inside, zero a whole lane outside, ramping
+linearly over the lane OUTSIDE each edge — from one line below the low edge up to that edge, and
+symmetrically above the high one. The ramp lies wholly outside the window, so a line needs no spare
+lane to score one; reimplementing this from a "lane to spare inside" reading offsets the whole
+crossfade by a full lane. This is the shared signal driving the hit-line
 presentation during a transition: lane-border brightness crossfades and fret-number fades both
 follow it, so everything at the hit line moves as a single gesture with the sweeping border.
 
