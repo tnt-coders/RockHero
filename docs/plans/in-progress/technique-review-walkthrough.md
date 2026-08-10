@@ -11,6 +11,43 @@ or code.
 Working order: top to bottom unless the user redirects. Each open item carries the agent's
 recommendation so the user can rule with full context in front of them.
 
+## Work queue (LIVE — the session task list mirrored here so a disconnect loses nothing)
+
+Approved order, user-signed 2026-08-09. Keep this list and the session task list in step; when an
+item ships, mark it and name the commit.
+
+- [x] **W1 — Span-blind hold rule** (defect in D13's implementation). SHIPPED `4f1e793c`:
+  `chartEffectiveSustains` resolves span-extended held lengths; three call sites pass shapes.
+  **Reopened in part by D16 below** — its all-muted carve-out is a display rule that should not
+  bind validation.
+- [x] **W2 — Two-digit fret entry on a legato predecessor** (defect in D12's settle hack).
+  SHIPPED `d0b1d32b`: the entry carries its applied plan and the widen reverses it to
+  reconstruct pre-entry exactly; the selection-follow rule no longer adopts repaired notes.
+  **Superseded if W3 is adopted** (the pending model deletes the splice machinery entirely).
+- [ ] **W3 — Pending fret entry with invalid-red feedback (user proposal 2026-08-09; needs a
+  ruling).** Nothing commits mid-entry: the typed value is provisional, drawn on the head(s),
+  RED when it cannot be applied, committed as one undo entry when the window settles and
+  discarded (previous value preserved) when it is invalid. Recommended, with one refinement:
+  commit IMMEDIATELY for any digit that cannot be widened (`digit * 10 > g_max_fret`, i.e. 3–9),
+  so only 1 and 2 ever wait — otherwise every single-digit retype would feel laggy for the
+  length of the window. Deletes W2's reversal machinery, the history splice, and all mid-entry
+  chart mutation; needs provisional-value state on the chart-edit view model. Insert-at-caret
+  becomes a ghost note, which matches the existing Alt-hover insert-ghost idiom.
+- [ ] **W4 — Muted-tail consistency (D16 below; needs a ruling).** Blocks nothing but touches
+  W1, E10, E24 and the display; settle before the lock/break work so the tail rules are stated
+  once.
+- [ ] **W5 — `H` eligible-subset fix + counted feedback.** `H` is currently inert on any mixed
+  selection (its all-legato test is never true, so the toggle sticks and the plan finds nothing
+  to change), and every refusal is silent. The feedback channel is load-bearing for W6.
+- [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5).** One shared mechanism for
+  legato and slides; the break verb frees a tail from the origin's side; the feedback is
+  **editor-only** (user ruling: not visible in 3D).
+- [ ] **W7 — D14 assist + the `H` toggle window.** The assist extends a predecessor's tail when
+  that is the only blocker, groups included; the second press reverses this verb's own entry.
+- [ ] **W8 — Cleanups found by the design agents.** Import junk-hopo flags to `Pick` with a
+  conversion note (ruled); doc staleness in `file-formats.md` (retired `harmonic`/`touch` keys,
+  missing `pinch` token) and the recalc-window settle-list wording.
+
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 
 - [x] **R1 — Semi-harmonics import as pinch.** User: a semi-harmonic is "basically a pinch
@@ -353,6 +390,37 @@ recommendation so the user can rule with full context in front of them.
   so they connect naturally; verify by corpus scan), and corpus re-import (no legacy handling,
   per the standing rule). Evidence to pre-assemble for the gate: corpus measurement of legato
   pairs — gap distribution and whether notated origin durations reach the destination.
+
+- [ ] **D16 — What a FULLY MUTED note's tail means (user-spotted inconsistency, 2026-08-09;
+  needs a ruling).** The user asked whether the all-muted carve-out reverses E24 (muted legato)
+  and observed that the design around muted tails "has not been fully thought through."
+  - **Diagnosed root: a DISPLAY rule got imported into a PHYSICAL rule.** `chartEffectiveSustains`
+    mirrors the highway's display rule, whose all-muted exemption exists because *a dead chug does
+    not ring* — a sounding statement. The hold test asks a different question: *is the finger
+    still down?* A span says the shape stays fretted, and muting does not lift the fingers, so for
+    "can this be pulled off from" the mute is irrelevant. Two different questions were answered
+    with one function.
+  - **Scope of the live damage: narrow but real.** Validation applies the hold test ONLY to
+    `Pull` (a `Hammer` has no relational constraint — it is always readable as a left-hand tap),
+    and gaps under the kept-sustain bound are exempt, so real funk sixteenth-note clucks are
+    untouched. The bite is exactly: a sustainless fully-muted strum under a span, pulled off from
+    across the bound — refused today though the span says the shape is held. E24 is not reversed
+    in general; one path contradicts it.
+  - **Recommended fix (the narrow half):** name the two questions separately — a SOUNDING hold
+    for display (keeps the all-muted carve-out) and a FRETTED hold for validation (span extension
+    regardless of mute), each documented as to why it differs, so the divergence is deliberate
+    rather than an accident waiting to be "unified" by a later reader.
+  - **The wider question the user raised, for the ruling:** should a fully muted note carry a tail
+    at all? It does not ring, yet today a muted note with a sustain draws an ordinary sustain
+    ribbon in 2D (`drawNoteTail` never consults `mute`), which reads as ringing. Options: (a)
+    muted notes keep tails, drawn as-is (status quo); (b) muted notes draw no tail, and the
+    duration is treated as fretted-time only (affects the hold test, arpeggio spans, and the
+    highway's held bars); (c) muted notes keep tails but draw them in the NOISE idiom — the
+    user's suggestion, consistent with the settled taxonomy where tremolo is pitched noise and a
+    scrape is unpitched noise, since a dragged muted slide IS noise rather than pitch (E10 allows
+    the positions); (d) muted notes only carry a tail when a slide payload needs one to travel.
+    Interacts with: E10 (muted slides allowed), E24 (muted legato allowed), the highway's held
+    bars and their hold scoring, and the import drop rule. **No R yet.**
 
 ## Recorded, no decision needed
 
