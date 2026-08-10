@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <string>
@@ -29,7 +30,15 @@ struct TabBendPointView
     \return True when both points store equal values.
     */
     friend constexpr bool operator==(
-        const TabBendPointView& lhs, const TabBendPointView& rhs) noexcept = default;
+        const TabBendPointView& lhs, const TabBendPointView& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on a
+        // floating member, which is why every float-bearing view here is spelled out. Exact
+        // equality is intended; the ordering query expresses it warning-free with identical
+        // semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               std::is_eq(lhs.semitones <=> rhs.semitones);
+    }
 };
 
 /*! \brief One slide waypoint resolved to an absolute timeline second. */
@@ -60,8 +69,11 @@ struct TabSlideView
     \param rhs Right-hand waypoint.
     \return True when both waypoints store equal values.
     */
-    friend constexpr bool operator==(const TabSlideView& lhs, const TabSlideView& rhs) noexcept =
-        default;
+    friend constexpr bool operator==(const TabSlideView& lhs, const TabSlideView& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
+               lhs.unpitched == rhs.unpitched && lhs.linked == rhs.linked;
+    }
 };
 
 /*! \brief One sounding note resolved to timeline seconds for rendering. */
@@ -115,7 +127,15 @@ struct TabNoteView
     \param rhs Right-hand note view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const TabNoteView& lhs, const TabNoteView& rhs) = default;
+    friend bool operator==(const TabNoteView& lhs, const TabNoteView& rhs)
+    {
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
+               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.mute == rhs.mute &&
+               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
+               lhs.tremolo == rhs.tremolo && lhs.accent == rhs.accent && lhs.bend == rhs.bend &&
+               lhs.slides == rhs.slides;
+    }
 };
 
 /*! \brief One chord-template posture note bracketed at an arpeggio start. */
@@ -174,7 +194,12 @@ struct TabShapeView
     \param rhs Right-hand shape view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const TabShapeView& lhs, const TabShapeView& rhs) = default;
+    friend bool operator==(const TabShapeView& lhs, const TabShapeView& rhs)
+    {
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.name == rhs.name &&
+               lhs.arpeggio == rhs.arpeggio && lhs.arpeggio_notes == rhs.arpeggio_notes;
+    }
 };
 
 /*! \brief One fret-hand position marker resolved to a timeline second. */
@@ -195,8 +220,11 @@ struct TabFhpView
     \param rhs Right-hand view.
     \return True when both views store equal values.
     */
-    friend constexpr bool operator==(const TabFhpView& lhs, const TabFhpView& rhs) noexcept =
-        default;
+    friend constexpr bool operator==(const TabFhpView& lhs, const TabFhpView& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
+               lhs.width == rhs.width;
+    }
 };
 
 /*!

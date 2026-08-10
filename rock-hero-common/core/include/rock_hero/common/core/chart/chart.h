@@ -433,6 +433,54 @@ node, not whether a stop is pressed.
            note.attack != NoteAttack::PickSlide;
 }
 
+/*! \brief Where a note sounds on the fret axis, and whether that place is a node or a fret. */
+struct SoundingPosition
+{
+    /*! \brief True when the position is a harmonic NODE rather than a fret. */
+    bool at_node{false};
+
+    /*!
+    \brief The position in fret units — fractional for a node, the stop's own number otherwise.
+    */
+    double position{0.0};
+};
+
+/*!
+\brief Where a note SOUNDS on the fret axis at a given stop.
+
+The one authority for a fact both surfaces need and each used to derive: a harmonic sounds at its
+NODE, not at the stop under the finger, and the node RIDES that stop — fret spacing is logarithmic,
+so the node's offset above the stop is constant in fret units and a glide that moves the stop moves
+the node by the same amount. That is what lets one rule serve every point of a gesture: the onset
+passes the note's own fret, a slide junction the fret it has travelled to.
+
+A pinch is the exception the `at_node` flag exists for as much as the position is: its node is over
+the body rather than on the neck, so a pinch sounds at its stop as far as any neck coordinate goes
+(the squeal's own cue is roadmap 25-Q5). Callers need the flag because a node and a fret are read
+differently — 2D labels a node to one decimal and a fret as a whole number, 3D places a node on the
+fret line and a fret at its slot's midpoint.
+
+\param harmonic_node The note's node, if it has one.
+\param attack The note's attack, which decides whose hand owns the node.
+\param note_fret The note's own stop.
+\param fret_at_point The stop being asked about — `note_fret` at the onset.
+
+\return The sounding place, and whether it is a node.
+*/
+[[nodiscard]] constexpr SoundingPosition soundingPositionAt(
+    const std::optional<double>& harmonic_node, NoteAttack attack, int note_fret,
+    int fret_at_point) noexcept
+{
+    if (harmonic_node.has_value() && nodeIsOnNeck(attack))
+    {
+        return SoundingPosition{
+            .at_node = true,
+            .position = *harmonic_node + static_cast<double>(fret_at_point - note_fret),
+        };
+    }
+    return SoundingPosition{.at_node = false, .position = static_cast<double>(fret_at_point)};
+}
+
 /*!
 \brief True when the FRETTING finger is standing on the note's node.
 

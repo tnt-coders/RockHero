@@ -616,6 +616,39 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
                      });
 }
 
+// A tap harmonic lights the NODE it strikes, even on an open string. E4 accepts a tap that strikes a
+// node in place of a fret, and the tapping hand really does land on the node — so judging the light
+// by `fret` dropped it entirely from a legal, matrix-listed note: the same tap one fret higher lit
+// normally while the open-string one lit nowhere.
+TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[core][highway]")
+{
+    HighwayNoteView tap;
+    tap.start_seconds = 1.0;
+    tap.end_seconds = 1.0;
+    tap.string = 3;
+    tap.fret = 0;
+    tap.attack = NoteAttack::Tap;
+    tap.harmonic_node = 12.0;
+
+    const std::vector<HighwayTapOnsetView> onsets =
+        makeHighwayTapOnsets({tap}, std::vector<double>(1, 0.0));
+    REQUIRE(onsets.size() == 1);
+    CHECK(onsets.front().count == 1);
+    CHECK(onsets.front().fret_low == 12);
+    CHECK(onsets.front().fret_high == 12);
+    // The path station reads the same sounding place through the light's own interpolation, so it
+    // has to agree exactly (compared through the ordering query, which the project uses for an exact
+    // floating compare that -Wfloat-equal accepts).
+    REQUIRE_FALSE(onsets.front().path.empty());
+    CHECK(std::is_eq(onsets.front().path.front().fret_low <=> 12.0));
+
+    // An ordinary open string with no node still has nowhere to light, so the guard still holds
+    // where it was meant to.
+    HighwayNoteView open_tap = tap;
+    open_tap.harmonic_node.reset();
+    CHECK(makeHighwayTapOnsets({open_tap}, std::vector<double>(1, 0.0)).empty());
+}
+
 // A tap's light path follows sustained contact and pitched glides: a held tap keeps its light on
 // through the sustain, a tapped slide adds a station per pitched waypoint so the light morphs
 // with the glide, and an unpitched trail-off releases the light from the last pitched station.

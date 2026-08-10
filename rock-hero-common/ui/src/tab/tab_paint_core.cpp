@@ -342,6 +342,10 @@ void drawNoteTail(
         // Sampled on whole-pixel distances from the onset, so the run the clip can show carries
         // the same vertices at the same places the whole tail would have put there.
         const TailRun run = visibleTailRun(g, metrics, onset_x, length);
+        if (run.empty())
+        {
+            return;
+        }
         const auto first_step = static_cast<int>(std::ceil(run.from_dx));
         const auto last_step = static_cast<int>(std::floor(run.to_dx));
         juce::Path wave;
@@ -583,7 +587,10 @@ void drawSlideLines(
             slide_labels.push_back(
                 LabelChip{
                     .position = {metrics.x(waypoint.seconds), label_y},
-                    .text = juce::String{waypoint.fret},
+                    // Through the same head-label rule, not a raw fret: a stopped harmonic labels
+                    // NODES everywhere else on the gesture, and one gesture must not state two
+                    // different quantities. (A scrape is unaffected — the writer strips its node.)
+                    .text = tabNoteHeadText(note, waypoint.fret),
                     .background = charterDarker(charterDarker(charterDarker(style.tail))),
                     .border = style.tail,
                 });
@@ -748,7 +755,10 @@ void drawMuteIcon(
         return;
     }
 
-    const float size = std::max(16.0f, metrics.note_height + 1.0f);
+    // The head's own extent, with no floor of its own. A floor made the X larger than the head it
+    // marks at small lane scales and, below about eleven pixels, larger than the lane — painting
+    // mute ink onto strings that carry no mute.
+    const float size = metrics.note_height + 1.0f;
     const float space = std::max(2.0f, size / 8.0f);
     const float half = size / 2.0f;
     const float left = center_x - half;
@@ -1241,16 +1251,15 @@ void strokeTabNoteHeadOutline(
 // Rationale lives on the declaration in tab_paint_core.h.
 juce::String tabNoteHeadText(const common::core::TabNoteView& note, const int fret_at_head)
 {
-    if (!note.harmonic_node.has_value() || !common::core::nodeIsOnNeck(note.attack))
+    const common::core::SoundingPosition sounding =
+        common::core::soundingPositionAt(note.harmonic_node, note.attack, note.fret, fret_at_head);
+    if (!sounding.at_node)
     {
         return juce::String{fret_at_head};
     }
-    // The node rides its stop. Fret spacing is logarithmic, so a node's offset above the stop is
-    // constant in fret units and a glide that moves the stop moves the node by the same amount —
-    // which is what lets one rule label every head of a gesture. At an onset `fret_at_head` IS
-    // the note's fret and the shift is zero, so this is the node as stored.
-    const double node_at_head = *note.harmonic_node + static_cast<double>(fret_at_head - note.fret);
-    juce::String text{node_at_head, 1};
+    // One decimal because a node is fractional; the shared rule already carried it to this head's
+    // own stop, so an onset and a junction of one gesture state the same quantity.
+    juce::String text{sounding.position, 1};
     if (text.endsWith(".0"))
     {
         text = text.dropLastCharacters(2);

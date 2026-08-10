@@ -81,6 +81,37 @@ void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_o
     }
 }
 
+// True when a note's harmonic node cannot follow it into `target`, so the verb changing the attack
+// must send the node away with it.
+//
+// Two facts decide it, and nothing else. A pull-off releases onto a plain stopped pitch and sounds
+// no harmonic at any fret, so a node can never survive one. Otherwise the node survives exactly
+// while the same HAND still owns it: the stored number means a place on the neck under a fretting
+// touch and a place the picking hand damps otherwise, so a change that flips the owner silently
+// re-reads it as a different technique. On a stopped note nothing flips — an artificial harmonic's
+// fretting hand is on the stop and the picking hand on the node under every attack — which is why a
+// hammer-on onto a stopped harmonic keeps it and a tap on an open string does not.
+//
+// Both attack verbs ask this. They used to answer it separately and disagreed: for one pinch at a
+// real stop becoming a hammer-on, the legato verb kept the node (correctly, as the tapped-harmonic
+// gesture) while the attack verb dropped it, so two keystrokes specified as the same conversion
+// would have produced two different notes.
+[[nodiscard]] bool nodeLeavesWithAttack(
+    const common::core::ChartNote& note, const common::core::NoteAttack target)
+{
+    if (!note.harmonic_node.has_value())
+    {
+        return false;
+    }
+    if (target == common::core::NoteAttack::Pull)
+    {
+        return true;
+    }
+    common::core::ChartNote retyped = note;
+    retyped.attack = target;
+    return common::core::frettingFingerOnNode(note) != common::core::frettingFingerOnNode(retyped);
+}
+
 // 40-Q2-B normalization: walking each string's sorted notes, any sustain ringing across the next
 // onset truncates to end exactly there (adjacency is legal), clipping payloads with it.
 void normalizeSustainOverlaps(
@@ -532,14 +563,7 @@ std::optional<ChartNotesEditPlan> planSetLegato(
             continue;
         }
         const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
-        // A node here is always the PICKING hand's, since a fret-hand harmonic justifies no legato
-        // at all. It comes along in exactly one case: a hammer-on onto a real stop, the tapped-
-        // harmonic gesture, where the fretting hand takes the stop and the picking hand keeps
-        // damping the node. A pull-off releases onto a plain stopped pitch and sounds no harmonic at
-        // any fret, and on an open string the same number would silently re-read as a fret-hand
-        // node — a different technique.
-        const bool node_leaves = note.harmonic_node.has_value() &&
-                                 !(derived == common::core::NoteAttack::Hammer && note.fret > 0);
+        const bool node_leaves = nodeLeavesWithAttack(note, derived);
         note.attack = derived;
         if (was_scrape)
         {
@@ -593,14 +617,7 @@ std::optional<ChartNotesEditPlan> planSetAttack(
             continue;
         }
         const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
-        // A pinch or tap owns its node with the picking hand. Moving to any other fretting-hand
-        // attack would silently re-read the same number as a fret-hand node, so it leaves with
-        // the attack; between the two picking-hand owners the position keeps its meaning.
-        const bool node_leaves = note.harmonic_node.has_value() &&
-                                 (note.attack == common::core::NoteAttack::Pinch ||
-                                  note.attack == common::core::NoteAttack::Tap) &&
-                                 attack != common::core::NoteAttack::Pinch &&
-                                 attack != common::core::NoteAttack::Tap;
+        const bool node_leaves = nodeLeavesWithAttack(note, attack);
         note.attack = attack;
         if (node_leaves)
         {

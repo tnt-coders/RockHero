@@ -65,7 +65,15 @@ struct HighwayBendPointView
     \return True when both points store equal values.
     */
     friend constexpr bool operator==(
-        const HighwayBendPointView& lhs, const HighwayBendPointView& rhs) noexcept = default;
+        const HighwayBendPointView& lhs, const HighwayBendPointView& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on a
+        // floating member, which is why every float-bearing view here is spelled out. Exact
+        // equality is intended; the ordering query expresses it warning-free with identical
+        // semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               std::is_eq(lhs.semitones <=> rhs.semitones);
+    }
 };
 
 /*! \brief One slide waypoint resolved to an absolute timeline second. */
@@ -87,7 +95,11 @@ struct HighwaySlideView
     \return True when both waypoints store equal values.
     */
     friend constexpr bool operator==(
-        const HighwaySlideView& lhs, const HighwaySlideView& rhs) noexcept = default;
+        const HighwaySlideView& lhs, const HighwaySlideView& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
+               lhs.unpitched == rhs.unpitched;
+    }
 };
 
 /*! \brief One sounding note resolved to timeline seconds for highway rendering. */
@@ -149,7 +161,15 @@ struct HighwayNoteView
     \param rhs Right-hand note view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const HighwayNoteView& lhs, const HighwayNoteView& rhs) = default;
+    friend bool operator==(const HighwayNoteView& lhs, const HighwayNoteView& rhs)
+    {
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
+               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.mute == rhs.mute &&
+               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
+               lhs.tremolo == rhs.tremolo && lhs.accent == rhs.accent && lhs.bend == rhs.bend &&
+               lhs.slides == rhs.slides;
+    }
 };
 
 /*! \brief What the hand holds on one string under a shape span (fingering-panel data). */
@@ -204,7 +224,12 @@ struct HighwayShapeView
     \param rhs Right-hand shape view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const HighwayShapeView& lhs, const HighwayShapeView& rhs) = default;
+    friend bool operator==(const HighwayShapeView& lhs, const HighwayShapeView& rhs)
+    {
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.name == rhs.name &&
+               lhs.arpeggio == rhs.arpeggio && lhs.strings == rhs.strings;
+    }
 };
 
 /*! \brief One station along a tapping-hand light path: the tapped fret extent at an instant. */
@@ -342,8 +367,12 @@ struct HighwayFhpView
     \param rhs Right-hand view.
     \return True when both views store equal values.
     */
-    friend constexpr bool operator==(
-        const HighwayFhpView& lhs, const HighwayFhpView& rhs) noexcept = default;
+    friend constexpr bool operator==(const HighwayFhpView& lhs, const HighwayFhpView& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
+               lhs.width == rhs.width && std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
+               lhs.unpitched_ramp == rhs.unpitched_ramp;
+    }
 };
 
 /*! \brief One beat bar on the board, resolved to a timeline second. */
@@ -362,7 +391,11 @@ struct HighwayBeatView
     \return True when both views store equal values.
     */
     friend constexpr bool operator==(
-        const HighwayBeatView& lhs, const HighwayBeatView& rhs) noexcept = default;
+        const HighwayBeatView& lhs, const HighwayBeatView& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               lhs.measure_downbeat == rhs.measure_downbeat;
+    }
 };
 
 /*! \brief One section label resolved to a timeline second. */
@@ -380,7 +413,10 @@ struct HighwaySectionView
     \param rhs Right-hand section view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const HighwaySectionView& lhs, const HighwaySectionView& rhs) = default;
+    friend bool operator==(const HighwaySectionView& lhs, const HighwaySectionView& rhs)
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name;
+    }
 };
 
 /*!
@@ -580,7 +616,11 @@ tap onset's release.
     const auto member_fret_at = [](const HighwayNoteView& note, const double seconds) {
         const bool scrape = note.attack == NoteAttack::PickSlide;
         double previous_seconds = note.start_seconds;
-        double previous_fret = note.fret;
+        // Where the note SOUNDS, not its stop: a tap harmonic strikes its node, and on an open
+        // string that node is the only position it has. Waypoints ride the same rule, since a node
+        // travels with the stop it rides.
+        double previous_fret =
+            soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret).position;
         for (const HighwaySlideView& waypoint : note.slides)
         {
             if ((waypoint.unpitched && !scrape) || waypoint.fret <= 0)
@@ -637,12 +677,24 @@ tap onset's release.
         for (std::size_t member = index; member < group_end; ++member)
         {
             const HighwayNoteView& note = notes[member];
-            if (!rightHandOnset(note.attack) || note.fret <= 0)
+            // Judged on where the note SOUNDS, so an open-string tap HARMONIC lights its node. The
+            // guard exists to keep a malformed chart from putting a light off the board, and the
+            // sounding position is what has to be on the board — reading `fret` instead dropped the
+            // light from a note the rules explicitly allow, since E4 accepts a tap that strikes a
+            // node in place of a fret.
+            const SoundingPosition sounding =
+                soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret);
+            // The integer fret CONTAINING the sounding place, since the light spans fret slots: a
+            // node at 12.0 lies in fret 12, one at 2.669 in fret 3.
+            const int sounding_fret =
+                sounding.at_node ? static_cast<int>(std::ceil(sounding.position)) : note.fret;
+            if (!rightHandOnset(note.attack) || sounding_fret <= 0)
             {
                 continue;
             }
-            view.fret_low = view.count == 0 ? note.fret : std::min(view.fret_low, note.fret);
-            view.fret_high = std::max(view.fret_high, note.fret);
+            view.fret_low =
+                view.count == 0 ? sounding_fret : std::min(view.fret_low, sounding_fret);
+            view.fret_high = std::max(view.fret_high, sounding_fret);
             ++view.count;
             view.ramp_seconds = std::max(
                 view.ramp_seconds,

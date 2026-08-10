@@ -302,8 +302,11 @@ all:
 
 No local command reports these, so the check is a reading pass over the diff, not another build.
 Before reporting a code change complete, re-read every touched hunk for the constructs that trigger
-them — `==` or `!=` on a floating-point type (including a *defaulted* `operator==` on a
-float-bearing struct), aggregate initializers, `std::optional` dereferences, a variable used after
+them — `==` or `!=` on a floating-point type (including a *defaulted* `operator==` on a struct with a
+float member **of its own**; a defaulted comparison whose float compare happens inside a standard
+library header, as `std::optional<double>` or `std::vector<double>` does, is NOT diagnosed, and a
+defaulted comparison is only defined at all once it is odr-used, so an unused one hides until the
+first test compares it), aggregate initializers, `std::optional` dereferences, a variable used after
 `std::move`, a constructor parameter sharing a base member's name, a file-local helper whose last
 caller the change removed, and framework calls whose meaning differs per OS — and resolve each hit
 per `docs/design/coding-conventions.md`. The table lists what CI has already caught (or a review
