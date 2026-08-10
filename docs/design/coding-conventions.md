@@ -541,11 +541,21 @@ Two cases are safe and should stay defaulted, because hand-writing them creates 
 keep in sync by hand for no benefit:
 
 - No floating member at all.
-- A floating member reached only THROUGH a standard-library type — `std::optional<double>`,
-  `std::vector<double>`, or a vector of structs that hand-write their own comparison. The float
-  compare is then instantiated inside a library header, where the warning does not fire. `ChartNote`
-  is the worked example: its defaulted comparison over `std::optional<double> harmonic_node` is
-  odr-used in the test suite and has always been clean on all three CI compilers.
+- A floating member reached only THROUGH a library type whose own comparison does the compare —
+  `std::optional<double>`, `std::vector<double>`, a vector of structs that hand-write their own
+  comparison, or a third-party value type that routes through one of those. The float compare is
+  then instantiated inside a library header, where the warning does not fire. `ChartNote` is the
+  worked example: its defaulted comparison over `std::optional<double> harmonic_node` is odr-used in
+  the test suite and has always been clean on all three CI compilers.
+
+  This cuts both ways, and the second direction has already cost real code: **verify the premise
+  before hand-writing a comparison, because the hand-written form is not free.** `juce::Range<float>`
+  compares through `std::tie`, so the float compare lands in `<tuple>` and plain `==` on a
+  `std::optional<juce::Range<float>>` is clean — but a 35-line hand-rolled comparison was written and
+  carried for weeks on the assumption that it was not, with a Doxygen block asserting the false
+  reason. The tell was already in the tree: another line compared the same type with `==` through
+  green CI the whole time. When two places disagree about whether an idiom is safe, read the library
+  source and settle it; do not add the defensive copy.
 
 # Test CTAD
 

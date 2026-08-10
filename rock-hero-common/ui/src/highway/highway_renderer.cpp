@@ -2304,15 +2304,13 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
-    // Vertical extent of the board face's fret lines: the string grid's base (the floor stays
-    // y = 0; the chord box's bottom bar fills the gap below the grid) up to an equal
-    // half-string margin above the top lane (highwayLaneToY centers lanes on half-string
-    // offsets above the base). Shared by the fret-line pass below and everything that must not
-    // rise past the fret grid.
+    // Vertical extent of the board face's fret lines, from the core geometry seam: the string
+    // grid's base (the floor stays y = 0; the chord box's bottom bar fills the gap below the grid)
+    // up to an equal half-string margin above the top lane. Shared by the fret-line pass below and
+    // everything that must not rise past the fret grid -- including the bend saturation, which is
+    // why the top edge is derived in highway_metrics.h rather than here.
     const double face_bottom_y = metrics.string_grid_base_y;
-    const double face_top_y =
-        metrics.string_grid_base_y +
-        (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance);
+    const double face_top_y = common::core::highwayStringGridTopY(state.string_count, metrics);
 
     // Arpeggio bracket geometry accumulates per box PER STRING in the box pass below and
     // submits lane-dominantly inside the note pass: an upright bracket against a flat lane
@@ -3162,10 +3160,12 @@ void HighwayRenderer::Impl::draw(
             note.fret > 0 ? noteFretboardX(note, note.fret, metrics, mirrored) : 0.0,
             head_seconds);
 
-        // Bend geometry: lift per semitone, inverted on the upper displayed half so curves stay
-        // inside the board. The chart-truth station is the curve's anchor-time value (a pinned
-        // sounding head rides the curve with the tail centerline); an approaching pre-bent head
-        // reveals that station progressively — see the reveal below.
+        // Bend geometry: highwayBentNoteY applies the lift per semitone, inverted on the upper
+        // displayed half toward the roomier side, and holds the result inside the string grid --
+        // the board containment this rule always claimed but did not enforce until the saturation
+        // moved into the core seam. The chart-truth station is the curve's anchor-time value (a
+        // pinned sounding head rides the curve with the tail centerline); an approaching pre-bent
+        // head reveals that station progressively — see the reveal below.
         const int displayed_lane = invert ? (state.string_count + 1 - note.string) : note.string;
         const double bend_direction =
             common::core::highwayBendInverted(displayed_lane, state.string_count) ? -1.0 : 1.0;
@@ -3184,7 +3184,8 @@ void HighwayRenderer::Impl::draw(
                              common::core::highwayVibratoWobble(
                                  seconds - note.start_seconds, vibrato_period_seconds);
             }
-            return lane_y + (bend_direction * common::core::highwayBendLiftY(semitones, metrics));
+            return common::core::highwayBentNoteY(
+                lane_y, bend_direction < 0.0, semitones, state.string_count, metrics);
         };
         // The head samples the tail centerline's taper (zero at both true tail ends) so its
         // wobbles stay glued to the tail's hit-line end while sounding.

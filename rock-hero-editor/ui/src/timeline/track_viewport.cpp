@@ -376,7 +376,7 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
 // into its memo key so a mask-only change is never skipped.
 void TrackViewport::setTabCaretMask(std::optional<juce::Range<float>> mask)
 {
-    if (sameCaretMask(mask, m_tab_caret_mask))
+    if (mask == m_tab_caret_mask)
     {
         return;
     }
@@ -386,7 +386,7 @@ void TrackViewport::setTabCaretMask(std::optional<juce::Range<float>> mask)
 
 void TrackViewport::setAutomationCaretMask(std::optional<juce::Range<float>> mask)
 {
-    if (sameCaretMask(mask, m_automation_caret_mask))
+    if (mask == m_automation_caret_mask)
     {
         return;
     }

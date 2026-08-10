@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <vector>
 
@@ -123,6 +124,50 @@ TEST_CASE("Highway bend inversion splits the displayed stack", "[core][highway][
     CHECK(highwayBendInverted(6, 6));
     CHECK_FALSE(highwayBendInverted(3, 5));
     CHECK(highwayBendInverted(4, 5));
+}
+
+// A bent note never leaves the string grid. The floor is the origin and nothing draws beneath it,
+// and nothing rises past the top fret line. At shipped metrics a two-whole-step bend from a middle
+// lane of a six-string stack has room in NEITHER direction, so both ends saturate rather than
+// crossing a boundary — the containment the inversion rule above always claimed.
+TEST_CASE("Highway bends stay inside the string grid", "[core][highway][tail]")
+{
+    const HighwayMetrics metrics{};
+    const double grid_base = metrics.string_grid_base_y;
+    const double grid_top = highwayStringGridTopY(6, metrics);
+
+    // Four semitones downward from lane 4 wants y = -0.10, which is under the floor.
+    const double lane_4 = highwayLaneToY(4, metrics);
+    CHECK(highwayBendInverted(4, 6));
+    CHECK(highwayBentNoteY(lane_4, true, 4.0, 6, metrics) == Catch::Approx(grid_base));
+
+    // The mirrored case overshoots the top fret line instead of the floor.
+    const double lane_3 = highwayLaneToY(3, metrics);
+    CHECK_FALSE(highwayBendInverted(3, 6));
+    CHECK(highwayBentNoteY(lane_3, false, 4.0, 6, metrics) == Catch::Approx(grid_top));
+
+    // A bend that fits still keeps the literal identity: one semitone lands on the next lane up.
+    const double lane_1 = highwayLaneToY(1, metrics);
+    CHECK(
+        highwayBentNoteY(lane_1, false, 1.0, 6, metrics) ==
+        Catch::Approx(highwayLaneToY(2, metrics)));
+
+    // A negative offset (a vibrato wobble dipping below the unbent pitch) flips with its sign and
+    // is bounded on that side too.
+    CHECK(highwayBentNoteY(lane_1, false, -8.0, 6, metrics) == Catch::Approx(grid_base));
+}
+
+// The grid's top edge closes the span the base opens, leaving the same half-string margin above the
+// top lane that the base leaves below the bottom one.
+TEST_CASE("Highway string grid top mirrors its base", "[core][highway][tail]")
+{
+    const HighwayMetrics metrics{};
+    CHECK(
+        highwayStringGridTopY(6, metrics) - highwayLaneToY(6, metrics) ==
+        Catch::Approx(highwayLaneToY(1, metrics) - metrics.string_grid_base_y));
+
+    // An empty chart still yields a one-lane grid rather than a collapsed one.
+    CHECK(highwayStringGridTopY(0, metrics) == Catch::Approx(highwayStringGridTopY(1, metrics)));
 }
 
 // Slide easing endpoints are exact for both variants and the curves stay within [0, 1].

@@ -533,10 +533,13 @@ private:
 
         friend bool operator==(const RulerCursorKey& lhs, const RulerCursorKey& rhs)
         {
-            // Exact by design; is_eq / sameCaretMask keep -Wfloat-equal builds clean.
+            // Exact by design. is_eq keeps the -Wfloat-equal builds clean for mark_seconds, which
+            // is a double this struct owns. caret_mask needs no such care: juce::Range compares
+            // through std::tie, so its float compare happens inside <tuple> where the warning does
+            // not reach, and std::optional adds another such layer.
             return lhs.playing == rhs.playing &&
                    std::is_eq(lhs.mark_seconds <=> rhs.mark_seconds) && lhs.range == rhs.range &&
-                   lhs.width == rhs.width && sameCaretMask(lhs.caret_mask, rhs.caret_mask);
+                   lhs.width == rhs.width && lhs.caret_mask == rhs.caret_mask;
         }
     };
     std::optional<RulerCursorKey> m_last_ruler_cursor_key{};

@@ -372,7 +372,7 @@ void TabView::publishCaretMask()
     const std::optional<juce::Range<float>> content =
         local.has_value() ? std::optional<juce::Range<float>>{*local + static_cast<float>(getY())}
                           : std::nullopt;
-    if (sameCaretMask(content, m_published_caret_mask))
+    if (content == m_published_caret_mask)
     {
         return;
     }

@@ -298,9 +298,15 @@ Three related rules keep repaint and publish traffic proportional to actual chan
   (`ToneTrackView::setVisibleTimeline` is the exemplar; every row view follows). This is why
   view-state PODs carry `operator==` at all.
 - **Float members break defaulted `==`** under `-Wfloat-equal` + `-Werror` on the CI
-  toolchains: structs with `float`/`double` fields hand-write equality via `std::is_eq(a <=> b)`
-  (`editor_view_state.h` has several exemplars; `sameCaretMask` in `timeline_cursor.h` is the
-  optional-range form). Large states are `shared_ptr` compared by **pointer identity** instead.
+  toolchains: structs with `float`/`double` fields **of their own** hand-write equality via
+  `std::is_eq(a <=> b)` (`editor_view_state.h` has several exemplars). Large states are
+  `shared_ptr` compared by **pointer identity** instead. Check "of their own" before hand-rolling:
+  a float reached *through* a library type is compared inside that library's header, where the
+  warning does not reach, so `std::optional<double>`, `std::vector<double>`, and
+  `juce::Range<float>` (which compares through `std::tie`) all need nothing. A hand-written
+  optional-range comparison lived here for weeks on the false premise that `juce::Range` compares
+  its floats directly; it was ~35 lines that plain `==` replaced. See
+  `docs/design/coding-conventions.md` for the full rule.
 - **Change keys**: a per-frame derivation memoizes a small struct of its exact inputs and skips
   work while stationary (`RulerCursorKey`, `track_viewport.h`). Every input of the derived
   value must be a field of the key — see \ref guide_invariants.

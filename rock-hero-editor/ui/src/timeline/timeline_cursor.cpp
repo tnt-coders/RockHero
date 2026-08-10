@@ -106,21 +106,4 @@ std::optional<common::core::GridPosition> musicalGridPositionForX(
         tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds));
 }
 
-// Exact equality expressed through is_eq so -Wfloat-equal builds (CI's GCC/Clang/clang-cl) stay
-// clean; juce::Range's own operator== would compare the floats directly and trip it.
-bool sameCaretMask(
-    const std::optional<juce::Range<float>>& lhs, const std::optional<juce::Range<float>>& rhs)
-{
-    if (lhs.has_value() != rhs.has_value())
-    {
-        return false;
-    }
-    if (!lhs.has_value())
-    {
-        return true;
-    }
-    return std::is_eq(lhs->getStart() <=> rhs->getStart()) &&
-           std::is_eq(lhs->getEnd() <=> rhs->getEnd());
-}
-
 } // namespace rock_hero::editor::ui

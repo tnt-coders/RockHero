@@ -100,8 +100,8 @@ If you are adding something that changes when the *user edits*, push it; if it c
 One narrow channel runs the other way, **upward**: when the viewport needs geometry a row owns —
 the armed caret square's vertical mask, which the paused-column cursor must cut around — the row
 *publishes* it fire-on-change (`TabView`/`ToneAutomationLanesView::setCaretMaskCallback` →
-`TrackViewport::setTabCaretMask`/`setAutomationCaretMask`, compared with `sameCaretMask` in
-`timeline_cursor.h`). The viewport never polls a sibling row's geometry. The reason is the memo
+`TrackViewport::setTabCaretMask`/`setAutomationCaretMask`). The viewport never polls a sibling
+row's geometry. The reason is the memo
 below: sampled-channel derivations are gated by change keys, and a polled value that changes
 without a notification freezes inside the memo.
 

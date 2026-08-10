@@ -305,6 +305,30 @@ identically.
 }
 
 /*!
+\brief Returns the world Y of the string grid's top edge.
+
+The far end of the span \ref HighwayMetrics::string_grid_base_y opens. Because
+\ref highwayLaneToY centers lanes on half-string offsets above the base, closing the grid a whole
+string spacing per lane above the base leaves exactly the same half-string margin above the top
+lane as the base leaves below the bottom one, which is what makes the fret lines stick out
+symmetrically.
+
+Together with the base this is the vertical extent nothing on the board face may leave: the fret
+lines span it, and anything that must not rise past the fret grid or sink toward the floor
+saturates against it.
+
+\param string_count Number of displayed lanes; values below one count as one, so an empty chart
+       still yields a one-lane grid rather than a collapsed one.
+\param metrics World-space constants.
+\return World Y of the grid's top edge.
+*/
+[[nodiscard]] inline double highwayStringGridTopY(int string_count, const HighwayMetrics& metrics)
+{
+    return metrics.string_grid_base_y +
+           (static_cast<double>(std::max(string_count, 1)) * metrics.string_distance);
+}
+
+/*!
 \brief Returns the world Y of a string lane above the board surface.
 
 The lowest-pitched string sits at the bottom by default (Charter's orientation); the invert flag
@@ -332,6 +356,22 @@ visibly crosses two lanes. That identity is why the rate is the string spacing i
 a constant stored beside it — Charter's separate stringDistance x 0.8 lift is deliberately
 superseded. Vibrato depth is authored in semitones and rides the same scale on purpose.
 
+Unbounded on purpose: this is the pitch-space rate, not a drawable position. Use
+\ref highwayBentNoteY to place a bent note, which applies this rate and then holds the result on
+the board.
+
+PROVISIONAL RATE. Two decisions have overtaken the linear identity above and it is expected to be
+replaced. The supported bend range is three whole steps, which is six semitones and therefore six
+lane gaps — more than a six-lane grid is tall — so at the ceiling the identity cannot hold no
+matter which lane the note starts on. And the drawn shape is meant to read as a physical bend,
+where displacement is NOT linear in pitch: stretching a string laterally by d lengthens it by
+about d squared, tension rises with that, and pitch rises with the square root of tension, so
+n semitones needs a displacement proportional to the square root of n. Each extra semitone
+therefore moves the string LESS than the one before (1.00, then 0.41, then 0.32 of the first
+semitone's distance), which is why a real bend's travel bunches up as it goes even though the
+force keeps climbing. Reworking this into a concave mapping over the three-whole-step range is
+open work; the saturation in \ref highwayBentNoteY keeps the current rate safe meanwhile.
+
 \param semitones Pitch offset above the unbent string in half steps; fractional values are
        ordinary (a bend in progress, a vibrato wobble).
 \param metrics World-space constants.
@@ -340,6 +380,42 @@ superseded. Vibrato depth is authored in semitones and rides the same scale on p
 [[nodiscard]] inline double highwayBendLiftY(double semitones, const HighwayMetrics& metrics)
 {
     return semitones * metrics.string_distance;
+}
+
+/*!
+\brief Returns the world Y a bent note draws at, held inside the string grid.
+
+The one authority for where a bent note sits, because the lift alone is not a position. Applying
+\ref highwayBendLiftY raw put a two-whole-step bend on a middle lane of a six-string stack BELOW
+THE FLOOR — the floor is the origin and nothing draws beneath it — and put the mirrored case above
+the top fret line. Both are states the inversion rule's own rationale said could not happen, so the
+boundary is enforced here instead of merely asserted in a comment.
+
+Saturating is the correct yield rather than a fudge. The lift is deliberately literal: N semitones
+reaches the lane N gaps away, so a bend arrives at the pitch it now sounds. A two-whole-step bend
+needs four gaps, which a six-lane grid cannot supply from a middle lane in either direction, so the
+arrival lane stops being literal exactly when the board cannot express it — and it stops at the
+edge rather than through it. This is NOT the 2D tab lane's rule and must not be unified with it: a
+tab lane has no pitch axis, so it maps a bend onto a fraction of the tail instead, and that
+difference is a property of the two surfaces rather than a disagreement between them.
+
+The direction still comes from the caller (highwayBendInverted), which prefers the roomier side,
+so saturation only ever bites the residue that side could not hold.
+
+\param lane_y World Y of the note's unbent lane center.
+\param inverted True when the lift points downward, per highwayBendInverted.
+\param semitones Pitch offset in half steps; may be negative (a vibrato wobble dipping below the
+       unbent pitch), in which case the drawn offset flips with it.
+\param string_count Number of displayed lanes, which sets the grid's top edge.
+\param metrics World-space constants.
+\return World Y of the bent note, never outside the string grid.
+*/
+[[nodiscard]] inline double highwayBentNoteY(
+    double lane_y, bool inverted, double semitones, int string_count, const HighwayMetrics& metrics)
+{
+    const double lift = (inverted ? -1.0 : 1.0) * highwayBendLiftY(semitones, metrics);
+    return std::clamp(
+        lane_y + lift, metrics.string_grid_base_y, highwayStringGridTopY(string_count, metrics));
 }
 
 /*!
