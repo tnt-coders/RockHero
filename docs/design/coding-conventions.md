@@ -529,6 +529,24 @@ helpers state exact (in)equality directly and treat an unordered NaN result as n
 `a < b || a > b` silently reports NaN as equal. This is the project's established idiom, used in the
 `operator==` definitions throughout `common/core` and `common/audio`.
 
+## When a defaulted `operator==` is safe
+
+A struct with a floating-point member **of its own** must hand-write its `operator==` with the
+`std::is_eq` idiom above; a defaulted one compares that member with `==` and trips the warning. The
+trap is that a defaulted comparison is only *defined* once it is odr-used, so an unused one is
+invisible until the first test compares it — and then it breaks GCC, Clang and clang-cl at once, on a
+line nobody edited.
+
+Two cases are safe and should stay defaulted, because hand-writing them creates a member list to
+keep in sync by hand for no benefit:
+
+- No floating member at all.
+- A floating member reached only THROUGH a standard-library type — `std::optional<double>`,
+  `std::vector<double>`, or a vector of structs that hand-write their own comparison. The float
+  compare is then instantiated inside a library header, where the warning does not fire. `ChartNote`
+  is the worked example: its defaulted comparison over `std::optional<double> harmonic_node` is
+  odr-used in the test suite and has always been clean on all three CI compilers.
+
 # Test CTAD
 
 In test code, prefer class template argument deduction for short-lived expected values when the
