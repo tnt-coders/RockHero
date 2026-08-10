@@ -518,7 +518,11 @@ TEST_CASE("Highway display hold ends span-extend sustainless strums", "[core][hi
         note.mute = mute;
         notes.push_back(std::move(note));
     };
-    add_note(0.99995, 0.99995); // Chord straddling the span start within the onset epsilon.
+    // A chord sitting exactly ON the span start. Its members share a grid position, which resolves
+    // to the same second, so this is what a real chord looks like — the tolerance is for arithmetic
+    // noise, not for a musical distance, and used to be wide enough to fuse notes 50 microseconds
+    // apart that no rounding could have produced.
+    add_note(1.0, 1.0);
     add_note(1.0, 1.0);
     add_note(2.0, 2.0); // Single note under the span.
     add_note(3.0, 3.5); // Mixed chord: a real sustain next to a sustainless partner.
@@ -576,9 +580,12 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     add_note(1.0, 12, NoteAttack::Tap); // Lone tap.
     add_note(2.0, 5); // Fretted note under a simultaneous tap: only the tap counts.
     add_note(2.0, 14, NoteAttack::Tap);
-    add_note(3.0, 15, NoteAttack::Tap); // Tapped chord within the onset epsilon.
-    add_note(3.00005, 12, NoteAttack::Tap);
-    add_note(3.00005, 17, NoteAttack::Tap);
+    // A tapped chord: its members share a grid position and so share a second exactly. The last one
+    // is offset by a picosecond, which is the only kind of difference the tolerance is for — pure
+    // arithmetic noise, orders below any grid the editor offers.
+    add_note(3.0, 15, NoteAttack::Tap);
+    add_note(3.0, 12, NoteAttack::Tap);
+    add_note(3.000000000001, 17, NoteAttack::Tap);
     add_note(4.0, 9, NoteAttack::Hammer); // Left-hand tap imports as Hammer: no entry.
 
     const std::vector<HighwayTapOnsetView> onsets =

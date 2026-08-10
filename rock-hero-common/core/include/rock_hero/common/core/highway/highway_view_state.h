@@ -576,12 +576,19 @@ individually because an early short note inside the range may end before the spa
 /*!
 \brief Tolerance for matching an onset to another onset or a shape-span boundary.
 
-Two events at the same musical grid position resolve through the tempo map on different code
-paths (a forward cursor for note onsets, the plain resolver for shape boundaries), so they can
-land a rounding epsilon apart; without this tolerance a chord sitting exactly on a hand shape's
-start or end would intermittently fall outside the span.
+A true rounding tolerance and nothing more: a nanosecond is four orders above the double rounding
+error at song scale and six orders below the finest grid the editor offers (a 1/128 note is 15 ms at
+120 BPM), so it can only ever absorb arithmetic noise, never join two musically distinct events.
+
+It was 1e-4 s, on the stated grounds that a note onset and a shape boundary resolve through
+different tempo-map paths and so land a rounding epsilon apart. They do not: the forward cursor is
+documented as returning bit-identical results and computes the same expression against the same
+anchor span as the plain resolver, so equal grid positions resolve to equal seconds. The oversized
+value was the sole reason the display's simultaneity rule could group notes at DISTINCT musical
+positions that the chart-side rule (chartEffectiveSustains) refuses — a divergence
+`grid_arithmetic.h` recorded as deliberate. With the tolerance honest, the two rules agree.
 */
-inline constexpr double g_highway_onset_match_epsilon = 1.0e-4;
+inline constexpr double g_highway_onset_match_epsilon = 1.0e-9;
 
 /*!
 \brief Derives the picking-hand onsets: one entry per onset group with taps or pick slides.

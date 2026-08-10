@@ -1079,10 +1079,13 @@ bool EditorView::chartShown() const noexcept
 // label, the enablement, and the live chord all come from the registry, which means a rebind is
 // reflected here with no work and an item can never drift from the key that triggers it.
 //
-// Applicability needs no second source of truth either. Each command already answers it in
-// getCommandInfo, and a command-backed item renders greyed when inactive, so the menu lists the
-// chart's whole verb set and lets the registry gray what does not apply right now — a selection
-// verb reads as present-but-unavailable rather than vanishing, which is what teaches the grammar.
+// Applicability is deliberately NOT shown here, and the reason is worth stating because the opposite
+// reads as an oversight: every chart command registers as always-active on purpose, because JUCE
+// plays the system alert when a disabled command's chord is pressed. So these items always read
+// enabled, and one that cannot apply right now does nothing rather than greying out. Making them
+// grey would mean a second applicability authority beside the planners' own gate, which the one-rule
+// principle refuses; the feedback a refused verb owes the user belongs in the refusal channel
+// instead (walkthrough W5).
 void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
 {
     if (!chartShown())
@@ -1098,6 +1101,11 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::NeutralInsert);
     add(note_menu, EditorCommandId::SelectionDelete);
     note_menu.addSeparator();
+    // Both technique verbs, so the menu teaches the whole set. The legato toggle was the one verb
+    // with a chord to teach and the one missing here, while the scrape toggle — which has no chord
+    // yet — was reachable ONLY through this menu, making it the second way to act the menu is not
+    // supposed to be.
+    add(note_menu, EditorCommandId::ChartLegatoToggle);
     add(note_menu, EditorCommandId::ChartPickSlideToggle);
 
     juce::PopupMenu move_menu;
@@ -1798,13 +1806,12 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 return true;
             }
-            if (m_state.chart_edit.marquee.has_value() ||
-                m_state.tone_automation.drag_preview.has_value() ||
-                m_state.chart_edit.caret.has_value() ||
-                m_state.tone_automation.lane_caret.has_value() || m_state.selection_present)
-            {
-                m_controller.onChartEscapePressed();
-            }
+            // Handed on unconditionally: the controller's ladder self-gates every rung, and mirroring
+            // its conditions here could only get them wrong. It did — the mirror could see a marquee
+            // only after the drag crossed its four-pixel threshold, so pressing Escape inside that
+            // threshold never reached the controller, the gesture was not abandoned, and the release
+            // still armed the caret at the pressed slot, moving the playhead the press had cancelled.
+            m_controller.onChartEscapePressed();
             return true;
         }
 

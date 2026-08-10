@@ -64,13 +64,11 @@ holds to the span's end. Groups whose notes are all fully muted stay unextended 
 choked, not held), as do single notes and notes carrying an explicit sustain, whose tails already
 state their hold. Coverage is positional only, with no posture matching.
 
-The two readers deliberately differ in ONE respect, and only because each uses the sharpest tool
-its domain offers: simultaneity here is exact `GridPosition` equality, while the display compares
-resolved seconds against an epsilon. Exact positions always resolve to equal seconds, so this
-grouping is a subset of the display's; the display can additionally group two notes at DISTINCT
-musical positions that land within its epsilon (a grace-shifted pair, say), and there it will
-draw a held bar this function does not credit. The chart side is the stricter and more literal
-of the two, which is the right way round for a rule that refuses user edits.
+The two readers ask simultaneity in the terms their domains offer — exact `GridPosition` equality
+here, resolved seconds against a rounding tolerance on the display side — and agree. Exact positions
+always resolve to equal seconds, and the display's tolerance is a nanosecond, six orders below the
+finest grid the editor offers, so it can absorb arithmetic noise but never join two notes a chart can
+tell apart. There is no set of notes one groups and the other does not.
 
 Callers must pass notes in their SAVED form (`savedChartNote`). A pick slide's latent mute is the
 difference that matters: in memory an onset group can read as all-muted, and so choked, where the
