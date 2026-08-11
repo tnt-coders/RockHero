@@ -1,6 +1,14 @@
-# Legato ground-up simplicity analysis — awaiting ruling
+# Legato ground-up simplicity analysis — the pass that produced the shipped model
 
-**Status: ANALYSIS COMPLETE 2026-08-11, NOTHING RULED.** The user directed a ground-up
+**Status: IMPLEMENTED 2026-08-11.** The user ruled for DERIVED-DIRECTION out of this analysis, and it
+shipped the same day (`006ae58e`, `2e840872`, `7f6c4517`). The ruling as signed is
+`legato-final-spec.md`; the record of what shipped is `legato-authoring-model.md`. Everything below
+is the analysis as it stood before the ruling — the candidate field, the kills, and the ledger — kept
+because the kills are why the shipped design has its shape. The one line now out of date is the
+paused-implementation note at the end of this header: the recalc window was cancelled unbuilt (task
+#63) rather than paused.
+
+**Analysis record (pre-ruling): ANALYSIS COMPLETE 2026-08-11, NOTHING RULED.** The user directed a ground-up
 re-derivation of the simplest correct legato design, with sunk cost explicitly excluded: "the
 final design should be the absolute simplest with all things considered... even if we were to
 rip out EVERYTHING we have already done and re-implement from the ground up." Fourteen agents

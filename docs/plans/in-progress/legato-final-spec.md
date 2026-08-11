@@ -1,11 +1,18 @@
 # Legato — the final ruled specification (DERIVED-DIRECTION, as amended)
 
-**Status: RULED 2026-08-11 through direct user walkthrough; red-teamed (4 adversarial lenses +
-judge, all findings folded in below); awaiting implementation go.** This document consolidates
-every amendment from the ruling conversation and supersedes the model sections of
-`legato-authoring-model.md` (rewritten to match after implementation). Analysis trail:
-`legato-simplicity-analysis.md`, `legato-design-options-explained.md`,
+**Status: IMPLEMENTED 2026-08-11** (`006ae58e` the model, `2e840872` the toggle's save case,
+`7f6c4517` the scenario tests). Ruled the same day through direct user walkthrough and red-teamed
+(4 adversarial lenses + judge, all findings folded in below). This document is kept as the RULING,
+sentence-for-sentence as signed; the standing record of what shipped — with the code anchors, the
+physics, and the graveyard of everything this replaced — is `legato-authoring-model.md`. Analysis
+trail: `legato-simplicity-analysis.md`, `legato-design-options-explained.md`,
 `legato-tap-notation-final-pass.md`.
+
+Two departures the implementation made from the letter of this spec, both recorded rather than
+silent: the toggle window stores only its armed keys, because the burst's plan already lives once in
+`m_chart_notes_top` (`ChartNotesTopEntry`) where the settle sweep also reads it, so no
+`ChartLegatoToggleEntry` was needed; and the counted-skip feedback ships as the verb's own typed
+return (`ChartLegatoPlan{plan, skipped, reason}`) rather than through W3's unbuilt refusal channel.
 
 ## Stored model
 

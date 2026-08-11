@@ -85,13 +85,19 @@ rest, each verified against the code, each a fix rather than a question unless m
   is never pruned, so orphaned audio copies and abandoned tone documents accumulate in every future
   save.
 
-- **Re-import EVERY package and project (2026-08-08, hard break).** The harmonic collapse replaced
-  the `harmonic` and `touch` note fields with a single `harmonicNode`, and moved the pinch to
-  `"attack": "pinch"`. The chart reader now **refuses** a document carrying either old key rather than
-  ignoring it, so an un-reimported package fails to load with a message naming the fix — chosen over
-  silent loading, which would have dropped every harmonic in the chart without a word. This affects
-  the converter-sourced `.rock` corpus too, unlike the GP-only item below. The refusal in
-  `chart_document.cpp` is a tripwire, not compatibility: delete it once the corpus is re-imported.
+- **Re-import EVERY package and project (2026-08-08, hard break; widened 2026-08-11).** The harmonic
+  collapse replaced the `harmonic` and `touch` note fields with a single `harmonicNode`, and moved
+  the pinch to `"attack": "pinch"`. The chart reader now **refuses** a document carrying either old
+  key rather than ignoring it, so an un-reimported package fails to load with a message naming the
+  fix — chosen over silent loading, which would have dropped every harmonic in the chart without a
+  word. This affects the converter-sourced `.rock` corpus too, unlike the GP-only item below. The
+  refusal in `chart_document.cpp` is a tripwire, not compatibility: delete it once the corpus is
+  re-imported.
+  **The legato ruling widened the same break (2026-08-11):** the attack tokens `"hammer"` and
+  `"pull"` are gone, replaced in place by `"legato"` (the claim) and `"leftTap"`, and an unknown
+  attack token is a read error — so every package written before that date now fails to load for this
+  reason too, whether or not it carried a harmonic. Same remedy, same tripwire; warn the user before
+  they open an old project.
   **The converter's own conversion notes need re-verifying before you trust them** (2026-08-10): the
   two recorded here — every natural harmonic gains a node equal to its touched fret (1960 of them in
   the packages measured), and pinch harmonics import as plain picks (5 notes corpus-wide, so a
@@ -165,8 +171,10 @@ rest, each verified against the code, each a fix rather than a question unless m
   format change routed through plan 10 if ever adopted.
 - Chord-box filling no longer tints its own chord's heads — accepted cost of drawing boxes before
   the notes (our board view has no depth writes); revisit only if it reads wrong in practice.
-- Eyeball the un-witnessed Phase 4 technique renders — hammer-on/pull-off/tap icons, harmonic
-  heads, arpeggio brackets, tremolo wobble — on a legato/harmonic-heavy chart.
+- Eyeball the un-witnessed Phase 4 technique renders — the connection triangles (drawn from the
+  RESOLVED motion since 2026-08-11, so this now also checks that a hammer-on and a pull-off point the
+  right ways after a neighbour edit), tap icons, harmonic heads, arpeggio brackets, tremolo wobble —
+  on a legato/harmonic-heavy chart.
 - Evaluate the engine ctor's unconditional auto-detect `initialise(1, 2)` followed by the
   editor's saved-route restore (a double device open at startup) — needs its own design and
   touches game startup too.

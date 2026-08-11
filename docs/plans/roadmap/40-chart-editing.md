@@ -502,6 +502,19 @@ it (a pick-slide carrier sheds its other techniques and synthesizes its default 
 what attack coverage exists before executing this phase; the mute/harmonic/vibrato/tremolo/accent
 properties and the §9a mixed-validity feedback are what remain.
 
+**The connection family is DONE as of 2026-08-11** and is the pattern the remaining verbs should
+copy. `H` (`ChartLegatoToggle`) and `Ctrl+H` (`ChartLeftTap`) ship the full ruled model
+(`docs/plans/in-progress/legato-authoring-model.md`): the chart stores a claim and never a direction,
+`resolveLegato` answers the motion for every consumer, and the planner uses that resolver as its own
+oracle so no eligibility list is restated in the verb. Three things there are precedents for the rest
+of this phase rather than legato specialities — the **apply-wins-then-clear** toggle law measured by
+what the plan does (not by what the selection already holds), the **counted-skip report**
+(`ChartLegatoPlan{plan, skipped, reason}`), which is §9a's mixed-validity feedback in its minimal
+working form, and the **proof-based toggle window** that makes a second press an exact reversal.
+Legato's one non-transferable part is the settle sweep, which exists only because a connection
+references another note; every other Phase 5 property is intra-note (see the generalization table in
+the model doc), so nothing else in this phase needs one.
+
 - **Scope**: attack (pick/pinch/legato/leftTap/tap/pop/slap/pickSlide), mute (none/palm/full), the
   harmonic — which is the `harmonic_node` numeric entry, since a node's presence is what makes a
   note a harmonic and `Pinch` is an attack — vibrato (whole-note bool until

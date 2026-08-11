@@ -1,6 +1,25 @@
 # Left-hand-tap notation — the final adversarial pass
 
-**Status: ANALYSIS COMPLETE 2026-08-11, AWAITING SIGNATURES (S1–S6 below).** The user asked for
+**Status: IMPLEMENTED 2026-08-11.** The user ruled the same day and the outcome shipped
+(`006ae58e`, `2e840872`, `7f6c4517`). How each signature landed, against `legato-final-spec.md` as
+the ruling of record:
+
+- **S1, S2, S5 — signed as written.** The merged mark stands on all surfaces under the new storage,
+  the tap-notation question is closed for the third and final time, and the per-note intent modifier
+  stays shelved priced-but-unadopted.
+- **S3 — signed in substance, minus its chrome.** An unjustified `Legato` does read as the narrower
+  true pair rather than "the left-hand tap", and the merged mark now comes from the RESOLVED motion
+  (`resolveLegato`) — but it draws as a plain pick with **nothing added**, not as "plain pick +
+  hollow chrome".
+- **S4 — OVERTURNED.** No dormant-state chrome ships, in 2D or 3D. The spec re-signed the
+  no-indicator line on a stronger hinge than S4 offered: TRANSIENCE — a broken claim cannot cross a
+  top-of-history settle or reach any file, so mid-burst it is pixel-identical to a plain pick by
+  design.
+- **S6 — signed**: the storage adoption itself, which is the whole of `legato-final-spec.md`.
+
+The analysis as it stood before the ruling follows unchanged.
+
+**Analysis record (pre-ruling): ANALYSIS COMPLETE 2026-08-11, AWAITING SIGNATURES (S1–S6 below).** The user asked for
 one deliberate final pass on whether left-hand taps should get a notation distinct from
 hammer-ons — "that is the one real decision that created this condition" — with the complete
 picture from the ground-up simplicity analysis in view. Ten agents ran it: three record/

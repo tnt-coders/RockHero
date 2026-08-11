@@ -510,8 +510,9 @@ editor state, and the remaining store simplification is active work.*
 prompt lies:
 
 1. **Tracked edits**: `EditorUndoHistory::hasUnsavedEdits()` relative to the clean marker.
-2. **Untracked changes**: dirtiness no undo marker can reach — load-time normalization rewrites,
-   a failed undo push, a faulted session.
+2. **Untracked changes**: dirtiness no undo marker can reach — load-time normalization rewrites
+   (including the connection-claim settle every chart load runs, whose conversions arrive on
+   `SongPackageRead::conversions`), a failed undo push, a faulted session.
 3. **`save_requires_destination`**: an imported project with no path yet.
 
 A **faulted session** (see \ref guide_undo) interacts with the lifecycle deliberately: Save is

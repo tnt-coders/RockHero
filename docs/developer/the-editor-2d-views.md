@@ -199,7 +199,7 @@ own rules — `tab_view.h` points at the shared declarations instead, because a 
 the rule it forwards gives the reader two descriptions to reconcile and no compiler to catch the
 drift.
 
-Three notation rules inside the paint core are worth knowing before touching a head, because each
+Five notation rules inside the paint core are worth knowing before touching a head, because each
 is deliberately single-sourced:
 
 - **The head silhouette names the note's kind**, never which hand produced it (a present mark's
@@ -220,6 +220,19 @@ is deliberately single-sourced:
   chips' boxed style — pinned to the bounds rather than the timeline, because a capo has no time.
   The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the
   drawn content says where the string floor sits. Crude first treatment (roadmap 25-Q6).
+- **The beside-head legato triangle comes from the note's RESOLVED motion**, never from a stored
+  direction: `TabNoteView::legato` is a `LegatoMotion` the projection got from `chartResolutions`,
+  and the painter simply points the triangle down for `Hammer` and up for `Pull`. `Unjustified`
+  draws nothing, so a claim the chart cannot justify is pixel-identical to a plain pick —
+  deliberately, per `docs/plans/in-progress/legato-authoring-model.md`. Nothing in the paint core
+  knows the rules that produced the value.
+- **A tail's end is `display_hold_ends[index]`, not the note's own sustain.** A sustainless member
+  of a strum a hand-shape span holds is drawn held to the span's end, because the span is what tells
+  the player how long to keep the shape fretted. Both surfaces resolve that one field from the same
+  `chartEffectiveSustains` authority (`HighwayViewState::display_hold_ends` is its twin), which is
+  what closed the recorded W9-A divergence where 2D drew bare heads for a chart the board drew held.
+  It is also what the visible-range prefix maximum must index, so a span-held strum stays in range
+  for as long as it is drawn.
 
 One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
 (the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via

@@ -2101,13 +2101,13 @@ bool EditorController::Impl::applyChartEditPlan(
         for (const common::core::ChartNote& note : plan->inserted)
         {
             const ChartNoteKey key{.position = note.position, .string = note.string};
-            // A note rewritten IN PLACE that the user had not selected is a repair the plan
-            // carried, not the edit's subject — the shared finalize repairs a neighbour's legato
-            // whenever an edit disturbs its justification — so it must not join the selection.
-            // Selecting it would break the armed-caret invariant (armed means the selection is
-            // exactly what sits under the caret) and would silently widen the next keystroke's
-            // scope. A note inserted at a NEW key is the edit's own product (a moved or created
-            // note) and follows as before.
+            // A note rewritten IN PLACE that the user had not selected is something the plan
+            // carried, not the edit's subject — the H assist grows a predecessor's tail inside
+            // the same plan, and the finalize's overlap pass can retrim a same-string neighbour —
+            // so it must not join the selection. Selecting it would break the armed-caret
+            // invariant (armed means the selection is exactly what sits under the caret) and
+            // would silently widen the next keystroke's scope. A note inserted at a NEW key is
+            // the edit's own product (a moved or created note) and follows as before.
             if (in_plan(plan->removed, key) &&
                 !std::ranges::binary_search(chartSelection().notes(), key))
             {
@@ -2963,11 +2963,10 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
             return true;
         }
         // The widened whole-entry plan runs from the PRE-ENTRY stream, reconstructed by
-        // reversing exactly what this entry applied — a plan's own inverse restores everything
-        // it touched, including a neighbour whose legato the shared finalize repaired. (Swapping
-        // the captured base values back could not restore such a neighbour, which is why a
-        // repair used to settle the window and strand two-digit entry on every note that is
-        // another note's legato predecessor.)
+        // reversing exactly what this entry applied — a plan's own inverse restores everything it
+        // touched, whatever that was, including notes outside the selection that the finalize's
+        // overlap pass retrimmed. Swapping the captured base values back would restore only the
+        // typed notes, so the widen must reverse the plan rather than the values.
         common::core::Chart pre_entry = *chart;
         if (entry.applied_plan.has_value() &&
             !applyChartNotesChange(
@@ -3002,9 +3001,9 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
 
         // Walk the live chart back to pre-entry and then to the combined target, so the state
         // the history top describes is exactly the state the chart holds. Re-planning forward
-        // from the current values cannot do that: the legato repair is not invertible by
-        // re-running it, so a first digit that flipped a neighbour would leave the chart and the
-        // history entry disagreeing and undo would preflight-fail.
+        // from the current values cannot do that: a plan is not its own inverse, so a first digit
+        // that also rewrote something else would leave the chart and the history entry
+        // disagreeing and undo would preflight-fail.
         if (entry.applied_plan.has_value() &&
             !applyChartNotesChange(
                  *chart, entry.applied_plan->inserted, entry.applied_plan->removed)
@@ -3130,9 +3129,8 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     // still arms the entry window: the digit applies nothing, but the widen replans the
     // two-digit value from the same pre-entry base, so every in-range multi-digit target
     // stays reachable — a scrape's wide default path would otherwise dead-end all typing.
-    // The applied plan travels with the entry so the widen can reverse it exactly; a plan that
-    // repaired a neighbour's legato is reconstructible that way, which is what keeps two-digit
-    // entry working on a note another note hammers on from.
+    // The applied plan travels with the entry so the widen can reverse it exactly, which is what
+    // keeps two-digit entry working however much the first digit's plan touched.
     std::optional<ChartNotesEditPlan> applied;
     bool pushed = false;
     if (plan.has_value() && !plan->removed.empty())

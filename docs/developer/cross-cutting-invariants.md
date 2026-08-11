@@ -49,6 +49,14 @@ freezes the output, and the symptom is a lingering — not one-frame — paint g
 a sibling component's geometry must be *pushed* into the memo's key (the caret-mask channel in
 \ref guide_2d_views), never polled from inside the gated derivation.
 
+**A note's connection motion is asked, never read.** The chart stores a legato *claim* and never a
+direction, so any consumer that needs to know whether a note is a hammer-on or a pull-off must take
+it from the shared per-revision pass (`chartResolutions` / `resolveLegato`,
+`common/core/chart/chart_legato.h`) and never infer it from `note.attack`. Inferring compiles fine
+and silently diverges from the other surfaces the moment a neighbour is edited, which is the defect
+family the resolver exists to close — and it must be answered per chart revision, never per frame.
+See \ref guide_2d_views and \ref guide_3d_highway for how each surface spends the answer.
+
 **Recoverable failures cross boundaries as typed errors.** Domain-owned error values, not
 framework strings; callers branch on the type, never parse message text. Side-effect failures
 that can affect user-visible state must surface — silently folding them into refreshed state is a

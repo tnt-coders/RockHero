@@ -768,8 +768,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // degrading into a retype that would strand it.
         bool began_as_insert{false};
         // What this entry has applied to the chart so far. Widening REVERSES it to reconstruct
-        // the pre-entry stream exactly — including any neighbour the shared finalize repaired,
-        // which swapping the captured base values back could never restore.
+        // the pre-entry stream exactly — including anything the plan touched beyond the typed
+        // notes, which swapping the captured base values back could never restore.
         std::optional<ChartNotesEditPlan> applied_plan{};
         bool pushed{false};
         std::size_t history_position{};

@@ -1,5 +1,13 @@
 # Note Format and 2D Tablature Plan
 
+> **The format snippets below are a 2026-07-06 snapshot and have since drifted twice. The live
+> reference is `docs/developer/file-formats.md`.** Two deliberate in-place changes are not reflected
+> here: the harmonic collapse (2026-08-08) replaced `"harmonic": "natural" | "pinch"` with a single
+> `harmonicNode` number plus `"attack": "pinch"`, and the legato ruling (2026-08-11) replaced the
+> `"hammer"` / `"pull"` attack tokens with `"legato"` — the authored claim, whose direction is read
+> back by `resolveLegato` and never stored — and `"leftTap"`. The reasoning each rule below records is
+> unchanged; only the spellings moved.
+
 Status: IMPLEMENTED 2026-07-06. The format (slice 1), the read-only tab lane (slice 2), and the
 full technique/chord/FHP rendering (slice 3) all shipped: chart domain model and document IO in
 `rock-hero-common/core/chart/`, package wiring through `Arrangement`/`rock_song_package_format`,
@@ -211,7 +219,9 @@ the song document. Everything below lives in that chart file. Design rules that 
   duplicates when modeled separately). Whether a shape is a chord box or an arpeggio bracket is
   derivable from whether its notes arrive together or sequentially — no stored flag.
 - **One `attack` field for how an onset is produced.** `hammer | pull | tap | pop | slap`
-  (absent = plain pick). These are mutually exclusive by nature, so one field makes illegal
+  (absent = plain pick) — today `legato | leftTap | pinch | tap | pop | slap | pickSlide`, and the
+  rule below is *why* the legato ruling could swap two values for one claim plus one statement
+  without adding a field. These are mutually exclusive by nature, so one field makes illegal
   combinations unrepresentable. Timbre modifiers that genuinely combine with any attack stay
   separate: `harmonic` (tap harmonics are real) and `mute` (palm-muted slap is real).
 - **Curve payloads are two-column pairs.** `[offset, value]`, like coordinates — self-evident

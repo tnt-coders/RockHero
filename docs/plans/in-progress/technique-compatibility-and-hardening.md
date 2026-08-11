@@ -94,14 +94,14 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
 | **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
 | **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
-| **E12** | `Pull` excludes every harmonic | A pull-off sounds the string by *releasing* a finger so a lower stopped pitch rings — and that pitch rings over the full speaking length with nothing damping a node, so the result is an ordinary note by construction. A contrived arrival at a node (a finger resting lightly below the released one) has the release *damping* rather than exciting, and barely sounds. |
+| **E12** | `Pull` excludes every harmonic | A pull-off sounds the string by *releasing* a finger so a lower stopped pitch rings — and that pitch rings over the full speaking length with nothing damping a node, so the result is an ordinary note by construction. A contrived arrival at a node (a finger resting lightly below the released one) has the release *damping* rather than exciting, and barely sounds. **No longer a validation rule (2026-08-11):** it is the resolver's Pull-clause node veto, so a noded note under a higher predecessor simply resolves to nothing (and the `H` verb therefore skips it) instead of the document being refused. The intra-note half — a node's own range and stop rules — stays validation. |
 | **E13** | `Natural` harmonic **allows** `Hammer` and `Tap`, and that pairing *is* the tap harmonic | A finger strikes the string over a node and the strike both excites and damps. `Hammer` is the fretting-hand form, `Tap` the picking-hand one (hold 5, tap 17 — the most common form of all). Promotes H2 from candidate to established, and needs **no new harmonic kind** — see below.  **Frequency is very lopsided** (user, 2026-08-07): the `Hammer` form — the fretting hand rapping a node — is *"VERY rare. It is possible though"*, while the `Tap` form is common. Both legal; the editor should not make the rare one easy to author by accident, and it does not deserve prominent notation. |
 | **E14** | `Slap` / `Pop` **allow** `Natural` harmonic | Q7. A slap harmonic — thumb striking the string while a fretting finger rests on the 12th, 7th or 5th node — is a staple of the slap idiom, and popping over a node is the same vocabulary. `Pinch` stays excluded by E3, which already lists every attack that replaces the pick stroke. |
 | **E15** | `Slap` / `Pop` **allow** every `mute` | Q8. `Full` + `Slap` *is* the slapped dead note, core rhythmic material in a slap line rather than an oddity — forbidding it would make slap lines unrepresentable. `Palm` + `Slap` is awkward, since the thumb and the palm heel want different positions, but the hand spans it, so the criterion allows it. |
 | **E16** | `vibrato` and `bend` **compose** | Q9. Bend up to pitch, then vibrato on the bent note — the blues-lead vocabulary entire. No data conflict either: `bend` is a path and `vibrato` oscillates around whatever the path is, so neither subsumes the other. |
 | **E17** | `attack` **allows** every slide payload — `Hammer`/`Pull` + `slides`, `Tap` + `slide_out` | Q10 and Q11, both **dissolved** rather than decided: `attack` names the onset and `slides`/`slide_out` name the sustain, so "hammered onto, then slid while ringing" is two moments, not two claims about one transition. See the separation below. |
 | **E18** | `tremolo` **allows** `slides` and `bend` | Q12. A tremolo-picked bend is ordinary and the rising tremolo-picked slide is a standard metal figure. Consistent with H1, which constrains the *onset* to a pick while tremolo describes the sustain. |
-| **E19** | A `Pull`'s predecessor cannot be a **fret-hand harmonic** — and pull-from-a-**pinch** is explicitly ALLOWED | User, 2026-08-07: *"Natural harmonic should be able to be followed by a hammer on, not a pull off. Pull off would be physically impossible."* The converse of E12 and a **separate cell**: E12 forbids pulling *into* a harmonic, this forbids pulling *from* one. The fretting hand is touching a node, not pressing, so nothing can be released. A pinch's fretting hand *is* pressing a real fret, so pulling off from a pinch works — promoted to rule status by the 2026-08-08 review. **Relational** — see the ceiling. A natural harmonic followed by a *hammer-on* is fine: the string is already ringing and a finger coming down stops it at a new pitch. |
+| **E19** | A `Pull`'s predecessor cannot be a **fret-hand harmonic** — and pull-from-a-**pinch** is explicitly ALLOWED | User, 2026-08-07: *"Natural harmonic should be able to be followed by a hammer on, not a pull off. Pull off would be physically impossible."* The converse of E12 and a **separate cell**: E12 forbids pulling *into* a harmonic, this forbids pulling *from* one. The fretting hand is touching a node, not pressing, so nothing can be released. A pinch's fretting hand *is* pressing a real fret, so pulling off from a pinch works — promoted to rule status by the 2026-08-08 review. **Relational** — see the ceiling. A natural harmonic followed by a *hammer-on* is fine: the string is already ringing and a finger coming down stops it at a new pitch. **No longer a validation rule (2026-08-11):** it is the resolver's predecessor-disqualification clause, and it disqualifies a fret-hand-harmonic predecessor for BOTH motions rather than for the pull alone — a touch holds nothing to hand over, so no lower fret can rescue a hammer from one either. Read `fretHandHarmonic` (chart.h) for the exact predicate, including why a scrape is excluded from it. |
 | **E20** | `Pinch` **requires** `harmonic_node` | **Enforced** (`chart_rules.cpp`). A pinch is picking while damping a node — the overtone that squeals is determined by where the thumb lands — so one without a node is missing data. This is what lets node presence alone assert the harmonic. Numbered by the 2026-08-08 review; previously narrated but never a table row. |
 | **E21** | `harmonic_node` > the **physical stop**, strict — the fret, or the capo when `fret == 0` | **Enforced** (`chart_rules.cpp`). A node lies on the speaking length, so nothing vibrates at or behind the stop; a node *at* the stop is the stop. Generalized by D1 (2026-08-08): under the 0-means-open convention a capo'd open string stores `fret = 0`, so the stop the node must clear is derived, not stored. |
 | **E22** | A **fret-hand harmonic** (`fret == 0` + node + neither tapping-hand attack) requires `node <= g_max_fret` | **Enforced** (`chart_rules.cpp`), adopted with D1. The fretting hand touches the node, and a finger on the fretboard cannot be past the last fret; this is also what keeps the derived hand window inside `g_max_fret`. A pinch (thumb over the body) and a tap harmonic (picking-hand finger) escape the bound — only the universal 48 limit applies to them. Same discriminator as `fretFor`'s node branch, deliberately. |
@@ -151,12 +151,14 @@ note.fret > 0 || note.harmonic_node.has_value()
 0-means-open convention a capo'd open string stores `fret = 0`, so `fret > 0` already means a
 real stop and no capo variant is needed.
 
-**Do not evaluate E5 on the sounding position.** E5 tests that a `Pull`'s predecessor sits at a
-*higher fret*. Reading it on the sounding position would make a harmonic at node 12 followed by a
-pull to fret 5 **pass**, since 12 > 5, silently allowing exactly what E19 forbids. The two rules
-ask different questions of the same number: a hammer needs somewhere to **land**, a pull needs
-something **pressed**, and a node is a place but not a press. E19 is the rule that has to carry
-it.
+**Do not evaluate E5 on the sounding position** — a trap that survives the move into the resolver
+unchanged, so it binds `resolveLegato`'s clauses exactly as it bound validation. E5 tests that the
+predecessor sits at a *higher fret*. Reading it on the sounding position would make a harmonic at
+node 12 followed by a pull to fret 5 **pass**, since 12 > 5, silently allowing exactly what E19
+forbids. The two rules ask different questions of the same number: a hammer needs somewhere to
+**land**, a pull needs something **pressed**, and a node is a place but not a press. E19 is the rule
+that has to carry it — which is why the resolver disqualifies a fret-hand-harmonic predecessor before
+it ever compares frets.
 
 **`Natural` is a misnomer for what the field means.** A harmonic's pitch comes from the ratio of
 node→bridge to fret→bridge, and fret positions are logarithmic, so the midpoint of a string stopped
@@ -434,14 +436,20 @@ slide, which can never be tremolo picked, loses its teeth and draws as the singl
 it is. Pitched-versus-noise is stated at the head (the plectrum silhouette, the mute X), never by
 the tail.
 
-### Relational rules (validation only, never structural)
+### Relational rules — **resolver clauses since 2026-08-11, not validation**
+
+They were validation until the legato ruling replaced stored direction with an authored claim. Now
+none of them can refuse a document: they are the clauses of `resolveLegato`
+(`common/core/chart/chart_legato.h`), and a claim they refuse resolves to `Unjustified`, which draws,
+plays and scores as the plain pick it sounds like until a settle sweep flattens it. The physics is
+unchanged; only what happens when it is not satisfied.
 
 | rule | statement | status |
 |---|---|---|
-| E5 | `Pull` requires a same-string predecessor whose **released** fret is higher — the last pitched waypoint's, or a scrape's slide-out's. A scrape predecessor is VALID data (D7: executable with gain) that the `H` derivation never *creates* — the one derivation-vs-validity gap; its organic authoring route is pull-first-then-scrape. A fret-hand-harmonic predecessor is forbidden outright (E19). Fully-muted predecessors are ordinary (muted legato, E24). The predecessor must also be **still holdable at the pull's onset** (D13): past the kept-sustain bound (`g_minimum_kept_sustain_beats`) a disconnected tail is a proven release. | **enforced 2026-08-09** (`last_per_string` walk in `validateChartNotes`, judging `releasedFret` + `predecessorHoldReaches`; the same hold test gates the `H` derivation and the legato repair) |
-| E6 | Legato direction derives from that relationship | recorded; the editing workflow is specced in the legato doc |
-| E19 | No pull FROM a fret-hand harmonic; pull from a pinch is allowed | **enforced 2026-08-09** |
-| — | `Hammer` has no predecessor constraint (deliberate: the left-hand tap) | recorded |
+| E5 | `Pull` requires a same-string predecessor whose **released** fret is higher — the last pitched waypoint's, or a scrape's slide-out's. A scrape predecessor is VALID data (D7: executable with gain) that the `H` verb never *creates*, because the assist refuses to reshape a gesture carrier's tail; its organic authoring route is pull-first-then-scrape. A fret-hand-harmonic predecessor is disqualified outright (E19). Fully-muted predecessors are ordinary (muted legato, E24). The predecessor must also be **still holdable at the pull's onset** (D13): past the kept-sustain bound (`g_minimum_kept_sustain_beats`) a disconnected tail is a proven release. | **resolver clause** (`resolveLegato`, judging `releasedFret` + `predecessorHoldReaches` against the span-extended hold; one authority for the surfaces, the gameplay build, the reader, and the `H` planner) |
+| E6 | Legato direction derives from that relationship | **the whole read model**: direction is never stored, so this stopped being a rule about data and became the resolver itself |
+| E19 | No connection FROM a fret-hand harmonic (either motion — a touch holds nothing to hand over); from a pinch is allowed | **resolver clause** (the predecessor disqualification, via `fretHandHarmonic`) |
+| — | The hammer motion has no predecessor constraint (deliberate: the left-hand tap, now its own stored value `LeftTap`) | **structural**: `LeftTap` resolves to the hammer motion unconditionally and reads no predecessor at all |
 
 ### The items that gated sign-off — all ruled
 
@@ -462,9 +470,10 @@ rule, the import normalization, and the noise-idiom display; tracked as W4). Eve
 `validateChartNotes` (`chart_rules.cpp`), every editor planner funnels its candidate through the
 shared `finalizePlan` gate — which validates the SAVED form via `savedChartNote`, the one
 memory-vs-document seam the writer also uses — and import sheds harmonic-impossible techniques
-loudly and repairs legato (`normalizeChartLegato`, shared with the finalize) so a chart is never
-born invalid. The `[enf]` tags in the tables above date from sign-off and under-report; the
-tables' rules are all enforced now.
+loudly, then settles the stream's connection claims (`sweepUnjustifiedLegato` since 2026-08-11,
+shared with every load path and every editor settle point; the old `normalizeChartLegato` repair
+engine it replaced is deleted) so a chart is never born invalid. The `[enf]` tags in the tables
+above date from sign-off and under-report; the tables' rules are all enforced now.
 
 **Recorded future technique (no decision needed):** the side-of-pick tap — a tap performed with
 the pick's edge, itself slidable — is distinct from the pick slide in many aspects (user,
@@ -754,7 +763,15 @@ articulation that owns the fields legal for it**, rather than a flat struct of i
 
 **A per-note type cannot express a relational invariant.** These stay validation, permanently:
 
-- E5, `Pull` needing a higher predecessor, and E6, the derived direction — both depend on *other notes*
+- ~~E5, `Pull` needing a higher predecessor, and E6, the derived direction — both depend on *other
+  notes*~~ **These left validation on 2026-08-11, by a route this section did not consider.** The
+  premise stands — a per-note type still cannot express a relational invariant — but the legato rows
+  stopped being invariants at all: with direction derived on read, the relationship is a *question*
+  answered per read rather than a *fact* stored and policed. So the honest form of the ceiling is
+  narrower and more useful: **what cannot be made structural can sometimes be made underivable
+  instead**, and that is strictly better, because an unstored fact cannot go stale. The remaining
+  entries below are genuinely stuck: they constrain how notes sit relative to each other, which no
+  amount of deriving removes.
 - minimum sustain distance and the 40-Q2-B overlap normalization
 - a scrape's "must keep traveling" (needs consecutive waypoints, so it is intra-*payload* and could be
   structural with a non-empty, strictly-changing sequence type — worth considering, unlike the rest)

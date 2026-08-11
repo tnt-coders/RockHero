@@ -20,6 +20,15 @@ identical field vocabulary. Most format bugs are a field taught to one reader an
   check (`requireSupportedSongDocumentVersion`) lives here; **no other call site may test the
   version**. The migration/tolerance ladder that will eventually replace the hard gate is planned
   in `docs/plans/roadmap/10-format-versioning-and-chart-identity.md`.
+- **The chart document is a THIRD file with its own pair** — `chart_document.cpp`
+  (`parseChartDocument` / `chartDocumentText`, its own `formatVersion`), referenced from `song.json`
+  per arrangement. A chart-note field changes there, not in the three above, and two of its habits
+  are easy to miss: the writer emits the **saved** form (`savedChartNote` strips in-memory latents)
+  and additionally resolves what it must (`sweepUnjustifiedLegato` runs on a copy, so an
+  unjustifiable connection claim leaves as the pick it plays as), and the full reader **settles what
+  it read** and returns the conversion notes on `SongPackageRead::conversions`, which the editor
+  turns into a dirty session. Memory is deliberately richer than the file; if a new field can hold a
+  state no file may hold, that seam is where you resolve it.
 
 ```mermaid
 flowchart LR

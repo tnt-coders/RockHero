@@ -1,5 +1,12 @@
 # The three surviving legato designs, precisely
 
+**Status: IMPLEMENTED 2026-08-11 — the user chose DERIVED-DIRECTION (the third design below), and it
+shipped the same day** (`006ae58e`, `2e840872`, `7f6c4517`). The ruling as signed is
+`legato-final-spec.md`; the record of what shipped is `legato-authoring-model.md`. The two losing
+designs stay here in full: MINIMAL-EXPRESSION describes the recalc window that was cancelled
+unbuilt, and RADICAL-MIN the amputation that would have deleted the assist and the toggle window the
+user kept.
+
 Companion to `legato-simplicity-analysis.md` — the full statement of what each surviving design
 actually is, how the same editing stories play out under each, what each deletes, what each
 asks the user to sign, and what can still surprise them. Compiled from the designers' full

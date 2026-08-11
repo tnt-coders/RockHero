@@ -119,6 +119,23 @@ one field. **Trigger**: fired (2026-08-10), as above. **Remedy**: awaiting the u
 (the walkthrough carries the design question); once ruled, design the one note-view semantic and
 migrate both projections behind their tests, then retire this item.
 
+### A span-held strum's hold ends earlier in 3D than in 2D — trigger: a charter reports the two surfaces disagreeing about a chord's hold, or W9-B unifies the note views
+
+The span-implied hold itself is unified: both view states carry `display_hold_ends` resolved from
+`chartEffectiveSustains`, which is what closed the W9-A divergence on 2026-08-11. What is NOT
+unified is the *clamp* on top of it. The renderer draws a sustainless span member's hold as a head
+pinned at the hit line and ends that pin at
+`std::min(display_hold_ends[i], group.hold_cap_seconds)` (`highway_renderer.cpp`, the head-anchor
+block) — the cap being the next note-showing strum's onset, because a re-shown chord takes over the
+pinned display. The 2D lane draws a ribbon to `display_hold_ends[i]` with no cap at all, so a span
+covering two strums shows the first chord held longer in the tab than on the board. Accepted for now:
+the cap is a play-time display handoff with no 2D counterpart (the tab has no pinned head), and no
+chart data disagrees. **Trigger**: a report that the two surfaces disagree about a chord's hold, or
+W9-B's note-view unification landing — whichever comes first. **Remedy**: decide whether the cap is a
+*fact* about the chart (then it belongs in the shared projection, resolved once for both surfaces) or
+a board-only display handoff (then say so in `hold_cap_seconds`' own doc comment and retire this
+item).
+
 ## 3D highway camera
 
 ### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a reference-footage comparison diverges

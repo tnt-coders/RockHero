@@ -58,7 +58,10 @@ item ships, mark it and name the commit.
     no-op red, so the seven
     planners move to `std::expected<ChartNotesEditPlan, ChartPlanRefusal>` with
     `{NoChange, Invalid}`. This is why **every refusal in the editor is silent today** — no
-    caller can tell one from the other — so it is also the channel W5's counted feedback needs.
+    caller can tell one from the other. **Correction 2026-08-11:** W5's counted feedback did NOT
+    need this channel and no longer waits on it — `planSetLegato` returns its own typed skip report
+    beside the plan. The two are different questions: this one distinguishes a refused plan from an
+    empty one, W5's names which notes the resolver turned down and why.
   - **An ENTRY BOX for the whole pending state, red text inside it for invalid (user ruling
     2026-08-09, better than the agent's invalid-only chip).** The box is drawn for as long as the
     value is provisional — valid or not — and disappears when the entry settles, reusing the plate
@@ -83,9 +86,11 @@ item ships, mark it and name the commit.
     SYNCHRONOUSLY and every controller test gets it, so the harness needs a deferring scheduler
     plus a settable clock (no test injects `now_milliseconds` today, which makes the Services
     doc claim about it currently false).
-  - **`EditorUndoHistory::replaceTop` dies entirely** — its only production caller is the widen.
-    Do NOT keep it for W7: that needs to DROP the top entry, which `replaceTop` cannot do, so
-    W7 wants a new `dropTop()` regardless.
+  - ~~**`EditorUndoHistory::replaceTop` dies entirely** — its only production caller is the widen.~~
+    **NO LONGER TRUE (2026-08-11): it has a second production caller**, the legato settle sweep,
+    which folds its flatten into the burst's own chart-notes entry. `replaceTop` therefore survives
+    W3; only the *widen's* use of it goes away with the pending model. W7's own need was a different
+    verb (`dropTop()`, which drops the entry rather than rewriting it) and shipped as one.
   - **Undo is NOT special (user ruling 2026-08-09, and it deletes work).** Nothing is committed
     until the entry settles, so undo has nothing of its own to cancel: it is just another action,
     and the uniform prologue — *every action and intent settles the pending entry first, commit
@@ -120,21 +125,35 @@ item ships, mark it and name the commit.
   `tremolo` or a slide payload), the import normalization that zeroes such a sustain so a re-read
   cannot refuse the chart, and the noise-idiom tail display. Blocks nothing but touches W1, E10,
   E24 and the display; build before the lock/break work so the tail rules are stated once.
-- [ ] **W5 — `H` eligible-subset fix + counted feedback.** The eligible-subset half **shipped
-  2026-08-10**: the controller asks `planSetLegato` itself whether applying would change anything
-  (the oracle, never a restated predicate), and only when it would not does the press clear —
-  targeting just the legato subset, so an underivable `Tap` or `Pinch` riding the selection keeps
-  its own attack. A second press now always undoes the first; pinned by the mixed-selection
-  round-trip test. What remains here is the counted feedback: every refusal is still silent — the
-  feedback channel is load-bearing for W6 and rides the planner refusal-channel refactor noted
-  above.
+- [x] **W5 — `H` eligible-subset fix + counted feedback. SHIPPED IN FULL 2026-08-11.** The
+  eligible-subset half shipped 2026-08-10: the controller asks `planSetLegato` itself whether
+  applying would change anything (the oracle, never a restated predicate), and only when it would
+  not does the press clear — targeting just the legato subset, so a rider `Tap` or `Pinch` keeps its
+  own attack. A second press now always undoes the first; pinned by the mixed-selection round-trip
+  test. **The counted feedback landed with the DERIVED-DIRECTION model** as the verb's own typed
+  return — `ChartLegatoPlan{plan, skipped, reason}` with `ChartLegatoSkip` naming the four refusal
+  classes, rendered by `chartLegatoSkipText` through the view's existing reporting seam, so an
+  all-skipped press states the count and the dominant reason. **It did NOT need W3's refusal-channel
+  refactor**, which is why the two items decoupled: the skip report is per-note information the
+  planner already had, where W3's `{NoChange, Invalid}` distinction is about the whole plan.
 - [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5). NARROWED TO SLIDES ONLY
   2026-08-11** by the legato ruling: a connection claim stores no direction, so shrinking its
   predecessor's tail drops the mark live, regrowing restores it inside the burst, and the settle
   sweep flattens what is left as one folded batch — nothing to lock and nothing to break. Slides
   keep all three (waypoints are real data). The break verb frees a tail from the origin's side; the
-  feedback is **editor-only** (user ruling: not visible in 3D).
-- [x] **W7 — D14 assist + the `H` toggle window. SHIPPED 2026-08-10.** The assist lives inside
+  feedback is **editor-only** (user ruling: not visible in 3D). **Unblocked 2026-08-11:** the
+  feedback here was waiting on a channel that did not exist, and W5's counted-skip report is the
+  precedent — a verb reporting count-plus-reason through the view's reporting seam, which the slide
+  lock can copy without W3 landing first.
+- [x] **W7 — D14 assist + the `H` toggle window. SHIPPED 2026-08-10, RESHIPPED UNDER THE NEW MODEL
+  2026-08-11.** Both halves survived the storage change and were retargeted rather than rebuilt: the
+  assist now re-asks `resolveLegato` under a grown tail (the same only-blocker test, one authority
+  instead of two) and skips gesture-carrying predecessors, and the toggle window keeps its
+  `{keys, history_position}` proof but stores only the keys — the burst's plan already lives once in
+  `m_chart_notes_top`, which the settle sweep reads too, so the two verbs cannot disagree about what
+  the burst did. One ruled addition: when the entry the reversal would drop is the reachable clean
+  state, it pushes the exact inverse as a new entry instead of dying, so the grown tail still comes
+  back (`2e840872`). The record as it shipped first follows. The assist lives inside
   `planSetLegato`: when the hold test is the only blocker, the plan grows the predecessor's tail
   to the margin point and derives the direction in the same entry, pre-checked against the
   extracted `sustainGrowthLimit` (one authority with the duration verb's clamp — the assist never
@@ -143,14 +162,20 @@ item ships, mark it and name the commit.
   validity the fret window's own proof, reversal via `applyChartNotesChange` of the plan's
   inverse and the new `EditorUndoHistory::dropTop` (mirrors `replaceTop`'s guards; a mid-window
   save makes the entry the clean state, so the window simply dies rather than compensating).
-  Both toggle halves arm it, so H-H restores an authored mix the clear would flatten. Counted
-  feedback for skips still rides the refusal channel (W5).
-- [ ] **W8 — Cleanups found by the design agents.** Import junk-hopo flags to `Pick` with a
-  conversion note (ruled); ~~doc staleness in `file-formats.md` (retired `harmonic`/`touch` keys,
-  missing `pinch` token)~~ **done 2026-08-10** — the chart-note table now documents `harmonicNode`,
-  the `pinch` token, the `slideOut` terminal, and the capo convention; and the recalc-window
-  settle-list wording.
-- [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below. Nothing else
+  Both toggle halves arm it, so H-H restores an authored mix the clear would flatten. ~~Counted
+  feedback for skips still rides the refusal channel (W5).~~ — shipped 2026-08-11 as the planner's
+  own typed report, no refusal channel needed.
+- [x] **W8 — Cleanups found by the design agents. CLOSED 2026-08-11.** ~~Import junk-hopo flags to
+  `Pick` with a conversion note (ruled)~~ **done** — the importer runs the shared settle sweep at
+  build completion, so an equal- or absent-predecessor hopo flag lands as a plain pick with a counted
+  conversion note, through the same code every load path uses; ~~doc staleness in `file-formats.md`
+  (retired `harmonic`/`touch` keys, missing `pinch` token)~~ **done 2026-08-10** — the chart-note
+  table now documents `harmonicNode`, the `pinch` token, the `slideOut` terminal, and the capo
+  convention, and carries the `legato`/`leftTap` tokens since 2026-08-11; ~~and the recalc-window
+  settle-list wording~~ **dissolved** — the window was cancelled unbuilt, so it has no settle list
+  left to word (the sweep's settle set is stated once, in `legato-authoring-model.md`).
+- [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below; **two are now
+  closed** (W9-L reverted 2026-08-10, W9-A ruled and shipped 2026-08-11), leaving ten. Nothing else
   from that review is waiting: the rest was fixed in place on 2026-08-10.
 
 ## W9 — Rulings the deep review needs (opened 2026-08-10)
@@ -160,7 +185,16 @@ questions the user has to answer. Everything else it found was fixed in place; t
 commit log for 2026-08-10. Each item states the defect, why it needs a ruling rather than a fix, and
 the options with the agent's recommendation.
 
-- [ ] **W9-A — Is a span-held strum notation, or a 3D affordance?** The rule that a sustainless note
+- [x] **W9-A — Is a span-held strum notation, or a 3D affordance? RULED 2026-08-11: notation, fixed
+  by option (a), and SHIPPED with the legato model.** The 2D lane now carries `display_hold_ends`
+  resolved from the same `chartEffectiveSustains` authority the board resolves
+  `HighwayViewState::display_hold_ends` from — one shared derivation feeding both view states, so no
+  third implementation appeared. Each surface still spends the value in its own idiom (a 2D ribbon
+  against a pinned 3D head), which is lawful. **One residual, recorded as a watch item rather than
+  closed here:** the board additionally clamps its pin with `HighwayChordGroupView::hold_cap_seconds`
+  and 2D has no cap, so a span covering two strums ends the drawn hold earlier in 3D. The original
+  question and its options follow.
+  The rule that a sustainless note
   in a two-or-more onset group under a hand-shape span is held for the whole span is implemented for
   the highway (`chartEffectiveSustains`, resolved into `HighwayViewState::display_hold_ends` — it was
   a separate seconds-space `highwayDisplayHoldEnds` when this was written, and the two copies were
@@ -195,7 +229,9 @@ the options with the agent's recommendation.
   unlinked leg states its arrival, which double-states the fret when a landing does exist; (b)
   derive `linked` from an actual re-picked note within the margin, which makes the doc true and costs
   about eight lines.
-- [ ] **W9-E — Where does the attack mark go on a muted head?** The beside-head mark (the hammer
+- [ ] **W9-E — Where does the attack mark go on a muted head?** (Still open, and unchanged by the
+  legato model — the mark's *value* now comes from the resolved motion, but its geometry is the same
+  triangle in the same slot.) The beside-head mark (the connection
   triangle and friends) sizes its slot from the head's rim and the fret digits, never from the mute
   X, and draws AFTER the X — so on a muted legato note, which E24 explicitly allows as the funk and
   percussive-fingerstyle vocabulary, the mark overpaints most of the X's upper-left arm and the X
@@ -217,9 +253,14 @@ the options with the agent's recommendation.
   never had. D14 ruling 4 settled the analogous question for the legato verb in favour of a true
   toggle through entry reversal, which W7 needs anyway and which would be shared rather than copied;
   the other signed position is that Ctrl+Z is the revert. Which applies here is the user's call.
+  **The mechanism now exists (2026-08-11):** the legato window ships as `{armed keys}` beside the
+  burst record `m_chart_notes_top` plus `EditorUndoHistory::dropTop`, with the clean-entry case
+  pushing the exact inverse instead of dropping — so adopting it here is wiring rather than design,
+  and the scrape verb would arm the same record it already writes.
 - [ ] **W9-I — Which chord does the scrape toggle get?** It ships registered with no default chord,
   reachable only from the lane's right-click menu, because the signed keymap never assigned it one.
-  `Ctrl+H` is reserved for the unbuilt left-hand-tap verb, so the scrape needs its own.
+  `Ctrl+H` is **taken, not merely reserved** (the left-hand tap shipped 2026-08-10 and was
+  relabelled "Left-Hand Tap" 2026-08-11), so the scrape needs its own.
 - [ ] **W9-J — Is a scrape's start a stop or travel?** A scrape's start fret is floored at `capo + 1`
   like a pressed note, while its waypoints are exempt as unpitched travel — so one gesture has its
   start judged as a stop and its path as travel. Both readings are defensible; the code records the
@@ -502,8 +543,33 @@ the options with the agent's recommendation.
      concern that the live flip may read as jarring is recorded as a tuning question to judge on
      sight once it is visible.
 
-- [ ] **D14+D15 — RECONCILED RECOMMENDATION (three-agent ground-up pass, 2026-08-09; superseded
-  in part by the user rulings above).** Three parallel design agents (data model / authoring grammar /
+- [x] **D14+D15 — CLOSED 2026-08-11 by the legato ruling.** How each half landed, before the record
+  as written:
+  - **D14's assist: ADOPTED and SHIPPED** (2026-08-10, retargeted 2026-08-11) with all three
+    corrections intact — pre-checked against `sustainGrowthLimit` and the note skipped whole rather
+    than partially extended, the selection pinned so the grown predecessor does not join it, and one
+    addition the ruling made: the assist skips gesture-carrying predecessors (a scrape, or any
+    slide-out), whose tail is authored geometry rather than slack. The third correction — "geometry
+    reversal is Ctrl+Z, no window-scoped restore" — was **overturned by the user the same day**
+    (ruling 4): the toggle window restores grown tails too, and the "remote note memory" objection
+    dissolved because the window reverses the ENTRY rather than remembering values.
+  - **D15: REJECTED, and re-signed by the final spec.** The connected display died on the
+    no-surface-divergence rule (user ruling 1 below); the stored-connection data half died on the
+    corpus arithmetic recorded below; forward-addressed `H` died on the eight kills. Note the one
+    claim of D15's that the new model *did* adopt in a different form: the enum split it called
+    unworkable "without stored connection" is exactly what shipped — because the alias zone it feared
+    is answered by the resolver reporting the hammer motion for `LeftTap` unconditionally while plain
+    `H` is forbidden from producing one, not by stored connection.
+  - **The seven "found en route" items are all resolved:** (a) the out-of-selection repair enlarging
+    the selection — gone with the repair engine; (b) `H` inert on mixed selections — fixed by the
+    oracle law (W5); (c) two-digit fret entry unreachable on a legato predecessor — fixed by W2 and
+    then dissolved outright, since no repair fires inside a burst any more; (d) silent refusals —
+    W5's counted feedback ships; (e) the span-blind hold rule — fixed by W1's `chartEffectiveSustains`;
+    (f) import yielding a tap claim from junk hopo flags — the completion sweep converts it (W8);
+    (g) the doc staleness — this close-out.
+
+  *The reconciled recommendation as recorded (three-agent ground-up pass, 2026-08-09; superseded
+  in part by the user rulings above).* Three parallel design agents (data model / authoring grammar /
   display+surfaces) enumerated the full option space; one agent measured the local GP corpus
   (102 scores, 4,317 legato transitions). The reconciled shape:
   - **Adopt D15's connected LOOK as derived notation, not data.** 2D: a thin white connector on
@@ -566,7 +632,8 @@ the options with the agent's recommendation.
   philosophy; a disconnected Hammer legitimately stands as the left-hand tap under the merged
   notation). The window-scoped toggle-restore idea is dissolved by D15's forward addressing.
 
-- [ ] **D15 — The connected-legato model with forward `H` (user direction, 2026-08-09).**
+- [x] **D15 — The connected-legato model with forward `H` (user direction, 2026-08-09) — REJECTED,
+  see the D14+D15 closure above; recorded in full because its corpus evidence is what killed it.**
   Adopt the connected display (the user's reference: Bandfuse): legato ALWAYS shows as the
   origin's tail connecting to the destination, with the transition symbol on the connection —
   hammer/pull arrows join slides and bends in the connected-technique family, replacing the

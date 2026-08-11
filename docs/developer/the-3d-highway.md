@@ -182,6 +182,22 @@ idiom for one fact is fine; the two must never carry *different* facts. One know
 law: the open-string bar carries no harmonic or pinch cell, while 2D gives a fret-0 harmonic its
 diamond and node — tracked with the note-view unification watch item rather than papered over.
 
+The **connection mark** obeys the same division. No direction is stored in the chart, so the cell a
+hammer-on or pull-off gets comes from the note's RESOLVED `LegatoMotion` (`HighwayNoteView::legato`,
+from the shared `chartResolutions` pass), the identical value the 2D triangle points itself by — one
+authority, two idioms, and a claim the chart cannot justify draws like the plain pick it sounds like
+on both surfaces.
+
+The **span-implied hold** is the one place the idioms still differ in substance,
+so it is worth knowing before touching either. Both view states carry `display_hold_ends` resolved
+from the same `chartEffectiveSustains` authority (that unification is what closed the recorded W9-A
+divergence), but each spends it differently: 2D draws a tail ribbon to that end, while the board
+draws no tail for a sustainless strum and instead **pins the head at the hit line** until the hold
+ends. The board additionally clamps that pin with `HighwayChordGroupView::hold_cap_seconds` — the
+next note-showing strum's onset, because a re-shown chord takes over the pinned display — and 2D has
+no such cap, so a span holding two strums ends the drawn hold earlier in 3D than in 2D. Recorded as
+a watch item, not a decided asymmetry.
+
 # Two visual paths: chart visuals vs screen-space overlays
 
 Before extending anything, pick the right path — they do not share a checklist:

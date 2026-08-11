@@ -26,6 +26,11 @@ advisory content layer above it.
   corpus impact analysis.
 - No live-while-editing lint UI beyond exposing a cheap re-runnable entry point; interaction
   design for in-editor feedback belongs to docs/plans/roadmap/40-chart-editing.md.
+- **No legato lint rule** — an explicit exclusion, ruled 2026-08-11, not an oversight. A connection
+  claim the chart cannot justify is not a defect to advise about: it plays as the plain pick it sounds
+  like, cannot survive a settle at the top of history, and can never reach a file (the writer
+  serializes the resolved form). There is nothing for a linter to find, and a rule that reported one
+  would fire only on states no file can hold.
 
 ## Constraints
 
@@ -71,10 +76,16 @@ Structural validation exists and is a hard gate:
   range, non-negative sustain; **the capo floor as a hard error** (a fret must be 0 or above the
   capo — on notes, postures, pitched slide waypoints, and FHPs alike); `harmonic_node` in (0, 48],
   strictly beyond the physical stop, and within `harmonicNodeCeiling(note)`; the technique
-  compatibility matrix's note rules (a `Pinch` requires its node; `Hammer`/`Tap` need somewhere to
-  strike; a full mute excludes node/bend/vibrato; a `Pull` carries no node and needs a
-  higher-released, still-held, non-fret-hand-harmonic predecessor; a tap harmonic excludes
-  tremolo; a fret-hand harmonic neither slides nor bends); bend offsets ascending within sustain;
+  compatibility matrix's note rules — **intra-note only since 2026-08-11** (a `Pinch` requires its
+  node; `LeftTap`/`Tap` need somewhere to strike, spelled once as `nothingToStrike`; a full mute
+  excludes node/bend/vibrato; a tap harmonic excludes tremolo; a fret-hand harmonic neither slides
+  nor bends). **The relational legato rows are deliberately NOT here**: the legato ruling
+  (`docs/plans/in-progress/legato-authoring-model.md`) replaced stored direction with an authored
+  claim, so E5/E12's release half/E19 are clauses of `resolveLegato` instead of validation rules — a
+  claim the chart cannot justify resolves to nothing and plays as a plain pick, and the settle sweep
+  flattens it, rather than a document being refused for carrying it. No *technique* rule in
+  `validateChartNotes` reads a neighbouring note now; what stays relational there is ordering and
+  geometry (below), which no amount of deriving can remove; bend offsets ascending within sustain;
   slide offsets strictly positive, ascending, within sustain, frets in range, never on a later
   onset of the string; a `slide_out` after every waypoint and within the sustain; the four
   `InvalidPickSlide` checks (the saved-form fixpoint, the required slide-out terminal exactly at

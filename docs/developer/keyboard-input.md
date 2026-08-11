@@ -141,7 +141,9 @@ shared destination helpers, so the two can never drift on the same motion),
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartLegatoToggleRequested`, `onChartLeftTapRequested`,
 `onChartPickSlideToggleRequested` (the technique verbs — uniform scope over the selection, one
-compound undo entry each), `onChartEscapePressed` — implemented in editor core against the
+compound undo entry each; `H` additionally reports the count and dominant reason when a press
+skipped everything, so an inapplicable verb is never a dead key), `onChartEscapePressed` —
+implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`
 (`rock-hero-editor/core/src/controller/editor_controller_impl.h`), always present, exactly one
 state (passive cursor or armed caret; a `ChartCaret` holds a grid position, a string, and
@@ -269,6 +271,10 @@ the view first cancels any in-flight pointer gesture it still owns (lane and ton
 drags), then hands off to `onChartEscapePressed`, whose core ladder steps drag-gesture → chart
 gesture → disarm the caret → clear the tone-region selection → clear the selection. One rung
 per press; a new cancellable thing must pick its rung deliberately.
+
+Esc is also a **legato settle event**, and that is not a rung: `onChartEscapePressed` runs the
+settle sweep after whichever rung consumed the press, because backing out of an editing state ends
+the burst however far up the ladder it went (see \ref guide_undo for the sweep's commit shape).
 
 # The plugin-window seam
 

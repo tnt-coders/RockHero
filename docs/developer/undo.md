@@ -46,6 +46,16 @@ funnel because flattening a claim to a plain pick can violate no rule; see the p
   content the file does not have. A verb that must still act there pushes instead: the legato
   toggle's reversal becomes its own inverse entry (the tail still comes back, the session stays
   correctly dirty), and the legato settle sweep pushes its flatten rather than folding it.
+- The **legato settle sweep** is the one edit that arrives with no user gesture of its own, so its
+  commit shape is decided by where the cursor sits (`settleChartLegato`, `editor_controller.cpp`):
+  on top of history it FOLDS into the burst's own chart-notes entry via `replaceTop`, so one Ctrl+Z
+  restores the edit and the claim it broke together; with no such entry it PUSHES its own (at
+  top-of-stack a push truncates nothing); at a mid-stack resting point — reachable only through
+  undo — it **defers entirely**, because rewriting an entry the cursor is not on would either
+  truncate a live redo branch or leave history describing a state the chart does not hold.
+  Deferring is safe because nothing derived is stored: the claim simply displays as its resolution
+  until the cursor returns to the top. Every written file is clean regardless — the document
+  writer serializes the resolved form.
 - Plugin edits store the **full opaque plugin state** (`PluginInstanceState`, raw
   `getStateInformation` bytes) — granular parameter replay was rejected by decision; full-state
   restore is the fidelity guarantee.
