@@ -278,17 +278,59 @@ TEST_CASE("Only a sustainless live strum inherits its span's hold", "[core][char
 
     const std::vector<Fraction> held = chartEffectiveSustains(notes, shapes, map);
     REQUIRE(held.size() == notes.size());
-    CHECK(held[0] == Fraction{8});
-    CHECK(held[1] == Fraction{8});
+    // Span A reaches global beat 8, but every inherited hold stops at the next onset on its OWN
+    // string, exactly as 40-Q2-B stops a stored one: string 1 is restruck two beats later and
+    // string 2 four beats later, so the two members of one chord inherit different lengths.
+    CHECK(held[0] == Fraction{2});
+    CHECK(held[1] == Fraction{4});
     CHECK(held[2] == Fraction{});
     CHECK(held[3] == Fraction{1});
-    CHECK(held[4] == Fraction{4});
+    // Four beats of span left, but string 2 is restruck two beats on.
+    CHECK(held[4] == Fraction{2});
     CHECK(held[5] == Fraction{});
     CHECK(held[6] == Fraction{});
     CHECK(held[7] == Fraction{2});
     CHECK(held[8] == Fraction{2});
     CHECK(held[9] == Fraction{});
     CHECK(held[10] == Fraction{});
+}
+
+// The same-string cap, on its own and in the geometry that made the lane draw through later heads:
+// a sustainless chord under a long span with the string restruck twice inside it. Before the cap
+// the derived hold ran to the span's end, and the 2D lane drew a ribbon straight past both later
+// notes — a picture 40-Q2-B guarantees no STORED sustain can produce.
+TEST_CASE("A span-inherited hold stops at the next onset on its own string", "[core][chart]")
+{
+    const TempoMap map = TempoMap::defaultMap(TimeDuration{32.0});
+    const auto note = [](int beat, int string) {
+        return ChartNote{
+            .position = GridPosition{.measure = 1, .beat = beat},
+            .string = string,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        };
+    };
+    // A four-beat span over a string-1 + string-2 chord on beat 1, then single string-1 notes on
+    // beats 2 and 3.
+    const std::vector<ChartShape> shapes = {
+        ChartShape{.position = GridPosition{.measure = 1, .beat = 1}, .sustain = Fraction{4}},
+    };
+    const std::vector<ChartNote> notes = {note(1, 1), note(1, 2), note(2, 1), note(3, 1)};
+
+    const std::vector<Fraction> held = chartEffectiveSustains(notes, shapes, map);
+    REQUIRE(held.size() == 4);
+    // String 1's member stops one beat on, where the string is struck again — never four.
+    CHECK(held[0] == Fraction{1});
+    // String 2 is never restruck, so its member keeps the whole span.
+    CHECK(held[1] == Fraction{4});
+    // The later single notes are not strums, so nothing extends them.
+    CHECK(held[2] == Fraction{});
+    CHECK(held[3] == Fraction{});
+
+    // The cap cannot change the hold test, which is what makes it safe in the shared derivation:
+    // the onset it measures to IS the successor asking, and a hold reaching exactly there reaches.
+    CHECK(predecessorHoldReaches(notes[0].position, held[0], notes[2].position, map));
 }
 
 } // namespace rock_hero::common::core

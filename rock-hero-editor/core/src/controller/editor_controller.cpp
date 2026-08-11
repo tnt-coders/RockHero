@@ -2962,16 +2962,32 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
         {
             return true;
         }
+        // What this entry has applied to the chart so far, read from the ONE record of what the
+        // burst pushed instead of a second copy kept in step by hand: an entry that pushed OWNS the
+        // history top, so that record is its plan. An entry whose first digit applied nothing (a
+        // refused fret still arms the window) owns nothing and has nothing to reverse.
+        const std::optional<ChartNotesEditPlan> applied =
+            entry.pushed && m_chart_notes_top.has_value() &&
+                    m_chart_notes_top->history_position == entry.history_position
+                ? std::optional<ChartNotesEditPlan>{m_chart_notes_top->plan}
+                : std::nullopt;
+        if (entry.pushed && !applied.has_value())
+        {
+            // The record retired while the window stayed armed. Nothing does that today without
+            // also moving the history position (which the proof above already refuses), but with
+            // no plan to reverse there is no pre-entry stream to replan from, so the window dies
+            // rather than guess.
+            m_chart_fret_entry.reset();
+            return false;
+        }
         // The widened whole-entry plan runs from the PRE-ENTRY stream, reconstructed by
         // reversing exactly what this entry applied — a plan's own inverse restores everything it
         // touched, whatever that was, including notes outside the selection that the finalize's
         // overlap pass retrimmed. Swapping the captured base values back would restore only the
         // typed notes, so the widen must reverse the plan rather than the values.
         common::core::Chart pre_entry = *chart;
-        if (entry.applied_plan.has_value() &&
-            !applyChartNotesChange(
-                 pre_entry, entry.applied_plan->inserted, entry.applied_plan->removed)
-                 .has_value())
+        if (applied.has_value() &&
+            !applyChartNotesChange(pre_entry, applied->inserted, applied->removed).has_value())
         {
             m_chart_fret_entry.reset();
             return true;
@@ -3004,10 +3020,8 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
         // from the current values cannot do that: a plan is not its own inverse, so a first digit
         // that also rewrote something else would leave the chart and the history entry
         // disagreeing and undo would preflight-fail.
-        if (entry.applied_plan.has_value() &&
-            !applyChartNotesChange(
-                 *chart, entry.applied_plan->inserted, entry.applied_plan->removed)
-                 .has_value())
+        if (applied.has_value() &&
+            !applyChartNotesChange(*chart, applied->inserted, applied->removed).has_value())
         {
             reportError("Could not apply chart edit: " + widened->label);
             m_chart_fret_entry.reset();
@@ -3020,9 +3034,9 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
             return true;
         }
 
-        bool now_pushed = entry.pushed;
         // The first digit's plan is no longer the top entry, and the burst record must not outlive
-        // it: a settle folding that plan would reconstruct the wrong pre-burst stream.
+        // it: a settle folding that plan would reconstruct the wrong pre-burst stream, and the
+        // widen below re-reads this record as its own.
         m_chart_notes_top.reset();
         // A pure insert carries no removed notes, so the emptiness check must span both
         // sides — skipping the swap would leave history holding the first digit's insert
@@ -3044,7 +3058,6 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
                 // undo steps in a rare edge beats a stack that lies about the file.
                 pushUndoEntry(std::make_unique<ChartNotesEdit>(*widened));
             }
-            now_pushed = true;
             m_chart_notes_top = ChartNotesTopEntry{
                 .plan = *widened,
                 .history_position = m_undo_history.snapshot().position,
@@ -3056,8 +3069,9 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
             .base_notes = entry.base_notes,
             .keys = entry.keys,
             .began_as_insert = entry.began_as_insert,
-            .applied_plan = widened,
-            .pushed = now_pushed,
+            // Whether the record above is now this entry's own IS the pushed flag — asked of the
+            // record rather than tracked alongside it.
+            .pushed = m_chart_notes_top.has_value(),
             .history_position = m_undo_history.snapshot().position,
         };
         updateView();
@@ -3090,7 +3104,6 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
     {
         return;
     }
-    const ChartNotesEditPlan inserted = *plan;
     const ChartNoteKey key{.position = note.position, .string = note.string};
     if (!applyChartEditPlan(std::move(plan), std::vector<ChartNoteKey>{key}))
     {
@@ -3104,7 +3117,8 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
             .base_notes = {},
             .keys = {key},
             .began_as_insert = true,
-            .applied_plan = inserted,
+            // The insert's own plan is the burst record `applyChartEditPlan` just wrote, which is
+            // where the widen reads it from.
             .pushed = true,
             .history_position = m_undo_history.snapshot().position,
         };
@@ -3129,18 +3143,13 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     // still arms the entry window: the digit applies nothing, but the widen replans the
     // two-digit value from the same pre-entry base, so every in-range multi-digit target
     // stays reachable — a scrape's wide default path would otherwise dead-end all typing.
-    // The applied plan travels with the entry so the widen can reverse it exactly, which is what
-    // keeps two-digit entry working however much the first digit's plan touched.
-    std::optional<ChartNotesEditPlan> applied;
+    // Whether the digit PUSHED is what the widen needs, because a pushing entry owns the burst
+    // record and reverses it to reconstruct the pre-entry stream — however much that plan touched —
+    // while a refused one has applied nothing to reverse.
     bool pushed = false;
     if (plan.has_value() && !plan->removed.empty())
     {
-        applied = plan;
         pushed = applyChartEditPlan(std::move(plan));
-        if (!pushed)
-        {
-            applied.reset();
-        }
     }
     if (digit * 10 <= common::core::g_max_fret)
     {
@@ -3150,7 +3159,6 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
             .base_notes = std::move(base_notes),
             .keys = keys,
             .began_as_insert = false,
-            .applied_plan = std::move(applied),
             .pushed = pushed,
             .history_position = m_undo_history.snapshot().position,
         };
@@ -3239,37 +3247,6 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
     static_cast<void>(applyChartEditPlan(planAdjustSustain(
         *arrangement->chart, session().song().tempo_map, chartSelection().notes(), delta)));
 }
-
-// What an all-skipped H press tells the user: why the resolver refused, and how many notes it
-// refused. The reason leads and the tally trails, so the singular case reads as naturally as the
-// plural and only the word "note" has to agree with the count.
-namespace
-{
-
-[[nodiscard]] std::string chartLegatoSkipText(const int skipped, const ChartLegatoSkip reason)
-{
-    const std::string tally =
-        " (" + std::to_string(skipped) + (skipped == 1 ? " note skipped)." : " notes skipped).");
-    switch (reason)
-    {
-        case ChartLegatoSkip::PickingHandOnset:
-            return "No legato to set: a picking-hand onset — a tap, a pinch, or a scrape — is not "
-                   "something a connection describes" +
-                   tally;
-        case ChartLegatoSkip::NoPredecessor:
-            return "No legato to set: nothing earlier on the string to connect to" + tally;
-        case ChartLegatoSkip::PredecessorReleased:
-            return "No legato to set: the note before is already released, and its tail cannot be "
-                   "extended far enough to reach" +
-                   tally;
-        case ChartLegatoSkip::NoConnection:
-        case ChartLegatoSkip::None:
-            break;
-    }
-    return "No legato to set: no connection is possible between those two stops" + tally;
-}
-
-} // namespace
 
 // Claims or clears a legato connection across the selection as one compound undo entry, uniform
 // scope. planSetLegato is the oracle and the resolver its only authority, so eligibility is never
@@ -3376,13 +3353,13 @@ void EditorController::Impl::onChartLegatoToggleRequested()
         }
         return;
     }
-    // The press changed nothing at all. Reporting the count and the dominant reason is what keeps
-    // that from being a dead key; a press that DID apply or clear needs no report, because the
-    // marks it moved are the feedback.
-    if (planned.skipped > 0)
-    {
-        reportError(chartLegatoSkipText(planned.skipped, planned.reason));
-    }
+    // A press that changed nothing is SILENT, exactly like every other technique verb that applies
+    // nothing (Ctrl+H, the pick-slide toggle): selecting a phrase's first note and pressing H is
+    // the commonest press there is, and it is not an error. `planned` still carries the count and
+    // the dominant reason — that IS the feedback payload — but the only reporting seam the view
+    // offers today is a modal "Could not complete request" box, which interrupts a keystroke to say
+    // nothing failed. The count surfaces once W3's non-modal refusal channel exists (tasks
+    // #33/#35); until then the spec's counted-skip half is deferred rather than mis-routed.
 }
 
 // Sets the selection to the left-hand tap attack as one compound undo entry, uniform scope. The
@@ -3443,11 +3420,18 @@ void EditorController::Impl::onChartPickSlideToggleRequested()
 // Esc is a settle event whichever rung consumes it, so the ladder itself is the helper below and
 // the press always ends with the sweep: stepping out of an editing context is exactly the moment a
 // claim the burst broke stops being transient.
+//
+// The view push is the RUNG's, deliberately: a committing sweep publishes its own state, so a press
+// that fell through every rung with nothing to settle changed nothing and publishes nothing — the
+// shape the ladder had before the sweep joined it.
 void EditorController::Impl::onChartEscapePressed()
 {
-    static_cast<void>(consumeChartEscapeRung());
+    const bool consumed = consumeChartEscapeRung();
     static_cast<void>(settleChartLegato());
-    updateView();
+    if (consumed)
+    {
+        updateView();
+    }
 }
 
 // The Esc ladder (the marker model): an in-flight pointer gesture is abandoned without
@@ -3510,9 +3494,13 @@ bool EditorController::Impl::consumeChartEscapeRung()
 // survive a settle at the top of history"; every FILE is unconditionally clean because the document
 // writer resolves as it serializes.
 //
-// Only the CURRENT arrangement is swept, and that is enough for the whole song: every load settles
-// every chart it reads, switching arrangements settles the one departed, and the switch resets the
-// undo stack — so no chart but this one can be holding a claim an edit broke.
+// Only the CURRENT arrangement is swept. Every load settles every chart it reads and an arrangement
+// switch settles the one being departed, so in practice no other chart holds a broken claim — but
+// that is not an induction, and the exception is worth naming: the switch's settle DEFERS at a
+// mid-stack cursor, so breaking a claim, undoing once, and then switching leaves the departed chart
+// holding an `Unjustified` claim in memory that no later event reaches (the sweep only ever visits
+// the current arrangement). Consequence is display-only, and accepted: every FILE is clean
+// regardless, because the document writer serializes the resolved form.
 bool EditorController::Impl::settleChartLegato()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();

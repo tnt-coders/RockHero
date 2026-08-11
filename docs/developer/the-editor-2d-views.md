@@ -232,7 +232,12 @@ is deliberately single-sourced:
   `chartEffectiveSustains` authority (`HighwayViewState::display_hold_ends` is its twin), which is
   what closed the recorded W9-A divergence where 2D drew bare heads for a chart the board drew held.
   It is also what the visible-range prefix maximum must index, so a span-held strum stays in range
-  for as long as it is drawn.
+  for as long as it is drawn — **and what `tabNoteLayout` must be handed**, so the hit rectangle
+  covers exactly the ribbon the paint pass drew. Those are the three places one hold end has to
+  reach; a silent step is any one of them left on `note.end_seconds`, which is how a span-extended
+  ribbon shipped drawn and unclickable. The hold end is itself bounded at the next onset on the
+  note's own string, the same bound 40-Q2-B imposes on a stored sustain — resolved in
+  `chartEffectiveSustains`, never on a surface, so both surfaces inherit it.
 
 One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
 (the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via

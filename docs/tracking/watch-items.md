@@ -122,19 +122,32 @@ migrate both projections behind their tests, then retire this item.
 ### A span-held strum's hold ends earlier in 3D than in 2D — trigger: a charter reports the two surfaces disagreeing about a chord's hold, or W9-B unifies the note views
 
 The span-implied hold itself is unified: both view states carry `display_hold_ends` resolved from
-`chartEffectiveSustains`, which is what closed the W9-A divergence on 2026-08-11. What is NOT
-unified is the *clamp* on top of it. The renderer draws a sustainless span member's hold as a head
-pinned at the hit line and ends that pin at
-`std::min(display_hold_ends[i], group.hold_cap_seconds)` (`highway_renderer.cpp`, the head-anchor
-block) — the cap being the next note-showing strum's onset, because a re-shown chord takes over the
-pinned display. The 2D lane draws a ribbon to `display_hold_ends[i]` with no cap at all, so a span
-covering two strums shows the first chord held longer in the tab than on the board. Accepted for now:
-the cap is a play-time display handoff with no 2D counterpart (the tab has no pinned head), and no
-chart data disagrees. **Trigger**: a report that the two surfaces disagree about a chord's hold, or
-W9-B's note-view unification landing — whichever comes first. **Remedy**: decide whether the cap is a
-*fact* about the chart (then it belongs in the shared projection, resolved once for both surfaces) or
-a board-only display handoff (then say so in `hold_cap_seconds`' own doc comment and retire this
-item).
+`chartEffectiveSustains`, which is what closed the W9-A divergence on 2026-08-11.
+
+**This entry originally understated its own subject and was rewritten on 2026-08-11 after an
+independent review.** As first shipped the lane's hold was not merely *longer* than the board's, it
+was **unbounded**: the lane drew a ribbon straight to `display_hold_ends[i]` with no cap at all, so a
+sustainless chord under a four-beat span with the same string restruck at beats 2 and 3 drew string
+1's tail through both later heads and out the far side, tremolo teeth and vibrato sine riding the
+whole length — a picture 40-Q2-B guarantees no *stored* sustain can produce. The claim that "no chart
+data disagrees" was the wrong test; the right one was that the derived hold had no bound the stored one
+has. Paint and hit testing had also come apart: `tabNoteLayout` built its tail rectangle from
+`note.end_seconds`, so every span-extended ribbon was drawn and unclickable. Both are fixed —
+`chartEffectiveSustains` caps the span-implied hold at the next onset on the note's own string (the
+one authority both surfaces read, and provably neutral to `predecessorHoldReaches`), and the layout
+manifest takes the same hold end the paint pass draws to.
+
+**What remains is the original entry's subject, correctly scoped**: the *clamp* on top of the shared
+hold is still board-only. The renderer draws a sustainless span member as a head pinned at the hit
+line and ends that pin at `std::min(display_hold_ends[i], group.hold_cap_seconds)`
+(`highway_renderer.cpp`, the head-anchor block) — the cap being the next note-showing strum's onset,
+because a re-shown chord takes over the pinned display. That strum can land before the string is
+restruck, and there the board's pin ends while the lane's ribbon continues. Accepted for now: it is a
+play-time display handoff with no 2D counterpart (the tab has no pinned head). **Trigger**: a report
+that the two surfaces disagree about a chord's hold, or W9-B's note-view unification landing —
+whichever comes first. **Remedy**: decide whether that handoff is a *fact* about the chart (then it
+belongs in the shared projection, resolved once for both surfaces) or board-only presentation (then say
+so in `hold_cap_seconds`' own doc comment and retire this item).
 
 ## 3D highway camera
 
@@ -182,6 +195,19 @@ Two smaller relatives of the same family, also left: `hasSustainTechnique` tests
 the trim does not fire; and below-margin crowding still leaves a chord's bent string with a stub its
 unbent partner does not get, which is the minimum-distance rule behaving as specified rather than a
 defect.
+
+### Any score using repeats or jump directions is refused outright — trigger: a user reports a real song that will not import
+
+A deliberate design limit, recorded here on 2026-08-11 after a corpus re-import measured it: the score
+parser refuses a file whose bars carry repeat bars or jump directions (`gp_score_parser.cpp`, "score
+uses repeats or jump directions") rather than expanding the playback order into a flat timeline.
+Refusing is the right call while that expansion is unbuilt — a chart that silently dropped a repeated
+section would be worse than one that does not import — but it is not a niche shape: it costs 1 of 115
+files in the local corpus, and repeat notation is ordinary in published tab. **Trigger**: a user
+reports a song that will not import for this reason, or the corpus rate rises above a file or two.
+**Remedy**: expand the playback order at parse time, resolving repeats and jumps into the linear bar
+sequence the chart model already assumes — never by teaching the chart model about repeats, which would
+put a second timeline concept into every consumer.
 
 ## Chart editing (tab lane)
 

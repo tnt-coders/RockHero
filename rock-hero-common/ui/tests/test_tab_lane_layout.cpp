@@ -176,7 +176,7 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .bend = {},
         .slides = {},
     };
-    const TabNoteLayout layout = tabNoteLayout(geometry, sustained);
+    const TabNoteLayout layout = tabNoteLayout(geometry, sustained, sustained.end_seconds);
 
     // Onset at 5s across 20s of 400px is x = 100; string 1 is the bottom lane center, 220.
     CHECK(layout.onset_x == Catch::Approx(100.0f));
@@ -208,9 +208,16 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .bend = {},
         .slides = {},
     };
-    const TabNoteLayout plain_layout = tabNoteLayout(geometry, plain);
+    const TabNoteLayout plain_layout = tabNoteLayout(geometry, plain, plain.end_seconds);
     CHECK_THAT(plain_layout.tail.width, Catch::Matchers::WithinULP(0.0f, 0));
     CHECK_FALSE(plain_layout.tail.contains(100.0f, 220.0f));
+
+    // A span-held strum member stores no sustain but is DRAWN to its display hold end, so the tail
+    // rectangle follows the ribbon rather than the stored value — the divergence that made a drawn
+    // ribbon unclickable.
+    const TabNoteLayout held_layout = tabNoteLayout(geometry, plain, 10.0);
+    CHECK(held_layout.tail.width == Catch::Approx(100.0f));
+    CHECK(held_layout.tail.contains(150.0f, 220.0f));
 }
 
 } // namespace rock_hero::common::ui

@@ -158,7 +158,15 @@ enum class ChartLegatoSkip : std::uint8_t
     PredecessorReleased,
 
     /*! \brief A predecessor that reaches, but no connection between the two stops. */
-    NoConnection
+    NoConnection,
+
+    /*!
+    \brief Number of reasons, not a reason — the tally array's size.
+
+    Structural on purpose: a new reason widens the array at compile time instead of throwing
+    `std::out_of_range` out of a keystroke handler. Keep it last.
+    */
+    Count
 };
 
 /*!
@@ -228,8 +236,10 @@ its own entry passes `chart.notes`.
 \param base Stream the plan is diffed against.
 \param label User-visible undo label.
 
-\return The planned change, or empty when the sweep found nothing to flatten — which is exactly when
-        the caller must leave its coalescing windows armed.
+\return The planned change, or empty when THE SWEEP found nothing to flatten — which is exactly when
+        the caller must leave its coalescing windows armed. A present plan can itself be empty (the
+        flatten exactly cancelled the burst it is diffed against); that is still a commit, because
+        walking the chart to `base` is what removes the claim.
 */
 [[nodiscard]] std::optional<ChartNotesEditPlan> planSettleLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,

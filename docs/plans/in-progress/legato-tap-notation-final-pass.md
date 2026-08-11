@@ -91,6 +91,22 @@ tap instances in all; the GP format's own data model IS the split model, and `Le
 never co-occurs with a hopo flag — a structural zero); (c) it closes the winner's own display
 residues (the invisible LeftTap/resolved-Hammer fork is met by sanctioned opt-in chrome).
 
+### The counterfactual, now measured exactly (2026-08-11 corpus re-import)
+
+The ≤310 upper bound above stands as an upper bound but is **superseded as the figure to cite**: it
+counted ascending-predecessor candidates without applying the hold test. Asked as plain `Legato`
+claims instead of `LeftTap`, the corpus's 1,783 authored taps resolve **Hammer 38, Pull 121,
+`Unjustified` 1,624**. So merged storage would have preserved the right motion for **38 of 1,783
+(2.1%)**, **inverted** it for 121 — a hammer notated as a pull-off — and silently produced a plain pick
+for **1,624**. That is an order of magnitude worse than the bound suggested, and it strengthens the
+shipped split-storage ruling accordingly.
+
+**Read the 1,783 with one correction**, wherever this record cites it: only 9 files carry any
+`LeftTap`, and two of them are the same score resaved (identical counts, different md5), so **540 of
+the 1,783 are a duplicate**. De-duplicated the corpus holds **1,243 taps across 8 files**. The
+concentration is real either way — four files supply 1,762 of the 1,783 — and none of it changes any
+ruling, but the raw total is inflated by 30% on this axis specifically.
+
 ## What must be signed (S1–S6)
 
 - **S1 — Premise correction into the record**: the "one real decision" was the storage shadow,
@@ -113,7 +129,8 @@ residues (the invisible LeftTap/resolved-Hammer fork is met by sanctioned opt-in
 
 **And what must NOT be signed** — the inflated grounds both advocates offered, because signing
 on mis-priced grounds is this record's recurring defect: the "free" 3D tint (false), the 310
-as a measured justified count (upper bound of candidates), the player-execution attack (fails
+as a measured justified count (upper bound of candidates — the measured figure is 38, above; cite
+that), the player-execution attack (fails
 D13 in both ranges), "the floating triangle always means tap" (false — span-held and
 out-of-view predecessors justify hammers with no drawn tail), "zero behavioral consequence" of
 the stored bit (false for the author: identical triangles respond differently to the same

@@ -1,13 +1,19 @@
 # Catch2 covers the shared string-color palette data, the Charter-exact derivation math, the
-# highway atlas layout arithmetic, and the tab feature: lane geometry, the layout manifest, and
-# the notation paint core's software-rasterized pixel output.
+# highway atlas layout arithmetic, the head-mark decisions the 3D draw pass reads, and the tab
+# feature: lane geometry, the layout manifest, and the notation paint core's software-rasterized
+# pixel output.
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
 add_executable(
     rock_hero_common_ui_tests
-    test_box_mute_profile.cpp test_highway_atlas.cpp test_render_device.cpp
-    test_string_color_palette.cpp test_tab_lane_layout.cpp test_tab_paint_core.cpp)
+    test_box_mute_profile.cpp
+    test_highway_atlas.cpp
+    test_highway_head_marks.cpp
+    test_render_device.cpp
+    test_string_color_palette.cpp
+    test_tab_lane_layout.cpp
+    test_tab_paint_core.cpp)
 
 # The atlas units under test are private to the library, so tests reach their headers through the
 # library's src tree; the private atlas header carries bgfx types, so the bgfx wrapper supplies

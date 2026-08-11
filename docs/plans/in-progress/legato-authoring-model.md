@@ -44,8 +44,14 @@ derivation table Option C settled (below), asked on every read instead of writte
 |---|---|
 | none on the string, a fret-hand harmonic, or no longer holdable at the onset (D13) | `Unjustified` |
 | released fret **above** the note's stop, and the note carries no node (E12) | `Pull` |
-| released fret **below** the note's stop, and the note has somewhere to land (a fret, or a node) | `Hammer` |
+| released fret **below** the note's stop | `Hammer` |
 | released fret **equal** | `Unjustified` — there is no connection to record, and inventing one would be inventing data |
+
+The hammer row carries no "somewhere to land" test, and deliberately: a released fret is validated
+non-negative, so `released < note.fret` already forces the note's stop to fret 1 or above. The spec
+asked for the clauses to be moved byte-identical, which is how the old rule's redundant
+`(fret > 0 || node)` disjunct survived the move; with the transplant signed off it was deleted
+(2026-08-11, review fix F10) and the row is now the whole rule.
 
 `LeftTap` resolves to `Hammer` unconditionally and reads no predecessor at all. Every other attack
 is answered as the hypothetical it is — asking about a `Pick` is how the `H` toggle finds the notes
@@ -54,11 +60,18 @@ Resolution reads the predecessor's **stored** fields only, so there is no cascad
 note can never change what another resolves to, and one sweep pass is therefore enough.
 
 `chartResolutions(notes, shapes, tempo_map)` answers it for a whole stream in one forward walk
-carrying the most recent note per string, and returns the three per-note facts that travel together
+carrying the most recent note per string, and returns the per-note facts that travel together
 because they are computed together: `saved_notes` (`savedChartNote`), `effective_sustains`
-(`chartEffectiveSustains`), and `legato`. The tab lane, the highway, the gameplay build, and the
-package reader all consume that one pass — computed per chart revision, never per frame. Computing
-them separately is exactly how those four came to disagree about one chart.
+(`chartEffectiveSustains`), `legato`, and `predecessors` — the same-string predecessor index the walk
+established, handed out rather than kept private so the `H` toggle asks its own hypothetical against
+the same relation instead of re-deriving it with a backward scan per selected note. The tab lane, the
+highway, the gameplay build, and the package reader all consume that one pass — computed per chart
+revision, never per frame. Computing them separately is exactly how those four came to disagree about
+one chart.
+
+The sweep short-circuits before that pass when no note in the stream carries a `Legato` at all: it
+runs at every settle event — every caret move, seek, selection change and playback start — and the
+resolutions pass copies the whole stream twice before it can answer the same question.
 
 Display draws the RESOLVED motion with the pre-existing mark geometry; an `Unjustified` `Legato`
 draws and scores as a plain Pick. **No cue, no lint, no dormant-state chrome.** The no-indicator
@@ -91,13 +104,18 @@ pixel-identical by design.
   clamp, so the assist can never author what a manual drag could not. It SKIPS gesture-carrying
   predecessors (a scrape, or any note with a slide-out): that tail is the gesture's authored window,
   and manual drag remains the authoring path there.
-- **Counted-skip feedback** (W5's second half): `ChartLegatoSkip` carries the dominant reason and
-  `chartLegatoSkipText` (`editor_controller.cpp`) renders count-plus-reason through the view's
-  existing reporting seam, so an all-skipped press is never a dead key. It counts only notes the
+- **Counted-skip DATA, reporting deferred** (W5's second half, as amended 2026-08-11 by the
+  independent review's F1): `ChartLegatoSkip` carries the dominant reason and `ChartLegatoPlan`
+  the count, and both are pinned by `test_chart_edits.cpp` for every refusal class. Nothing is
+  *shown*: `H` is silent when it applies nothing, at parity with `Ctrl+H` and the pick-slide
+  toggle. The rendering half (`chartLegatoSkipText`) was deleted because the view's only reporting
+  seam is a modal `showThemedWarningBox` titled "Could not complete request" — so an `H` on a
+  phrase's first note, the commonest press in charting, opened a dialog to announce that nothing
+  had failed. **This is where W3's refusal channel is still needed** (tasks #33/#35): the payload
+  is built and waiting for a non-modal surface. The count deliberately counts only notes the
   resolver REFUSED — a note already carrying the claim is unchanged, not skipped, which is what
   lets the caller tell "nothing left to claim, so this press means clear" from "this press had
-  nothing to say". **It did not need W3's `std::expected` refusal-channel refactor**: the skip
-  report is the verb's own typed return.
+  nothing to say".
 - **The toggle window:** `H` again with the same selection and history top reverses the previous
   press exactly, grown tails included — H-H leaves no trace. **The save case (ruled 2026-08-11):**
   when the proof holds but the entry is the reachable clean state, the reversal pushes the exact
@@ -106,13 +124,21 @@ pixel-identical by design.
   The window dies only on the deliberate context switches of the settle set, where the second press
   means the ordinary law and `Ctrl+Z` is the exact revert.
 
-**One record, two readers — a simplification the spec did not ask for.** The spec named a
+**One record, three readers — a simplification the spec did not ask for.** The spec named a
 `ChartLegatoToggleEntry`; what shipped keeps the *plan* once, in `m_chart_notes_top`
 (`ChartNotesTopEntry{plan, history_position}`), and the toggle window stores only the armed keys
-(`m_chart_legato_toggle`). The settle sweep folds into that same record and the toggle reverses it,
-so the two verbs cannot disagree about what the burst did — there is no second copy to keep in step.
-The history position IS the proof of ownership: any other push, undo, or redo moves the cursor and
-retires the record.
+(`m_chart_legato_toggle`). The settle sweep folds into that record, the toggle reverses it, and the
+multi-digit fret widen reverses it to rebuild its pre-entry stream — so no two verbs can disagree
+about what the burst did, because there is no second copy to keep in step. The history position IS
+the proof of ownership: any other push, undo, or redo moves the cursor and retires the record.
+
+The fret widen was the third reader only from 2026-08-11 (review fix F4): it had kept its own
+`ChartFretEntry::applied_plan`, the same fact re-stated, hand-synchronized at three sites. It now
+keeps just a `pushed` flag — "the record is MY push" — which is not redundant with the record: a
+first digit the planner refuses still arms the window and has pushed nothing to reverse. A widen that
+finds itself pushed with no record retires the window instead of guessing, which makes the sweep's
+own `m_chart_fret_entry.reset()` the ruled behaviour rather than the only thing standing between a
+committing fold and a widen against a plan that no longer exists.
 
 ## `Ctrl+H`
 
@@ -154,6 +180,15 @@ and the toggle window); a sweep that finds nothing leaves them armed. A fold cha
 without moving the history position, so an armed window's proof would otherwise pass and reverse or
 widen a plan that no longer exists.
 
+Which of the two it was is asked of the SWEEP, not of the diff (2026-08-11, review fix F5).
+`planSettleLegato` reports exactly one emptiness — "the sweep found nothing to flatten" — and the plan
+it returns is allowed to be empty itself, which happens when the flatten put the stream back exactly
+where the pre-burst base had it. Reading the diff's emptiness as "nothing to settle" conflated the
+two: in that second case the model kept an `Unjustified` claim at the top of history, breaking the
+stated invariant, and left both windows armed over it. Unreachable today (the only verb that writes a
+claim writes it where the resolver justifies it), but it was the guard's shape that was wrong, not its
+luck.
+
 ### Settle events, precisely
 
 Every *user-initiated* selection replacement wherever it enters — `setSelection`, caret arming,
@@ -164,11 +199,16 @@ press, whichever rung consumed it; transport seek; playback start. At any shared
 runs after that event's own state changes complete. **Undo/redo are deliberately NOT settle events** —
 mid-stack states may transiently hold broken claims, which is what the deferral above protects.
 
-**Only the CURRENT arrangement is swept**, and that is enough for the whole song — the spec's "every
-arrangement it writes" is stronger than the code needs, and the reason is worth stating: every load
-settles every chart it reads, switching arrangements settles the one departed and resets the undo
-stack, and the writer resolves as it serializes. So no chart but the current one can be holding a
-claim an edit broke, and no file can carry one regardless.
+**Only the CURRENT arrangement is swept**, and in practice that covers the song — the spec's "every
+arrangement it writes" is stronger than the code needs: every load settles every chart it reads,
+switching arrangements settles the one departed and resets the undo stack, and the writer resolves as
+it serializes.
+
+It is not, however, an induction, and the exception is named rather than glossed (2026-08-11, review
+fix F8): the switch's settle DEFERS at a mid-stack cursor, so *break a claim, undo once, switch* leaves
+the departed chart holding an `Unjustified` claim in memory that no later event can reach. Accepted —
+the consequence is display-only and no FILE can carry one regardless, because the writer resolves as
+it serializes.
 
 ### Load paths
 
@@ -196,6 +236,18 @@ span changes, the exact sin this design removes. The span stays the one authored
 stay derived. **The W9-A divergence is closed display-side:** the tab lane carries
 `display_hold_ends` resolved from the same `chartEffectiveSustains` authority the highway resolves
 `HighwayViewState::display_hold_ends` from, so both surfaces draw one chart the same way.
+
+**And the derived hold is bounded like a stored one (2026-08-11, review fix F2).** Unifying the two
+surfaces first shipped it uncapped, which made the lane draw a ribbon to the span's end whatever sat
+in between: a sustainless chord under a four-beat span with the same string restruck at beats 2 and 3
+drew string 1's tail through both later heads and out the far side — teeth and vibrato sine included —
+a picture 40-Q2-B guarantees no *stored* sustain can produce (`normalizeSustainOverlaps` truncates at
+the next same-string onset). `chartEffectiveSustains` now imposes that same bound on the derived hold,
+in the one authority both surfaces read rather than lane-side. The cap provably cannot change
+`predecessorHoldReaches`: the onset it measures to IS the successor whose claim reads that hold, and a
+hold reaching exactly an onset reaches it. Hit testing was the other half — `tabNoteLayout` took the
+note's `end_seconds` while the paint pass drew to `display_hold_ends`, so every span-extended ribbon
+was drawn and unclickable; the manifest now takes the same hold end the paint pass does.
 
 ## Tail lock
 

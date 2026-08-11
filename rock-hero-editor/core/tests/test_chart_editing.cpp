@@ -1917,24 +1917,23 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         CHECK(note_attack(2) == common::core::NoteAttack::LeftTap);
     }
 
-    SECTION("a press that only skipped says so, and one that acted stays silent")
+    SECTION("a press that only skipped is silent, like every other verb that applies nothing")
     {
-        // The counted-skip channel: nothing on the open string's own string precedes it, so the
-        // press can neither claim nor clear. Reporting the count and the dominant reason is what
-        // keeps that from being a dead key.
+        // Nothing precedes the open string on its own string, so this press can neither claim nor
+        // clear. It stays SILENT: selecting a phrase's first note and pressing H is the commonest
+        // press there is, and the only reporting seam the view offers is a modal error box. The
+        // count and the dominant reason still travel on planSetLegato's own return (pinned in
+        // test_chart_edits.cpp) and surface once a non-modal refusal channel exists.
         click(controller, 40.0f, 180.0f);
         controller.onChartLegatoToggleRequested();
         CHECK(note_attack(1) == common::core::NoteAttack::Pick);
-        REQUIRE(view.shown_errors.size() == 1);
-        CHECK(
-            view.shown_errors.back() ==
-            "No legato to set: nothing earlier on the string to connect to (1 note skipped).");
+        CHECK(view.shown_errors.empty());
 
-        // A press that applies needs no report: the marks it moved are the feedback.
+        // Nor does a press that applies report anything: the marks it moved are the feedback.
         click(controller, 80.0f, 220.0f);
         controller.onChartLegatoToggleRequested();
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
-        CHECK(view.shown_errors.size() == 1);
+        CHECK(view.shown_errors.empty());
     }
 }
 
@@ -2214,7 +2213,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     // data the author placed, and spending them to buy a connection would silently rewrite the
     // sound. The connection itself stays authorable — the resolver reads the released fret, so a
     // pull off a scrape is legal — but only by dragging the tail out by hand first.
-    SECTION("the assist never spends a gesture carrier's tail, and says why it could not")
+    SECTION("the assist never spends a gesture carrier's tail")
     {
         click(controller, 160.0f, 140.0f);
         controller.onChartLegatoToggleRequested();
@@ -2223,14 +2222,10 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         CHECK(note(4).attack == common::core::NoteAttack::Pick);
         CHECK(note(3).sustain == common::core::Fraction{1});
         CHECK(note(3).attack == common::core::NoteAttack::PickSlide);
-        REQUIRE(view.shown_errors.size() == 1);
-        CHECK(
-            view.shown_errors.back() ==
-            "No legato to set: the note before is already released, and its tail cannot be "
-            "extended far enough to reach (1 note skipped).");
 
-        // An all-skipped press leaves no undo entry behind either — reporting is the whole of what
-        // it does.
+        // An all-skipped press leaves nothing behind at all: no undo entry, and no dialog either
+        // (the skip count travels on the planner's return, not through the error seam).
+        CHECK(view.shown_errors.empty());
         const EditorViewState* state = stateOrNull(view.last_state);
         REQUIRE(state != nullptr);
         CHECK(state->undo_label != std::optional<std::string>{"Legato"});
@@ -2633,6 +2628,192 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
         CHECK(note(1).fret == 7);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
     }
+}
+
+namespace
+{
+
+// String 1 climbs 3 -> 7 -> 2, a measure apart, the first two held to the margin: the third note's
+// claim resolves as a pull-off, and shrinking the middle note's tail breaks it. The claim's fret is
+// 2 rather than 5 so a single typed digit can also break the claim by making the frets equal while
+// still leaving room under the fret cap for a second digit — which is what the multi-digit window
+// needs to be armed at all.
+[[nodiscard]] common::core::Chart makeBreakableClaimChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 1, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 3,
+            .sustain = common::core::Fraction{15, 4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 7,
+            .sustain = common::core::Fraction{15, 4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 2,
+            .attack = common::core::NoteAttack::Legato,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    return chart;
+}
+
+} // namespace
+
+// The settle-event set, at the five events that reach the sweep through their OWN call site rather
+// than through setSelection: a caret move (armChartCaret, the funnel behind pointer, arrow and
+// jump), Ctrl+click, double-click, a marquee release that caught notes, and playback start. Each
+// rewrites the selection without passing setSelection, so each needs its own settle — and each was
+// a live hole: reverting any one left the sweep un-run at that event with nothing to notice.
+TEST_CASE("EditorController settles at every ruled selection event", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(
+        loadChartArrangement(controller, project_services, audio, {}, makeBreakableClaimChart()));
+
+    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
+        return controller.session().currentArrangement()->chart->notes[index];
+    };
+
+    // Select the middle note and shrink its tail: the claim after it is now unjustified, and no
+    // settle has run yet because the selection never changed.
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+    controller.onChartSustainAdjustRequested(-1, false);
+    REQUIRE(note(2).attack == common::core::NoteAttack::Legato);
+    REQUIRE(state->undo_history.labels.size() == entries_before + 1);
+
+    SECTION("a caret move settles")
+    {
+        controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    }
+
+    SECTION("Ctrl+click settles")
+    {
+        click(controller, 80.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    }
+
+    SECTION("a double-click settles")
+    {
+        // Delivered as JUCE delivers the second press of a double click — the leading plain press
+        // is deliberately not replayed here, because its own arming would settle first and hide
+        // this site.
+        controller.onChartPointerDown(pointerEvent(80.0f, 220.0f, {}, 2));
+        controller.onChartPointerUp(pointerEvent(80.0f, 220.0f, {}, 2));
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    }
+
+    SECTION("a marquee release that caught notes settles")
+    {
+        controller.onChartPointerDown(pointerEvent(20.0f, 200.0f));
+        controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+        controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+        REQUIRE_FALSE(state->chart_edit.selected_notes.empty());
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    }
+
+    SECTION("playback start settles")
+    {
+        // Authoring is over for now, so a claim the burst broke must not be heard as something it
+        // is not. On this path the selection clear is the proximate settler and the play site's own
+        // sweep is the belt for an already-empty selection; what is pinned is the outcome, which is
+        // what a regression in either one would break.
+        controller.onPlayPausePressed();
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    }
+
+    // Whichever event ran it, a committing sweep FOLDS: the flatten rides the shrink's own entry,
+    // so one Ctrl+Z restores the tail and the claim together.
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+}
+
+// A transport seek is a settle event that does NOT touch the selection or the caret's fret entry:
+// disarmChartMarker leaves the multi-digit window armed and the seek keeps the note selection, so
+// the sweep is reached with the window live and its history position unmoved — the one sequence
+// where closing that window is the sweep's own job.
+TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(
+        loadChartArrangement(controller, project_services, audio, {}, makeBreakableClaimChart()));
+
+    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
+        return controller.session().currentArrangement()->chart->notes[index];
+    };
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    // Typing 2 makes the middle note's fret equal the claim's, so nothing connects any more — and
+    // arms the window, because a second digit still fits under the fret cap.
+    controller.onChartFretDigitTyped(2);
+    CHECK(note(1).fret == 2);
+    CHECK(note(2).attack == common::core::NoteAttack::Legato);
+    REQUIRE(state->undo_history.labels.size() == entries_before + 1);
+
+    // The seek settles. The fold rewrites the retype's entry in place, so the history POSITION is
+    // unchanged and every proof the armed window checks still passes.
+    controller.onTimelineSeekRequested(common::core::TimePosition{1.0});
+    CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+    REQUIRE_FALSE(state->chart_edit.selected_notes.empty());
+
+    // So the next digit must start a FRESH value: fret 3, not the widened 23. A surviving window
+    // would replan the whole entry from a pre-entry stream the fold has already replaced.
+    controller.onChartFretDigitTyped(3);
+    CHECK(note(1).fret == 3);
+    CHECK(state->undo_history.labels.size() == entries_before + 2);
+
+    // And the two entries undo cleanly in order, the fold restoring retype and claim as one step.
+    controller.onUndoRequested();
+    CHECK(note(1).fret == 2);
+    CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    controller.onUndoRequested();
+    CHECK(note(1).fret == 7);
+    CHECK(note(2).attack == common::core::NoteAttack::Legato);
 }
 
 } // namespace rock_hero::editor::core

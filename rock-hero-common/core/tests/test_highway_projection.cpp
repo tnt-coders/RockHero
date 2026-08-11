@@ -1310,6 +1310,36 @@ TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core
     CHECK(grouping.groups[2].box_only);
 }
 
+// The repeat rule asks what is DRAWN, not what is stored. Inside the connection family the mark is
+// the RESOLVED motion, so a claim nothing justifies carries no mark and must not hold the box off —
+// it is pixel-identical to the plain pick beside it. A claim that resolves carries its triangle,
+// and a marked chord always shows its notes.
+TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+    const std::vector<HighwayShapeView> shapes{chordShape(1.0, 3.0, posture)};
+    const auto grouped = [&](const LegatoMotion motion) {
+        std::vector<HighwayNoteView> notes{
+            chordNote(1.0, 1, 3),
+            chordNote(1.0, 2, 5),
+            chordNote(2.0, 1, 3),
+            chordNote(2.0, 2, 5),
+        };
+        // The repeat candidate carries a STORED claim in both runs; only its resolution differs.
+        notes[2].attack = NoteAttack::Legato;
+        notes[2].legato = motion;
+        return makeHighwayChordGroups(notes, shapes);
+    };
+
+    const HighwayChordGrouping broken = grouped(LegatoMotion::Unjustified);
+    REQUIRE(broken.groups.size() == 2);
+    CHECK(broken.groups[1].box_only);
+
+    const HighwayChordGrouping resolved = grouped(LegatoMotion::Hammer);
+    REQUIRE(resolved.groups.size() == 2);
+    CHECK_FALSE(resolved.groups[1].box_only);
+}
+
 // A dead chug (every member fully muted) earns the X repeat box only when it restates the nearest
 // preceding chord's posture; with fresh frets it shows its notes and their mute crosses — the
 // third recorded regression (Charter blanks every dead chug; this board does not).

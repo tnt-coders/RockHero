@@ -14,6 +14,10 @@ silent: the toggle window stores only its armed keys, because the burst's plan a
 `ChartLegatoToggleEntry` was needed; and the counted-skip feedback ships as the verb's own typed
 return (`ChartLegatoPlan{plan, skipped, reason}`) rather than through W3's unbuilt refusal channel.
 
+A third, found by the independent review of 2026-08-11 and folded in below: the counted-skip
+feedback's *reporting half* is deferred, because the "existing view reporting seam" is a modal error
+box. The `H` section records it in full.
+
 ## Stored model
 
 `attack ∈ {Pick, Legato, LeftTap, Tap, Pinch, PickSlide}`. `Legato` is the authored relational
@@ -60,6 +64,15 @@ by design.
 - **Counted-skip feedback ships with this implementation** (W5's second half, minimal form): an
   H press that skipped notes reports the count and the dominant reason through the existing
   view reporting seam, so an all-skipped press is never a dead key.
+  **DEFERRED, honestly recorded (2026-08-11, review fix).** The DATA ships — `planSetLegato`
+  returns `ChartLegatoPlan{plan, skipped, reason}` and every refusal class is pinned by tests —
+  but the *reporting* does not, because this sentence is not satisfiable as written: the only
+  existing view reporting seam is a modal `showThemedWarningBox` titled "Could not complete
+  request", so routing the count through it popped a dialog on the commonest press there is
+  (select a phrase's first note, press `H`) to announce that nothing had failed. `H` is therefore
+  SILENT when it applies nothing, at parity with `Ctrl+H` and the pick-slide toggle. The count
+  surfaces when W3's non-modal refusal channel lands (tasks #33/#35); the payload is already
+  built and waiting for it.
 - **The toggle window** (shipped `ChartLegatoToggleEntry` + `dropTop`) is kept: `H` again with
   the same selection and history top reverses the previous press exactly, grown tails included
   — a genuine toggle: H-H leaves no trace. **The save case is strengthened (ruled

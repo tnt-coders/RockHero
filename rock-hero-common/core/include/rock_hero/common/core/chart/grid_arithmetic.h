@@ -65,6 +65,13 @@ holds to the span's end. Groups whose notes are all fully muted stay unextended 
 choked, not held), as do single notes and notes carrying an explicit sustain, whose tails already
 state their hold. Coverage is positional only, with no posture matching.
 
+The span-implied hold is capped at the next onset on the note's OWN string, the same bound 40-Q2-B
+imposes on a stored sustain: a derived hold running past a later head would draw a tail through and
+beyond it, which no storable chart can express. The cap cannot change \ref predecessorHoldReaches —
+the onset it measures to IS the successor whose claim reads this hold, and a hold reaching exactly
+that onset still reaches — so it is a display bound resolved in the one authority rather than a
+second rule on the surfaces.
+
 The two readers ask simultaneity in the terms their domains offer — exact `GridPosition` equality
 here, resolved seconds against a rounding tolerance on the display side — and agree. Exact positions
 always resolve to equal seconds, and the display's tolerance is a nanosecond, six orders below the

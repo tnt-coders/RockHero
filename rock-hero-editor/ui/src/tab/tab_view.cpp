@@ -274,7 +274,8 @@ void TabView::paint(juce::Graphics& g)
             continue;
         }
         const common::core::TabNoteView& note = m_tab->notes[index];
-        const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
+        const common::ui::TabNoteLayout layout =
+            common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
         g.setColour(accent);
         common::ui::strokeTabNoteHeadOutline(
             g,

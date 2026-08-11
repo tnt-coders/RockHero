@@ -6,6 +6,7 @@
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
+#include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <utility>
 #include <vector>
@@ -85,7 +86,179 @@ constexpr int g_digit_window = 4;
     return common::core::makeSustainPrefixMax(state.display_hold_ends);
 }
 
+// The 400x240 six-lane band every case in this file paints into: 20 px/s across 20 seconds, so a
+// second is twenty columns and 2.0s lands at x = 40.
+[[nodiscard]] TabLaneMetrics referenceMetrics(int string_count)
+{
+    return makeTabLaneMetrics(
+        juce::Rectangle<int>{0, 0, 400, 240},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        },
+        common::core::displayedStringCount(string_count, 0),
+        string_count);
+}
+
+// The largest per-channel difference anywhere between two renders: zero means the two are the same
+// picture, which is the only way to state "draws exactly what the plain pick draws" without
+// depending on where a mark's geometry happens to land.
+[[nodiscard]] int worstPixelDelta(const juce::Image& lhs, const juce::Image& rhs)
+{
+    int worst = 0;
+    for (int x = 0; x < lhs.getWidth(); ++x)
+    {
+        for (int y = 0; y < lhs.getHeight(); ++y)
+        {
+            const juce::Colour from_lhs = lhs.getPixelAt(x, y);
+            const juce::Colour from_rhs = rhs.getPixelAt(x, y);
+            worst = std::max(
+                worst,
+                std::max(
+                    {std::abs(from_lhs.getAlpha() - from_rhs.getAlpha()),
+                     std::abs(from_lhs.getRed() - from_rhs.getRed()),
+                     std::abs(from_lhs.getGreen() - from_rhs.getGreen()),
+                     std::abs(from_lhs.getBlue() - from_rhs.getBlue())}));
+        }
+    }
+    return worst;
+}
+
 } // namespace
+
+// An `Unjustified` claim draws exactly what the plain pick beside it draws: nothing. The whole
+// no-indicator ruling rests on that identity — mid-burst a broken claim and a true pick are
+// pixel-identical by design — so it is checked as an image identity rather than by probing where
+// the triangle would have been, which is what makes it kill the mutation the branch invites:
+// drawing the hammer for any stored `Legato` regardless of the resolution.
+TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const auto painted = [](const common::core::NoteAttack attack,
+                            const common::core::LegatoMotion motion) {
+        common::core::TabViewState state;
+        state.string_count = 6;
+        state.notes = {
+            common::core::TabNoteView{
+                .start_seconds = 5.0,
+                .end_seconds = 9.0,
+                .string = 3,
+                .fret = 7,
+                .attack = attack,
+                .legato = motion,
+                .bend = {},
+                .slides = {},
+            },
+        };
+        const std::vector<double> prefix_max = resolveHoldEnds(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, referenceMetrics(state.string_count), state, prefix_max);
+        return image;
+    };
+
+    const juce::Image pick =
+        painted(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
+    const juce::Image broken_claim =
+        painted(common::core::NoteAttack::Legato, common::core::LegatoMotion::Unjustified);
+    const juce::Image hammer =
+        painted(common::core::NoteAttack::Legato, common::core::LegatoMotion::Hammer);
+    const juce::Image pull =
+        painted(common::core::NoteAttack::Legato, common::core::LegatoMotion::Pull);
+
+    // The identity itself.
+    CHECK(worstPixelDelta(pick, broken_claim) == 0);
+    // And the mark really is drawn when the claim resolves, so the identity above cannot be passing
+    // because nothing ever draws a triangle. The two directions are distinct pictures too — one
+    // upright, one flipped — which is what keeps a "resolved means hammer" mutation from passing.
+    CHECK(worstPixelDelta(pick, hammer) > 0);
+    CHECK(worstPixelDelta(pick, pull) > 0);
+    CHECK(worstPixelDelta(hammer, pull) > 0);
+}
+
+// Every tail the lane draws is drawn to the note's DISPLAY hold end, teeth and sine included, and
+// the hit-test rectangle stops exactly where that ink does. A span-held strum member stores no
+// sustain at all, so a tail keyed off `end_seconds` would draw nothing here and a hit rectangle
+// keyed off it would leave the drawn ribbon dead to the pointer.
+TEST_CASE("Tab paint core draws tails to the display hold end", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::TabViewState state;
+    state.string_count = 6;
+    // Three sustainless notes at 2.0s — plain, tremolo, vibrato — each span-held to 8.0s (x = 160).
+    const auto member = [](int string, bool tremolo, bool vibrato) {
+        return common::core::TabNoteView{
+            .start_seconds = 2.0,
+            .end_seconds = 2.0,
+            .string = string,
+            .fret = 7,
+            .vibrato = vibrato,
+            .tremolo = tremolo,
+            .bend = {},
+            .slides = {},
+        };
+    };
+    state.notes = {member(2, false, false), member(3, true, false), member(4, false, true)};
+    state.display_hold_ends = {8.0, 8.0, 8.0};
+
+    const TabLaneMetrics metrics = referenceMetrics(state.string_count);
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics graphics{image};
+    paintTabLane(
+        graphics, metrics, state, common::core::makeSustainPrefixMax(state.display_hold_ends));
+
+    // The empty lane for reference: string lines run the full width, so "where the tail ends" must
+    // be measured as a difference from the furniture rather than as raw coverage.
+    const juce::Image lanes_only{juce::SoftwareImageType{}.create(
+        juce::Image::ARGB, 400, 240, true)};
+    {
+        common::core::TabViewState bare;
+        bare.string_count = state.string_count;
+        juce::Graphics bare_graphics{lanes_only};
+        paintTabLane(bare_graphics, metrics, bare, {});
+    }
+
+    // True where this lane's band carries something the empty lane does not.
+    const auto differs = [&](const int string, const int x) {
+        const int center_y = juce::roundToInt(metrics.laneY(string));
+        for (int y = center_y - 18; y <= center_y + 18; ++y)
+        {
+            if (image.getPixelAt(x, y) != lanes_only.getPixelAt(x, y))
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    const auto last_inked_column = [&](const int string) {
+        int last = 0;
+        for (int x = 0; x < 400; ++x)
+        {
+            if (differs(string, x))
+            {
+                last = x;
+            }
+        }
+        return last;
+    };
+
+    for (std::size_t index = 0; index < state.notes.size(); ++index)
+    {
+        const common::core::TabNoteView& note = state.notes[index];
+        CAPTURE(note.string);
+        // Ink well past the stored end (x = 40) proves the ribbon was drawn from the hold end, and
+        // the tremolo teeth and the vibrato sine ride the same length rather than their own.
+        CHECK(differs(note.string, 120));
+        // And it stops there: nothing is drawn past the hold end on any of the three.
+        const int last_column = last_inked_column(note.string);
+        CHECK(last_column <= 161);
+        // The hit rectangle agrees with the drawn ink to the pixel, which is the whole point of the
+        // manifest taking the same hold end the paint pass does.
+        const TabNoteLayout layout = tabNoteLayout(metrics, note, state.display_hold_ends[index]);
+        CHECK(std::abs(last_column - juce::roundToInt(layout.tail.x + layout.tail.width)) <= 1);
+    }
+}
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
 // Moved from the editor's TabView suite when the paint core was extracted (plan 30 Phase 2);

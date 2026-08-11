@@ -511,9 +511,10 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         beat_delta.numerator > 0 ? "Grow Sustain" : "Shrink Sustain");
 }
 
-// Claims a connection for every selected note the resolver justifies one for. The chart's notes
-// are sorted by (position, string), so the note to connect from is simply the last earlier entry
-// sharing the string — nothing on that string can sit between them.
+// Claims a connection for every selected note the resolver justifies one for. Which note to connect
+// FROM is not decided here: `chartResolutions` already established every note's same-string
+// predecessor to answer its own resolutions, and hands the relation over — so the rule lives in one
+// place and a whole-selection press costs no per-note backward scan.
 //
 // Deliberately unbounded in time: a hammer-on from a note eight bars back is musically odd, but a
 // predecessor still holding is a predecessor, and the author asserting the connection is the
@@ -523,8 +524,9 @@ ChartLegatoPlan planSetLegato(
     const std::vector<ChartNoteKey>& keys, const std::string_view label)
 {
     // Counted by reason so the caller can say WHY an all-skipped press did nothing; index 0 (None)
-    // stays zero and makes the dominant-reason scan below a plain maximum.
-    std::array<int, 5> skips{};
+    // stays zero and makes the dominant-reason scan below a plain maximum. Sized off the enum, so
+    // a new reason is a compile-time widening rather than a throw out of a keystroke handler.
+    std::array<int, static_cast<std::size_t>(ChartLegatoSkip::Count)> skips{};
     if (keys.empty())
     {
         return ChartLegatoPlan{.plan = std::nullopt, .skipped = 0, .reason = ChartLegatoSkip::None};
@@ -553,17 +555,11 @@ ChartLegatoPlan planSetLegato(
             ++skips.at(static_cast<std::size_t>(ChartLegatoSkip::PickingHandOnset));
             continue;
         }
-        const common::core::ChartNote* predecessor = nullptr;
-        std::size_t predecessor_index = 0;
-        for (std::size_t behind = index; behind > 0; --behind)
-        {
-            if (resolutions.saved_notes[behind - 1].string == note.string)
-            {
-                predecessor = &resolutions.saved_notes[behind - 1];
-                predecessor_index = behind - 1;
-                break;
-            }
-        }
+        const std::size_t predecessor_index = resolutions.predecessors[index];
+        const common::core::ChartNote* const predecessor =
+            predecessor_index == common::core::g_no_chart_predecessor
+                ? nullptr
+                : &resolutions.saved_notes[predecessor_index];
         // The hypothetical the press asks about: this note AS A CLAIM. The claim attack has to be
         // in place because the resolver answers a `LeftTap` locally — it reports the hammer motion
         // for a tap no predecessor could justify, and asking in that form would write a claim the
@@ -659,6 +655,10 @@ std::optional<ChartNotesEditPlan> planSettleLegato(
     std::vector<common::core::ChartNote> settled = chart.notes;
     if (common::core::sweepUnjustifiedLegato(settled, chart.shapes, tempo_map).empty())
     {
+        // The ONE emptiness this planner reports: the sweep found nothing to flatten. Returning
+        // the diff's emptiness instead would conflate that with a flatten that exactly cancelled
+        // the burst it is diffed against, and the caller would leave its coalescing windows armed
+        // over a claim the sweep had rejected.
         return std::nullopt;
     }
     // Deliberately not through finalizePlan: the sweep only ever turns a `Legato` into a `Pick`, so
@@ -666,7 +666,13 @@ std::optional<ChartNotesEditPlan> planSettleLegato(
     // satisfied them — a plain pick demands nothing. Passing through the finalize would also diff
     // against the current stream rather than `base`, which is the one thing this planner needs to
     // control.
-    return diffNotes(base, settled, label);
+    //
+    // The diff itself may come out EMPTY, and that is a real plan rather than a refusal: it means
+    // the flatten put the stream back exactly where `base` had it, so the caller still has to
+    // commit — walking the chart back to `base` is what removes the claim — and the entry it
+    // replaces correctly describes nothing.
+    return diffNotes(base, settled, label)
+        .value_or(ChartNotesEditPlan{.removed = {}, .inserted = {}, .label = std::string{label}});
 }
 
 std::optional<ChartNotesEditPlan> planSetAttack(

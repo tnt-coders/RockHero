@@ -754,9 +754,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // In-flight multi-digit fret entry: the value typed so far, the tick of its last keystroke,
     // the pre-entry note values (so the widened undo entry still restores the originals), the
     // selection keys it retypes, whether an undo entry was pushed (a first digit matching every
-    // fret is a no-op that pushes nothing), and the history position holding that entry. A
+    // fret is a no-op that pushes nothing), and the history position the window is valid at. A
     // second digit inside the window widens the entry in place (replaceTop), so typing "2 then
     // 3" retypes to fret 23 and undoes as ONE action.
+    //
+    // The entry deliberately keeps NO copy of the plan it applied: when it pushed, that plan is
+    // `m_chart_notes_top` below and the widen reads it there. A refused first digit pushes nothing,
+    // which is the whole reason `pushed` and the position stay here — a non-pushing window still
+    // has to prove nothing else has happened, and has nothing to reverse.
     struct ChartFretEntry
     {
         int value{};
@@ -767,20 +772,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // combined fret so the entry stays ONE insert (undo removes the note), never
         // degrading into a retype that would strand it.
         bool began_as_insert{false};
-        // What this entry has applied to the chart so far. Widening REVERSES it to reconstruct
-        // the pre-entry stream exactly — including anything the plan touched beyond the typed
-        // notes, which swapping the captured base values back could never restore.
-        std::optional<ChartNotesEditPlan> applied_plan{};
+        // True when this entry's own plan is the history top — so the burst record below is ITS
+        // plan, which widening REVERSES to reconstruct the pre-entry stream exactly, including
+        // anything the plan touched beyond the typed notes.
         bool pushed{false};
         std::size_t history_position{};
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
-    // The chart-notes entry this burst pushed, and the history position holding it. Two verbs read
-    // it: the settle sweep folds its flatten into this entry (replaceTop) so the edit and the claim
-    // it broke undo together, and the H toggle window reverses it. The position IS the proof of
-    // ownership — any other push, undo, or redo moves the cursor and retires the record — which is
-    // why neither verb keeps a plan of its own to agree with this one by hand.
+    // The chart-notes entry this burst pushed, and the history position holding it. Three verbs
+    // read it: the settle sweep folds its flatten into this entry (replaceTop) so the edit and the
+    // claim it broke undo together, the H toggle window reverses it, and the multi-digit fret widen
+    // reverses it to rebuild the pre-entry stream. The position IS the proof of ownership — any
+    // other push, undo, or redo moves the cursor and retires the record — which is why no verb
+    // keeps a plan of its own to agree with this one by hand.
     struct ChartNotesTopEntry
     {
         ChartNotesEditPlan plan{};

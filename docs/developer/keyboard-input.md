@@ -141,8 +141,10 @@ shared destination helpers, so the two can never drift on the same motion),
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartLegatoToggleRequested`, `onChartLeftTapRequested`,
 `onChartPickSlideToggleRequested` (the technique verbs — uniform scope over the selection, one
-compound undo entry each; `H` additionally reports the count and dominant reason when a press
-skipped everything, so an inapplicable verb is never a dead key), `onChartEscapePressed` —
+compound undo entry each; all of them SILENT when they apply nothing, because the view's only
+reporting seam is a modal error box and "nothing to do" is not an error — `H` counts its skips and
+their dominant reason in `ChartLegatoPlan` for the non-modal channel W3 will build, and shows
+nothing until then), `onChartEscapePressed` —
 implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`
 (`rock-hero-editor/core/src/controller/editor_controller_impl.h`), always present, exactly one
@@ -274,7 +276,10 @@ per press; a new cancellable thing must pick its rung deliberately.
 
 Esc is also a **legato settle event**, and that is not a rung: `onChartEscapePressed` runs the
 settle sweep after whichever rung consumed the press, because backing out of an editing state ends
-the burst however far up the ladder it went (see \ref guide_undo for the sweep's commit shape).
+the burst however far up the ladder it went (see \ref guide_undo for the sweep's commit shape). The
+view push stays the RUNG's, deliberately: a committing sweep publishes its own state, so a press that
+fell through every rung with nothing to settle publishes nothing — same as before the sweep joined
+the ladder.
 
 # The plugin-window seam
 

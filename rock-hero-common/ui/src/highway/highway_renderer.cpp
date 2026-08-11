@@ -1,6 +1,7 @@
 #include "highway/bgfx_program.h"
 #include "highway/box_mute_profile.h"
 #include "highway/highway_atlas.h"
+#include "highway/highway_head_marks.h"
 
 #include <algorithm>
 #include <array>
@@ -3625,12 +3626,21 @@ void HighwayRenderer::Impl::draw(
             {
                 const double center_x = (x0 + x1) / 2.0;
                 const std::uint32_t marker_tint = packAbgr(base_color, fade);
-                // The pull-off is the only connection an open note can carry: a hammer-on needs a
-                // fret or a node to strike, so the resolver never hands one to an open string.
-                if (note.legato == common::core::LegatoMotion::Pull)
+                // The connection cell, from the same authority the fretted head below asks: an open
+                // string usually carries only the pull-off, but a left-hand tap resolves to the
+                // hammer motion unconditionally and is legal on an open string with a node.
+                if (const HighwayLegatoCell legato_cell = highwayLegatoCell(note.legato);
+                    legato_cell != HighwayLegatoCell::None)
                 {
                     push_marker(
-                        center_x, head_y, z, 1.0, 0.0, g_head_cell_legato, marker_tint, true);
+                        center_x,
+                        head_y,
+                        z,
+                        1.0,
+                        0.0,
+                        g_head_cell_legato,
+                        marker_tint,
+                        legato_cell == HighwayLegatoCell::Flipped);
                 }
                 if (note.mute == common::core::NoteMute::Palm)
                 {
@@ -3779,13 +3789,9 @@ void HighwayRenderer::Impl::draw(
         // Head base: the technique variant under left-hand technique markers and under a scrape
         // — its travel is unpitched noise, so it takes the darker base a full-muted note takes,
         // and the pick mark then sits on that base rather than on an X — else the standard head
-        // (Charter's base-cell selection).
-        const bool tech_head =
-            note.mute == common::core::NoteMute::Full ||
-            (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack)) ||
-            note.legato != common::core::LegatoMotion::Unjustified || scrape;
+        // (Charter's base-cell selection, stated once in highway_head_marks.h).
         const std::array<float, 4> base_cell =
-            tech_head ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
+            highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
                 x + (dx * cos_r) - (dy * sin_r),
@@ -3850,16 +3856,19 @@ void HighwayRenderer::Impl::draw(
             }
             // The legato pair is one cell: the hammer-on upright, the pull-off flipped, so the
             // two can never drift apart in weight or border the way separately drawn art did.
-            // Driven by the RESOLVED motion, never the stored attack — the chart records a claim
-            // and the direction is read back from the predecessor — and an unjustified claim
-            // draws neither cell, exactly like the plain pick it plays as.
-            if (note.legato == common::core::LegatoMotion::Hammer)
+            // Which way it goes — and whether it is drawn at all — is highwayLegatoCell's answer.
+            if (const HighwayLegatoCell legato_cell = highwayLegatoCell(note.legato);
+                legato_cell != HighwayLegatoCell::None)
             {
-                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_legato, tint);
-            }
-            else if (note.legato == common::core::LegatoMotion::Pull)
-            {
-                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_legato, tint, true);
+                push_marker(
+                    x,
+                    head_y,
+                    z,
+                    1.0,
+                    0.0,
+                    g_head_cell_legato,
+                    tint,
+                    legato_cell == HighwayLegatoCell::Flipped);
             }
         }
 

@@ -2,8 +2,9 @@
 \file chart_hit_testing.h
 \brief Headless hit resolution mapping tablature-lane pixels to chart notes.
 
-Every rectangle comes from the shared layout manifest, computed from the same TabLaneGeometry
-the paint core drew with, so hit policy can never drift from the rendered pixels.
+Every rectangle comes from the shared layout manifest, computed from the same TabLaneGeometry the
+paint core drew with AND from the same display hold ends its tail pass draws to, so hit policy can
+never drift from the rendered pixels: every drawn ribbon is clickable and nothing undrawn is.
 */
 
 #pragma once
@@ -24,7 +25,7 @@ Note heads win over sustain tails (a head sitting on another note's tail takes t
 among overlapping heads the one whose onset center is nearest the point wins. Tail hits resolve
 to the note whose tail rectangle contains the point, nearest onset first.
 
-\param tab Seconds-resolved tab projection being displayed.
+\param tab Seconds-resolved tab projection being displayed; `display_hold_ends` sized like `notes`.
 \param geometry Lane geometry the notation was painted with.
 \param x Pointer x in lane-local pixels.
 \param y Pointer y in lane-local pixels.
@@ -37,7 +38,7 @@ to the note whose tail rectangle contains the point, nearest onset first.
 /*!
 \brief Collects the notes whose head rectangles intersect a marquee box.
 
-\param tab Seconds-resolved tab projection being displayed.
+\param tab Seconds-resolved tab projection being displayed; `display_hold_ends` sized like `notes`.
 \param geometry Lane geometry the notation was painted with.
 \param left Left edge of the box in lane-local pixels.
 \param top Top edge of the box in lane-local pixels.

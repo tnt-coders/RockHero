@@ -1,8 +1,8 @@
 #include "chart/chart_legato.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
-#include <limits>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -11,14 +11,6 @@
 
 namespace rock_hero::common::core
 {
-
-namespace
-{
-
-// The one index sentinel these walks share: "this string has no earlier note yet".
-constexpr std::size_t g_no_predecessor{std::numeric_limits<std::size_t>::max()};
-
-} // namespace
 
 LegatoMotion resolveLegato(
     const ChartNote& note, const ChartNote* const predecessor,
@@ -41,7 +33,7 @@ LegatoMotion resolveLegato(
     {
         return LegatoMotion::Pull;
     }
-    if (released < note.fret && (note.fret > 0 || note.harmonic_node.has_value()))
+    if (released < note.fret)
     {
         return LegatoMotion::Hammer;
     }
@@ -68,18 +60,20 @@ ChartResolutions chartResolutions(
     // The last note seen per string: the stream is sorted, so this IS each note's same-string
     // predecessor when it is reached.
     std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
-    last_per_string.fill(g_no_predecessor);
+    last_per_string.fill(g_no_chart_predecessor);
     resolutions.legato.reserve(notes.size());
+    resolutions.predecessors.reserve(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         const ChartNote& note = resolutions.saved_notes[index];
         const bool string_in_range = note.string >= 1 && note.string <= g_max_chart_strings;
         const std::size_t predecessor_index =
             string_in_range ? last_per_string.at(static_cast<std::size_t>(note.string))
-                            : g_no_predecessor;
+                            : g_no_chart_predecessor;
+        resolutions.predecessors.push_back(predecessor_index);
         const ChartNote* predecessor = nullptr;
         Fraction predecessor_hold{};
-        if (predecessor_index != g_no_predecessor)
+        if (predecessor_index != g_no_chart_predecessor)
         {
             predecessor = &resolutions.saved_notes[predecessor_index];
             predecessor_hold = resolutions.effective_sustains[predecessor_index];
@@ -103,6 +97,16 @@ ChartResolutions chartResolutions(
 std::vector<std::string> sweepUnjustifiedLegato(
     std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
 {
+    // Nothing can flatten unless some note actually claims a connection, and this runs at EVERY
+    // settle event — every caret move, seek, selection change and playback start. The scan is a
+    // bare read over the stream; the resolutions pass below copies the whole stream twice before it
+    // can answer the same question. `LeftTap` is deliberately not counted: its claim is local, so
+    // the sweep never touches one.
+    if (std::ranges::none_of(
+            notes, [](const ChartNote& note) { return note.attack == NoteAttack::Legato; }))
+    {
+        return {};
+    }
     const ChartResolutions resolutions = chartResolutions(notes, shapes, tempo_map);
     std::vector<std::string> conversions;
     for (std::size_t index = 0; index < notes.size(); ++index)

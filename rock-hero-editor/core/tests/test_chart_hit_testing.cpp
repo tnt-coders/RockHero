@@ -43,6 +43,12 @@ namespace
             .slides = {},
         },
     };
+    // Nothing here is span-held, so every display hold end is the note's own — the projection's
+    // ordinary case, and the sizing every query asserts.
+    for (const common::core::TabNoteView& note : state.notes)
+    {
+        state.display_hold_ends.push_back(note.end_seconds);
+    }
     return state;
 }
 
@@ -107,6 +113,39 @@ TEST_CASE("Chart hit testing survives zoom extremes", "[core][chart]")
     CHECK(chartNoteHitIndex(tab, wide, 800.0f, 220.0f) == std::size_t{0});
     CHECK(chartNoteHitIndex(tab, wide, 2000.0f, 220.0f) == std::size_t{1});
     CHECK_FALSE(chartNoteHitIndex(tab, wide, 700.0f, 220.0f).has_value());
+}
+
+// Hit testing consumes the DISPLAY hold ends the paint core draws to, not the notes' own sustain
+// ends: a span-held strum member stores no sustain yet draws a full ribbon, and resolving clicks
+// against `end_seconds` left every drawn pixel of it dead.
+TEST_CASE("Chart hit testing follows the display hold ends", "[core][chart]")
+{
+    common::core::TabViewState tab;
+    tab.string_count = 6;
+    tab.notes = {
+        common::core::TabNoteView{
+            .start_seconds = 2.0,
+            .end_seconds = 2.0,
+            .string = 1,
+            .fret = 3,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+
+    // Stored sustain only: the bare head is the whole affordance, and a point out along the string
+    // hits nothing.
+    tab.display_hold_ends = {2.0};
+    CHECK(chartNoteHitIndex(tab, geometry, 40.0f, 220.0f) == std::size_t{0});
+    CHECK_FALSE(chartNoteHitIndex(tab, geometry, 130.0f, 220.0f).has_value());
+
+    // Span-held to 8s (x = 160): the ribbon the lane draws is now clickable along its whole length,
+    // and still stops where it is drawn to.
+    tab.display_hold_ends = {8.0};
+    CHECK(chartNoteHitIndex(tab, geometry, 130.0f, 220.0f) == std::size_t{0});
+    CHECK(chartNoteHitIndex(tab, geometry, 155.0f, 220.0f) == std::size_t{0});
+    CHECK_FALSE(chartNoteHitIndex(tab, geometry, 200.0f, 220.0f).has_value());
 }
 
 // The marquee query returns notes whose heads intersect the box, in ascending order.

@@ -1,11 +1,15 @@
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -101,6 +105,26 @@ std::vector<Fraction> chartEffectiveSustains(
     {
         held.push_back(note.sustain);
     }
+    // The next onset on each note's OWN string, so a span-implied hold obeys the same bound a
+    // stored sustain does: 40-Q2-B truncates a stored tail at the next onset on its string
+    // (normalizeSustainOverlaps), so an uncapped derived hold could draw a tail straight through
+    // and past a later head — a picture no storable chart can produce. Capping cannot change the
+    // legato hold test, which is what makes this display fix safe in the shared derivation: the
+    // note the bound is measured to IS the successor whose claim reads this hold, and a hold
+    // reaching exactly that onset still reaches it.
+    std::vector<std::size_t> next_on_string(notes.size(), notes.size());
+    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> seen_on_string{};
+    seen_on_string.fill(notes.size());
+    for (std::size_t index = notes.size(); index > 0; --index)
+    {
+        const int string = notes[index - 1].string;
+        if (string < 1 || string > g_max_chart_strings)
+        {
+            continue;
+        }
+        next_on_string[index - 1] = seen_on_string.at(static_cast<std::size_t>(string));
+        seen_on_string.at(static_cast<std::size_t>(string)) = index - 1;
+    }
     // Both streams ascend, so one cursor consumes each span exactly once. What it has to remember
     // is the FURTHEST point any already-started span reaches — not which span started last. Spans
     // may overlap, and an earlier one running longer holds the same strum just as well; tracking
@@ -136,10 +160,15 @@ std::vector<Fraction> chartEffectiveSustains(
             const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
             for (std::size_t member = index; member < group_end; ++member)
             {
-                if (notes[member].sustain.numerator <= 0 && held[member] < span_hold)
+                if (notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
                 {
-                    held[member] = span_hold;
+                    continue;
                 }
+                const std::size_t next = next_on_string[member];
+                const Fraction bound = next < notes.size()
+                                           ? beatDistance(tempo_map, onset, notes[next].position)
+                                           : span_hold;
+                held[member] = span_hold < bound ? span_hold : bound;
             }
         }
         index = group_end;

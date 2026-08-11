@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <compare>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
@@ -1222,6 +1223,86 @@ TEST_CASE("EditorController persists arrangement on switch", "[core][editor-cont
     CHECK(
         settings.projectSelectedArrangementFor(files.projectFile()) ==
         std::optional<std::string>{g_bass_arrangement_id});
+}
+
+// Departing an arrangement settles the chart being LEFT, and it has to happen before the song is
+// copied: the copy is what the reloaded session is rebuilt from, so a claim left broken here would
+// ride into the new session and out to the next write. The departed chart is the one place the
+// sweep can never come back to — nothing but the current arrangement is ever swept.
+TEST_CASE("EditorController settles the departed chart on an arrangement switch", "[core][chart]")
+{
+    const ScopedControllerFiles files{"switch_settles_departed_chart"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    // String 1: fret 9 held exactly to the margin before a legato note at fret 5 four beats later,
+    // so the claim resolves as a pull-off until its predecessor goes away.
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 1, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 9,
+            .sustain = common::core::Fraction{15, 4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 5,
+            .attack = common::core::NoteAttack::Legato,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    common::core::Song song = makeTwoArrangementSong(
+        std::filesystem::path{"lead.wav"}, std::filesystem::path{"bass.wav"});
+    song.tempo_map = common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
+    song.arrangements.front().chart = std::move(chart);
+    project_services.next_song = std::move(song);
+    controller.onOpenRequested(files.projectFile());
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    REQUIRE(controller.session().currentArrangement()->part == common::core::Part::Lead);
+
+    // Home selects the note the claim connects to; deleting it orphans the claim, which mid-burst
+    // is left exactly as authored.
+    controller.onChartCaretJumpRequested(ChartCaretJump::ChartStart);
+    controller.onSelectionDeleteRequested();
+    REQUIRE(controller.session().currentArrangement()->chart.has_value());
+    REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 1);
+    REQUIRE(
+        controller.session().currentArrangement()->chart->notes.front().attack ==
+        common::core::NoteAttack::Legato);
+
+    controller.onArrangementSelected(std::string{g_bass_arrangement_id});
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    REQUIRE(controller.session().currentArrangement()->part == common::core::Part::Bass);
+
+    // The Lead chart the session carries is settled: the switch resets the undo stack, so no later
+    // event could ever have reached this claim again.
+    const auto lead = std::ranges::find_if(
+        controller.session().song().arrangements, [](const common::core::Arrangement& arrangement) {
+            return arrangement.id == g_lead_arrangement_id;
+        });
+    REQUIRE(lead != controller.session().song().arrangements.end());
+    REQUIRE(lead->chart.has_value());
+    REQUIRE(lead->chart->notes.size() == 1);
+    CHECK(lead->chart->notes.front().attack == common::core::NoteAttack::Pick);
 }
 
 // Save As keys the displayed arrangement to the chosen path so a pre-first-save selection survives.

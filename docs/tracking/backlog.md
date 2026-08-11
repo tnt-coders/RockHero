@@ -193,6 +193,15 @@ rest, each verified against the code, each a fix rather than a question unless m
   per-project today, so switching arrangements loses your spot in the previous one. Additive
   key-shape change in `EditorSettings` whenever it itches in practice.
 
+## Found by the 2026-08-11 legato corpus re-import
+
+- **The GP rhythm ladder stops at `64th`, so a `128th` value fails the whole import.**
+  `gp_score_parser.cpp` (the rhythm-value ladder, ~lines 139-163) maps `Whole` through `64th` and then
+  reports "unknown rhythm value: 128th". One file in the local corpus is rejected for nothing else
+  about it — the score is otherwise ordinary — and the editor's own grid already offers 1/128, so the
+  value is inside the domain the rest of the project accepts. Add the branch; verify the resulting
+  `Fraction` against the ladder's existing pattern rather than by hand.
+
 ## Found by the 2026-08-10 five-area deep review
 
 Five parallel reviews: the audio layer, the game side plus the shared 3D highway, the editor UI, a

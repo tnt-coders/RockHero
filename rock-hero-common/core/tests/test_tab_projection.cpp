@@ -197,6 +197,50 @@ TEST_CASE("Tab projection is empty without a chart", "[core][tab]")
     CHECK(state.fret_hand_positions.empty());
 }
 
+// The exact geometry the lane used to draw through: a sustainless chord under a four-beat span with
+// the same string restruck twice inside it. The lane draws a ribbon to `display_hold_ends`, so an
+// uncapped span hold put string 1's tail straight under the later heads and out the far side — a
+// picture 40-Q2-B guarantees no stored sustain can produce.
+TEST_CASE("Tab projection caps a span hold at the next same-string onset", "[core][tab]")
+{
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.templates = {
+        ChordTemplate{
+            .name = "A5",
+            .frets = {5, 7, std::nullopt, std::nullopt, std::nullopt, std::nullopt},
+            .fingers = {1, 3, std::nullopt, std::nullopt, std::nullopt, std::nullopt},
+        },
+    };
+    const auto note = [](int beat, int string, int fret) {
+        return ChartNote{
+            .position = GridPosition{.measure = 1, .beat = beat},
+            .string = string,
+            .fret = fret,
+            .bend = {},
+            .slides = {},
+        };
+    };
+    chart.notes = {note(1, 1, 5), note(1, 2, 7), note(2, 1, 7), note(3, 1, 9)};
+    chart.shapes = {ChartShape{
+        .position = GridPosition{.measure = 1, .beat = 1}, .sustain = Fraction{4}, .chord = 0
+    }};
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    // 120 BPM 4/4: a beat is half a second, so the span runs 0.0s to 2.0s and the later string-1
+    // onsets sit at 0.5s and 1.0s.
+    const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
+    REQUIRE(state.display_hold_ends.size() == 4);
+    // String 1's member stops where the string is struck again, never at the span's end.
+    CHECK(state.display_hold_ends[0] == Catch::Approx(0.5));
+    // String 2 is never restruck, so its member inherits the whole span.
+    CHECK(state.display_hold_ends[1] == Catch::Approx(2.0));
+    // The later single notes are not strums, so nothing extends them past their own onsets.
+    CHECK(state.display_hold_ends[2] == Catch::Approx(0.5));
+    CHECK(state.display_hold_ends[3] == Catch::Approx(1.0));
+}
+
 // The pick-slide seam: latent overridden techniques never reach the view, and the path renders
 // unpitched with no linked continuation heads.
 TEST_CASE("Tab projection suppresses pick-slide latents", "[core][tab]")

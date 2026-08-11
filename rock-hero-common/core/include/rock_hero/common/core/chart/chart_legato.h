@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cstddef>
+#include <limits>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -13,6 +15,14 @@
 
 namespace rock_hero::common::core
 {
+
+/*!
+\brief Index sentinel for \ref ChartResolutions::predecessors: nothing earlier on that string.
+
+Named once and shared, because the "nearest earlier note on the same string" relation now has one
+producer and more than one consumer.
+*/
+inline constexpr std::size_t g_no_chart_predecessor{std::numeric_limits<std::size_t>::max()};
 
 /*!
 \brief The motion a note's connection claim justifies, or `Unjustified` when nothing does.
@@ -30,9 +40,10 @@ hand over), or it is no longer holdable at this onset. Past the kept-sustain bou
 tail is a proven release, which is why shrinking a tail drops the connection its neighbour claimed.
 
 Then the released fret picks the direction: above the note is a pull-off, below it a hammer-on. A
-pull-off carries no harmonic (it releases onto a plain stopped pitch), and a hammer-on needs
-somewhere to land (a fret, or a node to strike). Equal frets justify nothing — there is no
-connection to record, and inventing one would be inventing data.
+pull-off carries no harmonic (it releases onto a plain stopped pitch); a hammer-on needs somewhere
+to land, which the direction test already guarantees — a released fret is never negative, so a
+hammer's note is stopped at fret 1 or above by construction and needs no second test. Equal frets
+justify nothing — there is no connection to record, and inventing one would be inventing data.
 
 `LeftTap` resolves to the hammer motion unconditionally and reads no predecessor at all: it is the
 authored statement that the fretting hand strikes the note from nowhere, so no neighbour can
@@ -62,9 +73,9 @@ on whether the notes connect.
 /*!
 \brief Everything a chart revision derives per note, resolved once for every consumer.
 
-The three per-note facts each surface needs and none may restate: the saved form the display and the
-rules both judge, the effective hold the span convention implies, and the resolved connection
-motion.
+The per-note facts each surface needs and none may restate: the saved form the display and the rules
+both judge, the effective hold the span convention implies, the resolved connection motion, and the
+same-string predecessor every one of those was answered against.
 They travel together because they are computed together — the resolutions need the saved forms and
 the holds to be answered at all — and because computing them separately is exactly how the tab lane,
 the highway, the gameplay build, and the reader came to disagree about the same chart.
@@ -88,6 +99,16 @@ struct ChartResolutions
     \ref legatoClaimable family and needs no second test.
     */
     std::vector<LegatoMotion> legato;
+
+    /*!
+    \brief Each note's nearest earlier note on its own string, or \ref g_no_chart_predecessor.
+
+    The relation the forward walk already established to answer \ref legato, handed out rather than
+    kept private: the `H` toggle asks the resolver its own hypothetical per selected note and needs
+    the same predecessor, and re-deriving it there was both a restatement of this rule and a
+    backward scan per selected note.
+    */
+    std::vector<std::size_t> predecessors;
 };
 
 /*!

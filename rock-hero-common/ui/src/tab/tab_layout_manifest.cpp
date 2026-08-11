@@ -6,10 +6,13 @@ namespace rock_hero::common::ui
 {
 
 // Mirrors the paint core's drawNoteHead / drawNoteTail geometry: the head is a square of
-// note_height + 1 centered on (onset_x, laneY); the tail spans onset to sustain end across
-// Charter's tail top/bottom around the string line.
+// note_height + 1 centered on (onset_x, laneY); the tail spans onset to the DISPLAY hold end across
+// Charter's tail top/bottom around the string line. The hold end is a parameter for the same reason
+// drawNoteTail takes one — a span-held strum member is drawn past its stored sustain, and a
+// rectangle built from `end_seconds` would leave that ribbon unclickable.
 TabNoteLayout tabNoteLayout(
-    const TabLaneGeometry& geometry, const common::core::TabNoteView& note) noexcept
+    const TabLaneGeometry& geometry, const common::core::TabNoteView& note,
+    const double hold_end_seconds) noexcept
 {
     TabNoteLayout layout;
     layout.onset_x = geometry.x(note.start_seconds);
@@ -23,7 +26,7 @@ TabNoteLayout tabNoteLayout(
     };
 
     const TailSpan span = tailSpan(geometry, layout.center_y);
-    const float end_x = geometry.x(note.end_seconds);
+    const float end_x = geometry.x(hold_end_seconds);
     layout.tail = TabLayoutRect{
         .x = layout.onset_x,
         .y = span.top,

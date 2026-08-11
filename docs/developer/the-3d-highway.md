@@ -78,6 +78,13 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    not depend on `common/ui`. GPU handles are held in a move-only RAII wrapper
    (`bgfx_handle.h`, `UniqueBgfxHandle`) that must be destroyed before `bgfx::shutdown()`.
 
+   Nothing inside the draw pass is reachable from a test, so a decision the pass makes more than
+   once belongs in a small pure unit beside it instead. `highway_head_marks.h` is the pattern:
+   which atlas cell a head's connection mark uses (`highwayLegatoCell`) and whether the head takes
+   the darker technique base (`highwayTechHead`), both `constexpr`, both covered by
+   `test_highway_head_marks.cpp`. Reach for that shape whenever a draw-path branch is a *rule*
+   rather than geometry.
+
 3. **Two shells** feed it frames. That is the entire product-specific surface.
 
 # The game path
@@ -191,12 +198,14 @@ on both surfaces.
 The **span-implied hold** is the one place the idioms still differ in substance,
 so it is worth knowing before touching either. Both view states carry `display_hold_ends` resolved
 from the same `chartEffectiveSustains` authority (that unification is what closed the recorded W9-A
-divergence), but each spends it differently: 2D draws a tail ribbon to that end, while the board
+divergence), and that authority bounds the hold at the next onset on the note's own string — the same
+bound 40-Q2-B imposes on a stored sustain, so neither surface can draw a hold through a later head.
+Each then spends the bounded value differently: 2D draws a tail ribbon to that end, while the board
 draws no tail for a sustainless strum and instead **pins the head at the hit line** until the hold
 ends. The board additionally clamps that pin with `HighwayChordGroupView::hold_cap_seconds` — the
 next note-showing strum's onset, because a re-shown chord takes over the pinned display — and 2D has
-no such cap, so a span holding two strums ends the drawn hold earlier in 3D than in 2D. Recorded as
-a watch item, not a decided asymmetry.
+no such cap, so a strum taken over before its string is restruck ends the drawn hold earlier in 3D
+than in 2D. Recorded as a watch item, not a decided asymmetry.
 
 # Two visual paths: chart visuals vs screen-space overlays
 

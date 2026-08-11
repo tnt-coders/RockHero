@@ -125,26 +125,29 @@ item ships, mark it and name the commit.
   `tremolo` or a slide payload), the import normalization that zeroes such a sustain so a re-read
   cannot refuse the chart, and the noise-idiom tail display. Blocks nothing but touches W1, E10,
   E24 and the display; build before the lock/break work so the tail rules are stated once.
-- [x] **W5 — `H` eligible-subset fix + counted feedback. SHIPPED IN FULL 2026-08-11.** The
-  eligible-subset half shipped 2026-08-10: the controller asks `planSetLegato` itself whether
-  applying would change anything (the oracle, never a restated predicate), and only when it would
-  not does the press clear — targeting just the legato subset, so a rider `Tap` or `Pinch` keeps its
-  own attack. A second press now always undoes the first; pinned by the mixed-selection round-trip
-  test. **The counted feedback landed with the DERIVED-DIRECTION model** as the verb's own typed
-  return — `ChartLegatoPlan{plan, skipped, reason}` with `ChartLegatoSkip` naming the four refusal
-  classes, rendered by `chartLegatoSkipText` through the view's existing reporting seam, so an
-  all-skipped press states the count and the dominant reason. **It did NOT need W3's refusal-channel
-  refactor**, which is why the two items decoupled: the skip report is per-note information the
-  planner already had, where W3's `{NoChange, Invalid}` distinction is about the whole plan.
+- [ ] **W5 — `H` eligible-subset fix SHIPPED 2026-08-10; counted feedback SHIPPED AS DATA ONLY, its
+  surface deferred to W3 (revised 2026-08-11 by the legato review's F1).** The eligible-subset half:
+  the controller asks `planSetLegato` itself whether applying would change anything (the oracle, never
+  a restated predicate), and only when it would not does the press clear — targeting just the legato
+  subset, so a rider `Tap` or `Pinch` keeps its own attack. A second press always undoes the first;
+  pinned by the mixed-selection round-trip test. **The counted feedback's payload landed with the
+  DERIVED-DIRECTION model** as the verb's own typed return — `ChartLegatoPlan{plan, skipped, reason}`
+  with `ChartLegatoSkip` naming the four refusal classes, every class pinned by `test_chart_edits.cpp`.
+  **Nothing is shown**: the rendering half was deleted the same day it was reviewed, because the
+  view's only reporting seam is a modal `showThemedWarningBox` titled "Could not complete request", so
+  it popped a dialog on the commonest press in charting (a phrase's first note) to announce that
+  nothing had failed. `H` is silent when it applies nothing, at parity with `Ctrl+H` and the
+  pick-slide toggle. So W5 **does** wait on W3's non-modal channel after all — for the surface only;
+  the per-note information the planner already had is built and waiting.
 - [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5). NARROWED TO SLIDES ONLY
   2026-08-11** by the legato ruling: a connection claim stores no direction, so shrinking its
   predecessor's tail drops the mark live, regrowing restores it inside the burst, and the settle
   sweep flattens what is left as one folded batch — nothing to lock and nothing to break. Slides
   keep all three (waypoints are real data). The break verb frees a tail from the origin's side; the
-  feedback is **editor-only** (user ruling: not visible in 3D). **Unblocked 2026-08-11:** the
-  feedback here was waiting on a channel that did not exist, and W5's counted-skip report is the
-  precedent — a verb reporting count-plus-reason through the view's reporting seam, which the slide
-  lock can copy without W3 landing first.
+  feedback is **editor-only** (user ruling: not visible in 3D). **Still blocked on the channel
+  (corrected 2026-08-11):** W5's counted-skip report is not the precedent it briefly looked like — its
+  data ships but its surface does not, because the only reporting seam is a modal error box. The
+  locked-tail feedback and W5's count are now two payloads waiting on the same W3 work.
 - [x] **W7 — D14 assist + the `H` toggle window. SHIPPED 2026-08-10, RESHIPPED UNDER THE NEW MODEL
   2026-08-11.** Both halves survived the storage change and were retargeted rather than rebuilt: the
   assist now re-asks `resolveLegato` under a grown tail (the same only-blocker test, one authority

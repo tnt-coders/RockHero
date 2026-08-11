@@ -170,8 +170,10 @@ Exemplar: `ChartNotesEditPlan` with the eight planners — `planInsertNote` / `p
 applied by `applyChartNotesChange` and replayed by
 `ChartNotesEdit` (`editor/core/src/chart/chart_edits.h`). One of them returns more than a plan:
 `planSetLegato` answers `ChartLegatoPlan{plan, skipped, reason}`, because the notes it turned down
-and why are things the planner already knew, so reporting them costs no second pass and no separate
-predicate to keep in step. Recurring: `planLanePointAtCaret` →
+and why are things the planner already knew, so carrying them costs no second pass and no separate
+predicate to keep in step. (Nothing displays them yet — the editor has no non-modal notice channel —
+and that is the point of the shape: the payload waits in the planner's return rather than being
+recomputed when the channel arrives.) Recurring: `planLanePointAtCaret` →
 `plantLanePoint` (`editor_controller.cpp`), and the game's `library_scan_plan.h` (a pure
 planner that diffs the cached index and returns a deterministic action list, no IO). Reach for
 it when a mutation needs undo, a truthful preview, or side-effect-free tests.
@@ -336,10 +338,13 @@ quiet debounce (`plugin_dirty_tracking.cpp`). Reach for it when a burst of input
 gesture — the undo rule is one entry per gesture, not per event.
 
 Two windows in the chart editor are **proof-based rather than timed** — the fret entry's second
-digit and the legato toggle's second press each carry `{keys, history_position}`, so any interleaved
-edit, undo, or redo retires them without teardown discipline. Both read one shared record of what
-the burst pushed (`m_chart_notes_top`), which is also what the legato settle sweep folds into, and
-that sharing is what forces the rule **a sweep that commits anything closes both windows**: a fold
+digit and the legato toggle's second press each prove the burst is still theirs from the armed keys
+plus the history position, so any interleaved edit, undo, or redo retires them without teardown
+discipline. Both read one shared record of what the burst pushed (`m_chart_notes_top`: the plan, and
+the position that proves it is still the top), which is also what the legato settle sweep folds into.
+**Neither keeps a copy of that plan** — the fret entry stores only whether the record is its OWN push,
+which it needs because a refused first digit still arms a window and has pushed nothing to reverse.
+That sharing is what forces the rule **a sweep that commits anything closes both windows**: a fold
 changes the top entry's content without moving the history position, so an armed proof would
 otherwise still pass and reverse or widen a plan that no longer exists.
 
