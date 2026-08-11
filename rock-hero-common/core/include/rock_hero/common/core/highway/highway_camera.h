@@ -65,14 +65,10 @@ struct HighwayCameraTarget
     /*! \brief Fret span of the scanned hand window; drives the out-zoom. */
     double span{4.0};
 
-    /*!
-    \brief Compares two targets by their stored fields.
-    \param lhs Left-hand target.
-    \param rhs Right-hand target.
-    \return True when both targets store equal values.
-    */
-    friend constexpr bool operator==(
-        const HighwayCameraTarget& lhs, const HighwayCameraTarget& rhs) noexcept = default;
+    // Deliberately NOT comparable: both fields are doubles of this struct's own, so a defaulted
+    // operator== trips -Wfloat-equal on GCC, Clang, and clang-cl the day it is first odr-used.
+    // Nothing compares whole targets (tests probe fields with Approx); if a comparison is ever
+    // needed, hand-write it with std::is_eq per the coding conventions.
 };
 
 /*! \brief Smoothed world-space camera position. */
@@ -87,14 +83,8 @@ struct HighwayCameraPose
     /*! \brief Camera Z behind the hit line (negative). */
     double z{0.0};
 
-    /*!
-    \brief Compares two poses by their stored fields.
-    \param lhs Left-hand pose.
-    \param rhs Right-hand pose.
-    \return True when both poses store equal values.
-    */
-    friend constexpr bool operator==(
-        const HighwayCameraPose& lhs, const HighwayCameraPose& rhs) noexcept = default;
+    // Deliberately NOT comparable, exactly like HighwayCameraTarget above: three own doubles, and
+    // nothing compares whole poses. Hand-write with std::is_eq if a comparison is ever needed.
 };
 
 /*!

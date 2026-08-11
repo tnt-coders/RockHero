@@ -351,7 +351,7 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
             .signal_chain = core::SignalChainViewState{
                 .input_calibrate_enabled = true,
                 .output_gain_controls_enabled = true,
-                .output_gain_db = -24.0,
+                .output_gain = common::audio::Gain{-24.0},
             },
         });
 

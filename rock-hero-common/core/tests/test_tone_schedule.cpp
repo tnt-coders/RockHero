@@ -27,8 +27,8 @@ namespace
     };
 }
 
-// Asserts a baked envelope point field-by-field. The gain is compared with tolerance so the raw
-// float member never runs through ToneGainPoint's exact ==, which -Wfloat-equal rejects.
+// Asserts a baked envelope point field-by-field; ToneGainPoint deliberately has no operator== of
+// its own (two raw float members), so field probes are the whole interface.
 void checkGainPoint(const ToneGainPoint& point, double seconds, float gain)
 {
     CHECK(point.seconds == Catch::Approx(seconds));

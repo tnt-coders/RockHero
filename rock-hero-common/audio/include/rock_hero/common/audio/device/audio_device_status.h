@@ -58,13 +58,10 @@ struct AudioDeviceStatus
     */
     std::string unavailable_reason;
 
-    /*!
-    \brief Compares two device snapshots by their stored values.
-    \param lhs Left-hand device snapshot.
-    \param rhs Right-hand device snapshot.
-    \return True when both snapshots store equal values.
-    */
-    friend bool operator==(const AudioDeviceStatus& lhs, const AudioDeviceStatus& rhs) = default;
+    // Deliberately NOT comparable: three of the fields are doubles of this struct's own, so a
+    // defaulted operator== trips -Wfloat-equal on GCC, Clang, and clang-cl the day it is first
+    // odr-used. Consumers compare the derived status TEXT, never the snapshot; hand-write with
+    // std::is_eq if a snapshot comparison is ever needed.
 };
 
 } // namespace rock_hero::common::audio

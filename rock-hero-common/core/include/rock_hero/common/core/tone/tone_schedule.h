@@ -79,13 +79,10 @@ struct ToneGainPoint
     /*! \brief Linear branch audibility in [0, 1]: 1 = audible tone, 0 = silent. */
     float gain{0.0F};
 
-    /*!
-    \brief Compares two envelope points by their stored fields.
-    \param lhs Left-hand envelope point.
-    \param rhs Right-hand envelope point.
-    \return True when both points store equal values.
-    */
-    friend bool operator==(const ToneGainPoint& lhs, const ToneGainPoint& rhs) = default;
+    // Deliberately NOT comparable: both fields are doubles of this struct's own, so a defaulted
+    // operator== trips -Wfloat-equal on GCC, Clang, and clang-cl the day it is first odr-used —
+    // a test comment used to be the only thing keeping the comparison from running, which is not
+    // a mechanism. Hand-write with std::is_eq if a comparison is ever needed.
 };
 
 /*!

@@ -369,7 +369,7 @@ void SignalChainView::applyState()
     m_tone_export_button.setVisible(m_state.tone_export_enabled);
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
-    m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
+    m_output_gain_slider.setValue(m_state.output_gain.db, juce::dontSendNotification);
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
     m_chain_content->setBlockCount(m_block_layout.blockCount());
     rebuildPluginTiles();

@@ -3994,7 +3994,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             ((m_project_audio_ready && action_conditions.has_loaded_arrangement) ||
              m_tone_designer.active) &&
             !action_conditions.session_faulted,
-        .output_gain_db = m_output_gain_db,
+        .output_gain = common::audio::Gain{m_output_gain_db},
         .tone_import_enabled =
             isActionAvailable(EditorAction::Id::ImportToneFile, action_conditions),
         .tone_export_enabled =

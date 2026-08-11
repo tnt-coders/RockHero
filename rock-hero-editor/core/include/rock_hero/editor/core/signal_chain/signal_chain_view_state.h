@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <compare>
 #include <cstdint>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
 #include <string>
 #include <vector>
@@ -57,8 +57,8 @@ struct SignalChainViewState
     /*! \brief Enables or disables the output gain control. */
     bool output_gain_controls_enabled{false};
 
-    /*! \brief Current output gain in decibels, after the signal chain. */
-    double output_gain_db{0.0};
+    /*! \brief Current output gain after the signal chain. */
+    common::audio::Gain output_gain{};
 
     /*! \brief Enables the project-mode Import Tone command (copies a tone file's rig in). */
     bool tone_import_enabled{false};
@@ -69,29 +69,16 @@ struct SignalChainViewState
     /*!
     \brief Compares two signal-chain view states by their stored values.
 
-    Hand-written rather than defaulted because output_gain_db is a plain double member of this
-    struct: a defaulted comparison would compare it with `==`, which does not compile under the
-    project's `-Wfloat-equal -Werror` toolchains. std::is_eq on the three-way comparison keeps exact
-    equality semantics (and reports an unordered NaN as not-equal).
+    Safely defaulted: the one float travels inside \ref common::audio::Gain, whose hand-written
+    std::is_eq comparison keeps -Wfloat-equal quiet — so a new field here is compared
+    automatically instead of depending on a hand-maintained member list.
 
     \param lhs Left-hand signal-chain view state.
     \param rhs Right-hand signal-chain view state.
     \return True when both signal-chain view states store equal values.
     */
-    friend bool operator==(const SignalChainViewState& lhs, const SignalChainViewState& rhs)
-    {
-        return lhs.insert_plugin_enabled == rhs.insert_plugin_enabled &&
-               lhs.move_plugins_enabled == rhs.move_plugins_enabled &&
-               lhs.remove_plugins_enabled == rhs.remove_plugins_enabled &&
-               lhs.plugins == rhs.plugins &&
-               lhs.input_calibration_status == rhs.input_calibration_status &&
-               lhs.input_calibrate_enabled == rhs.input_calibrate_enabled &&
-               lhs.disabled_message == rhs.disabled_message &&
-               lhs.output_gain_controls_enabled == rhs.output_gain_controls_enabled &&
-               std::is_eq(lhs.output_gain_db <=> rhs.output_gain_db) &&
-               lhs.tone_import_enabled == rhs.tone_import_enabled &&
-               lhs.tone_export_enabled == rhs.tone_export_enabled;
-    }
+    friend bool operator==(const SignalChainViewState& lhs, const SignalChainViewState& rhs) =
+        default;
 };
 
 } // namespace rock_hero::editor::core

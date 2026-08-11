@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <string>
 
@@ -44,12 +45,25 @@ struct InputCalibrationViewState
 
     /*!
     \brief Compares two popup view states by their stored values.
+
+    Hand-written, not defaulted: input_gain_db is a double of this struct's own, and a defaulted
+    comparison trips -Wfloat-equal on the strict compilers once odr-used. Every field is listed;
+    a new field must be added here, exactly like the sibling gated view states.
+
     \param lhs Left-hand view state.
     \param rhs Right-hand view state.
     \return True when both states carry equal popup render data.
     */
     friend bool operator==(
-        const InputCalibrationViewState& lhs, const InputCalibrationViewState& rhs) = default;
+        const InputCalibrationViewState& lhs, const InputCalibrationViewState& rhs)
+    {
+        return lhs.input_meter_level == rhs.input_meter_level &&
+               std::is_eq(lhs.input_gain_db <=> rhs.input_gain_db) &&
+               lhs.status_message == rhs.status_message &&
+               lhs.start_measurement_enabled == rhs.start_measurement_enabled &&
+               lhs.manual_gain_controls_enabled == rhs.manual_gain_controls_enabled &&
+               lhs.dismiss_button_text == rhs.dismiss_button_text && lhs.read_only == rhs.read_only;
+    }
 };
 
 } // namespace rock_hero::editor::core

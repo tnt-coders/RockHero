@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -26,11 +27,19 @@ struct SongSectionView
 
     /*!
     \brief Compares two section views by their stored fields.
+
+    Hand-written, not defaulted: seconds is a double of this struct's own, and a defaulted
+    comparison trips -Wfloat-equal on the strict compilers once odr-used. Exact equality is
+    intended — a projection rebuild reproduces bit-identical seconds.
+
     \param lhs Left-hand view.
     \param rhs Right-hand view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const SongSectionView& lhs, const SongSectionView& rhs) = default;
+    friend bool operator==(const SongSectionView& lhs, const SongSectionView& rhs)
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name;
+    }
 };
 
 } // namespace rock_hero::editor::core
