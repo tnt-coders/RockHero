@@ -258,6 +258,34 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   `keymap_editor_view.cpp` removes a key press before removing the stored indices, and
   `juce::Array::remove` compacts (invalidating them), so rebinding Redo to a chord it already owns
   can keep the chord it was asked to replace.
+- **`RockHeroGame::Config` and `Game::Config` state the same six-field content contract twice**,
+  kept in step only by the field-by-field copy in `rock_hero_game.cpp`. One direction is guarded
+  (a field added to `Game::Config` and omitted from the designated initializer trips the strict
+  compilers), the other is not (a field added to `RockHeroGame::Config` and never forwarded
+  produces no diagnostic). One shared `GameContentConfig` embedded by both deletes the copy.
+
+### Test debt from the 2026-08-10 verification pass
+
+Behavior the branch changed correctly but did not pin; each is one focused case in an existing
+suite:
+
+- Three importer behavior changes in `gp_chart_builder.cpp` with no importer-level test: the
+  strikeless-tap decision moved into the build loop (so chord-shape and FHP passes see the settled
+  attack), the pick-slide carrier's capo floor (a capo ≥ 3 with a scrape carrier used to refuse
+  the whole song), and the hopo direction deriving from the predecessor's RELEASED fret. One
+  SECTION each in `test_gp_song_importer.cpp`, in the style of the out-of-range-fields case.
+- Two pixel probes in `test_tab_paint_core.cpp`: the capo chip drawing before the FHP loop (the
+  marker's digit must win the corner overlap), and `drawMuteIcon`'s size-floor removal (no mute
+  ink outside the head's extent below ~11 px lane scale).
+- One `TabLaneGeometry` case with a non-zero `bounds_x`, so the absolute-coordinate change stops
+  being unobservable and a future caller cannot double-add the origin.
+- `test_plugin_browser_window.cpp`: double-click now honors `add_enabled`; assert the refusal.
+- A game-settings case asserting a setter's value is on disk before any explicit save (the shared
+  options' zero save-delay is what fixed the silently-armed three-second timer).
+- The audio-device failure overlay's Escape is now swallowed silently (it used to open Audio
+  Settings); no test guards either contract.
+- Test-data sweep: several editor test fixtures still spell rates as `48kHz` inside opaque status
+  strings; inert, but they read against the spelled-out-hertz ruling.
 
 ### One rule in two places, across the tree
 
@@ -267,6 +295,18 @@ remains:
 
 - **Four bare `1e-9` onset epsilons in `gp_chart_builder.cpp`** that should alias the named
   constant the way `highway_renderer.cpp` does.
+- **`withinGrid` in `gp_chart_builder.cpp` restates `isValidGridPosition`**, papering over the
+  real asymmetry: the file's two beat-to-position converters answer differently past the last bar
+  (`advanceGridPosition` extends the final signature, `gridPositionForGlobalBeat` clamps the
+  measure and emits an out-of-range beat). Making the latter extend like the tempo map deletes
+  `withinGrid` and both call-site guards; short of that, call the authority.
+- **Two payload-clip helpers for one rule**: `clipPayloadsTo` (importer) and
+  `clipPayloadsToSustain` (editor) overlap, and the shift-slide junction hand-restates the
+  slide-out clip immediately after calling the narrower one. Give the shared helper the slide-out
+  clip behind its target parameter, or state why the builder deliberately owns a narrower rule.
+- Evaluate: the importer's no-landing degradation path forces a DOWNWARD trail-off even when the
+  notated glide direction is known (consistent with the pre-existing no-landing path, so a
+  deliberate change would touch both).
 - Smaller: two remaining copies of `getIndexOfDevice`
   (`test_audio_device_settings.cpp`, `test_engine.cpp`).
 - Structural: `TempoMap` has no validator of its own, so its rule set lives only in the *package*

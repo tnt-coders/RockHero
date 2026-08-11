@@ -168,6 +168,18 @@ defect.
 
 ## Chart editing (tab lane)
 
+### Gesture-deferred pushes have no lifecycle reset — trigger: a report of a frozen tone row
+
+`ToneTrackView` and `ToneAutomationLanesView` defer state pushes while a view-owned drag holds
+indices into the frozen state, adopting the pending push on `finishGesture`. Every reachable path
+clears the gesture (mouse-up, Escape), but a LOST mouse-up — the component hidden mid-press, mouse
+capture stolen — would leave `gestureActive()` true and every later push deferred forever: the row
+renders permanently stale. The old design self-healed (every push reset the drag) at the cost of
+the mid-drag correctness the deferral was built for, and this failure mode has never been
+observed, so it is accepted as-is. **Trigger**: any report of a tone row or automation lane that
+stopped updating until clicked. **Remedy**: clear the gesture (adopting the pending push) in
+`visibilityChanged()`/`parentHierarchyChanged()` on both deferring views.
+
 ### Sustain tail-drag resize is deliberately not implemented — trigger: charters reach for the tail
 
 Decided with the user 2026-07-16 (interaction-model amendment record): resizing a note's sustain
