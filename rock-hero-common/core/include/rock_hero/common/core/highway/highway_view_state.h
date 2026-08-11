@@ -10,6 +10,7 @@
 #include <compare>
 #include <cstddef>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart.h>
@@ -375,6 +376,103 @@ struct HighwayTapOnsetView
     }
 };
 
+/*!
+\brief One onset group: the simultaneous notes of a strum, classified for display.
+
+Membership decides the rolling flip and the shadow, two or more fretting-hand members earn the
+plain chord box, and \ref box_only marks the repeat-chord treatment. Derived from the chart once
+per revision by \ref makeHighwayChordGroups: the repeat rules look BACKWARD through the whole
+note stream, so deriving them inside the renderer's visible window both re-ran them every frame
+and could not see past the window's edge.
+*/
+struct HighwayChordGroupView
+{
+    /*! \brief Absolute onset second shared by the group's members. */
+    double start_seconds{0.0};
+
+    /*! \brief Index of the group's first note in the state's note stream. */
+    std::size_t first{0};
+
+    /*! \brief Number of simultaneous notes at the onset. */
+    std::size_t count{0};
+
+    /*!
+    \brief Members struck by the fretting hand: only these decide the PLAIN chord box.
+
+    Taps and pick slides are the other hand — a fretted note under a simultaneous right-hand
+    onset is a single note, and a tapped dyad gets the tapped box from the tap onsets.
+    */
+    std::size_t fretting_hand_count{0};
+
+    /*! \brief True when any member is accented. */
+    bool any_accent{false};
+
+    /*! \brief The mute every member shares, or None when the members disagree. */
+    NoteMute common_mute{NoteMute::None};
+
+    /*!
+    \brief True when every member is fully muted.
+
+    A dead chug restating the preceding chord hides behind the repeat box, and muted runs never
+    break another chord's repeat chain.
+    */
+    bool all_full_muted{false};
+
+    /*!
+    \brief Repeat-chord treatment (Charter's visibility rules): the strum renders as a
+           half-height box with its mute cross and NO note heads.
+    */
+    bool box_only{false};
+
+    /*!
+    \brief Onset of the next note-showing strum, capping this group's span-hold display;
+           infinity when none follows in the song.
+
+    Whole-song on purpose. Derived over the visible window this was wrong at the window's edge:
+    the last visible group's cap read as infinity even when a note-showing strum sat just past
+    it, self-correcting only as that strum scrolled in.
+    */
+    double hold_cap_seconds{0.0};
+
+    /*!
+    \brief Compares two chord-group views by their stored fields.
+    \param lhs Left-hand view.
+    \param rhs Right-hand view.
+    \return True when both views store equal values.
+
+    Hand-written for the two own doubles (exact equality is right: these are compared against
+    values the projection produced, and infinity caps compare equal to themselves).
+    */
+    friend bool operator==(
+        const HighwayChordGroupView& lhs, const HighwayChordGroupView& rhs) noexcept
+    {
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) && lhs.first == rhs.first &&
+               lhs.count == rhs.count && lhs.fretting_hand_count == rhs.fretting_hand_count &&
+               lhs.any_accent == rhs.any_accent && lhs.common_mute == rhs.common_mute &&
+               lhs.all_full_muted == rhs.all_full_muted && lhs.box_only == rhs.box_only &&
+               std::is_eq(lhs.hold_cap_seconds <=> rhs.hold_cap_seconds);
+    }
+};
+
+/*! \brief The derived onset grouping: the groups, and each note's index into them. */
+struct HighwayChordGrouping
+{
+    /*! \brief Onset groups in ascending time order. */
+    std::vector<HighwayChordGroupView> groups;
+
+    /*! \brief Each note's index into \ref groups, sized and ordered like the note stream. */
+    std::vector<std::size_t> note_group;
+
+    /*!
+    \brief Compares two groupings by their stored fields.
+    \param lhs Left-hand grouping.
+    \param rhs Right-hand grouping.
+    \return True when both groupings store equal values.
+    */
+    friend bool operator==(const HighwayChordGrouping& lhs, const HighwayChordGrouping& rhs) =
+        default;
+};
+
 /*! \brief One fret-hand position marker resolved to a timeline second. */
 struct HighwayFhpView
 {
@@ -541,6 +639,17 @@ struct HighwayViewState
     feed the per-tap light envelopes and the tapped chord boxes, and carry no user-editable data.
     */
     std::vector<HighwayTapOnsetView> tap_onsets;
+
+    /*!
+    \brief Onset groups in ascending order, classified for chord-box and repeat treatment.
+
+    Derived once per chart revision by \ref makeHighwayChordGroups; the renderer clamps these to
+    its visible range instead of rebuilding and reclassifying them every frame.
+    */
+    std::vector<HighwayChordGroupView> chord_groups;
+
+    /*! \brief Each note's index into \ref chord_groups, sized and ordered like \ref notes. */
+    std::vector<std::size_t> note_group;
 
     /*! \brief Fret-hand position markers in ascending order. */
     std::vector<HighwayFhpView> fret_hand_positions;
@@ -788,6 +897,235 @@ tap onset's release.
         index = group_end;
     }
     return onsets;
+}
+
+/*!
+\brief Groups simultaneous notes and classifies each group's chord-box and repeat treatment.
+
+Pure over the seconds-resolved streams, so the fussiest display rules on the board — the repeat
+chain, the dead-chug restatement, the span-hold take-over — live where tests can reach them
+instead of inside the GPU path. The classification (Charter's chord visibility rules): a strum
+shows only the half-height repeat box when it repeats the covering hand shape's own posture
+within the shape span — single notes and dead chugs between strums do not break the chain, a
+fully-muted strum never shows notes, and a sustained or technique-bearing strum always does. The
+take-over cap is resolved over the whole song, which is what makes it stable: each group's
+span-hold display ends at the next note-showing strum wherever that strum is, not merely within
+whatever window a renderer happens to be drawing.
+
+\param notes Seconds-resolved notes sorted by start time.
+\param shapes Hand-shape spans in ascending order.
+\return Groups in ascending onset order, plus each note's group index.
+*/
+[[nodiscard]] inline HighwayChordGrouping makeHighwayChordGroups(
+    const std::vector<HighwayNoteView>& notes, const std::vector<HighwayShapeView>& shapes)
+{
+    HighwayChordGrouping grouping;
+    grouping.note_group.assign(notes.size(), 0);
+
+    // Sorted (string, fret) pairs for matching a strum against a shape's posture. Scratch for the
+    // classification only — no consumer reads them once box_only is decided, so they are not
+    // carried on the view.
+    std::vector<std::vector<std::pair<int, int>>> group_frets;
+
+    for (std::size_t index = 0; index < notes.size();)
+    {
+        std::size_t group_end = index + 1;
+        while (group_end < notes.size() &&
+               std::abs(notes[group_end].start_seconds - notes[index].start_seconds) <
+                   g_highway_onset_match_epsilon)
+        {
+            ++group_end;
+        }
+        HighwayChordGroupView group{
+            .start_seconds = notes[index].start_seconds,
+            .first = index,
+            .count = group_end - index,
+            .fretting_hand_count = 0,
+            .any_accent = false,
+            .common_mute = notes[index].mute,
+            .all_full_muted = true,
+            .box_only = false,
+            .hold_cap_seconds = std::numeric_limits<double>::infinity(),
+        };
+        std::vector<std::pair<int, int>> frets;
+        frets.reserve(group.count);
+        for (std::size_t member = index; member < group_end; ++member)
+        {
+            const HighwayNoteView& note = notes[member];
+            if (!rightHandOnset(note.attack))
+            {
+                ++group.fretting_hand_count;
+            }
+            group.any_accent = group.any_accent || note.accent;
+            if (note.mute != group.common_mute)
+            {
+                group.common_mute = NoteMute::None;
+            }
+            group.all_full_muted = group.all_full_muted && note.mute == NoteMute::Full;
+            frets.emplace_back(note.string, note.fret);
+            grouping.note_group[member] = grouping.groups.size();
+        }
+        std::ranges::sort(frets);
+        group_frets.push_back(std::move(frets));
+        grouping.groups.push_back(group);
+        index = group_end;
+    }
+
+    const auto posture_matches = [](const HighwayShapeView& shape,
+                                    const std::vector<std::pair<int, int>>& frets) {
+        if (shape.strings.empty() || shape.strings.size() != frets.size())
+        {
+            return false;
+        }
+        for (std::size_t entry = 0; entry < frets.size(); ++entry)
+        {
+            // Posture entries ascend by string (projection order), like the sorted pairs.
+            if (shape.strings[entry].string != frets[entry].first ||
+                shape.strings[entry].fret != frets[entry].second)
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+    for (std::size_t group_index = 0; group_index < grouping.groups.size(); ++group_index)
+    {
+        HighwayChordGroupView& group = grouping.groups[group_index];
+        if (group.count < 2)
+        {
+            continue;
+        }
+        bool has_tails = false;
+        bool all_palm_muted = true;
+        bool any_marks = false;
+        for (std::size_t member = group.first; member < group.first + group.count; ++member)
+        {
+            const HighwayNoteView& note = notes[member];
+            has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
+                        note.tremolo || !note.bend.empty() || !note.slides.empty();
+            all_palm_muted = all_palm_muted && note.mute == NoteMute::Palm;
+            any_marks = any_marks || note.harmonic_node.has_value() ||
+                        note.attack != NoteAttack::Pick || note.mute != NoteMute::None;
+        }
+        if (has_tails)
+        {
+            continue;
+        }
+        if (group.all_full_muted)
+        {
+            // A dead chug earns the X repeat box only when it restates the nearest preceding
+            // chord's posture (muted or not); with fresh frets it displays its notes and their
+            // mute crosses like any chord (Charter blanks every dead chug).
+            std::size_t cursor = group.first;
+            while (cursor > 0)
+            {
+                const double onset = notes[cursor - 1].start_seconds;
+                std::size_t run_begin = cursor - 1;
+                while (run_begin > 0 && std::abs(notes[run_begin - 1].start_seconds - onset) <
+                                            g_highway_onset_match_epsilon)
+                {
+                    --run_begin;
+                }
+                const std::size_t run_count = cursor - run_begin;
+                if (run_count >= 2)
+                {
+                    std::vector<std::pair<int, int>> run_frets;
+                    run_frets.reserve(run_count);
+                    for (std::size_t member = run_begin; member < cursor; ++member)
+                    {
+                        run_frets.emplace_back(notes[member].string, notes[member].fret);
+                    }
+                    std::ranges::sort(run_frets);
+                    group.box_only = run_frets == group_frets[group_index];
+                    break;
+                }
+                cursor = run_begin;
+            }
+            continue;
+        }
+        // Marked chords always show their notes — unless every note is palm muted, where
+        // Charter's mute short-circuit applies the repeat rule anyway.
+        if (any_marks && !all_palm_muted)
+        {
+            continue;
+        }
+        const HighwayShapeView* shape = nullptr;
+        for (const HighwayShapeView& candidate : shapes)
+        {
+            // Tolerance so a shape starting on the same grid position as the chord (resolved a
+            // rounding epsilon later) is still selected rather than skipped.
+            if (candidate.start_seconds > group.start_seconds + g_highway_onset_match_epsilon)
+            {
+                break;
+            }
+            shape = &candidate;
+        }
+        // A chord onset at (or within rounding of) the shape's end is still under the span — a
+        // strict comparison here once dropped the handshape's last strum from repeat treatment.
+        if (shape == nullptr ||
+            group.start_seconds > shape->end_seconds + g_highway_onset_match_epsilon ||
+            !posture_matches(*shape, group_frets[group_index]))
+        {
+            continue;
+        }
+        // Walk the note stream backward for the run that anchors the repeat chain. A predecessor
+        // far behind the playhead must still anchor it, which is why this could never be derived
+        // from a visible window alone.
+        std::size_t cursor = group.first;
+        while (cursor > 0)
+        {
+            const double onset = notes[cursor - 1].start_seconds;
+            // Tolerance at the span start: the first strum of a repeat chain usually sits exactly
+            // on the shape start, and a rounding epsilon below it would break the walk before it
+            // finds the anchoring run — the classic cause of a repeat chord flickering to notes.
+            if (onset < shape->start_seconds - g_highway_onset_match_epsilon)
+            {
+                break;
+            }
+            std::size_t run_begin = cursor - 1;
+            while (run_begin > 0 && std::abs(notes[run_begin - 1].start_seconds - onset) <
+                                        g_highway_onset_match_epsilon)
+            {
+                --run_begin;
+            }
+            const std::size_t run_count = cursor - run_begin;
+            if (run_count >= 2)
+            {
+                bool run_all_full_muted = true;
+                std::vector<std::pair<int, int>> run_frets;
+                run_frets.reserve(run_count);
+                for (std::size_t member = run_begin; member < cursor; ++member)
+                {
+                    run_all_full_muted = run_all_full_muted && notes[member].mute == NoteMute::Full;
+                    run_frets.emplace_back(notes[member].string, notes[member].fret);
+                }
+                if (!run_all_full_muted)
+                {
+                    std::ranges::sort(run_frets);
+                    group.box_only = posture_matches(*shape, run_frets);
+                    break;
+                }
+            }
+            cursor = run_begin;
+        }
+    }
+
+    // Span-hold take-over: a span-held strum's heads stay pinned at the hit line until the next
+    // strum that shows its notes arrives to re-pin the identical heads there, so the newcomer
+    // owns the hold display from its onset and the two never stack. Box-only repeats, dead
+    // chugs, and single notes continue the hold rather than taking it over, exactly as they
+    // never break a repeat chain.
+    double next_shown_onset = std::numeric_limits<double>::infinity();
+    for (HighwayChordGroupView& group : grouping.groups | std::views::reverse)
+    {
+        group.hold_cap_seconds = next_shown_onset;
+        if (group.count >= 2 && !group.box_only && !group.all_full_muted)
+        {
+            next_shown_onset = group.start_seconds;
+        }
+    }
+
+    return grouping;
 }
 
 } // namespace rock_hero::common::core

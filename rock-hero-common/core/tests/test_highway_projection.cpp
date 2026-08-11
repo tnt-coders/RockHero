@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -1161,6 +1162,159 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     // the default tempo), not by the scrape leg's span back to the onset (which would be 0.25s).
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
+}
+
+namespace
+{
+
+// A sustainless note for chord-group cases; onset equals end so nothing reads as held.
+[[nodiscard]] HighwayNoteView chordNote(
+    const double onset, const int string, const int fret, const NoteMute mute = NoteMute::None,
+    const NoteAttack attack = NoteAttack::Pick)
+{
+    HighwayNoteView note;
+    note.start_seconds = onset;
+    note.end_seconds = onset;
+    note.string = string;
+    note.fret = fret;
+    note.attack = attack;
+    note.mute = mute;
+    return note;
+}
+
+// A strummed-shape span holding the given posture, entries ascending by string.
+[[nodiscard]] HighwayShapeView chordShape(
+    const double start, const double end, const std::vector<std::pair<int, int>>& posture)
+{
+    HighwayShapeView shape;
+    shape.start_seconds = start;
+    shape.end_seconds = end;
+    shape.arpeggio = false;
+    for (const auto& [string, fret] : posture)
+    {
+        shape.strings.push_back(HighwayShapeStringView{.string = string, .fret = fret});
+    }
+    return shape;
+}
+
+} // namespace
+
+// Membership and the per-group facts: contiguous same-onset notes form one group, right-hand
+// onsets stay out of the fretting-hand count, disagreeing mutes collapse to None, and each note
+// indexes its own group.
+TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]")
+{
+    std::vector<HighwayNoteView> notes{
+        chordNote(1.0, 1, 3),
+        chordNote(1.0, 2, 5, NoteMute::Palm),
+        chordNote(1.0, 3, 5, NoteMute::None, NoteAttack::Tap),
+        chordNote(2.0, 1, 3),
+    };
+    notes[0].accent = true;
+
+    const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
+
+    REQUIRE(grouping.groups.size() == 2);
+    REQUIRE(grouping.note_group.size() == notes.size());
+    const HighwayChordGroupView& strum = grouping.groups[0];
+    CHECK(strum.first == 0);
+    CHECK(strum.count == 3);
+    CHECK(strum.fretting_hand_count == 2);
+    CHECK(strum.any_accent);
+    CHECK(strum.common_mute == NoteMute::None);
+    CHECK_FALSE(strum.all_full_muted);
+    CHECK_FALSE(strum.box_only);
+    CHECK(grouping.note_group == std::vector<std::size_t>({0, 0, 0, 1}));
+    CHECK(grouping.groups[1].count == 1);
+}
+
+// The repeat chain (Charter's chord visibility rules): under a covering shape, a strum that
+// restates the posture of an earlier non-muted run renders as the repeat box alone. Two recorded
+// regressions are pinned here because they used to live untestable inside the renderer: the
+// chain's first strum sitting a rounding epsilon BELOW the shape start must still anchor the walk
+// (the classic repeat-box flicker), and a strum at the shape's END is still under the span (a
+// strict comparison once dropped the last strum from repeat treatment).
+TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+    const std::vector<HighwayShapeView> shapes{chordShape(1.0, 3.0, posture)};
+    const double epsilon_below = 1.0 - (g_highway_onset_match_epsilon / 2.0);
+    std::vector<HighwayNoteView> notes{
+        chordNote(epsilon_below, 1, 3),
+        chordNote(epsilon_below, 2, 5),
+        chordNote(2.0, 1, 3),
+        chordNote(2.0, 2, 5),
+        chordNote(3.0, 1, 3),
+        chordNote(3.0, 2, 5),
+    };
+
+    const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+    REQUIRE(grouping.groups.size() == 3);
+    // The chain's first strum shows its notes; the restatements — including the one exactly at
+    // the shape's end — are boxes.
+    CHECK_FALSE(grouping.groups[0].box_only);
+    CHECK(grouping.groups[1].box_only);
+    CHECK(grouping.groups[2].box_only);
+}
+
+// A dead chug (every member fully muted) earns the X repeat box only when it restates the nearest
+// preceding chord's posture; with fresh frets it shows its notes and their mute crosses — the
+// third recorded regression (Charter blanks every dead chug; this board does not).
+TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core][highway]")
+{
+    std::vector<HighwayNoteView> restating{
+        chordNote(1.0, 1, 3),
+        chordNote(1.0, 2, 5),
+        chordNote(2.0, 1, 3, NoteMute::Full),
+        chordNote(2.0, 2, 5, NoteMute::Full),
+    };
+    const HighwayChordGrouping restated = makeHighwayChordGroups(restating, {});
+    REQUIRE(restated.groups.size() == 2);
+    CHECK(restated.groups[1].all_full_muted);
+    CHECK(restated.groups[1].box_only);
+
+    std::vector<HighwayNoteView> fresh{
+        chordNote(1.0, 1, 3),
+        chordNote(1.0, 2, 5),
+        chordNote(2.0, 1, 7, NoteMute::Full),
+        chordNote(2.0, 2, 9, NoteMute::Full),
+    };
+    const HighwayChordGrouping shown = makeHighwayChordGroups(fresh, {});
+    REQUIRE(shown.groups.size() == 2);
+    CHECK(shown.groups[1].all_full_muted);
+    CHECK_FALSE(shown.groups[1].box_only);
+}
+
+// The span-hold take-over cap resolves over the WHOLE song: each group's cap is the next
+// note-showing strum wherever it is, and box-only repeats, dead chugs, and single notes continue
+// the hold rather than taking it over. Deriving this inside the renderer's window used to leave
+// the last visible group capped at infinity even when the taking-over strum sat just past the
+// window's edge.
+TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][highway]")
+{
+    const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
+    const std::vector<HighwayShapeView> shapes{chordShape(1.0, 2.5, posture)};
+    std::vector<HighwayNoteView> notes{
+        chordNote(1.0, 1, 3),
+        chordNote(1.0, 2, 5),
+        chordNote(2.0, 1, 3),
+        chordNote(2.0, 2, 5),
+        chordNote(3.0, 1, 0),
+        chordNote(9.0, 1, 8),
+        chordNote(9.0, 2, 10),
+    };
+
+    const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, shapes);
+
+    REQUIRE(grouping.groups.size() == 4);
+    CHECK(grouping.groups[1].box_only);
+    // The box-only repeat at 2.0 and the single note at 3.0 pass the hold through, so the strum
+    // at 1.0 is capped by the shown strum at 9.0 — far beyond any drawing window.
+    CHECK(grouping.groups[0].hold_cap_seconds == Catch::Approx(9.0));
+    CHECK(grouping.groups[1].hold_cap_seconds == Catch::Approx(9.0));
+    CHECK(grouping.groups[2].hold_cap_seconds == Catch::Approx(9.0));
+    CHECK(std::isinf(grouping.groups[3].hold_cap_seconds));
 }
 
 } // namespace rock_hero::common::core

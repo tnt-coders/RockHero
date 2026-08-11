@@ -1,7 +1,14 @@
 # Move onset grouping and repeat classification into the projection
 
-**Status:** Ready, unstarted. Deliberately NOT folded into the 2026-08-10 review sweep — see
-"Why this is its own plan".
+**Status:** EXECUTED 2026-08-10, deliberately as its own pass after the review sweep (see "Why
+this is its own plan"). `makeHighwayChordGroups` in `highway_view_state.h` now owns the grouping,
+the repeat chain, the dead-chug restatement, and the whole-song take-over cap;
+`HighwayViewState::chord_groups` / `note_group` carry them; the renderer binary-searches its
+window instead of rebuilding them per frame; and the three recorded regressions are pinned as
+tests in `test_highway_projection.cpp`. The sorted (string, fret) pairs were confirmed scratch
+and are not stored. The product decision this unblocks — whether the 2D lane adopts the repeat
+treatment or the highway shows every strum — is now genuinely open, since either surface can read
+the classification from core.
 
 **Found by** the 2026-08-10 deep review of the game side and the shared highway.
 

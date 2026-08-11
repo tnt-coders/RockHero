@@ -20,11 +20,11 @@ check which kind an entry is before picking it up:
 
 Two findings became plans rather than entries, because they are too large for this file:
 `docs/plans/roadmap/57-positions-past-the-drawn-board.md` (the board draws 24 frets while the chart
-domain allows 30 and nodes 48) and `docs/plans/todo/highway-onset-groups-into-the-projection.md`
-(onset grouping and repeat classification rebuilt per frame). The second **blocks a product
-decision**: the highway hides note heads on a repeat that the 2D lane shows in full, and the two
-surfaces cannot be reconciled while the rule is trapped in the renderer where no other surface can
-read it.
+domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 and now at
+`docs/plans/completed/highway-onset-groups-into-the-projection.md`. Executing the second opened a
+**product decision that is now genuinely decidable**: the highway hides note heads on a repeat
+that the 2D lane shows in full, and with the classification in core either surface can read it —
+the user picks which way the two surfaces reconcile.
 
 ## Found by the 2026-08-10 save/undo and timeline reviews
 
@@ -223,19 +223,19 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### The 3D highway and the game
 
-- **The windowing authority the project owns is applied to notes only.** `visibleEventRange`
-  is used at two note sites in `highway_renderer.cpp` (the highway-named forwarders were deleted
-  2026-08-10, so the shared authority is now called directly), but beats, fret-hand positions, tap onsets, and
-  shapes are scanned full-song every frame (`:1892`, `:2926`, `:1394`, `:1611`, `:2977`, `:1483`,
-  `:1794`, `:1939`, `:2451`, `:4354`, `:4558`). Worst is `windowSampleTimes` (`:491-532`), called per
-  shape rail and per window-following tail, each call allocating and walking every placement in the
-  song then sorting and uniquing. `lower_bound`/`upper_bound` over the ramp interval, the shape
-  `highway_window.cpp:41` already uses.
-- **Per-frame allocation in the render path**: the visible section name is copied and uppercased
-  every frame (`:4542-4545`) though it is a pure chart function, and every drawer allocates fresh CPU
-  batches each frame (~19 sites listed in the review) while `Impl` holds no scratch members —
-  roughly two dozen allocations per frame, plus `makeHighwayTailSampleTimes` allocating and sorting
-  up to ~270 doubles per modulated tail.
+- **The windowing authority the project owns is applied to notes only.** `visibleEventRange` is
+  used at the note sites in `highway_renderer.cpp` (the highway-named forwarders were deleted
+  2026-08-10, and the chord groups now arrive windowed from the projection), but beats, fret-hand
+  positions, tap onsets, and shapes are still scanned full-song every frame — about twenty sites
+  by the later verification count; cite them by the loops' subjects, since the file's line numbers
+  have moved twice. Worst is `windowSampleTimes`, called per shape rail and per window-following
+  tail, each call allocating and walking every placement in the song then sorting and uniquing.
+  `lower_bound`/`upper_bound` over the ramp interval, the shape `highway_window.cpp` already uses.
+- **Per-frame allocation in the render path**: every drawer allocates fresh CPU batches each frame
+  (~19 sites listed in the review) while `Impl` holds no scratch members — roughly two dozen
+  allocations per frame, plus `makeHighwayTailSampleTimes` allocating and sorting up to ~430
+  doubles per modulated tail. (The per-frame section-name copy-and-uppercase was fixed on the
+  branch; the batches remain.)
 - **The song-select menu has no viewport.** `game/ui/src/game/game.cpp:117-131`, `:158-162`,
   `:164-178` draw one row per library entry from a fixed origin. At 100 songs on 1080p, rows past 64
   are off-screen, the key-hint footer never appears, and selecting song 80 puts the highlight bar at

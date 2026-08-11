@@ -259,6 +259,13 @@ HighwayViewState makeHighwayViewState(
         ++shape_index;
     }
 
+    // Onset groups and their repeat classification, derived here once per chart revision. The
+    // rules look backward through the whole note stream, so the renderer's visible window could
+    // neither afford them per frame nor even see everything they depend on.
+    HighwayChordGrouping grouping = makeHighwayChordGroups(state.notes, state.shapes);
+    state.chord_groups = std::move(grouping.groups);
+    state.note_group = std::move(grouping.note_group);
+
     // Every placement gets an eased approach ramp (fhp-window-motion plan): a slide-matched
     // placement ramps over its glide segment so the window travels with the note, any other
     // placement morphs over the shared minimum-sustain-distance margin at the arrival's meter,
