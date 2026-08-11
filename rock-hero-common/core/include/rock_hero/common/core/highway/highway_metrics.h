@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 
 namespace rock_hero::common::core
 {
@@ -350,36 +351,43 @@ flips the stacking for players who prefer the mirrored string order.
 /*!
 \brief Returns how far a bent tail lifts above its unbent lane, for a pitch offset in half steps.
 
-Exactly one string-lane gap per semitone, so lift reads as pitch the same way lane position does:
-a bent tail reaches the lane N gaps away when the pitch is N semitones up, and a whole-step bend
-visibly crosses two lanes. That identity is why the rate is the string spacing itself rather than
-a constant stored beside it — Charter's separate stringDistance x 0.8 lift is deliberately
-superseded. Vibrato depth is authored in semitones and rides the same scale on purpose.
+The lift is the PHYSICAL displacement law, scaled so a half-step bend spans exactly one
+string-lane gap. Lateral travel d stretches the string by about d squared and Hooke turns that
+stretch into tension, so displacement squared is proportional to the tension GAIN — and reaching
+n semitones means raising the tension ratio to 2^(n/6), because pitch is logarithmic in frequency
+and frequency rises with the square root of tension (a full three-whole-step bend literally
+doubles the tension). Every string-gauge, scale-length, and fret-position specific lands in one
+constant, which the half-step anchor divides out, so this one curve is exact for every note. The
+travel relative to the first semitone runs 1.00, 1.46, 1.84, 2.19, 2.53, 2.86: each extra
+semitone moves the string less than the one before even as the force keeps climbing, which is
+what makes the drawn shape read as a string being bent rather than a pitch plot. Negative offsets
+(a vibrato wobble dipping below the unbent pitch) mirror the same curve.
 
-Unbounded on purpose: this is the pitch-space rate, not a drawable position. Use
-\ref highwayBentNoteY to place a bent note, which applies this rate and then holds the result on
+The one-gap anchor at a half step is why the rate is the string spacing itself rather than a
+constant stored beside it — Charter's separate stringDistance x 0.8 lift is deliberately
+superseded, and the old one-gap-PER-semitone identity is too: six linear gaps outrun a six-lane
+grid from every lane, while this law puts the full three-whole-step ceiling at about 2.86 gaps,
+inside the roomier side of any six-lane-or-taller grid. A smaller displayed grid can meet the
+saturation in \ref highwayBentNoteY only at the extreme top of the range. Vibrato depth is
+authored in semitones and rides the same curve on purpose: near the unbent pitch the slope is
+steep (small pitch changes take large travel, exactly as on a real string), so a wobble draws
+wider than its semitone count suggests, and a wobble riding a held bend draws narrower.
+
+Unbounded on purpose: this is the pitch-space displacement, not a drawable position. Use
+\ref highwayBentNoteY to place a bent note, which applies this curve and then holds the result on
 the board.
-
-PROVISIONAL RATE. Two decisions have overtaken the linear identity above and it is expected to be
-replaced. The supported bend range is three whole steps, which is six semitones and therefore six
-lane gaps — more than a six-lane grid is tall — so at the ceiling the identity cannot hold no
-matter which lane the note starts on. And the drawn shape is meant to read as a physical bend,
-where displacement is NOT linear in pitch: stretching a string laterally by d lengthens it by
-about d squared, tension rises with that, and pitch rises with the square root of tension, so
-n semitones needs a displacement proportional to the square root of n. Each extra semitone
-therefore moves the string LESS than the one before (1.00, then 0.41, then 0.32 of the first
-semitone's distance), which is why a real bend's travel bunches up as it goes even though the
-force keeps climbing. Reworking this into a concave mapping over the three-whole-step range is
-open work; the saturation in \ref highwayBentNoteY keeps the current rate safe meanwhile.
 
 \param semitones Pitch offset above the unbent string in half steps; fractional values are
        ordinary (a bend in progress, a vibrato wobble).
 \param metrics World-space constants.
-\return World Y offset from the unbent lane center.
+\return World Y offset from the unbent lane center, signed like \p semitones.
 */
 [[nodiscard]] inline double highwayBendLiftY(double semitones, const HighwayMetrics& metrics)
 {
-    return semitones * metrics.string_distance;
+    const double tension_gain = std::exp2(std::abs(semitones) / 6.0) - 1.0;
+    const double half_step_gain = std::exp2(1.0 / 6.0) - 1.0;
+    return std::copysign(std::sqrt(tension_gain / half_step_gain), semitones) *
+           metrics.string_distance;
 }
 
 /*!
@@ -391,13 +399,14 @@ THE FLOOR — the floor is the origin and nothing draws beneath it — and put t
 the top fret line. Both are states the inversion rule's own rationale said could not happen, so the
 boundary is enforced here instead of merely asserted in a comment.
 
-Saturating is the correct yield rather than a fudge. The lift is deliberately literal: N semitones
-reaches the lane N gaps away, so a bend arrives at the pitch it now sounds. A two-whole-step bend
-needs four gaps, which a six-lane grid cannot supply from a middle lane in either direction, so the
-arrival lane stops being literal exactly when the board cannot express it — and it stops at the
-edge rather than through it. This is NOT the 2D tab lane's rule and must not be unified with it: a
-tab lane has no pitch axis, so it maps a bend onto a fraction of the tail instead, and that
-difference is a property of the two surfaces rather than a disagreement between them.
+Saturating is a guard rather than part of the mapping. Under the tension law the full
+three-whole-step ceiling spans about 2.86 gaps, which any six-lane-or-taller grid holds on the
+roomier side the inversion rule picks, so a legal bend on a guitar-sized display never reaches
+these bounds — they exist for junk semitones in a malformed chart, and for the extreme top of the
+range on a display padded to fewer lanes, both of which stop at the edge rather than through it.
+This is NOT the 2D tab lane's rule and must not be unified with it: a tab lane has no pitch axis,
+so it labels the bend amount and maps its progress onto the tail instead, and that difference is a
+property of the two surfaces rather than a disagreement between them.
 
 The direction still comes from the caller (highwayBendInverted), which prefers the roomier side,
 so saturation only ever bites the residue that side could not hold.

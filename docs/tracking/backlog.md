@@ -16,7 +16,7 @@ check which kind an entry is before picking it up:
 2. **Items carrying a ruling** — the user decided something on 2026-08-10 and the entry records the
    decision and what it changed; read the ruling before the remedy.
 3. **Items handed to Fable for design work**, marked FOR FABLE. These are not fixes waiting to be
-   typed; the *shape* is open. The drawn-bend mapping is one.
+   typed; the *shape* is open.
 
 Two findings became plans rather than entries, because they are too large for this file:
 `docs/plans/roadmap/57-positions-past-the-drawn-board.md` (the board draws 24 frets while the chart
@@ -223,25 +223,6 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### The 3D highway and the game
 
-- **The drawn bend mapping needs reworking to read as a physical bend — FOR FABLE.** The
-  below-the-floor half is fixed (`highwayBentNoteY` now holds a bent note inside the string grid), but
-  two rulings on 2026-08-10 left the *mapping* provisional, and the current one is not merely
-  imperfect — it is geometrically impossible at the new ceiling:
-  - Bends are to support **three whole steps**. That is six semitones, and the current rate is one
-    lane gap per semitone, so six gaps — against a six-string grid that is exactly six gaps tall. The
-    literal arrival-lane identity therefore cannot hold at the ceiling from ANY lane, regardless of
-    aesthetics. Saturation keeps it safe meanwhile, but saturation is a floor, not the answer.
-  - The drawn shape should read as a **real** bend, and a real bend is not linear in pitch.
-    Lateral displacement `d` stretches the string by roughly `d²`, tension rises with that, and pitch
-    rises with the square root of tension, so `n` semitones needs displacement proportional to `√n`.
-    Each extra semitone therefore moves the string LESS than the one before — 1.00, then 0.41, then
-    0.32 of the first semitone's travel. (The reason this feels backwards to a player: the FORCE keeps
-    climbing even as the distance shrinks.) The mapping wants to be concave over the three-whole-step
-    range.
-  Do NOT unify this with the 2D rule. 2D maps a bend onto a fraction of the tail because a tab lane
-  has no pitch axis; 3D places it on the pitch axis. That difference is a property of the two
-  surfaces, not a disagreement between them — an earlier read of this finding got that wrong. Also
-  ties into the parked `docs/plans/todo/2d-bend-waypoint-redesign.md`.
 - **The windowing authority the project owns is applied to notes only.** `visibleEventRange`
   is used at two note sites in `highway_renderer.cpp` (the highway-named forwarders were deleted
   2026-08-10, so the shared authority is now called directly), but beats, fret-hand positions, tap onsets, and

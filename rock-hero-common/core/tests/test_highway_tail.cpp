@@ -126,27 +126,67 @@ TEST_CASE("Highway bend inversion splits the displayed stack", "[core][highway][
     CHECK(highwayBendInverted(4, 5));
 }
 
+// The lift is the physical displacement law: n semitones needs the tension ratio 2^(n/6), and
+// travel grows with the square root of the tension gain, anchored so a half step spans exactly
+// one lane gap. Each extra semitone moves the string less than the one before, which is what
+// makes the drawn shape read as a string being bent rather than a pitch plot.
+TEST_CASE("Highway bend lift follows the tension displacement law", "[core][highway][tail]")
+{
+    const HighwayMetrics metrics{};
+    const double gap = metrics.string_distance;
+
+    // The half-step anchor is exact, and two fixed points pin the curve independently of the
+    // implementation's own formula: a whole step travels sqrt((2^(1/3)-1)/(2^(1/6)-1)) = 1.45686
+    // first-semitone units, and the three-whole-step ceiling — where the tension has doubled —
+    // travels sqrt(1/(2^(1/6)-1)) = 2.85759.
+    CHECK(highwayBendLiftY(1.0, metrics) == Catch::Approx(gap));
+    CHECK(highwayBendLiftY(2.0, metrics) == Catch::Approx(1.45686 * gap).epsilon(1e-4));
+    CHECK(highwayBendLiftY(6.0, metrics) == Catch::Approx(2.85759 * gap).epsilon(1e-4));
+
+    // Concave everywhere in the authored range: each semitone adds less travel than the one
+    // before, even as the force keeps climbing.
+    for (int semitone = 2; semitone <= 6; ++semitone)
+    {
+        const double previous_step = highwayBendLiftY(static_cast<double>(semitone - 1), metrics) -
+                                     highwayBendLiftY(static_cast<double>(semitone - 2), metrics);
+        const double this_step = highwayBendLiftY(static_cast<double>(semitone), metrics) -
+                                 highwayBendLiftY(static_cast<double>(semitone - 1), metrics);
+        CHECK(this_step < previous_step);
+    }
+
+    // A wobble below the unbent pitch mirrors the same curve, and the steep near-zero slope draws
+    // a quarter-semitone wobble at almost half a lane gap.
+    CHECK(highwayBendLiftY(-0.25, metrics) == Catch::Approx(-0.48916 * gap).epsilon(1e-3));
+}
+
 // A bent note never leaves the string grid. The floor is the origin and nothing draws beneath it,
-// and nothing rises past the top fret line. At shipped metrics a two-whole-step bend from a middle
-// lane of a six-string stack has room in NEITHER direction, so both ends saturate rather than
-// crossing a boundary — the containment the inversion rule above always claimed.
+// and nothing rises past the top fret line. Under the tension law the full three-whole-step
+// ceiling fits the roomier side from every lane of a six-string stack, so the bounds only ever
+// bite a malformed chart's junk semitones — which saturate at the edge rather than crossing it.
 TEST_CASE("Highway bends stay inside the string grid", "[core][highway][tail]")
 {
     const HighwayMetrics metrics{};
     const double grid_base = metrics.string_grid_base_y;
     const double grid_top = highwayStringGridTopY(6, metrics);
 
-    // Four semitones downward from lane 4 wants y = -0.10, which is under the floor.
+    // The ceiling fits without saturation from the tightest middle lanes, in both directions.
     const double lane_4 = highwayLaneToY(4, metrics);
     CHECK(highwayBendInverted(4, 6));
-    CHECK(highwayBentNoteY(lane_4, true, 4.0, 6, metrics) == Catch::Approx(grid_base));
+    const double ceiling_down = highwayBentNoteY(lane_4, true, 6.0, 6, metrics);
+    CHECK(ceiling_down == Catch::Approx(lane_4 - highwayBendLiftY(6.0, metrics)));
+    CHECK(ceiling_down > grid_base);
 
-    // The mirrored case overshoots the top fret line instead of the floor.
     const double lane_3 = highwayLaneToY(3, metrics);
     CHECK_FALSE(highwayBendInverted(3, 6));
-    CHECK(highwayBentNoteY(lane_3, false, 4.0, 6, metrics) == Catch::Approx(grid_top));
+    const double ceiling_up = highwayBentNoteY(lane_3, false, 6.0, 6, metrics);
+    CHECK(ceiling_up == Catch::Approx(lane_3 + highwayBendLiftY(6.0, metrics)));
+    CHECK(ceiling_up < grid_top);
 
-    // A bend that fits still keeps the literal identity: one semitone lands on the next lane up.
+    // Junk past the supported range saturates instead of leaving the grid.
+    CHECK(highwayBentNoteY(lane_3, false, 50.0, 6, metrics) == Catch::Approx(grid_top));
+    CHECK(highwayBentNoteY(lane_4, true, 50.0, 6, metrics) == Catch::Approx(grid_base));
+
+    // The half-step anchor holds as a position: one semitone lands on the next lane up.
     const double lane_1 = highwayLaneToY(1, metrics);
     CHECK(
         highwayBentNoteY(lane_1, false, 1.0, 6, metrics) ==

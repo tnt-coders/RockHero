@@ -166,10 +166,12 @@ this tree on 2026-07-06):
   - Z = time axis: `z = (t_note - t_now) * 0.02 / scrollSpeed`; hit line at z=0; visibility
     window ~1600ms × scrollSpeed.
   - Note head half-width 0.48 (`firstFretDistance / 2.5`); sustain tail half-width one third of
-    that. Bend lift started at Charter's `stringDistance * 0.8` per half-step and was changed
-    2026-07-28 to exactly one `stringDistance` — one string-lane gap per semitone, so lift reads
-    as pitch. Both derivations are now functions (`highwayTailHalfWidth`, `highwayBendLiftY`),
-    not stored constants that restate them.
+    that. Bend lift started at Charter's `stringDistance * 0.8` per half-step, moved 2026-07-28
+    to one `stringDistance` per semitone, and settled 2026-08-10 on the physical tension law:
+    n semitones needs the tension ratio 2^(n/6) and travel grows with the square root of the
+    tension gain, anchored so a half step spans one lane gap — which keeps the three-whole-step
+    ceiling (~2.86 gaps) inside any six-lane-or-taller grid. Both derivations are functions
+    (`highwayTailHalfWidth`, `highwayBendLiftY`), not stored constants that restate them.
 - **Camera reproduces Charter's behavior** — the property that makes it read well:
   - Nearly fixed: tiny fixed rotations in Charter (`rotX = 0.06`, `rotY = 0.03`, `rotZ = 0`),
     zero roll, NDC-space aspect correction.
