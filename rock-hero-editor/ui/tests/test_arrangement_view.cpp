@@ -1,13 +1,10 @@
 #include "timeline/arrangement_view.h"
 
-#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <cmath>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
-#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -18,29 +15,6 @@ namespace
 
 using RecordingThumbnail = common::audio::testing::RecordingThumbnail;
 using RecordingThumbnailFactory = common::audio::testing::RecordingThumbnailFactory;
-using testing::makeMouseDownEvent;
-
-// Records normalized click intent emitted by the arrangement view.
-class FakeArrangementViewListener final : public ArrangementView::Listener
-{
-public:
-    // Stores the view pointer and normalized position reported by the component under test.
-    void arrangementViewClicked(ArrangementView& view, double normalized_x) override
-    {
-        last_view = &view;
-        last_normalized_x = normalized_x;
-        click_count += 1;
-    }
-
-    // Last view instance that emitted a click.
-    ArrangementView* last_view{nullptr};
-
-    // Last normalized horizontal click position emitted by the view.
-    std::optional<double> last_normalized_x{};
-
-    // Number of click notifications received.
-    int click_count{0};
-};
 
 // Builds arrangement-view state with full-source audio and an optional timeline start offset.
 [[nodiscard]] core::ArrangementViewState makeArrangementState(
@@ -343,30 +317,6 @@ TEST_CASE("ArrangementView hides the waveform behind the tablature lane", "[ui][
         view.paint(graphics);
     }
     CHECK(thumbnail->last_drawn_visible_range.has_value());
-}
-
-// Verifies local hit testing emits a normalized horizontal click position.
-TEST_CASE("ArrangementView reports normalized click position", "[ui][arrangement-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    ArrangementView view;
-    FakeArrangementViewListener listener;
-
-    view.addListener(listener);
-    view.setBounds(0, 0, 253, 40);
-
-    const float click_x = std::floor(static_cast<float>(view.getWidth()) * 0.25f) + 0.5f;
-    view.mouseDown(makeMouseDownEvent(view, click_x, 10.0f));
-
-    CHECK(listener.click_count == 1);
-    CHECK(listener.last_view == &view);
-    REQUIRE(listener.last_normalized_x.has_value());
-    if (listener.last_normalized_x.has_value())
-    {
-        const double expected_normalized_x =
-            static_cast<double>(click_x) / static_cast<double>(view.getWidth());
-        CHECK(listener.last_normalized_x.value() == Catch::Approx(expected_normalized_x));
-    }
 }
 
 } // namespace rock_hero::editor::ui

@@ -34,48 +34,6 @@ EditorView owns editor-wide timeline overlays.
 class ArrangementView : public juce::Component
 {
 public:
-    /*!
-    \brief Listener for local arrangement-view click intent.
-
-    The view stays presentation-focused. It reports normalized horizontal click positions and
-    leaves all seek policy to its parent.
-    */
-    class Listener
-    {
-    public:
-        /*! \brief Allows cleanup through a base pointer. */
-        virtual ~Listener() = default;
-
-        /*!
-        \brief Reports a click within the arrangement view as a normalized horizontal position.
-        \param view Arrangement view component that was clicked.
-        \param normalized_x Click position normalized to the interval [0, 1].
-        */
-        virtual void arrangementViewClicked(ArrangementView& view, double normalized_x) = 0;
-
-    protected:
-        /*! \brief Constructs the listener base. */
-        Listener() = default;
-
-        /*! \brief Copies the listener base for derived listener types. */
-        Listener(const Listener&) = default;
-
-        /*! \brief Moves the listener base for derived listener types. */
-        Listener(Listener&&) = default;
-
-        /*!
-        \brief Copies the listener base for derived listener types.
-        \return This listener base.
-        */
-        Listener& operator=(const Listener&) = default;
-
-        /*!
-        \brief Moves the listener base for derived listener types.
-        \return This listener base.
-        */
-        Listener& operator=(Listener&&) = default;
-    };
-
     /*! \brief Creates an empty arrangement view with no thumbnail factory installed yet. */
     ArrangementView();
 
@@ -140,24 +98,6 @@ public:
     void setWaveformVisible(bool waveform_visible);
 
     /*!
-    \brief Adds a local click listener.
-    \param listener Listener to notify until it is removed.
-    */
-    void addListener(Listener& listener);
-
-    /*!
-    \brief Removes a previously added click listener.
-    \param listener Same listener previously passed to addListener().
-    */
-    void removeListener(Listener& listener);
-
-    /*!
-    \brief Emits normalized click intent for the parent view layer.
-    \param event JUCE mouse event relative to this arrangement view.
-    */
-    void mouseDown(const juce::MouseEvent& event) override;
-
-    /*!
     \brief Draws empty states and waveform content.
     \param g Graphics context used for drawing.
     */
@@ -184,9 +124,6 @@ private:
 
     // Asset currently installed into the owned thumbnail, if any.
     std::optional<common::core::AudioAsset> m_thumbnail_source_asset{};
-
-    // Local listeners notified when the arrangement view is clicked.
-    juce::ListenerList<Listener> m_listeners;
 };
 
 } // namespace rock_hero::editor::ui

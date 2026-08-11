@@ -43,8 +43,15 @@ public:
         /*! \brief Reports that the browser window was closed. */
         virtual void onPluginBrowserClosed() = 0;
 
-        /*! \brief Requests cancellation of the active editor-wide busy operation. */
-        virtual void onPluginBrowserBusyCancelRequested() = 0;
+        /*!
+        \brief Requests cancellation of the active editor-wide busy operation.
+
+        The browser is a separate top-level window, so the editor's own busy overlay cannot cover it
+        and this window renders its own. The intent is not browser-specific, though: it carries no
+        payload and names the editor-wide cancel, which is why it shares that name rather than a
+        browser-scoped alias.
+        */
+        virtual void onBusyCancelRequested() = 0;
 
     protected:
         /*! \brief Creates the listener interface. */

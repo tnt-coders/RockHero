@@ -295,7 +295,9 @@ SignalChainView::SignalChainView(Listener& listener)
     m_chain_viewport.setScrollBarsShown(false, true);
     addAndMakeVisible(m_chain_viewport);
 
-    setState(core::SignalChainViewState{});
+    // Apply directly: setState() is equality-gated and m_state already holds the default state, so
+    // a gated call would skip the initial control setup entirely.
+    applyState();
 }
 
 // Detaches the custom slider look-and-feel before owned children are destroyed.
@@ -343,10 +345,24 @@ void SignalChainView::setToneDesignerState(const core::ToneDesignerViewState& st
     repaint();
 }
 
+// Equality-gated because applyState() destroys and recreates every tile and placeholder: an
+// unchanged push (every caret step re-pushes the whole editor state) would otherwise rebuild the
+// chain, cancel tile animations, and close any tile's open popup menu.
 void SignalChainView::setState(const core::SignalChainViewState& state)
 {
-    m_block_layout.applyPlugins(state.plugins);
+    if (m_state == state)
+    {
+        return;
+    }
+
     m_state = state;
+    applyState();
+}
+
+// Rebuilds every control from m_state. Called once at construction and on each changed push.
+void SignalChainView::applyState()
+{
+    m_block_layout.applyPlugins(m_state.plugins);
     // Project-mode tone-file commands follow their availability flags; the designer strip owns
     // the header in designer mode and these flags are false there.
     m_tone_import_button.setVisible(m_state.tone_import_enabled);
@@ -513,7 +529,6 @@ void SignalChainView::layoutSignalPathContent(TileLayoutMotion motion)
         slot->setVisible(true);
         const bool is_empty = !active_placement.pluginAtBlock(index).has_value();
         slot->setEditingEnabled(
-            is_empty,
             m_state.insert_plugin_enabled && has_free_block && is_empty,
             m_state.move_plugins_enabled);
         slot->setBounds(blockCellBounds(path_area, index, block_count));
@@ -742,7 +757,6 @@ void SignalChainView::rebuildPluginTiles()
         auto slot = std::make_unique<InsertSlotView>(index, *this);
         const bool is_empty = !cached_placement.pluginAtBlock(index).has_value();
         slot->setEditingEnabled(
-            is_empty,
             m_state.insert_plugin_enabled && has_free_block && is_empty,
             m_state.move_plugins_enabled);
         m_chain_content->addAndMakeVisible(*slot);

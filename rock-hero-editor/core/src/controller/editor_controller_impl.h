@@ -257,8 +257,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void syncAudibleTone();
     void onToneRegionSelected(std::string region_id);
     void onToneRegionActivated();
-    void onToneRegionResizeRequested(
-        std::string region_id, common::core::GridPosition start, common::core::GridPosition end);
     void onToneRegionCreateRequested(
         common::core::GridPosition position, std::string new_region_id,
         std::string tone_document_ref);
@@ -352,7 +350,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::SetGridNoteValue action);
     void performActionImpl(const EditorAction::SelectArrangement& action);
     void performActionImpl(EditorAction::SelectToneRegion action);
-    void performActionImpl(const EditorAction::ResizeToneRegion& action);
     void performActionImpl(const EditorAction::CreateToneRegion& action);
     void performActionImpl(const EditorAction::DeleteToneRegion& action);
     void performActionImpl(const EditorAction::RenameTone& action);

@@ -173,30 +173,37 @@ void TimelineRuler::setTimelineView(
 // while playing, else the marker — the armed caret's slot or the passive transport rest; absent
 // only without a loaded project. The paused flag picks the mark's color so it always matches the
 // cursor drawn below it in the content.
+//
+// The mark is stored in seconds and mapped to a column in drawCursor, exactly as the shape chips
+// and the cursor overlay's time selection are. Pre-mapping here would freeze the column against the
+// scroll offset that was current at the push: the caller short-circuits on a memo key of musical
+// inputs, so a pure horizontal scroll moves the content without a push and the mark would stay
+// pinned to the same screen pixel, pointing at the wrong time.
 void TimelineRuler::setCursorPosition(
     std::optional<common::core::TimePosition> cursor_position, bool paused)
 {
-    const std::optional<float> next_cursor_x =
-        cursor_position.has_value() ? localXForSeconds(cursor_position->seconds) : std::nullopt;
-    if (next_cursor_x == m_cursor_x && paused == m_cursor_paused)
+    if (cursor_position == m_cursor_position && paused == m_cursor_paused)
     {
         return;
     }
-    m_cursor_paused = paused;
 
     // The flag is wider than the 1px line the shared strip helper pads for, so the ruler
     // invalidates its own flag-wide strips around the old and new positions.
-    const auto repaint_flag_strip = [this](std::optional<float> x) {
-        if (!x.has_value())
-        {
-            return;
-        }
-        const int pad = static_cast<int>(g_cursor_flag_half_width) + 1;
-        repaint(static_cast<int>(std::floor(*x)) - pad, 0, 2 * pad + 2, getHeight());
-    };
-    repaint_flag_strip(m_cursor_x);
-    repaint_flag_strip(next_cursor_x);
-    m_cursor_x = next_cursor_x;
+    const auto repaint_flag_strip =
+        [this](const std::optional<common::core::TimePosition>& position) {
+            const std::optional<float> x =
+                position.has_value() ? localXForSeconds(position->seconds) : std::nullopt;
+            if (!x.has_value())
+            {
+                return;
+            }
+            const int pad = static_cast<int>(g_cursor_flag_half_width) + 1;
+            repaint(static_cast<int>(std::floor(*x)) - pad, 0, 2 * pad + 2, getHeight());
+        };
+    repaint_flag_strip(m_cursor_position);
+    m_cursor_position = cursor_position;
+    m_cursor_paused = paused;
+    repaint_flag_strip(m_cursor_position);
 }
 
 // Stores the tempo map that supplies anchors and click snapping, plus the grid note value
@@ -296,16 +303,18 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     }
 }
 
-// Stores the tab-derived chord/arpeggio name chips for the bottom tick band. An unchanged list
-// returns early because every controller state push repeats it.
+// Stores the tab-derived chord/arpeggio name chips for the bottom tick band. A changed list
+// rebuilds the cached chip row; an unchanged list returns early because every controller state push
+// repeats it.
 void TimelineRuler::setShapeLabels(std::vector<RulerShapeLabel> labels)
 {
-    if (m_shape_labels == labels)
+    if (m_shape_source == labels)
     {
         return;
     }
 
-    m_shape_labels = std::move(labels);
+    m_shape_source = std::move(labels);
+    refreshRulerGeometry();
     repaint();
 }
 
@@ -371,6 +380,7 @@ void TimelineRuler::refreshRulerGeometry()
 
     refreshHeaderBands(chipFont(), pinned_left_seconds);
     refreshSectionBand(chipFont(), pinned_left_seconds);
+    refreshShapeBand(chipFont());
 
     // Like the chip rows, the active measure pins to the left edge while the song scrolls,
     // seeding the row at column zero so downbeat numbers scrolling underneath suppress
@@ -652,6 +662,33 @@ void TimelineRuler::refreshSectionBand(
     }
 }
 
+// Rebuilds the chord/arpeggio name chip row for the bottom tick band. Deliberately unsuppressed:
+// chips draw left to right in span order, so where shape changes crowd tighter than a name's width
+// the later span's chip overlaps the earlier one rather than being dropped. Kept out of paint() for
+// the same reason as every other row — the per-chip GlyphArrangement measurement must not rerun on
+// cursor-only repaints driven at vblank cadence.
+void TimelineRuler::refreshShapeBand(const juce::Font& font)
+{
+    m_shape_chips.clear();
+
+    for (const RulerShapeLabel& label : m_shape_source)
+    {
+        const std::optional<float> local_x = localXForSeconds(label.seconds);
+        if (!local_x.has_value())
+        {
+            continue;
+        }
+
+        m_shape_chips.push_back(
+            RulerShapeChip{
+                .x = *local_x,
+                .text = label.name,
+                .width = static_cast<float>(textWidth(font, label.name)) + 6.0f,
+                .fill = tabShapeMarkColor(label.arpeggio),
+            });
+    }
+}
+
 // Draws visible grid ticks, with measure ticks promoted to the ruler body's full height so the
 // measure-number row stays visually attached to its downbeats.
 void TimelineRuler::drawBeatTicks(juce::Graphics& g)
@@ -758,39 +795,31 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
     }
 }
 
-// Draws the chord/arpeggio name chips flush with the ruler's bottom edge, directly above the
+// Draws the cached chord/arpeggio name chips flush with the ruler's bottom edge, directly above the
 // tablature lane's top rail: the lane has no clean room for names, and this band overlaps only
-// ticks — the measure-number row above stays clear. Chips draw left to
-// right in span order, so where shape changes crowd tighter than a name's width the later
-// span's chip wins locally instead of being suppressed entirely.
+// ticks — the measure-number row above stays clear. Positions and widths come from
+// refreshShapeBand, so no text is measured here.
 void TimelineRuler::drawShapeChips(juce::Graphics& g)
 {
-    if (m_shape_labels.empty())
+    if (m_shape_chips.empty())
     {
         return;
     }
 
     const juce::Font chip_font = chipFont();
-    for (const RulerShapeLabel& label : m_shape_labels)
+    g.setFont(chip_font);
+    for (const RulerShapeChip& chip_label : m_shape_chips)
     {
-        const std::optional<float> local_x = localXForSeconds(label.seconds);
-        if (!local_x.has_value())
-        {
-            continue;
-        }
-
-        const float chip_width = static_cast<float>(textWidth(chip_font, label.name)) + 6.0f;
         const juce::Rectangle<float> chip{
-            *local_x,
+            chip_label.x,
             static_cast<float>(getHeight() - g_shape_chip_height),
-            chip_width,
+            chip_label.width,
             static_cast<float>(g_shape_chip_height)
         };
-        g.setColour(tabShapeMarkColor(label.arpeggio));
+        g.setColour(chip_label.fill);
         g.fillRoundedRectangle(chip, 2.0f);
         g.setColour(juce::Colours::white);
-        g.setFont(chip_font);
-        g.drawText(label.name, chip, juce::Justification::centred);
+        g.drawText(chip_label.text, chip, juce::Justification::centred);
     }
 }
 
@@ -801,10 +830,13 @@ void TimelineRuler::drawShapeChips(juce::Graphics& g)
 // both states so the play-from-here mark never loses visibility.
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
+    // Mapped here, not at the push: the column has to follow the current scroll offset.
+    const std::optional<float> cursor_x =
+        m_cursor_position.has_value() ? localXForSeconds(m_cursor_position->seconds) : std::nullopt;
     const juce::Colour line_color =
         m_cursor_paused ? editorTheme().paused_cursor : editorTheme().playback_cursor;
     const std::optional<int> column =
-        drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top, line_color);
+        drawTimelineCursor(g, *this, cursor_x, g_ruler_body_top, line_color);
     if (!column.has_value())
     {
         return;

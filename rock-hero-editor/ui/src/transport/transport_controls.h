@@ -107,7 +107,7 @@ private:
     // Parent listener that owns the actual transport semantics.
     Listener& m_listener;
 
-    // Last state applied to the widget so repaint and debugging can reason about visible state.
+    // Last state applied to the widget, compared against each push so unchanged ones do nothing.
     core::TransportViewState m_state{};
 
     // Button that renders either Play or Pause based on m_state.

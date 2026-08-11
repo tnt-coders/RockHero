@@ -70,14 +70,16 @@ public:
     virtual void onOkRequested() = 0;
 
     /*!
-    \brief Handles an OK button press that keeps the already-active route.
+    \brief Handles the resolved "use game audio settings" toggle value.
 
-    Used when the settings window is locked to the game audio source: the live "use game audio
-    settings" toggle already opened the desired device, so OK confirms it rather than applying the
-    staged editor route. The active route is kept as final and the captured previous route is
-    abandoned without restoring it.
+    While the game source is active the editor's route is owned outside this dialog: the device
+    fields render read-only and the live toggle has already opened the desired device. The
+    controller keeps this fact so it alone decides both whether OK is available and whether OK
+    applies the staged editor route or commits the already-active one.
+
+    \param enabled True while the editor reflects the game's audio configuration.
     */
-    virtual void onCommitRequested() = 0;
+    virtual void onUseGameAudioSettingsChanged(bool enabled) = 0;
 
     /*! \brief Handles a Cancel button press. */
     virtual void onCancelRequested() = 0;

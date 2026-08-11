@@ -302,12 +302,6 @@ void EditorController::Impl::onToneRegionActivated()
     updateView();
 }
 
-void EditorController::Impl::onToneRegionResizeRequested(
-    std::string region_id, common::core::GridPosition start, common::core::GridPosition end)
-{
-    runAction(EditorAction::ResizeToneRegion{std::move(region_id), start, end});
-}
-
 void EditorController::Impl::onToneRegionCreateRequested(
     common::core::GridPosition position, std::string new_region_id, std::string tone_document_ref)
 {
@@ -421,61 +415,6 @@ void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion ac
     const common::core::ToneRegion* const region =
         findToneRegion(m_session.currentToneTrack(), action.region_id);
     applyToneSelection(region != nullptr ? std::move(action.region_id) : std::string{});
-    updateView();
-}
-
-// Applies a snapped resize to the session model and records its inverse in the undo history.
-void EditorController::Impl::performActionImpl(const EditorAction::ResizeToneRegion& action)
-{
-    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
-    common::core::ToneRegion* const region = findToneRegion(tone_track, action.region_id);
-    if (region == nullptr)
-    {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Ignored resize for unknown tone region region_id={:?}",
-            action.region_id);
-        return;
-    }
-
-    if (region->start == action.start && region->end == action.end)
-    {
-        return;
-    }
-
-    common::core::ToneTrack candidate = *tone_track;
-    common::core::ToneRegion* const candidate_region = findToneRegion(&candidate, action.region_id);
-    candidate_region->start = action.start;
-    candidate_region->end = action.end;
-    if (const auto valid =
-            common::core::validateToneTrackRules(candidate, session().song().tempo_map);
-        !valid.has_value())
-    {
-        // The view snaps and clamps before emitting the intent, so a violation here means the
-        // request went stale (for example an undo landed between drag and release); refresh the
-        // view so the row snaps back to the authoritative model.
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Rejected tone region resize region_id={:?} detail={:?}",
-            action.region_id,
-            valid.error().message);
-        updateView();
-        return;
-    }
-
-    const common::core::GridPosition before_start = region->start;
-    const common::core::GridPosition before_end = region->end;
-    region->start = action.start;
-    region->end = action.end;
-
-    // The region's undo label names its tone, which now lives in the arrangement's tone catalog.
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::string tone_name =
-        arrangement != nullptr ? common::core::toneNameFor(*arrangement, region->tone_document_ref)
-                               : std::string{};
-    pushUndoEntry(
-        std::make_unique<ToneRegionResizeEdit>(
-            action.region_id, tone_name, before_start, before_end, action.start, action.end));
     updateView();
 }
 

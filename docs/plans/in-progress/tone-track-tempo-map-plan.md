@@ -397,11 +397,14 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
      state, `selected` view-state flag, brighter render); the synthesized default region ignores
      the pointer. Selection clears on project close/open.
    - Resize: edge drags snap to whole tempo-map beats, clamp against neighbors and the terminal
-     anchor in the view, and commit through `ResizeToneRegion`; the controller revalidates through
-     the shared `validateToneTrackRules` (promoted from the package format unit into public
-     `common/core/tone/tone_track_rules` with its own `ToneTrackError` domain; the package format
-     translates it) and records a `ToneRegionResizeEdit` inverse command in the settled undo
-     history. `EditorEditContext` gained the session so tone edits can restore endpoints.
+     anchor in the view, and commit through `MoveToneBoundary` — every draggable edge is an interior
+     boundary shared with a neighbor, so one intent moves both sides and coverage stays gap-free.
+     (A per-region `ResizeToneRegion` action existed first and was deleted once nothing emitted it.)
+     The controller revalidates through the shared `validateToneTrackRules` (promoted from the
+     package format unit into public `common/core/tone/tone_track_rules` with its own
+     `ToneTrackError` domain; the package format translates it) and records a `ToneBoundaryMoveEdit`
+     inverse command in the settled undo history. `EditorEditContext` gained the session so tone
+     edits can restore endpoints.
    - Interaction routing: the cursor overlay gained a hit-test pass-through so region clicks reach
      the tone row while empty row space keeps click-to-seek, plus a transient full-height
      `TimelineSnapGuide` with a `measure:beat` readout drawn during edge drags (the DAW-standard

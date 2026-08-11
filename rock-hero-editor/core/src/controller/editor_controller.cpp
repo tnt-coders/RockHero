@@ -187,10 +187,6 @@ namespace
         {
             return "SelectToneRegion";
         }
-        case EditorAction::Id::ResizeToneRegion:
-        {
-            return "ResizeToneRegion";
-        }
         case EditorAction::Id::CreateToneRegion:
         {
             return "CreateToneRegion";
@@ -281,7 +277,6 @@ namespace
             case EditorAction::Id::SetSignalChainPlacement:
             case EditorAction::Id::SetPluginDisplayTypeOverride:
             case EditorAction::Id::OpenPlugin:
-            case EditorAction::Id::ResizeToneRegion:
             case EditorAction::Id::CreateToneRegion:
             case EditorAction::Id::DeleteToneRegion:
             case EditorAction::Id::RenameTone:
@@ -349,7 +344,6 @@ namespace
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
-        case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
@@ -962,12 +956,6 @@ void EditorController::onToneRegionSelected(std::string region_id)
 void EditorController::onToneRegionActivated()
 {
     m_impl->onToneRegionActivated();
-}
-
-void EditorController::onToneRegionResizeRequested(
-    std::string region_id, common::core::GridPosition start, common::core::GridPosition end)
-{
-    m_impl->onToneRegionResizeRequested(std::move(region_id), start, end);
 }
 
 void EditorController::onToneRegionCreateRequested(

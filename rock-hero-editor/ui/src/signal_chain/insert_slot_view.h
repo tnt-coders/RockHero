@@ -31,11 +31,12 @@ public:
 
     /*!
     \brief Applies controller-derived editing availability to this fixed block location.
-    \param is_empty True when no plugin occupies this block.
-    \param insert_enabled True when the insertion button should accept clicks.
+    \param insert_enabled True when this block is empty and its insertion button should accept
+           clicks. The "+" is shown only then, because the ghosted idle affordance makes a disabled
+           one indistinguishable from a live one.
     \param move_enabled True when plugin tiles may be dropped on this placeholder.
     */
-    void setEditingEnabled(bool is_empty, bool insert_enabled, bool move_enabled);
+    void setEditingEnabled(bool insert_enabled, bool move_enabled);
 
     /*!
     \brief Reports whether this placeholder can accept the dragged tile into a valid position.

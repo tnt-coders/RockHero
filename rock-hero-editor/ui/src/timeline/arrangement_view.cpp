@@ -163,16 +163,29 @@ void ArrangementView::setThumbnailFactory(common::audio::IThumbnailFactory& thum
     repaint();
 }
 
-// Stores the visible timeline range and redraws the appropriate waveform subsection.
+// Stores the visible timeline range and redraws the appropriate waveform subsection. Equality-gated
+// like the other content views: the waveform is the most expensive draw in the editor, and the
+// editor re-pushes the whole state on every caret step.
 void ArrangementView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {
+    if (m_visible_timeline == visible_timeline)
+    {
+        return;
+    }
+
     m_visible_timeline = visible_timeline;
     repaint();
 }
 
-// Stores the new arrangement-view state, refreshes the thumbnail source, and repaints.
+// Stores the new arrangement-view state, refreshes the thumbnail source, and repaints. Equality-
+// gated for the same reason as setVisibleTimeline.
 void ArrangementView::setState(const core::ArrangementViewState& state)
 {
+    if (m_state == state)
+    {
+        return;
+    }
+
     m_state = state;
     applyCurrentAudioToThumbnailIfNeeded();
     repaint();
@@ -188,32 +201,6 @@ void ArrangementView::setWaveformVisible(bool waveform_visible)
 
     m_waveform_visible = waveform_visible;
     repaint();
-}
-
-// Registers a local click listener for normalized arrangement-view intent.
-void ArrangementView::addListener(Listener& listener)
-{
-    m_listeners.add(&listener);
-}
-
-// Removes a previously registered local click listener.
-void ArrangementView::removeListener(Listener& listener)
-{
-    m_listeners.remove(&listener);
-}
-
-// Converts arrangement-view clicks into normalized horizontal intent and leaves seek policy to the
-// parent.
-void ArrangementView::mouseDown(const juce::MouseEvent& event)
-{
-    if (getWidth() <= 0)
-    {
-        return;
-    }
-
-    const double ratio = static_cast<double>(event.position.x) / static_cast<double>(getWidth());
-    const double clamped = std::clamp(ratio, 0.0, 1.0);
-    m_listeners.call(&Listener::arrangementViewClicked, *this, clamped);
 }
 
 // Draws status text and the currently visible waveform range over the parent-owned track canvas.

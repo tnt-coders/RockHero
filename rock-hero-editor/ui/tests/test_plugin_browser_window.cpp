@@ -40,7 +40,7 @@ public:
     }
 
     // Counts busy-operation cancellation requests.
-    void onPluginBrowserBusyCancelRequested() override
+    void onBusyCancelRequested() override
     {
         busy_cancel_request_count += 1;
     }

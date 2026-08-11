@@ -20,10 +20,12 @@ constexpr int g_region_corner_radius{4};
 constexpr int g_region_label_inset{8};
 constexpr int g_edge_grab_width{6};
 const juce::Colour g_tone_region_fill{juce::Colour{0xff2b4a66}};
-const juce::Colour g_tone_region_border{editorTheme().accent.withAlpha(0.65f)};
+// Alpha applied to the theme accent for an inactive region's border. The accent itself is read at
+// paint time, never snapshotted here: a file-scope const would freeze the accent at static
+// initialization and survive a theme change, defeating the theme seam.
+constexpr float g_tone_region_border_alpha{0.65f};
 // The active tone (the one the rig plays, following the cursor) uses the brighter accent highlight.
 const juce::Colour g_tone_region_active_fill{juce::Colour{0xff35597a}};
-const juce::Colour g_tone_region_active_border{editorTheme().accent};
 // The formally selected region (a deliberate click, the Delete target) adds a distinct white
 // outline on top of the active highlight so it is unmistakable.
 const juce::Colour g_tone_region_selection_outline{juce::Colours::white};
@@ -57,7 +59,32 @@ void ToneTrackView::setVisibleTimeline(common::core::TimeRange visible_timeline)
     repaint();
 }
 
+// True while a view-owned drag holds region indices into m_state, so a push must wait for it.
+bool ToneTrackView::gestureActive() const noexcept
+{
+    return m_drag.has_value() || m_insert_drag.has_value();
+}
+
 void ToneTrackView::setState(const core::ToneTrackViewState& state)
+{
+    // A drag reads m_state for its region indices, so a push mid-drag is stashed and adopted when
+    // the drag ends, exactly as the automation lanes below defer a lane resize. Applying it inline
+    // would drop the gesture and snap the boundary back under the user's pointer — and pushes do
+    // arrive mid-drag, because playback crossing a region boundary republishes the editor state.
+    if (gestureActive())
+    {
+        m_pending_state = state;
+        return;
+    }
+
+    // No drag stands, so this push is newer than anything stashed during the one that just ended.
+    m_pending_state.reset();
+    applyState(state);
+}
+
+// Applies a render state: the one place m_state changes. Unchanged pushes repaint nothing, because
+// every controller state push repeats this row's slice.
+void ToneTrackView::applyState(const core::ToneTrackViewState& state)
 {
     if (m_state == state)
     {
@@ -65,14 +92,26 @@ void ToneTrackView::setState(const core::ToneTrackViewState& state)
     }
 
     m_state = state;
-    // Controller pushes replace the model under any in-flight gesture, so drop the gesture
-    // instead of resizing against stale indices.
-    m_drag.reset();
-    m_insert_drag.reset();
-    m_insert_ghost_x.reset();
+    // A press-armed click is not a drag, so it is not deferred: a replaced model legitimately
+    // cancels it rather than selecting against stale indices. The Alt hover ghost is derived from
+    // the model too, and the next pointer move re-derives it.
     m_pending_select.reset();
-    emitSnapGuide(std::nullopt);
+    setInsertGhostX(std::nullopt);
     repaint();
+}
+
+// Adopts a push deferred while a drag was in flight. Self-guarding, so it is safe to call wherever
+// a gesture may have ended; it does nothing while one still stands or nothing was deferred.
+void ToneTrackView::adoptPendingState()
+{
+    if (!m_pending_state.has_value() || gestureActive())
+    {
+        return;
+    }
+
+    const core::ToneTrackViewState pending = std::move(*m_pending_state);
+    m_pending_state.reset();
+    applyState(pending);
 }
 
 void ToneTrackView::setVisibleContentLeft(int content_left_x)
@@ -193,7 +232,8 @@ void ToneTrackView::paint(juce::Graphics& g)
         g.setColour(region.active ? g_tone_region_active_fill : g_tone_region_fill);
         g.fillRoundedRectangle(draw_bounds, static_cast<float>(g_region_corner_radius));
 
-        g.setColour(region.active ? g_tone_region_active_border : g_tone_region_border);
+        const juce::Colour accent = editorTheme().accent;
+        g.setColour(region.active ? accent : accent.withAlpha(g_tone_region_border_alpha));
         g.drawRoundedRectangle(
             draw_bounds, static_cast<float>(g_region_corner_radius), region.active ? 2.0f : 1.2f);
 
@@ -459,7 +499,16 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
     repaint();
 }
 
+// Ends the gesture the press started, then adopts any state push deferred during it. Routing every
+// exit through one adoption point is what keeps a deferred push from lingering when the gesture
+// commits nothing (an edge dragged back to where it started, or a press that was not a click).
 void ToneTrackView::mouseUp(const juce::MouseEvent& event)
+{
+    finishGesture(event);
+    adoptPendingState();
+}
+
+void ToneTrackView::finishGesture(const juce::MouseEvent& event)
 {
     if (m_insert_drag.has_value())
     {
@@ -663,6 +712,7 @@ bool ToneTrackView::cancelActiveGesture()
     setInsertGhostX(std::nullopt);
     emitSnapGuide(std::nullopt);
     repaint();
+    adoptPendingState();
     return true;
 }
 
@@ -710,33 +760,37 @@ std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForD
     return snapped;
 }
 
-// Recomputes which region contains the sampled playhead. Runs at render cadence like the
-// cursor overlay; when the playhead crosses into a different region, the row emits one
-// discrete selection intent so the single tone selection follows the cursor. Per-frame
-// positions never route through the controller.
+// Notices at render cadence that the moving playhead has entered a region the controller does not
+// yet consider active, and reports it once so the tone follows the cursor without a formal
+// selection. Only playback needs this: every seek, Stop, and Play already activates the region
+// under the cursor inside the controller, so a paused seek must not fire here as well.
+//
+// This is a debounce, not a second containment rule. The region under the playhead is simply the
+// last one starting at or before it — the tone schedule is gapless and the last region owns
+// everything after its start — so there is no end-boundary test to disagree with the controller
+// about, and the spans come from the same one region-span rule the controller resolves. The
+// comparison is against the pushed `active` flag, never a display index, so a rebuild push cannot
+// make it misfire; the payload-less intent leaves naming the region to the controller, which
+// republishes `active` synchronously and settles the comparison in the same frame.
 void ToneTrackView::advanceActiveRegion()
 {
-    const double position = m_transport.position().seconds;
-    std::optional<std::size_t> active;
-    for (std::size_t index = 0; index < m_state.regions.size(); ++index)
-    {
-        const core::ToneRegionViewState& region = m_state.regions[index];
-        if (position >= region.time_range.start.seconds && position < region.time_range.end.seconds)
-        {
-            active = index;
-            break;
-        }
-    }
-
-    if (active == m_active_region_index)
+    if (!m_transport.state().playing)
     {
         return;
     }
 
-    m_active_region_index = active;
-    // Route boundary crossings through the "activate" intent so the tone follows the cursor without
-    // a formal selection. Skip when the crossed region is already active to avoid redundant work.
-    if (active.has_value() && !m_state.regions[*active].active)
+    const double position = m_transport.position().seconds;
+    const core::ToneRegionViewState* region_at_playhead = nullptr;
+    for (const core::ToneRegionViewState& region : m_state.regions)
+    {
+        if (region.time_range.start.seconds > position)
+        {
+            break;
+        }
+        region_at_playhead = &region;
+    }
+
+    if (region_at_playhead != nullptr && !region_at_playhead->active)
     {
         m_listener.onToneRegionActivated();
     }

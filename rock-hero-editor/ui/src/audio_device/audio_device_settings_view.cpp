@@ -167,7 +167,7 @@ void AudioDeviceSettingsView::setGameAudioSettings(GameAudioSettingsState state)
     }
 
     m_game_settings = state;
-    applyGameAudioSettingsPresentation();
+    applyGameAudioSettings();
     applyStateToControls();
     syncWindowHeightToContent();
     resized();
@@ -202,7 +202,7 @@ void AudioDeviceSettingsView::restoreOriginalGameAudioSettings()
             m_game_settings.use_game_settings = false;
         }
     }
-    applyGameAudioSettingsPresentation();
+    applyGameAudioSettings();
     applyStateToControls();
     syncWindowHeightToContent();
     resized();
@@ -216,12 +216,15 @@ bool AudioDeviceSettingsView::gameSettingsLockActive() const noexcept
     return m_game_settings.use_game_settings;
 }
 
-// Reflects the toggle value; the read-only field enablement and the derived-from-game tooltip are
-// applied alongside the other control state in applyStateToControls().
-void AudioDeviceSettingsView::applyGameAudioSettingsPresentation()
+// Mirrors the resolved toggle value onto the checkbox and hands it to the controller, which owns
+// OK's availability and whether OK applies the staged route or commits the already-active one. The
+// read-only field enablement and the derived-from-game tooltip are applied alongside the other
+// control state in applyStateToControls().
+void AudioDeviceSettingsView::applyGameAudioSettings()
 {
     m_use_game_settings_toggle.setToggleState(
         m_game_settings.use_game_settings, juce::dontSendNotification);
+    m_controller.onUseGameAudioSettingsChanged(m_game_settings.use_game_settings);
 }
 
 // Requests modal shutdown from the host DialogWindow.
@@ -343,7 +346,7 @@ void AudioDeviceSettingsView::configureControls()
         // Mirror the accepted flip locally so the panel re-scopes without waiting for a controller
         // round-trip.
         m_game_settings.use_game_settings = requested;
-        applyGameAudioSettingsPresentation();
+        applyGameAudioSettings();
         applyStateToControls();
         syncWindowHeightToContent();
         resized();
@@ -407,19 +410,7 @@ void AudioDeviceSettingsView::configureControls()
         m_controller.onBufferSizeSelected(m_buffer_size_combo.getSelectedId());
     };
     m_control_panel_button.onClick = [this] { m_controller.onControlPanelRequested(); };
-    m_ok_button.onClick = [this] {
-        // OK confirms the current source. While the game source is active the live toggle already
-        // opened the desired device, so OK commits that live route (keeping it, not restoring the
-        // captured previous one). The editable editor-own flow runs a real staged-route apply.
-        if (gameSettingsLockActive())
-        {
-            m_controller.onCommitRequested();
-        }
-        else
-        {
-            m_controller.onOkRequested();
-        }
-    };
+    m_ok_button.onClick = [this] { m_controller.onOkRequested(); };
     m_cancel_button.onClick = [this] {
         // Restore the editor-side toggle first (source, persistence, checkbox, and original-device
         // re-open), then let the common cancel restore the device byte-exact as the final
@@ -528,9 +519,9 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_control_panel_button.setVisible(m_state.control_panel_supported);
     m_control_panel_button.setEnabled(
         !m_applying && m_state.control_panel_supported && !m_state.staged_device_error.has_value());
-    // OK stays enabled while the game source is active even though the fields are locked: there it
-    // just closes the window like Cancel (there is nothing to apply), so it must not look dead.
-    m_ok_button.setEnabled(!m_applying && (m_state.ok_enabled || gameSettingsLockActive()));
+    // The controller owns OK's availability, including the game-source case where the locked fields
+    // stage nothing and OK commits the already-open route; the view only adds the apply fence.
+    m_ok_button.setEnabled(!m_applying && m_state.ok_enabled);
     // Cancel closes the window in either source mode, so it follows only the apply fence, not the
     // read-only game lock. The toggle stays usable while locked so the user can always uncheck it to
     // switch back to the editor's own audio. With no game configuration at all (NotConfigured, read

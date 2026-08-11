@@ -77,7 +77,7 @@ public:
     void onBufferSizeSelected(int choice_id) override;
     void onControlPanelRequested() override;
     void onOkRequested() override;
-    void onCommitRequested() override;
+    void onUseGameAudioSettingsChanged(bool enabled) override;
     void onCancelRequested() override;
 
 private:
@@ -107,6 +107,11 @@ private:
 
     // Most recently pushed state used for button gating.
     AudioDeviceSettingsViewState m_last_state{};
+
+    // True while the editor reflects the game's audio configuration, pushed by the view's "use game
+    // audio settings" toggle. The route is then owned outside this dialog, so OK stays available
+    // and commits the already-active device instead of applying the staged editor route.
+    bool m_uses_game_audio_settings{false};
 
     // True once OK or Cancel has completed, so native close is the only destructor cancel path.
     bool m_finished{false};

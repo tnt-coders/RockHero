@@ -204,7 +204,6 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::SetGridNoteValue:
             case core::EditorActionId::SelectArrangement:
             case core::EditorActionId::SelectToneRegion:
-            case core::EditorActionId::ResizeToneRegion:
             case core::EditorActionId::CreateToneRegion:
             case core::EditorActionId::DeleteToneRegion:
             case core::EditorActionId::RenameTone:
@@ -276,7 +275,6 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::OpenPlugin:
         case core::EditorActionId::SelectArrangement:
         case core::EditorActionId::SelectToneRegion:
-        case core::EditorActionId::ResizeToneRegion:
         case core::EditorActionId::CreateToneRegion:
         case core::EditorActionId::DeleteToneRegion:
         case core::EditorActionId::RenameTone:
@@ -447,7 +445,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     });
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
-    m_busy_overlay.setCancelCallback([this] { m_controller.onBusyCancelRequested(); });
+    m_busy_overlay.setCancelCallback([this] { onBusyCancelRequested(); });
 
     m_audio_device_failure_overlay.setComponentID("audio_device_failure_overlay");
     m_audio_device_failure_overlay.setRetryCallback([this] {
@@ -2775,13 +2773,6 @@ void EditorView::onToneRegionActivated()
     m_controller.onToneRegionActivated();
 }
 
-// Routes a committed tone-region resize to the controller.
-void EditorView::onToneRegionResizeRequested(
-    std::string region_id, common::core::GridPosition start, common::core::GridPosition end)
-{
-    m_controller.onToneRegionResizeRequested(std::move(region_id), start, end);
-}
-
 // Routes a committed tone-boundary move to the controller.
 void EditorView::onToneBoundaryMoveRequested(
     std::string right_region_id, common::core::GridPosition position)
@@ -3005,9 +2996,9 @@ void EditorView::onPluginBrowserClosed()
     m_controller.onPluginBrowserClosed();
 }
 
-// Forwards browser busy-overlay cancellation through the same controller path as the editor-wide
-// overlay.
-void EditorView::onPluginBrowserBusyCancelRequested()
+// The one seam every busy overlay in this view cancels through: the editor's own overlay and the
+// plugin browser's both land here, because the operation being cancelled is editor-wide either way.
+void EditorView::onBusyCancelRequested()
 {
     m_controller.onBusyCancelRequested();
 }

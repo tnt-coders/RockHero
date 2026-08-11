@@ -33,6 +33,16 @@ struct InputCalibrationViewState
     std::string dismiss_button_text{"Dismiss"};
 
     /*!
+    \brief True while the popup reflects the game's audio configuration read-only.
+
+    A hard override on both control groups above, which stay capture-owned: the game's calibrated
+    value is displayed but nothing here may change it. Carried in the state rather than injected
+    into the view separately so one push resolves every control's enablement and its explanatory
+    tooltip, and dropping back to the editable flow re-enables through that same path.
+    */
+    bool read_only{false};
+
+    /*!
     \brief Compares two popup view states by their stored values.
     \param lhs Left-hand view state.
     \param rhs Right-hand view state.

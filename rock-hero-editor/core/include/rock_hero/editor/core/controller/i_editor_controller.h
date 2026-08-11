@@ -410,16 +410,6 @@ public:
     virtual void onToneRegionActivated() = 0;
 
     /*!
-    \brief Handles a snapped tone-region resize committed by an edge drag.
-    \param region_id Stable region id selected by the user.
-    \param start New musical start (inclusive).
-    \param end New musical end (exclusive).
-    */
-    virtual void onToneRegionResizeRequested(
-        std::string region_id, common::core::GridPosition start,
-        common::core::GridPosition end) = 0;
-
-    /*!
     \brief Handles a request to insert a tone-change region at a grid position.
 
     Splits the region under \p position so the earlier tone runs up to the marker and the new region

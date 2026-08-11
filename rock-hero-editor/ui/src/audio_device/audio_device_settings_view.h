@@ -174,9 +174,10 @@ private:
     // Populates every control from the current view state.
     void applyStateToControls();
 
-    // Applies the toggle switch value; the read-only field enablement and the derived-from-game
+    // Mirrors the resolved toggle value onto the checkbox and hands it to the controller, which
+    // owns OK's availability and routing. The read-only field enablement and the derived-from-game
     // tooltip are applied alongside the other control state in applyStateToControls().
-    void applyGameAudioSettingsPresentation();
+    void applyGameAudioSettings();
 
     // True while the toggle is on, which renders the device fields read-only. The toggle can only
     // be on while the game's configuration is adopted, so the lock always reflects a real route.

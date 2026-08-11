@@ -75,9 +75,6 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Select a tone region on the tone track (empty id clears the selection). */
     SelectToneRegion,
 
-    /*! \brief Resize a tone region to new musical endpoints. */
-    ResizeToneRegion,
-
     /*! \brief Split the region under a grid position into a new tone-change region. */
     CreateToneRegion,
 

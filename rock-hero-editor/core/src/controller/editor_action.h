@@ -232,33 +232,6 @@ struct EditorAction
         std::string region_id;
     };
 
-    /*! \brief Resize a tone region to new musical endpoints. */
-    struct ResizeToneRegion
-    {
-        /*!
-        \brief Creates a tone-region resize action.
-        \param region_id_value Stable region id selected by the user.
-        \param start_value New musical start (inclusive).
-        \param end_value New musical end (exclusive).
-        */
-        ResizeToneRegion(
-            std::string region_id_value, common::core::GridPosition start_value,
-            common::core::GridPosition end_value)
-            : region_id(std::move(region_id_value))
-            , start(start_value)
-            , end(end_value)
-        {}
-
-        /*! \brief Stable region id selected by the user. */
-        std::string region_id;
-
-        /*! \brief New musical start (inclusive). */
-        common::core::GridPosition start;
-
-        /*! \brief New musical end (exclusive). */
-        common::core::GridPosition end;
-    };
-
     /*! \brief Split the region under a grid position into a new tone-change region. */
     struct CreateToneRegion
     {
@@ -635,9 +608,9 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        SelectArrangement, SelectToneRegion, ResizeToneRegion, CreateToneRegion, DeleteToneRegion,
-        RenameTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert,
-        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        SelectArrangement, SelectToneRegion, CreateToneRegion, DeleteToneRegion, RenameTone,
+        MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
+        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
         SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt>;

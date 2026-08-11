@@ -48,11 +48,11 @@ constexpr int g_readout_cursor_gap = 12;
 constexpr float g_readout_font_height = 12.0f;
 
 const juce::Colour g_lane_separator{juce::Colours::black.withAlpha(0.45f)};
-const juce::Colour g_curve_colour{editorTheme().accent};
-// Point handles fill in the curve colour so they read as part of the line; the selected point (the
+// The curve, and the point handles that fill in the same colour so they read as part of the line,
+// take the theme accent read at paint time. A file-scope const would freeze the accent at static
+// initialization and survive a theme change, defeating the theme seam. The selected point (the
 // keyboard-Delete target) keeps the same size and colour and adds a white ring so it is picked out
 // without jumping in size.
-const juce::Colour g_point_fill{g_curve_colour};
 const juce::Colour g_point_selected_ring{juce::Colours::white};
 const juce::Colour g_chip_fill{juce::Colours::black.withAlpha(0.55f)};
 const juce::Colour g_chip_text{juce::Colours::white.withAlpha(0.92f)};
@@ -288,6 +288,9 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     // keep the count while the per-lane stored heights differ.
     const int previous_total_height = totalHeight();
     m_state = state;
+    // The chip labels and their measured widths are a pure function of the lane list, so they are
+    // re-laid out here rather than in paint() or in every pointer hit-test.
+    refreshLaneChips();
     // A standing drag preview owns the transient overlays: mouseDrag keeps the readout fresh at the
     // cursor and the guide rides the preview, so a mid-drag rebuild must not wipe them. Only a
     // preview-less push (the common case, and the drag's own committing push) clears them.
@@ -318,6 +321,13 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
 
 void ToneAutomationLanesView::setEditableWindow(common::core::TimeRange window)
 {
+    // Equality-gated like every sibling setter here: the editor re-pushes the whole state on every
+    // caret step, and an unchanged window must repaint nothing.
+    if (m_editable_window == window)
+    {
+        return;
+    }
+
     m_editable_window = window;
     repaint();
 }
@@ -421,15 +431,33 @@ juce::String ToneAutomationLanesView::laneChipText(const core::ToneAutomationLan
     return lane.resolved ? label : label + " (plugin missing)";
 }
 
-// One geometry for painting and hit-testing the chip: pinned to the visible left edge, sized to
-// the text plus insets.
-juce::Rectangle<int> ToneAutomationLanesView::laneChipBounds(
-    const core::ToneAutomationLaneViewState& lane, const LaneExtent& extent) const
+// Rebuilds the per-lane chip labels and their measured widths. Kept out of paint() and hitAt():
+// laying out the label text is a GlyphArrangement pass plus two string joins, and it used to run
+// for every lane on every paint AND on every pointer hover hit-test.
+void ToneAutomationLanesView::refreshLaneChips()
 {
     const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
-    const int chip_width = textWidth(chip_font, laneChipText(lane)) + (2 * g_chip_inset_x);
+    m_lane_chips.clear();
+    m_lane_chips.reserve(m_state.lanes.size());
+    for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
+    {
+        juce::String text = laneChipText(lane);
+        const int width = textWidth(chip_font, text) + (2 * g_chip_inset_x);
+        m_lane_chips.push_back(LaneChip{.text = std::move(text), .width = width});
+    }
+}
+
+// One geometry for painting and hit-testing the chip: pinned to the visible left edge, sized to
+// the cached text width plus insets. Only the pinned x depends on the scroll offset, so
+// setVisibleContentLeft slides the chip without invalidating the cache.
+juce::Rectangle<int> ToneAutomationLanesView::laneChipBounds(
+    std::size_t lane_index, const LaneExtent& extent) const
+{
     return juce::Rectangle<int>{
-        m_visible_content_left + g_chip_inset_x, extent.top + g_chip_inset_y, chip_width, 17
+        m_visible_content_left + g_chip_inset_x,
+        extent.top + g_chip_inset_y,
+        m_lane_chips[lane_index].width,
+        17
     };
 }
 
@@ -580,7 +608,7 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
         // The pinned name chip is the lane's handle: it claims the pointer on every lane —
         // including unresolved ones — so the lane menu (Remove Lane) stays reachable now that
         // plain clicks on empty lane area pass through to the seek overlay.
-        if (laneChipBounds(lane, extent).contains(local_point))
+        if (laneChipBounds(lane_index, extent).contains(local_point))
         {
             return Hit{LaneChipHit{.lane_index = lane_index}};
         }
@@ -820,7 +848,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                 // Every point draws in the curve colour at the same size; the selected point (the
                 // Delete target) adds a white ring so it reads as picked without moving or resizing.
                 const float radius = g_point_draw_radius;
-                graphics.setColour(g_point_fill.withMultipliedAlpha(lane_alpha));
+                graphics.setColour(editorTheme().accent.withMultipliedAlpha(lane_alpha));
                 graphics.fillEllipse(
                     point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius);
                 if (point.selected)
@@ -831,7 +859,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                 }
             }
         }
-        graphics.setColour(g_curve_colour.withMultipliedAlpha(lane_alpha));
+        graphics.setColour(editorTheme().accent.withMultipliedAlpha(lane_alpha));
         graphics.strokePath(curve, juce::PathStrokeType{1.6f});
 
         // The Alt-held insert ghost: a hollow ring on the curve where an Alt+click would place a
@@ -846,7 +874,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                 ghost_x.has_value())
             {
                 const float ghost_y = value_to_y(curveValueAt(lane, m_state.insert_ghost->seconds));
-                graphics.setColour(g_curve_colour.withAlpha(0.7f));
+                graphics.setColour(editorTheme().accent.withAlpha(0.7f));
                 graphics.drawEllipse(
                     *ghost_x - g_point_draw_radius,
                     ghost_y - g_point_draw_radius,
@@ -899,11 +927,11 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         // The pinned name chip doubles as the lane handle (clicking it opens the lane menu), so
         // its bounds come from the shared helper the hit test uses.
         graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height}});
-        const juce::Rectangle<int> chip = laneChipBounds(lane, extent);
+        const juce::Rectangle<int> chip = laneChipBounds(lane_index, extent);
         graphics.setColour(g_chip_fill);
         graphics.fillRoundedRectangle(chip.toFloat(), g_chip_corner_radius);
         graphics.setColour(g_chip_text.withMultipliedAlpha(lane.resolved ? 1.0f : 0.75f));
-        graphics.drawText(laneChipText(lane), chip, juce::Justification::centred);
+        graphics.drawText(m_lane_chips[lane_index].text, chip, juce::Justification::centred);
     }
 
     // The trailing empty lane carries only the pinned "+" chip; no fill, so the shared band and

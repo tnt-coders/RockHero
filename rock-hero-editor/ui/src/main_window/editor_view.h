@@ -418,11 +418,6 @@ private:
     void onToneRenamePromptRequested(
         std::string tone_document_ref, std::string current_name) override;
 
-    /*! \copydoc ToneTrackView::Listener::onToneRegionResizeRequested */
-    void onToneRegionResizeRequested(
-        std::string region_id, common::core::GridPosition start,
-        common::core::GridPosition end) override;
-
     /*! \copydoc ToneTrackView::Listener::onToneChangeInsertRequested */
     void onToneChangeInsertRequested(common::core::GridPosition position) override;
 
@@ -470,8 +465,9 @@ private:
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserClosed() override;
 
-    // PluginBrowserWindow::Listener implementation.
-    void onPluginBrowserBusyCancelRequested() override;
+    // PluginBrowserWindow::Listener implementation. Also the single seam every busy overlay in this
+    // view cancels through, including the editor's own.
+    void onBusyCancelRequested() override;
 
     // Shows or hides the 3D preview window (View > 3D Preview, or F3).
     void togglePreviewWindow();

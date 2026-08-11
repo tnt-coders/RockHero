@@ -69,9 +69,10 @@ public:
         ++ok_call_count;
     }
 
-    void onCommitRequested() override
+    void onUseGameAudioSettingsChanged(bool enabled) override
     {
-        ++commit_call_count;
+        uses_game_audio_settings = enabled;
+        ++use_game_audio_settings_change_count;
     }
 
     void onCancelRequested() override
@@ -89,8 +90,9 @@ public:
     int selected_buffer_size_id{};
     int control_panel_call_count{};
     int ok_call_count{};
-    int commit_call_count{};
     int cancel_call_count{};
+    bool uses_game_audio_settings{};
+    int use_game_audio_settings_change_count{};
 };
 
 [[nodiscard]] core::AudioDeviceSettingsViewState splitDeviceState()
@@ -261,15 +263,41 @@ TEST_CASE(
     CHECK(control_panel.isVisible());
     CHECK(control_panel.isEnabled());
     CHECK(control_panel.getTooltip().isEmpty());
-    // OK is not grayed out while locked: with the game source active it keeps the live route, so it
-    // stays enabled and routes to the commit intent (not apply, not cancel/restore).
+    // OK is not grayed out while locked. The view no longer decides that: it reports the lock to
+    // the controller, which folds it into ok_enabled and picks commit over apply, so OK renders
+    // exactly the availability the controller pushed.
+    CHECK(controller.uses_game_audio_settings);
     CHECK(ok_button.isEnabled());
 
     REQUIRE(ok_button.onClick);
     ok_button.onClick();
-    CHECK(controller.ok_call_count == 0);
+    CHECK(controller.ok_call_count == 1);
     CHECK(controller.cancel_call_count == 0);
-    CHECK(controller.commit_call_count == 1);
+}
+
+// The view never second-guesses the controller's OK availability: a pushed ok_enabled of false
+// grays OK out even while the game-source lock is active, because the controller alone decides
+// whether the current route can be confirmed.
+TEST_CASE(
+    "AudioDeviceSettingsView renders OK availability from the controller",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+
+    auto state = splitDeviceState();
+    state.ok_enabled = false;
+    view.setState(state);
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = true,
+            .source_state = core::GameAudioSourceState::Available,
+        });
+
+    const auto& ok_button =
+        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_ok_button");
+    CHECK_FALSE(ok_button.isEnabled());
 }
 
 // The row is a checkbox-only toggle plus a separate non-interactive caption label, so only the box

@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 
@@ -28,18 +27,15 @@ class MainWindow : public juce::DocumentWindow
 {
 public:
     /*!
-    \brief Callback used when guarded editor exit is allowed to continue.
-    */
-    using ExitCallback = std::function<void()>;
-
-    /*!
     \brief Creates the window around an already-composed editor feature.
+
+    The window owns no exit policy of its own: every exit path delegates to the composed editor,
+    which runs the guards and then invokes the quit function supplied to it.
+
     \param title Text shown in the title bar, typically the app name.
     \param editor Composed editor feature owned by the window. Must not be null.
-    \param exit_callback Callback used when guarded editor exit is allowed to continue.
     */
-    MainWindow(
-        const juce::String& title, std::unique_ptr<Editor> editor, ExitCallback exit_callback);
+    MainWindow(const juce::String& title, std::unique_ptr<Editor> editor);
 
     /*! \brief Clears the content component pointer before destroying owned members. */
     ~MainWindow() override;
@@ -72,9 +68,6 @@ public:
     void restoreLastOpenProject();
 
 private:
-    // Requests persisted app exit after controller-level guards allow shutdown.
-    ExitCallback m_exit_callback;
-
     // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
     std::unique_ptr<Editor> m_editor;
 };

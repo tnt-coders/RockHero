@@ -558,14 +558,11 @@ void TrackViewport::layoutScaledCanvas()
         m_tone_automation_lanes_view.totalHeight());
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
-    // The marker model's click and visibility rules: seek clicks stay inside the highway band
-    // (tone/lane clicks never move the position), and with a chart displayed the
-    // content-spanning cursor line renders only during playback — while paused the position
-    // shows as the caret (armed) or the ruler's mark (passive), keeping the lane clear of
-    // furniture over note numbers. Chartless arrangements keep their paused line as the only
-    // indicator.
+    // Seek clicks stay inside the highway band; tone and lane clicks never move the position. The
+    // paused column's visibility is deliberately NOT set here: updateRulerCursor owns that rule and
+    // keys off the lane count, so the vblank tick re-derives it (before the paint flush that shows
+    // the new layout) without this path restating — and previously narrowing — the formula.
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
     updateRulerView();
     refreshTimelineGrid();
 }
@@ -584,7 +581,6 @@ void TrackViewport::relayoutForContentHeightChange()
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
     updateRulerView();
     refreshTimelineGridForViewChange();
 }
@@ -932,7 +928,9 @@ void TrackViewport::refreshTimelineGridForViewChange()
     refreshTimelineGrid();
 }
 
-// Keeps the ruler cursor aligned with where playback would start.
+// Keeps the ruler cursor aligned with where playback would start, and is the single authority for
+// the paused column's visibility rule: no layout path restates it, so the two surfaces the rule
+// drives (the overlay's line and the content's masked column) can never disagree.
 void TrackViewport::updateRulerCursor()
 {
     if (!m_project_loaded)
@@ -956,9 +954,13 @@ void TrackViewport::updateRulerCursor()
     // masked column too); the overlay's moving line takes over in front while playing. While a
     // caret is armed the column rides its slot with the square's own span cut out — ONLY the cursor
     // hides behind the caret, so the grid and strings it overlaps keep showing.
+    //
+    // Chartless arrangements keep their overlay paused line as the only indicator; with a chart
+    // displayed (or a lane caret armed) the overlay's line renders only during playback, and while
+    // paused the position shows as the masked column here plus the ruler's mark.
     const std::optional<juce::Range<float>>& automation_mask = m_automation_caret_mask;
-    const bool paused_column_visible =
-        !playing && (m_tab_displayed_strings > 0 || automation_mask.has_value());
+    const bool chart_or_lane_caret = m_tab_displayed_strings > 0 || automation_mask.has_value();
+    const bool paused_column_visible = !playing && chart_or_lane_caret;
     const std::optional<juce::Range<float>> caret_mask_y =
         paused_column_visible ? (m_tab_caret_mask.has_value() ? m_tab_caret_mask : automation_mask)
                               : std::nullopt;
@@ -972,6 +974,7 @@ void TrackViewport::updateRulerCursor()
         .mark_seconds = mark_seconds,
         .range = m_timeline_range,
         .width = m_content.getWidth(),
+        .tab_displayed_strings = m_tab_displayed_strings,
         .caret_mask = caret_mask_y,
     };
     if (!m_armed_caret_seconds.has_value() && m_last_ruler_cursor_key == key)
@@ -981,8 +984,7 @@ void TrackViewport::updateRulerCursor()
     m_last_ruler_cursor_key = key;
 
     m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
-    m_cursor_overlay.setPausedCursorHidden(
-        m_tab_displayed_strings > 0 || automation_mask.has_value());
+    m_cursor_overlay.setPausedCursorHidden(chart_or_lane_caret);
     m_content.setPausedCursorX(
         paused_column_visible
             ? cursorXForTimelinePosition(

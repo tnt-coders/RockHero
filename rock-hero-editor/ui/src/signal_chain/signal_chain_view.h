@@ -163,6 +163,10 @@ public:
 
     /*!
     \brief Applies the current signal-chain render state.
+
+    Equality-gated: an unchanged push does nothing, because applying a state destroys and recreates
+    every plugin tile and insert placeholder.
+
     \param state State derived by the editor controller.
     */
     void setState(const core::SignalChainViewState& state);
@@ -210,6 +214,9 @@ private:
         Immediate,
         Animated,
     };
+
+    // Rebuilds every control from m_state; the one place a render state is applied.
+    void applyState();
 
     // Emits an insert intent for an empty fixed block location.
     void insertPluginAtBlockLocation(std::size_t block_index);

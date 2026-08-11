@@ -18,7 +18,6 @@ constexpr int g_insert_rail_width{28};
 // with a 0.16-alpha glyph to roughly 2% white, which was nearly impossible to spot.
 constexpr float g_idle_insert_affordance_alpha{0.4f};
 const juce::Colour g_insert_slot_placeholder{juce::Colours::white.withAlpha(0.8f)};
-const juce::Colour g_insert_slot_drop_line{editorTheme().accent};
 
 } // namespace
 
@@ -35,7 +34,7 @@ SignalChainView::InsertSlotView::InsertSlotView(std::size_t block_index, SignalC
     m_button.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
     m_button.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
     m_button.setColour(juce::TextButton::textColourOffId, g_insert_slot_placeholder);
-    m_button.setColour(juce::TextButton::textColourOnId, g_insert_slot_drop_line);
+    m_button.setColour(juce::TextButton::textColourOnId, editorTheme().accent);
     m_button.onClick = [this] { m_view.insertPluginAtBlockLocation(m_block_index); };
     // Empty fixed block locations stay visible without drawing old boundary rails.
     m_button.setAlpha(g_idle_insert_affordance_alpha);
@@ -43,11 +42,12 @@ SignalChainView::InsertSlotView::InsertSlotView(std::size_t block_index, SignalC
     addAndMakeVisible(m_button);
 }
 
-void SignalChainView::InsertSlotView::setEditingEnabled(
-    bool is_empty, bool insert_enabled, bool move_enabled)
+void SignalChainView::InsertSlotView::setEditingEnabled(bool insert_enabled, bool move_enabled)
 {
-    m_button.setVisible(is_empty);
-    m_button.setEnabled(insert_enabled);
+    // Visibility is the enablement: the idle "+" is deliberately ghosted, so a disabled one would
+    // render identically to a clickable one and silently do nothing. An empty block whose insert is
+    // unavailable keeps its position marker from the path painter instead.
+    m_button.setVisible(insert_enabled);
     m_drop_enabled = move_enabled;
     if (!m_drop_enabled)
     {
@@ -123,7 +123,7 @@ bool SignalChainView::InsertSlotView::hitTest(int x, int y)
         return true;
     }
 
-    return m_button.isVisible() && m_button.isEnabled() && m_button.getBounds().contains(x, y);
+    return m_button.isVisible() && m_button.getBounds().contains(x, y);
 }
 
 void SignalChainView::InsertSlotView::paint(juce::Graphics& g)
@@ -131,7 +131,8 @@ void SignalChainView::InsertSlotView::paint(juce::Graphics& g)
     if (m_is_drag_hovered)
     {
         const auto area = getLocalBounds().reduced(1).toFloat();
-        g.setColour(g_insert_slot_drop_line);
+        // Read at paint time, not snapshotted at static initialization, so a theme change lands.
+        g.setColour(editorTheme().accent);
         g.drawRoundedRectangle(area, 6.0f, 1.4f);
     }
 }
@@ -152,11 +153,11 @@ void SignalChainView::InsertSlotView::mouseExit(const juce::MouseEvent& /*event*
     updateButtonAffordance();
 }
 
-// Recomputes the "+" opacity from whether the pointer is over this active placeholder.
+// Recomputes the "+" opacity from whether the pointer is over this active placeholder. Only a
+// clickable "+" is visible at all, so hover alone decides the brightness.
 void SignalChainView::InsertSlotView::updateButtonAffordance()
 {
-    m_button.setAlpha(
-        m_button.isEnabled() && isMouseOver(true) ? 1.0f : g_idle_insert_affordance_alpha);
+    m_button.setAlpha(isMouseOver(true) ? 1.0f : g_idle_insert_affordance_alpha);
 }
 
 // Resolves this fixed cell into a concrete drop intent.

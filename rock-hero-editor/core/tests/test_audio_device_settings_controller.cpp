@@ -268,8 +268,8 @@ TEST_CASE("AudioDeviceSettingsController keeps failed OK open", "[core][audio-de
     CHECK(view.last_state.error_message == "Could not open Output B");
 }
 
-// Commit keeps the already-active route and closes the view without applying or canceling. This is
-// the OK path while the settings window is locked to the live game audio source.
+// With the game source active, OK keeps the already-active route and closes the view without
+// applying or canceling.
 TEST_CASE("AudioDeviceSettingsController commits and closes", "[core][audio-device-settings]")
 {
     FakeAudioDeviceSettings settings;
@@ -277,7 +277,8 @@ TEST_CASE("AudioDeviceSettingsController commits and closes", "[core][audio-devi
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
 
-    controller.onCommitRequested();
+    controller.onUseGameAudioSettingsChanged(true);
+    controller.onOkRequested();
 
     CHECK(settings.commit_call_count == 1);
     CHECK(settings.apply_call_count == 0);
@@ -297,7 +298,8 @@ TEST_CASE("AudioDeviceSettingsController keeps failed commit open", "[core][audi
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
 
-    controller.onCommitRequested();
+    controller.onUseGameAudioSettingsChanged(true);
+    controller.onOkRequested();
 
     CHECK(settings.commit_call_count == 1);
     CHECK(view.close_call_count == 0);
@@ -405,6 +407,57 @@ TEST_CASE(
     controller.attachView(view);
 
     CHECK_FALSE(view.last_state.ok_enabled);
+}
+
+// The game source lock makes OK available regardless of the staged selection: the fields are
+// read-only, nothing was staged here, and OK confirms the route the live toggle already opened. The
+// availability and the commit routing are one decision, so an enabled OK can never be denied.
+TEST_CASE(
+    "AudioDeviceSettingsController enables OK for the game source", "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.current_state.selected_audio_system_id = 0;
+    settings.current_state.selected_output_device_id = 0;
+    AudioDeviceSettingsController controller{settings};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    CHECK_FALSE(view.last_state.ok_enabled);
+
+    controller.onUseGameAudioSettingsChanged(true);
+
+    CHECK(view.last_state.ok_enabled);
+
+    controller.onOkRequested();
+
+    CHECK(settings.commit_call_count == 1);
+    CHECK(settings.apply_call_count == 0);
+    CHECK(view.close_call_count == 1);
+}
+
+// Dropping back to the editor's own audio restores the selection-derived availability, so an
+// unselectable staged route grays OK out again.
+TEST_CASE(
+    "AudioDeviceSettingsController restores OK gating after unlock",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.current_state.selected_audio_system_id = 0;
+    AudioDeviceSettingsController controller{settings};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onUseGameAudioSettingsChanged(true);
+    CHECK(view.last_state.ok_enabled);
+
+    controller.onUseGameAudioSettingsChanged(false);
+    CHECK_FALSE(view.last_state.ok_enabled);
+
+    controller.onOkRequested();
+
+    CHECK(settings.apply_call_count == 0);
+    CHECK(settings.commit_call_count == 0);
+    CHECK(view.close_call_count == 0);
 }
 
 // With a dispatcher supplied, OK marks the view applying first and defers apply through the
@@ -515,8 +568,8 @@ TEST_CASE(
     CHECK(view.close_call_count == 1);
 }
 
-// With a dispatcher supplied, commit marks the view applying first and defers commit through the
-// dispatcher rather than blocking inside onCommitRequested(): commit reopens the captured
+// With a dispatcher supplied, the game-source OK marks the view applying first and defers commit
+// through the dispatcher rather than blocking inside onOkRequested(): commit reopens the captured
 // pre-edit device when nothing opened a route during the edit, which blocks the message thread
 // the same way apply and cancel do.
 TEST_CASE(
@@ -537,7 +590,8 @@ TEST_CASE(
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
 
-    controller.onCommitRequested();
+    controller.onUseGameAudioSettingsChanged(true);
+    controller.onOkRequested();
 
     CHECK(view.applying_transitions == std::vector<bool>{true});
     CHECK(settings.commit_call_count == 0);

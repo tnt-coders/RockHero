@@ -59,16 +59,6 @@ public:
         virtual void onToneRegionActivated() = 0;
 
         /*!
-        \brief Called when an edge drag commits new snapped endpoints for a region.
-        \param region_id Stable region id selected by the user.
-        \param start New musical start (inclusive).
-        \param end New musical end (exclusive).
-        */
-        virtual void onToneRegionResizeRequested(
-            std::string region_id, common::core::GridPosition start,
-            common::core::GridPosition end) = 0;
-
-        /*!
         \brief Called when an edge drag commits a new position for the shared boundary between two
         adjacent regions, so both neighbors move together and coverage stays gap-free.
         \param right_region_id Region on the later side of the boundary.
@@ -162,6 +152,10 @@ public:
 
     /*!
     \brief Applies the current tone-track render state.
+
+    Equality-gated, and deferred while a view-owned drag is in flight: the drag holds region indices
+    into the previous state, so a mid-drag push is stashed and adopted when the drag ends.
+
     \param state State derived by the editor controller.
     */
     void setState(const core::ToneTrackViewState& state);
@@ -273,6 +267,19 @@ private:
         common::core::GridPosition preview;
     };
 
+    // True while a view-owned drag holds region indices into m_state, so a push must be deferred.
+    [[nodiscard]] bool gestureActive() const noexcept;
+
+    // Applies a render state: the one place m_state changes, equality-gated.
+    void applyState(const core::ToneTrackViewState& state);
+
+    // Adopts a push deferred while a drag was in flight; a no-op while one still stands.
+    void adoptPendingState();
+
+    // Ends whatever gesture the press started, emitting its intent. Split from mouseUp so every
+    // exit routes through the single deferred-state adoption point.
+    void finishGesture(const juce::MouseEvent& event);
+
     // Maps one region's span to component x coordinates, or empty when unmappable.
     [[nodiscard]] std::optional<std::pair<float, float>> regionXSpan(
         const core::ToneRegionViewState& region) const;
@@ -330,10 +337,15 @@ private:
     // Last render state pushed by the editor controller.
     core::ToneTrackViewState m_state{};
 
+    // A push that arrived while a drag was in flight, adopted when the drag ends.
+    std::optional<core::ToneTrackViewState> m_pending_state{};
+
     // Receives the transient snap guide while an edge drag is active.
     SnapGuideCallback m_on_snap_guide;
 
-    // Recomputes the playhead region and emits one selection intent on boundary crossings.
+    // Reports one payload-less activation when playback carries the playhead into a region the
+    // pushed state does not mark active. Debounces against that flag alone: the controller owns
+    // which region the playhead is in.
     void advanceActiveRegion();
 
     // Read-only transport sampled at render cadence for cursor-follow highlighting.
@@ -341,9 +353,6 @@ private:
 
     // Vblank-driven callback keeping the selection in step with playback crossings.
     juce::VBlankAttachment m_vblank_attachment;
-
-    // Index of the region currently containing the playhead, if any.
-    std::optional<std::size_t> m_active_region_index{};
 
     // Live edge-drag state; empty while no drag is active.
     std::optional<DragState> m_drag{};

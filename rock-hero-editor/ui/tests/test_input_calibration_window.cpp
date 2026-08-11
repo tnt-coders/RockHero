@@ -101,7 +101,18 @@ TEST_CASE(
 
     window.setReadOnlyGameReflection(false);
     CHECK(calibrate.isVisible());
+    // Unticking must re-enable the controls, not just clear their tooltips: enablement and tooltip
+    // both resolve from the same pushed state, so neither can drift from the other.
+    CHECK(calibrate.isEnabled());
     CHECK(calibrate.getTooltip().isEmpty());
+
+    auto& apply =
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_manual_apply_button");
+    auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
+    CHECK(apply.isEnabled());
+    CHECK(slider.isEnabled());
+    CHECK(apply.getTooltip().isEmpty());
+    CHECK(slider.getTooltip().isEmpty());
 }
 
 } // namespace rock_hero::editor::ui

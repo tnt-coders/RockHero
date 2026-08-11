@@ -225,8 +225,7 @@ public:
         addAndMakeVisible(m_count_label);
         addAndMakeVisible(m_add_button);
         m_busy_overlay.setComponentID("plugin_browser_busy_overlay");
-        m_busy_overlay.setCancelCallback(
-            [this] { m_listener.onPluginBrowserBusyCancelRequested(); });
+        m_busy_overlay.setCancelCallback([this] { m_listener.onBusyCancelRequested(); });
         addChildComponent(m_busy_overlay);
         setState(core::PluginBrowserViewState{});
     }
@@ -335,13 +334,12 @@ private:
         updateControls();
     }
 
-    // ListBoxModel implementation: double-clicking adds the row's plugin.
+    // ListBoxModel implementation: double-clicking is the Add button's shortcut, so it selects the
+    // row and routes through the one add path that honors the controller's add availability.
     void listBoxItemDoubleClicked(int row, const juce::MouseEvent& /*event*/) override
     {
-        if (const auto* const plugin = pluginAtRow(row); plugin != nullptr)
-        {
-            m_listener.onPluginBrowserAddRequested(plugin->id);
-        }
+        m_list_box.selectRow(row);
+        addSelectedPlugin();
     }
 
     // Returns the plugin represented by a filtered row, or null for invalid rows.

@@ -145,16 +145,16 @@ void AudioDeviceFailureOverlay::resized()
 }
 
 // Swallows every key so editor shortcuts cannot reach EditorView while the overlay is visible,
-// mapping the two choice shortcuts onto their buttons first.
+// mapping Return onto the default Retry choice first.
+//
+// Escape is deliberately unmapped. Editor-wide, Escape cancels or dismisses; this prompt has no
+// cancel outcome (the failure stands until the user retries or reroutes), so binding it to Open
+// Audio Settings would make the dismiss key launch a window instead. It is swallowed silently.
 bool AudioDeviceFailureOverlay::keyPressed(const juce::KeyPress& key)
 {
     if (key == juce::KeyPress{juce::KeyPress::returnKey} && m_retry_callback)
     {
         m_retry_callback();
-    }
-    else if (key == juce::KeyPress{juce::KeyPress::escapeKey} && m_open_settings_callback)
-    {
-        m_open_settings_callback();
     }
 
     return true;

@@ -53,7 +53,8 @@ public:
 
     With a prompt staged the overlay becomes visible, renders the device headline and reason, and
     grabs keyboard focus so editor shortcuts stop reaching the EditorView component tree; with an
-    empty prompt it hides and stops intercepting input. The view rendering this overlay must keep
+    empty prompt it hides. Hiding is what stops input reaching it, since mouse-click interception is
+    installed once at construction and never cleared. The view rendering this overlay must keep
     it in front of the editor content, with only the busy overlay above it (a Retry reopen runs
     behind the busy presentation).
 
@@ -68,7 +69,7 @@ public:
     void setRetryCallback(std::function<void()> callback);
 
     /*!
-    \brief Installs the callback fired by the Open Audio Settings button (Escape triggers it too).
+    \brief Installs the callback fired by the Open Audio Settings button.
     \param callback Callback notified from the button's onClick handler.
     */
     void setOpenSettingsCallback(std::function<void()> callback);

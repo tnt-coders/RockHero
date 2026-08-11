@@ -46,7 +46,7 @@ public:
         std::function<bool(const juce::KeyPress&)> forward_key_press,
         juce::Component* centering_component);
 
-    /*! \brief Hides the window (detaching the render surface first). */
+    /*! \brief Runs close(): suspends the render surface's frame ticks, then hides the window. */
     ~PreviewWindow() override;
 
     PreviewWindow(const PreviewWindow&) = delete;

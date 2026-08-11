@@ -280,51 +280,6 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### Editor UI
 
-- **The ruler's play-from-here flag goes stale on every horizontal scroll.** `TimelineRuler`
-  pre-maps seconds to a local x (`timeline_ruler.cpp:176-200`), and the memo key that gates the
-  re-push (`track_viewport.h:526-542`) omits the scroll position. Scroll while paused and the flag
-  stays pinned to a screen pixel, pointing at the wrong musical time and visibly disagreeing with the
-  paused column in the content. Fix deletes code: store the mark in seconds and map it at paint time,
-  as the shape chips and the time selection already do — which removes the staleness class rather
-  than adding a key field.
-- **The paused-column visibility rule is stated three times with two different formulas**
-  (`track_viewport.cpp:568`, `:587`, `:984`) and its inputs are missing from the memo key, so a lane
-  resize on a chartless arrangement re-enables an overlay line that paints across the caret.
-- **Three controls that lie about what they will do**: the audio-settings OK button ORs its own
-  condition onto the controller's availability and then routes to a *different* intent
-  (`audio_device_settings_view.cpp:533`); double-clicking a plugin row bypasses the Add guard the
-  button honors (`plugin_browser_window.cpp:339-345`); and an insert slot renders an enabled-looking
-  "+" that `hitTest` refuses (`insert_slot_view.cpp:49-50`).
-- **Escape performs an affirmative action.** In the audio-device failure overlay
-  (`audio_device_failure_overlay.cpp:155-158`) Escape *opens* the settings window, against the
-  editor's cancel/dismiss ladder. This prompt has no cancel outcome, so Escape should be swallowed.
-- **A one-way disable leaves the calibration window dead.**
-  `input_calibration_window.cpp:249-261` disables three controls when read-only and has no branch
-  that re-enables them, so unticking "use game audio settings" clears the tooltips and leaves the
-  controls dead until an unrelated state push. Folding read-only into the view state makes `setState`
-  the single authority and deletes the parallel path.
-- **Any state push kills an in-flight tone-boundary drag** (`tone_track_view.cpp:60-76`): playback
-  crossing a region boundary republishes the state and the drag silently snaps back. The automation
-  lanes already solved this; the tone track still carries the flawed shape.
-- **A view owns a model rule the controller also owns**: `advanceActiveRegion()`
-  (`tone_track_view.cpp:717-743`) runs its own containment test, keys the result by *display index*
-  against a codebase law that says identity is by value, fires a payload-less intent, and the handler
-  recomputes the same containment. No `playing` gate either, so a paused seek fires an activation.
-- **Six pushes that should repaint nothing repaint everything**, against the guide's stated
-  equality-gate invariant: `signal_chain_view.cpp:346-362` has no gate at all and *destroys and
-  recreates every plugin tile and insert slot on every push* (which is also what silently discards
-  an open tile popup); `arrangement_view.cpp:167-179` re-draws the waveform — the most expensive
-  draw in the editor — per caret step; `tone_automation_lanes_view.cpp:319-323`;
-  `transport_controls.cpp:57-67` deep-copies an SVG `Drawable` per push, in the very file the
-  developer guide names as the clean exemplar. All four have a defaulted `operator==` already
-  available. Plus two glyph layouts in hot paths: shape-chip text measured inside `paint()`
-  (`timeline_ruler.cpp:766-795`, breaking the rule the rest of that class documents at length) and a
-  layout per lane per mouse-move (`tone_automation_lanes_view.cpp:426-434`).
-- **~200 lines of dead wiring**: `onToneRegionResizeRequested` is emitted by nothing yet threads
-  through six files including an editor-core action and its availability arms;
-  `ArrangementView::Listener` can never fire because the cursor overlay never asks the waveform row
-  for a hit; `MainWindow::ExitCallback` is stored, documented, and never invoked, with
-  `main.cpp:168`/`:171` passing the same quit function twice.
 - **`sameCaretMask` is 30 hand-rolled lines built on a premise the tree disproves.**
   `timeline_cursor.cpp:109-124` says `juce::Range`'s own `operator==` would trip `-Wfloat-equal`, but
   `track_viewport.cpp:107` compares `std::optional<juce::Range<float>>` with plain `==` and has been
@@ -332,21 +287,15 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   and that line is a latent three-platform break MSVC cannot see. **Resolve this one deliberately** —
   it sits exactly on a known CI blind spot, and the likely answer is that the comparison lives inside
   a JUCE header compiled as external, which suppresses the warning.
-- **Four theme colors snapshotted at static-initialization time** (`tone_track_view.cpp:23`, `:26`,
-  `tone_automation_lanes_view.cpp:51`, `insert_slot_view.cpp:21`) would keep the old accent forever
-  across a theme swap, defeating the seam's stated purpose. Read the theme at paint time instead.
 - **~30 color literals outside the theme seam** (full census in the review), and the theme has **no
   font or size roles at all**, so every font height in `ui/` is a literal by construction — that one
   is a decision, not a sweep.
 - Smaller: `busy_overlay` and `audio_device_failure_overlay` each compute their centered geometry
   twice and are near-duplicates of one another with a comment admitting the hand-maintained
-  agreement; `signal_chain_view::paint()` re-walks `resized()`'s layout arithmetic; the undo overflow
-  hint draws into a leftover sliver so "+ N older" is clipped
-  (`undo_history_overlay.cpp:83-90`); a keymap write failure is swallowed into an empty `if`
-  (`editor_keymap_persistence.cpp:73-78`); `onPluginBrowserBusyCancelRequested` is a pure rename of
-  an existing intent. PLAUSIBLE: `keymap_editor_view.cpp:349-373` removes a key press before removing
-  the stored indices, so rebinding Redo to a chord it already owns may keep the chord it was asked to
-  replace — needs a read of JUCE's index-removal path.
+  agreement; `signal_chain_view::paint()` re-walks `resized()`'s layout arithmetic. PLAUSIBLE:
+  `keymap_editor_view.cpp:349-373` removes a key press before removing the stored indices, so
+  rebinding Redo to a chord it already owns may keep the chord it was asked to replace — needs a
+  read of JUCE's index-removal path.
 
 ### One rule in two places, across the tree
 

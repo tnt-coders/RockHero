@@ -521,14 +521,18 @@ private:
     // paused-column re-derivation entirely while everything is stationary. The caret mask is part
     // of the key: the caret-bearing views push it, and a mask change (arming, clearing, or a value
     // edit shifting the square's y) must re-run the derivation even when the mark stayed put — so
-    // no push order can leave the paused column's gap stale. While a caret is armed the tick also
-    // re-derives unconditionally (see updateRulerCursor).
+    // no push order can leave the paused column's gap stale. tab_displayed_strings is here for the
+    // same reason: it decides the paused column's visibility, so a lane-count change alone must
+    // re-derive. m_project_loaded is deliberately absent — it gates updateRulerCursor entirely, and
+    // while it is false the overlay and the column's painter are both switched off. While a caret
+    // is armed the tick also re-derives unconditionally (see updateRulerCursor).
     struct RulerCursorKey
     {
         bool playing{false};
         double mark_seconds{0.0};
         common::core::TimeRange range{};
         int width{0};
+        int tab_displayed_strings{0};
         std::optional<juce::Range<float>> caret_mask{};
 
         friend bool operator==(const RulerCursorKey& lhs, const RulerCursorKey& rhs)
@@ -539,7 +543,9 @@ private:
             // not reach, and std::optional adds another such layer.
             return lhs.playing == rhs.playing &&
                    std::is_eq(lhs.mark_seconds <=> rhs.mark_seconds) && lhs.range == rhs.range &&
-                   lhs.width == rhs.width && lhs.caret_mask == rhs.caret_mask;
+                   lhs.width == rhs.width &&
+                   lhs.tab_displayed_strings == rhs.tab_displayed_strings &&
+                   lhs.caret_mask == rhs.caret_mask;
         }
     };
     std::optional<RulerCursorKey> m_last_ruler_cursor_key{};

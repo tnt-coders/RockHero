@@ -120,6 +120,18 @@ void InputCalibrationController::detachView(IInputCalibrationView& view) noexcep
     }
 }
 
+// Re-scopes the popup live between the editable flow and the read-only game reflection.
+void InputCalibrationController::onReadOnlyChanged(bool read_only)
+{
+    if (m_state.read_only == read_only)
+    {
+        return;
+    }
+
+    m_state.read_only = read_only;
+    publishState();
+}
+
 // Updates the preview gain while no automatic capture owns the route.
 void InputCalibrationController::onManualGainChanged(double gain_db)
 {

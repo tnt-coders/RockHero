@@ -137,6 +137,16 @@ public:
     void detachView(IInputCalibrationView& view) noexcept;
 
     /*!
+    \brief Re-scopes the popup between the editable flow and the read-only game reflection.
+
+    Carried into InputCalibrationViewState so the view resolves every control's enablement and
+    tooltip from one push, in both directions. Ignores a value that is already current.
+
+    \param read_only True while the popup reflects the game's audio configuration read-only.
+    */
+    void onReadOnlyChanged(bool read_only);
+
+    /*!
     \brief Updates manual gain preview state.
     \param gain_db Gain in decibels selected by the user.
     */

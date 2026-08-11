@@ -112,7 +112,6 @@ public:
         : m_owner(owner)
         , m_editor_controller(controller)
         , m_live_input(live_input)
-        , m_read_only(read_only)
         , m_calibration_controller(
               *this, prompt,
               core::InputCalibrationController::CaptureSettings{
@@ -180,8 +179,9 @@ public:
         addAndMakeVisible(m_cancel_button);
 
         setSize(g_input_calibration_preferred_width, preferredHeight());
+        // Seed the source mode before attaching, so the first push already carries it.
+        m_calibration_controller.onReadOnlyChanged(read_only);
         m_calibration_controller.attachView(*this);
-        applyModePresentation();
         startTimerHz(g_input_calibration_meter_hz);
     }
 
@@ -227,39 +227,15 @@ public:
         m_calibration_controller.onDismissRequested();
     }
 
-    // Re-scopes the popup live between the editable flow and the read-only game reflection.
+    // Re-scopes the popup live between the editable flow and the read-only game reflection. The
+    // controller carries the mode in its view state, so the flip re-renders through setState() --
+    // the one authority for control enablement -- in both directions.
     void setReadOnly(bool read_only)
     {
-        if (m_read_only == read_only)
-        {
-            return;
-        }
-
-        m_read_only = read_only;
-        applyModePresentation();
-        resized();
+        m_calibration_controller.onReadOnlyChanged(read_only);
     }
 
 private:
-    // Applies the measure/apply affordances for the current source mode. In the read-only game
-    // reflection the Calibrate button, manual Apply button, and gain slider all stay visible but
-    // disabled (grayed out) so the game's calibrated value is displayed read-only, each carrying a
-    // "Derived from game settings" tooltip that explains why. The editable flow clears the tooltip
-    // and leaves enablement to the controller state pushed through setState().
-    void applyModePresentation()
-    {
-        const juce::String control_tooltip{m_read_only ? g_input_calibration_game_tooltip : ""};
-        m_calibrate_button.setTooltip(control_tooltip);
-        m_manual_apply_button.setTooltip(control_tooltip);
-        m_manual_gain_slider.setTooltip(control_tooltip);
-        if (m_read_only)
-        {
-            m_manual_gain_slider.setEnabled(false);
-            m_manual_apply_button.setEnabled(false);
-            m_calibrate_button.setEnabled(false);
-        }
-    }
-
     [[nodiscard]] int preferredHeight() const
     {
         constexpr int outer_margin{g_input_calibration_content_margin * 2};
@@ -282,19 +258,27 @@ private:
         setSize(g_input_calibration_preferred_width, preferredHeight());
     }
 
+    // The single authority for control enablement. The read-only game reflection is a hard override
+    // on the capture-owned availability flags: the Calibrate button, manual Apply button, and gain
+    // slider all stay visible but disabled (grayed out) so the game's calibrated value is displayed
+    // read-only, each carrying a tooltip explaining why. Resolving both inputs here is what lets a
+    // flip back to the editable flow re-enable them.
     void setState(const core::InputCalibrationViewState& state) override
     {
+        const bool editable = !state.read_only;
         m_input_meter.setLevel(state.input_meter_level);
         m_manual_gain_slider.setValue(state.input_gain_db, juce::dontSendNotification);
         m_manual_gain_slider.updateText();
         m_status.setText(juce::String{state.status_message}, juce::dontSendNotification);
-        m_calibrate_button.setEnabled(state.start_measurement_enabled);
-        m_manual_gain_slider.setEnabled(state.manual_gain_controls_enabled);
-        m_manual_apply_button.setEnabled(state.manual_gain_controls_enabled);
+        m_calibrate_button.setEnabled(editable && state.start_measurement_enabled);
+        m_manual_gain_slider.setEnabled(editable && state.manual_gain_controls_enabled);
+        m_manual_apply_button.setEnabled(editable && state.manual_gain_controls_enabled);
         m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
-        // Re-assert the read-only game reflection after every controller push so a state refresh
-        // never re-enables the measure/apply controls the game-source mode disables.
-        applyModePresentation();
+
+        const juce::String control_tooltip{editable ? "" : g_input_calibration_game_tooltip};
+        m_calibrate_button.setTooltip(control_tooltip);
+        m_manual_apply_button.setTooltip(control_tooltip);
+        m_manual_gain_slider.setTooltip(control_tooltip);
         syncPreferredSize();
     }
 
@@ -369,10 +353,6 @@ private:
     InputCalibrationWindow& m_owner;
     core::IEditorController& m_editor_controller;
     const common::audio::ILiveInput* m_live_input{};
-    // True while the editor sources the game's audio configuration: the popup then reflects the
-    // game's calibration value read-only, disabling (graying out) the measure/apply controls with an
-    // explanatory tooltip rather than hiding them.
-    bool m_read_only{false};
     core::InputCalibrationController m_calibration_controller;
     AudioLevelMeter m_input_meter;
     juce::Label m_target_label;

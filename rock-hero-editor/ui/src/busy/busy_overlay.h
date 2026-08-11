@@ -49,7 +49,8 @@ public:
 
     When busy carries a value, the overlay becomes visible, displays the supplied message, and
     grabs keyboard focus so editor shortcuts stop reaching the EditorView component tree. When
-    busy is empty, the overlay hides and stops intercepting input. The view rendering this
+    busy is empty, the overlay hides; hiding is what stops input reaching it, since mouse-click
+    interception is installed once at construction and never cleared. The view rendering this
     overlay must keep it as the front-most child so the dim layer paints above other editor
     content.
 

@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/shared/logger.h>
 #include <string>
 #include <utility>
 
@@ -74,7 +75,11 @@ void EditorKeymapPersistence::changeListenerCallback(juce::ChangeBroadcaster* /*
         m_settings.setKeymapXml(std::move(serialized));
     if (!saved.has_value())
     {
-        // Non-fatal: the mapping still applies this session, and the next change retries.
+        // Non-fatal for this session: the mapping still applies and the next change retries. It is
+        // user-visible after a restart, though — the rebind silently reverts — so the reason is
+        // logged rather than dropped.
+        RH_LOG_WARNING(
+            "editor.keybinds", "Could not persist the keymap: {:?}", saved.error().message);
     }
 }
 

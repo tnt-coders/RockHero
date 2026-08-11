@@ -577,9 +577,13 @@ void SignalChainView::PluginTileView::showDisplayTypeMenu()
             m_plugin.display_type_override == std::optional{display_type});
     }
 
+    // withDeletionCheck matches every other popup in the tree: destroying this tile dismisses the
+    // menu instead of leaving it open over a dead owner, where the user's pick would be discarded
+    // in silence. The SafePointer keeps the callback safe on top of that.
     const juce::Component::SafePointer<PluginTileView> safe_this{this};
     menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withTargetComponent(this), [safe_this](int selected_id) {
+        juce::PopupMenu::Options{}.withTargetComponent(this).withDeletionCheck(*this),
+        [safe_this](int selected_id) {
             if (safe_this != nullptr)
             {
                 safe_this->handleDisplayTypeMenuSelection(selected_id);

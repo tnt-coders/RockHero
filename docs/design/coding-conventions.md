@@ -72,7 +72,7 @@ side-effecting retrieval such as a get-or-create (`getOrCreatePluginFor`).
 ## Listener Naming
 
 Prefer the scoped name `Listener` for a type that exposes one clear notification surface. Existing
-names such as `ITransport::Listener`, `ArrangementView::Listener`, and
+names such as `ITransport::Listener`, `SignalChainView::Listener`, and
 `TransportControls::Listener` are acceptable because the owning type supplies the missing context.
 
 As listener APIs evolve, consider a more specific nested name such as `StatusListener`,

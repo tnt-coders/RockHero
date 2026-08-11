@@ -50,7 +50,12 @@ void UndoHistoryOverlay::paint(juce::Graphics& graphics)
 
     graphics.setFont(juce::Font{juce::FontOptions{12.0f}});
     constexpr int row_height = 16;
-    const int max_rows = std::max(1, area.getHeight() / row_height);
+    const int available_rows = std::max(1, area.getHeight() / row_height);
+    // The "+ N older" hint needs a row of its own, so it costs one entry row whenever it appears;
+    // letting the entries consume every row left it drawing into the height % row_height sliver
+    // below them, where it was invisible. With no overflow every row shows an entry.
+    const bool has_overflow = total > available_rows;
+    const int max_rows = has_overflow ? std::max(1, available_rows - 1) : available_rows;
 
     // Newest first, so a freshly pushed entry appears at the top while the user watches. The cursor
     // sits at undo_depth: entries at or above it are redoable (dimmed), the entry just below it is
@@ -80,7 +85,7 @@ void UndoHistoryOverlay::paint(juce::Graphics& graphics)
         graphics.drawText(text, area.removeFromTop(row_height), juce::Justification::centredLeft);
     }
 
-    if (total > max_rows)
+    if (has_overflow)
     {
         graphics.setColour(juce::Colours::white.withAlpha(0.4f));
         graphics.drawText(

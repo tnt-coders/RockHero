@@ -403,9 +403,21 @@ private:
     // Resolves the interactive zone at a local point, or nullopt for pass-through space.
     [[nodiscard]] std::optional<Hit> hitAt(juce::Point<int> local_point) const;
 
+    // One lane's name chip label with its measured width, cached so neither paint nor a pointer
+    // hit-test lays the text out.
+    struct LaneChip
+    {
+        juce::String text;
+        int width{0};
+    };
+
+    // Rebuilds the cached chip labels and widths from the current lane list.
+    void refreshLaneChips();
+
     // The lane name chip's bounds, shared by painting and hit-testing so they cannot diverge.
+    // Reads the cached width; lane_index must index the current lane list.
     [[nodiscard]] juce::Rectangle<int> laneChipBounds(
-        const core::ToneAutomationLaneViewState& lane, const LaneExtent& extent) const;
+        std::size_t lane_index, const LaneExtent& extent) const;
 
     // The lane name chip's text ("Plugin · Param", with a missing-plugin suffix when unresolved).
     [[nodiscard]] static juce::String laneChipText(const core::ToneAutomationLaneViewState& lane);
@@ -550,6 +562,9 @@ private:
 
     // Automation lanes for the selected tone.
     core::ToneAutomationViewState m_state{};
+
+    // Chip label and measured width per lane in m_state.lanes, rebuilt whenever the lanes change.
+    std::vector<LaneChip> m_lane_chips{};
 
     // Selected region's span; edits clamp inside it and outside content draws dimmed.
     common::core::TimeRange m_editable_window{};

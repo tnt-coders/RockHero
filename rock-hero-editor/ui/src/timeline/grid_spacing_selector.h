@@ -80,8 +80,9 @@ public:
     Presets run coarse (1/4) to fine (1/128). A positive \p direction picks the coarsest preset
     strictly finer than the currently applied value (the keyboard "+" step); a negative one the
     finest preset strictly coarser (the "-" step) — so a free-entry value in between snaps to the
-    nearest preset in the step direction. Clamps at the finest/coarsest preset; emits through the
-    listener exactly like a combo selection, so the controller still owns the applied value.
+    nearest preset in the step direction. At the end of the range there is no preset to pick, so
+    nothing is emitted and the applied value stands. Emission goes through the listener exactly like
+    a combo selection, so the controller still owns the applied value.
 
     \param direction Positive to step finer, negative to step coarser.
     */

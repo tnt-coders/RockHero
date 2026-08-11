@@ -168,7 +168,7 @@ public:
             &juce::JUCEApplicationBase::quit);
 
         m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(
-            getApplicationName(), std::move(editor), &juce::JUCEApplicationBase::quit);
+            getApplicationName(), std::move(editor));
         m_main_window->restoreLastOpenProject();
     }
 

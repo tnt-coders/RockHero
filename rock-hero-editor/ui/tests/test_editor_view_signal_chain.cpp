@@ -414,8 +414,12 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     auto& insert_later = findRequiredDescendant<juce::TextButton>(
         view, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
 
-    CHECK_FALSE(insert_first.isEnabled());
+    // An occupied block shows no "+" at all: the ghosted idle affordance makes an unavailable one
+    // indistinguishable from a live one, so unavailability is expressed by hiding it.
+    CHECK_FALSE(insert_first.isVisible());
+    CHECK(insert_append.isVisible());
     CHECK(insert_append.isEnabled());
+    CHECK(insert_later.isVisible());
     CHECK(insert_later.isEnabled());
     testing::clickButton(insert_first);
     testing::clickButton(insert_append);
@@ -533,8 +537,9 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
     auto& insert_last = findRequiredDescendant<juce::TextButton>(
         view, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
 
-    CHECK_FALSE(insert_first.isEnabled());
-    CHECK_FALSE(insert_last.isEnabled());
+    // A full chain leaves no empty block, so no placeholder offers a "+".
+    CHECK_FALSE(insert_first.isVisible());
+    CHECK_FALSE(insert_last.isVisible());
     CHECK(
         findDescendant(view, insertPluginButtonId(common::audio::g_max_signal_chain_plugins)) ==
         nullptr);
@@ -917,7 +922,6 @@ TEST_CASE("Signal-chain drag preview replaces gap preview", "[ui][editor-view]")
     CHECK(componentTargetBounds(tile_drive) == third_block_bounds);
     CHECK(componentTargetBounds(tile_cab) == drive_bounds);
     CHECK_FALSE(third_insert.isVisible());
-    CHECK_FALSE(third_insert.isEnabled());
 }
 
 // Verifies drag hover relayouts tiles into their transient reorder preview positions.
@@ -1301,7 +1305,7 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
     CHECK(remove_amp.getButtonText() == "X");
     CHECK(remove_amp.getWidth() == 20);
     CHECK(remove_amp.getHeight() == 20);
-    CHECK_FALSE(insert_first.isEnabled());
+    CHECK_FALSE(insert_first.isVisible());
     CHECK_FALSE(remove_amp.isEnabled());
 
     testing::clickButton(insert_first);

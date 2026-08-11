@@ -23,7 +23,6 @@ namespace
         case EditorAction::Id::OpenPlugin:
         case EditorAction::Id::Undo:
         case EditorAction::Id::Redo:
-        case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
@@ -101,7 +100,6 @@ namespace
             case EditorAction::Id::SetGridNoteValue:
             case EditorAction::Id::SelectArrangement:
             case EditorAction::Id::SelectToneRegion:
-            case EditorAction::Id::ResizeToneRegion:
             case EditorAction::Id::CreateToneRegion:
             case EditorAction::Id::DeleteToneRegion:
             case EditorAction::Id::RenameTone:
@@ -184,7 +182,6 @@ namespace
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
-        case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
@@ -280,7 +277,6 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
-        case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:

@@ -308,16 +308,6 @@ public:
         ++tone_region_activated_count;
     }
 
-    /*! \copydoc IEditorController::onToneRegionResizeRequested */
-    void onToneRegionResizeRequested(
-        std::string region_id, common::core::GridPosition start,
-        common::core::GridPosition end) override
-    {
-        last_resized_tone_region_id = std::move(region_id);
-        last_tone_region_start = start;
-        last_tone_region_end = end;
-    }
-
     /*! \copydoc IEditorController::onToneRegionCreateRequested */
     void onToneRegionCreateRequested(
         common::core::GridPosition position, std::string new_region_id,
@@ -794,15 +784,6 @@ public:
 
     /*! \brief Number of times onToneRegionActivated() was reported. */
     int tone_region_activated_count{0};
-
-    /*! \brief Last tone region id reported through onToneRegionResizeRequested(). */
-    std::string last_resized_tone_region_id{};
-
-    /*! \brief Last resize start reported through onToneRegionResizeRequested(). */
-    common::core::GridPosition last_tone_region_start{};
-
-    /*! \brief Last resize end reported through onToneRegionResizeRequested(). */
-    common::core::GridPosition last_tone_region_end{};
 
     /*! \brief Last marker position reported through onToneRegionCreateRequested(). */
     common::core::GridPosition last_created_tone_region_position{};

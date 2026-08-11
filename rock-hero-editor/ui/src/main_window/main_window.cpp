@@ -54,14 +54,12 @@ constexpr int g_main_window_restore_height{1080};
 } // namespace
 
 // Installs the composed editor UI into the top-level JUCE window shell.
-MainWindow::MainWindow(
-    const juce::String& title, std::unique_ptr<Editor> editor, ExitCallback exit_callback)
+MainWindow::MainWindow(const juce::String& title, std::unique_ptr<Editor> editor)
     : juce::DocumentWindow(
           title,
           juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
               juce::ResizableWindow::backgroundColourId),
           juce::DocumentWindow::allButtons)
-    , m_exit_callback(std::move(exit_callback))
     , m_editor(std::move(editor))
 {
     assert(m_editor != nullptr);
@@ -128,18 +126,13 @@ void MainWindow::closeButtonPressed()
     requestExit();
 }
 
-// Routes platform quit requests through the same guarded exit flow as the close button.
+// Routes platform quit requests through the same guarded exit flow as the close button. The editor
+// owns the guards and the quit call; the window only forwards.
 void MainWindow::requestExit()
 {
     if (m_editor != nullptr)
     {
         m_editor->requestExit();
-        return;
-    }
-
-    if (m_exit_callback)
-    {
-        m_exit_callback();
     }
 }
 

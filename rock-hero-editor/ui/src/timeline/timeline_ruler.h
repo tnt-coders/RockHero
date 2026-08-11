@@ -130,6 +130,10 @@ public:
 
     /*!
     \brief Positions the ruler's aligned play-from-here mark.
+
+    The position is stored in seconds and mapped to a column at paint time, so the mark follows
+    horizontal scrolling without needing a fresh push.
+
     \param cursor_position Where playback would start (the marker model): the moving playhead
     while playing, else the marker — the armed caret's slot or the passive transport rest. Absent
     only without a loaded project.
@@ -171,8 +175,9 @@ public:
     \brief Stores the tab-derived chord/arpeggio name chips drawn in the bottom tick band.
 
     The chips sit flush with the ruler's bottom edge, directly above the tablature lane's top
-    rail, overlapping only ticks — the measure-number row above stays clear. An unchanged list
-    returns early because every controller state push repeats it.
+    rail, overlapping only ticks — the measure-number row above stays clear. A changed list rebuilds
+    the cached chip row; an unchanged list returns early because every controller state push
+    repeats it.
 
     \param labels Named shape spans in ascending start order; empty clears the chips.
     */
@@ -213,6 +218,17 @@ private:
         int width{0};
     };
 
+    // A chord/arpeggio name chip already resolved to a subpixel draw position, measured width, and
+    // the fill its kind selects. Distinct from RulerLabel because the shape band anchors chips on
+    // exact span starts rather than integer grid columns, and each chip carries its own colour.
+    struct RulerShapeChip
+    {
+        float x{0.0f};
+        juce::String text{};
+        float width{0.0f};
+        juce::Colour fill{};
+    };
+
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
 
@@ -231,6 +247,10 @@ private:
     // Rebuilds the section chip row: one label per visible section start plus the pinned active
     // section at the left edge, sharing the header rows' pin gate.
     void refreshSectionBand(const juce::Font& font, std::optional<double> pinned_left_seconds);
+
+    // Rebuilds the bottom band's chord/arpeggio name chips, unsuppressed so a crowded later span
+    // overlaps its neighbour rather than vanishing. The font must match the chip draw font.
+    void refreshShapeBand(const juce::Font& font);
 
     // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
@@ -281,8 +301,9 @@ private:
     // False while the editor is empty, so the ruler stays as plain chrome.
     bool m_project_loaded{false};
 
-    // Last subpixel cursor x coordinate drawn by the ruler.
-    std::optional<float> m_cursor_x{};
+    // The aligned play-from-here mark's timeline position, stored in seconds and mapped to a column
+    // at paint time so the mark follows the scroll offset. Absent while no mark is shown.
+    std::optional<common::core::TimePosition> m_cursor_position{};
 
     // Whether the mark draws in the paused cursor color instead of the playback color.
     bool m_cursor_paused{false};
@@ -328,8 +349,13 @@ private:
     std::vector<RulerLabel> m_tempo_labels{};
 
     // Tab-derived chord/arpeggio name chips for the bottom tick band, pushed by the owning view
-    // whenever the displayed chart changes; chip x positions map per paint via localXForSeconds.
-    std::vector<RulerShapeLabel> m_shape_labels{};
+    // whenever the displayed chart changes; positions resolve via localXForSeconds when the chip
+    // row rebuilds.
+    std::vector<RulerShapeLabel> m_shape_source{};
+
+    // Bottom band chip row: position, measured width, and fill per visible shape span, cached for
+    // the same text-measurement reason as m_measure_labels.
+    std::vector<RulerShapeChip> m_shape_chips{};
 
     // Song-section names, pushed by the owning view whenever the song's sections change;
     // positions resolve via localXForSeconds when the chip row rebuilds.

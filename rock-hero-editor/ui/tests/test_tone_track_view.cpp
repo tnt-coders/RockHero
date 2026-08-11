@@ -39,14 +39,6 @@ struct RecordingToneTrackListener final : public ToneTrackView::Listener
         activate_count += 1;
     }
 
-    void onToneRegionResizeRequested(
-        std::string region_id, common::core::GridPosition /*start*/,
-        common::core::GridPosition /*end*/) override
-    {
-        last_resize_region_id = std::move(region_id);
-        resize_count += 1;
-    }
-
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition /*position*/) override
     {
@@ -75,8 +67,6 @@ struct RecordingToneTrackListener final : public ToneTrackView::Listener
     std::string last_selected_region_id;
     int select_count = 0;
     int activate_count = 0;
-    std::string last_resize_region_id;
-    int resize_count = 0;
     std::string last_boundary_region_id;
     int boundary_move_count = 0;
     int rename_count = 0;
@@ -301,7 +291,6 @@ TEST_CASE("Tone track cancels an in-flight edge drag on request", "[ui][tone]")
     harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 440.0f, 20.0f));
 
     CHECK(harness.listener.boundary_move_count == 0);
-    CHECK(harness.listener.resize_count == 0);
 
     // With no gesture active the cancel reports unhandled so Esc can serve other owners.
     CHECK_FALSE(harness.view.cancelActiveGesture());

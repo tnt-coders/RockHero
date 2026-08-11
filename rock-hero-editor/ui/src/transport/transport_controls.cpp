@@ -54,8 +54,15 @@ TransportControls::TransportControls(Listener& listener)
 TransportControls::~TransportControls() = default;
 
 // Applies already-derived enabledness and play/pause visuals without adding workflow rules.
+// Equality-gated: DrawableButton::setImages deep-copies the SVG Drawable, and the editor re-pushes
+// the whole state on every caret step.
 void TransportControls::setState(const core::TransportViewState& state)
 {
+    if (m_state == state)
+    {
+        return;
+    }
+
     m_state = state;
     const juce::Drawable* const play_pause_drawable =
         m_state.play_pause_shows_pause_icon ? m_pause_drawable.get() : m_play_drawable.get();
