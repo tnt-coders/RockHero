@@ -5,6 +5,28 @@ Small fixes and evaluations to do when there's time — short entries, not plans
 that needs a design or multiple steps belongs in a `docs/plans/todo/` plan instead. Delete an
 entry when it's done — git history is the record.
 
+## Reading the 2026-08-10 review sections below
+
+Five parallel reviews ran that day (audio, the game side plus the shared highway, editor UI, a
+whole-codebase consistency sweep, and a documentation-accuracy audit) and most of what they found was
+fixed on the `code-review` branch the same day. What remains here is the residue, in three kinds, so
+check which kind an entry is before picking it up:
+
+1. **Ordinary backlog items** — verified, small, and just waiting for time.
+2. **Items carrying a ruling** — the user decided something on 2026-08-10 and the entry records the
+   decision and what it changed. The plugin-state-undo entry is the clearest example: the ruling made
+   the fix much smaller than the review's first proposal, so read the ruling before the remedy.
+3. **Items handed to Fable for design work**, marked FOR FABLE. These are not fixes waiting to be
+   typed; the *shape* is open. The drawn-bend mapping is one.
+
+Two findings became plans rather than entries, because they are too large for this file:
+`docs/plans/roadmap/57-positions-past-the-drawn-board.md` (the board draws 24 frets while the chart
+domain allows 30 and nodes 48) and `docs/plans/todo/highway-onset-groups-into-the-projection.md`
+(onset grouping and repeat classification rebuilt per frame). The second **blocks a product
+decision**: the highway hides note heads on a repeat that the 2D lane shows in full, and the two
+surfaces cannot be reconciled while the rule is trapped in the renderer where no other surface can
+read it.
+
 ## Found by the 2026-08-10 save/undo and timeline reviews
 
 The severe half shipped the same day: the package write is atomic, a NaN automation value is refused,
@@ -22,10 +44,18 @@ rest, each verified against the code, each a fix rather than a question unless m
 - **A plugin-state undo entry is applied against whichever tone is audible.** Once playback crosses
   into a region on another tone, the entry's preflight fails and every later Ctrl+Z hits the same top
   entry, so undo is dead for the rest of the session. The entry captures a tone name but uses it only
-  for the label. Fix wants the tone ref on the edit (as the remove edit already carries) plus a "make
-  this tone audible" step on the edit context. **NEEDS A RULING: may Ctrl+Z change what the user is
-  hearing, or must it refuse loudly?** Either way a refused undo must not leave the stack silently
-  dead.
+  for the label. **RULED a bug (2026-08-10), and the ruling made the fix much smaller than first
+  proposed.** Every tone is loaded at all times — muted or bypassed rather than absent, so that tone
+  switches are seamless — which means the plugin instance the entry needs ALREADY EXISTS. The defect
+  is therefore not "the instance is missing" but simply that the entry addresses *the audible* branch
+  instead of *the branch the entry belongs to*. Put the tone ref on the edit (as the remove edit
+  already carries) and apply to that branch. No tone switching, no playhead jump, no reconciliation
+  layer, and undo stops depending on what is playing at all.
+  Two things to check before writing it: verify the always-loaded invariant in the rig code rather
+  than trusting this note, and decide whether applying to an inaudible branch should also move the
+  tone-designer SELECTION so the change is visible — that is a UI courtesy, not a correctness
+  requirement, and it must not touch what is sounding, since overriding the tone track would create a
+  second authority over that.
 - **The song-document builder writes while it validates.** Its per-arrangement loop writes the chart
   file and copies audio in the same iteration that validates, so a failure on arrangement N leaves
   N-1 rewritten and its audio copied while `song.json` still describes the old state. Its own comment
@@ -41,22 +71,13 @@ rest, each verified against the code, each a fix rather than a question unless m
 - **`isValidGridPosition` is hand-written in three validators**, one already drifted stylistically.
   Related: the terminal-anchor bound applies to tone regions but not to sections or automation points,
   so a marker past the end loads and silently piles onto the song's last instant.
-- **A second parser for the `measure:beat` grammar** in the package format TU, existing only to be the
-  chart token parser restricted to a zero offset. Deleting it removes ~45 lines.
 - **The measure-keyed signature lookup linearly rescans** the authored list, contradicting the class's
   documented promise that construction precomputes indices — and three callers ask it once per note.
 - **The seconds-grid check rounds before anything bounds the magnitude**, so a hostile value makes the
   validity check itself undefined behavior; today the garbage result happens to fail the epsilon test.
-- **A package can be a decompression bomb.** `extractZipToWorkspace` caps neither the total extracted
-  size nor the expansion ratio, so a small `.rock` from an untrusted source can fill the disk. A cap
-  ADDS code, which is the signal to check the design first — but here the reader genuinely is the
-  trust boundary and there is nowhere cheaper to put it, so the yield looks real. **NEEDS A NUMBER
-  FROM THE USER**: the ceiling is a policy choice, not something to invent.
-- **`Arrangement::difficulty` and `Arrangement::audio_duration` are never persisted or computed** —
-  the reader default-constructs both (`rock_song_package_read.cpp:838`, `:840`) and nothing in the
-  package layer writes them. They are runtime-derived fields sitting in a value type whose other
-  members are persisted truth, so a reader cannot tell which fields a package actually carries.
-  Confirm nothing outside the package layer fills them, then delete or relocate them.
+- ~~A package can be a decompression bomb.~~ **Moved to `watch-items.md` (2026-08-10)** — accepted
+  for now, since every package today is one the user chose and imported by hand. The trigger that
+  graduates it, and the sizing logic so nobody re-derives it, are recorded there.
 - **Timeline zoom persists through a 6-significant-digit formatter** while the sibling value the same
   reader parses uses an exact one for exactly this reason, so one zoom notch does not survive a
   reopen. The test picks a value that survives 6 digits, then asserts exact equality.
@@ -219,23 +240,25 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### The 3D highway and the game
 
-- **A 2-whole-step bend draws below the highway floor.** `highwayBendLiftY`
-  (`highway_metrics.h:340-343`) is unbounded; 2D clamps the same quantity to three steps of
-  two-thirds tail height (`tab_paint_core.cpp:700-704`). At shipped metrics a 4-semitone bend on
-  displayed lane 4 puts the head at y = -0.10 — under the floor that the capo pass explicitly
-  refuses to cross — and on lane 3 it pokes past the top of the fret grid, which is precisely what
-  `highwayBendInverted` exists to prevent. With inverted string order (both products' default) those
-  are the D and G strings, so this is standard rock vocabulary. Needs one shared drawn-bend-height
-  authority that saturates against available headroom; ties into the parked
-  `docs/plans/todo/2d-bend-waypoint-redesign.md`.
-- **Chord grouping and repeat-box classification run every frame, with an unbounded backward walk.**
-  `highway_renderer.cpp:2075-2288` rebuilds and sorts chord groups per frame, then walks the note
-  stream backward per group with no lower bound (`:2195-2220`) — a 200-note solo before a muted chug
-  is 200 notes revisited every frame for as long as the chug is visible — plus covering-shape
-  searches from index 0 (`:2230-2239`, `:2480-2484`). None of it depends on the frame. Deriving it
-  once in `makeHighwayViewState` deletes ~210 lines from the deadline path and moves the repeat rules
-  into headless core, where they would finally be testable; today they have no tests because they
-  live in the GPU path.
+- **The drawn bend mapping needs reworking to read as a physical bend — FOR FABLE.** The
+  below-the-floor half is fixed (`highwayBentNoteY` now holds a bent note inside the string grid), but
+  two rulings on 2026-08-10 left the *mapping* provisional, and the current one is not merely
+  imperfect — it is geometrically impossible at the new ceiling:
+  - Bends are to support **three whole steps**. That is six semitones, and the current rate is one
+    lane gap per semitone, so six gaps — against a six-string grid that is exactly six gaps tall. The
+    literal arrival-lane identity therefore cannot hold at the ceiling from ANY lane, regardless of
+    aesthetics. Saturation keeps it safe meanwhile, but saturation is a floor, not the answer.
+  - The drawn shape should read as a **real** bend, and a real bend is not linear in pitch.
+    Lateral displacement `d` stretches the string by roughly `d²`, tension rises with that, and pitch
+    rises with the square root of tension, so `n` semitones needs displacement proportional to `√n`.
+    Each extra semitone therefore moves the string LESS than the one before — 1.00, then 0.41, then
+    0.32 of the first semitone's travel. (The reason this feels backwards to a player: the FORCE keeps
+    climbing even as the distance shrinks.) The mapping wants to be concave over the three-whole-step
+    range.
+  Do NOT unify this with the 2D rule. 2D maps a bend onto a fraction of the tail because a tab lane
+  has no pitch axis; 3D places it on the pitch axis. That difference is a property of the two
+  surfaces, not a disagreement between them — an earlier read of this finding got that wrong. Also
+  ties into the parked `docs/plans/todo/2d-bend-waypoint-redesign.md`.
 - **The windowing authority the project owns is applied to notes only.** `highwayVisibleNoteRange`
   is used at `highway_renderer.cpp:2008` and `:4763`, but beats, fret-hand positions, tap onsets, and
   shapes are scanned full-song every frame (`:1892`, `:2926`, `:1394`, `:1611`, `:2977`, `:1483`,
@@ -243,21 +266,6 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   shape rail and per window-following tail, each call allocating and walking every placement in the
   song then sorting and uniquing. `lower_bound`/`upper_bound` over the ramp interval, the shape
   `highway_window.cpp:41` already uses.
-- **The box painter's sort is not a total order, so boxes flicker.**
-  `highway_renderer.cpp:2520-2522` sorts by `start_seconds` alone with a non-stable sort; the note
-  sweep 500 lines above (`:2033-2073`) uses a three-key total order and its comment explains exactly
-  this failure. A tap-and-strum onset emits two boxes with equal keys and overlapping panels, which
-  swap composite order between frames. One word: `stable_sort`.
-- **The "hold a sustainless strum for its covering span" rule is implemented twice, in two units** —
-  `highwayDisplayHoldEnds` (`highway_view_state.h:764-811`, seconds) and `chartEffectiveSustains`
-  (`grid_arithmetic.cpp:92-140`, beats). Each names the other as its twin, and
-  `highway_view_state.h:776` records that *both* carried the same latest-starting-span defect and
-  were fixed separately — the clearest possible evidence the shape is wrong. Also why
-  `g_highway_onset_match_epsilon` had to shrink to 1e-9. `makeHighwayViewState` holds the chart and
-  tempo map, so it can call the beats authority and resolve to seconds, deleting the seconds copy.
-- **The "show at least N strings" padding rule is written twice** — `highway_projection.cpp:53-56`
-  and `tab_lane_layout.cpp:17-25` + `:67`. Agree today; the day one gains a wrinkle the two surfaces
-  anchor the shared string palette to different lanes. One `displayedStringCount()` in core.
 - **Per-frame allocation in the render path**: the visible section name is copied and uppercased
   every frame (`:4542-4545`) though it is a pure chart function, and every drawer allocates fresh CPU
   batches each frame (~19 sites listed in the review) while `Impl` holds no scratch members —
@@ -351,14 +359,6 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### Left over from the conventions pass
 
-- **The three highway forwarders are now pure forwarders and can be deleted.** With
-  `visibleEventRange` and `makeSustainPrefixMax` shared, `highwayVisibleNoteRange` and both
-  `makeHighwaySustainPrefixMax` overloads add nothing but a name. Callers:
-  `highway_renderer.cpp:1257`, `:2008`, `:4759`, plus `test_highway_projection.cpp:828` — which is the
-  *only* caller of the notes-taking overload, so that one is test-only API.
-- **Two orphaned includes** the dedup left behind: `tab_lane_layout.h` still includes
-  `tab_view_state.h`, and `tab_view.h` still includes `<cstddef>`/`<utility>`. Removing either forces
-  an include into `test_chart_hit_testing.cpp` and three siblings, which is why they were left.
 - **Comment lines past 100 columns: the check is written and correct but parked** in the convention
   checker's `PENDING_CHECKS`, because the tree carries **180 pre-existing violations across 81
   files**. `python scripts/verify-project-conventions.py --pending` prints the full inventory.

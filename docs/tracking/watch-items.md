@@ -238,6 +238,27 @@ way; Linux: a raw X child window never takes input focus by itself, but an SDL-m
 would claim it exactly like Windows did, so prefer a focus-inert embedding or replicate the
 bounce.
 
+## Song packages (untrusted input)
+
+### No decompression-size cap on package extraction — trigger: the app first fetches or accepts a package from a network source
+
+`extractZipToWorkspace` (`rock-hero-common/core/src/package/rock_song_package_read.cpp`) caps neither
+the total extracted size nor the expansion ratio, so a small `.rock` crafted to expand enormously
+could fill the disk. **Accepted for now on the user's ruling (2026-08-10), and the reasoning is worth
+keeping**: today every package is a file the user chose and imported by hand, so a cap would guard a
+threat that does not exist, and inventing a ceiling now is exactly the speculative complexity this
+project asks to be questioned. Nothing in the app downloads, receives, or auto-imports a package.
+
+The trigger is the moment that stops being true — a song-sharing feature, an in-app download, a
+watched folder that imports what lands in it, or accepting a package over any network transport.
+
+Remedy: cap total extracted bytes and the expansion ratio in the extractor, which is the trust
+boundary and the only place with the information. Sizing logic, so it need not be re-derived: a real
+package is one FLAC per arrangement — tens of MB, a few hundred at the outside — so a 2 GB
+total-extracted ceiling plus roughly a 200:1 ratio ceiling sits orders of magnitude above anything
+legitimate and would never fire on real content. Refuse with a typed error naming the limit rather
+than truncating, since a truncated extraction would then fail confusingly downstream.
+
 ## Cross-platform packaging
 
 ### macOS bundle resource layout — trigger: macOS packaging of either product
