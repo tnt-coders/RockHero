@@ -25,10 +25,12 @@ millisecondsBeforeSaving is zero deliberately, and is the one field a caller mus
 settings writes are acknowledged to the user, so they have to reach disk at the write rather than
 waiting out JUCE's default three-second timer, where a crash would silently discard them.
 
-The remaining fields are left at JUCE's own defaults, which already match this project's policy:
-per-user rather than all-users (commonToAllUsers), case-sensitive key names and XML storage (both
-part of the on-disk contract), saving enabled, and no interprocess lock, because every settings
-file has exactly one writing application.
+Case-sensitive key names and XML storage are part of the on-disk contract, so they are assigned
+explicitly below even though JUCE's defaults currently agree — a durable format guarantee must not
+ride a framework default that could move. The remaining fields are left at JUCE's own defaults,
+which match this project's policy without being contractual: per-user rather than all-users
+(commonToAllUsers), saving enabled, and no interprocess lock, because every settings file has
+exactly one writing application.
 
 \param application_name Application name that names the file inside the shared folder.
 \return Properties-file options for that application's settings file.
@@ -44,6 +46,8 @@ file has exactly one writing application.
     options.folderName = juce::String{folder_name.data(), folder_name.size()};
     options.osxLibrarySubFolder = "Application Support";
     options.millisecondsBeforeSaving = 0;
+    options.ignoreCaseOfKeyNames = false;
+    options.storageFormat = juce::PropertiesFile::storeAsXML;
     return options;
 }
 

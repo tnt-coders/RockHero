@@ -40,9 +40,12 @@ LiveRigGainPlugin::LiveRigGainPlugin(tracktion::PluginCreationInfo info)
     const Gain initial_gain = clampGain(Gain{static_cast<double>(m_gain_db.get())});
     m_gain_db = static_cast<float>(initial_gain.db);
     setTargetGainDb(static_cast<float>(initial_gain.db));
-    const float initial_linear_gain = targetLinearGain();
-    setSmoothedGainTarget(initial_linear_gain);
-    m_smoothed_gain.setCurrentAndTargetValue(initial_linear_gain);
+    // Seeds the smoother's memory directly, mirroring initialise(). Routing through
+    // setSmoothedGainTarget here would make the constructor the one caller of an
+    // audio-thread-only function -- and a no-op besides, since the epsilon guard sees the
+    // default target unchanged.
+    m_last_target_linear_gain = targetLinearGain();
+    m_smoothed_gain.setCurrentAndTargetValue(m_last_target_linear_gain);
 }
 
 // Notifies Tracktion listeners before destruction.

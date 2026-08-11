@@ -129,7 +129,9 @@ Engine::Engine()
 // Destroying them is Impl's job, not this body's -- see the note above the rack reset below.
 Engine::~Engine()
 {
-    // The clock republisher's tick dereferences m_edit; retire it before any teardown below.
+    // Retire the clock republisher first. Declaration order already destroys it before m_edit;
+    // this explicit reset exists so no tick fires MID-teardown, while this body is stopping the
+    // transport and unwiring the rack below.
     m_impl->m_clock_republish_timer.reset();
 
     m_impl->m_alive.reset();

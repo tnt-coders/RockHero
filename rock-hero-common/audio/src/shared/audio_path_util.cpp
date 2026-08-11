@@ -1,4 +1,4 @@
-#include "audio_path_util.h"
+#include "shared/audio_path_util.h"
 
 #include <rock_hero/common/core/shared/ascii_case.h>
 

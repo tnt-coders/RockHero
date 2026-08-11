@@ -142,8 +142,8 @@ TEST_CASE("ToneBranchGainPlugin scales audio buffers", "[audio][tone-branch-gain
     const tracktion::AutomatableParameter::Ptr parameter = branch_gain->branchGainParameter();
     parameter->setParameter(0.25f, juce::dontSendNotification);
 
-    // The 5 ms de-zipper needs 240 samples at 48 kHz to reach a new target, so process one
-    // settling block before the block under test.
+    // The de-zipper (half the tone-switch ramp) needs fewer samples than one 480-sample block to
+    // reach a new target at 48 kHz, so process one settling block before the block under test.
     juce::AudioBuffer<float> buffer{2, 480};
     tracktion::MidiMessageArray midi_messages;
     for (int block = 0; block < 2; ++block)

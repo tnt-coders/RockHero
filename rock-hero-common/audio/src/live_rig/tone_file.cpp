@@ -1,4 +1,4 @@
-#include "tone_file.h"
+#include "live_rig/tone_file.h"
 
 #include "tracktion/plugin_state_hygiene.h"
 

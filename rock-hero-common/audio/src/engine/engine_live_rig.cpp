@@ -698,16 +698,16 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
 
         // The canonical shape ("tones/" + a 36-character canonical UUID + "/tone.json") is the
         // whole check: it admits no traversal, root, or drive letter, so a separate path-escape
-        // clause could not reject anything this accepts.
-        const std::filesystem::path tone_document_ref{branch.tone_document_ref};
-        if (!core::isCanonicalToneDocumentRef(tone_document_ref.generic_string()))
+        // clause could not reject anything this accepts. Checked on the raw string, exactly like
+        // the reader's own call site -- a path round trip here folded backslashes and made this
+        // site accept a spelling the other rejects.
+        if (!core::isCanonicalToneDocumentRef(branch.tone_document_ref))
         {
             m_impl->rebuildInstrumentMonitoringGraphBestEffort(
                 "tone reference validation rollback failed");
             return std::unexpected{LiveRigError{
                 LiveRigErrorCode::InvalidToneDocument,
-                "Tone document path must be tones/<uuid>/tone.json: " +
-                    tone_document_ref.generic_string()
+                "Tone document path must be tones/<uuid>/tone.json: " + branch.tone_document_ref
             }};
         }
 
@@ -733,7 +733,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             snapshot.plugins.reserve(branch.chain.size());
         }
         const std::filesystem::path plugin_state_directory =
-            toneDocumentStateDirectory(tone_document_ref);
+            toneDocumentStateDirectory(branch.tone_document_ref);
 
         std::size_t captured_plugin_index = 0;
         for (const tracktion::Plugin::Ptr& plugin : branch.chain)
@@ -833,7 +833,8 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
                                                  ? m_impl->m_branch_output_gains[branch_index]
                                                  : Gain{defaultGainDb()});
 
-        const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;
+        const std::filesystem::path tone_document_path =
+            request.song_directory / branch.tone_document_ref;
         if (auto write_result = writeToneDocument(tone_document_path, document);
             !write_result.has_value())
         {
