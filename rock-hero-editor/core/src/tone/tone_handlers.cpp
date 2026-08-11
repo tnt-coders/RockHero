@@ -200,15 +200,19 @@ std::string EditorController::Impl::activeToneDocumentRef() const
 }
 
 // Resolves the active tone's display name for undo labels, empty when no tone resolves.
-std::string EditorController::Impl::activeToneName() const
+std::string EditorController::Impl::toneNameForRef(const std::string& tone_document_ref) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::string tone_document_ref = activeToneDocumentRef();
     if (arrangement == nullptr || tone_document_ref.empty())
     {
         return {};
     }
     return common::core::toneNameFor(*arrangement, tone_document_ref);
+}
+
+std::string EditorController::Impl::activeToneName() const
+{
+    return toneNameForRef(activeToneDocumentRef());
 }
 
 // Formally selects a region (a deliberate click): the selection is the Delete target and draws a

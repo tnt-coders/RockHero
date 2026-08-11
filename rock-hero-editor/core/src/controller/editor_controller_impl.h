@@ -239,6 +239,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
     [[nodiscard]] std::string activeToneDocumentRef() const;
+    [[nodiscard]] std::string toneNameForRef(const std::string& tone_document_ref) const;
     [[nodiscard]] std::string activeToneName() const;
     void mergeToneChainIdentities(
         const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains);

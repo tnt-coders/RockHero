@@ -562,6 +562,7 @@ TEST_CASE("IPluginHost flushes pending plugin edits", "[audio][plugin-host]")
             .before = *before_state,
             .after = *after_state,
             .label_hint = "Amp",
+            .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
         });
     plugin_host.flushPendingPluginEdits();
 

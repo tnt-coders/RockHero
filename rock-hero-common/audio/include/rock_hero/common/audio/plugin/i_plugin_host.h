@@ -91,6 +91,16 @@ struct [[nodiscard]] PluginStateEdit
     std::string label_hint;
 
     /*!
+    \brief Canonical tone document reference of the rack branch owning the instance.
+
+    Stamped by the host when the edit settles, from the rack that keeps every tone's chain loaded
+    whether audible or not. It lets a consumer address the OWNING tone directly, so a settled edit
+    stays applicable and honestly labeled whichever tone is audible when it is later undone. Empty
+    means the instance has left the rack — the one case where the edit is genuinely stale.
+    */
+    std::string tone_document_ref;
+
+    /*!
     \brief Compares two plugin-state edits by their stored values.
     \param lhs Left-hand plugin-state edit.
     \param rhs Right-hand plugin-state edit.

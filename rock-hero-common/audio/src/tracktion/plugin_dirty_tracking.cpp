@@ -330,6 +330,9 @@ void PluginDirtyStateTracker::settlePendingEdit()
                 .before = std::move(before),
                 .after = std::move(*after),
                 .label_hint = m_plugin.getName().toStdString(),
+                // The tracker does not know the rack; the engine's emit funnel stamps the owning
+                // branch before the edit reaches any observer.
+                .tone_document_ref = {},
             });
     }
 

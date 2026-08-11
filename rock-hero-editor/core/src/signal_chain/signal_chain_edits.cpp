@@ -373,10 +373,11 @@ void eraseRemovedAutomation(const PluginRemoveEdit& edit, EditorEditContext& con
 [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginStateEdit(
     const PluginStateEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
-    if (!context.signal_chain.containsInstance(edit.instance_id))
-    {
-        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
-    }
+    // No visible-chain preflight: every tone's chain stays loaded (muted rather than absent), and
+    // the host resolves the instance across all of them, so the entry applies whichever tone is
+    // audible or on screen. Preflighting against the visible chain made undo die for the rest of
+    // the session once playback crossed onto another tone. A genuinely missing instance surfaces
+    // as the host's typed error below.
 
     // Plugin edits restore via full-chunk setPluginState so plugin-owned metadata such as preset
     // labels, dirty flags, and loaded file references stays consistent with parameter values.

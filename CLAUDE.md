@@ -362,8 +362,10 @@ Key files:
 
 Dependency rules: `common` code must not depend on `editor` or `game` code. Product libraries may
 depend on `common`, but not on each other. `rock-hero-common/core` may use narrow `juce_core`
-utilities for package, file, JSON, ZIP, string, and result-handling behavior while remaining
-headless and automated-testable. Tracktion headers stay isolated to `rock-hero-common/audio`
+utilities for package, file, JSON, ZIP, string, and result-handling behavior — plus the
+`juce_data_structures` properties-file types behind `shared/settings_file_options.h` — while
+remaining headless and automated-testable; headless testability is the test the grant turns on
+(see `docs/design/architectural-principles.md`). Tracktion headers stay isolated to `rock-hero-common/audio`
 implementation files. Architecture and layering decisions should remain aligned with
 `docs/design/architecture.md` and
 `docs/design/architectural-principles.md`, especially around dependency boundaries, adapter design,

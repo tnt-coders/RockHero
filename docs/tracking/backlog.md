@@ -14,8 +14,7 @@ check which kind an entry is before picking it up:
 
 1. **Ordinary backlog items** — verified, small, and just waiting for time.
 2. **Items carrying a ruling** — the user decided something on 2026-08-10 and the entry records the
-   decision and what it changed. The plugin-state-undo entry is the clearest example: the ruling made
-   the fix much smaller than the review's first proposal, so read the ruling before the remedy.
+   decision and what it changed; read the ruling before the remedy.
 3. **Items handed to Fable for design work**, marked FOR FABLE. These are not fixes waiting to be
    typed; the *shape* is open. The drawn-bend mapping is one.
 
@@ -41,21 +40,6 @@ rest, each verified against the code, each a fix rather than a question unless m
   user successfully applied. Fix DELETES the asymmetry — run it on both supersede returns, matching
   the invariant the audio-device refusal path already upholds. `test_busy_operation_workflow.cpp`
   currently ASSERTS the drop, so the test encodes the defect and changes with it.
-- **A plugin-state undo entry is applied against whichever tone is audible.** Once playback crosses
-  into a region on another tone, the entry's preflight fails and every later Ctrl+Z hits the same top
-  entry, so undo is dead for the rest of the session. The entry captures a tone name but uses it only
-  for the label. **RULED a bug (2026-08-10), and the ruling made the fix much smaller than first
-  proposed.** Every tone is loaded at all times — muted or bypassed rather than absent, so that tone
-  switches are seamless — which means the plugin instance the entry needs ALREADY EXISTS. The defect
-  is therefore not "the instance is missing" but simply that the entry addresses *the audible* branch
-  instead of *the branch the entry belongs to*. Put the tone ref on the edit (as the remove edit
-  already carries) and apply to that branch. No tone switching, no playhead jump, no reconciliation
-  layer, and undo stops depending on what is playing at all.
-  Two things to check before writing it: verify the always-loaded invariant in the rig code rather
-  than trusting this note, and decide whether applying to an inaudible branch should also move the
-  tone-designer SELECTION so the change is visible — that is a UI courtesy, not a correctness
-  requirement, and it must not touch what is sounding, since overriding the tone track would create a
-  second authority over that.
 - **The song-document builder writes while it validates.** Its per-arrangement loop writes the chart
   file and copies audio in the same iteration that validates, so a failure on arrangement N leaves
   N-1 rewritten and its audio copied while `song.json` still describes the old state. Its own comment
@@ -68,9 +52,10 @@ rest, each verified against the code, each a fix rather than a question unless m
   last anchor's time and disagrees with the measure-keyed lookup. Bounding a signature's measure by
   the terminal anchor in validation is the fix; deriving one from the other is precision-fragile
   exactly at a meter-change downbeat, and that yield is the signal the clamped column was wrong.
-- **`isValidGridPosition` is hand-written in three validators**, one already drifted stylistically.
-  Related: the terminal-anchor bound applies to tone regions but not to sections or automation points,
-  so a marker past the end loads and silently piles onto the song's last instant.
+- **The terminal-anchor bound applies to tone regions but not to sections or automation points**,
+  so a marker past the end loads and silently piles onto the song's last instant. (The three
+  hand-written copies of `isValidGridPosition` this entry originally led with are gone — every
+  validator now calls the one authority.)
 - **The measure-keyed signature lookup linearly rescans** the authored list, contradicting the class's
   documented promise that construction precomputes indices — and three callers ask it once per note.
 - **The seconds-grid check rounds before anything bounds the magnitude**, so a hostile value makes the
@@ -81,8 +66,6 @@ rest, each verified against the code, each a fix rather than a question unless m
 - **Timeline zoom persists through a 6-significant-digit formatter** while the sibling value the same
   reader parses uses an exact one for exactly this reason, so one zoom notch does not survive a
   reopen. The test picks a value that survives 6 digits, then asserts exact equality.
-- **Two sample-rate integrality epsilons, identical constants, different units** (kHz versus Hz), so
-  the settings combo and the menu-bar status already disagree about 44100.5 Hz.
 - **Save's "needs a destination first" is stated three ways** — the action silently no-ops, the
   availability predicate says Save is enabled, and the view re-implements the redirect. The deferral
   state machine already has the phase this belongs in.
@@ -215,41 +198,6 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   present tense before it exists. `multi_tone_rack.cpp` failure paths can leave a plugin in the rack
   tree but absent from `branch.chain` (error-path only, PLAUSIBLE whether reachable).
 
-### Eight latent three-platform CI breakers of one shape
-
-Found by a verification sweep on 2026-08-10, after this exact shape bit the editor-UI work mid-task.
-A struct with a floating-point member **of its own** and a **defaulted** `operator==` compiles fine
-until something odr-uses the comparison, and then `-Wfloat-equal` + `-Werror` breaks GCC, Clang and
-clang-cl **at once, on a line nobody edited**. Adding an equality gate is the usual trigger, which is
-exactly what happened: `SignalChainViewState` had a plain `double` and a defaulted comparison nothing
-had ever used, and adding its gate would have broken all three. It was hand-written with the
-`std::is_eq` idiom instead.
-
-These eight are the same shape, currently safe only because nothing compares them — one of them,
-`ToneGainPoint`, is kept safe by a *comment in a test* saying the comparison must never run, which is
-not a mechanism:
-
-| Type | Own float members | Header |
-|---|---|---|
-| `HighwayCameraTarget` | `focus_x`, `span` | `common/core/.../highway/highway_camera.h` |
-| `HighwayCameraPose` | `x`, `y`, `z` | same |
-| `ToneGainPoint` | `seconds`, `gain` | `common/core/.../tone/tone_schedule.h` |
-| `AudioDeviceStatus` | `sample_rate_hz`, `input_latency_ms`, `output_latency_ms` | `common/audio/.../device/audio_device_status.h` |
-| `InputCalibrationPrompt` | `input_gain_db` | `editor/core/.../controller/editor_view_state.h` |
-| `EditorViewState` | `timeline_zoom_pixels_per_second` | same |
-| `InputCalibrationViewState` | `input_gain_db` | `editor/core/.../input_calibration/input_calibration_view_state.h` |
-| `SongSectionView` | `seconds` | `editor/core/.../timeline/section_view_state.h` |
-
-`EditorViewState` is the one to watch hardest: it is the whole editor push payload, so it is the most
-likely thing anyone will one day try to gate on.
-
-The fix is mechanical per type — hand-write with `std::is_eq(lhs.x <=> rhs.x)`, or delete the
-comparison outright where nothing needs it, which is what `HighwayMetrics` got earlier in this sweep.
-Doing all eight at once is better than waiting for each to fire, because each one fires as a *red CI
-run on an unrelated change*. Verify each is genuinely a struct with its own float before editing: a
-crude scan also flagged `EditorController::Impl`, where the defaulted comparisons actually belong to
-nested `AutomationLaneRow`/`ToneInsertGhost` and are safe.
-
 ### Found while fixing the audio and package findings
 
 - **`Arrangement::difficulty` is dead, and deleting it is a design call.** Nothing in the tree writes
@@ -336,64 +284,17 @@ nested `AutomationLaneRow`/`ToneInsertGhost` and are safe.
 
 ### One rule in two places, across the tree
 
-- **Five `makeIdentity` test builders for `InputDeviceIdentity` that already disagree** — two derive
-  the channel name from the index, three pin it to `"Input 1"`, and `samePhysicalInputRoute` ignores
-  the field, so one set of tests passes for the wrong reason. Sites: `test_audio_config_store.cpp:109`,
-  `test_input_calibration_workflow.cpp:16`, `test_live_input_monitor.cpp:36`,
-  `test_input_calibration_projection.cpp:21` (a byte-for-byte copy across a library boundary),
-  `test_gameplay_session.cpp:60`.
-- **Sample rate formatted two ways for the same datum** — `"44100 Hz"`
-  (`audio_device_settings_controller.cpp:40`) versus `"44kHz"` (`audio_device_status_text.cpp:39`),
-  same feature folder, plus three restatements of one 0.001 tolerance in two different units.
-- **Settings-file location policy stated four times, and one copy diverges** —
-  `audio_config_store.cpp:40-54`, `editor_settings.cpp:37-53`, `game_settings.cpp:137-147`,
-  `editor/app/main.cpp:53-60`. The game copy omits `millisecondsBeforeSaving`, which JUCE defaults to
-  3000 where the others set 0, so it silently runs a 3-second auto-save timer the others do not. The
-  `main.cpp` copy hand-rebuilds four path fields purely to find the file the store writes.
-- **Shader and texture resource names hand-enumerated in five places, three unchecked**
-  (`highway_renderer.h:43-68`, `highway_renderer.cpp:1134-1157`, `game_resources.cpp:56-84`,
-  `highway_shader_loader.cpp:39-76`, `preview_resources.cpp:67-73` with raw strings and no enum). An
-  eighth program needs five edits and the editor path would compile and render with a
-  default-constructed program.
-- **Plugin-identity JSON: 11 keys written twice** (`tone_document.cpp:129-139` writer,
-  `plugin_scan.cpp:144-156` reader) and the two halves are one round trip, so renaming a key on one
-  side silently drops the field with no error. **`InputDeviceIdentity` persistence keys likewise
-  declared twice** with identical names and values (`audio_config_store.cpp:28-31`,
-  `game_settings.cpp:32-35`) — an on-disk contract.
-- **The terminal grid position is derived by hand four times** (`rock_song_package_read.cpp:544`,
-  `tone_track_normalize.cpp:26`, `tone_track_rules.cpp:14`, `editor_controller.cpp:2439`). `TempoMap`
-  owns both halves and should expose `terminalGridPosition()`.
-- **The `Part` enum/string mapping is written four times with three different fallbacks and three
-  naming schemes** (`arrangement.cpp:6-22` and `:24-41`, `editor_controller.cpp:3893-3912`,
-  `gp_chart_builder.cpp:421-433`) — and it is the *persisted* token, so two display copies duplicate
-  persistence vocabulary.
-- **ASCII-lowercase fold written six times**, with `hasFlacExtension` and `hasVst3Extension`
-  differing only in the compared literal. One `hasExtensionIgnoringCase` in `common/core/shared/`.
-- **The product resource-deploy rule is ~35 duplicated CMake lines** in each app, already divergent,
-  both hard-coding the shared texture path under different variable names — moving that directory
-  breaks both deploys with no configure error, because the glob just matches nothing.
-- **An unnamed `1.0e-9` beside a named one** for the same "same onset" test
-  (`highway_tail.cpp:225` versus `g_highway_onset_match_epsilon`), plus four bare `1e-9` in
-  `gp_chart_builder.cpp`. `highway_renderer.cpp:212` aliases the named constant correctly — the
-  pattern the others should follow.
-- Smaller: a fourth namespace level at `project_io.h:17` against the Two-Axis Rule, where every
-  sibling in the folder is flat; a missing `<span>` include at `engine_tone_automation.cpp:216`;
-  three spellings for a `.cpp` including its own header (192 / 10 / 1); duplicated test helpers
-  (`getPlayPauseButton`, `getStopButton`, and three copies of `getIndexOfDevice`); `tab_view.h:30-97`
-  restating four shared paint-core rules in prose whose implementations are one-line delegates; a
-  `get` prefix on a pure derivation at `project_handlers.cpp:75`.
+Most of what this section recorded was unified on the `code-review` branch (sixteen rules in
+`1c2ec398` and its follow-ups) or in the 2026-08-10 verification pass that followed it. What
+remains:
+
+- **Four bare `1e-9` onset epsilons in `gp_chart_builder.cpp`** that should alias the named
+  constant the way `highway_renderer.cpp` does.
+- Smaller: two remaining copies of `getIndexOfDevice`
+  (`test_audio_device_settings.cpp`, `test_engine.cpp`).
 - Structural: `TempoMap` has no validator of its own, so its rule set lives only in the *package*
   feature while the header documents its constructor as taking "already validated" input with nothing
   to call. Not yet a duplication, but it is the shape that becomes one.
-
-### Left over from the conventions pass
-
-- **Comment lines past 100 columns: the check is written and correct but parked** in the convention
-  checker's `PENDING_CHECKS`, because the tree carries **180 pre-existing violations across 81
-  files**. `python scripts/verify-project-conventions.py --pending` prints the full inventory.
-  **NEEDS A RULING: do the 81-file rewrap and flip one line to enable it, or drop the check.** It
-  cannot be enabled as-is — it would fail every commit in the repo. Note this overlaps the 33 sites
-  the documentation audit found independently.
 
 ### Documentation claims that are wrong
 

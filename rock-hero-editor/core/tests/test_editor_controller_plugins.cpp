@@ -2043,6 +2043,7 @@ TEST_CASE("EditorController offers undo for a pending plugin edit", "[core][edit
             .before = pluginStateFromEntry(pluginEntry("instance-a", 0, 0)),
             .after = pluginStateFromEntry(pluginEntry("instance-a", 0, 1)),
             .label_hint = "Gateway",
+            .tone_document_ref = std::string{g_tone_document_ref},
         });
 
     const EditorViewState* pending_view = stateOrNull(view.last_state);
@@ -2070,6 +2071,8 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
     };
     FakeEditorView view;
     controller.attachView(view);
+    project_services.next_song = makeSong(
+        std::filesystem::path{"song.wav"}, loadedTimelineRange(), std::string{g_tone_document_ref});
     REQUIRE(loadCalibratedArrangement(
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
     plugin_host.next_instance_id = "instance-a";
@@ -2088,6 +2091,7 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
             .before = before_state,
             .after = after_state,
             .label_hint = "Gateway",
+            .tone_document_ref = std::string{g_tone_document_ref},
         });
 
     plugin_host.flushPendingPluginEdits();
@@ -2114,8 +2118,70 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
     CHECK(plugin_host.last_set_state == std::optional{after_state});
 }
 
-// The action gate settles pending plugin edits before deciding whether Undo is available.
-TEST_CASE("EditorController flushes plugin edits before undo", "[core][editor-controller]")
+// A gesture can settle after the active tone has moved on; the entry names the tone that OWNS the
+// instance — resolved from the ref the host stamped — never whichever tone is active. Undo then
+// applies through the host regardless of what is on screen or audible, because every tone's chain
+// stays loaded.
+TEST_CASE(
+    "EditorController labels a plugin state edit with its owning tone", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    constexpr const char* other_tone_ref = "tones/1c56a1de-0f00-4a00-8b00-1234567890ab/tone.json";
+    common::core::Song song = makeSong(
+        std::filesystem::path{"song.wav"}, loadedTimelineRange(), std::string{g_tone_document_ref});
+    song.arrangements.front().tones.push_back(
+        common::core::Tone{.tone_document_ref = other_tone_ref, .name = "Crunch"});
+    project_services.next_song = std::move(song);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+
+    const common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
+    common::audio::PluginChainEntry after_entry = before_entry;
+    after_entry.name = "Gateway Crunch Preset";
+    plugin_host.queuePendingPluginStateEdit(
+        common::audio::PluginStateEdit{
+            .instance_id = "instance-a",
+            .before = pluginStateFromEntry(before_entry),
+            .after = pluginStateFromEntry(after_entry),
+            .label_hint = "Gateway",
+            .tone_document_ref = other_tone_ref,
+        });
+
+    plugin_host.flushPendingPluginEdits();
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    CHECK(
+        edited_state->undo_label == std::optional<std::string>{"Edit Gateway on Crunch (slot 1)"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.set_state_call_count == 1);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+}
+
+// An edit that settles with no owning ref means its instance already left the rack: there is
+// nothing the entry could ever address again, so it never enters history.
+TEST_CASE(
+    "EditorController drops a plugin state edit with no owning tone", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -2136,6 +2202,47 @@ TEST_CASE("EditorController flushes plugin edits before undo", "[core][editor-co
     controller.attachView(view);
     REQUIRE(loadCalibratedArrangement(
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    plugin_host.queuePendingPluginStateEdit(
+        common::audio::PluginStateEdit{
+            .instance_id = "instance-gone",
+            .before = pluginStateFromEntry(pluginEntry("instance-gone", 0, 0)),
+            .after = pluginStateFromEntry(pluginEntry("instance-gone", 0, 1)),
+            .label_hint = "Gateway",
+            .tone_document_ref = {},
+        });
+
+    plugin_host.flushPendingPluginEdits();
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->undo_enabled);
+}
+
+// The action gate settles pending plugin edits before deciding whether Undo is available.
+TEST_CASE("EditorController flushes plugin edits before undo", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    project_services.next_song = makeSong(
+        std::filesystem::path{"song.wav"}, loadedTimelineRange(), std::string{g_tone_document_ref});
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
     plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
     const common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
@@ -2149,6 +2256,7 @@ TEST_CASE("EditorController flushes plugin edits before undo", "[core][editor-co
             .before = before_state,
             .after = after_state,
             .label_hint = "Gateway",
+            .tone_document_ref = std::string{g_tone_document_ref},
         });
 
     controller.onUndoRequested();
@@ -2199,6 +2307,7 @@ TEST_CASE("EditorController routes plugin window undo", "[core][editor-controlle
             .before = before_state,
             .after = after_state,
             .label_hint = "Gateway",
+            .tone_document_ref = std::string{g_tone_document_ref},
         });
 
     plugin_host.notifyPluginWindowUndoRequested();

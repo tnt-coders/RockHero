@@ -464,6 +464,18 @@ private:
     [[nodiscard]] std::expected<void, LiveRigError> ensureKnownPluginForIdentity(
         const PluginIdentity& identity);
 
+    // One resolved rack plugin: the branch that owns it, and the plugin itself. Both null when the
+    // instance is in no branch.
+    struct RackPluginLocation
+    {
+        const ToneRackBranch* branch{nullptr};
+        tracktion::Plugin* plugin{nullptr};
+    };
+
+    // Finds a plugin instance and its owning branch across every rack branch, audible or not. The
+    // one authority for instance lookup; findInstrumentPluginInstance is its plugin-only view.
+    [[nodiscard]] RackPluginLocation locateRackPlugin(const std::string& instance_id) const;
+
     // Finds a loaded instrument-chain plugin by the opaque instance ID returned to callers.
     [[nodiscard]] tracktion::Plugin* findInstrumentPluginInstance(
         const std::string& instance_id) const;

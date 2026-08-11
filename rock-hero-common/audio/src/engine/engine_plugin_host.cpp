@@ -540,11 +540,12 @@ std::expected<void, LiveRigError> Engine::Impl::ensureKnownPluginForIdentity(
 
 // Searches every tone branch, not just the audible one: undo restores and open plugin windows
 // may target plugins from tones that are no longer selected.
-tracktion::Plugin* Engine::Impl::findInstrumentPluginInstance(const std::string& instance_id) const
+Engine::Impl::RackPluginLocation Engine::Impl::locateRackPlugin(
+    const std::string& instance_id) const
 {
     if (!m_tone_rack.has_value())
     {
-        return nullptr;
+        return {};
     }
 
     const juce::String target_id{instance_id};
@@ -554,12 +555,17 @@ tracktion::Plugin* Engine::Impl::findInstrumentPluginInstance(const std::string&
         {
             if (plugin != nullptr && plugin->itemID.toString() == target_id)
             {
-                return plugin.get();
+                return RackPluginLocation{.branch = &branch, .plugin = plugin.get()};
             }
         }
     }
 
-    return nullptr;
+    return {};
+}
+
+tracktion::Plugin* Engine::Impl::findInstrumentPluginInstance(const std::string& instance_id) const
+{
+    return locateRackPlugin(instance_id).plugin;
 }
 
 void Engine::Impl::commitPluginRemoval(tracktion::Plugin& plugin) const
@@ -631,6 +637,15 @@ void Engine::Impl::emitPluginStateEdit(PluginStateEdit edit)
     if (shouldDeferPluginUndoCapture())
     {
         return;
+    }
+
+    // Stamp the owning branch from the rack authority, so the consumer addresses the tone the
+    // edit belongs to rather than whichever tone is audible when it is applied. Left empty when
+    // the instance has already left the rack, which the consumer treats as stale.
+    if (const ToneRackBranch* const branch = locateRackPlugin(edit.instance_id).branch;
+        branch != nullptr)
+    {
+        edit.tone_document_ref = branch->tone_document_ref;
     }
 
     if (m_plugin_state_edit_observer.edit_completed)

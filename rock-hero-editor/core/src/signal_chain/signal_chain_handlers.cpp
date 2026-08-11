@@ -218,7 +218,11 @@ void EditorController::Impl::onPluginEditPendingChanged(bool pending)
 // Commits one settled host processor-wide state edit into product-level undo history.
 void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginStateEdit edit)
 {
-    if (!hasActiveSignalChain() || !m_signal_chain.containsInstance(edit.instance_id))
+    // The host stamps the owning branch when the edit settles; empty means the instance already
+    // left the rack, so nothing the entry could address exists. The visible chain is deliberately
+    // NOT consulted: the edit belongs to its own tone, which need not be the one on screen or
+    // audible — a knob settling after playback crossed onto another tone is still a real edit.
+    if (edit.tone_document_ref.empty())
     {
         RH_LOG_INFO(
             "editor.controller",
@@ -243,7 +247,11 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
         edit.label_hint);
     auto undo_edit = std::make_unique<PluginStateEdit>();
     undo_edit->instance_id = std::move(edit.instance_id);
-    undo_edit->tone_name = activeToneName();
+    // The OWNING tone's name, resolved from the ref the host stamped — the active tone can have
+    // moved between the gesture and its settling, and the label must not lie about whose knob
+    // turned. The chain index resolves only while that tone's chain is the visible one, which is
+    // exactly the slot's documented best-effort contract.
+    undo_edit->tone_name = toneNameForRef(edit.tone_document_ref);
     undo_edit->chain_index = m_signal_chain.chainIndexForInstance(undo_edit->instance_id);
     undo_edit->before_state = std::move(edit.before);
     undo_edit->after_state = std::move(edit.after);
