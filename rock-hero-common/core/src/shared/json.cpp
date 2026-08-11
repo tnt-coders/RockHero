@@ -1,5 +1,6 @@
 #include "shared/json.h"
 
+#include <cmath>
 #include <format>
 #include <string>
 #include <utility>
@@ -45,12 +46,14 @@ juce::var Json::makeString(const std::string& text)
 // Round-trip-exact by construction: `std::format`'s default floating-point form is the shortest
 // text that recovers the same double, so no caller has to pick a precision and none can pick one
 // that silently rounds. A value with no '.' and no exponent would read back as an integer, so an
-// integral double keeps its ".0"; a non-finite value is validation's business (see the header) and
-// simply passes through the same test.
+// integral double keeps its ".0". A non-finite value is validation's business (see the header);
+// the finite gate below only keeps "inf"/"nan" from being mangled into "inf.0", so what leaks
+// through is at least the recognizable token.
 std::string Json::numberText(double value)
 {
     std::string text = std::format("{}", value);
-    if (text.find('.') == std::string::npos && text.find('e') == std::string::npos)
+    if (std::isfinite(value) && text.find('.') == std::string::npos &&
+        text.find('e') == std::string::npos)
     {
         text += ".0";
     }

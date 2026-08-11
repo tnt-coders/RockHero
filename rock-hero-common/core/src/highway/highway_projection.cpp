@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <utility>
 
@@ -37,10 +38,7 @@ HighwayViewState makeHighwayViewState(
         // Upper-cased here, once per projection, because the board draws every section name that
         // way and doing it in the renderer meant a fresh allocation and transform per visible
         // section per frame for a value that only changes when the chart does.
-        std::string name = section.name;
-        std::ranges::transform(name, name.begin(), [](const char character) {
-            return static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
-        });
+        std::string name = asciiUppered(section.name);
         state.sections.push_back(
             HighwaySectionView{
                 .seconds = tempo_map.secondsAtGlobalBeatPosition(
@@ -84,17 +82,26 @@ HighwayViewState makeHighwayViewState(
         bool unpitched{false};
     };
     std::map<GridPosition, SlideRamp> slide_ramp_starts;
-    state.notes.reserve(chart.notes.size());
+    // The projection reads the SAVED stream throughout. A pick slide overrides its other
+    // techniques in memory (chart.h) and the display must show the scrape without them — which is
+    // exactly the SAVED form, so the projection takes savedChartNote rather than restating which
+    // fields a scrape suppresses; stating that list twice is how the board and the document drift
+    // apart. Projected ONCE, up front, because chartEffectiveSustains states saved form as its
+    // precondition too: fed the in-memory stream, a latent full mute chokes an onset group the
+    // saved chart holds. What stays local is how a scrape RENDERS: through the unpitched
+    // machinery (dimmed glide, no waypoint furniture, no hand-window contribution) and never
+    // feeding the slide-locked ramps.
+    std::vector<ChartNote> saved_notes;
+    saved_notes.reserve(chart.notes.size());
     for (const ChartNote& in_memory_note : chart.notes)
     {
-        const double onset_beat = globalBeatPosition(tempo_map, in_memory_note.position);
-        // A pick slide overrides its other techniques in memory (chart.h) and the display must
-        // show the scrape without them — which is exactly the SAVED form, so the projection
-        // reads savedChartNote rather than restating which fields a scrape suppresses. Stating
-        // that list twice is how the board and the document drift apart. What stays local is how
-        // the path RENDERS: through the unpitched machinery (dimmed glide, no waypoint
-        // furniture, no hand-window contribution) and never feeding the slide-locked ramps.
-        const ChartNote note = savedChartNote(in_memory_note);
+        saved_notes.push_back(savedChartNote(in_memory_note));
+    }
+
+    state.notes.reserve(saved_notes.size());
+    for (const ChartNote& note : saved_notes)
+    {
+        const double onset_beat = globalBeatPosition(tempo_map, note.position);
         const bool scrape = note.attack == NoteAttack::PickSlide;
         HighwayNoteView view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
@@ -194,11 +201,11 @@ HighwayViewState makeHighwayViewState(
     // Display hold ends, resolved from the one effective-sustain authority rather than recomputed
     // in seconds. The loop above pushes exactly one view per chart note, so the indices line up.
     const std::vector<Fraction> effective_sustains =
-        chartEffectiveSustains(chart.notes, chart.shapes, tempo_map);
-    state.display_hold_ends.reserve(chart.notes.size());
-    for (std::size_t index = 0; index < chart.notes.size(); ++index)
+        chartEffectiveSustains(saved_notes, chart.shapes, tempo_map);
+    state.display_hold_ends.reserve(saved_notes.size());
+    for (std::size_t index = 0; index < saved_notes.size(); ++index)
     {
-        const double onset_beat = globalBeatPosition(tempo_map, chart.notes[index].position);
+        const double onset_beat = globalBeatPosition(tempo_map, saved_notes[index].position);
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + effective_sustains[index].toDouble()));
     }

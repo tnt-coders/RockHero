@@ -209,9 +209,12 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         // The hand cannot sit below the capo (the window's index-finger fret starts above it, which
         // subsumes the fret-1 floor for every capo), and the WHOLE window must fit on the neck —
         // bounding only its index finger let a wide hand run off the end, which is the very thing
-        // the node's neck ceiling exists to prevent for a harmonic.
-        if (fhp.fret <= chart.tuning.capo || fhp.width < 1 ||
-            fhp.fret + fhp.width - 1 > g_max_fret || !isValidGridPosition(fhp.position, tempo_map))
+        // the node's neck ceiling exists to prevent for a harmonic. The individual bounds run
+        // before the window sum so junk input cannot overflow it: with both operands already inside
+        // [1, g_max_fret], the sum stays far from the integer edge.
+        if (fhp.fret <= chart.tuning.capo || fhp.width < 1 || fhp.fret > g_max_fret ||
+            fhp.width > g_max_fret || fhp.fret + fhp.width - 1 > g_max_fret ||
+            !isValidGridPosition(fhp.position, tempo_map))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,

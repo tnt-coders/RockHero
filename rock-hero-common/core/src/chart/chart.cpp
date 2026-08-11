@@ -7,7 +7,10 @@ namespace rock_hero::common::core
 
 int fretFor(const ChartNote& note)
 {
-    if (frettingFingerOnNode(note))
+    // The has_value() guard is implied by the predicate but spelled out anyway: the CI-only
+    // optional-access checker cannot see through a wrapper (chart.h documents the pattern), so the
+    // dereference stays visibly paired with its own check.
+    if (note.harmonic_node.has_value() && frettingFingerOnNode(note))
     {
         return static_cast<int>(std::ceil(*note.harmonic_node));
     }

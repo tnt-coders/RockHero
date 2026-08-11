@@ -900,6 +900,19 @@ std::expected<void, ArchiveError> writeWorkspaceToArchive(
                         output_stream.getStatus().getErrorMessage().toStdString(),
                 }};
             }
+            // JUCE opens for APPEND, and the best-effort remove above may have failed (a scanner
+            // can hold a crashed save's survivor open), so a stale staging file would otherwise
+            // prefix this archive with garbage that survives the rename. Truncating makes the
+            // staging content this save's alone in every case where the open succeeded.
+            output_stream.setPosition(0);
+            if (const juce::Result truncated = output_stream.truncate(); truncated.failed())
+            {
+                return std::unexpected{ArchiveError{
+                    ArchiveErrorCode::OpenForWritingFailed,
+                    "Could not reset the staging archive: " +
+                        truncated.getErrorMessage().toStdString(),
+                }};
+            }
             if (!archive_builder.writeToStream(output_stream, nullptr))
             {
                 return std::unexpected{ArchiveError{

@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -24,6 +23,7 @@
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -75,13 +75,7 @@ namespace
 // Normalizes ZIP entry names for safety checks and duplicate detection.
 [[nodiscard]] std::string normalizedZipEntryName(std::string_view entry_name)
 {
-    std::string normalized = zipEntryPathName(entry_name);
-    for (char& character : normalized)
-    {
-        character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
-    }
-
-    return normalized;
+    return asciiLowered(zipEntryPathName(entry_name));
 }
 
 // Rejects ZIP entry names that could escape or ambiguously address the workspace directory. This

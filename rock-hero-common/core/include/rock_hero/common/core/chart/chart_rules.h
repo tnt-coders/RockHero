@@ -148,10 +148,10 @@ notes instead of one strummed box. A posture string that is merely silent at the
 strum of the shape) does not make an arpeggio.
 
 Answers all the shapes at once because the rule needs to look BACKWARD — to each posture string's
-most recent earlier note — and one forward cursor over the sorted notes carries exactly that, for
-every span, in a single pass. Asked one span at a time it instead walked back from each span, as far
-as the first note in the song whenever a posture string had none, which both projections then paid
-for every shape on every chart revision.
+most recent earlier note — and one forward cursor over the sorted notes carries exactly that with
+no walking back. The remaining per-shape scans stay local to each span; what this batching removed
+is the unbounded backward walk, which reached the first note in the song whenever a posture string
+had none and which both projections then paid for every shape on every chart revision.
 
 \param chart Chart holding the sorted note stream, shape spans, and template table.
 \param tempo_map Song tempo map, for signature-exact sustain-crossing checks.

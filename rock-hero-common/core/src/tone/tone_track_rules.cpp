@@ -1,5 +1,6 @@
 #include "tone/tone_track_rules.h"
 
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
@@ -37,11 +38,9 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
 
         for (const GridPosition& endpoint : {region.start, region.end})
         {
-            // The endpoint must name a real beat in its measure, and any sub-beat offset must be a
-            // proper fraction of that beat (in [0, 1)) so it stays inside the addressed beat span.
-            if (endpoint.measure < 1 || endpoint.beat < 1 ||
-                endpoint.beat > tempo_map.beatsPerMeasureAt(endpoint.measure) ||
-                endpoint.offset < Fraction{0, 1} || !(endpoint.offset < Fraction{1, 1}))
+            // The endpoint must name a real sub-beat position — the same rule the chart applies,
+            // asked of the one authority rather than restated here.
+            if (!isValidGridPosition(endpoint, tempo_map))
             {
                 return std::unexpected{ToneTrackError{
                     .code = ToneTrackErrorCode::InvalidEndpoint,

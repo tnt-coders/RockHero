@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <optional>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -36,7 +37,7 @@ namespace
             pending_space = false;
         }
 
-        normalized.push_back(static_cast<char>(std::tolower(byte)));
+        normalized.push_back(common::core::asciiLower(character));
     }
 
     return normalized;

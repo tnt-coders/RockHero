@@ -42,6 +42,22 @@ itself from the enum instead of repeating a literal count that a new part would 
 */
 inline constexpr std::array g_parts{Part::Lead, Part::Rhythm, Part::Bass};
 
+// Callers index per-part tallies with static_cast<std::size_t>(part), so the list must hold every
+// enumerator at the slot its value names; this turns forgetting a new part here into a compile
+// error at the point of truth instead of an out-of-bounds read at a call site.
+static_assert(
+    []() consteval {
+        for (std::size_t index = 0; index < g_parts.size(); ++index)
+        {
+            if (g_parts.at(index) != static_cast<Part>(index))
+            {
+                return false;
+            }
+        }
+        return true;
+    }(),
+    "g_parts must list every Part at the index its enumerator value names");
+
 /*!
 \brief Returns the stable song-document token for a guitar part.
 

@@ -23,6 +23,8 @@ namespace rock_hero::common::core
 The shape every seconds-resolved view state shares, and the whole of what the search below needs.
 It requires the end as well as the onset because the two are only meaningful together here: the
 onset orders the events, and the prefix maximum of the ends is what bounds the range's start.
+
+\tparam Event Seconds-resolved event type exposing `start_seconds` and `end_seconds`.
 */
 template <typename Event>
 concept SustainedEvent = requires(const Event& event) {

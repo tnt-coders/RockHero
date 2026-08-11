@@ -80,19 +80,31 @@ namespace
     // A chart means exactly what it says, so a property that is PRESENT but of the wrong JSON type
     // is malformed rather than absent. The lenient readers below are built for draft metadata,
     // where a fallback beats a refusal; on a note a fallback silently changes the music — a numeric
-    // "attack" read as a plain pick, `"sustain": 2` read as no tail at all — and the note then
-    // validates clean, so nothing downstream can notice.
-    for (const std::string_view key : {"string", "fret", "sustain", "attack", "mute"})
+    // "attack" read as a plain pick, `"sustain": 2` read as no tail at all, `"vibrato": 1` read as
+    // no vibrato — and the note then validates clean, so nothing downstream can notice. Every
+    // scalar note property has a row, so a reader added below needs its row here; the nested bend,
+    // slide, and slide-out objects check their own shapes in place, and a wrong-typed fret inside
+    // them reads as -1, which validation refuses loudly rather than silently.
+    struct ScalarRule
+    {
+        std::string_view key;
+        bool (*matches)(const juce::var&);
+    };
+    constexpr ScalarRule scalar_rules[]{
+        {"string", [](const juce::var& v) { return v.isInt(); }},
+        {"fret", [](const juce::var& v) { return v.isInt(); }},
+        {"sustain", [](const juce::var& v) { return v.isString(); }},
+        {"attack", [](const juce::var& v) { return v.isString(); }},
+        {"mute", [](const juce::var& v) { return v.isString(); }},
+        {"harmonicNode", [](const juce::var& v) { return v.isDouble() || v.isInt(); }},
+        {"vibrato", [](const juce::var& v) { return v.isBool(); }},
+        {"tremolo", [](const juce::var& v) { return v.isBool(); }},
+        {"accent", [](const juce::var& v) { return v.isBool(); }},
+    };
+    for (const auto& [key, matches] : scalar_rules)
     {
         const juce::var& property = Json::value(note_json, key);
-        if (property.isVoid())
-        {
-            continue;
-        }
-        const bool expected_type = key == "sustain" || key == "attack" || key == "mute"
-                                       ? property.isString()
-                                       : property.isInt();
-        if (!expected_type)
+        if (!property.isVoid() && !matches(property))
         {
             return std::unexpected{malformed(
                 "chart note \"" + std::string{key} + "\" has the wrong type")};
@@ -103,7 +115,7 @@ namespace
     note.position = *position;
     note.string = Json::readOptionalInt(note_json, "string", 0);
     note.fret = Json::readOptionalInt(note_json, "fret", -1);
-    if (Json::value(note_json, "sustain").isString())
+    if (!Json::value(note_json, "sustain").isVoid())
     {
         auto sustain = readFraction(note_json, "sustain");
         if (!sustain.has_value())
