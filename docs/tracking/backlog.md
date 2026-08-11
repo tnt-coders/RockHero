@@ -294,8 +294,9 @@ nested `AutomationLaneRow`/`ToneInsertGhost` and are safe.
   has no pitch axis; 3D places it on the pitch axis. That difference is a property of the two
   surfaces, not a disagreement between them — an earlier read of this finding got that wrong. Also
   ties into the parked `docs/plans/todo/2d-bend-waypoint-redesign.md`.
-- **The windowing authority the project owns is applied to notes only.** `highwayVisibleNoteRange`
-  is used at `highway_renderer.cpp:2008` and `:4763`, but beats, fret-hand positions, tap onsets, and
+- **The windowing authority the project owns is applied to notes only.** `visibleEventRange`
+  is used at two note sites in `highway_renderer.cpp` (the highway-named forwarders were deleted
+  2026-08-10, so the shared authority is now called directly), but beats, fret-hand positions, tap onsets, and
   shapes are scanned full-song every frame (`:1892`, `:2926`, `:1394`, `:1611`, `:2977`, `:1483`,
   `:1794`, `:1939`, `:2451`, `:4354`, `:4558`). Worst is `windowSampleTimes` (`:491-532`), called per
   shape rail and per window-following tail, each call allocating and walking every placement in the
@@ -323,13 +324,6 @@ nested `AutomationLaneRow`/`ToneInsertGhost` and are safe.
 
 ### Editor UI
 
-- **`sameCaretMask` is 30 hand-rolled lines built on a premise the tree disproves.**
-  `timeline_cursor.cpp:109-124` says `juce::Range`'s own `operator==` would trip `-Wfloat-equal`, but
-  `track_viewport.cpp:107` compares `std::optional<juce::Range<float>>` with plain `==` and has been
-  green through CI since 2026-07-19. Either the premise is wrong and ~35 lines delete, or it is right
-  and that line is a latent three-platform break MSVC cannot see. **Resolve this one deliberately** —
-  it sits exactly on a known CI blind spot, and the likely answer is that the comparison lives inside
-  a JUCE header compiled as external, which suppresses the warning.
 - **~30 color literals outside the theme seam** (full census in the review), and the theme has **no
   font or size roles at all**, so every font height in `ui/` is a literal by construction — that one
   is a decision, not a sweep.

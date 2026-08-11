@@ -142,7 +142,9 @@ the options with the agent's recommendation.
 
 - [ ] **W9-A — Is a span-held strum notation, or a 3D affordance?** The rule that a sustainless note
   in a two-or-more onset group under a hand-shape span is held for the whole span is implemented for
-  the highway (`highwayDisplayHoldEnds`) and NOT for the 2D lane, which draws bare heads with
+  the highway (`chartEffectiveSustains`, resolved into `HighwayViewState::display_hold_ends` — it was
+  a separate seconds-space `highwayDisplayHoldEnds` when this was written, and the two copies were
+  merged 2026-08-10) and NOT for the 2D lane, which draws bare heads with
   zero-width tails for the same chart. The walkthrough calls it "the chart convention", so the
   omission looks like a gap rather than a choice — but fixing it the obvious way makes a THIRD
   implementation of one rule. Options: (a) one shared display helper both view states feed from
@@ -460,7 +462,7 @@ the options with the agent's recommendation.
      and Option C's derivation refuses exactly this case, so import must not create what the
      verb would refuse.
   7. **The span-blind hold rule is a confirmed bug in D13's implementation, to fix.** The chart
-     convention (verified: `highway_view_state.h` `highwayDisplayHoldEnds`, honored by
+     convention (verified: `grid_arithmetic.cpp` `chartEffectiveSustains`, honored by
      `planAdjustSustain`'s `shares_span`) is that a sustainless note in a same-onset group of
      TWO OR MORE covered by a hand-shape span is held to the SPAN's end — the span is what tells
      the player how long to keep the shape fretted. `validateChartNotes` receives no shapes, so
