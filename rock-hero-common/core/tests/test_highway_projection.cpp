@@ -1199,6 +1199,29 @@ namespace
 
 } // namespace
 
+// A tapped harmonic's light rides the NODE path: each waypoint station asks the drawn sounding
+// position exactly like the onset seed, so a glide from fret 5 to 9 under a node at 17 walks the
+// light 17 -> 21 — never 17 -> 9, the stop path the head does not draw.
+TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][highway]")
+{
+    HighwayNoteView note;
+    note.start_seconds = 1.0;
+    note.end_seconds = 2.0;
+    note.string = 1;
+    note.fret = 5;
+    note.attack = NoteAttack::Tap;
+    note.harmonic_node = 17.0;
+    note.slides = {HighwaySlideView{.seconds = 2.0, .fret = 9, .unpitched = false}};
+
+    const std::vector<HighwayNoteView> notes{note};
+    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes, {0.0});
+
+    REQUIRE(onsets.size() == 1);
+    REQUIRE_FALSE(onsets[0].path.empty());
+    CHECK(onsets[0].path.front().fret_low == Catch::Approx(17.0));
+    CHECK(onsets[0].path.back().fret_low == Catch::Approx(21.0));
+}
+
 // Membership and the per-group facts: contiguous same-onset notes form one group, right-hand
 // onsets stay out of the fretting-hand count, disagreeing mutes collapse to None, and each note
 // indexes its own group.

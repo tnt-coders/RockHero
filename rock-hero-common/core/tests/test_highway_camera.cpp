@@ -149,6 +149,34 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     CHECK(makeHighwayCameraTarget(windowed_state, 1.5, metrics).span == Catch::Approx(4.0));
 }
 
+// An OPEN-STRING tap harmonic has no stop, but its node is the note's only position — the light
+// and the head both draw there — so the node must reframe even though an open string's stop never
+// does. The node widening therefore runs BEFORE the open-string skip: skipping first left the one
+// note the tap light was built for entirely off screen.
+TEST_CASE(
+    "Highway camera frames an open-string tap harmonic at its node", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+    HighwayViewState state = makeStateWithFhps({
+        HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4}, // hand window fret lines 4..8
+    });
+    state.camera_zone_starts = {0.0, 4.0};
+    state.notes.push_back(
+        HighwayNoteView{
+            .start_seconds = 1.0,
+            .end_seconds = 1.0,
+            .fret = 0,
+            .attack = NoteAttack::Tap,
+            .harmonic_node = 12.0,
+            .bend = {},
+            .slides = {},
+        });
+
+    // The frame reaches the node: lines 4..8 widen to 12 (span 8), where a plain open string
+    // would leave the window's own span 4.
+    CHECK(makeHighwayCameraTarget(state, 1.0, metrics).span == Catch::Approx(8.0));
+}
+
 // An empty zone list is one unbounded zone, not a special case: the camera has a single scan
 // path with no seconds-window fallback. This pins the contract that makes that safe — in
 // production zones are empty only when the arrangement has no chart, and a state with no chart

@@ -331,6 +331,32 @@ TEST_CASE("Rock song package archive round-trips native song data", "[core][rock
         extracted_directory / "audio/source.flac");
 }
 
+// A crashed save's staging survivor must not poison the next save: JUCE's output stream opens for
+// APPEND, so stale bytes surviving the best-effort remove would prefix the new archive and be
+// renamed over the good package. (The remove-fails-then-releases race itself cannot be staged
+// deterministically from one process — a handle held for the WHOLE save correctly fails the final
+// rename instead — so this pins the contract on the reachable half while the truncate guards the
+// race by construction.)
+TEST_CASE("Rock song package save overwrites a stale staging survivor", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_archive = temporary_directory.path() / "song.rock";
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    {
+        std::ofstream stale{temporary_directory.path() / "song.rock.saving", std::ios::binary};
+        stale << "not a zip archive";
+    }
+
+    REQUIRE(writeRockSongPackage(package_archive, package_directory, makeSong(source_audio))
+                .has_value());
+
+    const std::filesystem::path extracted_directory = temporary_directory.path() / "extracted";
+    CHECK(readRockSongPackage(package_archive, extracted_directory).has_value());
+}
+
 // Verifies empty arrangement IDs are generated as canonical UUIDv4 package IDs.
 TEST_CASE("Rock song package directory generates arrangement IDs", "[core][rock-song-package]")
 {

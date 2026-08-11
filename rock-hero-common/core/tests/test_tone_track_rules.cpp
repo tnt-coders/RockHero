@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <string>
 
@@ -107,6 +109,31 @@ TEST_CASE("Tone track rules reject invalid beats and ids and refs", "[core][tone
     result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::InvalidToneDocumentRef);
+}
+
+// The range guard is written as ranges the value must be INSIDE because every comparison against
+// NaN is false: the excursion form accepted NaN, and the writer then emitted the bare token nan,
+// which bricked song.json. This validator is the only thing between a captured point and the file.
+TEST_CASE("Tone automation refuses non-finite point values", "[core][tone]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    ToneParameterAutomation automation{
+        .plugin_id = "plugin",
+        .param_id = "param",
+        .points = {ToneAutomationPoint{
+            .position = {.measure = 1, .beat = 1},
+            .norm_value = 0.5F,
+            .curve_shape = 0.0F,
+        }},
+    };
+    CHECK(isValidToneParameterAutomation(automation, tempo_map));
+
+    automation.points.front().norm_value = std::numeric_limits<float>::quiet_NaN();
+    CHECK_FALSE(isValidToneParameterAutomation(automation, tempo_map));
+
+    automation.points.front().norm_value = 0.5F;
+    automation.points.front().curve_shape = std::numeric_limits<float>::quiet_NaN();
+    CHECK_FALSE(isValidToneParameterAutomation(automation, tempo_map));
 }
 
 } // namespace rock_hero::common::core
