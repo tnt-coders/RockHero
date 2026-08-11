@@ -37,6 +37,9 @@ finalize step, see the plan/apply split in \ref guide_patterns),
 - Capture the before-state **before** mutating, and push exactly one entry per user gesture.
   Bursts that *are* one gesture (multi-digit fret typing, wheel ticks) widen the just-pushed
   entry via `EditorUndoHistory::replaceTop` inside a time window instead of stacking entries.
+  A toggle whose second press provably reverses its own first press (the legato toggle window)
+  applies the entry's inverse and removes it via `EditorUndoHistory::dropTop`, so the pair
+  leaves no trace; both splices refuse when the top entry is the reachable clean state.
 - Plugin edits store the **full opaque plugin state** (`PluginInstanceState`, raw
   `getStateInformation` bytes) — granular parameter replay was rejected by decision; full-state
   restore is the fidelity guarantee.

@@ -124,6 +124,44 @@ void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_o
     return common::core::frettingFingerOnNode(note) != common::core::frettingFingerOnNode(retyped);
 }
 
+// How far this note's tail may GROW, in beats — the minimum-sustain-distance rule: an extension
+// must end at least the shared margin BEFORE the next onset on ANY string, so growth can never
+// crowd another note. Same-onset chord members sit at equal positions and never block each
+// other, and notes under a shared shape span are implied-held across each other's onsets (§5),
+// so span siblings never block either — the first later onset outside every shared span binds.
+// One authority for every verb that grows a tail (the duration verb's clamp, the legato assist's
+// reachability pre-check), so what an assist may author and what a manual drag may reach can
+// never disagree. Nullopt when nothing later blocks at all.
+[[nodiscard]] std::optional<common::core::Fraction> sustainGrowthLimit(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const common::core::ChartNote& note)
+{
+    const auto shares_span = [&chart, &tempo_map, &note](const common::core::GridPosition& other) {
+        return std::ranges::any_of(chart.shapes, [&](const common::core::ChartShape& shape) {
+            const auto covers = [&](const common::core::GridPosition& position) {
+                return !(position < shape.position) &&
+                       common::core::beatDistance(tempo_map, shape.position, position) <
+                           shape.sustain;
+            };
+            return covers(note.position) && covers(other);
+        });
+    };
+    auto blocker = std::ranges::upper_bound(
+        chart.notes, note.position, {}, &common::core::ChartNote::position);
+    while (blocker != chart.notes.end() && shares_span(blocker->position))
+    {
+        ++blocker;
+    }
+    if (blocker == chart.notes.end())
+    {
+        return std::nullopt;
+    }
+    const common::core::TimeSignatureChange signature =
+        tempo_map.timeSignatureAt(note.position.measure);
+    return common::core::beatDistance(tempo_map, note.position, blocker->position) -
+           common::core::minimumSustainDistanceBeats(signature.denominator);
+}
+
 // 40-Q2-B normalization: walking each string's sorted notes, any sustain ringing across the next
 // onset truncates to end exactly there (adjacency is legal), clipping payloads with it.
 void normalizeSustainOverlaps(
@@ -430,45 +468,17 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
             next_sustain = g_minimum_slide_window;
         }
         // The minimum-sustain-distance rule (override design deliberately open): growing a tail
-        // clamps it to end at least the shared margin BEFORE the next onset on ANY string, so
-        // extension can never crowd another note.
-        // Same-onset chord members sit at equal positions and never block each other, and
-        // notes under a shared shape span are implied-held across each other's onsets (§5),
-        // so span siblings never block either — the first later onset outside every shared
-        // span binds. The clamp binds this verb only: pre-existing closer spacing (imports,
-        // the insert truncation's exact adjacency) is left untouched, and a tail already at
-        // or past the limit refuses to grow rather than shrinking to it.
+        // clamps it to the shared growth limit, so extension can never crowd another note. The
+        // clamp binds this verb only: pre-existing closer spacing (imports, the insert
+        // truncation's exact adjacency) is left untouched, and a tail already at or past the
+        // limit refuses to grow rather than shrinking to it.
         if (beat_delta.numerator > 0)
         {
-            const auto shares_span = [&chart, &tempo_map, &note](
-                                         const common::core::GridPosition& other) {
-                return std::ranges::any_of(
-                    chart.shapes, [&](const common::core::ChartShape& shape) {
-                        const auto covers = [&](const common::core::GridPosition& position) {
-                            return !(position < shape.position) &&
-                                   common::core::beatDistance(tempo_map, shape.position, position) <
-                                       shape.sustain;
-                        };
-                        return covers(note.position) && covers(other);
-                    });
-            };
-            auto blocker = std::ranges::upper_bound(
-                chart.notes, note.position, {}, &common::core::ChartNote::position);
-            while (blocker != chart.notes.end() && shares_span(blocker->position))
+            const std::optional<common::core::Fraction> limit =
+                sustainGrowthLimit(chart, tempo_map, note);
+            if (limit.has_value() && *limit < next_sustain)
             {
-                ++blocker;
-            }
-            if (blocker != chart.notes.end())
-            {
-                const common::core::TimeSignatureChange signature =
-                    tempo_map.timeSignatureAt(note.position.measure);
-                const common::core::Fraction limit =
-                    common::core::beatDistance(tempo_map, note.position, blocker->position) -
-                    common::core::minimumSustainDistanceBeats(signature.denominator);
-                if (limit < next_sustain)
-                {
-                    next_sustain = note.sustain < limit ? limit : note.sustain;
-                }
+                next_sustain = note.sustain < *limit ? *limit : note.sustain;
             }
         }
         if (next_sustain == note.sustain)
@@ -573,11 +583,42 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         // dropped the node for, which is how pressing H on a stopped harmonic came to do nothing.
         common::core::ChartNote asked = note;
         asked.harmonic_node.reset();
-        const common::core::NoteAttack derived = common::core::derivedLegatoAttack(
+        common::core::NoteAttack derived = common::core::derivedLegatoAttack(
             asked,
             previous,
             previous == nullptr ? common::core::Fraction{} : effective_sustains[previous_index],
             tempo_map);
+        // The D14 assist: when the HOLD TEST is the only blocker — the frets would justify a
+        // direction if the predecessor were still held — the verb grows the predecessor's tail
+        // to the margin point and sets the derived legato in the same plan, so pressing H on a
+        // note across the bound authors the connection instead of demanding the drag first (the
+        // tail IS the held-ness datum; the verb writes it rather than requiring it). The re-ask
+        // under a trivially reaching hold is the only-blocker test itself: an equal fret, a
+        // missing predecessor, or a fret-hand-harmonic predecessor still refuses. Growth is
+        // pre-checked against the shared growth limit — the assist never authors what a manual
+        // drag could not — and a blocked note is skipped whole rather than partially extended.
+        if (derived == common::core::NoteAttack::Pick && previous != nullptr)
+        {
+            const common::core::Fraction distance =
+                common::core::beatDistance(tempo_map, previous->position, note.position);
+            const common::core::NoteAttack if_held =
+                common::core::derivedLegatoAttack(asked, previous, distance, tempo_map);
+            if (if_held != common::core::NoteAttack::Pick && note.attack != if_held)
+            {
+                const common::core::TimeSignatureChange signature =
+                    tempo_map.timeSignatureAt(previous->position.measure);
+                const common::core::Fraction required =
+                    distance - common::core::minimumSustainDistanceBeats(signature.denominator);
+                const std::optional<common::core::Fraction> limit =
+                    sustainGrowthLimit(chart, tempo_map, *previous);
+                if (required.numerator > 0 && !(limit.has_value() && *limit < required))
+                {
+                    candidate[previous_index].sustain = required;
+                    clipPayloadsToSustain(candidate[previous_index]);
+                    derived = if_held;
+                }
+            }
+        }
         if (derived == common::core::NoteAttack::Pick || note.attack == derived)
         {
             continue;

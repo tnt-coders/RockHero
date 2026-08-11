@@ -181,6 +181,40 @@ EditorUndoTransitionResult EditorUndoHistory::replaceTop(std::unique_ptr<IEdit> 
     };
 }
 
+EditorUndoTransitionResult EditorUndoHistory::dropTop()
+{
+    if (m_pending.has_value())
+    {
+        return nonCommitFailure(EditorUndoFailureCode::TransitionAlreadyPending);
+    }
+
+    // replaceTop's guards, for the same reasons: only the newest entry may be taken back, only
+    // while the cursor sits on it, and never while it is the reachable clean state — the saved
+    // file holds what this entry produced, so erasing it would make "return to clean" restore
+    // different content than the file holds.
+    if (m_entries.empty() || m_position != m_entries.size() ||
+        (m_clean_marker_state == CleanMarkerState::Reachable && m_clean_position == m_position))
+    {
+        return nonCommitFailure(EditorUndoFailureCode::PreflightRejected);
+    }
+
+    std::vector<EditorUndoEvent> events;
+    const std::string label = m_entries.back()->label();
+    m_entries.pop_back();
+    m_position -= 1;
+    events.push_back(
+        EditorUndoEvent{
+            .type = EditorUndoEventType::EntryDropped,
+            .label = label,
+            .direction = std::nullopt,
+        });
+
+    return EditorUndoTransitionResult{
+        .status = EditorUndoTransitionStatus::Applied,
+        .events = std::move(events),
+    };
+}
+
 EditorUndoBeginResult EditorUndoHistory::beginUndo()
 {
     EditorUndoTransitionResult result = begin(EditorUndoDirection::Undo);

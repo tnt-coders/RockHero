@@ -1985,4 +1985,106 @@ TEST_CASE("EditorController force hammer states the left-hand tap", "[core][char
     }
 }
 
+TEST_CASE("EditorController legato toggle window and the connection assist", "[core][chart]")
+{
+    // String 1 carries a bare predecessor four beats before its note — past the kept-sustain
+    // bound, so legato is underivable until the assist authors the connection; string 2 an
+    // open string for changing the selection.
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 2,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+        },
+    };
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+
+    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
+        return controller.session().currentArrangement()->chart->notes[index];
+    };
+
+    SECTION("H authors the connection and H again reverses it exactly")
+    {
+        click(controller, 80.0f, 220.0f);
+
+        // The assist: the hold test was the only blocker, so the press grows the predecessor's
+        // tail to the margin point and derives the hammer-on in one entry.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Hammer);
+        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+
+        // The window (ruling 4): the second press reverses that entry exactly — the grown tail
+        // included, which the clear law could never restore — and leaves no history entry.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        CHECK(note(0).sustain == common::core::Fraction{});
+        const EditorViewState* state = stateOrNull(view.last_state);
+        REQUIRE(state != nullptr);
+        CHECK(state->undo_label != std::optional<std::string>{"Legato"});
+
+        // And the pair of presses keeps cycling.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Hammer);
+        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+    }
+
+    SECTION("a selection change closes the window: the clear stands and the tail stays")
+    {
+        click(controller, 80.0f, 220.0f);
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Hammer);
+
+        // Extending the selection kills the window's proof, so the next press means the
+        // ordinary law — the eligible-subset clear — and the grown tail stays (Ctrl+Z is the
+        // revert once the window is gone).
+        click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+    }
+
+    SECTION("undo after the pair is a no-op on the chart: the entry is gone")
+    {
+        click(controller, 80.0f, 220.0f);
+        controller.onChartLegatoToggleRequested();
+        controller.onChartLegatoToggleRequested();
+
+        controller.onUndoRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        CHECK(note(0).sustain == common::core::Fraction{});
+    }
+}
+
 } // namespace rock_hero::editor::core

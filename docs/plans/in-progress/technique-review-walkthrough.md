@@ -122,8 +122,17 @@ item ships, mark it and name the commit.
 - [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5).** One shared mechanism for
   legato and slides; the break verb frees a tail from the origin's side; the feedback is
   **editor-only** (user ruling: not visible in 3D).
-- [ ] **W7 — D14 assist + the `H` toggle window.** The assist extends a predecessor's tail when
-  that is the only blocker, groups included; the second press reverses this verb's own entry.
+- [x] **W7 — D14 assist + the `H` toggle window. SHIPPED 2026-08-10.** The assist lives inside
+  `planSetLegato`: when the hold test is the only blocker, the plan grows the predecessor's tail
+  to the margin point and derives the direction in the same entry, pre-checked against the
+  extracted `sustainGrowthLimit` (one authority with the duration verb's clamp — the assist never
+  authors what a manual drag could not), groups included, with a blocked note skipped whole. The
+  window is ruling 4's mechanism verbatim: `{keys, history_position}` plus the applied plan,
+  validity the fret window's own proof, reversal via `applyChartNotesChange` of the plan's
+  inverse and the new `EditorUndoHistory::dropTop` (mirrors `replaceTop`'s guards; a mid-window
+  save makes the entry the clean state, so the window simply dies rather than compensating).
+  Both toggle halves arm it, so H-H restores an authored mix the clear would flatten. Counted
+  feedback for skips still rides the refusal channel (W5).
 - [ ] **W8 — Cleanups found by the design agents.** Import junk-hopo flags to `Pick` with a
   conversion note (ruled); ~~doc staleness in `file-formats.md` (retired `harmonic`/`touch` keys,
   missing `pinch` token)~~ **done 2026-08-10** — the chart-note table now documents `harmonicNode`,

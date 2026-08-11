@@ -182,6 +182,9 @@ enum class EditorUndoEventType : std::uint8_t
     /*! \brief A new undo entry was committed. */
     EntryPushed,
 
+    /*! \brief The newest entry was removed after its inverse was applied (a toggle reversal). */
+    EntryDropped,
+
     /*! \brief Existing redo entries were discarded by a new push. */
     RedoEntriesDiscarded,
 
@@ -384,6 +387,20 @@ public:
     \return Transition result and events for controller logging.
     */
     [[nodiscard]] EditorUndoTransitionResult replaceTop(std::unique_ptr<IEdit> edit);
+
+    /*!
+    \brief Removes the newest entry, leaving history exactly as before its push.
+
+    The reversal seam for toggle-style gestures (the legato toggle window): a second press that
+    has already applied the entry's inverse to the model drops the entry itself, so the pair of
+    presses leaves no trace — a true ON/OFF toggle rather than a do/undo pair. Refused under
+    exactly \ref replaceTop's guards — the cursor must sit on top of at least one entry with no
+    transition pending, and a reachable clean marker at the top refuses because the saved file
+    holds the state this entry produced, so erasing it would make "return to clean" a lie.
+
+    \return Transition result and events for controller logging.
+    */
+    [[nodiscard]] EditorUndoTransitionResult dropTop();
 
     /*!
     \brief Begins applying the next undo entry without moving the history pointer.

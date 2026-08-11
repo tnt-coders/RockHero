@@ -364,11 +364,16 @@ public:
 
     Uniform scope, one compound undo entry, measured on the ELIGIBLE subset: applying is always
     the first answer — every note whose fret relationship justifies a hammer-on or pull-off gets
-    its derived direction — and only when applying would change nothing does the press mean
-    clear. The clear targets only the notes actually carrying legato, so an underivable note
-    riding the selection keeps its own attack. The direction is derived, never authored; a note
-    with no earlier note on its string — or one at the same fret, which is neither hammered nor
-    pulled — is left alone rather than guessed at.
+    its derived direction, and when the predecessor's hold is the only blocker the same plan
+    grows its tail to the margin point so the connection is authored rather than demanded — and
+    only when applying would change nothing does the press mean clear. The clear targets only
+    the notes actually carrying legato, so an underivable note riding the selection keeps its
+    own attack. The direction is derived, never authored; a note with no earlier note on its
+    string — or one at the same fret, which is neither hammered nor pulled — is left alone
+    rather than guessed at. While the selection and undo history still prove the previous press
+    was this verb's own, a second press reverses that press exactly — grown tails included — and
+    leaves no history entry behind: a true on/off toggle. Once that proof fails, grown tails
+    stay and undo is the revert.
     */
     virtual void onChartLegatoToggleRequested() = 0;
 

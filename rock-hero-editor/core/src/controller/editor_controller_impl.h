@@ -767,6 +767,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
+    // The H toggle window (the legato plan's ruling 4): while the selection and the history top
+    // are provably the previous H press's own — the same `{keys, history_position}` proof the
+    // fret entry uses — a second press REVERSES that entry exactly, tails the assist grew
+    // included, and drops it from history: a true ON/OFF toggle. Once either proof fails
+    // (selection changed, any edit, undo/redo, a seek's selection clear), the window is dead and
+    // H means the ordinary derive-or-clear law; grown tails then stay and Ctrl+Z is the revert.
+    struct ChartLegatoToggleEntry
+    {
+        std::vector<ChartNoteKey> keys{};
+        ChartNotesEditPlan applied_plan{};
+        std::size_t history_position{};
+    };
+    std::optional<ChartLegatoToggleEntry> m_chart_legato_toggle{};
+
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the
     // wall clock in the constructor when the service is unset.

@@ -274,10 +274,11 @@ changes: tails that short are legitimately absent, so derivation stays fret-only
 
 Two consequences worth naming. A sustain edit that disconnects a tail repairs its dependent
 Pull in the same undo entry (the shared finalize runs the repair after the sustain change), and
-authoring legato across a gap at or past the bound is done by dragging the predecessor's tail
-to reach the note — the tail IS the held-ness datum, and a note held to the next one looks held
-precisely because it carries its tail. `Ctrl+H` is untouched: a left-hand tap needs no
-predecessor at all.
+authoring legato across a gap at or past the bound writes the connection — the tail IS the
+held-ness datum. Since 2026-08-10 the `H` verb writes it itself (the D14 assist: when the hold
+test is the only blocker, the plan grows the predecessor's tail to the margin point and derives
+the direction in one entry, bounded by the duration verb's own growth clamp); dragging the tail
+first remains equivalent. `Ctrl+H` is untouched: a left-hand tap needs no predecessor at all.
 
 ## Rejected alternatives, ranked, each with the sequence that kills it
 

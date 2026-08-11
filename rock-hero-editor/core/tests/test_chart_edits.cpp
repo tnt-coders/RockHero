@@ -1151,29 +1151,21 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
                         .has_value());
     }
 
-    SECTION("the earlier note provably released before this one")
+    SECTION("a released predecessor whose connection cannot be authored")
     {
-        // A bare predecessor at the kept-sustain bound is a proven release: a held note would
-        // carry a tail reaching the margin. Dragging the tail there is how legato across the
-        // gap is authored.
+        // A bare predecessor at the kept-sustain bound is a proven release, and the assist may
+        // only author what a manual drag could: a note on ANOTHER string between the pair caps
+        // the predecessor's growth short of the margin point, so the note is skipped whole
+        // rather than partially extended.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
             makeNote({.measure = 1, .beat = 1}, 1, 3),
+            makeNote({.measure = 1, .beat = 2}, 2, 5),
             makeNote({.measure = 1, .beat = 3}, 1, 7),
         };
         CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato")
                         .has_value());
-
-        chart.notes[0].sustain = common::core::Fraction{7, 4};
-        const auto plan =
-            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            REQUIRE(plan->inserted.size() == 1);
-            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
-        }
     }
 
     SECTION("the earlier note is a fret-hand harmonic")
@@ -1191,6 +1183,85 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
         chart.notes[0].harmonic_node = 12.0;
         CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
                         .has_value());
+    }
+}
+
+// The D14 assist: when the hold test is the only blocker, the verb grows the predecessor's tail
+// to the margin point and sets the derived legato in the same plan — the tail is the held-ness
+// datum, and the verb writes it rather than demanding the drag first.
+TEST_CASE(
+    "planSetLegato grows a released predecessor's tail to author the connection", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a single note across the bound connects and derives")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 3),
+            makeNote({.measure = 1, .beat = 3}, 1, 7),
+        };
+        const auto plan =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            // The grown predecessor rides the same plan: its tail ends exactly at the margin
+            // point before the onset (two beats less the quarter-beat margin in 4/4).
+            REQUIRE(plan->inserted.size() == 2);
+            CHECK(plan->inserted[0].sustain == common::core::Fraction{7, 4});
+            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Pick);
+            CHECK(plan->inserted[1].attack == common::core::NoteAttack::Hammer);
+        }
+    }
+
+    SECTION("the descending direction grows and derives the pull the same way")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 9),
+            makeNote({.measure = 1, .beat = 3}, 1, 5),
+        };
+        const auto plan =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 2);
+            CHECK(plan->inserted[0].sustain == common::core::Fraction{7, 4});
+            CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pull);
+        }
+    }
+
+    SECTION("a chord onto a chord grows every member's predecessor uniformly")
+    {
+        // Groups are allowed by the ruled assist: pressing H on a selection IS intent, one
+        // uniform rule with no single-vs-group branch, and same-onset members never block each
+        // other's growth.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 3),
+            makeNote({.measure = 1, .beat = 1}, 2, 5),
+            makeNote({.measure = 2, .beat = 1}, 1, 5),
+            makeNote({.measure = 2, .beat = 1}, 2, 7),
+        };
+        const std::vector<ChartNoteKey> keys{
+            keyAt({.measure = 2, .beat = 1}, 1),
+            keyAt({.measure = 2, .beat = 1}, 2),
+        };
+        const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 4);
+            CHECK(plan->inserted[0].sustain == common::core::Fraction{15, 4});
+            CHECK(plan->inserted[1].sustain == common::core::Fraction{15, 4});
+            CHECK(plan->inserted[2].attack == common::core::NoteAttack::Hammer);
+            CHECK(plan->inserted[3].attack == common::core::NoteAttack::Hammer);
+        }
     }
 }
 

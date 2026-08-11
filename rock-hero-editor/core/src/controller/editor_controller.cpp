@@ -523,6 +523,10 @@ void logEditorActionDispatchCompleted(EditorAction::Id action)
         {
             return "entry_pushed";
         }
+        case EditorUndoEventType::EntryDropped:
+        {
+            return "entry_dropped";
+        }
         case EditorUndoEventType::RedoEntriesDiscarded:
         {
             return "redo_entries_discarded";
@@ -1627,6 +1631,7 @@ void EditorController::Impl::clearChartEditingState()
     clearSelection();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
+    m_chart_legato_toggle.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
     // position is the position, and nothing is armed until the first click or arrow (the
     // marker model).
@@ -1683,6 +1688,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
 {
     m_selection = std::move(selection);
     m_chart_fret_entry.reset();
+    m_chart_legato_toggle.reset();
 }
 
 void EditorController::Impl::clearSelection()
@@ -2050,8 +2056,10 @@ bool EditorController::Impl::applyChartEditPlan(
         return false;
     }
 
-    // A typing-style edit interrupts any in-flight fret entry unless the caller re-arms it.
+    // A typing-style edit interrupts any in-flight fret entry, and any chart edit closes the H
+    // toggle window, unless the caller re-arms them.
     m_chart_fret_entry.reset();
+    m_chart_legato_toggle.reset();
 
     // The selection follows the edit: retyped/moved/inserted notes stay selected under their
     // new keys, deleted notes drop out (their keys no longer resolve).
@@ -3207,7 +3215,8 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
 // Toggles the selection to or from a legato attack as one compound undo entry, uniform scope.
 // The toggle law measures the ELIGIBLE subset (W5, ruled), with planSetLegato itself as the
 // oracle so eligibility is never restated here: applying is always the first answer — every
-// derivable note gets its direction, the mixed-validity policy's "apply where valid" — and only
+// derivable note gets its direction, the mixed-validity policy's "apply where valid", including
+// the D14 assist growing a predecessor's tail when the hold test was the only blocker — and only
 // when applying would change nothing does the press mean clear. The old whole-selection
 // all-legato test left the toggle stuck in apply mode forever whenever the selection held a note
 // that can never carry legato, so a second press could not undo the first. The clear targets
@@ -3223,17 +3232,61 @@ void EditorController::Impl::onChartLegatoToggleRequested()
         return;
     }
 
+    // The H toggle window (ruling 4): while the selection and history top prove the previous
+    // press is this verb's own entry, this press REVERSES that entry exactly — including any
+    // tails the assist grew, which the derive-or-clear law below could never restore — and
+    // drops it, so the pair of presses leaves no trace. The proof is the fret window's own:
+    // the same keys, and a history cursor that has not moved since the push.
+    if (m_chart_legato_toggle.has_value())
+    {
+        const ChartLegatoToggleEntry entry = *m_chart_legato_toggle;
+        m_chart_legato_toggle.reset();
+        const EditorUndoHistorySnapshot history = m_undo_history.snapshot();
+        // A save mid-window makes the entry the file's clean state, so it must stand — the
+        // window is simply dead and the press means the ordinary law below.
+        const bool reversible = entry.keys == chartSelection().notes() &&
+                                history.position == entry.history_position &&
+                                history.clean_position != entry.history_position;
+        if (reversible)
+        {
+            common::core::Chart* const chart = m_session.currentChart();
+            if (chart == nullptr ||
+                !applyChartNotesChange(
+                     *chart, entry.applied_plan.inserted, entry.applied_plan.removed)
+                     .has_value() ||
+                m_undo_history.dropTop().status != EditorUndoTransitionStatus::Applied)
+            {
+                // The proofs above guarantee the stream and the history top still match the
+                // entry, so a failed reversal is a logic error; surface it rather than
+                // silently re-deriving.
+                reportError("Could not apply chart edit: " + entry.applied_plan.label);
+                return;
+            }
+            updateView();
+            return;
+        }
+    }
+
     const std::vector<common::core::ChartNote> selected =
         chartNotesForKeys(chartSelection().notes());
     if (selected.empty())
     {
         return;
     }
-    std::optional<ChartNotesEditPlan> plan = planSetLegato(
-        *arrangement->chart, session().song().tempo_map, chartSelection().notes(), "Legato");
+    const std::vector<ChartNoteKey> keys = chartSelection().notes();
+    std::optional<ChartNotesEditPlan> plan =
+        planSetLegato(*arrangement->chart, session().song().tempo_map, keys, "Legato");
     if (plan.has_value())
     {
-        static_cast<void>(applyChartEditPlan(std::move(plan)));
+        const ChartNotesEditPlan applied = *plan;
+        if (applyChartEditPlan(std::move(plan)))
+        {
+            m_chart_legato_toggle = ChartLegatoToggleEntry{
+                .keys = keys,
+                .applied_plan = applied,
+                .history_position = m_undo_history.snapshot().position,
+            };
+        }
         return;
     }
     // Nothing left to derive: every note that can be legato already is, so this press clears.
@@ -3250,12 +3303,26 @@ void EditorController::Impl::onChartLegatoToggleRequested()
     {
         return;
     }
-    static_cast<void>(applyChartEditPlan(planSetAttack(
+    std::optional<ChartNotesEditPlan> clear_plan = planSetAttack(
         *arrangement->chart,
         session().song().tempo_map,
         legato_keys,
         common::core::NoteAttack::Pick,
-        "Remove Legato")));
+        "Remove Legato");
+    if (clear_plan.has_value())
+    {
+        // The clear press arms the window too: reversing it restores the exact previous mix —
+        // a deliberate Ctrl+H hammer the flattening below cannot re-derive comes back.
+        const ChartNotesEditPlan applied = *clear_plan;
+        if (applyChartEditPlan(std::move(clear_plan)))
+        {
+            m_chart_legato_toggle = ChartLegatoToggleEntry{
+                .keys = keys,
+                .applied_plan = applied,
+                .history_position = m_undo_history.snapshot().position,
+            };
+        }
+    }
 }
 
 // Forces the selection to the hammer-on attack as one compound undo entry, uniform scope. The
@@ -3344,6 +3411,7 @@ void EditorController::Impl::onChartEscapePressed()
     {
         dissolveChartCaretInPlace();
         m_chart_fret_entry.reset();
+        m_chart_legato_toggle.reset();
         updateView();
         return;
     }
