@@ -530,6 +530,15 @@ silent defaults. Full option analysis in the plan.
 - **RM-1** Licensing audit thread: AGPLv3 network-source obligations (29-Q3), SoundTouch licensing-table row (28-Q1), CC0 fixture tree (23-Q1) — treat as one licensing pass when 28/29 activate.
 - **RM-2** Reserved sub-plan names per 40-Q4: docs/plans/roadmap/40a-chord-template-and-shape-editor.md, docs/plans/roadmap/40b-curve-payload-editors.md — create only if a phase exceeds a session.
 - **RM-3** Design-doc updates queued behind user confirmation: 10-D1 (bump policy + juce_cryptography permission), 20's architecture.md render-stack update at gate close, 28's licensing-table row, 29's Licensing section amendment.
+- **RM-5** (OPEN, unblocked 2026-08-10) **Which way do the two surfaces reconcile the repeat
+  treatment?** The highway renders a repeating strum as a half-height box with no note heads
+  (Charter's visibility rules) while the 2D lane shows every strum with full fret numbers, so the
+  editor preview states two different chords-per-bar side by side. This was undecidable while the
+  classification lived inside the renderer; `makeHighwayChordGroups` (executed
+  docs/plans/completed/highway-onset-groups-into-the-projection.md) put it in core where either
+  surface can read it. Decide: (A) the 2D lane adopts the repeat treatment; (B) the highway shows
+  every strum; (C) the asymmetry is declared deliberate and documented as such. Touches plans 25
+  and 30's surface parity.
 - **RM-4** Audio-device coexistence + per-app audio config stance (decided 2026-07-12): **single active client** — one app holds the ASIO device; the other surfaces a typed "device busy". A separate "Rock Hero Audio Control Panel" tray/audio-server process was evaluated and **rejected** (ASIO is in-process single-client; an IPC audio server would blow the 1.5–5.8 ms latency budget). Audio settings are **per-app independent** (the editor optionally mirrors the game read-only via an explicit "use game settings" toggle — never a shared read/write store). Concurrent same-device use, if ever justified (docs/plans/roadmap/31-integrated-game-editor-workflow.md's "Launch Editor" handoff), escalates to an **in-process device lease behind an `IDeviceOwnershipArbiter` port** — never a bespoke broker; if true multi-client is ever required, integrate an existing audio server (FlexASIO/JACK). Full detail: docs/plans/roadmap/13 (per-app `IAudioConfigStore`/`ActiveDeviceRoute`, Phases 1–2 reworked), docs/plans/roadmap/14 (shared `LiveInputMonitor` gate over each app's own store), docs/plans/roadmap/32 (game native calibrate-first setup — the "game audible" milestone at 32 P2), docs/plans/roadmap/48 (editor "use game settings" read-only mirror, default-on, toggle-aware windows).
 
 ---
@@ -540,6 +549,11 @@ Semantics: **ABSORBED** = content re-verified and merged into the named plan (so
 moved to docs/plans/completed/ if it records finished work); **SUPERSEDED** = body replaced with a
 one-line pointer; **UNTOUCHED** = stays as a docs/plans/todo deferred plan (stale-allowed per
 CLAUDE.md). docs/plans/in-progress/ docs are active work — referenced by plans, never absorbed.
+
+This table records the original consolidation plus notable later movements; it is NOT an
+exhaustive index of `docs/plans/todo/` — the directory itself is the registry, and files added
+after the consolidation (each carrying its own Status header) appear below only when their
+disposition changed or when they gate a decision listed in §5.
 
 | docs/plans/todo file | Disposition | Action | Rationale |
 |---|---|---|---|
@@ -570,6 +584,9 @@ CLAUDE.md). docs/plans/in-progress/ docs are active work — referenced by plans
 | native-package-write-safety-followups.md | PARTIALLY ABSORBED into docs/plans/roadmap/10-format-versioning-and-chart-identity.md Phase 5 | replace body with pointer to plan 10 (atomic-replace core absorbed; broader plan/commit split re-deferred and recorded in plan 10) | Conservative pointer rather than delete because absorption was partial |
 | audio-device-settings-performance-investigation.md | UNTOUCHED | none | Deferred investigation, out of roadmap scope |
 | ci-build-speed-options.md | UNTOUCHED | none | CI tooling; plan 20's spike measures CI cost (criterion S6) but does not absorb this doc |
+| highway-onset-groups-into-the-projection.md | ABSORBED — executed 2026-08-10, moved to docs/plans/completed/ | none (already moved) | The ~230-line renderer classification moved into `makeHighwayChordGroups` with the repeat rules under test; executing it unblocked roadmap-level decision RM-5 |
+| design-calls-from-the-2026-08-10-review.md | UNTOUCHED (added post-consolidation) | none | The deep review's design-level residue (Arrangement persisted/prepared split, ScoringRuleset version factory, theme font roles) — each needs the user's direction before execution |
+| tap-harmonic-display.md | UNTOUCHED (added post-consolidation) | none | Records what the board draws for a tap harmonic today (an undesigned composite) and the presentation decisions the user has never made; blocked on a walkthrough, fenced from G57-BOARD |
 
 ---
 
