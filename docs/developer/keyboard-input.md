@@ -175,7 +175,7 @@ plugin-chain scope, lane multi-select) land phase by phase.*
    the mapping set refuses disabled commands and lets the key propagate, menus gray out, and
    `perform` mirrors the same guards so direct invocation paths stay safe; `setState` calls
    `commandStatusChanged()` on every push to keep it current. The grammar-verb commands gate in
-   `perform` instead (Delete against `selection_present`, caret steps against `chartShown()`) —
+   `perform` instead (Delete against `selection_present`, caret steps against `hasChart()`) —
    see the always-active/alert-sound note under Decoding. Both derive from
    `deriveViewState()`'s *same* availability calls, so the layers cannot disagree.
 3. **Modal layers swallow first.** The busy overlay consumes everything before keys reach the

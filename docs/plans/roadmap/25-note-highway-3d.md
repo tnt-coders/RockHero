@@ -94,8 +94,10 @@ already carries everything rendered here — no format changes are required by t
   - `rock-hero-editor/core/src/tab/tab_projection.{h,cpp}` — `makeTabViewState(Arrangement,
     TempoMap)`, private to editor/core; tested by
     `rock-hero-editor/core/tests/test_tab_projection.cpp`.
-  - `rock-hero-editor/ui/src/tab/tab_view.{h,cpp}` — `tabVisibleNoteRange` (tab_view.cpp:891–905)
-    binary-searches sorted starts plus a prefix-max sustain-end table for the visible-note range;
+  - `rock-hero-editor/ui/src/tab/tab_view.{h,cpp}` — the visible-note range comes from the shared
+    `visibleEventRange` + `makeSustainPrefixMax` authorities in
+    `rock-hero-common/core/shared/visible_events.h` (the local `tabVisibleNoteRange` forwarder was
+    deleted 2026-08-10);
     `tabStringColor` (tab_view.cpp:862) with `g_standard_string_colors` (six Charter base colors)
     and `g_tertiary_string_colors` — the palette plan 45 extracts to common.
 - `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` carries every technique

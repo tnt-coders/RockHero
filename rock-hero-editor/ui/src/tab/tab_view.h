@@ -16,7 +16,6 @@
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
-#include <utility>
 #include <vector>
 
 namespace rock_hero::common::ui

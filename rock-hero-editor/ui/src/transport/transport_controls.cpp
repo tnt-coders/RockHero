@@ -69,7 +69,6 @@ void TransportControls::setState(const core::TransportViewState& state)
 
     m_play_pause_button->setEnabled(m_state.play_pause_enabled);
     m_play_pause_button->setImages(play_pause_drawable);
-    m_play_pause_button->setToggleState(false, juce::dontSendNotification);
     m_stop_button->setEnabled(m_state.stop_enabled);
 }
 

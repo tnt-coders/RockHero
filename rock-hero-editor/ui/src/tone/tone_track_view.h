@@ -24,11 +24,12 @@ namespace rock_hero::editor::ui
 {
 
 /*!
-\brief Renders tone regions from framework-free state and emits selection, resize, insert, and
-delete intents.
+\brief Renders tone regions from framework-free state and emits selection, boundary-move, insert,
+and delete intents.
 
 Gestures follow the editor-wide interaction model without restating it — the modifier meanings
-live once in docs/developer/adding-a-pointer-gesture.md. What is specific to this row: a plain
+live once in docs/plans/in-progress/editing-interaction-model.md (the verb table), and
+docs/developer/adding-a-pointer-gesture.md walks adding one. What is specific to this row: a plain
 click selects, dragging an edge moves the SHARED boundary between two regions (with a snap guide
 on the shared overlay), and an Alt placement inside a region requests a tone change at the snapped
 position with a ghost boundary line. The right-click menu mirrors every gesture (insert here,

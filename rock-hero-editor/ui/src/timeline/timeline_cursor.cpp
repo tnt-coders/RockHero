@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <compare>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::ui

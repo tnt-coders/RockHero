@@ -6,7 +6,8 @@ One component paints every lane (dynamic count, per-lane vertical resize, dirty-
 the trailing empty lane whose pinned "+" chip opens the parameter picker.
 
 Gestures follow the editor-wide interaction model without restating it — the modifier meanings live
-once in docs/developer/adding-a-pointer-gesture.md and were spelled out here and in
+once in docs/plans/in-progress/editing-interaction-model.md (the verb table;
+docs/developer/adding-a-pointer-gesture.md walks adding one) and were spelled out here and in
 \ref ToneTrackView in two different wordings until 2026-08-10. What is specific to the lanes: a
 plain click never mutates (points select; empty lane space passes through to the seek overlay), the
 Alt-placed point lands ON the curve at the snapped time and the drag phase pulls its value by the

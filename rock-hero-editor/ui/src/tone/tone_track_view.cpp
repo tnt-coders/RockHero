@@ -775,7 +775,11 @@ std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForD
 // republishes `active` synchronously and settles the comparison in the same frame.
 void ToneTrackView::advanceActiveRegion()
 {
-    if (!m_transport.state().playing)
+    // The gesture guard is load-bearing: setState defers pushes while a drag reads m_state, so
+    // mid-gesture the frozen `active` flag can never settle the comparison below and the intent
+    // would fire every vblank. The first tick after the gesture adopts the pending push re-derives
+    // the crossing, so nothing is lost by waiting.
+    if (!m_transport.state().playing || gestureActive())
     {
         return;
     }
