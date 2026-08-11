@@ -20,16 +20,20 @@ Exposed so EditorViewState can use the same default without duplicating the lite
 inline constexpr std::string_view g_closed_audio_device_text{"[audio device closed]"};
 
 /*!
-\brief Formats one sample rate as the kHz text every audio-device surface displays.
+\brief Formats one sample rate as the Hz text every audio-device surface displays.
 
 Shared by the menu-bar status text and the settings dialog's rate combo so the same rate never
-renders two ways. The rendering carries no tolerance constant: std::format's default
-floating-point form is the shortest text that round-trips the value, so 48000 Hz reads `48kHz`,
-44100 Hz reads `44.1kHz`, and an unusual 11025 Hz still reads `11.025kHz` rather than being
-flattened by a fixed precision.
+renders two ways. **Hertz spelled out, not compressed to kHz** — that is what audio-device
+settings conventionally show, so `44100 Hz` and `48000 Hz` rather than `44.1kHz` and `48kHz`.
+
+The rendering carries no tolerance constant, which is the part worth keeping whatever the unit:
+std::format's default floating-point form is the shortest text that round-trips the value, so an
+integral rate prints no decimal point at all and an odd `44100.5 Hz` prints exactly, with no
+fixed precision to flatten it and no integrality epsilon to get wrong. This replaced two
+formatters that disagreed and three restatements of one 0.001 tolerance in two different units.
 
 \param sample_rate_hz Sample rate in hertz, as reported by the audio device.
-\return Sample-rate text in kHz.
+\return Sample-rate text in hertz.
 */
 [[nodiscard]] std::string sampleRateText(double sample_rate_hz);
 

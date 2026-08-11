@@ -54,7 +54,7 @@ constexpr std::string_view g_unknown_backend_text{"Unknown"};
 // round-tripping form replaces the integrality tolerance this used to carry.
 std::string sampleRateText(double sample_rate_hz)
 {
-    return std::format("{}kHz", sample_rate_hz / 1000.0);
+    return std::format("{} Hz", sample_rate_hz);
 }
 
 // Produces the menu-bar text consumed by EditorView without leaking formatting rules into UI code.

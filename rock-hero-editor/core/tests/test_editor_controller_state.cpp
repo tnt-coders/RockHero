@@ -251,7 +251,7 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.audio_device_status_text == "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
+        CHECK(state.audio_device_status_text == "[48000 Hz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
     }
 }
 
@@ -288,7 +288,7 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.audio_device_status_text == "[44.1kHz 24bit: 1/2ch 512spls ~9.5/30ms WASAPI]");
+        CHECK(state.audio_device_status_text == "[44100 Hz 24bit: 1/2ch 512spls ~9.5/30ms WASAPI]");
     }
 }
 

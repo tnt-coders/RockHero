@@ -763,10 +763,24 @@ across the project's modular target structure.
 ## Core JUCE Utility Use
 
 The source-level rule for `rock-hero-common/core` is now testability-first rather than JUCE-free.
-Common core may include and link narrow `juce_core` utilities for package, file, JSON, ZIP, string,
-and result-handling behavior when doing so keeps the project simpler. This is not permission to
-move UI, message-loop ownership, audio-device ownership, GPU behavior, app startup, plugin
-scanning, or Tracktion runtime integration into common core.
+**Headless testability is the test the grant turns on, not the module name.** Common core may include
+and link a narrow JUCE utility when doing so keeps the project simpler AND the result still runs in a
+console test with no message loop, audio device, window, or GPU. In practice that has meant
+`juce_core` for package, file, JSON, ZIP, string, and result-handling behavior.
+
+`juce_data_structures` is admitted on the same test, for one purpose: the shared settings-file policy
+(`shared/settings_file_options.h`) returns a `juce::PropertiesFile::Options`, which is a plain struct
+of names and flags. It exists because that policy was independently hand-written in six places and
+one copy had already drifted — the game store omitted `millisecondsBeforeSaving` and so silently ran
+a three-second auto-save timer the others did not. Two details keep the grant honest: the module is
+linked **INTERFACE**, so no common-core translation unit compiles against it and a common-core `.cpp`
+reaching for `PropertiesFile` itself fails to build; and common core produces the options struct
+without ever opening a properties file, which is what keeps the message-loop dependency out. The
+headless common-core suite is the standing proof.
+
+None of this is permission to move UI, message-loop ownership, audio-device ownership, GPU behavior,
+app startup, plugin scanning, or Tracktion runtime integration into common core. A JUCE facility that
+cannot run in a console test does not qualify however convenient it would be.
 
 `rock-hero-common/core` and other first-party targets still link project-owned wrapper aliases,
 such as `rock_hero::juce_core`, rather than raw `juce::` module targets. Tracktion module targets

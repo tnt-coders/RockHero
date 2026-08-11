@@ -28,7 +28,7 @@ TEST_CASE("Audio device status text formats open device", "[core][audio-device-s
         .unavailable_reason = {},
     };
 
-    CHECK(audioDeviceStatusText(status) == "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");
+    CHECK(audioDeviceStatusText(status) == "[48000 Hz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");
 }
 
 // JUCE names the Windows WASAPI route "Windows Audio"; the editor presents the backend family.
@@ -48,17 +48,17 @@ TEST_CASE("Audio device status text maps Windows Audio", "[core][audio-device-st
         .unavailable_reason = {},
     };
 
-    CHECK(audioDeviceStatusText(status) == "[44.1kHz 24bit: 2/2ch 512spls ~7.5/30ms WASAPI]");
+    CHECK(audioDeviceStatusText(status) == "[44100 Hz 24bit: 2/2ch 512spls ~7.5/30ms WASAPI]");
 }
 
 // The shared rate formatter prints exactly the digits a rate needs, so the studio rates lose their
 // redundant decimal while an unusual rate keeps every digit that distinguishes it.
 TEST_CASE("Sample rate text keeps only the digits a rate needs", "[core][audio-device-status]")
 {
-    CHECK(sampleRateText(48000.0) == "48kHz");
-    CHECK(sampleRateText(44100.0) == "44.1kHz");
-    CHECK(sampleRateText(176400.0) == "176.4kHz");
-    CHECK(sampleRateText(11025.0) == "11.025kHz");
+    CHECK(sampleRateText(48000.0) == "48000 Hz");
+    CHECK(sampleRateText(44100.0) == "44100 Hz");
+    CHECK(sampleRateText(176400.0) == "176400 Hz");
+    CHECK(sampleRateText(11025.0) == "11025 Hz");
 }
 
 } // namespace rock_hero::editor::core
