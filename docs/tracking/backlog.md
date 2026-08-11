@@ -215,6 +215,41 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   present tense before it exists. `multi_tone_rack.cpp` failure paths can leave a plugin in the rack
   tree but absent from `branch.chain` (error-path only, PLAUSIBLE whether reachable).
 
+### Eight latent three-platform CI breakers of one shape
+
+Found by a verification sweep on 2026-08-10, after this exact shape bit the editor-UI work mid-task.
+A struct with a floating-point member **of its own** and a **defaulted** `operator==` compiles fine
+until something odr-uses the comparison, and then `-Wfloat-equal` + `-Werror` breaks GCC, Clang and
+clang-cl **at once, on a line nobody edited**. Adding an equality gate is the usual trigger, which is
+exactly what happened: `SignalChainViewState` had a plain `double` and a defaulted comparison nothing
+had ever used, and adding its gate would have broken all three. It was hand-written with the
+`std::is_eq` idiom instead.
+
+These eight are the same shape, currently safe only because nothing compares them — one of them,
+`ToneGainPoint`, is kept safe by a *comment in a test* saying the comparison must never run, which is
+not a mechanism:
+
+| Type | Own float members | Header |
+|---|---|---|
+| `HighwayCameraTarget` | `focus_x`, `span` | `common/core/.../highway/highway_camera.h` |
+| `HighwayCameraPose` | `x`, `y`, `z` | same |
+| `ToneGainPoint` | `seconds`, `gain` | `common/core/.../tone/tone_schedule.h` |
+| `AudioDeviceStatus` | `sample_rate_hz`, `input_latency_ms`, `output_latency_ms` | `common/audio/.../device/audio_device_status.h` |
+| `InputCalibrationPrompt` | `input_gain_db` | `editor/core/.../controller/editor_view_state.h` |
+| `EditorViewState` | `timeline_zoom_pixels_per_second` | same |
+| `InputCalibrationViewState` | `input_gain_db` | `editor/core/.../input_calibration/input_calibration_view_state.h` |
+| `SongSectionView` | `seconds` | `editor/core/.../timeline/section_view_state.h` |
+
+`EditorViewState` is the one to watch hardest: it is the whole editor push payload, so it is the most
+likely thing anyone will one day try to gate on.
+
+The fix is mechanical per type — hand-write with `std::is_eq(lhs.x <=> rhs.x)`, or delete the
+comparison outright where nothing needs it, which is what `HighwayMetrics` got earlier in this sweep.
+Doing all eight at once is better than waiting for each to fire, because each one fires as a *red CI
+run on an unrelated change*. Verify each is genuinely a struct with its own float before editing: a
+crude scan also flagged `EditorController::Impl`, where the defaulted comparisons actually belong to
+nested `AutomationLaneRow`/`ToneInsertGhost` and are safe.
+
 ### Found while fixing the audio and package findings
 
 - **`Arrangement::difficulty` is dead, and deleting it is a design call.** Nothing in the tree writes
