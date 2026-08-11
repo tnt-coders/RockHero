@@ -3199,13 +3199,16 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
         *arrangement->chart, session().song().tempo_map, chartSelection().notes(), delta)));
 }
 
-// Toggles the selection to or from a legato attack as one compound undo entry, uniform scope: an
-// all-legato selection reverts to plain picks, anything else becomes hammer-ons and pull-offs with
-// each direction DERIVED from the fret it comes from on its own string (see planSetLegato). Notes
-// with no derivable direction stay as they are, so a selection mixing derivable and underivable
-// notes edits the ones it can and leaves the rest — the mixed-validity policy's "apply where
-// valid". Its counted feedback is not surfaced yet; that arrives with
-// the rest of the technique family.
+// Toggles the selection to or from a legato attack as one compound undo entry, uniform scope.
+// The toggle law measures the ELIGIBLE subset (W5, ruled), with planSetLegato itself as the
+// oracle so eligibility is never restated here: applying is always the first answer — every
+// derivable note gets its direction, the mixed-validity policy's "apply where valid" — and only
+// when applying would change nothing does the press mean clear. The old whole-selection
+// all-legato test left the toggle stuck in apply mode forever whenever the selection held a note
+// that can never carry legato, so a second press could not undo the first. The clear targets
+// only the legato subset: an underivable Tap or Pinch riding the selection keeps its own attack
+// instead of being flattened by Remove Legato. Counted feedback is still not surfaced; that
+// arrives with the planner refusal channel (W5's second half).
 void EditorController::Impl::onChartLegatoToggleRequested()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -3221,22 +3224,33 @@ void EditorController::Impl::onChartLegatoToggleRequested()
     {
         return;
     }
-    const bool all_legato = std::ranges::all_of(selected, [](const common::core::ChartNote& note) {
-        return note.attack == common::core::NoteAttack::Hammer ||
-               note.attack == common::core::NoteAttack::Pull;
-    });
-    if (all_legato)
+    std::optional<ChartNotesEditPlan> plan = planSetLegato(
+        *arrangement->chart, session().song().tempo_map, chartSelection().notes(), "Legato");
+    if (plan.has_value())
     {
-        static_cast<void>(applyChartEditPlan(planSetAttack(
-            *arrangement->chart,
-            session().song().tempo_map,
-            chartSelection().notes(),
-            common::core::NoteAttack::Pick,
-            "Remove Legato")));
+        static_cast<void>(applyChartEditPlan(std::move(plan)));
         return;
     }
-    static_cast<void>(applyChartEditPlan(planSetLegato(
-        *arrangement->chart, session().song().tempo_map, chartSelection().notes(), "Legato")));
+    // Nothing left to derive: every note that can be legato already is, so this press clears.
+    std::vector<ChartNoteKey> legato_keys;
+    for (const common::core::ChartNote& note : selected)
+    {
+        if (note.attack == common::core::NoteAttack::Hammer ||
+            note.attack == common::core::NoteAttack::Pull)
+        {
+            legato_keys.push_back(ChartNoteKey{.position = note.position, .string = note.string});
+        }
+    }
+    if (legato_keys.empty())
+    {
+        return;
+    }
+    static_cast<void>(applyChartEditPlan(planSetAttack(
+        *arrangement->chart,
+        session().song().tempo_map,
+        legato_keys,
+        common::core::NoteAttack::Pick,
+        "Remove Legato")));
 }
 
 // Toggles the selection to or from the pick-slide attack as one compound undo entry, uniform

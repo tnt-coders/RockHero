@@ -1740,4 +1740,103 @@ TEST_CASE("EditorController clears chart selection on project load", "[core][cha
     CHECK(state->chart_edit.selected_notes.empty());
 }
 
+// The H toggle law measures the ELIGIBLE subset (W5, ruled): a selection holding a note that can
+// never carry legato must still round-trip — apply on the first press, clear on the second. The
+// old whole-selection all-legato test left such a selection stuck in apply mode forever. And the
+// clear targets only the legato subset, so an underivable Tap riding the selection keeps its own
+// attack instead of being flattened by Remove Legato.
+TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core][chart]")
+{
+    // String 1 carries a derivable pair (the predecessor's tail reaches the note's onset, so the
+    // hold test passes); string 2 a permanently ineligible open string (no node, no predecessor —
+    // the gate refuses both attacks); string 3 an underivable tap (no predecessor to derive from).
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 5,
+            .sustain = common::core::Fraction{4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 2,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 3,
+            .fret = 6,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    chart.notes[2].attack = common::core::NoteAttack::Tap;
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+
+    const auto note_attack = [&](const std::size_t index) {
+        return controller.session().currentArrangement()->chart->notes[index].attack;
+    };
+
+    SECTION("a permanently ineligible note no longer wedges the toggle in apply mode")
+    {
+        // Select the derivable note (string 1, measure 3) plus the open string.
+        click(controller, 80.0f, 220.0f);
+        click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
+
+        controller.onChartLegatoToggleRequested();
+        CHECK(note_attack(3) == common::core::NoteAttack::Hammer);
+        CHECK(note_attack(1) == common::core::NoteAttack::Pick);
+
+        // The second press clears — this used to be the stuck press that re-applied forever.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note_attack(3) == common::core::NoteAttack::Pick);
+        CHECK(note_attack(1) == common::core::NoteAttack::Pick);
+
+        // And the toggle keeps round-tripping.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note_attack(3) == common::core::NoteAttack::Hammer);
+    }
+
+    SECTION("the clear leaves an underivable tap's own attack alone")
+    {
+        click(controller, 80.0f, 220.0f);
+        click(controller, 40.0f, 140.0f, ChartPointerModifiers{.ctrl = true});
+
+        controller.onChartLegatoToggleRequested();
+        CHECK(note_attack(3) == common::core::NoteAttack::Hammer);
+        CHECK(note_attack(2) == common::core::NoteAttack::Tap);
+
+        controller.onChartLegatoToggleRequested();
+        CHECK(note_attack(3) == common::core::NoteAttack::Pick);
+        CHECK(note_attack(2) == common::core::NoteAttack::Tap);
+    }
+}
+
 } // namespace rock_hero::editor::core
