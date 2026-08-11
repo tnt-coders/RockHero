@@ -191,8 +191,9 @@ position past the last one, so this holds a node at the board's edge.
 The cap is a DISPLAY limit and nothing else. The chart still carries the exact node, validation
 still accepts it, and the 2D lane still prints it as a number, so the two surfaces deliberately
 disagree about a node past the board: 2D names it, 3D draws the note at the last fret. That is a
-decided asymmetry rather than a latent bug, pending a decision on how a
-node past the board should read.
+decided asymmetry rather than a latent bug, and the decision it is pending is tracked — see
+docs/plans/roadmap/57-positions-past-the-drawn-board.md, whose first question is a corpus
+measurement that may close it by shrinking the domain to the board instead.
 
 Every 3D consumer must ask this rather than \ref soundingPositionAt, or the board and the camera
 frame different places — which is exactly how a third-partial artificial harmonic came to be framed

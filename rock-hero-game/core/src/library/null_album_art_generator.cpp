@@ -6,7 +6,7 @@ namespace rock_hero::game::core
 std::expected<AlbumArt, AlbumArtError> NullAlbumArtGenerator::generate(
     const std::filesystem::path& /*package_path*/)
 {
-    // No album art exists until docs/plans/roadmap/43 adds it plus a
+    // No album art exists until docs/plans/roadmap/43-song-information-and-art.md adds it plus a
     // JUCE-backed decoder; report none.
     return AlbumArt{};
 }

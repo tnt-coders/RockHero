@@ -2,9 +2,10 @@
 \file library_scan_engine.h
 \brief Headless, step-driven engine that scans song packages into the library index.
 
-The engine owns the deterministic scan pipeline (list -> plan -> describe and generate album art for
-each package) behind three injected ports, so it is fully testable with fakes and never touches the
-real filesystem in tests. It is persistence-free by design: it exposes the working index and signals
+The engine owns the deterministic scan pipeline (list -> plan -> describe each package, and ask
+the album-art port for its art) behind three injected ports, so it is fully testable with fakes
+and never touches the real filesystem in tests. It is persistence-free by design: it exposes the
+working index and signals
 a commit checkpoint after each package, and a thin game/app runner performs the actual save through
 the Phase-2 free functions on its worker thread. This mirrors the "record a signal, the shell
 performs the effect" split of DiagnosticsController rather than mutating the filesystem inside the
@@ -126,8 +127,11 @@ public:
 
     Checks \p token before doing work: a requested cancellation moves the engine to Cancelled and
     offers a final commit checkpoint so the partial index can be persisted. Otherwise it applies one
-    action — describing and generating album art for an added or rescanned package, reusing a cached
-    entry, or dropping a removed one — and advances progress. No-ops once the scan is done.
+    action — describing an added or rescanned package and asking the album-art port for its art,
+    reusing a cached entry, or dropping a removed one — and advances progress. No-ops once the scan
+    is done. The port really is called, but the shipped implementation is
+    \ref NullAlbumArtGenerator and returns none: art itself arrives with
+    docs/plans/roadmap/43-song-information-and-art.md, so nothing here generates an image today.
 
     \param token Cooperative cancellation handle polled at the between-package checkpoint.
     \return The phase, progress, and commit signal after this step.

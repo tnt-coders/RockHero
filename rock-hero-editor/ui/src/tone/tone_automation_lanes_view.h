@@ -3,14 +3,15 @@
 \brief Automation lanes beneath the tone row: one lane per automated parameter plus a "+" lane.
 
 One component paints every lane (dynamic count, per-lane vertical resize, dirty-rect locality) and
-the trailing empty lane whose pinned "+" chip opens the parameter picker. Gestures follow the
-editor-wide interaction model (docs/plans/in-progress/editing-interaction-model.md): a plain click
-never mutates (points select; empty lane space passes through to the seek overlay), Alt is the
-insert quasimode (click or press-drag-release places a point, with a ghost preview and copy cursor
-while Alt is held; the point lands ON the curve at the snapped time and the drag phase pulls its
-value by the pointer's delta, so placement is sonically silent until deliberately pulled), Ctrl
-bypasses grid snap to the fine grid, Shift axis-locks point drags, and Esc cancels the gesture in
-flight. Gestures preview locally and commit one full-point-list intent on release; a state push
+the trailing empty lane whose pinned "+" chip opens the parameter picker.
+
+Gestures follow the editor-wide interaction model without restating it — the modifier meanings live
+once in docs/developer/adding-a-pointer-gesture.md and were spelled out here and in
+\ref ToneTrackView in two different wordings until 2026-08-10. What is specific to the lanes: a
+plain click never mutates (points select; empty lane space passes through to the seek overlay), the
+Alt-placed point lands ON the curve at the snapped time and the drag phase pulls its value by the
+pointer's delta, so placement is sonically silent until deliberately pulled, and Shift axis-locks a
+point drag. Gestures preview locally and commit one full-point-list intent on release; a state push
 mid-gesture is deferred until the gesture ends so it cannot reset the edit in progress. The lanes
 never resize themselves: heights flow up through a callback and the track viewport lays the
 component out, so the cursor overlay and content height stay authoritative.
