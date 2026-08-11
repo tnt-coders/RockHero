@@ -44,7 +44,9 @@ enum class NativeAudioSetupPhase : std::uint8_t
     /*! \brief A device is applied and its route is being calibrated for input gain. */
     CalibratingGain,
 
-    /*! \brief The device route and a matching gain calibration are persisted; the guitar is audible. */
+    /*!
+    \brief The device route and a matching gain calibration are persisted; the guitar is audible.
+    */
     Ready,
 
     /*! \brief A device-apply or persistence step failed; failure() carries the typed reason. */
@@ -66,7 +68,9 @@ enum class NativeAudioSetupErrorCode : std::uint8_t
     /*! \brief Persisting the device route or the player-slot config failed. */
     StorePersistFailed,
 
-    /*! \brief The gain-calibration measurement or its commit failed; the applied device is intact. */
+    /*!
+    \brief The gain-calibration measurement or its commit failed; the applied device is intact.
+    */
     CalibrationFailed,
 };
 
@@ -134,7 +138,8 @@ public:
 
     /*!
     \brief Reports whether a device apply may begin from the current phase.
-    \return True in every phase except CalibratingGain, where a measurement must finish or cancel first.
+    \return True in every phase except CalibratingGain, where a
+            measurement must finish or cancel first.
     */
     [[nodiscard]] bool canApplyDevice() const noexcept;
 

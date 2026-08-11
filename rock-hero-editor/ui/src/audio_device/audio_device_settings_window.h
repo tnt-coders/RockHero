@@ -25,7 +25,9 @@ class IAudioDeviceConfiguration;
 namespace rock_hero::editor::ui
 {
 
-/*! \brief Resolved "use game audio settings" toggle state at an audio-device settings window open. */
+/*!
+\brief Resolved "use game audio settings" toggle state at an audio-device settings window open.
+*/
 struct GameAudioSettings final
 {
     /*! \brief True when the toggle is on and the panel opens read-only. */

@@ -966,8 +966,8 @@ void TrackViewport::updateRulerCursor()
                               : std::nullopt;
 
     // The caret mask is part of the key, so a mask change (arm, clear, or a value edit shifting the
-    // square's y) re-runs the derivation even at an unchanged mark — no push order can leave the gap
-    // stale. A stationary paused tick with no caret still short-circuits; an armed caret always
+    // square's y) re-runs the derivation even at an unchanged mark — no push order can leave the
+    // gap stale. A stationary paused tick with no caret still short-circuits; an armed caret always
     // re-derives (its square can move via live tracking without any of these inputs changing).
     const RulerCursorKey key{
         .playing = playing,

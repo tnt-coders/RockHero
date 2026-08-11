@@ -141,8 +141,8 @@ public:
     /*!
     \brief Requests a backing-playback speed factor; only 1.0 is currently accepted.
 
-    Practice-speed support (docs/plans/roadmap/28-practice-mode.md) implements non-1.0 factors over the
-    proxy-off backing clip; until then any other factor returns SpeedNotSupported unchanged.
+    Practice-speed support (docs/plans/roadmap/28-practice-mode.md) implements non-1.0 factors over
+    the proxy-off backing clip; until then any other factor returns SpeedNotSupported unchanged.
 
     \param factor Requested playback speed multiplier, where 1.0 is normal speed.
     \return Nothing on success, or SpeedNotSupported for any factor other than 1.0.

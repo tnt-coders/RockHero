@@ -696,9 +696,9 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             continue;
         }
 
-        // The canonical shape ("tones/" + a 36-character canonical UUID + "/tone.json") is the whole
-        // check: it admits no traversal, root, or drive letter, so a separate path-escape clause
-        // could not reject anything this accepts.
+        // The canonical shape ("tones/" + a 36-character canonical UUID + "/tone.json") is the
+        // whole check: it admits no traversal, root, or drive letter, so a separate path-escape
+        // clause could not reject anything this accepts.
         const std::filesystem::path tone_document_ref{branch.tone_document_ref};
         if (!core::isCanonicalToneDocumentRef(tone_document_ref.generic_string()))
         {

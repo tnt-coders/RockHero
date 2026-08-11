@@ -939,8 +939,8 @@ TEST_CASE("EditorController undoes plugin inserts", "[core][editor-controller]")
     CHECK(view.shown_errors.empty());
 }
 
-// Plugin-recreating directions (remove undo, insert redo) run behind the LoadingPlugin busy fence so
-// a slow instantiation cannot block the message thread without feedback; remove redo stays sync.
+// Plugin-recreating directions (remove undo, insert redo) run behind the LoadingPlugin busy fence
+// so a slow instantiation cannot block the message thread without feedback; remove redo stays sync.
 TEST_CASE("EditorController fences plugin recreate behind loading", "[core][editor-controller]")
 {
     FakeTransport transport;

@@ -188,9 +188,9 @@ void writeReadablePackageDirectory(const std::filesystem::path& package_director
     writeAudioFile(package_directory / "audio" / "backing.flac");
 }
 
-// Writes a readable package whose song.json carries a caller-supplied tempo-map fragment so negative
-// tests can vary only the grid. The fragment is the full "tempoMap": { ... } text spliced ahead of
-// audioAssets, matching tempoMapJsonFragment()'s shape.
+// Writes a readable package whose song.json carries a caller-supplied tempo-map fragment so
+// negative tests can vary only the grid. The fragment is the full "tempoMap": { ... } text spliced
+// ahead of audioAssets, matching tempoMapJsonFragment()'s shape.
 void writePackageDirectoryWithTempoMap(
     const std::filesystem::path& package_directory, const std::string& tempo_map_fragment)
 {
@@ -854,8 +854,9 @@ TEST_CASE("Rock song package requires tempo map", "[core][rock-song-package]")
     CHECK(read_song.error().message.find("tempoMap") != std::string::npos);
 }
 
-// Verifies the reader rejects packages whose backing audio is not FLAC. FLAC is the canonical package
-// audio format, so WAV/Ogg/other-format packages are no longer supported and must be re-imported.
+// Verifies the reader rejects packages whose backing audio is not FLAC. FLAC is the canonical
+// package audio format, so WAV/Ogg/other-format packages are no longer
+// supported and must be re-imported.
 TEST_CASE("Rock song package rejects non-FLAC backing audio", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
@@ -891,9 +892,10 @@ TEST_CASE("Rock song package rejects non-FLAC backing audio", "[core][rock-song-
     CHECK(read_song.error().message.find("FLAC") != std::string::npos);
 }
 
-// Verifies the reader rejects tempo maps that break grid invariants. Each fragment parses and passes
-// the per-entry field reads, so these exercise validateTempoMap's structural rules: meter coverage
-// and ordering, the required start and terminal anchors, downbeat terminals, and anchor ordering.
+// Verifies the reader rejects tempo maps that break grid invariants. Each fragment parses and
+// passes the per-entry field reads, so these exercise validateTempoMap's structural rules: meter
+// coverage and ordering, the required start and terminal anchors, downbeat
+// terminals, and anchor ordering.
 TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-package]")
 {
     const std::vector<std::string> invalid_tempo_maps{
@@ -962,8 +964,9 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
     // Regions tile the song gap-free, matching the marker format: only starts persist, and each
-    // end derives as the next region's start (the tempo-map terminal, 3:1, for the last). The shared
-    // boundary sits on a sub-beat (2:3+1/2) so the round-trip exercises the fractional token grammar.
+    // end derives as the next region's start (the tempo-map terminal, 3:1, for the last). The
+    // shared boundary sits on a sub-beat (2:3+1/2) so the round-trip
+    // exercises the fractional token grammar.
     Song song = makeSongWithToneDocument(source_audio);
     song.arrangements.front().tone_track.regions = {
         ToneRegion{

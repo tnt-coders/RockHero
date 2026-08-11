@@ -27,12 +27,13 @@ namespace rock_hero::editor::ui
 \brief Renders tone regions from framework-free state and emits selection, resize, insert, and
 delete intents.
 
-Gestures follow the editor-wide interaction model (docs/plans/in-progress/editing-interaction-model.md):
-a plain click selects, dragging an edge moves the shared boundary (snapped to the grid, Ctrl
-bypassing to the fine grid, with a snap guide on the shared overlay), Alt is the insert quasimode
-— click or press-drag-release inside a region requests a tone change at the snapped position,
-with a ghost boundary line and copy cursor while Alt is held — and Esc cancels the gesture in
-flight. The right-click menu mirrors every gesture (insert here, rename, delete).
+Gestures follow the editor-wide interaction model
+(docs/plans/in-progress/editing-interaction-model.md): a plain click selects, dragging an edge moves
+the shared boundary (snapped to the grid, Ctrl bypassing to the fine grid, with a snap guide on the
+shared overlay), Alt is the insert quasimode — click or press-drag-release inside a region requests
+a tone change at the snapped position, with a ghost boundary line and copy cursor while Alt is held
+— and Esc cancels the gesture in flight. The right-click menu mirrors every gesture
+(insert here, rename, delete).
 */
 class ToneTrackView final : public juce::Component
 {

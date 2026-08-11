@@ -126,7 +126,8 @@ TEST_CASE(
     CHECK_FALSE(store.activeDeviceRoute().has_value());
 }
 
-// Device-change notifications persist the blob paired with the resolved input identity to the store.
+// Device-change notifications persist the blob paired with the
+// resolved input identity to the store.
 TEST_CASE("EditorController persists serialized audio device state", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"serialized_audio_device_persist"};
@@ -765,7 +766,8 @@ TEST_CASE(
 }
 
 // When the game route resolves to a different device, the toggle re-opens the device behind the
-// busy overlay so the blocking juce::AudioDeviceManager work paints "Opening audio device..." first.
+// busy overlay so the blocking juce::AudioDeviceManager work paints
+// "Opening audio device..." first.
 TEST_CASE(
     "EditorController game-audio toggle re-opens behind the busy overlay when the device changes",
     "[core][editor-controller]")
@@ -834,8 +836,8 @@ TEST_CASE(
 }
 
 // With no applying presentation (the cancel-time toggle restore), a required re-open runs inline on
-// the calling path instead of entering the busy workflow, so the cancel's own staged-device rollback
-// cannot supersede its token and drop the re-open.
+// the calling path instead of entering the busy workflow, so the cancel's own staged-device
+// rollback cannot supersede its token and drop the re-open.
 TEST_CASE(
     "EditorController game-audio toggle re-opens inline without an applying presentation",
     "[core][editor-controller]")

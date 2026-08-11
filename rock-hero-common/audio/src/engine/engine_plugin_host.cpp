@@ -49,12 +49,12 @@ void copyPluginStatePreservingInstanceId(
     juce::ValueTree target_state = target_plugin.state;
 
     // Remove only properties the restored state no longer carries, then overwrite the rest in
-    // place. juce::ValueTree::setProperty is a no-op when the value is unchanged (NamedValueSet::set
-    // compares values - including binary blobs - by content and notifies listeners only on a real
-    // change), so invariant properties are left untouched instead of being wiped and re-added. The
-    // previous wipe-and-re-add re-applied IDs::layout, whose ExternalPlugin listener re-prepares the
-    // plugin (releaseResources + prepareToPlay); that fired once on removal and again on re-add
-    // (~74ms total) and was the entire undo/redo visual dropout.
+    // place. juce::ValueTree::setProperty is a no-op when the value is unchanged
+    // (NamedValueSet::set compares values - including binary blobs - by content and notifies
+    // listeners only on a real change), so invariant properties are left untouched instead of being
+    // wiped and re-added. The previous wipe-and-re-add re-applied IDs::layout, whose ExternalPlugin
+    // listener re-prepares the plugin (releaseResources + prepareToPlay); that fired once on
+    // removal and again on re-add (~74ms total) and was the entire undo/redo visual dropout.
     for (int index = target_state.getNumProperties(); --index >= 0;)
     {
         const juce::Identifier property_name = target_state.getPropertyName(index);
@@ -722,8 +722,8 @@ void Engine::Impl::refreshPluginEditObservers(std::optional<KnownPluginBaseline>
                 -> std::expected<PluginInstanceState, PluginHostError> {
                 observed_plugin.flushPluginStateToValueTree();
                 // Strip automation curves so the dirty tracker's baseline and comparisons stay
-                // curve-agnostic: curve edits already skip this tracker (curveHasChanged is a no-op),
-                // and keeping curves out of its states makes the plugin-parameter and
+                // curve-agnostic: curve edits already skip this tracker (curveHasChanged is a
+                // no-op), and keeping curves out of its states makes the plugin-parameter and
                 // tone-automation undo domains fully disjoint.
                 juce::ValueTree captured_state = observed_plugin.state.createCopy();
                 stripAutomationCurves(captured_state);

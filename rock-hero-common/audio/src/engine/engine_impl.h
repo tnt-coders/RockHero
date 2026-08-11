@@ -183,8 +183,8 @@ private:
     tracktion::EditItemID m_output_meter_plugin_id;
 
     // Structural master-output meter, living on the edit master plugin list rather than the
-    // instrument track. It rides a stable measurer (unlike the churning EditPlaybackContext), so the
-    // UI meter read never re-registers a client onto a measurer that is mid-rebuild.
+    // instrument track. It rides a stable measurer (unlike the churning EditPlaybackContext), so
+    // the UI meter read never re-registers a client onto a measurer that is mid-rebuild.
     tracktion::EditItemID m_master_meter_plugin_id;
 
     // Meter readers registered with Tracktion measurers on demand by audioMeterSnapshot().
@@ -728,9 +728,9 @@ private:
         std::string_view rollback_context);
 
     // Connects meter readers to their structural measurers and returns one display snapshot. All
-    // three meters ride stable structural LevelMeterPlugins (the master deliberately does not use the
-    // churning EditPlaybackContext::masterLevels), so each attach() is a no-op once registered and the
-    // read never re-registers a client onto a measurer a plugin reconfigure is mid-rebuild.
+    // three meters ride stable structural LevelMeterPlugins (the master deliberately does not use
+    // the churning EditPlaybackContext::masterLevels), so each attach() is a no-op once registered
+    // and the read never re-registers a client onto a measurer a plugin reconfigure is mid-rebuild.
     [[nodiscard]] AudioMeterSnapshot audioMeterSnapshot() const;
 
     // Reads the hardware input meter before the live-rig monitoring gate.

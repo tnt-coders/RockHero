@@ -158,7 +158,9 @@ public:
     void advance(
         const HighwayCameraTarget& target, double dt_seconds, const HighwayMetrics& metrics);
 
-    /*! \brief Forgets the smoother state so the next advance() snaps (at rest) like a first call. */
+    /*!
+    \brief Forgets the smoother state so the next advance() snaps (at rest) like a first call.
+    */
     void reset() noexcept;
 
     /*!

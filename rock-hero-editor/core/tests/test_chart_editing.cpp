@@ -409,7 +409,8 @@ TEST_CASE("EditorController Alt+drag plants a note and suppresses the marquee", 
     CHECK_FALSE(state->chart_edit.marquee.has_value());
     CHECK(state->chart_edit.insert_ghost.has_value());
 
-    // Release plants exactly one fret-0 note at the release slot (240 px = 12.0s), clearing the ring.
+    // Release plants exactly one fret-0 note at the release slot
+    // (240 px = 12.0s), clearing the ring.
     controller.onChartPointerUp(pointerEvent(240.0f, 100.0f, ChartPointerModifiers{.alt = true}));
     REQUIRE(chartOrNull(controller)->notes.size() == notes_before + 1);
     CHECK(chartOrNull(controller)->notes.back().string == 4);

@@ -133,7 +133,8 @@ public:
 
         // Editor audio-config store: reads and writes delegate to the editor's own read-write store
         // or a read-only view of the game's file, per the active source. Injected everywhere the
-        // editor's audio config is read so the device route and calibration follow the active source.
+        // editor's audio config is read so the device route and
+        // calibration follow the active source.
         m_editor_audio_config_store =
             std::make_unique<rock_hero::editor::core::EditorAudioConfigStore>(
                 m_editor_settings->audioConfigStore(), gameAudioConfigFile());

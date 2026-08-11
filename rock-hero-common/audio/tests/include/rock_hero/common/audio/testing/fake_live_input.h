@@ -181,7 +181,8 @@ public:
     }
 
     /*!
-    \brief Records a setLiveInputMonitoringEnabled call, then applies it unless a failure is injected.
+    \brief Records a setLiveInputMonitoringEnabled call, then applies
+           it unless a failure is injected.
     \param enabled True to route calibrated live guitar through the chain.
     \return Empty success, or the injected one-shot failure.
     */
@@ -245,7 +246,9 @@ public:
     /*! \brief Current processed-monitoring flag returned by liveInputMonitoringEnabled(). */
     bool live_input_monitoring_enabled{false};
 
-    /*! \brief Current calibration-monitoring flag returned by calibrationInputMonitoringEnabled(). */
+    /*!
+    \brief Current calibration-monitoring flag returned by calibrationInputMonitoringEnabled().
+    */
     bool calibration_input_monitoring_enabled{false};
 
     /*! \brief One-shot failure injected before the next setInputGain applies its value. */
@@ -254,7 +257,9 @@ public:
     /*! \brief One-shot failure injected before the next setLiveInputMonitoringEnabled applies. */
     std::optional<LiveInputError> next_set_live_input_monitoring_error{};
 
-    /*! \brief One-shot failure injected before the next setCalibrationInputMonitoringEnabled applies. */
+    /*!
+    \brief One-shot failure injected before the next setCalibrationInputMonitoringEnabled applies.
+    */
     std::optional<LiveInputError> next_set_calibration_input_monitoring_error{};
 
     /*! \brief Number of setInputGain invocations recorded, including failures. */
@@ -263,7 +268,9 @@ public:
     /*! \brief Number of setLiveInputMonitoringEnabled invocations recorded, including failures. */
     int set_live_input_monitoring_call_count{0};
 
-    /*! \brief Number of setCalibrationInputMonitoringEnabled invocations recorded, including failures. */
+    /*!
+    \brief Number of setCalibrationInputMonitoringEnabled invocations recorded, including failures.
+    */
     int set_calibration_input_monitoring_call_count{0};
 
     /*! \brief Number of inputGain() reads observed by the fake. */

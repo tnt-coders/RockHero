@@ -3719,9 +3719,9 @@ TEST_CASE("Guitar Pro import rejects unusable sources", "[core][gp-import]")
 
 // A bend on a note that shift-slides into its landing. Ordinary lead vocabulary, and it used to
 // refuse the whole song two different ways: the trim that ends the glide before the landing set the
-// sustain without clipping the payload past it, so a flat prebend left a bend point outside the tail
-// — and when the bend's own last CHANGING point reached the landing, the informative floor pushed
-// the arrival onto the landing's own onset, where a pitched waypoint may not sit.
+// sustain without clipping the payload past it, so a flat prebend left a bend point outside the
+// tail — and when the bend's own last CHANGING point reached the landing, the informative floor
+// pushed the arrival onto the landing's own onset, where a pitched waypoint may not sit.
 TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{

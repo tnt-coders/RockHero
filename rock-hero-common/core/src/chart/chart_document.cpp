@@ -78,8 +78,8 @@ namespace
     }
 
     // A chart means exactly what it says, so a property that is PRESENT but of the wrong JSON type
-    // is malformed rather than absent. The lenient readers below are built for draft metadata, where
-    // a fallback beats a refusal; on a note a fallback silently changes the music — a numeric
+    // is malformed rather than absent. The lenient readers below are built for draft metadata,
+    // where a fallback beats a refusal; on a note a fallback silently changes the music — a numeric
     // "attack" read as a plain pick, `"sustain": 2` read as no tail at all — and the note then
     // validates clean, so nothing downstream can notice.
     for (const std::string_view key : {"string", "fret", "sustain", "attack", "mute"})

@@ -1508,7 +1508,8 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
 
     const std::vector<LiveInputSetterCall> golden_trace{
         // onInputCalibrationRequested: no setters (prompt open only).
-        // onInputCalibrationMeasurementStarted: disable live, reset gain, enable calibration audition.
+        // onInputCalibrationMeasurementStarted: disable live, reset
+        // gain, enable calibration audition.
         setLiveInputMonitoringCall(false),
         setInputGainCall(0.0),
         setCalibrationInputMonitoringCall(true),
@@ -2085,7 +2086,8 @@ TEST_CASE("Live input gate disables while settings open", "[core][editor-control
     audio_devices.notifyChanged();
 
     const std::vector<LiveInputSetterCall> trace{
-        // Same physical route: select emits no effects. Gate: preamble disable, settings-open disable.
+        // Same physical route: select emits no effects. Gate: preamble
+        // disable, settings-open disable.
         setCalibrationInputMonitoringCall(false),
         setLiveInputMonitoringCall(false),
     };

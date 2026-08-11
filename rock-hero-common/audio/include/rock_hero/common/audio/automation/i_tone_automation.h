@@ -104,8 +104,8 @@ public:
     /*!
     \brief Lists the automatable parameters of every plugin in a loaded tone's chain.
 
-    Parameters are returned grouped (the group name populates \ref AutomatableParamInfo::group), with
-    the synthetic dry/wet mix parameters filtered out.
+    Parameters are returned grouped (the group name populates \ref AutomatableParamInfo::group),
+    with the synthetic dry/wet mix parameters filtered out.
 
     \param tone_document_ref One of the tone references currently loaded into the live rig.
     \return The tone's automatable parameters, or a typed failure when the tone is not loaded.
@@ -137,7 +137,8 @@ public:
     \param instance_id Plugin instance whose parameter is written.
     \param param_id Parameter id within that plugin.
     \param points Replacement curve points, normalised value, in ascending time.
-    \return Empty success, or a typed failure when the tone, plugin, or parameter cannot be resolved.
+    \return Empty success, or a typed failure when the tone, plugin,
+            or parameter cannot be resolved.
     */
     [[nodiscard]] virtual std::expected<void, ToneAutomationError> writeParameterCurve(
         const std::string& tone_document_ref, const std::string& instance_id,

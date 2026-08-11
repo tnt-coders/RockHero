@@ -30,7 +30,9 @@ public:
     /*! \brief Owner-supplied context used to project input calibration state. */
     struct Context
     {
-        /*! \brief True when the live input path is up so a raw signal can be measured or monitored. */
+        /*!
+        \brief True when the live input path is up so a raw signal can be measured or monitored.
+        */
         bool live_input_ready{false};
 
         /*! \brief True when the editor session has a current arrangement. */

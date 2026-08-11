@@ -960,10 +960,10 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
                      });
 }
 
-// A tap harmonic lights the NODE it strikes, even on an open string. E4 accepts a tap that strikes a
-// node in place of a fret, and the tapping hand really does land on the node — so judging the light
-// by `fret` dropped it entirely from a legal, matrix-listed note: the same tap one fret higher lit
-// normally while the open-string one lit nowhere.
+// A tap harmonic lights the NODE it strikes, even on an open string. E4 accepts a tap that strikes
+// a node in place of a fret, and the tapping hand really does land on the node — so judging the
+// light by `fret` dropped it entirely from a legal, matrix-listed note: the same tap one fret
+// higher lit normally while the open-string one lit nowhere.
 TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[core][highway]")
 {
     HighwayNoteView tap;
@@ -981,8 +981,8 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     CHECK(onsets.front().fret_low == 12);
     CHECK(onsets.front().fret_high == 12);
     // The path station reads the same sounding place through the light's own interpolation, so it
-    // has to agree exactly (compared through the ordering query, which the project uses for an exact
-    // floating compare that -Wfloat-equal accepts).
+    // has to agree exactly (compared through the ordering query, which the project uses for an
+    // exact floating compare that -Wfloat-equal accepts).
     REQUIRE_FALSE(onsets.front().path.empty());
     CHECK(std::is_eq(onsets.front().path.front().fret_low <=> 12.0));
 

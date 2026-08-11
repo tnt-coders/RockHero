@@ -152,8 +152,8 @@ public:
 
         Optional and null in tests that do not exercise the toggle: when supplied it is the same
         object as \ref audio_config_store, injected concretely here so the controller can re-select
-        its active source (own store vs. the game's file) on toggle change. When null the toggle only
-        persists its workflow bit and applies no source switch or engine adoption.
+        its active source (own store vs. the game's file) on toggle change. When null the toggle
+        only persists its workflow bit and applies no source switch or engine adoption.
         */
         EditorAudioConfigStore* editor_audio_config_store{nullptr};
 

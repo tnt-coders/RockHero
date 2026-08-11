@@ -96,8 +96,8 @@ struct AutomationEditor
     EditorController controller;
     FakeEditorView view;
 
-    // chain_tone_ref is the tone the load reports the plugin chain under. Tests pass an empty ref to
-    // reproduce a plugin whose runtime association has no tone yet (inserted before a region was
+    // chain_tone_ref is the tone the load reports the plugin chain under. Tests pass an empty ref
+    // to reproduce a plugin whose runtime association has no tone yet (inserted before a region was
     // selected), so the lane-add path must recover the association from the selection.
     explicit AutomationEditor(
         common::core::Song song = makeAutomationSong(),
@@ -323,8 +323,9 @@ TEST_CASE(
     "[core][tone-automation]")
 {
     // Seed the load so g_instance is a removable plugin in both the editor chain (its automation
-    // resolves through the tone-chain identity) and the fake backend (capture/remove/recreate act on
-    // it). This mirrors a loaded song whose tone already hosts a plugin, without the async insert.
+    // resolves through the tone-chain identity) and the fake backend (capture/remove/recreate act
+    // on it). This mirrors a loaded song whose tone already hosts a
+    // plugin, without the async insert.
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -901,10 +902,11 @@ TEST_CASE(
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     REQUIRE(editor.automation().lanes.size() == 1);
 
-    // The same boundary geometry the ghost-snap test uses, so the caret's snap is proven against the
-    // identical disagreement: over [0, 4] s at 401 px, the pixel x 225.3 inverts to 2.253 s through
-    // the placement seam (÷ (width - 1)) but to 2.247 s through the shipped view's ÷width secondsForX.
-    // The 1/4 grid boundary sits at 2.25 s, so the two paths arm the caret on DIFFERENT slots.
+    // The same boundary geometry the ghost-snap test uses, so the caret's snap is proven against
+    // the identical disagreement: over [0, 4] s at 401 px, the pixel x 225.3 inverts to 2.253 s
+    // through the placement seam (÷ (width - 1)) but to 2.247 s through the shipped view's ÷width
+    // secondsForX. The 1/4 grid boundary sits at 2.25 s, so the two paths
+    // arm the caret on DIFFERENT slots.
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
@@ -975,9 +977,10 @@ TEST_CASE(
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     REQUIRE(editor.automation().lanes.size() == 1);
 
-    // Routing the caret arm through the one placement snap (laneSnapPositionForX) means it now honors
-    // the Ctrl fine tier exactly as lane placement and the insert ghost do — Ctrl = precision,
-    // uniformly. This pixel inverts to an off-grid 2.13 s, so the coarse and fine snaps disagree.
+    // Routing the caret arm through the one placement snap (laneSnapPositionForX) means it now
+    // honors the Ctrl fine tier exactly as lane placement and the insert ghost do — Ctrl =
+    // precision, uniformly. This pixel inverts to an off-grid 2.13 s, so the
+    // coarse and fine snaps disagree.
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
@@ -994,8 +997,8 @@ TEST_CASE(
     }
 
     // The nearest 1/4 line is measure 2 beat 1 (2.0 s); the fine tier keeps the off-grid 1/960-beat
-    // slot. Both are derived through the same helpers the controller's snap uses, so the expectation
-    // tracks the placement seam rather than a hand-computed fraction.
+    // slot. Both are derived through the same helpers the controller's snap uses, so the
+    // expectation tracks the placement seam rather than a hand-computed fraction.
     const common::core::GridPosition coarse_slot =
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
     const common::core::GridPosition fine_slot = fineGridPositionForBeat(
@@ -1113,8 +1116,8 @@ TEST_CASE(
     CHECK_FALSE(editor.automation().drag_preview.has_value());
 
     // Re-seed, then pull the on-curve landing up by delta: rising 10 px (a quarter of the 40 px
-    // band) from press y 40 to y 30 lifts the 0.5 landing to 0.75 — never jumping to the raw pointer
-    // y (which at y 30 reads 0.375).
+    // band) from press y 40 to y 30 lifts the 0.5 landing to 0.75 — never jumping to the raw
+    // pointer y (which at y 30 reads 0.375).
     AutomationEditor pulled;
     pulled.seedPoints(
         {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
@@ -1150,7 +1153,8 @@ TEST_CASE(
         editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 
     // A dominantly-vertical Shift drag instead locks the position: grab the same point and drag it
-    // down (5 px right, 20 px down) so the value moves while the position holds at measure 2 beat 1.
+    // down (5 px right, 20 px down) so the value moves while the
+    // position holds at measure 2 beat 1.
     AutomationEditor vertical;
     vertical.seedPoints(
         {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
@@ -1177,7 +1181,8 @@ TEST_CASE(
 
     // Grab the second point and drag it left to measure 1 beat 2 (valid), then keep dragging left
     // onto the first point's own slot (measure 1 beat 1). The neighbor clamp refuses the crossing,
-    // so the preview stays at the last legal slot and the commit keeps the points strictly ascending.
+    // so the preview stays at the last legal slot and the commit keeps
+    // the points strictly ascending.
     editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
     editor.controller.onToneAutomationPointerDrag(dragEvent(50.0F, pointerYForValue(0.75F)));
     REQUIRE(editor.automation().drag_preview.has_value());
@@ -1297,7 +1302,8 @@ TEST_CASE(
 
     // Alt-press on empty lane area whose x snaps onto the occupied measure 2 beat 1 slot (x 200,
     // but y 40 is far from the point handle at y 15, so it is an area press, not a grab). Placement
-    // shares the keyboard Insert's occupied-slot refusal, so no gesture arms and no duplicate lands.
+    // shares the keyboard Insert's occupied-slot refusal, so no
+    // gesture arms and no duplicate lands.
     const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
     editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, 40.0F, alt));
     CHECK_FALSE(editor.automation().drag_preview.has_value());
@@ -1318,7 +1324,8 @@ TEST_CASE(
     const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
 
     // Over the occupied measure 2 beat 1 slot (x 200) the ring is hidden: an insert there would
-    // no-op, so the affordance must not advertise it (§7, and the placement refusal makes it honest).
+    // no-op, so the affordance must not advertise it (§7, and the
+    // placement refusal makes it honest).
     editor.controller.onToneAutomationPointerMove(pointerEvent(200.0F, 40.0F, alt));
     CHECK_FALSE(editor.automation().insert_ghost.has_value());
 

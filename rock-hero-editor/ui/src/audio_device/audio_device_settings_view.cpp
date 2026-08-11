@@ -494,7 +494,8 @@ void AudioDeviceSettingsView::applyStateToControls()
 
     // The device fields stay editable only while the editor owns its own audio route. With the
     // toggle on they are read-only reflections of the game's configuration (or, when the game is
-    // unconfigured, locked to steer the user to the opt-out); an in-flight apply also disables them.
+    // unconfigured, locked to steer the user to the opt-out); an
+    // in-flight apply also disables them.
     const bool controls_enabled = !m_applying && !gameSettingsLockActive();
     m_device_type_combo.setEnabled(controls_enabled && !m_state.audio_systems.empty());
     m_device_combo.setEnabled(
@@ -523,11 +524,11 @@ void AudioDeviceSettingsView::applyStateToControls()
     // stage nothing and OK commits the already-open route; the view only adds the apply fence.
     m_ok_button.setEnabled(!m_applying && m_state.ok_enabled);
     // Cancel closes the window in either source mode, so it follows only the apply fence, not the
-    // read-only game lock. The toggle stays usable while locked so the user can always uncheck it to
-    // switch back to the editor's own audio. With no game configuration at all (NotConfigured, read
-    // fresh at window open) the toggle disables with an explanatory tooltip instead — there is
-    // nothing a click could adopt; an uncalibrated game keeps it clickable so the click can report
-    // the calibrate-in-game reason.
+    // read-only game lock. The toggle stays usable while locked so the user can always uncheck it
+    // to switch back to the editor's own audio. With no game configuration at all (NotConfigured,
+    // read fresh at window open) the toggle disables with an explanatory tooltip instead — there is
+    // nothing a click could adopt; an uncalibrated game keeps it clickable so the click can
+    // report the calibrate-in-game reason.
     m_cancel_button.setEnabled(!m_applying);
     const bool game_source_configured =
         m_game_settings.source_state != core::GameAudioSourceState::NotConfigured;

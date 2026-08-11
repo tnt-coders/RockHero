@@ -32,7 +32,8 @@ public:
 
     /*!
     \brief Reads the active device route stored by a previous successful device apply.
-    \return Stored route, or empty when no route should be restored or the stored value is unreadable.
+    \return Stored route, or empty when no route should be restored or
+            the stored value is unreadable.
     */
     [[nodiscard]] virtual std::optional<ActiveDeviceRoute> activeDeviceRoute() const = 0;
 

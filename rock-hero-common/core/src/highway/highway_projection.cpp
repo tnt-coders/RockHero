@@ -34,9 +34,9 @@ HighwayViewState makeHighwayViewState(
     state.sections.reserve(sections.size());
     for (const SongSection& section : sections)
     {
-        // Upper-cased here, once per projection, because the board draws every section name that way
-        // and doing it in the renderer meant a fresh allocation and transform per visible section per
-        // frame for a value that only changes when the chart does.
+        // Upper-cased here, once per projection, because the board draws every section name that
+        // way and doing it in the renderer meant a fresh allocation and transform per visible
+        // section per frame for a value that only changes when the chart does.
         std::string name = section.name;
         std::ranges::transform(name, name.begin(), [](const char character) {
             return static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
@@ -191,8 +191,8 @@ HighwayViewState makeHighwayViewState(
     // Tapping-hand onsets derive purely from the resolved notes (right-hand tap lighting).
     state.tap_onsets = makeHighwayTapOnsets(state.notes, tap_rise_seconds);
 
-    // Display hold ends, resolved from the one effective-sustain authority rather than recomputed in
-    // seconds. The loop above pushes exactly one view per chart note, so the indices line up.
+    // Display hold ends, resolved from the one effective-sustain authority rather than recomputed
+    // in seconds. The loop above pushes exactly one view per chart note, so the indices line up.
     const std::vector<Fraction> effective_sustains =
         chartEffectiveSustains(chart.notes, chart.shapes, tempo_map);
     state.display_hold_ends.reserve(chart.notes.size());

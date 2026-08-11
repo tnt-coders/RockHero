@@ -188,10 +188,11 @@ string has harmonic nodes past its last fret, so a node runs to \ref g_max_harmo
 48 fret units. The drawn board lays out \ref g_highway_fret_count frets and has nowhere to put a
 position past the last one, so this holds a node at the board's edge.
 
-The cap is a DISPLAY limit and nothing else. The chart still carries the exact node, validation still
-accepts it, and the 2D lane still prints it as a number, so the two surfaces deliberately disagree
-about a node past the board: 2D names it, 3D draws the note at the last fret. That is a decided
-asymmetry rather than a latent bug, pending a decision on how a node past the board should read.
+The cap is a DISPLAY limit and nothing else. The chart still carries the exact node, validation
+still accepts it, and the 2D lane still prints it as a number, so the two surfaces deliberately
+disagree about a node past the board: 2D names it, 3D draws the note at the last fret. That is a
+decided asymmetry rather than a latent bug, pending a decision on how a
+node past the board should read.
 
 Every 3D consumer must ask this rather than \ref soundingPositionAt, or the board and the camera
 frame different places — which is exactly how a third-partial artificial harmonic came to be framed
@@ -515,16 +516,16 @@ struct HighwayViewState
     /*!
     \brief Per-note display hold end in seconds, one entry per \ref notes entry.
 
-    The note's own sustain end, except that a sustainless member of a two-or-more onset group under a
-    covering hand-shape span is held for the span — a strum's heads stay pinned at the hit line while
-    the posture is held, instead of vanishing the instant they are struck. A fully dead group is
-    choked rather than held and keeps its own end.
+    The note's own sustain end, except that a sustainless member of a two-or-more onset group under
+    a covering hand-shape span is held for the span — a strum's heads stay pinned at the hit line
+    while the posture is held, instead of vanishing the instant they are struck. A fully dead group
+    is choked rather than held and keeps its own end.
 
     Resolved here from \ref chartEffectiveSustains, the ONE authority for that rule, rather than
-    recomputed in seconds. It used to be computed twice, once in beats for the chart rules and once in
-    seconds for the board, and both copies carried the same defect — a long span shadowed by a short
-    one that started inside it silently lost its hold — and were fixed separately. That is the whole
-    argument for resolving the beats answer instead of restating it.
+    recomputed in seconds. It used to be computed twice, once in beats for the chart rules and once
+    in seconds for the board, and both copies carried the same defect — a long span shadowed by a
+    short one that started inside it silently lost its hold — and were fixed separately. That is the
+    whole argument for resolving the beats answer instead of restating it.
 
     Feeds the visible-range prefix maximum, so a span-held strum stays in range for as long as it is
     drawn.
@@ -633,8 +634,8 @@ tap onset's release.
         double previous_seconds = note.start_seconds;
         // Where the note SOUNDS, not its stop: a tap harmonic strikes its node, and on an open
         // string that node is the only position it has. Waypoints ride the same rule, since a node
-        // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off the
-        // board while the head it belongs to is held at the edge.
+        // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off
+        // the board while the head it belongs to is held at the edge.
         double previous_fret = highwayDrawnSoundingPosition(note, note.fret).position;
         for (const HighwaySlideView& waypoint : note.slides)
         {

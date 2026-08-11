@@ -20,7 +20,8 @@ struct AlbumArt
     \brief Cached album-art image file name beside the library index.
 
     Empty when the package carries no album art — an absence, not a failure. Populated once
-    docs/plans/roadmap/43-song-information-and-art.md adds art and the JUCE-backed adapter decodes it.
+    docs/plans/roadmap/43-song-information-and-art.md adds art and the
+    JUCE-backed adapter decodes it.
     */
     std::string image_file_name;
 };
@@ -30,8 +31,8 @@ struct AlbumArt
 
 This is deliberately NOT `common::audio::IThumbnail`, which renders audio-waveform channels into a
 `juce::Graphics`; this port decodes a package's album art into a small cached image file. The real
-adapter (docs/plans/roadmap/43-song-information-and-art.md) needs `common/ui`'s album-art decoder and so
-lives outside headless `game/core`; NullAlbumArtGenerator keeps the scan headless until then.
+adapter (docs/plans/roadmap/43-song-information-and-art.md) needs `common/ui`'s album-art decoder
+and so lives outside headless `game/core`; NullAlbumArtGenerator keeps the scan headless until then.
 */
 class IAlbumArtGenerator
 {

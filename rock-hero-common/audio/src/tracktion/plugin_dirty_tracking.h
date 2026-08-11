@@ -101,14 +101,14 @@ public:
 
     A hosted plugin re-announces its own state asynchronously after it is instantiated or restored,
     with no bounded "settled" signal the host can wait for (a VST3 may call restartComponent at any
-    time). Those self-reports are therefore never distinguished from a real edit by timing. Instead a
-    settled transaction is emitted only when it carries **user intent**: a parameter gesture, which
-    only the plugin's own editor GUI raises. Every other settled change — a fresh insert's
+    time). Those self-reports are therefore never distinguished from a real edit by timing. Instead
+    a settled transaction is emitted only when it carries **user intent**: a parameter gesture,
+    which only the plugin's own editor GUI raises. Every other settled change — a fresh insert's
     re-announce, an undo/redo recreate's re-announce, or any gesture-less self-mutation — is folded
     into the baseline and never recorded, so it cannot appear as a phantom edit or truncate the redo
     stack. The deliberate cost: a gesture-less user action inside the plugin (e.g. an in-plugin
-    preset load) also folds — its state still persists through the baseline, but it does not get its
-    own undo entry.
+    preset load) also folds — its state still persists through the baseline, but it
+    does not get its own undo entry.
 
     \param plugin Plugin whose state edits should be tracked.
     \param capture_state Full-state capture callback.

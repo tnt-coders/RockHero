@@ -214,7 +214,8 @@ immediateMessageThreadScheduler() noexcept
 }
 
 /*!
-\brief Returns the shared in-memory audio-config store for tests that do not observe the device route.
+\brief Returns the shared in-memory audio-config store for tests that
+       do not observe the device route.
 \return Process-lifetime in-memory audio-config store fake.
 */
 [[nodiscard]] inline common::audio::testing::InMemoryAudioConfigStore&
@@ -259,7 +260,8 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 }
 
 /*!
-\brief Builds a service bundle over an explicit store and live-input monitor, synchronous by default.
+\brief Builds a service bundle over an explicit store and live-input
+       monitor, synchronous by default.
 \param settings Settings port used by the controller under test.
 \param audio_config_store Audio-config store used by the controller and monitor under test.
 \param live_input_monitor Live-input monitor injected into the controller under test.
@@ -408,7 +410,8 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 }
 
 /*!
-\brief Returns a nullable pointer to the in-flight marquee so tests can satisfy optional-access lint.
+\brief Returns a nullable pointer to the in-flight marquee so tests
+       can satisfy optional-access lint.
 \param edit Chart-edit view state that may or may not carry a marquee rectangle.
 \return Pointer to the contained marquee state, or nullptr.
 */
@@ -419,7 +422,8 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 }
 
 /*!
-\brief Returns a nullable pointer to the selected automation point so tests satisfy optional-access lint.
+\brief Returns a nullable pointer to the selected automation point so
+       tests satisfy optional-access lint.
 \param automation Tone-automation view state that may or may not carry a resolved point selection.
 \return Pointer to the contained selected-point reference, or nullptr.
 */

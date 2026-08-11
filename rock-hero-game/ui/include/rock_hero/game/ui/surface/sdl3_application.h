@@ -25,10 +25,11 @@ vsync-paced frame instrumentation (the pacing accumulator, the previous-frame bo
 the once-per-second pacing summary the overlay displays).
 
 It deliberately owns no window and no render device: the subclass (the composition root) owns those,
-mirroring how the editor's `RockHeroEditor` owns its `MainWindow` rather than `juce::JUCEApplication`
-owning it. \ref run is a template method that calls the virtual \ref onInit / \ref onInput /
-\ref onFrame / \ref onShutdown hooks the subclass overrides; the drain and the pacing sit between
-those hooks, exactly where the concrete loop needs them, so the subclass never touches loop cadence.
+mirroring how the editor's `RockHeroEditor` owns its `MainWindow` rather than
+`juce::JUCEApplication` owning it. \ref run is a template method that calls the virtual
+\ref onInit / \ref onInput / \ref onFrame / \ref onShutdown hooks the subclass overrides; the drain
+and the pacing sit between those hooks, exactly where the concrete loop needs them, so the subclass
+never touches loop cadence.
 */
 class SDL3Application
 {
@@ -98,7 +99,8 @@ protected:
     Polls the window and applies resize plus content input for this frame. Runs first each frame so
     input and size changes are as fresh as possible.
 
-    \return \ref FrameControl::Quit when the window requested quit, else \ref FrameControl::Continue.
+    \return \ref FrameControl::Quit when the window requested quit,
+            else \ref FrameControl::Continue.
     */
     [[nodiscard]] virtual FrameControl onInput() = 0;
 

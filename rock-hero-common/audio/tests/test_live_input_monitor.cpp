@@ -217,7 +217,8 @@ TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[audio][live-inpu
     CHECK_FALSE(monitor.backendAvailable());
 }
 
-// A route-unavailable monitoring rejection after gain succeeds still disables and marks the backend.
+// A route-unavailable monitoring rejection after gain succeeds still
+// disables and marks the backend.
 TEST_CASE("LiveInputMonitor gate rolls back on enable failure", "[audio][live-input]")
 {
     const InputDeviceIdentity identity = makeInputDeviceIdentity();

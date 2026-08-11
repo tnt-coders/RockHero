@@ -142,10 +142,10 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
                                 {
                                     common::core::Chart chart;
                                     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-                                    // A predecessor a measure earlier, holding through the onset and
-                                    // stopped above it, so a pull-off has something real to release
-                                    // and the repair's justified branch is reached rather than
-                                    // always falling through to a plain pick.
+                                    // A predecessor a measure earlier, holding through the onset
+                                    // and stopped above it, so a pull-off has something real to
+                                    // release and the repair's justified branch is reached rather
+                                    // than always falling through to a plain pick.
                                     common::core::ChartNote subject = makeNote(
                                         {.measure = 2, .beat = 1},
                                         1,
@@ -708,9 +708,9 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
 
 // The eligible-subset skip covers EVERY per-note rule, not a hand-picked pair of them. It used to
 // copy two of the validator's predicates, so a note the target attack broke some other rule on was
-// not skipped — and the whole-stream gate then refused the plan for every note in the selection, not
-// just that one. Here a fully muted note cannot become a pinch (a dead note sounds no pitch, so it
-// carries no harmonic, and a pinch must carry a node), which neither copied predicate named.
+// not skipped — and the whole-stream gate then refused the plan for every note in the selection,
+// not just that one. Here a fully muted note cannot become a pinch (a dead note sounds no pitch, so
+// it carries no harmonic, and a pinch must carry a node), which neither copied predicate named.
 TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]")
 {
     common::core::Chart chart = makeChart();
@@ -1284,7 +1284,8 @@ TEST_CASE("planSetLegato applies to the derivable subset of a selection", "[core
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        // Only the derivable note changes; the other keeps its plain pick and stays out of the plan.
+        // Only the derivable note changes; the other keeps its plain
+        // pick and stays out of the plan.
         REQUIRE(plan->inserted.size() == 1);
         CHECK(plan->inserted[0].string == 1);
         CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);

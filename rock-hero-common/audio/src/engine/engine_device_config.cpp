@@ -26,10 +26,11 @@ namespace
 // getAudioDeviceSetup(), and both XMLs are reconstructed the same way before comparing. This keeps
 // the comparison symmetric: JUCE's updateXml() omits the channel mask for a "use default channels"
 // setup, so an XML round-trip parses the "11" default, whereas getAudioDeviceSetup() reports the
-// hardware's actual active channel mask (verified in juce_AudioDeviceManager.cpp updateCurrentSetup,
-// updateXml). Comparing against getAudioDeviceSetup() directly would therefore spuriously differ for
-// every default-channel route and defeat the skip. Reconstructing both sides compares the persisted
-// forms that restore actually reproduces, so equal persisted forms mean an equal restore outcome.
+// hardware's actual active channel mask (verified in juce_AudioDeviceManager.cpp
+// updateCurrentSetup, updateXml). Comparing against getAudioDeviceSetup() directly would therefore
+// spuriously differ for every default-channel route and defeat the skip. Reconstructing both sides
+// compares the persisted forms that restore actually reproduces, so equal persisted forms
+// mean an equal restore outcome.
 [[nodiscard]] bool activeDeviceMatchesSerializedState(
     juce::AudioDeviceManager& device_manager, const juce::XmlElement& xml)
 {

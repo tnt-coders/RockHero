@@ -216,9 +216,10 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        // FLAC is RockHero's canonical package audio format. Packages that reference WAV, Ogg, or any
-        // other format are no longer supported and must be re-imported through the FLAC pipeline.
-        // Safety and existence are checked first so an unsafe path still reports as unsafe.
+        // FLAC is RockHero's canonical package audio format. Packages that reference WAV, Ogg, or
+        // any other format are no longer supported and must be re-imported through the FLAC
+        // pipeline. Safety and existence are checked first so an
+        // unsafe path still reports as unsafe.
         if (!hasFlacExtension(*relative_path))
         {
             return std::unexpected{SongPackageError{
@@ -230,11 +231,11 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         const auto normalization =
             readOptionalNormalization(Json::value(asset_json, "normalization"));
 
-        // Absent offset means the audio starts at the score's first beat; pre-offset packages simply
-        // omit the field. A field that is PRESENT but not a finite number is refused rather than
-        // read as zero: falling back would shift the whole backing track against the score with no
-        // word to the user, and a non-finite value survives to the next save, where the writer would
-        // emit the bare token `nan` and leave song.json permanently unparseable.
+        // Absent offset means the audio starts at the score's first beat; pre-offset packages
+        // simply omit the field. A field that is PRESENT but not a finite number is refused rather
+        // than read as zero: falling back would shift the whole backing track against the score
+        // with no word to the user, and a non-finite value survives to the next save, where the
+        // writer would emit the bare token `nan` and leave song.json permanently unparseable.
         const juce::var& start_offset_json = Json::value(asset_json, "startOffset");
         const auto start_offset_seconds = Json::tryReadDouble(asset_json, "startOffset");
         if (!start_offset_json.isVoid() &&
@@ -687,8 +688,8 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
             }
 
             // The writer omits the linear default, so an absent shape means 0. A PRESENT but
-            // non-numeric shape is refused rather than read as 0, which would silently straighten an
-            // authored curve; the range and finiteness of a numeric one are
+            // non-numeric shape is refused rather than read as 0, which would silently straighten
+            // an authored curve; the range and finiteness of a numeric one are
             // validateToneAutomationEntries' business below.
             const juce::var& shape_json = Json::value(point_json, "shape");
             const auto shape = Json::tryReadDouble(point_json, "shape");

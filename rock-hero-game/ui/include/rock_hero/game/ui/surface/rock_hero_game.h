@@ -71,7 +71,9 @@ public:
         */
         std::optional<std::filesystem::path> dev_package;
 
-        /*! \brief Session-private scratch directory the gameplay session extracts the package into. */
+        /*!
+        \brief Session-private scratch directory the gameplay session extracts the package into.
+        */
         std::filesystem::path session_workspace_directory;
 
         /*!
@@ -101,7 +103,9 @@ public:
     RockHeroGame(RockHeroGame&&) = delete;
     RockHeroGame& operator=(RockHeroGame&&) = delete;
 
-    /*! \brief Declared for the pimpl's incomplete type; the render stack is torn down in onShutdown. */
+    /*!
+    \brief Declared for the pimpl's incomplete type; the render stack is torn down in onShutdown.
+    */
     ~RockHeroGame() override;
 
 protected:

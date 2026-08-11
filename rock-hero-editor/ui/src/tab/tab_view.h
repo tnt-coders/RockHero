@@ -209,7 +209,9 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Republishes the caret mask, whose content-coordinate span shifts when the lane moves. */
+    /*!
+    \brief Republishes the caret mask, whose content-coordinate span shifts when the lane moves.
+    */
     void moved() override;
 
     /*! \brief Republishes the caret mask, whose row geometry shifts when the lane is resized. */

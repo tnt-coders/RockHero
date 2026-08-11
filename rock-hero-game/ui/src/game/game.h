@@ -40,9 +40,9 @@ Game is the content object in the game/ui composition, the counterpart of the ed
 `editor::ui::Editor`: it owns the highway renderer, the song-selection menu, the dev-diagnostics
 layer, and the development chart session, and it resolves per-frame input into menu actions,
 diagnostics intents, and gameplay-session control. The window, render device, resource loading,
-and the frame loop stay outside it (in RockHeroGame and SDL3Application), so Game holds no OS window, no bgfx
-device, and no pacing state — only the content and the per-frame content state derived from the
-playback clock.
+and the frame loop stay outside it (in RockHeroGame and SDL3Application), so Game holds no OS
+window, no bgfx device, and no pacing state — only the content and the per-frame content state
+derived from the playback clock.
 
 The render device is supplied per frame rather than owned, and the gameplay session is injected
 non-owning and must outlive the Game. Move-only members (the highway renderer) and registration-free
@@ -75,7 +75,9 @@ public:
         */
         std::optional<std::filesystem::path> dev_package;
 
-        /*! \brief Session-private scratch directory the gameplay session extracts the package into. */
+        /*!
+        \brief Session-private scratch directory the gameplay session extracts the package into.
+        */
         std::filesystem::path session_workspace_directory;
 
         /*!
@@ -130,9 +132,9 @@ public:
     \brief Advances the content for this frame's clock time and returns its timing readout.
 
     Runs any queued diagnostics side effects, polls the dev chart source for a settled reload, reads
-    the active playback clock (the gameplay session's when present, else the dev session's stand-in),
-    and samples the frame clock into render-ready song time. Stores the resulting per-frame content
-    state (song time, snapshot, frame sample) that \ref render draws from.
+    the active playback clock (the gameplay session's when present, else the dev session's
+    stand-in), and samples the frame clock into render-ready song time. Stores the resulting
+    per-frame content state (song time, snapshot, frame sample) that \ref render draws from.
 
     \param monotonic_now Loop-thread steady-clock timestamp anchoring this frame.
     \return This frame's timing readout, for the caller's frame instrumentation.

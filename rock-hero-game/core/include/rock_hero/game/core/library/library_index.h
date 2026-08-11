@@ -66,8 +66,8 @@ struct LibraryEntry
 
     /*!
     \brief Package identity hash; empty until
-           docs/plans/roadmap/10-format-versioning-and-chart-identity.md lands (enables move detection
-           and stable album-art identity).
+           docs/plans/roadmap/10-format-versioning-and-chart-identity.md lands (enables move
+           detection and stable album-art identity).
     */
     std::string package_hash;
 

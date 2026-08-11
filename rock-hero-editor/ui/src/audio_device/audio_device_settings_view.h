@@ -48,7 +48,9 @@ public:
         std::function<std::expected<void, core::GameAudioSourceError>(
             bool enabled, std::function<void(bool)> set_applying)>;
 
-    /*! \brief Governs whether the panel reflects the game's audio config or edits the editor's own. */
+    /*!
+    \brief Governs whether the panel reflects the game's audio config or edits the editor's own.
+    */
     struct GameAudioSettingsState final
     {
         /*! \brief True when the "use game audio settings" toggle is on. */

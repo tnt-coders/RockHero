@@ -316,13 +316,15 @@ struct EditorAction
         common::core::GridPosition position;
     };
 
-    /*! \brief Create a new empty tone and split the region under a grid position to reference it. */
+    /*!
+    \brief Create a new empty tone and split the region under a grid position to reference it.
+    */
     struct CreateNewTone
     {
         /*!
         \brief Creates a new-tone action.
-        \param position_value Grid position at which the new tone begins; must fall strictly inside a
-        region.
+        \param position_value Grid position at which the new tone begins; must
+                              fall strictly inside a region.
         \param name_value User-facing name for the new tone.
         */
         CreateNewTone(common::core::GridPosition position_value, std::string name_value)

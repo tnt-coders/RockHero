@@ -66,8 +66,8 @@ void PluginParameterDirtyTracker::markUserIntent()
 void PluginParameterDirtyTracker::parameterChangeGestureBegin(
     tracktion::AutomatableParameter& /*parameter*/)
 {
-    // A gesture is only ever raised by the plugin's editor in response to a user grabbing a control,
-    // so it is the authoritative "a human is editing this" signal.
+    // A gesture is only ever raised by the plugin's editor in response to a user grabbing a
+    // control, so it is the authoritative "a human is editing this" signal.
     markUserIntent();
 }
 
@@ -87,8 +87,9 @@ void PluginParameterDirtyTracker::currentValueChanged(
 void PluginParameterDirtyTracker::parameterChanged(
     tracktion::AutomatableParameter& /*parameter*/, float /*new_value*/)
 {
-    // A bare value change carries no intent: the plugin fires it identically for a user move and for
-    // its own post-load re-announcement. The state tracker decides intent from gestures / window.
+    // A bare value change carries no intent: the plugin fires it identically for a user move and
+    // for its own post-load re-announcement. The state tracker decides
+    // intent from gestures / window.
     markDirty();
 }
 

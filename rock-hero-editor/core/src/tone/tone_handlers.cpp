@@ -74,8 +74,8 @@ namespace
 // pixels the view's hitAt filtered on.
 constexpr float g_tone_lane_point_hit_radius = 8.0F;
 
-// The lanes view's ÷width forward pixel map (xForSeconds), replicated so the ported move/insert drag
-// hit-tests and window-clamps against the same pixels the view did. This is a forward map for
+// The lanes view's ÷width forward pixel map (xForSeconds), replicated so the ported move/insert
+// drag hit-tests and window-clamps against the same pixels the view did. This is a forward map for
 // resolving which point a press falls on and where the editable window's edges sit — NOT a snap
 // path: every position SNAP on the lane (caret arm, insert ghost, Alt placement, drag) runs through
 // the one ÷(width - 1) placement seam, laneSnapPositionForX, so the lane has a single horizontal
@@ -428,8 +428,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
         return;
     }
 
-    // Apply the split to a candidate first: createToneRegion enforces that the marker falls inside a
-    // region, and validateToneTrackRules catches a duplicate id or bad grid, so a stale request
+    // Apply the split to a candidate first: createToneRegion enforces that the marker falls inside
+    // a region, and validateToneTrackRules catches a duplicate id or bad grid, so a stale request
     // refreshes the view instead of corrupting gap-free coverage.
     common::core::ToneTrack candidate = *tone_track;
     if (const auto created = common::core::createToneRegion(
@@ -688,9 +688,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
         return;
     }
 
-    // Mint the empty tone document first: loadLiveRig fails on a missing file, so the reference must
-    // exist before a region points at it. A rejected split below leaves the file as an orphan (kept
-    // and collected at publish), consistent with the tone-model design.
+    // Mint the empty tone document first: loadLiveRig fails on a missing file, so the reference
+    // must exist before a region points at it. A rejected split below leaves the file as an orphan
+    // (kept and collected at publish), consistent with the tone-model design.
     auto minted = m_live_rig.mintEmptyTone(currentSongDirectory());
     if (!minted.has_value())
     {
@@ -1088,8 +1088,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
 // A time-addressed lane caret arm (the row-axis form of the chart lane's empty click, §9b): the
 // caret arms at the grid slot nearest the given time. This is the time-input entry point (exercised
 // by tests); the pixel-input click path arms through the one placement snap in
-// onToneAutomationPointerDown. Both converge on seekAndArmLaneCaret, so a lane caret always rests on
-// one slot however it was addressed.
+// onToneAutomationPointerDown. Both converge on seekAndArmLaneCaret, so a lane caret always rests
+// on one slot however it was addressed.
 void EditorController::Impl::onToneAutomationLaneCaretRequested(
     std::string instance_id, std::string param_id, common::core::TimePosition time)
 {
@@ -1236,7 +1236,8 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
     if (grabbed.has_value())
     {
         // A point grab begins a move drag but stays a click until the pointer crosses the drag
-        // threshold, so a plain click selects the point without an accidental move (resolved on Up).
+        // threshold, so a plain click selects the point without an
+        // accidental move (resolved on Up).
         const common::core::ToneAutomationPoint& point = (*points)[*grabbed];
         m_tone_automation_drag = ToneAutomationDrag{
             .instance_id = event.instance_id,
@@ -1262,12 +1263,12 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
     }
 
     // Empty editable lane area. Both the plain caret arm and the Alt on-curve insert snap the pixel
-    // through the one placement seam — laneSnapPositionForX (timelinePositionForX ÷ (width - 1) then
-    // the tempo grid, Ctrl to the fine tier) — mirroring the chart's single chartPlacementAt consumed
-    // by both its caret arm and its Alt insert. So the caret lands on the identical slot an Alt+click
-    // or the insert ghost would at the same pixel, erasing the ÷width slot-boundary drift the shipped
-    // view armed the caret with. A degenerate geometry that maps no slot only refreshes the dismissed
-    // ghost.
+    // through the one placement seam — laneSnapPositionForX (timelinePositionForX ÷ (width - 1)
+    // then the tempo grid, Ctrl to the fine tier) — mirroring the chart's single chartPlacementAt
+    // consumed by both its caret arm and its Alt insert. So the caret lands on the identical slot
+    // an Alt+click or the insert ghost would at the same pixel, erasing the ÷width slot-boundary
+    // drift the shipped view armed the caret with. A degenerate geometry that maps no slot only
+    // refreshes the dismissed ghost.
     const std::optional<common::core::GridPosition> position = laneSnapPositionForX(
         tempo_map,
         m_grid_note_value,

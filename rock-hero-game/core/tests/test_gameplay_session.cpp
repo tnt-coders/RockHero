@@ -1018,7 +1018,8 @@ TEST_CASE(
     CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
 }
 
-// Verifies close() disables the gate the Ready edge armed, so monitoring never outlives the session.
+// Verifies close() disables the gate the Ready edge armed, so
+// monitoring never outlives the session.
 TEST_CASE("Gameplay session disables monitoring on close", "[core][session][live-input]")
 {
     SessionHarness harness;

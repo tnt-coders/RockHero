@@ -90,7 +90,8 @@ public:
     std::optional<common::audio::AudioDeviceSettingsError> next_apply_error{};
 };
 
-// Test-local temp directory owning one test case's game settings file, mirroring test_game_settings.
+// Test-local temp directory owning one test case's game settings
+// file, mirroring test_game_settings.
 class TemporarySettingsDirectory final
 {
 public:
@@ -199,8 +200,8 @@ struct SetupHarness
 
 } // namespace
 
-// The audible milestone: a scripted device-select + calibrate leaves the game store holding a device
-// route and a matching calibration, and the shared gate arms to Active — proving a later
+// The audible milestone: a scripted device-select + calibrate leaves the game store holding a
+// device route and a matching calibration, and the shared gate arms to Active — proving a later
 // GameplaySession Ready transition would make the live guitar audible through the tone.
 TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
 {

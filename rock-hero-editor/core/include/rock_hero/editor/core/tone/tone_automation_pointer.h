@@ -52,7 +52,9 @@ struct ToneAutomationPointerModifiers
     */
     bool alt{false};
 
-    /*! \brief Extend: constrains a point drag to its dominant axis, anchored at the gesture start. */
+    /*!
+    \brief Extend: constrains a point drag to its dominant axis, anchored at the gesture start.
+    */
     bool shift{false};
 };
 

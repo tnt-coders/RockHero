@@ -269,9 +269,9 @@ void ToneTrackView::paint(juce::Graphics& g)
     // The Alt-held insert ghost: the boundary a click (or the in-flight placement's release) would
     // create, visible before anything mutates. Drawn as a 1px column fill at the grid's own integer
     // x — matching the tempo grid's 1px dots — rather than a 1.5px centered drawLine, which smears
-    // across the column boundary (antialiased over ~2px) and reads as a fat line sitting a pixel off
-    // the crisp grid dots even when its center is on the column. The fill occupies [x, x + 1), the
-    // exact column the grid dots occupy, so the preview lands on the grid line.
+    // across the column boundary (antialiased over ~2px) and reads as a fat line sitting a pixel
+    // off the crisp grid dots even when its center is on the column. The fill occupies [x, x + 1),
+    // the exact column the grid dots occupy, so the preview lands on the grid line.
     if (m_insert_ghost_x.has_value())
     {
         g.setColour(editorTheme().accent.withAlpha(0.7f));
@@ -411,7 +411,8 @@ void ToneTrackView::showRegionContextMenu(
     }
     menu.showMenuAsync(
         // Force a cancel result if this view is deleted while the menu is open, so the callback
-        // never dereferences a dangling listener (JUCE reports result 0 for a deleted watch target).
+        // never dereferences a dangling listener (JUCE reports result
+        // 0 for a deleted watch target).
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
         [this, ref = region.tone_document_ref, name = region.name, id = region.id, insert_position](
             int result) {
@@ -615,9 +616,9 @@ std::optional<ToneTrackView::RegionHit> ToneTrackView::hitAt(juce::Point<int> lo
         }
 
         const auto grab = static_cast<float>(g_edge_grab_width);
-        // Only interior boundaries are draggable; the first region's start (song start) and the last
-        // region's end (terminal) are pinned, so every draggable edge is a boundary shared with a
-        // neighbor and moving it keeps coverage gap-free.
+        // Only interior boundaries are draggable; the first region's start (song start) and the
+        // last region's end (terminal) are pinned, so every draggable edge is a boundary shared
+        // with a neighbor and moving it keeps coverage gap-free.
         if (index > 0 && std::abs(x - span->first) <= grab)
         {
             return RegionHit{.region_index = index, .edge = EdgeKind::Start};
@@ -738,8 +739,8 @@ std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForD
     const core::ToneRegionViewState& region = m_state.regions[m_drag->region_index];
     // Start edge: the boundary sits between the previous region's start and this region's end.
     // End edge: between this region's start and the next region's end. The relevant neighbor always
-    // exists for a draggable edge, so the bounds below are the fixed endpoints of the two spans that
-    // share the boundary.
+    // exists for a draggable edge, so the bounds below are the fixed endpoints of the two
+    // spans that share the boundary.
     common::core::GridPosition lower;
     common::core::GridPosition upper;
     if (m_drag->edge == EdgeKind::Start)

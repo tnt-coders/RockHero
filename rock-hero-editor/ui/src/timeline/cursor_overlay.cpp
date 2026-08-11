@@ -57,7 +57,8 @@ void CursorOverlay::paint(juce::Graphics& g)
             const juce::Colour accent = editorTheme().accent;
             g.setColour(accent.withAlpha(0.14f));
             g.fillRect(juce::Rectangle<float>{x0, 0.0f, x1 - x0, height});
-            // Crisp 1px boundaries mark the two grid-locked edges (top/bottom are the canvas edges).
+            // Crisp 1px boundaries mark the two grid-locked edges
+            // (top/bottom are the canvas edges).
             g.setColour(accent.withAlpha(0.55f));
             g.fillRect(juce::Rectangle<float>{x0, 0.0f, 1.0f, height});
             g.fillRect(juce::Rectangle<float>{x1 - 1.0f, 0.0f, 1.0f, height});

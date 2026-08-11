@@ -18,8 +18,8 @@ namespace rock_hero::common::core
 
 Fraction stores a normalized rational (reduced to lowest terms, with a positive denominator) so that
 musical subdivisions such as 1/3 or 3/16 are represented exactly rather than as lossy decimals. Note
-offsets use a Fraction in [0, 1) for the position within a beat; durations use a Fraction measured in
-beats that may meet or exceed 1. Because every value is reduced on construction, equal rationals
+offsets use a Fraction in [0, 1) for the position within a beat; durations use a Fraction measured
+in beats that may meet or exceed 1. Because every value is reduced on construction, equal rationals
 always share one representation, which makes equality and set keys exact.
 */
 struct Fraction
@@ -36,7 +36,8 @@ struct Fraction
     /*!
     \brief Creates a normalized rational from a numerator and denominator.
     \param numerator_value Signed numerator.
-    \param denominator_value Denominator; its sign moves onto the numerator and zero collapses to 0/1.
+    \param denominator_value Denominator; its sign moves onto the
+                             numerator and zero collapses to 0/1.
     */
     constexpr Fraction(int numerator_value, int denominator_value) noexcept
     {

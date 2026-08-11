@@ -330,8 +330,8 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         m_transport.seek(common::core::TimePosition{0.0});
     }
     // Make the tone under the restored cursor active (without a formal selection) so a reopened
-    // project shows its tone from the start; the baseline reaches back to time 0, so a lead-in chart
-    // resolves to its default tone.
+    // project shows its tone from the start; the baseline reaches back to time 0, so a lead-in
+    // chart resolves to its default tone.
     activateToneAtCursor();
     if (state->clear_last_open_project_on_failure)
     {

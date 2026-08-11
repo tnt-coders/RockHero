@@ -330,7 +330,8 @@ TEST_CASE("AudioConfigStore keeps route and calibration independent", "[audio][c
     }
 }
 
-// A read-only store rejects every setter with CouldNotSave and leaves the file byte-for-byte intact.
+// A read-only store rejects every setter with CouldNotSave and leaves
+// the file byte-for-byte intact.
 TEST_CASE("AudioConfigStore read-only rejects every setter", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_read_only.settings"};

@@ -64,8 +64,8 @@ struct TabSlideView
     \brief True when the glide continues the same note rather than ending it.
 
     Decided by the waypoint's place in the sustain and nothing else: strictly inside means the note
-    is still sounding, so the linked continuation head draws in the note's own head shape; exactly at
-    the sustain end means a shift-slide glide-end, where the note stops and the re-picked landing
+    is still sounding, so the linked continuation head draws in the note's own head shape; exactly
+    at the sustain end means a shift-slide glide-end, where the note stops and the re-picked landing
     draws its own head, so no linked glyph.
 
     Being \ref unpitched does not unlink a waypoint — a scrape's turnaround is one gesture

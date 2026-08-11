@@ -41,7 +41,8 @@ public:
     /*!
     \brief Builds the store over the editor's own store and the game's audio-config file path.
     \param own_store Editor's own read-write audio-config store, active while not sourcing the game.
-    \param game_settings_file Native path of the game's audio-config file, opened read-only on demand.
+    \param game_settings_file Native path of the game's audio-config
+                              file, opened read-only on demand.
     */
     EditorAudioConfigStore(
         common::audio::IAudioConfigStore& own_store, std::filesystem::path game_settings_file);
@@ -159,7 +160,8 @@ private:
     std::filesystem::path m_game_settings_file;
 
     // Non-null exactly while sourcing the game; holds the fresh read-only view every access
-    // delegates to. Opened read-only, so a write while sourcing the game fails rather than mutating.
+    // delegates to. Opened read-only, so a write while sourcing the
+    // game fails rather than mutating.
     std::unique_ptr<common::audio::AudioConfigStore> m_game_store;
 };
 

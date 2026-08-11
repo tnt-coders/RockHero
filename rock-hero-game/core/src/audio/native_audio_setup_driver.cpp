@@ -84,8 +84,8 @@ std::expected<void, NativeAudioSetupError> NativeAudioSetup::applySelectedDevice
             NativeAudioSetupError{NativeAudioSetupErrorCode::DeviceRouteUnresolved})};
     }
 
-    // The game-private slot-0 player-to-route mapping. Its primary route is mirrored into the shared
-    // store's ActiveDeviceRoute.identity through the plan-32 Phase 1 pure mapping.
+    // The game-private slot-0 player-to-route mapping. Its primary route is mirrored into the
+    // shared store's ActiveDeviceRoute.identity through the plan-32 Phase 1 pure mapping.
     const GameAudioConfig game_config{
         .players = {PlayerInputConfig{.player_slot = 0, .route = *identity}}
     };
@@ -187,8 +187,9 @@ std::expected<GainCalibrationProgress, NativeAudioSetupError> NativeAudioSetup::
         }
         case common::audio::InputCalibrationCapturePhase::Failed:
         {
-            // A signal-quality failure is recoverable: restore the route and stay in CalibratingGain
-            // so the player can strum again. The applied device and its persisted route are intact.
+            // A signal-quality failure is recoverable: restore the route and stay in
+            // CalibratingGain so the player can strum again. The applied device and
+            // its persisted route are intact.
             static_cast<void>(m_live_input_monitor.cancelMeasurement());
             std::string message = update.error.has_value()
                                       ? update.error->message

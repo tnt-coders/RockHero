@@ -522,8 +522,8 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
     const juce::Image tremoloed = paint(false);
 
     constexpr int lane_y = 140; // string 3 of six in 240 px
-    // Columns well inside the tail and clear of every head: the onset and turnaround heads are 26 px
-    // wide, so they reach 133 and 187 at the most.
+    // Columns well inside the tail and clear of every head: the onset and turnaround heads are
+    // 26 px wide, so they reach 133 and 187 at the most.
     constexpr std::array<int, 4> open_columns{150, 160, 170, 180};
 
     // Topmost inked row of the tail in a column, which is the band's upper edge there.
@@ -560,10 +560,10 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
     CHECK(scrape_low >= tremolo_low);
 
     // A TURNAROUND WEARS THE NOTE'S OWN HEAD, row for row. A head is taller than the ribbon, so the
-    // rows BELOW the ribbon hold nothing but head, which isolates the silhouette from the ribbon the
-    // columns share. Measured against the onset's own head rather than re-deriving the plectrum's
-    // shape: the scrape-head case above already pins that shape, and the ruling here is precisely
-    // that a junction repeats it.
+    // rows BELOW the ribbon hold nothing but head, which isolates the silhouette from the ribbon
+    // the columns share. Measured against the onset's own head rather than re-deriving the
+    // plectrum's shape: the scrape-head case above already pins that shape, and the ruling here is
+    // precisely that a junction repeats it.
     int ribbon_bottom = 0;
     for (int y = lane_y + 20; y >= lane_y - 20; --y)
     {

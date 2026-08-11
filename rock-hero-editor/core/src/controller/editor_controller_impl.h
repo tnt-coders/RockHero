@@ -855,14 +855,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::string& instance_id, const std::string& param_id);
 
     // A time-addressed lane caret arm (the row-axis form of the chart lane's empty click): arms the
-    // caret at the grid slot nearest the given time. The time-input entry point (exercised by tests);
-    // the pixel-input click path arms through onToneAutomationPointerDown's one placement snap.
+    // caret at the grid slot nearest the given time. The time-input entry point (exercised by
+    // tests); the pixel-input click path arms through
+    // onToneAutomationPointerDown's one placement snap.
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time);
 
-    // Seeks the transport to a resolved lane slot and arms the caret there (paused) — the seek-and-arm
-    // tail the lane click and the time-addressed caret request share, so every lane caret arm rests on
-    // one slot with the transport following it.
+    // Seeks the transport to a resolved lane slot and arms the caret there (paused) — the
+    // seek-and-arm tail the lane click and the time-addressed caret request share, so every lane
+    // caret arm rests on one slot with the transport following it.
     void seekAndArmLaneCaret(common::core::GridPosition position, AutomationLaneRow row);
 
     // A button-less lane hover: resolves the Alt insert ghost and publishes it when Alt is held
@@ -1165,11 +1166,11 @@ struct EditorController::Impl::ProjectWriteTaskState
     common::core::Song song{};
     std::expected<void, ProjectError> result{};
 
-    // The undo depth at KICKOFF, which is the state the song above was captured from. The write runs
-    // on a worker while the message thread stays live, and a plugin's own editor window sits outside
-    // the busy overlay — so a knob turned mid-save settles into a new entry that the write never
-    // saw. Marking the history clean at COMPLETION would declare that entry saved and let the app
-    // close without a prompt, losing it. Comparing against this instead keeps the project dirty
+    // The undo depth at KICKOFF, which is the state the song above was captured from. The write
+    // runs on a worker while the message thread stays live, and a plugin's own editor window sits
+    // outside the busy overlay — so a knob turned mid-save settles into a new entry that the write
+    // never saw. Marking the history clean at COMPLETION would declare that entry saved and let the
+    // app close without a prompt, losing it. Comparing against this instead keeps the project dirty
     // whenever the history moved, which is the honest answer for a push and for an undo alike.
     std::size_t undo_depth_at_kickoff{};
 };

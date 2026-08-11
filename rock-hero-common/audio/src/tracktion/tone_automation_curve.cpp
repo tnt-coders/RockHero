@@ -22,12 +22,13 @@ namespace
 // isDiscrete()/getNumberOfStates() read VST2-only VSTXML metadata, so a VST3 toggle (e.g. a "wah
 // mode") reports as continuous.
 //
-// Hosted VST2/VST3 parameters are HostedAudioProcessorParameters, not AudioProcessorParameterWithID,
-// so Tracktion's own paramID-lookup fails and it stores each parameter's plain JUCE array index as
-// the (numeric) paramID (tracktion_ExternalPlugin.cpp:798-804). Reach the JUCE parameter by that
-// index and read its isDiscrete()/getNumSteps(), which carry the real VST3 stepCount
-// (juce_VST3PluginFormatImpl.h:2085-2095) despite the WithID gap. Runs on the message thread per the
-// Tracktion automation contract.
+// Hosted VST2/VST3 parameters are HostedAudioProcessorParameters, not
+// AudioProcessorParameterWithID, so Tracktion's own paramID-lookup fails and it stores each
+// parameter's plain JUCE array index as the (numeric) paramID
+// (tracktion_ExternalPlugin.cpp:798-804). Reach the JUCE parameter by that index and read its
+// isDiscrete()/getNumSteps(), which carry the real VST3 stepCount
+// (juce_VST3PluginFormatImpl.h:2085-2095) despite the WithID gap. Runs on the message thread per
+// the Tracktion automation contract.
 [[nodiscard]] int discreteValueCount(const tracktion::AutomatableParameter& parameter)
 {
     if (parameter.isDiscrete())

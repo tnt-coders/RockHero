@@ -265,8 +265,8 @@ void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& stat
     // pushes fresh state frequently — plugin-state notifications fire in bursts) is stashed and
     // adopted when the resize ends, keeping its index stable. The controller-owned point
     // move/insert drag needs no such deferral: its preview is baked into every state build (through
-    // ToneAutomationViewState::drag_preview), so applying a push mid-drag repaints the lane WITH the
-    // current preview instead of resetting the edit.
+    // ToneAutomationViewState::drag_preview), so applying a push mid-drag repaints the lane WITH
+    // the current preview instead of resetting the edit.
     if (m_drag.has_value())
     {
         m_pending_state = state;
@@ -846,7 +846,8 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             if (point.authored && point.x >= clip_left && point.x <= clip_right)
             {
                 // Every point draws in the curve colour at the same size; the selected point (the
-                // Delete target) adds a white ring so it reads as picked without moving or resizing.
+                // Delete target) adds a white ring so it reads as
+                // picked without moving or resizing.
                 const float radius = g_point_draw_radius;
                 graphics.setColour(editorTheme().accent.withMultipliedAlpha(lane_alpha));
                 graphics.fillEllipse(
@@ -1362,7 +1363,8 @@ core::ToneAutomationPointerEvent ToneAutomationLanesView::makePointerEvent(
     pointer_event.modifiers.shift = event.mods.isShiftDown();
     // A resolved lane (Down/Move) names its identity, index, value shape, and the band-extent
     // vector the controller maps y to a value with. A Drag/Up rides the gesture the controller
-    // froze on Down, so it leaves the lane geometry default and never rebuilds the extents mid-drag.
+    // froze on Down, so it leaves the lane geometry default and never
+    // rebuilds the extents mid-drag.
     if (lane_index.has_value() && *lane_index < m_state.lanes.size())
     {
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[*lane_index];

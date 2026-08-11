@@ -2,14 +2,15 @@
 // captured state keeps its original itemID as long as the state's `id` property is left intact.
 //
 // The editor undo stack preserves instance ids across remove-undo and insert-redo instead of
-// remapping them (see docs/plans/completed/editor-undo/editor-undo-plan.md, "Instance-Id Preservation").
-// That only holds because Tracktion's EditItemID::readOrCreateNewID returns any id present in the
-// inserted state verbatim and allocates a fresh id only when none is present. If a vendored-engine
-// upgrade changed that, instance ids would silently diverge on recreate and the undo stack would
-// reference dead plugins; this test fails first.
+// remapping them (see docs/plans/completed/editor-undo/editor-undo-plan.md, "Instance-Id
+// Preservation"). That only holds because Tracktion's EditItemID::readOrCreateNewID returns any id
+// present in the inserted state verbatim and allocates a fresh id only when none is present. If a
+// vendored-engine upgrade changed that, instance ids would silently diverge on recreate and the
+// undo stack would reference dead plugins; this test fails first.
 //
-// Instance-id allocation runs through the same EditItem path for built-in and external plugins, so a
-// built-in VolumeAndPanPlugin is a valid proxy (this exercises id identity, not VST3 audio-state).
+// Instance-id allocation runs through the same EditItem path for built-in and external plugins, so
+// a built-in VolumeAndPanPlugin is a valid proxy (this exercises id
+// identity, not VST3 audio-state).
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>

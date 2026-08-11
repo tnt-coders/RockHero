@@ -4,16 +4,16 @@
 
 One component paints every lane (dynamic count, per-lane vertical resize, dirty-rect locality) and
 the trailing empty lane whose pinned "+" chip opens the parameter picker. Gestures follow the
-editor-wide interaction model (docs/plans/in-progress/editing-interaction-model.md): a plain click never
-mutates (points select; empty lane space passes through to the seek overlay), Alt is the insert
-quasimode (click or press-drag-release places a point, with a ghost preview and copy cursor while
-Alt is held; the point lands ON the curve at the snapped time and the drag phase pulls its value
-by the pointer's delta, so placement is sonically silent until deliberately pulled),
-Ctrl bypasses grid snap to the fine grid, Shift axis-locks point drags, and Esc
-cancels the gesture in flight. Gestures preview locally and commit one full-point-list intent on
-release; a state push mid-gesture is deferred until the gesture ends so it cannot reset the edit
-in progress. The lanes never resize themselves: heights flow up through a callback and the track
-viewport lays the component out, so the cursor overlay and content height stay authoritative.
+editor-wide interaction model (docs/plans/in-progress/editing-interaction-model.md): a plain click
+never mutates (points select; empty lane space passes through to the seek overlay), Alt is the
+insert quasimode (click or press-drag-release places a point, with a ghost preview and copy cursor
+while Alt is held; the point lands ON the curve at the snapped time and the drag phase pulls its
+value by the pointer's delta, so placement is sonically silent until deliberately pulled), Ctrl
+bypasses grid snap to the fine grid, Shift axis-locks point drags, and Esc cancels the gesture in
+flight. Gestures preview locally and commit one full-point-list intent on release; a state push
+mid-gesture is deferred until the gesture ends so it cannot reset the edit in progress. The lanes
+never resize themselves: heights flow up through a callback and the track viewport lays the
+component out, so the cursor overlay and content height stay authoritative.
 */
 
 #pragma once
@@ -125,13 +125,15 @@ public:
 
         /*!
         \brief Called as the pressed pointer moves, advancing the controller's drag preview.
-        \param event Lane-local pointer state; the controller reads the live pixel x/y and modifiers.
+        \param event Lane-local pointer state; the controller reads
+                     the live pixel x/y and modifiers.
         */
         virtual void onToneAutomationPointerDrag(const core::ToneAutomationPointerEvent& event) = 0;
 
         /*!
         \brief Called when the pressed pointer releases, ending the controller's drag.
-        \param event Lane-local pointer state; the controller reads the live pixel x/y and modifiers.
+        \param event Lane-local pointer state; the controller reads
+                     the live pixel x/y and modifiers.
         */
         virtual void onToneAutomationPointerUp(const core::ToneAutomationPointerEvent& event) = 0;
 
@@ -259,7 +261,9 @@ public:
     /*! \brief Paints every lane, its curve and points, the insert ghost, and the "+" lane. */
     void paint(juce::Graphics& graphics) override;
 
-    /*! \brief Republishes the caret mask, whose content-coordinate span shifts when the row moves. */
+    /*!
+    \brief Republishes the caret mask, whose content-coordinate span shifts when the row moves.
+    */
     void moved() override;
 
     /*! \brief Republishes the caret mask, whose lane geometry shifts when the row is resized. */
@@ -481,8 +485,9 @@ private:
     // Opens the remove menu for a right-clicked lane row (authored or tracking).
     void showLaneMenu(std::size_t lane_index);
 
-    // Emits the points-edit intent that removes the point at a position from its lane; shared by the
-    // right-click "Delete Point" menu and the keyboard-Delete path. A no-op when it no longer exists.
+    // Emits the points-edit intent that removes the point at a position from its lane; shared by
+    // the right-click "Delete Point" menu and the keyboard-Delete path.
+    // A no-op when it no longer exists.
     void requestPointDelete(
         const std::string& instance_id, const std::string& param_id,
         const common::core::GridPosition& position);

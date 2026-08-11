@@ -410,8 +410,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
             m_track_viewport->relayoutForContentHeightChange();
         }
     });
-    // Each caret-bearing lane pushes its paused-column cut-out mask straight to the viewport, so the
-    // viewport never polls sibling geometry to keep the paused cursor's gap in step with the caret.
+    // Each caret-bearing lane pushes its paused-column cut-out mask straight to the viewport, so
+    // the viewport never polls sibling geometry to keep the paused
+    // cursor's gap in step with the caret.
     m_tab_view.setCaretMaskCallback([this](std::optional<juce::Range<float>> mask) {
         if (m_track_viewport != nullptr)
         {
@@ -563,9 +564,10 @@ void EditorView::updateWindowTitle()
     top_level->setName(title);
 }
 
-// Projects controller-derived state into every child widget and into the cursor mapping. This is the
-// view's ONE entry point for that: the controller hands over a whole state value rather than calling
-// per-widget setters, so a frame can never show two widgets disagreeing about the same fact.
+// Projects controller-derived state into every child widget and into the cursor mapping. This is
+// the view's ONE entry point for that: the controller hands over a whole state value rather than
+// calling per-widget setters, so a frame can never show two widgets
+// disagreeing about the same fact.
 void EditorView::setState(const core::EditorViewState& state)
 {
     const core::EditorViewState previous_state = m_state;
@@ -1082,13 +1084,13 @@ bool EditorView::hasChart() const noexcept
 // label, the enablement, and the live chord all come from the registry, which means a rebind is
 // reflected here with no work and an item can never drift from the key that triggers it.
 //
-// Applicability is deliberately NOT shown here, and the reason is worth stating because the opposite
-// reads as an oversight: every chart command registers as always-active on purpose, because JUCE
-// plays the system alert when a disabled command's chord is pressed. So these items always read
-// enabled, and one that cannot apply right now does nothing rather than greying out. Making them
-// grey would mean a second applicability authority beside the planners' own gate, which the one-rule
-// principle refuses; the feedback a refused verb owes the user belongs in the refusal channel
-// instead (walkthrough W5).
+// Applicability is deliberately NOT shown here, and the reason is worth stating because the
+// opposite reads as an oversight: every chart command registers as always-active on purpose,
+// because JUCE plays the system alert when a disabled command's chord is pressed. So these items
+// always read enabled, and one that cannot apply right now does nothing rather than greying out.
+// Making them grey would mean a second applicability authority beside the planners' own gate, which
+// the one-rule principle refuses; the feedback a refused verb owes the user belongs in the refusal
+// channel instead (walkthrough W5).
 void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
 {
     if (!hasChart())
@@ -1811,11 +1813,12 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 return true;
             }
-            // Handed on unconditionally: the controller's ladder self-gates every rung, and mirroring
-            // its conditions here could only get them wrong. It did — the mirror could see a marquee
-            // only after the drag crossed its four-pixel threshold, so pressing Escape inside that
-            // threshold never reached the controller, the gesture was not abandoned, and the release
-            // still armed the caret at the pressed slot, moving the playhead the press had cancelled.
+            // Handed on unconditionally: the controller's ladder self-gates every rung, and
+            // mirroring its conditions here could only get them wrong. It did — the mirror could
+            // see a marquee only after the drag crossed its four-pixel threshold, so pressing
+            // Escape inside that threshold never reached the controller, the gesture was not
+            // abandoned, and the release still armed the caret at the pressed slot, moving the
+            // playhead the press had cancelled.
             m_controller.onChartEscapePressed();
             return true;
         }
@@ -2769,7 +2772,8 @@ void EditorView::onToneRegionSelected(std::string region_id)
     m_controller.onToneRegionSelected(std::move(region_id));
 }
 
-// Routes a playhead-driven region crossing to the controller as an activation (no formal selection).
+// Routes a playhead-driven region crossing to the controller as an
+// activation (no formal selection).
 void EditorView::onToneRegionActivated()
 {
     m_controller.onToneRegionActivated();
@@ -2844,8 +2848,8 @@ void EditorView::onToneAutomationPointsEditRequested(
         std::move(instance_id), std::move(param_id), std::move(points));
 }
 
-// Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands at
-// the playhead's exact musical position inside the region it splits.
+// Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands
+// at the playhead's exact musical position inside the region it splits.
 void EditorView::createToneMarkerAtCursor()
 {
     // The marker rule ("one position concept per transport state" — the play-from-the-marker
@@ -2873,7 +2877,8 @@ void EditorView::createToneMarkerAtCursor()
 void EditorView::createToneMarkerAt(common::core::GridPosition position)
 {
     // The marker splits the one region whose span strictly contains it; endpoints order by exact
-    // musical position, so a marker landing on a boundary belongs to neither side and splits nothing.
+    // musical position, so a marker landing on a boundary belongs to
+    // neither side and splits nothing.
     const auto containing = std::ranges::find_if(
         m_state.tone_track.regions, [&](const core::ToneRegionViewState& region) {
             return region.grid_start < position && position < region.grid_end;
@@ -2884,8 +2889,8 @@ void EditorView::createToneMarkerAt(common::core::GridPosition position)
     }
 
     // Exclude both the tone being split (the previous tone) and the tone immediately after the new
-    // region (the next tone): choosing either would produce a boundary with no actual tone change on
-    // that side. Offer every other distinct catalog tone, then a fresh-tone option.
+    // region (the next tone): choosing either would produce a boundary with no actual tone change
+    // on that side. Offer every other distinct catalog tone, then a fresh-tone option.
     const auto containing_index =
         static_cast<std::size_t>(containing - m_state.tone_track.regions.begin());
     const std::string previous_ref = containing->tone_document_ref;

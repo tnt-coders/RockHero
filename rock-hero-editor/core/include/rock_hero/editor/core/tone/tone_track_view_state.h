@@ -22,7 +22,9 @@ struct ToneRegionViewState
     /*! \brief User-facing region name; empty means the view shows a fallback label. */
     std::string name;
 
-    /*! \brief Package-relative tone document the region references; drives rename and reuse menus. */
+    /*!
+    \brief Package-relative tone document the region references; drives rename and reuse menus.
+    */
     std::string tone_document_ref;
 
     /*! \brief Musical start of the region (inclusive). */
@@ -38,7 +40,8 @@ struct ToneRegionViewState
     \brief True when this region's tone is the active (audible / edited) tone.
 
     The active tone follows the cursor and is what the rig plays and the signal-chain panel edits;
-    it is drawn with the normal highlight fill. Exactly one region is active while content is loaded.
+    it is drawn with the normal highlight fill. Exactly one region is
+    active while content is loaded.
     */
     bool active{false};
 

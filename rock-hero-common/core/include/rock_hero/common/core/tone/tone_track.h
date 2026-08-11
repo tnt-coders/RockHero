@@ -27,7 +27,9 @@ tone's stable identity within an arrangement.
 */
 struct Tone
 {
-    /*! \brief Package-relative tone document (`tones/<uuid>/tone.json`); the tone's stable identity. */
+    /*!
+    \brief Package-relative tone document (`tones/<uuid>/tone.json`); the tone's stable identity.
+    */
     std::string tone_document_ref;
 
     /*! \brief User-facing tone name shown on regions and in the tone picker. */
@@ -42,7 +44,9 @@ struct Tone
     friend bool operator==(const Tone& lhs, const Tone& rhs) = default;
 };
 
-/*! \brief One time-bounded region referencing a tone in the arrangement's catalog by document ref. */
+/*!
+\brief One time-bounded region referencing a tone in the arrangement's catalog by document ref.
+*/
 struct ToneRegion
 {
     /*! \brief Stable region identifier (canonical UUID). */

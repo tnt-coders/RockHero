@@ -206,9 +206,9 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
         }
 
         // Milestone-0 audio path (plan 21 Phase 6): the app-composed session loads the same package
-        // for real playback — backing track, live tone rig, scheduled tone switching. A load failure
-        // is reported and the content keeps rendering (the chart still displays); the missing-plugin
-        // refusal (21-Q1) surfaces here with its full install list.
+        // for real playback — backing track, live tone rig, scheduled tone switching. A load
+        // failure is reported and the content keeps rendering (the chart still displays); the
+        // missing-plugin refusal (21-Q1) surfaces here with its full install list.
         if (m_session != nullptr)
         {
             const auto started = m_session->start(
@@ -236,12 +236,13 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
         }
     }
 
-    // Song-selection menu (plan 26 Phases 5-7): when app/ composed a scanned library, Game opens the
-    // menu and starts the session from the player's pick rather than auto-loading a dev package.
-    // Keyboard triggers resolve through the Phase-5 bindings; the concrete SDL keycode defaults are
-    // installed here at the composition boundary so game/core stays SDL-free. PauseMenu and Rescan
-    // stay unbound until their consumers exist — the in-song pause menu (plan 27) and the main
-    // menu's rescan entry (plan 26 Phase 7); a default binding now would map keys to no-ops.
+    // Song-selection menu (plan 26 Phases 5-7): when app/ composed a scanned library, Game opens
+    // the menu and starts the session from the player's pick rather than auto-loading a dev
+    // package. Keyboard triggers resolve through the Phase-5 bindings; the concrete SDL keycode
+    // defaults are installed here at the composition boundary so game/core stays SDL-free.
+    // PauseMenu and Rescan stay unbound until their consumers exist — the in-song pause menu
+    // (plan 27) and the main menu's rescan entry (plan 26 Phase 7); a default binding now would
+    // map keys to no-ops.
     if (config.library.has_value())
     {
         m_menu.emplace(std::move(*config.library));

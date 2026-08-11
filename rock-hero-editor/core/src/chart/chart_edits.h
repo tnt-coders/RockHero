@@ -145,12 +145,13 @@ binary-search this precondition).
 The direction is never authored. A legato note's hammer-versus-pull reading follows the fret
 relationship to the previous note on the SAME string — a higher fret is hammered onto, a lower one
 pulled off to — which is the relationship the 2D triangle already draws and the only fact the chart
-data actually carries. Deriving it means the two cannot disagree, and it is why one verb covers both.
+data actually carries. Deriving it means the two cannot disagree, and
+it is why one verb covers both.
 
-A note whose direction is not derivable is left untouched rather than guessed: no earlier note on its
-string to come from, or an earlier note at the same fret, which is neither hammered nor pulled. The
-plan therefore covers a subset of the keys when a selection mixes derivable and underivable notes,
-and reports no change at all when none are derivable.
+A note whose direction is not derivable is left untouched rather than guessed: no earlier note on
+its string to come from, or an earlier note at the same fret, which is neither hammered nor pulled.
+The plan therefore covers a subset of the keys when a selection mixes derivable and underivable
+notes, and reports no change at all when none are derivable.
 
 \param chart Chart the plan is built against.
 \param tempo_map Tempo map the plan resolves distances through.

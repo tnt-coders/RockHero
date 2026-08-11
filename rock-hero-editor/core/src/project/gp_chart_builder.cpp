@@ -1983,9 +1983,9 @@ void resolveSlideOutExits(
     const std::vector<Fraction>& phrase_boundary_beats, std::vector<std::string>& notes)
 {
     Chart chart;
-    // Every value below arrives unvalidated from the score file, and each one the chart rules bound.
-    // Import is a commit point, so an out-of-range value is reduced and reported rather than allowed
-    // to reach validation, where it would refuse the WHOLE song over one field.
+    // Every value below arrives unvalidated from the score file, and each one the chart rules
+    // bound. Import is a commit point, so an out-of-range value is reduced and reported rather than
+    // allowed to reach validation, where it would refuse the WHOLE song over one field.
     for (const int midi : track.tuning_midi)
     {
         if (static_cast<int>(chart.tuning.strings.size()) >= common::core::g_max_chart_strings)

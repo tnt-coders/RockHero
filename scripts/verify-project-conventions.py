@@ -8,9 +8,10 @@ Current checks:
 - No UTF-8 byte-order mark in a tracked text file.
 - No stray C0 control byte in a tracked text file.
 - Function-local constants do not wear the g_ prefix (.clang-tidy).
+- Comment lines fit the 100-column limit (documentation-conventions.md).
 
-One further check is written but parked in PENDING_CHECKS rather than enforced; see the comment
-above that tuple. Pass --pending to run it too, which is how to get its inventory.
+PENDING_CHECKS is empty: nothing is written-but-parked today. Pass --pending to run whatever it
+holds, which is how to inventory what a sweep must fix before a check moves into CHECKS.
 
 Run from the repository root (pre-commit does this automatically).
 """
@@ -284,13 +285,6 @@ CHECKS = (
             'is a readability-identifier-naming error that fails CI lint.'
         ),
     ),
-)
-
-
-# Written and correct, but not enforced: the tree carries 180 pre-existing violations across 81
-# files, so adding it to CHECKS would fail every commit until they are wrapped. Move it into
-# CHECKS in the same change that lands that sweep.
-PENDING_CHECKS = (
     Check(
         find=checkCommentLineLength,
         heading=(
@@ -303,6 +297,11 @@ PENDING_CHECKS = (
         ),
     ),
 )
+
+# No check is parked today. A check belongs here only while the tree still carries pre-existing
+# violations of it, so that adding it to CHECKS would fail every commit until a sweep lands; move
+# it into CHECKS in the same change as that sweep.
+PENDING_CHECKS: tuple[Check, ...] = ()
 
 
 def main() -> int:

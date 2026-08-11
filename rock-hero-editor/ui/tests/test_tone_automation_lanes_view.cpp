@@ -384,9 +384,10 @@ TEST_CASE(
 
     // A press on empty editable lane area forwards a pointer Down carrying the lane identity, its
     // published index, the raw pixel, the value-band extents, the click count, and the modifiers —
-    // the controller re-resolves point-vs-area and arms the caret or the insert (a controller test).
-    // The view emits no edit intent itself; caret arming and placement became the controller's (the
-    // caret-request Listener callback is gone entirely — the press forwards only a pointer Down).
+    // the controller re-resolves point-vs-area and arms the caret or the insert (a controller
+    // test). The view emits no edit intent itself; caret arming and placement became the
+    // controller's (the caret-request Listener callback is gone entirely — the press
+    // forwards only a pointer Down).
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
     REQUIRE(harness.listener.pointer_down_count == 1);
     CHECK(harness.listener.edit_count == 0);
@@ -443,7 +444,8 @@ TEST_CASE(
         const core::ToneAutomationPointerEvent& event = *harness.listener.last_pointer_event;
         CHECK(event.instance_id == "instance-a");
         CHECK(event.param_id == "gain");
-        // The raw pixel, not a snapped time: exact by construction, is_eq keeps -Wfloat-equal clean.
+        // The raw pixel, not a snapped time: exact by construction,
+        // is_eq keeps -Wfloat-equal clean.
         CHECK(std::is_eq(event.x <=> 100.0f));
         CHECK(event.geometry.content_width == 800);
         CHECK(std::is_eq(event.geometry.visible_timeline.start.seconds <=> 0.0));

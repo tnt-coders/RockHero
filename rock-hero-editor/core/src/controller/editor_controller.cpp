@@ -284,7 +284,8 @@ namespace
             case EditorAction::Id::CreateNewTone:
             case EditorAction::Id::SetToneAutomationPoints:
             case EditorAction::Id::SelectArrangement:
-            // Tone-document actions replace or persist the signal chain the calibration prompt owns.
+            // Tone-document actions replace or persist the signal
+            // chain the calibration prompt owns.
             case EditorAction::Id::NewToneDocument:
             case EditorAction::Id::OpenToneFile:
             case EditorAction::Id::SaveToneFile:
@@ -1663,9 +1664,9 @@ const TimeSelection* EditorController::Impl::selectedTimeSelection() const
     return std::get_if<TimeSelection>(&m_selection);
 }
 
-// Replaces the whole selection, and drops any in-flight multi-digit fret entry with it: the entry is
-// keyed to the chart selection it retypes, so leaving it armed against a vanished selection could
-// widen an undo entry for notes no longer selected.
+// Replaces the whole selection, and drops any in-flight multi-digit fret entry with it: the entry
+// is keyed to the chart selection it retypes, so leaving it armed against a vanished selection
+// could widen an undo entry for notes no longer selected.
 //
 // This reset is belt-and-braces, NOT the guarantee — several chart paths replace the selection
 // through `chartSelectionMutable` without coming through here, so a comment promising that every
@@ -3202,8 +3203,9 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
 // all-legato selection reverts to plain picks, anything else becomes hammer-ons and pull-offs with
 // each direction DERIVED from the fret it comes from on its own string (see planSetLegato). Notes
 // with no derivable direction stay as they are, so a selection mixing derivable and underivable
-// notes edits the ones it can and leaves the rest — the mixed-validity policy's "apply where valid".
-// Its counted feedback is not surfaced yet; that arrives with the rest of the technique family.
+// notes edits the ones it can and leaves the rest — the mixed-validity policy's "apply where
+// valid". Its counted feedback is not surfaced yet; that arrives with
+// the rest of the technique family.
 void EditorController::Impl::onChartLegatoToggleRequested()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -4375,11 +4377,11 @@ void EditorController::Impl::detachView()
 // untracked cases such as load-time normalization rewrites or faulted sessions.
 //
 // "A project is open" is asked of `m_project_file` and the write in flight, NOT of `m_project`,
-// which a write legitimately empties for its whole duration: a project is moved out to the worker so
-// background IO never shares mutable ownership with message-thread actions. Reading openness from
-// that optional made this return false for the entire write — and close and exit both SUPERSEDE
-// busy, so a close during a publish (which deliberately leaves the project dirty) skipped the
-// unsaved-changes prompt entirely and dropped the edits with no warning.
+// which a write legitimately empties for its whole duration: a project is moved out to the worker
+// so background IO never shares mutable ownership with message-thread actions. Reading openness
+// from that optional made this return false for the entire write — and close and exit both
+// SUPERSEDE busy, so a close during a publish (which deliberately leaves the project dirty) skipped
+// the unsaved-changes prompt entirely and dropped the edits with no warning.
 bool EditorController::Impl::hasUnsavedChanges() const noexcept
 {
     const bool project_open = m_project.has_value() || m_project_write_in_flight;
