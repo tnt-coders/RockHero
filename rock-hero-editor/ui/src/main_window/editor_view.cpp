@@ -26,6 +26,7 @@
 #include <rock_hero/common/audio/song/i_thumbnail.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -657,9 +658,10 @@ void EditorView::setState(const core::EditorViewState& state)
     m_tab_view.setEditState(m_state.chart_edit);
     // The viewport needs the displayed lane count because counts past the six-string reference
     // density grow the waveform row instead of compressing the tablature lanes.
-    m_track_viewport->setTabDisplayedStrings(tabDisplayedStringCount(
-        m_state.tab != nullptr ? m_state.tab->string_count : 0,
-        m_state.tab_minimum_displayed_strings));
+    m_track_viewport->setTabDisplayedStrings(
+        common::core::displayedStringCount(
+            m_state.tab != nullptr ? m_state.tab->string_count : 0,
+            m_state.tab_minimum_displayed_strings));
     // An armed caret hides the paused playhead (the caret is the position display) and
     // becomes the wheel-zoom center; passive keeps the paused cursor line at the transport
     // position and zooms around it. A lane-riding caret (§9b) is armed all the same, just

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <memory>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -31,12 +32,6 @@ namespace
 // The notation rasterizer lives in the shared paint core (rock-hero-common/ui tab/), one
 // authority for the editor lane and the game tab strips; these free functions stay on the
 // editor surface as thin delegates so editor widgets and tests keep their existing seam.
-
-// The chart's string count floors the lane count so a user minimum can only add empty lanes.
-int tabDisplayedStringCount(int chart_string_count, int minimum_displayed_strings) noexcept
-{
-    return common::ui::tabDisplayedStringCount(chart_string_count, minimum_displayed_strings);
-}
 
 juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 {
@@ -109,7 +104,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
     const int displayed_count =
-        tabDisplayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+        common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
     return core::ChartPointerEvent{
         .geometry = common::ui::makeTabLaneGeometry(
             static_cast<float>(bounds.getX()),
@@ -255,7 +250,7 @@ void TabView::paint(juce::Graphics& g)
     }
 
     const int displayed_count =
-        tabDisplayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+        common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
     const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
         bounds, m_visible_timeline, displayed_count, m_tab->string_count);
     common::ui::paintTabLane(g, metrics, *m_tab, m_prefix_max_end_seconds);
@@ -350,7 +345,7 @@ std::optional<juce::Range<float>> TabView::caretMaskYRange() const
     }
 
     const int displayed_count =
-        tabDisplayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+        common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
     const std::optional<juce::Rectangle<float>> square = caretSquare(
         common::ui::makeTabLaneMetrics(
             bounds, m_visible_timeline, displayed_count, m_tab->string_count));

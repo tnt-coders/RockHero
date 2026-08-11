@@ -681,7 +681,10 @@ public:
     /*! \brief Handles the audio-device settings window's asynchronous teardown completing. */
     void onAudioDeviceSettingsTeardownComplete() override;
 
-    /*! \brief Handles the user's response to the audio-device failure prompt. */
+    /*!
+    \brief Handles the user's response to the audio-device failure prompt.
+    \param decision Which way the user answered the prompt.
+    */
     void onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision) override;
 
 private:

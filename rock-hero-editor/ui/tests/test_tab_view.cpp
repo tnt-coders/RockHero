@@ -5,6 +5,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
@@ -58,14 +59,13 @@ namespace
 
 } // namespace
 
-// The chart's string count floors the lane count; a minimum only ever adds lanes.
+// The chart's string count floors the lane count; a minimum only ever adds lanes. The rule itself
+// is pinned beside its one authority in common/core; this only checks the lane view asks for it.
 TEST_CASE("TabView resolves the displayed string count", "[ui][tab-view]")
 {
-    CHECK(tabDisplayedStringCount(0, 10) == 0);
-    CHECK(tabDisplayedStringCount(6, 0) == 6);
-    CHECK(tabDisplayedStringCount(6, 10) == 10);
-    CHECK(tabDisplayedStringCount(8, 6) == 8);
-    CHECK(tabDisplayedStringCount(4, 4) == 4);
+    CHECK(common::core::displayedStringCount(0, 10) == 0);
+    CHECK(common::core::displayedStringCount(6, 10) == 10);
+    CHECK(common::core::displayedStringCount(8, 6) == 8);
 }
 
 // The six highest lanes keep Charter's default set anchored at red on the sixth-highest lane, so

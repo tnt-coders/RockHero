@@ -14,14 +14,6 @@ constexpr float g_min_note_height_for_text{9.0f};
 
 } // namespace
 
-// Delegates to the shared authority so the 2D lane and the 3D board cannot disagree about how many
-// lanes one chart has; the 3D projection open-coded a bare maximum and differed on a stringless
-// chart. This wrapper is itself slated for deletion once its callers move to the core name.
-int tabDisplayedStringCount(int chart_string_count, int minimum_displayed_strings) noexcept
-{
-    return common::core::displayedStringCount(chart_string_count, minimum_displayed_strings);
-}
-
 // Standard tablature orientation: highest string on top, lowest on the bottom. Hosts size the
 // bounds proportionally to the string count, so evenly dividing the height yields identical
 // per-lane spacing at every count.

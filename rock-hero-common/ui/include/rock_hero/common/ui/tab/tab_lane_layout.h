@@ -30,19 +30,6 @@ struct TabLaneStyle
 };
 
 /*!
-\brief Returns the number of string lanes the tablature should draw.
-
-The chart's own string count is the floor: a user minimum only ever adds empty lanes below the
-chart's strings and can never hide notes. A chart-less display draws no lanes at all.
-
-\param chart_string_count String count declared by the displayed chart, or zero without a chart.
-\param minimum_displayed_strings User minimum lane count; zero means match the chart.
-\return Number of lanes to draw, or zero when there is no chart to draw.
-*/
-[[nodiscard]] int tabDisplayedStringCount(
-    int chart_string_count, int minimum_displayed_strings) noexcept;
-
-/*!
 \brief Returns the vertical center of one string lane inside the lane bounds.
 
 Lanes stack in standard tablature orientation: the highest-pitched string sits in the top lane

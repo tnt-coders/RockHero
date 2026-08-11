@@ -3,6 +3,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -150,7 +151,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     const TabLaneMetrics metrics = makeTabLaneMetrics(
         bounds,
         visible_timeline,
-        tabDisplayedStringCount(state.string_count, 0),
+        common::core::displayedStringCount(state.string_count, 0),
         state.string_count);
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
@@ -336,7 +337,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     const TabLaneMetrics metrics = makeTabLaneMetrics(
         bounds,
         visible_timeline,
-        tabDisplayedStringCount(state.string_count, 0),
+        common::core::displayedStringCount(state.string_count, 0),
         state.string_count);
     // Six lanes in 240 px put note_height at its 25 px ceiling, so the head is 26 px and every
     // onset lands on a whole pixel: 20 px per second puts the string-3 heads at x = 80, 160, 240
@@ -508,7 +509,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
         const TabLaneMetrics metrics = makeTabLaneMetrics(
             bounds,
             visible_timeline,
-            tabDisplayedStringCount(state.string_count, 0),
+            common::core::displayedStringCount(state.string_count, 0),
             state.string_count);
         REQUIRE(metrics.draw_text);
         juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
@@ -633,7 +634,7 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
     const TabLaneMetrics metrics = makeTabLaneMetrics(
         bounds,
         visible_timeline,
-        tabDisplayedStringCount(state.string_count, 0),
+        common::core::displayedStringCount(state.string_count, 0),
         state.string_count);
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
@@ -707,7 +708,7 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
     const TabLaneMetrics metrics = makeTabLaneMetrics(
         bounds,
         visible_timeline,
-        tabDisplayedStringCount(state.string_count, 0),
+        common::core::displayedStringCount(state.string_count, 0),
         state.string_count);
     const std::vector<double> prefix_max_end = common::core::makeSustainPrefixMax(state.notes);
 
