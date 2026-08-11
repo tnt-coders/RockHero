@@ -318,14 +318,15 @@ namespace
     // user can bind it there.
     add(EditorCommandId::ChartPickSlideToggle, "Toggle Pick Slide", "Authoring", {});
     // `H` matches Guitar Pro's own "Hammer On / Pull Off" key, verified against the GP8 manual's
-    // shortcut appendix. One key covers both because the direction is derived from the chart rather
-    // than authored. Guitar Pro's Shift+H "Legato" is a sheet-music slur that does not change the
-    // hammer/pull state, so it has nothing to map onto here and stays unbound.
+    // shortcut appendix. One key covers both because no direction is stored at all: the note claims
+    // a connection and which way it runs is read back from the predecessor. Guitar Pro's Shift+H
+    // "Legato" is a sheet-music slur that does not change that claim, so it has nothing to map onto
+    // here and stays unbound.
     add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('h')});
-    // Ctrl means precision — "I will state it exactly, do not infer" — so the force verb lives on
-    // the toggle's own key: plain H derives the direction the frets justify, Ctrl+H states the
-    // left-hand tap the frets never can. Exact-modifier matching keeps the two chords apart.
-    add(EditorCommandId::ChartForceHammer, "Force Hammer-On", "Authoring", {chord('h', command)});
+    // Ctrl means precision — "I will state it exactly, do not infer" — so the stating verb lives on
+    // the toggle's own key: plain H claims a connection the chart has to justify, Ctrl+H states the
+    // left-hand tap no predecessor can. Exact-modifier matching keeps the two chords apart.
+    add(EditorCommandId::ChartLeftTap, "Left-Hand Tap", "Authoring", {chord('h', command)});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

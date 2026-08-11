@@ -442,7 +442,7 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     {
         CHECK(std::is_eq(result->arrangements.front().audio_asset.normalization->gain_db <=> -4.0));
     }
-    CHECK(project.audioNormalizationUpdatedOnLoad());
+    CHECK(project.songConvertedOnLoad());
     CHECK(project.path() == path);
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 }
@@ -464,7 +464,7 @@ TEST_CASE("Project load surfaces AudioNormalizationFailed", "[core][project]")
     CHECK_FALSE(result.has_value());
     CHECK(result.error().code == ProjectErrorCode::AudioNormalizationFailed);
     CHECK(project.workspaceDirectory().empty());
-    CHECK_FALSE(project.audioNormalizationUpdatedOnLoad());
+    CHECK_FALSE(project.songConvertedOnLoad());
 }
 
 // Verifies .rock native song packages import into an unsaved editor project workspace.

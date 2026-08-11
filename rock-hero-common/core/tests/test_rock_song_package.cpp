@@ -77,6 +77,39 @@ private:
     std::filesystem::path m_path;
 };
 
+// Reads a package directory and yields the song alone. A read also reports what it had to convert
+// (see SongPackageRead), which only the cases about that channel care to look at; every other case
+// asks about the song, and threading the field through each of them would say nothing.
+[[nodiscard]] std::expected<Song, SongPackageError> readSong(const std::filesystem::path& directory)
+{
+    auto read = readRockSongPackageDirectory(directory);
+    if (!read.has_value())
+    {
+        return std::unexpected{std::move(read.error())};
+    }
+    return std::expected<Song, SongPackageError>{std::in_place, std::move(read->song)};
+}
+
+// The archive form of readSong, for the extract-then-read path.
+[[nodiscard]] std::expected<Song, SongPackageError> readSongArchive(
+    const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory)
+{
+    auto read = readRockSongPackage(package_path, workspace_directory);
+    if (!read.has_value())
+    {
+        return std::unexpected{std::move(read.error())};
+    }
+    return std::expected<Song, SongPackageError>{std::in_place, std::move(read->song)};
+}
+
+// Writes a fixture chart document. The writer settles connection claims against the beat axis, so
+// it takes a tempo map; these fixtures carry no claims, so the fixtures' own default map serves.
+[[nodiscard]] std::expected<void, ChartError> writeFixtureChart(
+    const std::filesystem::path& path, const Chart& chart)
+{
+    return writeChartDocument(path, chart, TempoMap::defaultMap(TimeDuration{4.0}));
+}
+
 // Writes a small fixture file, creating parent directories for package-relative content.
 void writeTextFile(const std::filesystem::path& path, const std::string& contents)
 {
@@ -290,7 +323,7 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     CHECK(std::filesystem::is_regular_file(package_directory / "song.json"));
     CHECK(std::filesystem::is_regular_file(package_directory / "audio" / "source.flac"));
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -319,7 +352,7 @@ TEST_CASE("Rock song package archive round-trips native song data", "[core][rock
     CHECK(std::filesystem::is_regular_file(package_archive));
 
     const std::filesystem::path extracted_directory = temporary_directory.path() / "extracted";
-    const auto read_song = readRockSongPackage(package_archive, extracted_directory);
+    const auto read_song = readSongArchive(package_archive, extracted_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -354,7 +387,7 @@ TEST_CASE("Rock song package save overwrites a stale staging survivor", "[core][
                 .has_value());
 
     const std::filesystem::path extracted_directory = temporary_directory.path() / "extracted";
-    CHECK(readRockSongPackage(package_archive, extracted_directory).has_value());
+    CHECK(readSongArchive(package_archive, extracted_directory).has_value());
 }
 
 // Verifies empty arrangement IDs are generated as canonical UUIDv4 package IDs.
@@ -375,7 +408,7 @@ TEST_CASE("Rock song package directory generates arrangement IDs", "[core][rock-
     const std::string& generated_id = written->front();
     CHECK(isCanonicalPackageId(generated_id));
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -433,7 +466,7 @@ TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-p
     REQUIRE(written.has_value());
     CHECK(std::filesystem::is_regular_file(package_directory / toneDocumentPath(g_tone_id)));
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -458,7 +491,7 @@ TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-pac
     REQUIRE(written.has_value());
 
     const std::filesystem::path extracted_directory = temporary_directory.path() / "extracted";
-    const auto read_song = readRockSongPackage(package_archive, extracted_directory);
+    const auto read_song = readSongArchive(package_archive, extracted_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -516,7 +549,7 @@ TEST_CASE("Rock song package rejects missing tone documents", "[core][rock-song-
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
@@ -537,7 +570,7 @@ TEST_CASE("Rock song package round-trips normalization metadata", "[core][rock-s
 
     REQUIRE(written.has_value());
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -563,7 +596,7 @@ TEST_CASE("Rock song package round-trips audio start offset", "[core][rock-song-
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
     CHECK_THAT(
@@ -576,7 +609,7 @@ TEST_CASE("Rock song package round-trips audio start offset", "[core][rock-song-
     const std::filesystem::path negative_directory = temporary_directory.path() / "negative";
     REQUIRE(writeRockSongPackageDirectory(negative_directory, song).has_value());
 
-    const auto negative_song = readRockSongPackageDirectory(negative_directory);
+    const auto negative_song = readSong(negative_directory);
     REQUIRE(negative_song.has_value());
     REQUIRE(negative_song->arrangements.size() == 1);
     CHECK_THAT(
@@ -600,7 +633,7 @@ TEST_CASE("Rock song package round-trips song sections", "[core][rock-song-packa
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
     REQUIRE(read_song.has_value());
     CHECK(read_song->sections == song.sections);
 }
@@ -621,7 +654,7 @@ TEST_CASE("Rock song package rejects unsorted sections", "[core][rock-song-packa
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
     CHECK(read_song.error().message.find("sorted") != std::string::npos);
@@ -658,7 +691,7 @@ TEST_CASE("Rock song package reads an explicit audio start offset", "[core][rock
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -696,7 +729,7 @@ TEST_CASE("Rock song package without normalization still loads", "[core][rock-so
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -734,7 +767,7 @@ TEST_CASE(
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -774,7 +807,7 @@ TEST_CASE(
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -873,7 +906,7 @@ TEST_CASE("Rock song package requires tempo map", "[core][rock-song-package]")
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
@@ -911,7 +944,7 @@ TEST_CASE("Rock song package rejects non-FLAC backing audio", "[core][rock-song-
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
@@ -973,7 +1006,7 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
         const std::filesystem::path package_directory = temporary_directory.path() / "package";
         writePackageDirectoryWithTempoMap(package_directory, tempo_map_fragment);
 
-        const auto read_song = readRockSongPackageDirectory(package_directory);
+        const auto read_song = readSong(package_directory);
 
         REQUIRE_FALSE(read_song.has_value());
         CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
@@ -1025,7 +1058,7 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     CHECK(song_document.find("\"toneDocument\"") == std::string::npos);
     CHECK(song_document.find(std::string{g_verse_region_id}) == std::string::npos);
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->arrangements.size() == 1);
     // Region ids are minted at load rather than persisted, so the round-trip comparison is
@@ -1076,7 +1109,7 @@ TEST_CASE("Rock song package round-trips tone parameter automation", "[core][roc
     const auto written = writeRockSongPackageDirectory(package_directory, song);
     REQUIRE(written.has_value());
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->arrangements.size() == 1);
     CHECK(
@@ -1153,7 +1186,7 @@ TEST_CASE("Rock song package ignores unrecognized tone spellings", "[core][rock-
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
@@ -1186,7 +1219,7 @@ TEST_CASE("Rock song package read rejects malformed tone change ids", "[core][ro
             ]
         })");
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
@@ -1216,7 +1249,7 @@ TEST_CASE("Rock song package read rejects malformed catalog tone ids", "[core][r
             ]
         })");
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
@@ -1307,7 +1340,7 @@ TEST_CASE(
             ]
         })");
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
@@ -1332,7 +1365,7 @@ TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-p
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
-    REQUIRE(writeChartDocument(package_directory / chart_ref, chart).has_value());
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, chart).has_value());
 
     Song song = makeSong(source_audio);
     song.arrangements.front().chart_ref = chart_ref;
@@ -1340,7 +1373,7 @@ TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-p
     const auto written = writeRockSongPackageDirectory(package_directory, song);
     REQUIRE(written.has_value());
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->arrangements.size() == 1);
     CHECK(loaded->arrangements.front().chart_ref == chart_ref);
@@ -1390,7 +1423,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
-    REQUIRE(writeChartDocument(package_directory / chart_ref, chart).has_value());
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, chart).has_value());
 
     // The in-memory chart diverges from the on-disk document exactly the way an edit would make
     // it: a moved fret plus a new note.
@@ -1412,7 +1445,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
 
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->arrangements.front().chart.has_value());
     if (loaded->arrangements.front().chart.has_value())
@@ -1456,7 +1489,7 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
-    REQUIRE(writeChartDocument(package_directory / chart_ref, chart).has_value());
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, chart).has_value());
 
     const auto read_document_bytes = [&]() -> std::string {
         std::ifstream stream{package_directory / chart_ref, std::ios::binary};
@@ -1473,6 +1506,75 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
 
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
     CHECK(read_document_bytes() == bytes_before);
+}
+
+// The load sweep: a hand-made document can carry a connection claim its own notes do not justify —
+// nothing the project writes can, since the writer settles first — and the reader settles it rather
+// than refusing the package, reporting the conversion so the editor can mark the session dirty.
+// This is the one case that asks about the read's second field, so it calls the reader directly.
+TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    // Hand-written, because the canonical writer cannot produce this document: a claim on string 1
+    // with nothing before it to connect to.
+    writeTextFile(
+        package_directory / chart_ref,
+        R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
+        R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5, "attack": "legato" } ] })");
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read = readRockSongPackageDirectory(package_directory);
+    REQUIRE(read.has_value());
+    CHECK(read->conversions.size() == 1);
+    REQUIRE(read->song.arrangements.size() == 1);
+    REQUIRE(read->song.arrangements.front().chart.has_value());
+    if (read->song.arrangements.front().chart.has_value())
+    {
+        const Chart& loaded_chart = *read->song.arrangements.front().chart;
+        REQUIRE(loaded_chart.notes.size() == 1);
+        CHECK(loaded_chart.notes.front().attack == NoteAttack::Pick);
+    }
+
+    // A package the project itself wrote converts nothing, which is why the game can discard the
+    // channel outright.
+    Chart clean_chart;
+    clean_chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    clean_chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = {},
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
+            .string = 1,
+            .fret = 7,
+            .sustain = {},
+            .attack = NoteAttack::Legato,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, clean_chart).has_value());
+    const auto clean_read = readRockSongPackageDirectory(package_directory);
+    REQUIRE(clean_read.has_value());
+    CHECK(clean_read->conversions.empty());
+    REQUIRE(clean_read->song.arrangements.front().chart.has_value());
+    if (clean_read->song.arrangements.front().chart.has_value())
+    {
+        CHECK(*clean_read->song.arrangements.front().chart == clean_chart);
+    }
 }
 
 TEST_CASE(
@@ -1503,11 +1605,11 @@ TEST_CASE(
     // failure exercises the read-side rule validation.
     Chart valid_chart = invalid_chart;
     valid_chart.notes[0].position.beat = 1;
-    REQUIRE(writeChartDocument(package_directory / chart_ref, valid_chart).has_value());
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, valid_chart).has_value());
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
-    REQUIRE(writeChartDocument(package_directory / chart_ref, invalid_chart).has_value());
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, invalid_chart).has_value());
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
@@ -1539,15 +1641,15 @@ TEST_CASE("Rock song package read rejects a non-traveling pick slide", "[core][r
 
     Song song = makeSong(source_audio);
     song.arrangements.front().chart_ref = chart_ref;
-    REQUIRE(writeChartDocument(package_directory / chart_ref, scrape_chart).has_value());
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, scrape_chart).has_value());
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
     // Corrupt in place: the terminal lands on the start fret, so the scrape sits still.
     Chart still_chart = scrape_chart;
     still_chart.notes[0].slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 12};
-    REQUIRE(writeChartDocument(package_directory / chart_ref, still_chart).has_value());
+    REQUIRE(writeFixtureChart(package_directory / chart_ref, still_chart).has_value());
 
-    const auto loaded = readRockSongPackageDirectory(package_directory);
+    const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
@@ -1679,7 +1781,7 @@ TEST_CASE("Rock song package rejects a non-numeric audio start offset", "[core][
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
@@ -1718,7 +1820,7 @@ TEST_CASE("Rock song package rejects a non-finite audio start offset", "[core][r
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
@@ -1742,7 +1844,7 @@ TEST_CASE("Rock song package rejects duplicate section positions", "[core][rock-
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
@@ -1788,7 +1890,7 @@ TEST_CASE("Rock song package rejects a non-numeric automation shape", "[core][ro
             ]
         })");
 
-    const auto read_song = readRockSongPackageDirectory(package_directory);
+    const auto read_song = readSong(package_directory);
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);

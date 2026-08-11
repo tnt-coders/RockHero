@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -43,8 +44,16 @@ std::expected<common::core::Song, SongImportError> RockSongImporter::importSong(
         }};
     }
 
+    // Conversion notes are diagnostics, not failures — and a native package written by this editor
+    // never carries any, because the document writer serializes the resolved form. A third-party or
+    // hand-made file can, so they are logged the way the Guitar Pro importer logs its own.
+    for (const std::string& note : imported_song->conversions)
+    {
+        RH_LOG_INFO("editor.import", "rock package import: {}", note);
+    }
+
     return std::expected<common::core::Song, SongImportError>{
-        std::in_place, std::move(*imported_song)
+        std::in_place, std::move(imported_song->song)
     };
 }
 

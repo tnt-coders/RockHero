@@ -1,36 +1,40 @@
-# Legato Authoring Model — hammer-on, pull-off, and the left-hand tap
+# Legato Authoring Model — the stored-direction record, and what replaced it
 
-Status: **FULLY SETTLED 2026-08-09 — every open question ruled; recalc window awaiting
-implementation** (plan 40 Phase 5; the technique enforcement half shipped 2026-08-09 —
-validation, the finalize gate, `normalizeChartLegato` at import and in every plan — and the
-toggle's eligible-subset UX plus the `Ctrl+H` force verb shipped 2026-08-10, leaving Phase 5 only
-the recalc window). The deep review established the design — the recalc
-window that **settles on any undo or redo**, making the binding constraint (*undo must always
-restore exactly the pre-action state*) hold by construction — and the walkthrough then closed all
-five user calls and question B (Option C: strict derivation, merged notation, `Ctrl+H` the sole
-author of the left-hand tap). Plan 40 Phase 5's first verb (`H`) shipped in `4a98da55` with the
-naive derivation; its defects are recorded in
-[What the shipped verb gets wrong](#what-the-shipped-verb-gets-wrong) and are all fixed.
+Status: **SUPERSEDED 2026-08-11 by `legato-final-spec.md`, which is the model of record.** This
+file is kept as the decision history: it is where the physics, the released-fret semantics, D13's
+release inference, the assist, and the toggle window were argued out, and every one of those
+survives verbatim. What did NOT survive is the *storage* it all assumed. The sections below are
+annotated where they state a mechanism the code no longer has; nothing is deleted, so the reasoning
+that produced each ruling stays auditable.
 
-**What is built.** `planSetLegato` judges the predecessor's **released** fret, requires it still
-holdable at the onset, refuses a fret-hand-harmonic predecessor, and declines to derive across a
-scrape — all of it by delegating to the one shared authority, `derivedLegatoAttack`
-(`chart_rules.h`). Layer 1's repair is `normalizeChartLegato` (`legato_normalize.h`), which runs in
-the planners' shared `finalizePlan` step and again at Guitar Pro import completion.
+**Today's model, in five lines.** `attack` stores `Legato` — the relational claim "this onset
+connects to its same-string predecessor" — and `LeftTap`, the local statement "the fretting hand
+strikes this from nowhere" (the old `Ctrl+H` meaning). **No direction is stored.** One resolver,
+`resolveLegato` (`chart_legato.h`), answers `{Hammer, Pull, Unjustified}` from the predecessor's
+stored fields, and every surface, the gameplay build, the reader, and the `H` planner ask it rather
+than reading a field. A claim nothing justifies draws, plays, and scores as the plain pick it sounds
+like, and is flattened to `Pick` by the stateless settle sweep (`sweepUnjustifiedLegato`) at the
+ruled settle events, at load, and by the document writer as it serializes.
 
-**What remains**, all of it plan 40 Phase 5: Layer 2's recalc window. The toggle's
-eligible-subset UX shipped 2026-08-10 (the controller asks `planSetLegato` itself whether applying
-would change anything — the oracle, never a restated predicate — and only then clears, targeting
-just the legato subset), and the `Ctrl+H` force verb shipped the same day: `ChartForceHammer`
-binds the chord to `planSetAttack(Hammer)`, whose written-form validity check yields the ruled
-domain from the one rule authority — sole refusal the no-node open string, the open-string
-pinch's graze refusing to re-hand, and the tap harmonic's strike point carrying into E13's
-hammer form.
+**The mapping from this document to that one.**
+
+| Recorded here | Status today |
+|---|---|
+| `Hammer` / `Pull` as stored values, and their asymmetry | replaced by `Legato` + `LeftTap`: the asymmetry became two values instead of two readings of one |
+| The derivation table (Option C, section 1) | intact as the RESOLVER's clauses — same rules, asked per read instead of written once |
+| Layer 1's `normalizeChartLegato` repair engine | **deleted**; the relational rows are resolver clauses, and the one flatten left in `finalizePlan` is intra-note (E4's strike requirement) |
+| Layer 2's recalc window | **cancelled unbuilt** — with nothing stored, there is nothing to recalculate |
+| E5/E12/E19 as validation rules | **no longer validation**: validation is intra-note only, and these are resolver clauses that make a claim read as a pick rather than refuse a document |
+| Question B's DEFER (the `LeftTap` split) | **overturned**: the storage half shipped, the notation half stayed rejected (one merged mark, drawn from the resolved motion) |
+| The toggle's eligible-subset law, the D14 assist, the toggle window, D13, released-fret semantics, `Ctrl+H`'s domain | **kept verbatim**, retargeted to the new values |
 
 Scope note: this concerns **legato only**, and that is a finding rather than an assumption — see
 [Does this generalize?](#does-this-generalize) at the end.
 
 ## Why this exists
+
+> **Superseded:** this section states the problem the final spec solved at the root. Nothing derives
+> once and stores the answer any more, so there is no longer anything to drift.
 
 `planSetLegato` derives hammer-versus-pull from the fret relationship to the previous note on the
 same string, once, at authoring time. Every input to that derivation stays editable afterwards, so
@@ -40,6 +44,12 @@ set the constraint that decided the whole design: undo/redo must always be exact
 state different from before the action.
 
 ## The load-bearing fact: Hammer and Pull are not symmetric
+
+> **Superseded in mechanism, kept in substance:** the asymmetry below is exactly why the final model
+> stores TWO values. `Legato` is the relational half (needs a predecessor to mean anything) and
+> `LeftTap` the local half (needs only somewhere to strike), so the two readings of one overloaded
+> value that this section describes no longer share a value at all. E4 now binds `LeftTap` and `Tap`
+> — spelled once as `nothingToStrike` — and binds a `Legato` claim not at all.
 
 Already recorded in the importer (`gp_chart_builder.cpp`, the `left_hand_tapped` branch):
 
@@ -59,6 +69,11 @@ tap only, and the two readings of `Hammer` are deliberately indistinguishable. T
 ## Settled before the review
 
 ### 1. The derivation, and a force verb (Option C — RULED 2026-08-09)
+
+> **Retargeted, not overturned:** the table below is now `resolveLegato`'s clause list, answered on
+> every read instead of written once. "Refuse" reads as `Unjustified`, which is why the `H` planner
+> can use the resolver itself as its oracle — a note skips because the resolver refused it. `Ctrl+H`
+> states `LeftTap` rather than a `Hammer` the frets cannot justify.
 
 Plain `H` infers only what the frets justify; the left-hand tap is `Ctrl+H`'s to state:
 
@@ -105,6 +120,13 @@ when the relationship becomes valid again* and *no surprises later* — which no
 
 ### Layer 1 — always-on impossibility normalization, in the planners
 
+> **DELETED 2026-08-11.** `normalizeChartLegato` and the repair engine are gone. Every *relational*
+> row of the table below is now a clause of `resolveLegato` — the state it repaired is simply read as
+> a plain pick — and the batch flatten happens at settle events instead (`sweepUnjustifiedLegato`,
+> which only ever turns `Legato` into `Pick` and never touches a `LeftTap`). The one repair still
+> inside `finalizePlan` is the last row's kind: intra-note, E4's strike requirement, flattening an
+> attack its own note's edit stranded.
+
 Every chart-note planner finalizes through a shared normalization that runs after the 40-Q2-B
 sustain pass, over the whole candidate stream, and repairs only **impossibility**.
 
@@ -141,6 +163,14 @@ Layer 1 alone is the shipped fallback: cleared stays cleared, no surprises, the 
 disappoints.
 
 ### Layer 2 — the recalc window
+
+> **CANCELLED UNBUILT 2026-08-11.** The window existed to re-derive a stored direction while the
+> user was still editing; with no direction stored, every read already IS the re-derivation, so the
+> whole mechanism — flagged keys, birth, participation, settle, the flag-vs-undo analysis — has
+> nothing to do. What the design needed it for is covered instead by two much smaller things: the
+> resolver (display and scoring follow the chart live) and the settle sweep (a claim the chart cannot
+> justify stops existing at the burst's end). The undo-exactness argument below is the reason the
+> sweep defers at a mid-stack cursor.
 
 Controller-owned transient state, shaped exactly like the existing multi-digit fret-entry window
 (`ChartFretEntry`): the flagged note keys, the selection key-set immediately after the birth edit,
@@ -310,6 +340,15 @@ A4's selection scope is the only lifetime that matches user intent rather than a
 
 ## Question B: the left-hand tap as its own concept — DEFER
 
+> **OVERTURNED 2026-08-11, in halves.** The *storage* half shipped: `LeftTap` is its own value, and
+> the format field it needed came free because the same change replaced `hammer`/`pull` with
+> `legato`/`leftTap` in place (no versioning, no back-compat — the project's standing rule). The
+> *notation* half stayed rejected exactly as argued below: one merged mark, now drawn from the
+> RESOLVED motion, so the two-`T` collision and the unknown 3D cell never arrived. The alias-zone
+> objection also survives and is stronger than it reads here: `LeftTap`-with-a-predecessor is not
+> duplication now, because the resolver reports the hammer motion for it unconditionally and the `H`
+> planner is forbidden from producing one.
+
 Independent of A4, with one interaction: A4 is about the *lifecycle* of re-derivation, B about the
 *ontology* of `Hammer`, and A4 works identically with or without B. B would remove the one
 asymmetric normalization row and the `Ctrl+H` hazard class at its root — but costs a format change
@@ -330,6 +369,12 @@ removes one table row while adding a verb, a mark collision, and an unknown 3D c
 reasons, and re-derive B with the E-rule table together then.
 
 ## The invalidating edits, exhaustively
+
+> **Still the right inventory, judged at a different moment.** Every row below describes an edit that
+> changes what a claim resolves to; none of them repairs anything now. The claim stays as authored,
+> reads as a plain pick while it cannot be justified, and either becomes justified again or is
+> flattened by the sweep at the next settle. The "did we miss a verb" dissolution holds even more
+> strongly: the sweep judges the whole stream and knows nothing about verbs.
 
 The enumeration question is dissolved structurally: with Layer 1 in the shared finalize step, every
 present and future planner gets the repair by construction — "did we miss a verb" becomes "cannot."
@@ -353,7 +398,7 @@ The inventory against every verb, under the value-based rule:
 | Phase 6 split | **no** under the value rule — the tail keeps the fret; this is why the rule is value-based |
 | Phase 7 waypoint edits changing the predecessor's last waypoint fret | yes, iff released-fret semantics are adopted (user call 3) |
 | Paste / range move / range delete (plan 52) | reduce to the classes above; covered by the funnel |
-| Sustain edits | **yes since D13** — the predecessor's hold IS part of the tuple past the kept-sustain bound, so a shrink that disconnects a tail invalidates the legato it justified. (The row's original "no" rested on "predecessor need not still sound", which D13 narrowed to "unknowable only within the bound".) The tail-lock ruling then makes the explicit duration verb REFUSE such a shrink rather than repair it, so the repair path here covers only the implicit truncations. |
+| Sustain edits | **yes since D13** — the predecessor's hold IS part of the tuple past the kept-sustain bound, so a shrink that disconnects a tail invalidates the legato it justified. (The row's original "no" rested on "predecessor need not still sound", which D13 narrowed to "unknowable only within the bound".) The tail-lock ruling then made the explicit duration verb REFUSE such a shrink rather than repair it — **narrowed to slides only 2026-08-11**: a connection has no locked tail, so a shrink drops the mark live, regrowing inside the burst restores it, and the settle sweep flattens whatever is left. |
 | Bend, vibrato, tremolo, accent, mute edits | no — none enters the tuple (a fully-muted predecessor is still a press) |
 | Tuning capo/cent edits | no; a future string-count edit reduces to move-off-string |
 | Undo/redo themselves | **never** — they replay stored plans and bypass the planners, which is required for exactness |
@@ -392,7 +437,10 @@ finalize gate. Kept for the record; the defects below describe `planSetLegato` a
 
 ## Remaining user calls
 
-1. ~~**Recalculating-state chrome**~~ — **RULED 2026-08-09 (user): none.** The honest live marks
+1. ~~**Recalculating-state chrome**~~ — **RULED 2026-08-09 (user): none**, and re-signed 2026-08-11
+   on a stronger justification: not "marks always show stored data" but TRANSIENCE — a broken claim
+   cannot cross a top-of-history settle or reach any file, so mid-burst it is pixel-identical to a
+   plain pick by design. The honest live marks
    are the feedback (the pull-off symbol visibly dropping to plain and rising to hammer-on IS
    the signal); no outline or tint while the window is open. Reaffirmed in the same exchange:
    the window has **no timer** — it lives exactly until a settle event (selection change, seek,
@@ -449,7 +497,7 @@ Checked against every remaining Phase 5 field: **no, and that is load-bearing fo
 | `harmonic_node` | no — its constraints (range, node > fret, pinch requires one) are intra-note |
 | `attack`: `Tap` / `Slap` / `Pop` / `Pick` / `Pinch` | no |
 | `attack`: `PickSlide` | no — intra-note and already enforced by the chart rules |
-| `attack`: `Hammer` / `Pull` | **yes — the only one** |
+| `attack`: `Hammer` / `Pull` (today `Legato`) | **yes — the only one** |
 
 Legato is the only articulation whose meaning references another note, so this blocks none of the
 other Phase 5 verbs. It **does** land on Phase 6 (L-link merge/split is explicitly relational) and

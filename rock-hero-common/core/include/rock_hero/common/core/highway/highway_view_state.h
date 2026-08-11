@@ -135,6 +135,16 @@ struct HighwayNoteView
     /*! \brief How the onset is produced. */
     NoteAttack attack{NoteAttack::Pick};
 
+    /*!
+    \brief What this note's connection claim resolves to (\ref resolveLegato).
+
+    The chart stores a claim and never a direction, so the drawn hammer-on or pull-off cell can only
+    come from here. `Unjustified` is not a state of its own on the board: a claim nothing justifies
+    draws exactly what the plain pick beside it draws, which is why no cue exists and why every
+    attack outside \ref legatoClaimable leaves this at its default.
+    */
+    LegatoMotion legato{LegatoMotion::Unjustified};
+
     /*! \brief Muting applied to the note. */
     NoteMute mute{NoteMute::None};
 
@@ -174,10 +184,10 @@ struct HighwayNoteView
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
-               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.mute == rhs.mute &&
-               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
-               lhs.tremolo == rhs.tremolo && lhs.accent == rhs.accent && lhs.bend == rhs.bend &&
-               lhs.slides == rhs.slides;
+               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
+               lhs.mute == rhs.mute && lhs.harmonic_node == rhs.harmonic_node &&
+               lhs.vibrato == rhs.vibrato && lhs.tremolo == rhs.tremolo &&
+               lhs.accent == rhs.accent && lhs.bend == rhs.bend && lhs.slides == rhs.slides;
     }
 };
 
@@ -1004,8 +1014,14 @@ whatever window a renderer happens to be drawing.
             has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
                         note.tremolo || !note.bend.empty() || !note.slides.empty();
             all_palm_muted = all_palm_muted && note.mute == NoteMute::Palm;
-            any_marks = any_marks || note.harmonic_node.has_value() ||
-                        note.attack != NoteAttack::Pick || note.mute != NoteMute::None;
+            // What is DRAWN, not what is stored: inside the connection family the mark is the
+            // note's RESOLVED motion, so a claim nothing justifies carries no mark and must not
+            // hold the repeat box off — it is pixel-identical to the plain pick beside it. Every
+            // other attack draws a mark of its own.
+            const bool attack_marks =
+                !legatoClaimable(note.attack) || note.legato != LegatoMotion::Unjustified;
+            any_marks = any_marks || note.harmonic_node.has_value() || attack_marks ||
+                        note.mute != NoteMute::None;
         }
         if (has_tails)
         {

@@ -14,6 +14,7 @@ run in opposite directions, so undo round-trips are exact by construction.
 #include "chart/chart_selection.h"
 #include "controller/editor_undo_history.h"
 
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -58,8 +59,10 @@ sustain ringing across the onset truncates (40-Q2-B), all in the one plan.
 /*!
 \brief Plans deleting the notes matching the given keys.
 
-Funnels through the shared finalize like every note plan, so a survivor whose legato the
-deletion disturbed is repaired in the same undo entry.
+Funnels through the shared finalize like every note plan, so the whole-matrix gate refuses a
+deletion that would leave the chart invalid. A survivor whose CONNECTION the deletion broke keeps
+its claim and simply plays as a pick until the next settle flattens it (\ref planSettleLegato) —
+relational truths are not the burst's business.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -139,34 +142,98 @@ binary-search this precondition).
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta);
 
+/*! \brief Why an `H` press left a selected note as it found it. */
+enum class ChartLegatoSkip : std::uint8_t
+{
+    /*! \brief Nothing was skipped. */
+    None,
+
+    /*! \brief The onset is the picking hand's (tap, pinch, scrape) — no connection describes it. */
+    PickingHandOnset,
+
+    /*! \brief Nothing earlier on the note's own string to connect to. */
+    NoPredecessor,
+
+    /*! \brief The predecessor's hold ends too early, and its tail could not be grown to reach. */
+    PredecessorReleased,
+
+    /*! \brief A predecessor that reaches, but no connection between the two stops. */
+    NoConnection
+};
+
 /*!
-\brief Plans setting the selection's attack to hammer-on or pull-off, deriving each per note.
+\brief One `H` press's outcome: the change to apply, and what the resolver refused.
 
-The direction is never authored. A legato note's hammer-versus-pull reading follows the fret
-relationship to the previous note on the SAME string — a higher fret is hammered onto, a lower one
-pulled off to — which is the relationship the 2D triangle already draws and the only fact the chart
-data actually carries. Deriving it means the two cannot disagree, and
-it is why one verb covers both.
+The skip channel exists so an all-skipped press is never a dead key. It counts only notes the
+resolver REFUSED — a note already carrying the claim the press would set is unchanged, not skipped,
+which is what lets the caller tell "nothing left to claim, so this press means clear" from "this
+press had nothing to say".
+*/
+struct [[nodiscard]] ChartLegatoPlan
+{
+    /*! \brief The planned change, or empty when no selected note gained a claim. */
+    std::optional<ChartNotesEditPlan> plan;
 
-A note whose direction is not derivable is left untouched rather than guessed: no earlier note on
-its string to come from, an earlier note at the same fret (neither hammered nor pulled), an
-earlier note whose hold no longer reaches this onset (a disconnected tail is a proven release),
-or an earlier note that is a scrape — deriving onto a gesture is a guess, though a pull an author
-already wrote from one stands. A fret-hand harmonic is also left untouched: its node IS its
-pitch, so converting would rewrite the music, where a stopped harmonic's node leaves with the
-conversion because the stop still names the pitch. The plan therefore covers a subset of the keys
-when a selection mixes derivable and underivable notes, and reports no change at all when none
-are derivable.
+    /*! \brief How many selected notes the resolver refused a claim for. */
+    int skipped{0};
+
+    /*! \brief The reason most of those notes were refused for. */
+    ChartLegatoSkip reason{ChartLegatoSkip::None};
+};
+
+/*!
+\brief Plans claiming a legato connection for every selected note whose claim resolves.
+
+The planner is the oracle and \ref common::core::resolveLegato is the only authority: each selected
+note in the connection family (\ref common::core::legatoClaimable) is asked what a claim on it would
+resolve to, and the claim is written exactly where the answer is a real motion. There is no separate
+eligibility list to keep in step — a note is skipped because the resolver refused it, never because
+a rule restated here said so. Direction is never written: the stored claim is the whole authored
+statement, and both surfaces read the motion back through the same resolver.
+
+The assist authors the missing half of a claim rather than demanding it first: when the
+predecessor's hold stops short of the onset, its tail grows to the margin point in the SAME plan,
+but only when that makes the claim resolve and only within `sustainGrowthLimit`, so the assist can
+never author what a manual drag could not reach. It skips a gesture-carrying predecessor — a scrape,
+or any note with a slide-out — because that tail is the gesture's authored window, not slack to
+spend.
 
 \param chart Chart the plan is built against.
 \param tempo_map Tempo map the plan resolves distances through.
 \param keys Notes to set, sorted-unique in chart order.
 \param label User-visible undo label.
-\return The planned change, or empty when no selected note has a derivable direction.
+
+\return The planned change plus the skip report; the plan is empty when no selected note's claim
+        resolves, which is what makes the press mean clear.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planSetLegato(
+[[nodiscard]] ChartLegatoPlan planSetLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, std::string_view label);
+
+/*!
+\brief Plans flattening every legato claim the chart no longer justifies — the settle sweep's plan.
+
+The editor half of \ref common::core::sweepUnjustifiedLegato: the sweep decides WHAT flattens, this
+turns it into an undo entry. Nothing else here is relational, which is why the sweep runs at settle
+points instead of inside \ref finalizePlan — mid-burst a broken claim simply displays as the pick it
+plays as, and the burst stays one undo step.
+
+`base` is the stream the returned plan is expressed against, which is not always the current chart:
+folding the flatten into the burst's own entry needs a plan spanning the whole burst, so the caller
+passes the pre-burst stream and reverses the burst before applying. A caller pushing the flatten as
+its own entry passes `chart.notes`.
+
+\param chart Chart being settled; its notes are swept and its shapes supply the hold test.
+\param tempo_map Tempo map supplying the beat axis.
+\param base Stream the plan is diffed against.
+\param label User-visible undo label.
+
+\return The planned change, or empty when the sweep found nothing to flatten — which is exactly when
+        the caller must leave its coalescing windows armed.
+*/
+[[nodiscard]] std::optional<ChartNotesEditPlan> planSettleLegato(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<common::core::ChartNote>& base, std::string_view label);
 
 /*!
 \brief Plans setting the keyed notes' attack, with the pick-slide entry and exit special cases.

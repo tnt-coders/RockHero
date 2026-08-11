@@ -164,8 +164,9 @@ checks preconditions and swaps the change in. Undo replays the same plan in reve
 trips are exact by construction — and the hover ghost can run the *same* planner the click
 runs, so an affordance can never promise an edit the commit would refuse.
 
-Exemplar: `ChartNotesEditPlan` with the seven planners — `planInsertNote` / `planDeleteNotes` /
-`planMoveNotes` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` —
+Exemplar: `ChartNotesEditPlan` with the eight planners — `planInsertNote` / `planDeleteNotes` /
+`planMoveNotes` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` /
+`planSettleLegato` —
 applied by `applyChartNotesChange` and replayed by
 `ChartNotesEdit` (`editor/core/src/chart/chart_edits.h`). Recurring: `planLanePointAtCaret` →
 `plantLanePoint` (`editor_controller.cpp`), and the game's `library_scan_plan.h` (a pure
@@ -173,10 +174,13 @@ planner that diffs the cached index and returns a deterministic action list, no 
 it when a mutation needs undo, a truthful preview, or side-effect-free tests.
 
 Every chart-note planner builds a candidate stream and funnels it through the shared finalize
-(`finalizePlan` in `chart_edits.cpp`): sort, sustain-overlap normalization, legato repair, then
-the technique-matrix gate — `validateChartNotes` run on the candidate's *saved* form
+(`finalizePlan` in `chart_edits.cpp`): sort, sustain-overlap normalization, the intra-note strike
+flatten, then the technique-matrix gate — `validateChartNotes` run on the candidate's *saved* form
 (`savedChartNote`), refusing the whole plan on any violation. A new planner must end there too;
-skipping the funnel is how a verb authors a chart the document reader would reject.
+skipping the funnel is how a verb authors a chart the document reader would reject. Relational
+truths deliberately do NOT repair in the funnel: a connection claim the chart cannot justify plays as
+the pick it sounds like until the settle sweep (`planSettleLegato`) flattens it in one batch at the
+burst's end, which is what keeps a burst one undo step.
 
 ## Refuse, never clamp (edits)
 

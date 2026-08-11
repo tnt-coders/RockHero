@@ -409,8 +409,11 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(
 // Rebuilds the prefix-maximum sustain-end table after the projection changes.
 void TabView::rebuildVisibilityIndex()
 {
-    m_prefix_max_end_seconds =
-        m_tab == nullptr ? std::vector<double>{} : common::core::makeSustainPrefixMax(m_tab->notes);
+    // Built from the DISPLAY hold ends, not the notes' own sustain ends: a span-held strum is drawn
+    // past its stored end, and a shorter index would cull it out of the visible range mid-tail.
+    m_prefix_max_end_seconds = m_tab == nullptr
+                                   ? std::vector<double>{}
+                                   : common::core::makeSustainPrefixMax(m_tab->display_hold_ends);
 }
 
 } // namespace rock_hero::editor::ui

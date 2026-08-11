@@ -128,6 +128,9 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[core][tab]")
 
     CHECK(state.string_count == 6);
     REQUIRE(state.notes.size() == 5);
+    // Sized like the notes because the paint core indexes it by note index; its values are the
+    // span-hold rule's, pinned against the board's in test_highway_projection.
+    CHECK(state.display_hold_ends.size() == state.notes.size());
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
@@ -189,6 +192,7 @@ TEST_CASE("Tab projection is empty without a chart", "[core][tab]")
     const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
     CHECK(state.string_count == 0);
     CHECK(state.notes.empty());
+    CHECK(state.display_hold_ends.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
 }

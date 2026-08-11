@@ -220,7 +220,8 @@ headless MVC, views send intents), "Separate State From Side Effects", "Preferre
 - **Chart model** (`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h`): `Chart`
   = `ChartTuning` (strings[], capo, cent_offset) + `ChordTemplate` table (name, per-string
   optional frets/fingers) + `ChartNote` stream (GridPosition, string, fret, sustain Fraction,
-  attack enum Pick/**Pinch**/Hammer/Pull/Tap/Pop/Slap/**PickSlide**, mute None/Palm/Full,
+  attack enum Pick/**Pinch**/**Legato**/**LeftTap**/Tap/Pop/Slap/**PickSlide**, mute
+  None/Palm/Full,
   optional `harmonic_node` double, vibrato/tremolo/accent bools, bend points, slide waypoints,
   optional `slide_out`) + `ChartShape` spans (position, sustain, template index) +
   `FretHandPosition` (fret, width). There is **no harmonic enum**: a `harmonic_node`'s presence
@@ -320,7 +321,7 @@ format-side decisions) and the design docs — a fresh session needs no other co
    command"): pressing L on the selected note merges it into its same-string predecessor — same
    fret extends the predecessor's sustain and absorbs the note's techniques as positioned
    payloads; different fret appends a pitched slide waypoint at the note's onset offset
-   (unpitched slides stay explicitly authored). Hammer-on/pull-off/tap are never link targets.
+   (unpitched slides stay explicitly authored). A legato claim or a tap is never a link target.
    Split/unlink is the inverse command and synthesizes an attack at the seam (editor policy, not
    format). Segments between payload boundaries are synthesized view entities: each discrete
    mid-sustain change point draws a clickable linked-appearance head (the renderer already does
@@ -501,7 +502,7 @@ it (a pick-slide carrier sheds its other techniques and synthesizes its default 
 what attack coverage exists before executing this phase; the mute/harmonic/vibrato/tremolo/accent
 properties and the §9a mixed-validity feedback are what remain.
 
-- **Scope**: attack (pick/pinch/hammer/pull/tap/pop/slap/pickSlide), mute (none/palm/full), the
+- **Scope**: attack (pick/pinch/legato/leftTap/tap/pop/slap/pickSlide), mute (none/palm/full), the
   harmonic — which is the `harmonic_node` numeric entry, since a node's presence is what makes a
   note a harmonic and `Pinch` is an attack — vibrato (whole-note bool until
   Phase 7's gated sub-scope), tremolo, accent. Shortcuts follow the settlement's §9a
@@ -529,7 +530,7 @@ properties and the §9a mixed-validity feedback are what remain.
   apply-where-valid with counted feedback per §9a (same fret → extend sustain, rebase and
   absorb the note's payloads — offsets shift by the predecessor-onset delta using Phase 1
   arithmetic; a zero-sustain technique-carrying note is a pure payload boundary; different
-  fret → append a pitched slide waypoint at the onset offset; a hammer/pull/tap target
+  fret → append a pitched slide waypoint at the onset offset; a legato or tap target
   refuses that note), one compound undo entry. Split requires an ARMED caret (refused while
   passive or with a multi-note selection) and places the caret's grid position as the seam:
   the tail becomes a new note with a synthesized plain-pick attack, payloads re-partitioned

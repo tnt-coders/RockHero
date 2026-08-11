@@ -34,9 +34,10 @@ constexpr double g_previous_section_grace_seconds = 0.75;
 }
 
 // Reads the package into a Song, extracting archives through a scratch workspace that is removed
-// immediately after the read.
-[[nodiscard]] std::expected<common::core::Song, common::core::SongPackageError> readPackage(
-    const std::filesystem::path& package_path)
+// immediately after the read. The read's conversion channel is dropped with the rest of the result:
+// the game has no dirty state to mark, and only a hand-made document can convert anything.
+[[nodiscard]] std::expected<common::core::SongPackageRead, common::core::SongPackageError>
+readPackage(const std::filesystem::path& package_path)
 {
     std::error_code probe_error;
     if (std::filesystem::is_directory(package_path, probe_error))
@@ -200,18 +201,19 @@ const std::string& DevSession::chosenArrangementId() const noexcept
 
 std::optional<common::core::HighwayViewState> DevSession::loadViewState()
 {
-    const std::expected<common::core::Song, common::core::SongPackageError> song =
+    const std::expected<common::core::SongPackageRead, common::core::SongPackageError> read =
         readPackage(m_package_path);
-    if (!song.has_value())
+    if (!read.has_value())
     {
-        RH_LOG_WARNING("game.dev", "dev package load failed: {}", song.error().message);
+        RH_LOG_WARNING("game.dev", "dev package load failed: {}", read.error().message);
         return std::nullopt;
     }
+    const common::core::Song& song = read->song;
 
     // Prefer a charted guitar part: bass arrangements exercise few of the chord and technique
     // visuals this dev fixture exists to inspect (packages often list bass first).
     const common::core::Arrangement* chosen = nullptr;
-    for (const common::core::Arrangement& arrangement : song->arrangements)
+    for (const common::core::Arrangement& arrangement : song.arrangements)
     {
         if (!arrangement.chart.has_value())
         {
@@ -233,8 +235,8 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         // setting later.
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
             *chosen,
-            song->tempo_map,
-            song->sections,
+            song.tempo_map,
+            song.sections,
             common::core::HighwayDisplayOptions{.mirrored = m_lefty, .invert_string_order = true});
         RH_LOG_INFO(
             "game.highway",

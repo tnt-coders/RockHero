@@ -12,8 +12,6 @@ target_sources(
             src/chart/chart_edits.h
             src/chart/chart_hit_testing.cpp
             src/chart/chart_hit_testing.h
-            src/chart/legato_normalize.cpp
-            src/chart/legato_normalize.h
             src/chart/pick_slide_defaults.cpp
             src/chart/pick_slide_defaults.h
             src/chart/chart_selection.cpp

@@ -296,7 +296,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         return;
     }
 
-    const bool next_has_unsaved_changes = state->project.audioNormalizationUpdatedOnLoad();
+    const bool next_has_unsaved_changes = state->project.songConvertedOnLoad();
     const std::optional<EditorProjectMarker> next_marker = markerForOpenedProject(state->file);
     m_grid_note_value = gridNoteValueForOpenedProject(state->file);
     m_timeline_zoom_pixels_per_second = timelineZoomForOpenedProject(state->file);
@@ -979,6 +979,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
         return;
     }
 
+    // Departing an arrangement settles the chart being left, and it must happen before the song is
+    // copied below: the copy is what the reloaded session is rebuilt from, so a claim left broken
+    // here would ride into the new session and out to the next write.
+    static_cast<void>(settleChartLegato());
+
     // Bound once behind the has_value guard above: nothing in this function touches the project
     // optional, and the named reference keeps that guarantee visible to clang-tidy's optional
     // tracking across the calls below.
@@ -1199,6 +1204,10 @@ void EditorController::Impl::clearLiveRig()
 // checks, and project restoration stay consistent across save, save-as, and publish.
 void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAction&& action)
 {
+    // Every project write verb is a settle event, and it has to run before the song is captured
+    // for the worker: the file is resolved either way (the document writer serializes the resolved
+    // form), so this is what keeps MEMORY from staying behind the bytes it just wrote.
+    static_cast<void>(settleChartLegato());
     auto state = takeProjectForWrite(std::move(action));
     if (state == nullptr)
     {

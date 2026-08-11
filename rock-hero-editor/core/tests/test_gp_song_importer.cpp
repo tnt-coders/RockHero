@@ -14,6 +14,7 @@
 #include <ranges>
 #include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/archive_io.h>
@@ -249,12 +250,13 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[0].mute == common::core::NoteMute::Palm);
     CHECK(chart.notes[0].sustain == Fraction{3, 4});
 
-    // Hammer-on destination that shift-slides into the next note: an ordinary pitched waypoint
+    // Legato destination that shift-slides into the next note: an ordinary pitched waypoint
     // glides to the landing (absolute fret 9), ending the minimum sustain distance (1/16 whole
     // note — a quarter beat in 4/4) before the landing's onset, and the sustain ends at the
-    // glide end.
+    // glide end. The score says the notes connect but not which way, which is exactly what the
+    // stored claim says — no direction is imported.
     CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.notes[1].attack == common::core::NoteAttack::Hammer);
+    CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
     REQUIRE(chart.notes[1].slides.size() == 1);
     CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
     CHECK(chart.notes[1].slides[0].fret == 9);
@@ -350,13 +352,13 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[2].position == GridPosition{.measure = 1, .beat = 3});
 
-    // The origin keeps its hammer attack and carries the junction waypoint; its sustain extends
+    // The origin keeps its connection claim and carries the junction waypoint; its sustain extends
     // through the landing's notated end (one beat), then the minimum-distance trim takes it to
     // 3/4 — floored above the waypoint, so the glide still reaches fret 9.
     const common::core::ChartNote& origin = chart.notes[1];
     CHECK(origin.position == GridPosition{.measure = 1, .beat = 2});
     CHECK(origin.fret == 7);
-    CHECK(origin.attack == common::core::NoteAttack::Hammer);
+    CHECK(origin.attack == common::core::NoteAttack::Legato);
     CHECK(origin.sustain == Fraction{3, 4});
     REQUIRE(origin.slides.size() == 1);
     CHECK(origin.slides[0].offset == Fraction{1, 2});
@@ -482,9 +484,10 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
 }
 
 // Guitar Pro's two tap articulations are different hands and must import differently:
-// "Tapped" (two-hand tapping) becomes the chart's Tap attack, while
-// "LeftHandTapped" — the fretting hand hammering the note from nowhere — imports as a plain
-// hammer-on, so it anchors the fret hand and closes chord spans like any fretted note.
+// "Tapped" (two-hand tapping) becomes the chart's Tap attack, while "LeftHandTapped" — the fretting
+// hand striking the note from nowhere — becomes the LeftTap attack verbatim, so it anchors the fret
+// hand and closes chord spans like any fretted note. Importing it as a connection would have been
+// the shipped aliasing bug: the score states a LOCAL articulation, and nothing about a neighbour.
 TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
@@ -503,7 +506,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
         return importer.importSong(archive, workspace);
     };
 
-    SECTION("a left-hand tap imports as a hammer-on")
+    SECTION("a left-hand tap imports as the left-hand tap attack")
     {
         const auto song =
             import_with_property("<Property name=\"LeftHandTapped\"><Enable/></Property>");
@@ -511,7 +514,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() >= 3);
         CHECK(chart.notes[2].fret == 9);
-        CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::LeftTap);
     }
 
     SECTION("a two-hand tap imports as a tap")
@@ -534,7 +537,7 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() >= 3);
         CHECK(chart.notes[2].fret == 9);
-        CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::LeftTap);
     }
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -2595,6 +2598,15 @@ TEST_CASE("Guitar Pro import maps grace-note hammer-ons and pull-offs", "[core][
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
+    // The import stores no direction, so what proves the predecessor was read correctly is the
+    // RESOLUTION: point the resolver at the wrong earlier note and the claim reads back as the
+    // other motion — or, where the frets then match, resolves to nothing and the sweep drops it.
+    const auto resolution = [](const GpBuiltSong& built, const std::size_t index) {
+        const common::core::Chart& chart = built.arrangements.front().chart;
+        return common::core::chartResolutions(chart.notes, chart.shapes, built.tempo_map)
+            .legato[index];
+    };
+
     SECTION("a grace below the principal hammers on")
     {
         GpScore score = makeLinearScore(1, syncs);
@@ -2616,9 +2628,10 @@ TEST_CASE("Guitar Pro import maps grace-note hammer-ons and pull-offs", "[core][
         CHECK(chart.notes[1].fret == 5);
         CHECK(chart.notes[1].attack == common::core::NoteAttack::Pick);
         // The principal rises from the grace's fret 5 (not the earlier fret 9, which would read
-        // as a pull-off), so the destination is a hammer-on.
+        // as a pull-off), so the claim resolves as a hammer-on.
         CHECK(chart.notes[2].fret == 7);
-        CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Legato);
+        CHECK(resolution(*built, 2) == common::core::LegatoMotion::Hammer);
     }
 
     SECTION("a grace above the principal pulls off")
@@ -2641,9 +2654,10 @@ TEST_CASE("Guitar Pro import maps grace-note hammer-ons and pull-offs", "[core][
         REQUIRE(chart.notes.size() == 3);
         CHECK(chart.notes[1].fret == 10);
         // The principal falls from the grace's fret 10 (not the earlier fret 5, which would
-        // read as a hammer-on), so the destination is a pull-off.
+        // read as a hammer-on), so the claim resolves as a pull-off.
         CHECK(chart.notes[2].fret == 8);
-        CHECK(chart.notes[2].attack == common::core::NoteAttack::Pull);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Legato);
+        CHECK(resolution(*built, 2) == common::core::LegatoMotion::Pull);
     }
 }
 
@@ -2731,10 +2745,10 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 4);
-        CHECK(chart.notes[0].attack == common::core::NoteAttack::Hammer);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::LeftTap);
         CHECK(chart.notes[1].attack == common::core::NoteAttack::Tap);
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
-        CHECK(chart.notes[3].attack == common::core::NoteAttack::Hammer);
+        CHECK(chart.notes[3].attack == common::core::NoteAttack::Legato);
         CHECK(chart.shapes.empty());
     }
 }

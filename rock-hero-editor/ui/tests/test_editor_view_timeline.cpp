@@ -1212,6 +1212,8 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
             .slides = {},
         },
     };
+    // Index-parallel to the notes, as every tail drawer and the cull index require.
+    tab->display_hold_ends = {1.0};
     state.tab = std::move(tab);
     state.chart_edit.selected_notes = {0};
     view.setState(state);

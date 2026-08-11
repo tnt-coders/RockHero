@@ -178,10 +178,6 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
     }
 
-    // Shapes and fret-hand positions are checked BEFORE the notes, because note validation reads
-    // the shapes: its hold test walks them with a cursor that assumes both streams ascend, so an
-    // unsorted shape stream would make it select the wrong covering span and report the failure as
-    // a note rule at a note's position instead of as the unsorted shapes it is.
     const ChartShape* previous_shape = nullptr;
     for (const ChartShape& shape : chart.shapes)
     {
@@ -231,7 +227,7 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         previous_fhp = &fhp;
     }
 
-    if (auto notes_result = validateChartNotes(chart.notes, chart.shapes, chart.tuning, tempo_map);
+    if (auto notes_result = validateChartNotes(chart.notes, chart.tuning, tempo_map);
         !notes_result.has_value())
     {
         return notes_result;
@@ -280,28 +276,6 @@ double harmonicNodeCeiling(const ChartNote& note)
     // A finger on the fretboard cannot be past the last fret, so where the FRETTING finger is the
     // one touching the node, the neck caps it rather than the string.
     return frettingFingerOnNode(note) ? static_cast<double>(g_max_fret) : g_max_harmonic_node;
-}
-
-NoteAttack derivedLegatoAttack(
-    const ChartNote& note, const ChartNote* const predecessor,
-    const Fraction predecessor_effective_sustain, const TempoMap& tempo_map)
-{
-    if (predecessor == nullptr || fretHandHarmonic(*predecessor) ||
-        !predecessorHoldReaches(
-            predecessor->position, predecessor_effective_sustain, note.position, tempo_map))
-    {
-        return NoteAttack::Pick;
-    }
-    const int released = releasedFret(*predecessor);
-    if (released > note.fret && !note.harmonic_node.has_value())
-    {
-        return NoteAttack::Pull;
-    }
-    if (released < note.fret && (note.fret > 0 || note.harmonic_node.has_value()))
-    {
-        return NoteAttack::Hammer;
-    }
-    return NoteAttack::Pick;
 }
 
 std::expected<void, ChartError> validateChartNoteAlone(
@@ -377,15 +351,13 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "fret must be 0 or above the capo at " + positionText(note.position),
         }};
     }
-    // A hammer or tap needs somewhere to land: a fret, or a harmonic's node (the tap
-    // harmonic strikes the node itself).
-    if ((note.attack == NoteAttack::Hammer || note.attack == NoteAttack::Tap) && note.fret == 0 &&
-        !note.harmonic_node.has_value())
+    // A struck note needs somewhere to land (E4), asked of the one authority for that question so
+    // the refusal here and the two flattens that repair it can never disagree.
+    if (nothingToStrike(note))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message =
-                "hammered or tapped note needs a place to strike at " + positionText(note.position),
+            .message = "tapped note needs a place to strike at " + positionText(note.position),
         }};
     }
     // A full mute sounds no pitch, so it excludes every pitch-valued payload: a harmonic IS
@@ -399,15 +371,6 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "a full mute sounds no pitch, so it cannot carry a harmonic, bend, or "
                        "vibrato at " +
                        positionText(note.position),
-        }};
-    }
-    // A pull-off releases onto a lower stopped pitch ringing the full speaking length — an
-    // ordinary note by construction, never a harmonic.
-    if (note.attack == NoteAttack::Pull && note.harmonic_node.has_value())
-    {
-        return std::unexpected{ChartError{
-            .code = ChartErrorCode::InvalidNote,
-            .message = "a pull-off cannot sound a harmonic at " + positionText(note.position),
         }};
     }
     // A tap harmonic's damping finger leaves the string, so nothing holds the node under
@@ -444,72 +407,16 @@ std::expected<void, ChartError> validateChartNoteAlone(
 }
 
 std::expected<void, ChartError> validateChartNotes(
-    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const ChartTuning& tuning, const TempoMap& tempo_map)
+    const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map)
 {
-    // Held lengths for the hold test, span-extended where the spans imply a held shape.
-    const std::vector<Fraction> effective_sustains =
-        chartEffectiveSustains(notes, shapes, tempo_map);
-    // The last note seen per string, for the relational rules (E5/E19): the stream is sorted, so
-    // this IS each note's same-string predecessor when it is reached. Indices rather than
-    // pointers, because the hold test reads the predecessor's entry in the table above.
-    constexpr std::size_t no_predecessor = std::numeric_limits<std::size_t>::max();
-    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
-    last_per_string.fill(no_predecessor);
     const ChartNote* previous_note = nullptr;
-    for (std::size_t note_index = 0; note_index < notes.size(); ++note_index)
+    for (const ChartNote& note : notes)
     {
-        const ChartNote& note = notes[note_index];
         // Every rule a note can break on its own, asked of the one authority for them rather than
         // restated here. What remains below is only what reads a note's NEIGHBOURS.
         if (auto alone = validateChartNoteAlone(note, tuning, tempo_map); !alone.has_value())
         {
             return alone;
-        }
-        // A pull-off must release something: a same-string predecessor whose RELEASED fret — the
-        // last pitched waypoint, or a scrape's slide-out end — sits above the pulled note. A
-        // fret-hand harmonic predecessor touches without pressing, so nothing can be released.
-        if (note.attack == NoteAttack::Pull)
-        {
-            const std::size_t source_index =
-                last_per_string.at(static_cast<std::size_t>(note.string));
-            if (source_index == no_predecessor)
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNote,
-                    .message = "a pull-off needs a preceding note on its string at " +
-                               positionText(note.position),
-                }};
-            }
-            const ChartNote& source = notes[source_index];
-            if (fretHandHarmonic(source))
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNote,
-                    .message = "a pull-off cannot release a fret-hand harmonic at " +
-                               positionText(note.position),
-                }};
-            }
-            if (releasedFret(source) <= note.fret)
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNote,
-                    .message = "a pull-off must release from a higher fret at " +
-                               positionText(note.position),
-                }};
-            }
-            // The predecessor must also still be holdable when this note starts: past the
-            // kept-sustain bound a held note necessarily carries a tail reaching the margin,
-            // so a shorter hold is a proven release with nothing left to pull.
-            if (!predecessorHoldReaches(
-                    source.position, effective_sustains[source_index], note.position, tempo_map))
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNote,
-                    .message = "a pull-off must release a note still held at " +
-                               positionText(note.position),
-                }};
-            }
         }
         if (previous_note != nullptr)
         {
@@ -658,7 +565,6 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        last_per_string.at(static_cast<std::size_t>(note.string)) = note_index;
         previous_note = &note;
     }
 

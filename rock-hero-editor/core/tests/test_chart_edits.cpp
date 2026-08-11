@@ -1,11 +1,11 @@
 #include "chart/chart_edits.h"
-#include "chart/legato_normalize.h"
 #include "chart/pick_slide_defaults.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_document.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -101,17 +101,17 @@ void applyAndValidate(
 } // namespace
 
 // Import's whole contract, over every technique combination a source can hand us: a note the shed
-// has reduced and the repair has settled always validates. Import is a commit point, so a note it
-// cannot make legal takes the WHOLE song down — which has now happened three times, each time
-// because a hand-kept list of what to shed had fallen behind the rules. An exhaustive sweep is what
-// retires that: a new incompatibility with no shed clause fails here rather than on someone's
-// import.
+// has reduced, the strike gate has flattened, and the settle sweep has judged always validates.
+// Import is a commit point, so a note it cannot make legal takes the WHOLE song down — which has
+// happened three times now, each time because a hand-kept list of what to shed fell behind the
+// rules. An exhaustive sweep is what retires that: a new incompatibility with no shed clause fails
+// here rather than on someone's import.
 //
 // The two exclusions are the cases neither pass owns. A pinch's missing node is data to supply
 // rather than technique to remove (the importer defaults it to the octave), so pinches are given
 // one here. A pick slide's payload is authored wholesale by the scrape defaults rather than reduced
 // from a source's flags, and `test_pick_slide_defaults` covers that path.
-TEST_CASE("the import shed and repair make every technique combination legal", "[core][chart]")
+TEST_CASE("the import shed and settle make every technique combination legal", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     int combinations = 0;
@@ -119,8 +119,8 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
     for (const common::core::NoteAttack attack :
          {common::core::NoteAttack::Pick,
           common::core::NoteAttack::Pinch,
-          common::core::NoteAttack::Hammer,
-          common::core::NoteAttack::Pull,
+          common::core::NoteAttack::Legato,
+          common::core::NoteAttack::LeftTap,
           common::core::NoteAttack::Tap,
           common::core::NoteAttack::Pop,
           common::core::NoteAttack::Slap})
@@ -145,9 +145,9 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
                                     common::core::Chart chart;
                                     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
                                     // A predecessor a measure earlier, holding through the onset
-                                    // and stopped above it, so a pull-off has something real to
-                                    // release and the repair's justified branch is reached rather
-                                    // than always falling through to a plain pick.
+                                    // and stopped above it, so a connection claim has something
+                                    // real to release from and the resolver's justified branch is
+                                    // reached rather than the sweep flattening every claim.
                                     common::core::ChartNote subject = makeNote(
                                         {.measure = 2, .beat = 1},
                                         1,
@@ -189,12 +189,19 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
                                         subject,
                                     };
 
+                                    // Exactly the import's own sequence: shed what the note cannot
+                                    // execute, flatten a strike with nowhere to land, then settle
+                                    // the claims the finished stream cannot justify.
                                     for (common::core::ChartNote& note : chart.notes)
                                     {
                                         note = common::core::executableChartNote(note);
+                                        if (common::core::nothingToStrike(note))
+                                        {
+                                            note.attack = common::core::NoteAttack::Pick;
+                                        }
                                     }
-                                    static_cast<void>(
-                                        normalizeChartLegato(chart.notes, chart.shapes, tempo_map));
+                                    static_cast<void>(common::core::sweepUnjustifiedLegato(
+                                        chart.notes, chart.shapes, tempo_map));
 
                                     ++combinations;
                                     shed_or_repaired += chart.notes[1] == subject ? 0 : 1;
@@ -218,7 +225,7 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
             }
         }
     }
-    // The sweep really swept, and it really had work to do — a pass cannot come from a loop that
+    // The matrix really ran, and it really had work to do — a pass cannot come from a loop that
     // never ran or from combinations that were all legal to begin with. Seven of the eight
     // attacks run (a fret-0 pop or slap with a node is a fret-hand harmonic, so their shed
     // clauses are as live as a pick's); only PickSlide sits out, whose payload
@@ -705,7 +712,8 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         // The latents are legal in memory but the rules gate binds documents, so the oracle
         // is the SAVED form: the writer omits the overrides and the reparse passes clean.
         REQUIRE(applyChartNotesChange(chart, plan->removed, plan->inserted).has_value());
-        const auto saved = common::core::parseChartDocument(common::core::chartDocumentText(chart));
+        const auto saved =
+            common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
         REQUIRE(saved.has_value());
         CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
     }
@@ -1052,7 +1060,8 @@ TEST_CASE("planSetAttack replaces a pitched glide and does not restore it", "[co
     // The tremolo latent makes the in-memory chart deliberately dirty, so validate the saved
     // form rather than the raw stream.
     REQUIRE(applyChartNotesChange(chart, enter->removed, enter->inserted).has_value());
-    const auto saved = common::core::parseChartDocument(common::core::chartDocumentText(chart));
+    const auto saved =
+        common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
     REQUIRE(saved.has_value());
     CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
     const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
@@ -1079,23 +1088,23 @@ TEST_CASE("planSetAttack replaces a pitched glide and does not restore it", "[co
     CHECK_FALSE(restored->slide_out.has_value());
 }
 
-// The legato direction is derived from the previous note on the SAME string, never authored, so one
-// verb covers hammer-on and pull-off and the two can never disagree with the fret data.
-TEST_CASE("planSetLegato derives hammer versus pull from the previous fret", "[core][chart]")
+// The press writes a CLAIM and nothing more: no direction is stored, and both directions resolve
+// back through the one resolver, so a hammer-on and a pull-off are the same authored statement.
+TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        // String 1 climbs 3 -> 7: the 7 is hammered onto.
+        // String 1 climbs 3 -> 7: the 7 resolves as a hammer-on.
         makeNote({.measure = 1, .beat = 1}, 1, 3),
         makeNote({.measure = 1, .beat = 2}, 1, 7),
-        // String 2 falls 9 -> 5: the 5 is pulled off to.
+        // String 2 falls 9 -> 5: the 5 resolves as a pull-off.
         makeNote({.measure = 1, .beat = 3}, 2, 9),
         makeNote({.measure = 1, .beat = 4}, 2, 5),
     };
     // One-beat gaps sit at the kept-sustain bound, so the predecessors hold their tails to the
-    // margin — the connection the derivation requires there.
+    // margin — the connection the resolver requires there.
     chart.notes[0].sustain = common::core::Fraction{3, 4};
     chart.notes[2].sustain = common::core::Fraction{3, 4};
 
@@ -1103,28 +1112,38 @@ TEST_CASE("planSetLegato derives hammer versus pull from the previous fret", "[c
         keyAt({.measure = 1, .beat = 2}, 1),
         keyAt({.measure = 1, .beat = 4}, 2),
     };
-    const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
+    const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+    CHECK(planned.skipped == 0);
+    REQUIRE(planned.plan.has_value());
+    if (planned.plan.has_value())
     {
-        REQUIRE(plan->inserted.size() == 2);
-        // Insertions stay in chart order: the string-1 climb first, then the string-2 fall.
-        CHECK(plan->inserted[0].string == 1);
-        CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
-        CHECK(plan->inserted[1].string == 2);
-        CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pull);
+        REQUIRE(planned.plan->inserted.size() == 2);
+        // Insertions stay in chart order: the string-1 climb first, then the string-2 fall. BOTH
+        // carry the same attack — the direction lives only in the resolution.
+        CHECK(planned.plan->inserted[0].string == 1);
+        CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
+        CHECK(planned.plan->inserted[1].string == 2);
+        CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
+
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *planned.plan);
+        const common::core::ChartResolutions resolutions =
+            common::core::chartResolutions(applied.notes, applied.shapes, tempo_map);
+        REQUIRE(resolutions.legato.size() == 4);
+        CHECK(resolutions.legato[1] == common::core::LegatoMotion::Hammer);
+        CHECK(resolutions.legato[3] == common::core::LegatoMotion::Pull);
     }
 }
 
-// A direction that is not derivable is refused rather than guessed: the editor never invents a fact
-// the chart does not carry.
-TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
+// The resolver is the only authority on eligibility, and the skip channel reports what it refused
+// so an all-skipped press is never a dead key.
+TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     SECTION("no earlier note on the string")
     {
-        // The only note on string 1 has nothing to come from. A note on ANOTHER string earlier in
+        // The only note on string 1 has nothing to connect to. A note on ANOTHER string earlier in
         // time must not stand in for it — you cannot hammer on from a different string.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1132,13 +1151,16 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
             makeNote({.measure = 1, .beat = 1}, 2, 5),
             makeNote({.measure = 1, .beat = 2}, 1, 7),
         };
-        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
-                        .has_value());
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
+        CHECK(planned.reason == ChartLegatoSkip::NoPredecessor);
     }
 
     SECTION("the earlier note sits at the same fret")
     {
-        // Neither hammered nor pulled: the fret does not move, so there is no direction to record.
+        // Neither hammered nor pulled: the fret does not move, so there is no connection to record.
         // The predecessor holds its tail so the refusal is the equal fret, not the hold test.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1147,8 +1169,11 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
             makeNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[0].sustain = common::core::Fraction{3, 4};
-        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
-                        .has_value());
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
+        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
     }
 
     SECTION("a released predecessor whose connection cannot be authored")
@@ -1164,16 +1189,17 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
             makeNote({.measure = 1, .beat = 2}, 2, 5),
             makeNote({.measure = 1, .beat = 3}, 1, 7),
         };
-        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato")
-                        .has_value());
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
+        CHECK(planned.reason == ChartLegatoSkip::PredecessorReleased);
     }
 
     SECTION("the earlier note is a fret-hand harmonic")
     {
-        // A touch holds nothing to hand over, so neither direction is derivable across it (E19
-        // says as much for the pull-off). The verb used to ask this only of the note it was
-        // changing, never of the predecessor, and was safe purely because `releasedFret` happens
-        // to report 0 for a fret-hand harmonic — an accident, not the rule.
+        // A touch holds nothing to hand over, so neither direction resolves across it (E19 says as
+        // much for the pull-off), and the assist cannot buy it either.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -1181,20 +1207,45 @@ TEST_CASE("planSetLegato refuses a direction it cannot derive", "[core][chart]")
             makeNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[0].harmonic_node = 12.0;
-        CHECK_FALSE(planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato")
-                        .has_value());
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
+        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
+    }
+
+    SECTION("a picking-hand rider is skipped in both directions")
+    {
+        // Tap, pinch, and scrape onsets are already fully described, so a connection claim would
+        // say nothing about them and the verb leaves them entirely alone.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{3, 4}),
+            makeNote({.measure = 1, .beat = 2}, 1, 7),
+            makeScrape({.measure = 1, .beat = 3}, 2),
+        };
+        chart.notes[1].attack = common::core::NoteAttack::Tap;
+        const std::vector<ChartNoteKey> keys{
+            keyAt({.measure = 1, .beat = 2}, 1),
+            keyAt({.measure = 1, .beat = 3}, 2),
+        };
+        const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 2);
+        CHECK(planned.reason == ChartLegatoSkip::PickingHandOnset);
     }
 }
 
-// The D14 assist: when the hold test is the only blocker, the verb grows the predecessor's tail
-// to the margin point and sets the derived legato in the same plan — the tail is the held-ness
+// The D14 assist: when the hold is the only thing missing, the verb grows the predecessor's tail
+// to the margin point and claims the connection in the same plan — the tail is the held-ness
 // datum, and the verb writes it rather than demanding the drag first.
 TEST_CASE(
     "planSetLegato grows a released predecessor's tail to author the connection", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    SECTION("a single note across the bound connects and derives")
+    SECTION("a single note across the bound connects")
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1202,21 +1253,21 @@ TEST_CASE(
             makeNote({.measure = 1, .beat = 1}, 1, 3),
             makeNote({.measure = 1, .beat = 3}, 1, 7),
         };
-        const auto plan =
+        const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
+        REQUIRE(planned.plan.has_value());
+        if (planned.plan.has_value())
         {
             // The grown predecessor rides the same plan: its tail ends exactly at the margin
             // point before the onset (two beats less the quarter-beat margin in 4/4).
-            REQUIRE(plan->inserted.size() == 2);
-            CHECK(plan->inserted[0].sustain == common::core::Fraction{7, 4});
-            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Pick);
-            CHECK(plan->inserted[1].attack == common::core::NoteAttack::Hammer);
+            REQUIRE(planned.plan->inserted.size() == 2);
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{7, 4});
+            CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Pick);
+            CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
         }
     }
 
-    SECTION("the descending direction grows and derives the pull the same way")
+    SECTION("the descending direction grows the same way")
     {
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1224,14 +1275,14 @@ TEST_CASE(
             makeNote({.measure = 1, .beat = 1}, 1, 9),
             makeNote({.measure = 1, .beat = 3}, 1, 5),
         };
-        const auto plan =
+        const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
+        REQUIRE(planned.plan.has_value());
+        if (planned.plan.has_value())
         {
-            REQUIRE(plan->inserted.size() == 2);
-            CHECK(plan->inserted[0].sustain == common::core::Fraction{7, 4});
-            CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pull);
+            REQUIRE(planned.plan->inserted.size() == 2);
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{7, 4});
+            CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
         }
     }
 
@@ -1252,30 +1303,49 @@ TEST_CASE(
             keyAt({.measure = 2, .beat = 1}, 1),
             keyAt({.measure = 2, .beat = 1}, 2),
         };
-        const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
+        const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+        REQUIRE(planned.plan.has_value());
+        if (planned.plan.has_value())
         {
-            REQUIRE(plan->inserted.size() == 4);
-            CHECK(plan->inserted[0].sustain == common::core::Fraction{15, 4});
-            CHECK(plan->inserted[1].sustain == common::core::Fraction{15, 4});
-            CHECK(plan->inserted[2].attack == common::core::NoteAttack::Hammer);
-            CHECK(plan->inserted[3].attack == common::core::NoteAttack::Hammer);
+            REQUIRE(planned.plan->inserted.size() == 4);
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{15, 4});
+            CHECK(planned.plan->inserted[1].sustain == common::core::Fraction{15, 4});
+            CHECK(planned.plan->inserted[2].attack == common::core::NoteAttack::Legato);
+            CHECK(planned.plan->inserted[3].attack == common::core::NoteAttack::Legato);
         }
+    }
+
+    SECTION("a gesture-carrying predecessor's tail is never reshaped")
+    {
+        // A scrape's travel window and a trail-off's exit are authored gesture geometry, so the
+        // assist refuses to spend them even though the connection itself would be legal (the
+        // resolver reads the RELEASED fret, so a pull off a scrape resolves once the hold reaches).
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeScrape({.measure = 1, .beat = 1}, 1),
+            makeNote({.measure = 1, .beat = 3}, 1, 5),
+        };
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
+        CHECK(planned.reason == ChartLegatoSkip::PredecessorReleased);
     }
 }
 
-// A note's node comes along only where it keeps meaning the same thing. The verb used to send it
-// away on a pinch or a tap attack and keep it otherwise, which asked about the wrong thing: what
-// matters is whether the DERIVED attack changes who owns the node, or forbids one outright.
-TEST_CASE("planSetLegato keeps a picking-hand node only where it survives", "[core][chart]")
+// No node ever leaves with an `H` press now: the claim stores no direction, so there is no attack
+// whose meaning a node could contradict. The resolver's node clauses do the work instead, which is
+// why a fret-hand harmonic skips ITSELF rather than needing a guard in the verb.
+TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    SECTION("a hammer-on onto a stopped harmonic keeps its node")
+    SECTION("a stopped harmonic above its predecessor claims and keeps its node")
     {
         // Fret 9 under a node at 21 is the tapped-harmonic gesture: the fretting hand presses the
-        // stop while the picking hand keeps damping the node, so the hammer-on changes neither.
+        // stop while the picking hand keeps damping the node, and the hammer clause accepts a node
+        // as something to strike.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -1283,22 +1353,22 @@ TEST_CASE("planSetLegato keeps a picking-hand node only where it survives", "[co
             makeNote({.measure = 1, .beat = 2}, 1, 9),
         };
         chart.notes[1].harmonic_node = 21.0;
-        const auto plan =
+        const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
+        REQUIRE(planned.plan.has_value());
+        if (planned.plan.has_value())
         {
-            REQUIRE(plan->inserted.size() == 1);
-            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
-            CHECK(plan->inserted[0].harmonic_node.has_value());
+            REQUIRE(planned.plan->inserted.size() == 1);
+            CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
+            CHECK(planned.plan->inserted[0].harmonic_node.has_value());
         }
     }
 
-    SECTION("a pull-off sends any node away")
+    SECTION("a noded note under a higher predecessor is refused, not stripped")
     {
-        // A pull-off releases onto a plain stopped pitch and can sound no harmonic at any fret.
-        // Keeping the node here left the verb silently inert: the repair inside the gate turned the
-        // whole thing back into a plain pick, so pressing H on a stopped harmonic did nothing.
+        // The release would be a pull-off, and a pull-off releases onto a plain stopped pitch: the
+        // node vetoes the clause. Under the stored-direction model the verb dropped the node to
+        // make the conversion legal; now the claim is simply unjustified and the note is untouched.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -1306,40 +1376,35 @@ TEST_CASE("planSetLegato keeps a picking-hand node only where it survives", "[co
             makeNote({.measure = 1, .beat = 2}, 1, 5),
         };
         chart.notes[1].harmonic_node = 17.0;
-        const auto plan =
+        const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
-        REQUIRE(plan.has_value());
-        if (plan.has_value())
-        {
-            REQUIRE(plan->inserted.size() == 1);
-            CHECK(plan->inserted[0].attack == common::core::NoteAttack::Pull);
-            CHECK_FALSE(plan->inserted[0].harmonic_node.has_value());
-        }
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
+        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
     }
 
-    SECTION("an open string sends its node away, because the hand owning it would change")
+    SECTION("an open-string harmonic skips itself")
     {
-        // On fret 0 the same number re-reads as a fret-hand node — a different technique — so a
-        // tap harmonic's node cannot follow the note into a hammer-on.
+        // Fret 0 with a node satisfies neither clause at any predecessor: the pull is vetoed by the
+        // node and the hammer has no stop above the predecessor to reach. No guard in the verb says
+        // so — the resolver does.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{3, 4}),
+            makeNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{3, 4}),
             makeNote({.measure = 1, .beat = 2}, 1, 0),
         };
-        chart.notes[1].attack = common::core::NoteAttack::Tap;
         chart.notes[1].harmonic_node = 12.0;
-        const auto plan =
+        const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
-        // Fret 0 against a fret-0 predecessor releases nothing above or below, so there is no
-        // direction to derive and the verb leaves the note alone rather than stripping its node.
-        CHECK_FALSE(plan.has_value());
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
     }
 }
 
-// Mixed selections edit what they can and leave the rest, rather than refusing wholesale — the
-// mixed-validity policy's "apply where valid".
-TEST_CASE("planSetLegato applies to the derivable subset of a selection", "[core][chart]")
+// Mixed selections claim what they can and leave the rest, rather than refusing wholesale — the
+// mixed-validity policy's "apply where valid" — and report the remainder.
+TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     common::core::Chart chart;
@@ -1347,7 +1412,7 @@ TEST_CASE("planSetLegato applies to the derivable subset of a selection", "[core
     chart.notes = {
         makeNote({.measure = 1, .beat = 1}, 1, 3),
         makeNote({.measure = 1, .beat = 2}, 1, 7),
-        // String 2's note is first on its string, so it has no derivable direction.
+        // String 2's note is first on its string, so nothing justifies a claim on it.
         makeNote({.measure = 1, .beat = 2}, 2, 4),
     };
     chart.notes[0].sustain = common::core::Fraction{3, 4};
@@ -1356,48 +1421,62 @@ TEST_CASE("planSetLegato applies to the derivable subset of a selection", "[core
         keyAt({.measure = 1, .beat = 2}, 1),
         keyAt({.measure = 1, .beat = 2}, 2),
     };
-    const auto plan = planSetLegato(chart, tempo_map, keys, "Legato");
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
+    const ChartLegatoPlan planned = planSetLegato(chart, tempo_map, keys, "Legato");
+    REQUIRE(planned.plan.has_value());
+    if (planned.plan.has_value())
     {
-        // Only the derivable note changes; the other keeps its plain
-        // pick and stays out of the plan.
-        REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted[0].string == 1);
-        CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
+        // Only the resolvable note changes; the other keeps its pick and stays out of the plan.
+        REQUIRE(planned.plan->inserted.size() == 1);
+        CHECK(planned.plan->inserted[0].string == 1);
+        CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
     }
+    CHECK(planned.skipped == 1);
+    CHECK(planned.reason == ChartLegatoSkip::NoPredecessor);
 }
 
-// A scrape's path is gesture geometry; retyping the attack drops it exactly as planSetAttack does,
-// because a pitched glide reading of it would be a fiction.
-TEST_CASE("planSetLegato drops a scrape's path with the attack", "[core][chart]")
+// A left-hand tap is a LOCAL statement, so the resolver reports its motion unconditionally — but
+// the press must not read that as justification, or it would replace an authored tap with a claim
+// the chart cannot keep.
+TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-    common::core::Chart chart;
-    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {
-        makeNote({.measure = 1, .beat = 1}, 1, 3),
-        makeScrape({.measure = 1, .beat = 2}, 1),
-    };
-    chart.notes[0].sustain = common::core::Fraction{3, 4};
-    REQUIRE_FALSE(chart.notes[1].slides.empty());
 
-    const auto plan =
-        planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
-    REQUIRE(plan.has_value());
-    if (plan.has_value())
+    SECTION("a tap nothing justifies keeps its attack")
     {
-        REQUIRE(plan->inserted.size() == 1);
-        // The scrape starts at fret 9 above the fret-3 note, so it hammers on.
-        CHECK(plan->inserted[0].attack == common::core::NoteAttack::Hammer);
-        CHECK(plan->inserted[0].slides.empty());
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {makeNote({.measure = 1, .beat = 2}, 1, 7)};
+        chart.notes[0].attack = common::core::NoteAttack::LeftTap;
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.reason == ChartLegatoSkip::NoPredecessor);
+    }
+
+    SECTION("a tap the chart CAN justify becomes the claim")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{3, 4}),
+            makeNote({.measure = 1, .beat = 2}, 1, 7),
+        };
+        chart.notes[1].attack = common::core::NoteAttack::LeftTap;
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
+        REQUIRE(planned.plan.has_value());
+        if (planned.plan.has_value())
+        {
+            REQUIRE(planned.plan->inserted.size() == 1);
+            CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
+        }
     }
 }
 
-// Disconnecting a tail repairs the legato it justified, inside the same plan: the shared
-// finalize runs the legato repair after the sustain change, so a pull whose predecessor no
-// longer reaches it returns to a plain pick in the same undo entry.
-TEST_CASE("planAdjustSustain repairs legato its shrink disconnects", "[core][chart]")
+// Shrinking a tail no longer repairs the claim it disconnected: mid-burst the broken claim simply
+// plays as the pick it sounds like, and the settle sweep is what flattens it — in one batch, at the
+// moment the burst ends.
+TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
     common::core::Chart chart;
@@ -1407,70 +1486,95 @@ TEST_CASE("planAdjustSustain repairs legato its shrink disconnects", "[core][cha
         makeNote({.measure = 1, .beat = 3}, 1, 5),
     };
     chart.notes[0].sustain = common::core::Fraction{7, 4};
-    chart.notes[1].attack = common::core::NoteAttack::Pull;
+    chart.notes[1].attack = common::core::NoteAttack::Legato;
 
     const auto plan = planAdjustSustain(
         chart, tempo_map, {keyAt({.measure = 1, .beat = 1}, 1)}, common::core::Fraction{-1});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        REQUIRE(plan->inserted.size() == 2);
+        // Only the tail is in the plan: the claim is untouched, and the chart stays valid with it.
+        REQUIRE(plan->inserted.size() == 1);
         CHECK(plan->inserted[0].sustain == common::core::Fraction{3, 4});
-        CHECK(plan->inserted[1].attack == common::core::NoteAttack::Pick);
+        applyAndValidate(chart, tempo_map, *plan);
+        CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
+        const common::core::ChartResolutions resolutions =
+            common::core::chartResolutions(chart.notes, chart.shapes, tempo_map);
+        REQUIRE(resolutions.legato.size() == 2);
+        CHECK(resolutions.legato[1] == common::core::LegatoMotion::Unjustified);
+    }
+
+    // The sweep is what ends the transience, and it can be expressed against any base: against the
+    // current stream it is a one-note plan, and against the PRE-BURST stream it carries the tail
+    // change too, which is how the settle folds into the burst's own undo entry.
+    const std::vector<common::core::ChartNote> pre_burst = {
+        makeNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{7, 4}),
+        chart.notes[1],
+    };
+    const auto settled = planSettleLegato(chart, tempo_map, chart.notes, "Settle Legato");
+    REQUIRE(settled.has_value());
+    if (settled.has_value())
+    {
+        REQUIRE(settled->inserted.size() == 1);
+        CHECK(settled->inserted[0].attack == common::core::NoteAttack::Pick);
+        CHECK(settled->label == "Settle Legato");
+
+        // Idempotent, and silent when there is nothing to settle: that emptiness is exactly what
+        // tells the controller to leave its coalescing windows armed.
+        common::core::Chart clean = chart;
+        REQUIRE(applyChartNotesChange(clean, settled->removed, settled->inserted).has_value());
+        CHECK_FALSE(planSettleLegato(clean, tempo_map, clean.notes, "Settle Legato").has_value());
+    }
+    const auto folded = planSettleLegato(chart, tempo_map, pre_burst, "Shrink Sustain");
+    REQUIRE(folded.has_value());
+    if (folded.has_value())
+    {
+        REQUIRE(folded->inserted.size() == 2);
+        CHECK(folded->inserted[0].sustain == common::core::Fraction{3, 4});
+        CHECK(folded->inserted[1].attack == common::core::NoteAttack::Pick);
+        CHECK(folded->label == "Shrink Sustain");
     }
 }
 
-// E4's landing requirement binds Tap exactly as it binds Hammer, so the repair must cover both:
-// a Tap on an open string with no node is not a tap at all. A junk `Tapped` flag is real Guitar
-// Pro data, and before this the stream reached validation unrepaired and failed the whole import.
-TEST_CASE("the repair gives a strikeless tap and hammer somewhere to land", "[core][chart]")
+// E4's landing requirement binds both strike attacks, so the in-plan flatten must cover both: a tap
+// or a left-hand tap on an open string with no node is not a tap at all. A junk `Tapped` flag is
+// real Guitar Pro data, and before this the stream reached validation unrepaired and failed the
+// whole import.
+TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-
-    // A tap with nowhere to strike becomes a plain pick — never a pull, which would invent
-    // legato out of a picking-hand articulation even though a higher predecessor sits behind it.
-    common::core::Chart tapped;
-    tapped.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    tapped.notes = {
-        makeNote({.measure = 1, .beat = 1}, 1, 9),
-        makeNote({.measure = 1, .beat = 2}, 1, 0),
-    };
-    tapped.notes[0].sustain = common::core::Fraction{3, 4};
-    tapped.notes[1].attack = common::core::NoteAttack::Tap;
-
-    // Through a real edit: retyping the predecessor leaves the strikeless tap in the stream, and
-    // the gate would refuse it if the repair had not converted it first.
-    const auto retyped =
-        planRetypeFrets(tapped, tempo_map, {tapped.notes[0]}, 7, /*set_exact=*/true);
-    REQUIRE(retyped.has_value());
-    if (retyped.has_value())
+    for (const common::core::NoteAttack attack :
+         {common::core::NoteAttack::Tap, common::core::NoteAttack::LeftTap})
     {
-        const auto struck = std::ranges::find_if(
-            retyped->inserted, [](const common::core::ChartNote& note) { return note.fret == 0; });
-        REQUIRE(struck != retyped->inserted.end());
-        if (struck != retyped->inserted.end())
-        {
-            CHECK(struck->attack == common::core::NoteAttack::Pick);
-        }
-    }
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 9),
+            makeNote({.measure = 1, .beat = 2}, 1, 0),
+        };
+        chart.notes[0].sustain = common::core::Fraction{3, 4};
+        chart.notes[1].attack = attack;
+        CAPTURE(static_cast<int>(attack));
 
-    // The hammer keeps its rescue: a still-held higher predecessor makes it the pull-off the
-    // frets support, which is the one asymmetry between the two attacks.
-    common::core::Chart hammered = tapped;
-    hammered.notes[1].attack = common::core::NoteAttack::Hammer;
-    const auto hammer_plan =
-        planRetypeFrets(hammered, tempo_map, {hammered.notes[0]}, 7, /*set_exact=*/true);
-    REQUIRE(hammer_plan.has_value());
-    if (hammer_plan.has_value())
-    {
-        const auto struck =
-            std::ranges::find_if(hammer_plan->inserted, [](const common::core::ChartNote& note) {
-                return note.fret == 0;
-            });
-        REQUIRE(struck != hammer_plan->inserted.end());
-        if (struck != hammer_plan->inserted.end())
+        // Through a real edit: retyping the predecessor leaves the strikeless strike in the stream,
+        // and the gate would refuse the whole plan if the flatten had not converted it first. Both
+        // attacks land on a plain pick — there is no direction left for one of them to be rescued
+        // into, which is the asymmetry the stored-direction model needed and this one does not.
+        const auto retyped =
+            planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 7, /*set_exact=*/true);
+        REQUIRE(retyped.has_value());
+        if (retyped.has_value())
         {
-            CHECK(struck->attack == common::core::NoteAttack::Pull);
+            const auto struck =
+                std::ranges::find_if(retyped->inserted, [](const common::core::ChartNote& note) {
+                    return note.fret == 0;
+                });
+            REQUIRE(struck != retyped->inserted.end());
+            if (struck != retyped->inserted.end())
+            {
+                CHECK(struck->attack == common::core::NoteAttack::Pick);
+            }
+            applyAndValidate(chart, tempo_map, *retyped);
         }
     }
 }

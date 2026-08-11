@@ -4,6 +4,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
@@ -82,25 +83,21 @@ HighwayViewState makeHighwayViewState(
         bool unpitched{false};
     };
     std::map<GridPosition, SlideRamp> slide_ramp_starts;
-    // The projection reads the SAVED stream throughout. A pick slide overrides its other
-    // techniques in memory (chart.h) and the display must show the scrape without them — which is
-    // exactly the SAVED form, so the projection takes savedChartNote rather than restating which
-    // fields a scrape suppresses; stating that list twice is how the board and the document drift
-    // apart. Projected ONCE, up front, because chartEffectiveSustains states saved form as its
-    // precondition too: fed the in-memory stream, a latent full mute chokes an onset group the
-    // saved chart holds. What stays local is how a scrape RENDERS: through the unpitched
-    // machinery (dimmed glide, no waypoint furniture, no hand-window contribution) and never
-    // feeding the slide-locked ramps.
-    std::vector<ChartNote> saved_notes;
-    saved_notes.reserve(chart.notes.size());
-    for (const ChartNote& in_memory_note : chart.notes)
-    {
-        saved_notes.push_back(savedChartNote(in_memory_note));
-    }
+    // Every per-note fact this projection derives comes from the one resolutions pass: the SAVED
+    // stream it draws, the effective holds the span convention implies, and each note's resolved
+    // connection motion. The saved form matters because a pick slide overrides its other techniques
+    // in memory (chart.h) and the display must show the scrape without them, and because the hold
+    // rule states saved form as its precondition — fed the in-memory stream, a latent full mute
+    // chokes an onset group the saved chart holds. What stays local is how a scrape RENDERS:
+    // through the unpitched machinery (dimmed glide, no waypoint furniture, no hand-window
+    // contribution) and never feeding the slide-locked ramps.
+    const ChartResolutions resolutions = chartResolutions(chart.notes, chart.shapes, tempo_map);
+    const std::vector<ChartNote>& saved_notes = resolutions.saved_notes;
 
     state.notes.reserve(saved_notes.size());
-    for (const ChartNote& note : saved_notes)
+    for (std::size_t note_index = 0; note_index < saved_notes.size(); ++note_index)
     {
+        const ChartNote& note = saved_notes[note_index];
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         const bool scrape = note.attack == NoteAttack::PickSlide;
         HighwayNoteView view;
@@ -112,6 +109,7 @@ HighwayViewState makeHighwayViewState(
         view.string = note.string + displayed_lane_shift;
         view.fret = note.fret;
         view.attack = note.attack;
+        view.legato = resolutions.legato[note_index];
         view.mute = note.mute;
         view.harmonic_node = note.harmonic_node;
         view.vibrato = note.vibrato;
@@ -200,14 +198,12 @@ HighwayViewState makeHighwayViewState(
 
     // Display hold ends, resolved from the one effective-sustain authority rather than recomputed
     // in seconds. The loop above pushes exactly one view per chart note, so the indices line up.
-    const std::vector<Fraction> effective_sustains =
-        chartEffectiveSustains(saved_notes, chart.shapes, tempo_map);
     state.display_hold_ends.reserve(saved_notes.size());
     for (std::size_t index = 0; index < saved_notes.size(); ++index)
     {
         const double onset_beat = globalBeatPosition(tempo_map, saved_notes[index].position);
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
-            onset_beat + effective_sustains[index].toDouble()));
+            onset_beat + resolutions.effective_sustains[index].toDouble()));
     }
 
     state.shapes.reserve(chart.shapes.size());

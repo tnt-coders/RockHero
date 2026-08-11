@@ -30,8 +30,8 @@ field-by-field tour here — see \ref guide_file_formats for the persisted shape
 # Grid arithmetic (`chart/grid_arithmetic.h`)
 
 Exact arithmetic *on* the grid lives in one header, and it is the shared authority the 2D and 3D
-projections, the editor's duration verb, the Guitar Pro import trims, the legato repair and the
-validation gate all resolve through — so a spacing rule cannot mean two things:
+projections, the editor's duration verb, the Guitar Pro import trims, the connection resolver and
+the validation gate all resolve through — so a spacing rule cannot mean two things:
 
 - `g_minimum_sustain_distance_whole_note` (1/16 of a whole note) and
   `minimumSustainDistanceBeats(signature_denominator)` — the one settled gap every element keeps
@@ -44,8 +44,8 @@ validation gate all resolve through — so a spacing rule cannot mean two things
   Spans may overlap, so what it remembers is the **furthest-reaching** span already started, not the
   latest-starting one: an earlier span running longer holds the same strum just as well, and
   tracking the latest start let a short span beginning inside a long one shadow it, so a held chord
-  silently lost its extension and the legato that extension justified was repaired away.
-- `predecessorHoldReaches(...)` — the legato hold test: true unless the chart proves the
+  silently lost its extension and the connection that extension justified read as a plain pick.
+- `predecessorHoldReaches(...)` — the connection hold test: true unless the chart proves the
   same-string predecessor was released before the onset.
 - `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
   `snapGridPosition` — the exact `GridPosition` ↔ beat conversions, signed and inverse-exact, all

@@ -1,6 +1,5 @@
 #include "project/gp_chart_builder.h"
 
-#include "chart/legato_normalize.h"
 #include "chart/pick_slide_defaults.h"
 
 #include <algorithm>
@@ -12,6 +11,7 @@
 #include <iterator>
 #include <map>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
@@ -2113,14 +2113,12 @@ void resolveSlideOutExits(
 
         if (source.left_hand_tapped)
         {
-            // A left-hand tap is the fretting hand hammering the note from nowhere (no pick
-            // stroke), which the hammer-on states accurately — no separate notation. Always
-            // a hammer, never a pull: nothing is released to sound it. The Hammer attack also
-            // gives the right downstream behavior automatically — the note anchors the fret hand,
-            // closes chord spans, and never floats above the window, all of which are Tap-attack
-            // special cases. Checked before the generic tap: a note carrying both marks is a
-            // left-hand tap, the more specific articulation.
-            note.attack = NoteAttack::Hammer;
+            // The fretting hand striking the note from nowhere, stored verbatim as the intent the
+            // score states. It also gives the right downstream behavior automatically — the note
+            // anchors the fret hand, closes chord spans, and never floats above the window, all of
+            // which are Tap-attack special cases. Checked before the generic tap: a note carrying
+            // both marks is a left-hand tap, the more specific articulation.
+            note.attack = NoteAttack::LeftTap;
         }
         else if (source.tapped)
         {
@@ -2128,17 +2126,12 @@ void resolveSlideOutExits(
         }
         else if (source.hopo_destination)
         {
-            // The score says these notes connect but not which way. Marked `Pull` and left for
-            // `normalizeChartLegato` to settle, because the direction turns on the predecessor's
-            // RELEASED fret — where its finger ends, after any glide — and the slide chains that
-            // decide that are not built until this whole loop has finished. Comparing Guitar Pro's
-            // onset frets here instead read the wrong quantity at the wrong time: a note shift-
-            // sliding 5 to 9 followed by a hopo at 7 was called a hammer-on, though the hand
-            // released from 9 and the score notated a pull-off. Only an impossible `Pull` is
-            // re-derived by the repair, never a possible-but-wrong `Hammer`, so the wrong direction
-            // shipped and validated clean; marking the direction that CAN be re-derived hands the
-            // decision to the one authority for it.
-            note.attack = NoteAttack::Pull;
+            // The score says these notes connect but not which way — which is exactly what the
+            // stored claim says, so the import needs no direction and invents none. The junk flags
+            // real scores carry (a hopo mark with nothing before it, or with a predecessor at the
+            // same stop) are settled by the sweep at the end of the build, where the slide chains
+            // that decide a predecessor's RELEASED fret are finally built.
+            note.attack = NoteAttack::Legato;
         }
 
         if (source.full_mute)
@@ -2265,14 +2258,15 @@ void resolveSlideOutExits(
             }
         }
 
-        // A tap needs somewhere to strike (E4): a fret, or a harmonic's node. A `Tapped` flag on an
-        // open string with no node is junk data, and the legato repair turns it into a plain pick —
-        // but that runs at the very END of the build, long after the chord-shape and hand-window
-        // passes have read the attack, and both treat a tap as a picking-hand onset that anchors
-        // nothing and closes no span. Deciding it here, the moment the node is known, is what keeps
-        // those passes from shaping a song around an attack that will not survive. It needs no
-        // context at all, which is why it can move this early and the rest of the repair cannot.
-        if (note.attack == NoteAttack::Tap && note.fret == 0 && !note.harmonic_node.has_value())
+        // A tap needs somewhere to strike (E4), whichever hand delivers it: a fret, or a harmonic's
+        // node. A `Tapped` or `LeftHandTapped` flag on an open string with no node is junk data,
+        // and it has to be settled HERE rather than at the end of the build — the chord-shape and
+        // hand-window passes read the attack, and they treat a two-hand tap as a picking-hand onset
+        // that anchors nothing and closes no span, so a song would be shaped around an attack that
+        // cannot survive validation. It needs no context at all, which is why it can be decided
+        // this early where the relational settle cannot. Nothing later can fix it either: the
+        // legato sweep never touches a local claim, exactly because no neighbour can withdraw one.
+        if (common::core::nothingToStrike(note))
         {
             note.attack = NoteAttack::Pick;
             ++strikeless_taps;
@@ -2678,11 +2672,9 @@ void resolveSlideOutExits(
     }
 
     // Import is a commit point, so the chart leaves here already obeying the technique matrix: each
-    // note sheds what it cannot execute, and the legato repair (the rules that read a note's
-    // neighbours) runs now rather than on the first edit. The shed lives beside the rules in
-    // `chart_rules`, because a list of them kept here drifted from the list there twice — a dead
-    // note carrying a bend or a vibrato reached validation intact and failed the WHOLE song's
-    // import.
+    // note sheds what it cannot execute. The shed lives beside the rules in `chart_rules`, because
+    // a list of them kept here drifted from the list there twice — a dead note carrying a bend or a
+    // vibrato reached validation intact and failed the WHOLE song's import.
     int notes_shed = 0;
     for (ChartNote& note : chart.notes)
     {
@@ -2696,9 +2688,19 @@ void resolveSlideOutExits(
             std::to_string(notes_shed) +
             " notes shed techniques they cannot execute (bend, vibrato, slide, tremolo, or mute)");
     }
-    // Import repairs in place and has no gate to feed, so the saved stream the repair returns is
-    // not needed here.
-    static_cast<void>(normalizeChartLegato(chart.notes, chart.shapes, tempo_map));
+    // The settle sweep, run at import completion like every other load path: a hopo mark the score
+    // carries with nothing before it, or with a predecessor at the same stop, is junk rather than
+    // data, and the note it rides plays as the pick it sounds like. Runs last because it reads the
+    // finished stream — released frets after every slide chain, holds after the sustain trim, spans
+    // after the posture derivation. Counted rather than listed, like every other import conversion.
+    const std::size_t flattened =
+        common::core::sweepUnjustifiedLegato(chart.notes, chart.shapes, tempo_map).size();
+    if (flattened > 0)
+    {
+        notes.push_back(
+            std::to_string(flattened) +
+            " legato marks had nothing to connect to and read as plain picks");
+    }
 
     return chart;
 }

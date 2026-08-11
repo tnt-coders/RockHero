@@ -170,10 +170,13 @@ the same score marks dead has already told us it is junk.
 Lives beside the rules it satisfies so a new incompatibility cannot be written without its shed
 here in view. It covers exactly the rules a single note can be made to obey by DROPPING something:
 range violations are the importer's own clamping, a missing pinch node is data to supply rather
-than technique to remove, and the rules that read a note's PREDECESSOR (a pull-off needing
-something to release) are `normalizeChartLegato`'s. A hammer's landing rule is not among those: it
-reads only the note itself — an open string with no node has nowhere to hammer onto — so it belongs
-to the one-note half and is enforced in \ref validateChartNoteAlone.
+than technique to remove, and nothing relational belongs here at all — a connection claim nothing
+justifies is not a technique to shed but a claim that resolves to a plain pick (\ref resolveLegato),
+which is why the importer runs \ref sweepUnjustifiedLegato at completion instead. The tap landing
+rule is not among these either, for the opposite reason: it reads only the note itself — an open
+string with no node has nowhere to strike — so it belongs to the one-note half and is enforced in
+\ref validateChartNoteAlone, which means a builder must not produce that note rather than expecting
+a shed here.
 
 Which side loses is settled by how much of the note each fact determines: the pitch identity (a
 harmonic's node) outranks how the string is articulated (the mute), which outranks modulation of a
@@ -189,56 +192,13 @@ mute would give a dead note a pitch to bend.
 [[nodiscard]] ChartNote executableChartNote(ChartNote note);
 
 /*!
-\brief The legato attack a note's same-string predecessor justifies, or `Pick` when none does.
-
-The one authority for which direction a hammer-on/pull-off connection runs, and the only place the
-question is answered. It was answered in four — the importer, the `H` verb, the repair and the gate
-— and three had drifted: the importer compared Guitar Pro's ONSET frets, the verb never asked
-whether the predecessor was a fret-hand harmonic and never refused a pull-off onto a harmonic. The
-gate stays the checker rather than a fifth copy, because its per-clause messages say which rule a
-document broke.
-
-Judged against the RELEASED fret — where the predecessor's finger ends, so a glide hands over its
-last waypoint and a scrape its slide-out's end — never against predecessor identity. Three things
-disqualify a predecessor outright: none exists, it is a fret-hand harmonic (a touch holds nothing
-to hand over), or it is no longer holdable at this onset. Past the kept-sustain bound a
-disconnected tail is a proven release, which is why a sustain edit that breaks the connection
-repairs the legato that depended on it, in the same undo entry.
-
-Then the released fret picks the direction: above the note is a pull-off, below it a hammer-on. A
-pull-off carries no harmonic (it releases onto a plain stopped pitch), and a hammer-on needs
-somewhere to land (a fret, or a node to strike). Equal frets justify nothing — there is no
-connection to record, and inventing one would be inventing data.
-
-Deliberately unbounded in time: a hammer-on from a note eight bars back is musically odd, but a
-predecessor still holding is a predecessor, and the author asserting legato is the authority on
-whether the notes connect.
-
-Callers add their own policy on top rather than finding it here. The `H` verb refuses to derive
-across a scrape predecessor even though this accepts one, because deriving *onto* a gesture is a
-guess while accepting an authored pull from one is not; and the repair never lets a `Tap` become a
-pull-off, a tap being a picking-hand articulation no predecessor can convert.
-
-\param note Note whose attack is in question.
-\param predecessor Nearest earlier note on the same string, or `nullptr` when there is none.
-\param predecessor_effective_sustain That predecessor's held length, span-extended
-       (\ref chartEffectiveSustains) — a span implies its strum is held.
-\param tempo_map Song tempo map supplying the beat axis for the hold test.
-
-\return `Pull`, `Hammer`, or `Pick` when nothing is justified.
-*/
-[[nodiscard]] NoteAttack derivedLegatoAttack(
-    const ChartNote& note, const ChartNote* predecessor, Fraction predecessor_effective_sustain,
-    const TempoMap& tempo_map);
-
-/*!
 \brief Validates every rule a single note can break on its own.
 
 The technique matrix splits cleanly in two: most rules read one note (which techniques may share it,
 what range each field may hold, where a node may lie relative to its stop) and a few read a note's
-NEIGHBOURS (a pull-off needs something to release, a waypoint may not sit on a later onset of its
-string). This is the first half, and \ref validateChartNotes calls it per note before applying the
-second — so a rule written here is enforced by every consumer at once.
+NEIGHBOURS (a waypoint may not sit on a later onset of its string). This is the first half, and
+\ref validateChartNotes calls it per note before applying the second — so a rule written here is
+enforced by every consumer at once.
 
 Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
 this question per note: the whole-stream gate refuses an entire plan when one note is ineligible, so
@@ -254,30 +214,32 @@ rule the copy did not name silently killed the edit for the whole selection inst
     const ChartNote& note, const ChartTuning& tuning, const TempoMap& tempo_map);
 
 /*!
-\brief Validates the note stream — every intra-note and note-relational rule.
+\brief Validates the note stream — every intra-note rule, plus the ordering and payload rules.
 
 The single authority for the technique compatibility matrix's note rules, split out so the editor
 planners can gate a CANDIDATE stream through the same checks the document reader applies: a plan
 whose candidate fails here refuses, which is what makes authoring an invalid chart impossible by
 construction rather than by per-verb discipline.
 
+Validation is deliberately blind to what a note's NEIGHBOURS make of it, one waypoint rule aside:
+the relational questions are the connection resolver's (\ref resolveLegato), which answers them as
+what a claim plays as rather than as whether a file is legal. That is why no shape spans are needed
+here — the hold test that wanted them belongs to the resolver.
+
 \param notes Note stream to validate, sorted by (position, string).
-\param shapes Hand-posture spans the notes play under; a span implies its strum is held, which
-the legato hold test must judge against (chartEffectiveSustains).
 \param tuning Tuning the notes play under; supplies the capo and string count.
 \param tempo_map Song tempo map the note positions must lie on.
 \return Empty success, or the first violated rule.
 */
 [[nodiscard]] std::expected<void, ChartError> validateChartNotes(
-    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const ChartTuning& tuning, const TempoMap& tempo_map);
+    const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map);
 
 /*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
 The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
-the structural checks over the chart's own arrays and then delegates the per-note and relational
-rules to \ref validateChartNotes, so the authoritative list is the two functions' code rather than
+the structural checks over the chart's own arrays and then delegates the per-note rules to
+\ref validateChartNotes, so the authoritative list is the two functions' code rather than
 this paragraph — a summary here drifts, and this one did, describing "positive sustains" when zero
 is the normal encoding for a note with no sustain (\ref ChartNote::sustain) and only a NEGATIVE
 sustain is refused.
@@ -288,8 +250,8 @@ range; non-negative sustains; slide offsets strictly positive, ascending, and wi
 bend offsets non-negative, ascending, and within the sustain; shape spans positive, sorted, and
 referencing existing templates; sorted fret-hand positions whose window fits the neck; capo
 floors; harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node;
-full-mute exclusions; hammer and tap landing rules; tap-harmonic tremolo; the fret-hand-harmonic
-slide, bend, and vibrato exclusions; the four relational pull-off rules; the cent-offset bound;
+full-mute exclusions; the tap landing rule (both tapping attacks); tap-harmonic tremolo; the
+fret-hand-harmonic slide, bend, and vibrato exclusions; the cent-offset bound;
 and, on pick-slide notes, no pitched techniques (a saved scrape carries none — the writer omits
 the in-memory overrides; accent is a scrape's own technique) plus the required unpitched slide-out
 terminal exactly at the sustain and an always-traveling path (consecutive neck positions, the

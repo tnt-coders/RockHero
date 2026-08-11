@@ -81,10 +81,25 @@ enum class NoteAttack : std::uint8_t
     off the neck, which is why `nodeIsOnNeck` excludes it.
     */
     Pinch,
-    /*! \brief Hammer-on from the previous note. */
-    Hammer,
-    /*! \brief Pull-off from the previous note. */
-    Pull,
+    /*!
+    \brief Legato: this onset connects to its same-string predecessor with no new pick.
+
+    A relational CLAIM and nothing more. Which way the connection runs — a hammer-on onto a higher
+    stop, a pull-off onto a lower one — is read back from the predecessor by \ref resolveLegato and
+    is never stored, so no neighbour edit can leave a stale direction behind. A claim the chart does
+    not justify draws and plays as the plain pick it sounds like, until the chart justifies it
+    again.
+    */
+    Legato,
+    /*!
+    \brief Left-hand tap: the fretting hand strikes this note from nowhere.
+
+    The one connection-family onset that is LOCAL: it asserts the hammering motion outright with no
+    predecessor to connect to, which is why it survives every neighbour edit and why
+    \ref resolveLegato resolves it to the hammer motion unconditionally. Needs somewhere to strike,
+    exactly like a two-hand tap (\ref validateChartNoteAlone).
+    */
+    LeftTap,
     /*! \brief Two-hand tap onset. */
     Tap,
     /*! \brief Popped (bass) onset. */
@@ -105,6 +120,48 @@ enum class NoteAttack : std::uint8_t
     */
     PickSlide
 };
+
+/*!
+\brief What a note's connection claim resolves to: the motion it plays as, or nothing.
+
+The read side of \ref NoteAttack::Legato. Direction is never stored, so this is the only place a
+hammer-on and a pull-off are told apart, and every surface asks \ref resolveLegato for it rather
+than reading it off a note.
+
+`Unjustified` covers both notes that make no claim at all and a claim the chart does not justify —
+one value on purpose, because the two are indistinguishable everywhere it is read: each draws and
+scores as a plain pick.
+*/
+enum class LegatoMotion : std::uint8_t
+{
+    /*! \brief No connection: the onset is a plain pick as far as any surface can tell. */
+    Unjustified,
+    /*! \brief Hammer-on: the fretting hand strikes onto a stop above the predecessor's. */
+    Hammer,
+    /*! \brief Pull-off: the finger releases onto a stop below the predecessor's. */
+    Pull
+};
+
+/*!
+\brief Reports whether the attack belongs to the connection family — the `H` toggle's domain.
+
+`Pick`, `Legato`, and `LeftTap` are the three states `H` and `Ctrl+H` move a note between; every
+other attack is produced by the picking hand (`Tap`, `Pinch`, `PickSlide`) or is a bass articulation
+(`Pop`, `Slap`) whose onset is already fully described, so a connection claim would say nothing
+about it and the toggle skips it in both directions.
+
+Display asks the same question for a different reason: inside this family the beside-head mark comes
+from the note's RESOLVED \ref LegatoMotion, and outside it the attack carries a mark of its own.
+
+\param attack Attack to classify.
+
+\return True when the attack can carry, or be given, a connection claim.
+*/
+[[nodiscard]] constexpr bool legatoClaimable(NoteAttack attack) noexcept
+{
+    return attack == NoteAttack::Pick || attack == NoteAttack::Legato ||
+           attack == NoteAttack::LeftTap;
+}
 
 /*!
 \brief Snaps a notated open-string node label to the nearest true node offset.
@@ -413,17 +470,16 @@ disagree about what a legal document is.
 /*!
 \brief True when the note is a harmonic damped by the fretting hand touching its node.
 
-The key E7/E9/E19 turn on: a node with no real stop (`fret == 0` — the string speaks from the nut
-or the capo) and no attack whose node belongs to the OTHER hand or to nothing at all. `Pinch` is
-excluded because its thumb grazes off the neck. `PickSlide` is excluded because a scrape's node is
-never a sounding node at all: E2 forbids one in any saved chart, so a node found on a scrape is
-purely the in-memory latent the attack toggle preserves (chart.h's override contract), and reading
-it as a fretting-hand touch made three things go wrong at once — the legato repair (which runs on
-the in-memory stream) refused to release from a scrape while validation (which runs on the SAVED
-stream, where the node is stripped) allowed it, silently downgrading a pull-off the derivation-
-versus-validity split rules valid (the decision recorded under E5; the earlier D7 row it was raised
-as no longer exists); and the importer's shed pass stripped the scrape's REQUIRED slide-out
-terminal, producing a
+The key E7/E9 rules and the resolver's release clause turn on: a node with no real stop (`fret == 0`
+— the string speaks from the nut or the capo) and no attack whose node belongs to the OTHER hand or
+to nothing at all. `Pinch` is excluded because its thumb grazes off the neck. `PickSlide` is
+excluded because a scrape's node is never a sounding node at all: E2 forbids one in any saved chart,
+so a node found on a scrape is purely the in-memory latent the attack toggle preserves (chart.h's
+override contract), and reading it as a fretting-hand touch made two things go wrong at once — the
+connection resolver refused to release from a scrape while the SAVED stream it is contracted to
+judge (where the node is stripped) says there is nothing to refuse, so a pull the released-fret
+semantics rule valid silently resolved to nothing; and the importer's shed pass stripped the
+scrape's REQUIRED slide-out terminal, producing a
 chart that E2 then rejected on re-read. `Tap` is NOT excluded — an open-string tap harmonic has
 nothing pressed either, which is exactly what those rules test. Contrast `fretFor`'s node branch,
 which additionally excludes `Tap` because the hand-placement question cares which HAND owns the
@@ -437,6 +493,32 @@ node, not whether a stop is pressed.
 {
     return note.harmonic_node.has_value() && note.fret == 0 && note.attack != NoteAttack::Pinch &&
            note.attack != NoteAttack::PickSlide;
+}
+
+/*!
+\brief True when the note's attack strikes from nowhere but has nothing to strike — E4's whole test.
+
+Two attacks strike a note into existence with no pick stroke and no predecessor to come from: the
+left-hand tap and the two-hand tap. Both need a place to land — a fret, or a harmonic's node, which
+the tap harmonic strikes directly — and an open string with neither is not a quiet tap but a note
+nothing produced. A `Legato` claim is deliberately not among them: whether it strikes at all is
+\ref resolveLegato's answer, so an open string it cannot justify simply plays as the pick it sounds
+like.
+
+Spelled once because three callers ask it for three different purposes and any drift between them
+would be a silent corruption: validation REFUSES such a note, the editor's plan finalize FLATTENS
+the attack to a pick (the truth is the note's own, so the repair rides the edit that stranded it),
+and the importer flattens it early, before the passes that read the attack shape a song around one
+that cannot survive.
+
+\param note Note to classify.
+
+\return True when the attack strikes from nowhere and nothing is there to strike.
+*/
+[[nodiscard]] inline bool nothingToStrike(const ChartNote& note) noexcept
+{
+    return (note.attack == NoteAttack::LeftTap || note.attack == NoteAttack::Tap) &&
+           note.fret == 0 && !note.harmonic_node.has_value();
 }
 
 /*! \brief Where a note sounds on the fret axis, and whether that place is a node or a fret. */

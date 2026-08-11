@@ -3625,7 +3625,9 @@ void HighwayRenderer::Impl::draw(
             {
                 const double center_x = (x0 + x1) / 2.0;
                 const std::uint32_t marker_tint = packAbgr(base_color, fade);
-                if (note.attack == common::core::NoteAttack::Pull)
+                // The pull-off is the only connection an open note can carry: a hammer-on needs a
+                // fret or a node to strike, so the resolver never hands one to an open string.
+                if (note.legato == common::core::LegatoMotion::Pull)
                 {
                     push_marker(
                         center_x, head_y, z, 1.0, 0.0, g_head_cell_legato, marker_tint, true);
@@ -3781,8 +3783,7 @@ void HighwayRenderer::Impl::draw(
         const bool tech_head =
             note.mute == common::core::NoteMute::Full ||
             (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack)) ||
-            note.attack == common::core::NoteAttack::Hammer ||
-            note.attack == common::core::NoteAttack::Pull || scrape;
+            note.legato != common::core::LegatoMotion::Unjustified || scrape;
         const std::array<float, 4> base_cell =
             tech_head ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
@@ -3849,11 +3850,14 @@ void HighwayRenderer::Impl::draw(
             }
             // The legato pair is one cell: the hammer-on upright, the pull-off flipped, so the
             // two can never drift apart in weight or border the way separately drawn art did.
-            if (note.attack == common::core::NoteAttack::Hammer)
+            // Driven by the RESOLVED motion, never the stored attack — the chart records a claim
+            // and the direction is read back from the predecessor — and an unjustified claim
+            // draws neither cell, exactly like the plain pick it plays as.
+            if (note.legato == common::core::LegatoMotion::Hammer)
             {
                 push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_legato, tint);
             }
-            else if (note.attack == common::core::NoteAttack::Pull)
+            else if (note.legato == common::core::LegatoMotion::Pull)
             {
                 push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_legato, tint, true);
             }

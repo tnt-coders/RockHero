@@ -1,8 +1,10 @@
 #include "chart/chart_document.h"
 
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -126,17 +128,17 @@ namespace
     }
 
     const std::string attack = Json::readOptionalString(note_json, "attack", "");
-    if (attack == "hammer")
+    if (attack == "legato")
     {
-        note.attack = NoteAttack::Hammer;
+        note.attack = NoteAttack::Legato;
     }
     else if (attack == "pinch")
     {
         note.attack = NoteAttack::Pinch;
     }
-    else if (attack == "pull")
+    else if (attack == "leftTap")
     {
-        note.attack = NoteAttack::Pull;
+        note.attack = NoteAttack::LeftTap;
     }
     else if (attack == "tap")
     {
@@ -315,14 +317,14 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
             line += R"(, "attack": "pinch")";
             break;
         }
-        case NoteAttack::Hammer:
+        case NoteAttack::Legato:
         {
-            line += R"(, "attack": "hammer")";
+            line += R"(, "attack": "legato")";
             break;
         }
-        case NoteAttack::Pull:
+        case NoteAttack::LeftTap:
         {
-            line += R"(, "attack": "pull")";
+            line += R"(, "attack": "leftTap")";
             break;
         }
         case NoteAttack::Tap:
@@ -550,8 +552,15 @@ std::expected<Chart, ChartError> readChartDocument(const std::filesystem::path& 
     return parseChartDocument(chart_file.loadFileAsString().toStdString());
 }
 
-std::string chartDocumentText(const Chart& chart)
+std::string chartDocumentText(const Chart& chart, const TempoMap& tempo_map)
 {
+    // The written stream is the RESOLVED one: an unjustifiable claim leaves as the pick it plays
+    // as, so the invariant holds for every file without any history involvement at write time (the
+    // memory-richer-than-file philosophy the scrape latents already use). In memory the claim
+    // survives, so re-justifying it later is a neighbour edit rather than a re-authoring.
+    std::vector<ChartNote> resolved_notes = chart.notes;
+    static_cast<void>(sweepUnjustifiedLegato(resolved_notes, chart.shapes, tempo_map));
+
     std::string text = "{\n  \"formatVersion\": 1,\n";
 
     text += R"(  "tuning": { "strings": [)";
@@ -586,7 +595,7 @@ std::string chartDocumentText(const Chart& chart)
         line += " }";
         return line;
     });
-    append_array("notes", chart.notes, noteLine);
+    append_array("notes", resolved_notes, noteLine);
     append_array("shapes", chart.shapes, [](const ChartShape& shape) {
         return R"({ "position": ")" + formatGridPositionToken(shape.position) +
                R"(", "sustain": ")" + formatBeatFractionToken(shape.sustain) + R"(", "chord": )" +
@@ -614,7 +623,7 @@ std::string chartDocumentText(const Chart& chart)
 }
 
 std::expected<void, ChartError> writeChartDocument(
-    const std::filesystem::path& file, const Chart& chart)
+    const std::filesystem::path& file, const Chart& chart, const TempoMap& tempo_map)
 {
     const juce::File chart_file = juceFileFromPath(file);
     if (!chart_file.getParentDirectory().createDirectory())
@@ -622,7 +631,8 @@ std::expected<void, ChartError> writeChartDocument(
         return std::unexpected{malformed(
             "could not create the chart document directory: " + file.string())};
     }
-    if (!chart_file.replaceWithText(juce::String::fromUTF8(chartDocumentText(chart).c_str())))
+    if (!chart_file.replaceWithText(
+            juce::String::fromUTF8(chartDocumentText(chart, tempo_map).c_str())))
     {
         return std::unexpected{malformed("could not write the chart document: " + file.string())};
     }

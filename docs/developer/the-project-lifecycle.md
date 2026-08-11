@@ -80,8 +80,9 @@ made by editing a rule here and re-aligning the code
 (`gp_chart_builder.cpp` — `normalizeImportedSustains`, `generateFretHandPositions`,
 `resolveSlideIns` (rule 16's scoops), and `resolveSlideOutExits` (rule 9's trail-off rides and
 rule 13's exit fret), closing with the shared `executableChartNote` shed and
-`normalizeChartLegato` (rule 25), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
-only: `.rock` imports and editor-authored charts are never rewritten.
+`sweepUnjustifiedLegato` (rule 25), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
+only: `.rock` imports and editor-authored charts are never rewritten beyond the settle sweep every
+load path runs.
 
 **Sustain policy** (GP notates every note at its full duration; a chart only shows deliberate
 sustains):
@@ -169,8 +170,8 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
    event: two-hand taps sit far above the fretting hand (a median seven frets in the corpus), so
    the window tracks the fretted / left-hand notes and any held chord shape while the tap floats
    above it. Only Guitar Pro's *Tapped* (two-hand) articulation becomes a chart tap; a
-   *LeftHandTapped* note is the fretting hand hammering the note from nowhere and imports as a
-   hammer-on — no separate notation (user rule 2026-07-28) — so every tap rule in this policy
+   *LeftHandTapped* note is the fretting hand striking the note from nowhere and imports as the
+   `LeftTap` attack verbatim — so every tap rule in this policy
    refers to two-hand taps only, and left-hand taps anchor the window like any fretted note. A
    note carrying both marks imports as the left-hand tap: left-hand is the specialization, the
    generic tap mark adds nothing to it (user rule 2026-07-28). The 3D-highway camera frames such a tap on its own — it scans the notes, not only the
@@ -238,8 +239,8 @@ handshape or diagram data, so the tab's chord boxes are derived):
     not the fretting posture, so they never join a posture — even a multi-string tapped onset
     derives no chord, and a mixed onset is judged by its non-tap members alone (rule 11).
 11. **Repeated strums of one articulation share one span.** Consecutive onsets whose strings
-    are played *identically in every way except duration* — same frets, attack (hammer, pull,
-    tap, slap, pop), muting, harmonics, vibrato, tremolo, accent, bends, and slides; the
+    are played *identically in every way except duration* — same frets, attack (legato, left-hand
+    tap, tap, slap, pop), muting, harmonics, vibrato, tremolo, accent, bends, and slides; the
     comparison is the whole note with position and duration neutralized, so techniques added
     later join it automatically — merge into a single shape span from the first strum through
     the last strum's *notated* duration (the duration before the sustain policy trims tails —
@@ -411,7 +412,7 @@ through the trim rules):
     collection and they flow through positions, graces, ties, and sustain trims like
     hand-notated notes. Strokes re-pick: a tie INTO the beat releases its origin, only the
     last stroke keeps a notated onward tie (a ring-out continuation still binds), and only the
-    first keeps the accent or a hammer/pull arrival. A bent tremolo spells out too: each
+    first keeps the accent or a legato arrival. A bent tremolo spells out too: each
     stroke samples the master curve at its own onset and carries the value as a flat prebend —
     the run reads as progressively larger prebent picks, and a sustainless note's bend
     narrows to that single prebend point generally (a zero-sustain pick has exactly one
@@ -465,20 +466,24 @@ differently):
     dropped (the lane does not exist); a fret past the last one, once shifted by the capo, is
     pulled back to `g_max_fret`; a track declaring more than eight courses loses the extra ones.
     Each reduction is counted and named in the import log.
-25. **Each note sheds what it cannot execute, then the stream's legato is repaired.** The per-note
-    shed is `executableChartNote`, which lives beside the rules it satisfies in `chart_rules` —
-    a list kept in the importer drifted from the list there twice, and a dead note carrying a bend
-    reached validation intact and failed a whole import. It covers exactly what a single note can
-    be made to obey by *dropping* something, ranked by how much of the note each fact determines:
-    a harmonic's node outranks the mute, which outranks bend and vibrato. The rules that read a
-    note's *neighbours* are then `normalizeChartLegato`'s, run as the last step of the build — the
-    same repair the editor's planners funnel through, so a chart is never born invalid and the
-    first-edit-repairs-old-data surprise cannot happen. The importer *depends* on it rather than
-    merely calling it: every Guitar Pro hammer-on/pull-off destination imports marked `Pull` and
-    leaves the direction to this pass, because the direction turns on the predecessor's *released*
-    fret and the slide chains (rules 13-15) that decide that are not built until the note loop has
-    finished. It also reads rule 3's kept-sustain bound — past it a missing tail is a proven
-    release, so a predecessor that no longer reaches supports no legato at all.
+25. **Each note sheds what it cannot execute, then the stream's connection claims are settled.** The
+    per-note shed is `executableChartNote`, which lives beside the rules it satisfies in
+    `chart_rules` — a list kept in the importer drifted from the list there twice, and a dead note
+    carrying a bend reached validation intact and failed a whole import. It covers exactly what a
+    single note can be made to obey by *dropping* something, ranked by how much of the note each
+    fact determines: a harmonic's node outranks the mute, which outranks bend and vibrato. E4's
+    strike requirement is decided earlier, the moment a note's node is known (`nothingToStrike`),
+    because the chord-shape and hand-window passes read the attack and must not shape a song around
+    a tap that cannot survive. The relational half is then `sweepUnjustifiedLegato`, run as the last
+    step of the build — the same sweep every load path and every settle point runs, so a chart is
+    never born carrying a claim its own notes contradict. It runs last because it reads the finished
+    stream: released frets after the slide chains (rules 13-15), holds after the sustain trim, spans
+    after posture derivation. Guitar Pro's hammer-on/pull-off destinations import as the `Legato`
+    claim and nothing more — the score says the notes connect but not which way, which is exactly
+    what the claim says — so the junk flags real scores carry (a mark with nothing before it, or
+    with a predecessor at the same stop) are what this sweep converts, counted in the import log.
+    It also reads rule 3's kept-sustain bound: past it a missing tail is a proven release, so a
+    predecessor that no longer reaches justifies no connection at all.
 
 Every generated track logs a conversion note ("phrase-aware; verify", "derived N chord
 spans", "imported N pick slides") so the guesses stay observable in the import log.

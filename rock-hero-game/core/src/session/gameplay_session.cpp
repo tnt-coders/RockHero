@@ -98,7 +98,10 @@ std::expected<void, GameplaySessionError> GameplaySession::start(GameplaySession
                 song.error().message,
             });
     }
-    m_song = std::move(*song);
+    // The read's conversion channel is deliberately dropped: it reports charts the load had to
+    // settle, which only a hand-made document can trigger — every package the project writes is
+    // resolved by construction — and the game has no dirty state to mark either way.
+    m_song = std::move(song->song);
 
     // Empty arrangement id selects the first arrangement (the dev-fixture convention until the
     // library UI supplies explicit ids).

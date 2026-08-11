@@ -193,7 +193,9 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
         const std::string id = common::core::generatePackageId();
         const std::string chart_ref = "charts/" + id + ".chart.json";
         if (auto written = common::core::writeChartDocument(
-                workspace_directory / std::filesystem::path{chart_ref}, arrangement.chart);
+                workspace_directory / std::filesystem::path{chart_ref},
+                arrangement.chart,
+                song.tempo_map);
             !written.has_value())
         {
             return std::unexpected{SongImportError{

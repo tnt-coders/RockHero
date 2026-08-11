@@ -1111,7 +1111,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     // yet — was reachable ONLY through this menu, making it the second way to act the menu is not
     // supposed to be.
     add(note_menu, EditorCommandId::ChartLegatoToggle);
-    add(note_menu, EditorCommandId::ChartForceHammer);
+    add(note_menu, EditorCommandId::ChartLeftTap);
     add(note_menu, EditorCommandId::ChartPickSlideToggle);
 
     juce::PopupMenu move_menu;
@@ -1421,7 +1421,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SelectionDelete:
         case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::ChartLegatoToggle:
-        case EditorCommandId::ChartForceHammer:
+        case EditorCommandId::ChartLeftTap:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::SustainLengthenFine:
@@ -1608,11 +1608,11 @@ bool EditorView::perform(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::ChartForceHammer:
+        case EditorCommandId::ChartLeftTap:
         {
             if (hasChart())
             {
-                m_controller.onChartForceHammerRequested();
+                m_controller.onChartLeftTapRequested();
             }
             return true;
         }

@@ -96,8 +96,9 @@ Verified with `rg`/reads against the tree; all paths repo-relative.
 - Missing audio-normalization metadata → analyzed on open:
   `rock-hero-editor/core/src/controller/editor_controller.cpp:523-546` wires
   `analyzeAudioForGainNormalization` into project load/import;
-  `rock-hero-editor/core/src/project/project_handlers.cpp:268` marks the project as having unsaved
-  changes when `audioNormalizationUpdatedOnLoad()` reports a rewrite. This is the established
+  `rock-hero-editor/core/src/project/project_handlers.cpp` marks the project as having unsaved
+  changes when `Project::songConvertedOnLoad()` reports one (renamed 2026-08-11 when the legato
+  settle sweep at load became a second reason for the same flag). This is the established
   "load changed the model → surface it as unsaved changes" precedent the ladder reuses.
 
 **Canonical-form building blocks (already exact)**
@@ -278,11 +279,12 @@ No later phase starts before this gate closes. No code changes in this phase.
      plan 26's malformed-package listing can phrase it correctly); version `< current` → ladder,
      then parse; version `== current` → parse as today. The song ladder starts **empty** — v1 is
      current — so this phase changes no bytes and no corpus behavior.
-  3. Read-result surface: `readRockSongPackage[Directory]` return
-     `SongReadResult { Song song; bool migrated; }` (public-header change in
-     `rock_song_package.h`). The editor maps `migrated == true` to unsaved changes exactly like
-     `audioNormalizationUpdatedOnLoad` (`project_handlers.cpp:268`); game-side consumers treat
-     migration as in-memory only — the game never rewrites user packages.
+  3. Read-result surface: this now EXISTS — since 2026-08-11 `readRockSongPackage[Directory]`
+     return `SongPackageRead { Song song; std::vector<std::string> conversions; }`, and the editor
+     already maps a non-empty `conversions` to unsaved changes through
+     `Project::songConvertedOnLoad()`. Migration reports through that same channel rather than
+     adding a second struct or a parallel `migrated` flag; game-side consumers keep discarding it —
+     migration is in-memory only, the game never rewrites user packages.
   4. Chart files get the same routing inside `readChartDocument` (empty ladder, current = 1).
   5. The v1 tolerances stay and are documented as such in code comments: `readToneCatalog`'s
      legacy fallback (`rock_song_package_read.cpp:557-604`) is a v1 shape tolerance, not a ladder

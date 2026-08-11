@@ -334,9 +334,12 @@ void drawTremoloTail(
 // strip variant, and the vibrato sine overlay.
 void drawNoteTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, float onset_x, float center_y)
+    const common::core::TabNoteView& note, double hold_end_seconds, float onset_x, float center_y)
 {
-    const float end_x = metrics.x(note.end_seconds);
+    // The DISPLAY hold end, not the stored sustain: a sustainless member of a strum under a
+    // hand-shape span is held for the span (TabViewState::display_hold_ends), and the tail is what
+    // says so. Every other note's hold end is its own sustain end, so this is one expression.
+    const float end_x = metrics.x(hold_end_seconds);
     const float length = end_x - onset_x;
     if (length <= 0.0f)
     {
@@ -1008,32 +1011,40 @@ void drawAttackIcon(
 
     switch (note.attack)
     {
-        case common::core::NoteAttack::Hammer:
+        case common::core::NoteAttack::Pick:
+        case common::core::NoteAttack::Legato:
+        case common::core::NoteAttack::LeftTap:
         {
-            // The apex is this mark's lowest ink and stops half a triangle-width short of its
-            // box's right edge; g_optical_inset_correction is the share of that shortfall the
-            // eye needs back to read it level with the marks whose lowest ink reaches the edge.
-            const float apex_inset = triangle_width / 2.0f;
-            drawTriangleIcon(
-                g,
-                metrics,
-                triangle.x + (apex_inset * g_optical_inset_correction),
-                triangle.y,
-                true,
-                juce::Colours::white,
-                juce::Colours::black);
-            break;
-        }
-        case common::core::NoteAttack::Pull:
-        {
-            drawTriangleIcon(
-                g,
-                metrics,
-                triangle.x,
-                triangle.y,
-                false,
-                juce::Colours::white,
-                juce::Colours::black);
+            // The connection family shares one branch because the mark is the note's RESOLVED
+            // motion, never its stored attack: a left-hand tap draws the hammer triangle, a claim
+            // resolves to whichever triangle its predecessor justifies, and a claim nothing
+            // justifies draws exactly what the plain pick beside it draws — nothing.
+            if (note.legato == common::core::LegatoMotion::Hammer)
+            {
+                // The apex is this mark's lowest ink and stops half a triangle-width short of its
+                // box's right edge; g_optical_inset_correction is the share of that shortfall the
+                // eye needs back to read it level with the marks whose lowest ink reaches the edge.
+                const float apex_inset = triangle_width / 2.0f;
+                drawTriangleIcon(
+                    g,
+                    metrics,
+                    triangle.x + (apex_inset * g_optical_inset_correction),
+                    triangle.y,
+                    true,
+                    juce::Colours::white,
+                    juce::Colours::black);
+            }
+            else if (note.legato == common::core::LegatoMotion::Pull)
+            {
+                drawTriangleIcon(
+                    g,
+                    metrics,
+                    triangle.x,
+                    triangle.y,
+                    false,
+                    juce::Colours::white,
+                    juce::Colours::black);
+            }
             break;
         }
         case common::core::NoteAttack::Tap:
@@ -1071,13 +1082,10 @@ void drawAttackIcon(
             break;
         }
         case common::core::NoteAttack::Pinch:
-        case common::core::NoteAttack::Pick:
         {
-            // Neither attack marks this band, for two different reasons. A pinch's mark is the bar
-            // drawn beside the diamond head with the head itself, not a plate here: it reads as a
-            // harmonic cue rather than an attack cue even though the data now lives on the attack.
-            // An ordinary pick is the unmarked default every other value in this band contrasts
-            // against.
+            // A pinch's mark is the bar drawn beside the diamond head with the head itself, not a
+            // plate here: it reads as a harmonic cue rather than an attack cue even though the data
+            // now lives on the attack.
             break;
         }
     }
@@ -1356,6 +1364,8 @@ void paintTabLane(
     // Stated as a precondition in the header and divided by immediately below.
     assert(tab.string_count > 0);
     assert(metrics.bounds.getWidth() > 0);
+    // The tail pass indexes display_hold_ends by note index with no per-frame bounds check.
+    assert(tab.display_hold_ends.size() == tab.notes.size());
 
     const juce::Rectangle<int> clip = g.getClipBounds().getIntersection(metrics.bounds);
     const double duration = metrics.visible_timeline.duration().seconds;
@@ -1448,7 +1458,7 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::TabNoteView& note = tab.notes[index];
-        if (note.end_seconds < span_start)
+        if (tab.display_hold_ends[index] < span_start)
         {
             continue;
         }
@@ -1456,7 +1466,7 @@ void paintTabLane(
         const StringStyle& style = lane_style(note.string);
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
-        drawNoteTail(g, metrics, style, note, onset_x, center_y);
+        drawNoteTail(g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
         drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
         drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
     }
@@ -1513,7 +1523,7 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::TabNoteView& note = tab.notes[index];
-        if (note.end_seconds < span_start)
+        if (tab.display_hold_ends[index] < span_start)
         {
             continue;
         }

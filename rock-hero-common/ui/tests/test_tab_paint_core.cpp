@@ -70,6 +70,21 @@ constexpr int g_digit_window = 4;
     return 0;
 }
 
+// Fills the hand-built state's display hold ends and returns the visibility index over them. Every
+// note in this file holds exactly its own sustain — none is a sustainless member of a strum under a
+// hand-shape span, the one case the projection extends — so the two travel together here rather
+// than being spelled out per fixture, which is the paint core's precondition.
+[[nodiscard]] std::vector<double> resolveHoldEnds(common::core::TabViewState& state)
+{
+    state.display_hold_ends.clear();
+    state.display_hold_ends.reserve(state.notes.size());
+    for (const common::core::TabNoteView& note : state.notes)
+    {
+        state.display_hold_ends.push_back(note.end_seconds);
+    }
+    return common::core::makeSustainPrefixMax(state.display_hold_ends);
+}
+
 } // namespace
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
@@ -87,7 +102,10 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .end_seconds = 8.0,
             .string = 1,
             .fret = 5,
-            .attack = common::core::NoteAttack::Hammer,
+            // A stored claim plus the motion it resolved to: the mark comes from the resolution, so
+            // the projection's answer is what the paint core has to be handed.
+            .attack = common::core::NoteAttack::Legato,
+            .legato = common::core::LegatoMotion::Hammer,
             .mute = common::core::NoteMute::Palm,
             .vibrato = true,
             .accent = true,
@@ -156,7 +174,8 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
-    paintTabLane(graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
+    const std::vector<double> prefix_max = resolveHoldEnds(state);
+    paintTabLane(graphics, metrics, state, prefix_max);
 
     // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
     // blue (base x1.5) inside its range and not outside it, and does not tint the lane
@@ -349,7 +368,8 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
-    paintTabLane(graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
+    const std::vector<double> prefix_max = resolveHoldEnds(state);
+    paintTabLane(graphics, metrics, state, prefix_max);
 
     constexpr int scrape_x = 80;
     constexpr int plain_x = 160;
@@ -514,7 +534,8 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
         REQUIRE(metrics.draw_text);
         juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
         juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
+        const std::vector<double> prefix_max = resolveHoldEnds(state);
+        paintTabLane(graphics, metrics, state, prefix_max);
         return image;
     };
 
@@ -639,7 +660,8 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
-    paintTabLane(graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
+    const std::vector<double> prefix_max = resolveHoldEnds(state);
+    paintTabLane(graphics, metrics, state, prefix_max);
 
     // The chip's box fills the FHP-chip chrome color behind its centered letters; the probe sits
     // inside the box near its left edge, clear of the text.
@@ -662,7 +684,7 @@ TEST_CASE("Tab paint core pins a capo chip to the lane corner", "[ui][tab-paint]
     state.capo = 0;
     const juce::Image bare{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics bare_graphics{bare};
-    paintTabLane(bare_graphics, metrics, state, common::core::makeSustainPrefixMax(state.notes));
+    paintTabLane(bare_graphics, metrics, state, prefix_max);
     CHECK(bare.getPixelAt(4, 7).getAlpha() == 0);
 }
 
@@ -710,7 +732,7 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
         visible_timeline,
         common::core::displayedStringCount(state.string_count, 0),
         state.string_count);
-    const std::vector<double> prefix_max_end = common::core::makeSustainPrefixMax(state.notes);
+    const std::vector<double> prefix_max_end = resolveHoldEnds(state);
 
     const juce::Image whole{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics whole_graphics{whole};

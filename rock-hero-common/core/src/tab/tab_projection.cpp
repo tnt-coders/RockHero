@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/tab/tab_projection.h>
@@ -22,19 +23,24 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
     state.string_count = static_cast<int>(chart.tuning.strings.size());
     state.capo = chart.tuning.capo;
 
+    // Every per-note fact this projection derives comes from the one resolutions pass: the SAVED
+    // stream it draws (a pick slide overrides its other techniques in memory, per chart.h, and the
+    // lane must show the scrape without them — restating that list is how the lane and the document
+    // drift apart), each note's resolved connection motion, and the effective holds the span
+    // convention implies.
+    const ChartResolutions resolutions = chartResolutions(chart.notes, chart.shapes, tempo_map);
+    const std::vector<ChartNote>& saved_notes = resolutions.saved_notes;
+
     // Note onsets ascend, so the forward cursor resolves them in amortized constant time.
     // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the
     // plain resolver instead of a second cursor.
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
-    state.notes.reserve(chart.notes.size());
-    for (const ChartNote& in_memory_note : chart.notes)
+    state.notes.reserve(saved_notes.size());
+    state.display_hold_ends.reserve(saved_notes.size());
+    for (std::size_t note_index = 0; note_index < saved_notes.size(); ++note_index)
     {
-        const double onset_beat = globalBeatPosition(tempo_map, in_memory_note.position);
-        // A pick slide overrides its other techniques in memory (chart.h) and the display must
-        // show the scrape without them — which is exactly the SAVED form, so the projection
-        // reads savedChartNote rather than restating which fields a scrape suppresses. Stating
-        // that list twice is how the lane and the document drift apart.
-        const ChartNote note = savedChartNote(in_memory_note);
+        const ChartNote& note = saved_notes[note_index];
+        const double onset_beat = globalBeatPosition(tempo_map, note.position);
         const bool scrape = note.attack == NoteAttack::PickSlide;
         TabNoteView view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
@@ -42,9 +48,14 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
             note.sustain.numerator > 0
                 ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble())
                 : view.start_seconds;
+        // The span-implied hold, resolved from the same authority the board resolves it from, so
+        // one chart draws the same tails on both surfaces.
+        state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
+            onset_beat + resolutions.effective_sustains[note_index].toDouble()));
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
+        view.legato = resolutions.legato[note_index];
         view.mute = note.mute;
         view.harmonic_node = note.harmonic_node;
         view.vibrato = note.vibrato;

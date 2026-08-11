@@ -16,20 +16,43 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief A completed package read: the song, plus everything the load had to convert to get it.
+
+Two fields rather than one because a load is not always a pure function of the file: the reader
+settles every chart it opens (\ref sweepUnjustifiedLegato), so a document carrying a connection
+claim its own notes do not justify loads as the plain pick it plays as. That is a difference between
+memory and disk, and the editor is required to notice it — an open that converted anything leaves
+the session dirty.
+
+In practice the channel is almost always empty: every document the project writes is already
+resolved by construction (\ref chartDocumentText), so only a hand-made or third-party file converts
+anything.
+The game discards it for exactly that reason, and can never see an unresolved claim.
+*/
+struct SongPackageRead
+{
+    /*! \brief The song as loaded, with every chart settled. */
+    Song song;
+
+    /*! \brief Human-readable notes for what the load converted; empty on a clean read. */
+    std::vector<std::string> conversions;
+};
+
+/*!
 \brief Reads native song data from an extracted Rock Hero song package directory.
 \param directory Directory containing song.json and the files referenced by it.
-\return Parsed song data, or a typed package failure.
+\return Parsed song data and its conversion notes, or a typed package failure.
 */
-[[nodiscard]] std::expected<Song, SongPackageError> readRockSongPackageDirectory(
+[[nodiscard]] std::expected<SongPackageRead, SongPackageError> readRockSongPackageDirectory(
     const std::filesystem::path& directory);
 
 /*!
 \brief Extracts and reads a native Rock Hero song package into an existing workspace.
 \param package_path Native song package to extract.
 \param workspace_directory Existing directory that receives extracted native song package entries.
-\return Parsed song data, or a typed package failure.
+\return Parsed song data and its conversion notes, or a typed package failure.
 */
-[[nodiscard]] std::expected<Song, SongPackageError> readRockSongPackage(
+[[nodiscard]] std::expected<SongPackageRead, SongPackageError> readRockSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory);
 
 /*!

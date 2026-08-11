@@ -286,10 +286,10 @@ public:
         chart_legato_toggle_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartForceHammerRequested */
-    void onChartForceHammerRequested() override
+    /*! \copydoc IEditorController::onChartLeftTapRequested */
+    void onChartLeftTapRequested() override
     {
-        chart_force_hammer_count += 1;
+        chart_left_tap_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
@@ -782,8 +782,8 @@ public:
     /*! \brief Number of onChartLegatoToggleRequested() intents received. */
     int chart_legato_toggle_count{0};
 
-    /*! \brief Number of onChartForceHammerRequested() intents received. */
-    int chart_force_hammer_count{0};
+    /*! \brief Number of onChartLeftTapRequested() intents received. */
+    int chart_left_tap_count{0};
 
     /*! \brief Number of onChartPickSlideToggleRequested() intents received. */
     int chart_pick_slide_toggle_count{0};

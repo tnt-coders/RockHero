@@ -48,10 +48,14 @@ namespace
             .slides = {},
         },
     };
+    // The DRAWN hold end per note, which the lane's cull index and every tail drawer read instead
+    // of the stored end (a span-held chord member draws held while storing no sustain). No spans
+    // here, so each note's drawn end is its own.
+    state.display_hold_ends = {9.0, 2.5, 12.0};
     return std::make_shared<const common::core::TabViewState>(std::move(state));
 }
 
-// Running maximum of the fixture's note ends, matching TabView's internal index.
+// Running maximum of the fixture's DISPLAY hold ends, matching TabView's internal index.
 [[nodiscard]] std::vector<double> prefixMaxEnds()
 {
     return {9.0, 9.0, 12.0};

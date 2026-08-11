@@ -91,7 +91,7 @@ void writeTextFile(const std::filesystem::path& path, const std::string& content
     chart.tuning.strings = {"D2", "A2", "D3", "G3", "B3", "E4"};
     chart.tuning.capo = 2;
     chart.tuning.cent_offset = -6.0;
-    return chartDocumentText(chart);
+    return chartDocumentText(chart, TempoMap::defaultMap(TimeDuration{16.0}));
 }
 
 // Stages the given entries under a content dir and zips them into a .rock archive.

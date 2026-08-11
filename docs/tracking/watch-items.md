@@ -207,6 +207,18 @@ imported `chart.shapes`. **Trigger**: §5's slice 3 builds member-tail adjustmen
 learns the same span-sibling exemption, since §5 says member tails may legally ring past
 sibling onsets inside a shared span.
 
+### A muted-tail trim would flatten legato claims corpus-wide — trigger: W4/E25 builds the trim
+
+Recorded by the legato ruling of 2026-08-11 (`docs/plans/in-progress/legato-final-spec.md`,
+sequencing note). Today a fully muted note's tail counts at its stored length for the connection
+hold test, so a claim depending on such a tail resolves and stands. W4/E25's signed-but-unbuilt
+rule trims muted tails; the moment that lands, every dependent claim in the corpus stops resolving
+and the load-time settle sweep would flatten them all silently, on open, with a conversion note the
+user never asked for. **Trigger**: W4/E25's muted-tail trim is implemented. **Remedy**: run the
+trim as an editor plan operation over the current chart, so the flatten rides the trim's own undo
+entry and is visible and reversible as one edit — never as a silent conversion inside
+`readRockSongPackageDirectory`.
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer

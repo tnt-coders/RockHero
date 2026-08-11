@@ -145,15 +145,21 @@ public:
     [[nodiscard]] const std::filesystem::path& workspaceDirectory() const noexcept;
 
     /*!
-    \brief Reports whether the most recent load repaired backing-audio normalization metadata.
-    \return True when load updated normalization metadata that should be persisted on save.
+    \brief Reports whether the most recent load changed the song it read.
+
+    One flag for every reason a load can leave memory ahead of the file — repaired backing-audio
+    normalization metadata, and connection claims the chart no longer justifies, flattened by the
+    reader's settle sweep. They are one question, not two: either answer means the session is dirty
+    the moment it opens, and splitting them would need two callers to agree by hand.
+
+    \return True when the load changed something that should be persisted on save.
     */
-    [[nodiscard]] bool audioNormalizationUpdatedOnLoad() const noexcept;
+    [[nodiscard]] bool songConvertedOnLoad() const noexcept;
 
 private:
     std::filesystem::path m_path;
     std::filesystem::path m_workspace_directory;
-    bool m_audio_normalization_updated_on_load{false};
+    bool m_song_converted_on_load{false};
 };
 
 } // namespace rock_hero::editor::core

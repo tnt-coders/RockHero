@@ -104,6 +104,16 @@ struct TabNoteView
     /*! \brief How the onset is produced. */
     NoteAttack attack{NoteAttack::Pick};
 
+    /*!
+    \brief What this note's connection claim resolves to (\ref resolveLegato).
+
+    The chart stores a claim and never a direction, so the drawn hammer-on or pull-off mark can only
+    come from here. `Unjustified` is not a state of its own on screen: a claim nothing justifies
+    draws exactly what the plain pick beside it draws, which is why no cue exists and why every
+    attack outside \ref legatoClaimable leaves this at its default.
+    */
+    LegatoMotion legato{LegatoMotion::Unjustified};
+
     /*! \brief Muting applied to the note. */
     NoteMute mute{NoteMute::None};
 
@@ -141,10 +151,10 @@ struct TabNoteView
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
-               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.mute == rhs.mute &&
-               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
-               lhs.tremolo == rhs.tremolo && lhs.accent == rhs.accent && lhs.bend == rhs.bend &&
-               lhs.slides == rhs.slides;
+               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
+               lhs.mute == rhs.mute && lhs.harmonic_node == rhs.harmonic_node &&
+               lhs.vibrato == rhs.vibrato && lhs.tremolo == rhs.tremolo &&
+               lhs.accent == rhs.accent && lhs.bend == rhs.bend && lhs.slides == rhs.slides;
     }
 };
 
@@ -259,6 +269,25 @@ struct TabViewState
 
     /*! \brief Sounding notes in ascending onset order. */
     std::vector<TabNoteView> notes;
+
+    /*!
+    \brief Per-note display hold end in seconds, one entry per \ref notes entry.
+
+    The note's own sustain end, except that a sustainless member of a two-or-more onset group under
+    a covering hand-shape span is held for the span — the strum's tails run while the posture is
+    held instead of vanishing the instant it is struck. A fully dead group is choked rather than
+    held and keeps its own end.
+
+    The same field, the same rule, and the same authority as
+    \ref HighwayViewState::display_hold_ends: both resolve \ref chartEffectiveSustains into seconds
+    rather than restating the convention, which is what makes the two surfaces draw one chart the
+    same way. 2D drew bare heads here until they were unified; the divergence was recorded (W9-A)
+    because a span-implied hold is notation, not a 3D affordance.
+
+    Also what the lane's visible-range prefix maximum must be built from, so a span-held strum stays
+    in range for as long as it is drawn.
+    */
+    std::vector<double> display_hold_ends;
 
     /*! \brief Hand-posture spans in ascending start order. */
     std::vector<TabShapeView> shapes;

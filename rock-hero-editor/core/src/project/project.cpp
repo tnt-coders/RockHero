@@ -15,6 +15,7 @@
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <string>
@@ -264,14 +265,14 @@ Project::~Project() noexcept
         {
             m_path.clear();
             m_workspace_directory.clear();
-            m_audio_normalization_updated_on_load = false;
+            m_song_converted_on_load = false;
         }
     }
     catch (...)
     {
         m_path.clear();
         m_workspace_directory.clear();
-        m_audio_normalization_updated_on_load = false;
+        m_song_converted_on_load = false;
     }
 }
 
@@ -279,8 +280,7 @@ Project::~Project() noexcept
 Project::Project(Project&& other) noexcept
     : m_path(std::exchange(other.m_path, {}))
     , m_workspace_directory(std::exchange(other.m_workspace_directory, {}))
-    , m_audio_normalization_updated_on_load(
-          std::exchange(other.m_audio_normalization_updated_on_load, false))
+    , m_song_converted_on_load(std::exchange(other.m_song_converted_on_load, false))
 {}
 
 // Removes the old workspace before taking ownership from another project.
@@ -294,20 +294,19 @@ Project& Project::operator=(Project&& other) noexcept
             {
                 m_path.clear();
                 m_workspace_directory.clear();
-                m_audio_normalization_updated_on_load = false;
+                m_song_converted_on_load = false;
             }
         }
         catch (...)
         {
             m_path.clear();
             m_workspace_directory.clear();
-            m_audio_normalization_updated_on_load = false;
+            m_song_converted_on_load = false;
         }
 
         m_path = std::exchange(other.m_path, {});
         m_workspace_directory = std::exchange(other.m_workspace_directory, {});
-        m_audio_normalization_updated_on_load =
-            std::exchange(other.m_audio_normalization_updated_on_load, false);
+        m_song_converted_on_load = std::exchange(other.m_song_converted_on_load, false);
     }
 
     return *this;
@@ -325,10 +324,10 @@ const std::filesystem::path& Project::workspaceDirectory() const noexcept
     return m_workspace_directory;
 }
 
-// Reports whether load repaired normalization metadata that has not yet been saved.
-bool Project::audioNormalizationUpdatedOnLoad() const noexcept
+// Reports whether load changed anything that has not yet been saved.
+bool Project::songConvertedOnLoad() const noexcept
 {
-    return m_audio_normalization_updated_on_load;
+    return m_song_converted_on_load;
 }
 
 // Opens the project package archive, extracts it safely, and reads the song document.
@@ -381,7 +380,16 @@ std::expected<Song, ProjectError> Project::load(
         }};
     }
 
-    Song song = std::move(*loaded_song);
+    // Conversion notes are diagnostics, not failures. A project this editor wrote never carries
+    // any — the document writer serializes the resolved form — so anything here came from a
+    // hand-made or third-party file, and the session opens dirty: memory no longer equals disk.
+    for (const std::string& note : loaded_song->conversions)
+    {
+        RH_LOG_INFO("editor.project", "project open: {}", note);
+    }
+    const bool converted_on_load = !loaded_song->conversions.empty();
+
+    Song song = std::move(loaded_song->song);
     auto normalization_result =
         ensureLoadedAudioNormalization(song, target, analyze_audio_normalization);
     if (!normalization_result.has_value())
@@ -389,7 +397,7 @@ std::expected<Song, ProjectError> Project::load(
         return std::unexpected{std::move(normalization_result.error())};
     }
 
-    loaded_project.m_audio_normalization_updated_on_load = *normalization_result;
+    loaded_project.m_song_converted_on_load = converted_on_load || *normalization_result;
     if (auto close_result = close(); !close_result.has_value())
     {
         return std::unexpected{std::move(close_result.error())};
@@ -497,7 +505,7 @@ std::expected<void, ProjectError> Project::save(const Song& song)
         }};
     }
 
-    m_audio_normalization_updated_on_load = false;
+    m_song_converted_on_load = false;
     return std::expected<void, ProjectError>{};
 }
 
@@ -541,7 +549,7 @@ std::expected<void, ProjectError> Project::saveAs(
             }};
         }
 
-        saved_project.m_audio_normalization_updated_on_load = false;
+        saved_project.m_song_converted_on_load = false;
         *this = std::move(saved_project);
         return std::expected<void, ProjectError>{};
     }
@@ -562,7 +570,7 @@ std::expected<void, ProjectError> Project::saveAs(
     }
 
     m_path = path;
-    m_audio_normalization_updated_on_load = false;
+    m_song_converted_on_load = false;
     return std::expected<void, ProjectError>{};
 }
 
@@ -614,7 +622,7 @@ std::expected<void, ProjectError> Project::close()
     if (m_workspace_directory.empty())
     {
         m_path.clear();
-        m_audio_normalization_updated_on_load = false;
+        m_song_converted_on_load = false;
         return std::expected<void, ProjectError>{};
     }
 
@@ -650,7 +658,7 @@ std::expected<void, ProjectError> Project::close()
 
     m_path.clear();
     m_workspace_directory.clear();
-    m_audio_normalization_updated_on_load = false;
+    m_song_converted_on_load = false;
     return std::expected<void, ProjectError>{};
 }
 

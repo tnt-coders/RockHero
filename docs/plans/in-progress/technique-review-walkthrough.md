@@ -11,6 +11,15 @@ or code.
 Working order: top to bottom unless the user redirects. Each open item carries the agent's
 recommendation so the user can rule with full context in front of them.
 
+> **Legato note (2026-08-11).** The closed items below record what shipped *at the time they
+> closed*, and the legato machinery they name has since been replaced by
+> `legato-final-spec.md`: no direction is stored (`Hammer`/`Pull` became the single `Legato` claim
+> plus `LeftTap`), `normalizeChartLegato` and the whole repair engine are deleted, the relational
+> rules are resolver clauses instead of validation rows, and the repair-in-the-finalize step is now
+> a settle sweep at commit points. The *physics* each item settled (D13's release inference,
+> released-fret semantics, the assist, the toggle window) is unchanged and still binding — only the
+> mechanism moved. The records are left as written so the decision history stays auditable.
+
 ## Work queue (LIVE — the session task list mirrored here so a disconnect loses nothing)
 
 Approved order, user-signed 2026-08-09. Keep this list and the session task list in step; when an
@@ -119,9 +128,12 @@ item ships, mark it and name the commit.
   round-trip test. What remains here is the counted feedback: every refusal is still silent — the
   feedback channel is load-bearing for W6 and rides the planner refusal-channel refactor noted
   above.
-- [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5).** One shared mechanism for
-  legato and slides; the break verb frees a tail from the origin's side; the feedback is
-  **editor-only** (user ruling: not visible in 3D).
+- [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5). NARROWED TO SLIDES ONLY
+  2026-08-11** by the legato ruling: a connection claim stores no direction, so shrinking its
+  predecessor's tail drops the mark live, regrowing restores it inside the burst, and the settle
+  sweep flattens what is left as one folded batch — nothing to lock and nothing to break. Slides
+  keep all three (waypoints are real data). The break verb frees a tail from the origin's side; the
+  feedback is **editor-only** (user ruling: not visible in 3D).
 - [x] **W7 — D14 assist + the `H` toggle window. SHIPPED 2026-08-10.** The assist lives inside
   `planSetLegato`: when the hold test is the only blocker, the plan grows the predecessor's tail
   to the margin point and derives the direction in the same entry, pre-checked against the

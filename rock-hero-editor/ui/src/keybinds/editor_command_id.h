@@ -193,11 +193,11 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the selected notes to or from the pick-slide attack (no default chord). */
     ChartPickSlideToggle = 0x1709,
 
-    /*! \brief Toggle the selected notes to or from a legato attack (`H`). */
+    /*! \brief Claim or clear a legato connection on the selected notes (`H`). */
     ChartLegatoToggle = 0x170A,
 
-    /*! \brief Force the selected notes to the hammer-on attack — the left-hand tap (`Ctrl+H`). */
-    ChartForceHammer = 0x170B,
+    /*! \brief Set the selected notes to the left-hand tap attack (`Ctrl+H`). */
+    ChartLeftTap = 0x170B,
 
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,

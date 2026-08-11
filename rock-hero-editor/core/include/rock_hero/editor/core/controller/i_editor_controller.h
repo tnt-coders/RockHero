@@ -360,35 +360,34 @@ public:
     virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
 
     /*!
-    \brief Handles a request to toggle the selected notes to or from a legato attack.
+    \brief Handles a request to claim or clear a legato connection on the selected notes.
 
-    Uniform scope, one compound undo entry, measured on the ELIGIBLE subset: applying is always
-    the first answer — every note whose fret relationship justifies a hammer-on or pull-off gets
-    its derived direction, and when the predecessor's hold is the only blocker the same plan
-    grows its tail to the margin point so the connection is authored rather than demanded — and
-    only when applying would change nothing does the press mean clear. The clear targets only
-    the notes actually carrying legato, so an underivable note riding the selection keeps its
-    own attack. The direction is derived, never authored; a note with no earlier note on its
-    string — or one at the same fret, which is neither hammered nor pulled — is left alone
-    rather than guessed at. While the selection and undo history still prove the previous press
+    Uniform scope, one compound undo entry, with the connection resolver as the only authority on
+    eligibility: applying is always the first answer — every selected note whose claim the chart
+    justifies gets it, and when the predecessor's hold is the only thing missing the same plan grows
+    that tail to the margin point so the connection is authored rather than demanded — and only when
+    applying would change nothing does the press mean clear. The clear flattens only the notes
+    actually carrying a claim, so a left-hand tap riding the selection keeps its attack (Ctrl+H is
+    that attack's sole author). No direction is authored or stored; hammer-versus-pull is read back
+    from the predecessor. A press that skipped notes reports how many and why, so an all-skipped
+    press is never a dead key. While the selection and undo history still prove the previous press
     was this verb's own, a second press reverses that press exactly — grown tails included — and
-    leaves no history entry behind: a true on/off toggle. Once that proof fails, grown tails
-    stay and undo is the revert.
+    leaves no history entry behind: a true on/off toggle. Once that proof fails, grown tails stay
+    and undo is the revert.
     */
     virtual void onChartLegatoToggleRequested() = 0;
 
     /*!
-    \brief Handles a request to force the selected notes to the hammer-on attack.
+    \brief Handles a request to set the selected notes to the left-hand tap attack.
 
-    The stating verb beside the inferring toggle: a left-hand tap is stored as a hammer-on whose
-    fret relationship cannot justify it, so it exists only by being stated, and this is the sole
-    verb that states it. Uniform scope, one compound undo entry, applying where valid: any note
-    with something to strike — a positive fret, or a harmonic node the strike re-hands — becomes
-    a hammer-on, including overriding a derived pull-off (only the author knows whether the
-    predecessor was still ringing), while the open string with no node is skipped. A later legato
-    toggle re-derives the fret-justified direction back.
+    The stating verb beside the inferring toggle, and the sole author of the left-hand tap: the
+    fretting hand striking a note from nowhere is a LOCAL statement no predecessor can justify or
+    withdraw, which is why the connection toggle can never produce it and never destroys it.
+    Uniform scope, one compound undo entry, applying where valid: any note with something to strike
+    — a positive fret, or a harmonic node the strike re-hands — becomes a left-hand tap, while the
+    open string with no node is skipped.
     */
-    virtual void onChartForceHammerRequested() = 0;
+    virtual void onChartLeftTapRequested() = 0;
 
     /*!
     \brief Handles a request to toggle the selected notes to or from the pick-slide attack.

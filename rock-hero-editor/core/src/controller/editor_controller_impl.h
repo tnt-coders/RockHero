@@ -186,9 +186,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction, bool fine);
     void onChartLegatoToggleRequested();
-    void onChartForceHammerRequested();
+    void onChartLeftTapRequested();
     void onChartPickSlideToggleRequested();
     void onChartEscapePressed();
+    // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
+    // consumed it (true = a rung consumed the press).
+    bool consumeChartEscapeRung();
+    // The settle sweep (the legato model's one relational mutation): flattens every connection
+    // claim the chart no longer justifies, folding into this burst's chart-notes entry where the
+    // history cursor allows and pushing its own entry otherwise. Deliberately DEFERS at a mid-stack
+    // resting point, so a redo branch reached by undo survives. True when it committed anything,
+    // which is what closes both coalescing windows.
+    bool settleChartLegato();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
     void clearChartEditingState();
@@ -767,19 +776,24 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
-    // The H toggle window (the legato plan's ruling 4): while the selection and the history top
-    // are provably the previous H press's own — the same `{keys, history_position}` proof the
-    // fret entry uses — a second press REVERSES that entry exactly, tails the assist grew
-    // included, and drops it from history: a true ON/OFF toggle. Once either proof fails
-    // (selection changed, any edit, undo/redo, a seek's selection clear), the window is dead and
-    // H means the ordinary derive-or-clear law; grown tails then stay and Ctrl+Z is the revert.
-    struct ChartLegatoToggleEntry
+    // The chart-notes entry this burst pushed, and the history position holding it. Two verbs read
+    // it: the settle sweep folds its flatten into this entry (replaceTop) so the edit and the claim
+    // it broke undo together, and the H toggle window reverses it. The position IS the proof of
+    // ownership — any other push, undo, or redo moves the cursor and retires the record — which is
+    // why neither verb keeps a plan of its own to agree with this one by hand.
+    struct ChartNotesTopEntry
     {
-        std::vector<ChartNoteKey> keys{};
-        ChartNotesEditPlan applied_plan{};
+        ChartNotesEditPlan plan{};
         std::size_t history_position{};
     };
-    std::optional<ChartLegatoToggleEntry> m_chart_legato_toggle{};
+    std::optional<ChartNotesTopEntry> m_chart_notes_top{};
+
+    // The H toggle window (the legato plan's ruling 4): while the selection still matches and the
+    // record above still owns the history top, a second press REVERSES that entry exactly, tails
+    // the assist grew included — a true ON/OFF toggle rather than a do/undo pair. Once either proof
+    // fails (selection changed, any edit, undo/redo, a committing settle), the window is dead and H
+    // means the ordinary claim-or-clear law; grown tails then stay and Ctrl+Z is the revert.
+    std::optional<std::vector<ChartNoteKey>> m_chart_legato_toggle{};
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the

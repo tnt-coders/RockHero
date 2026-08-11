@@ -28,8 +28,10 @@ overlay UI.
 Every undoable domain contributes an `*_edits.h` family of small memento structs:
 `signal_chain_edits.h` (insert/remove/move/placement/display-type/state/gain),
 `chart_edits.h` (one plan-replaying note edit per gesture —
-insert/delete/move/retype/sustain/legato/attack, all seven planners funnelled through the same
-finalize step, see the plan/apply split in \ref guide_patterns),
+insert/delete/move/retype/sustain/legato/attack, all seven authoring planners funnelled through the
+same finalize step, plus the settle sweep's `planSettleLegato`, which deliberately bypasses that
+funnel because flattening a claim to a plain pick can violate no rule; see the plan/apply split in
+\ref guide_patterns),
 `tone_region_edits.h` (create/delete/resize/rename/boundary-move/reset),
 `tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
 (document replace, tone import). Capture rules that keep fidelity:
@@ -39,7 +41,11 @@ finalize step, see the plan/apply split in \ref guide_patterns),
   entry via `EditorUndoHistory::replaceTop` inside a time window instead of stacking entries.
   A toggle whose second press provably reverses its own first press (the legato toggle window)
   applies the entry's inverse and removes it via `EditorUndoHistory::dropTop`, so the pair
-  leaves no trace; both splices refuse when the top entry is the reachable clean state.
+  leaves no trace. Both splices refuse when the top entry is the reachable clean state — the file
+  holds what that entry produced, so rewriting or erasing it would make "return to clean" restore
+  content the file does not have. A verb that must still act there pushes instead: the legato
+  toggle's reversal becomes its own inverse entry (the tail still comes back, the session stays
+  correctly dirty), and the legato settle sweep pushes its flatten rather than folding it.
 - Plugin edits store the **full opaque plugin state** (`PluginInstanceState`, raw
   `getStateInformation` bytes) — granular parameter replay was rejected by decision; full-state
   restore is the fidelity guarantee.

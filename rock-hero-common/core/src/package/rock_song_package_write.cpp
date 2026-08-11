@@ -490,7 +490,8 @@ struct SongDocumentForSave
 // in-memory chart (peek-shaped loads) still requires the file on disk — a dangling reference is
 // refused, never silently dropped. Path safety is checked before any write.
 [[nodiscard]] std::expected<void, SongPackageError> writeChartDocumentForSave(
-    const std::filesystem::path& workspace_directory, const Arrangement& arrangement)
+    const std::filesystem::path& workspace_directory, const Arrangement& arrangement,
+    const TempoMap& tempo_map)
 {
     const std::string& chart_ref = arrangement.chart_ref;
     // As with tone documents, the canonical shape ("charts/" + a 36-character canonical UUID +
@@ -519,7 +520,8 @@ struct SongDocumentForSave
         return std::expected<void, SongPackageError>{};
     }
 
-    if (const auto write_result = writeChartDocument(resolved_chart_path, *arrangement.chart);
+    if (const auto write_result =
+            writeChartDocument(resolved_chart_path, *arrangement.chart, tempo_map);
         !write_result.has_value())
     {
         return std::unexpected{SongPackageError{
@@ -623,7 +625,7 @@ struct SongDocumentForSave
         if (!arrangement.chart_ref.empty())
         {
             if (const auto chart_error =
-                    writeChartDocumentForSave(workspace_directory, arrangement);
+                    writeChartDocumentForSave(workspace_directory, arrangement, song.tempo_map);
                 !chart_error.has_value())
             {
                 return std::unexpected{chart_error.error()};

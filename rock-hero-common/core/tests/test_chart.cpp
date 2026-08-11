@@ -3,9 +3,12 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <rock_hero/common/core/chart/chart_document.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <string>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -54,7 +57,9 @@ namespace
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
             .string = 3,
             .fret = 7,
-            .attack = NoteAttack::Hammer,
+            // The left-hand tap: a LOCAL claim, so it needs no predecessor and no write can settle
+            // it away — which is what makes it safe in a fixture asserted round-trip exact.
+            .attack = NoteAttack::LeftTap,
             .bend = {},
             .slides = {},
         },
@@ -144,6 +149,24 @@ namespace
             .slides = {},
             .slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 12},
         },
+        // A connection claim with the note that justifies it: half a beat apart, which is under the
+        // kept-sustain bound, so the gap alone satisfies the hold test. Written last so the pair
+        // stays round-trip exact — a claim nothing justified would leave as a plain pick.
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 3},
+            .string = 6,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 3, .offset = Fraction{1, 2}},
+            .string = 6,
+            .fret = 7,
+            .attack = NoteAttack::Legato,
+            .bend = {},
+            .slides = {},
+        },
     };
     chart.shapes = {
         ChartShape{
@@ -231,7 +254,7 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
 {
     const Chart chart = makeFullChart();
 
-    const std::string text = chartDocumentText(chart);
+    const std::string text = chartDocumentText(chart, makeTempoMap());
     const auto parsed = parseChartDocument(text);
     REQUIRE(parsed.has_value());
     CHECK(*parsed == chart);
@@ -299,9 +322,9 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
     ChartNote artificial = natural(17.0);
     artificial.fret = 5;
     CHECK(fretFor(artificial) == 5);
-    // A hammer harmonic IS the fretting hand rapping the node.
+    // A left-hand tap harmonic IS the fretting hand rapping the node.
     ChartNote hammered = natural(12.0);
-    hammered.attack = NoteAttack::Hammer;
+    hammered.attack = NoteAttack::LeftTap;
     CHECK(fretFor(hammered) == 12);
     // An ordinary note is just its fret.
     ChartNote plain = natural(0.0);
@@ -336,11 +359,11 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
         note.fret = fret;
         return note;
     };
-    const auto round_trip = [](const ChartNote& note) {
+    const auto round_trip = [&tempo_map](const ChartNote& note) {
         Chart chart;
         chart.tuning.strings = {"E2"};
         chart.notes = {note};
-        const auto parsed = parseChartDocument(chartDocumentText(chart));
+        const auto parsed = parseChartDocument(chartDocumentText(chart, tempo_map));
         REQUIRE(parsed.has_value());
         REQUIRE(parsed->notes.size() == 1);
         return parsed->notes[0];
@@ -678,14 +701,16 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         ChartTuning tuning;
         tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         tuning.capo = capo;
-        return validateChartNotes(notes, {}, tuning, tempo_map);
+        return validateChartNotes(notes, tuning, tempo_map);
     };
 
-    SECTION("a hammer or tap needs a place to strike")
+    SECTION("either tapping attack needs a place to strike")
     {
-        ChartNote hammer = make_note(1, 1, 0);
-        hammer.attack = NoteAttack::Hammer;
-        CHECK_FALSE(validate({hammer}).has_value());
+        // Both attacks that strike from nowhere are bound, and both rules read one note: an open
+        // string with nothing pressed and no node has nowhere for a finger to land.
+        ChartNote left_tap = make_note(1, 1, 0);
+        left_tap.attack = NoteAttack::LeftTap;
+        CHECK_FALSE(validate({left_tap}).has_value());
 
         ChartNote tap = make_note(1, 1, 0);
         tap.attack = NoteAttack::Tap;
@@ -695,8 +720,14 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         tap.harmonic_node = 12.0;
         CHECK(validate({tap}).has_value());
 
-        hammer.fret = 5;
-        CHECK(validate({hammer}).has_value());
+        left_tap.fret = 5;
+        CHECK(validate({left_tap}).has_value());
+
+        // A connection CLAIM is not bound by it: whether it strikes anything at all is the
+        // resolver's answer, so an open-string claim is a legal document that plays as a pick.
+        ChartNote open_claim = make_note(1, 1, 0);
+        open_claim.attack = NoteAttack::Legato;
+        CHECK(validate({open_claim}).has_value());
     }
 
     SECTION("a full mute excludes the pitch-valued payloads and keeps the positions")
@@ -722,147 +753,6 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         ChartNote muted_slide = dead;
         muted_slide.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 9}};
         CHECK(validate({muted_slide}).has_value());
-    }
-
-    SECTION("a pull-off can neither sound nor release a harmonic")
-    {
-        // Predecessors hold their tails to the margin so the hold test never interferes with
-        // what each case is about.
-        ChartNote source = make_note(1, 1, 9);
-        source.sustain = Fraction{3, 4};
-        ChartNote pull = make_note(2, 1, 5);
-        pull.attack = NoteAttack::Pull;
-        CHECK(validate({source, pull}).has_value());
-
-        ChartNote pulled_harmonic = pull;
-        pulled_harmonic.harmonic_node = 17.0;
-        CHECK_FALSE(validate({source, pulled_harmonic}).has_value());
-
-        ChartNote harmonic_source = make_note(1, 1, 0);
-        harmonic_source.harmonic_node = 12.0;
-        harmonic_source.sustain = Fraction{3, 4};
-        CHECK_FALSE(validate({harmonic_source, pull}).has_value());
-    }
-
-    SECTION("a pull-off needs a higher released fret on its string")
-    {
-        ChartNote pull = make_note(2, 1, 5);
-        pull.attack = NoteAttack::Pull;
-        CHECK_FALSE(validate({pull}).has_value());
-
-        ChartNote equal_source = make_note(1, 1, 5);
-        equal_source.sustain = Fraction{3, 4};
-        CHECK_FALSE(validate({equal_source, pull}).has_value());
-
-        // The released fret is where the finger ENDS: a 3->7 glide hands over 7, justifying a
-        // pull to 5 that the onset frets alone would refuse.
-        ChartNote gliding_source = make_note(1, 1, 3);
-        gliding_source.sustain = Fraction{3, 4};
-        gliding_source.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 7}};
-        CHECK(validate({gliding_source, pull}).has_value());
-
-        // A scrape predecessor is valid data: its released fret is the slide-out's end.
-        ChartNote scrape_source = make_note(1, 1, 12);
-        scrape_source.sustain = Fraction{3, 4};
-        scrape_source.attack = NoteAttack::PickSlide;
-        scrape_source.slide_out = SlideOut{.offset = Fraction{3, 4}, .fret = 7};
-        CHECK(validate({scrape_source, pull}).has_value());
-    }
-
-    SECTION("a pull-off needs its predecessor still held")
-    {
-        // At the kept-sustain bound a held note necessarily carries a tail, so a bare
-        // predecessor one beat back is a proven release with nothing left to pull.
-        ChartNote source = make_note(1, 1, 9);
-        ChartNote pull = make_note(2, 1, 5);
-        pull.attack = NoteAttack::Pull;
-        CHECK_FALSE(validate({source, pull}).has_value());
-
-        // A tail reaching the minimum-sustain-distance margin is the maximum representable
-        // hold, and it justifies the pull.
-        source.sustain = Fraction{3, 4};
-        CHECK(validate({source, pull}).has_value());
-
-        // Across a wider gap the tail must reach all the way, not merely exist.
-        ChartNote far_source = make_note(1, 1, 9);
-        far_source.sustain = Fraction{2};
-        ChartNote far_pull = make_note(4, 1, 5);
-        far_pull.attack = NoteAttack::Pull;
-        CHECK_FALSE(validate({far_source, far_pull}).has_value());
-        far_source.sustain = Fraction{11, 4};
-        CHECK(validate({far_source, far_pull}).has_value());
-
-        // Under the bound nothing is proven — tails that short are legitimately absent — so a
-        // bare eighth-note predecessor still releases.
-        ChartNote close_pull = make_note(1, 1, 5);
-        close_pull.position.offset = Fraction{1, 2};
-        close_pull.attack = NoteAttack::Pull;
-        CHECK(validate({make_note(1, 1, 9), close_pull}).has_value());
-    }
-
-    SECTION("a scrape's latent node is not a fret-hand harmonic")
-    {
-        // E2 forbids a node on any SAVED scrape, so a node found on one is purely the in-memory
-        // latent the attack toggle preserves. Reading it as a fretting-hand touch made the legato
-        // repair (which walks the in-memory stream) refuse to release from a scrape while
-        // validation (which walks the saved stream, node stripped) allowed it — the two
-        // disagreeing about one note, which silently downgraded a pull-off D7 ruled valid.
-        ChartNote latent_scrape = make_note(1, 1, 0);
-        latent_scrape.attack = NoteAttack::PickSlide;
-        latent_scrape.sustain = Fraction{1};
-        latent_scrape.harmonic_node = 12.0;
-        latent_scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 7};
-        CHECK_FALSE(fretHandHarmonic(latent_scrape));
-
-        // The exclusion is about the ATTACK owning the node, not about having a slide-out: the
-        // same note as an ordinary open-string harmonic is still a fret-hand harmonic.
-        ChartNote natural = make_note(1, 1, 0);
-        natural.harmonic_node = 12.0;
-        CHECK(fretHandHarmonic(natural));
-
-        // The in-memory form itself is not valid DATA — E2 rejects a scrape carrying a node, which
-        // is exactly why the editor's gate validates the saved form. What matters is that the two
-        // forms now AGREE about releasability: the saved scrape allows the pull-off (D7: it
-        // releases from the slide-out's end), and the classifier above says the same about the
-        // in-memory note the repair walks. Before the fix these two disagreed.
-        ChartNote pull = make_note(2, 1, 5);
-        pull.attack = NoteAttack::Pull;
-        CHECK_FALSE(validate({latent_scrape, pull}).has_value());
-        CHECK(validate({savedChartNote(latent_scrape), pull}).has_value());
-    }
-
-    SECTION("a hand-shape span holds its strum, so a covered member can be pulled off")
-    {
-        // The chart convention: a strum under a span is held for the span even with no sustain,
-        // because the span is what tells the player to keep the shape fretted. A pull-off from a
-        // sustainless member must therefore read as held, not as a proven release.
-        const ChartNote low = make_note(1, 1, 9);
-        const ChartNote high = make_note(1, 2, 9);
-        ChartNote pull = make_note(2, 1, 5);
-        pull.attack = NoteAttack::Pull;
-
-        ChartTuning tuning;
-        tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        const std::vector<ChartNote> notes{low, high, pull};
-        const std::vector<ChartShape> covering{ChartShape{
-            .position = GridPosition{.measure = 1, .beat = 1},
-            .sustain = Fraction{2},
-            .chord = 0,
-        }};
-
-        // Bare, the sustainless predecessor reads as released; under the span it is held.
-        CHECK_FALSE(validateChartNotes(notes, {}, tuning, tempo_map).has_value());
-        CHECK(validateChartNotes(notes, covering, tuning, tempo_map).has_value());
-
-        // A single note is not a strum, so a span does not extend it.
-        const std::vector<ChartNote> lone{low, pull};
-        CHECK_FALSE(validateChartNotes(lone, covering, tuning, tempo_map).has_value());
-
-        // A dead chug is choked, not held: an all-muted group stays unextended.
-        std::vector<ChartNote> muted = notes;
-        muted[0].mute = NoteMute::Full;
-        muted[1].mute = NoteMute::Full;
-        CHECK_FALSE(validateChartNotes(muted, covering, tuning, tempo_map).has_value());
     }
 
     SECTION("a tap harmonic cannot be tremolo picked; a picked one over a stop can")
@@ -937,6 +827,285 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         scrape.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 1}};
         scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 6};
         CHECK(validate({scrape}, 3).has_value());
+    }
+}
+
+// The relational half of the old technique matrix, in its new home: E5/E12/E19's content is no
+// longer a reason to refuse a document but a set of resolver clauses, so each former refusal is now
+// a resolution. Asked through chartResolutions rather than resolveLegato directly, because that is
+// the path every consumer takes — the same-string walk that finds the predecessor and the
+// span-extended hold table are under test with it.
+TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    const auto make_note = [](const int beat, const int string, const int fret) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = beat};
+        note.string = string;
+        note.fret = fret;
+        return note;
+    };
+    // The claim is the LAST note; everything before it is its context.
+    const auto resolve_claim = [&tempo_map](
+                                   const std::vector<ChartNote>& notes,
+                                   const std::vector<ChartShape>& shapes = {}) {
+        REQUIRE_FALSE(notes.empty());
+        const ChartResolutions resolutions = chartResolutions(notes, shapes, tempo_map);
+        REQUIRE(resolutions.legato.size() == notes.size());
+        return resolutions.legato.back();
+    };
+    const auto claim_at = [&make_note](const int beat, const int string, const int fret) {
+        ChartNote note = make_note(beat, string, fret);
+        note.attack = NoteAttack::Legato;
+        return note;
+    };
+
+    SECTION("the released fret picks the direction, and equal frets justify nothing")
+    {
+        // Predecessors hold their tails to the margin so the hold test never interferes with what
+        // each case is about.
+        ChartNote source = make_note(1, 1, 9);
+        source.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
+
+        ChartNote lower_source = make_note(1, 1, 3);
+        lower_source.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({lower_source, claim_at(2, 1, 5)}) == LegatoMotion::Hammer);
+
+        ChartNote equal_source = make_note(1, 1, 5);
+        equal_source.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({equal_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+
+        // A claim with nothing before it on its string resolves to nothing at all.
+        CHECK(resolve_claim({claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+
+        // Same-STRING: a predecessor on another string is not a predecessor.
+        ChartNote other_string = make_note(1, 2, 9);
+        other_string.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({other_string, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+    }
+
+    SECTION("the released fret is where the finger ENDS")
+    {
+        // A 3->7 glide hands over 7, justifying a pull to 5 the onset frets alone would refuse.
+        ChartNote gliding_source = make_note(1, 1, 3);
+        gliding_source.sustain = Fraction{3, 4};
+        gliding_source.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 7}};
+        CHECK(resolve_claim({gliding_source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
+
+        // A scrape hands over its slide-out's end: pulling from a gesture is authorable.
+        ChartNote scrape_source = make_note(1, 1, 12);
+        scrape_source.sustain = Fraction{3, 4};
+        scrape_source.attack = NoteAttack::PickSlide;
+        scrape_source.slide_out = SlideOut{.offset = Fraction{3, 4}, .fret = 7};
+        CHECK(resolve_claim({scrape_source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
+    }
+
+    SECTION("a pull-off can neither sound nor release a harmonic")
+    {
+        ChartNote source = make_note(1, 1, 9);
+        source.sustain = Fraction{3, 4};
+
+        // A pull-off releases onto a plain stopped pitch ringing the full speaking length, so a
+        // claim carrying a node has no pull to resolve to.
+        ChartNote harmonic_claim = claim_at(2, 1, 5);
+        harmonic_claim.harmonic_node = 17.0;
+        CHECK(resolve_claim({source, harmonic_claim}) == LegatoMotion::Unjustified);
+
+        // A fret-hand harmonic predecessor is a touch, not a press: it holds nothing to hand over.
+        ChartNote harmonic_source = make_note(1, 1, 0);
+        harmonic_source.harmonic_node = 12.0;
+        harmonic_source.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({harmonic_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+    }
+
+    SECTION("a claim needs its predecessor still held")
+    {
+        // At the kept-sustain bound a held note necessarily carries a tail, so a bare predecessor
+        // one beat back is a proven release with nothing left to connect to.
+        ChartNote source = make_note(1, 1, 9);
+        CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+
+        // A tail reaching the minimum-sustain-distance margin is the maximum representable hold,
+        // and it justifies the claim.
+        source.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
+
+        // Across a wider gap the tail must reach all the way, not merely exist.
+        ChartNote far_source = make_note(1, 1, 9);
+        far_source.sustain = Fraction{2};
+        CHECK(resolve_claim({far_source, claim_at(4, 1, 5)}) == LegatoMotion::Unjustified);
+        far_source.sustain = Fraction{11, 4};
+        CHECK(resolve_claim({far_source, claim_at(4, 1, 5)}) == LegatoMotion::Pull);
+
+        // Under the bound nothing is proven — tails that short are legitimately absent — so a bare
+        // eighth-note predecessor still connects.
+        ChartNote close_claim = claim_at(1, 1, 5);
+        close_claim.position.offset = Fraction{1, 2};
+        CHECK(resolve_claim({make_note(1, 1, 9), close_claim}) == LegatoMotion::Pull);
+    }
+
+    SECTION("a hand-shape span holds its strum, so a covered member can be pulled off")
+    {
+        // The chart convention: a strum under a span is held for the span even with no sustain,
+        // because the span is what tells the player to keep the shape fretted. A claim against a
+        // sustainless member must therefore read as held, not as a proven release.
+        const ChartNote low = make_note(1, 1, 9);
+        const ChartNote high = make_note(1, 2, 9);
+        const ChartNote claim = claim_at(2, 1, 5);
+        const std::vector<ChartShape> covering{ChartShape{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .sustain = Fraction{2},
+            .chord = 0,
+        }};
+
+        CHECK(resolve_claim({low, high, claim}) == LegatoMotion::Unjustified);
+        CHECK(resolve_claim({low, high, claim}, covering) == LegatoMotion::Pull);
+
+        // A single note is not a strum, so a span does not extend it.
+        CHECK(resolve_claim({low, claim}, covering) == LegatoMotion::Unjustified);
+
+        // A dead chug is choked, not held: an all-muted group stays unextended.
+        ChartNote muted_low = low;
+        ChartNote muted_high = high;
+        muted_low.mute = NoteMute::Full;
+        muted_high.mute = NoteMute::Full;
+        CHECK(resolve_claim({muted_low, muted_high, claim}, covering) == LegatoMotion::Unjustified);
+    }
+
+    SECTION("resolutions judge the SAVED form, so a scrape's latent node changes nothing")
+    {
+        // E2 forbids a node on any saved scrape, so a node found on one is purely the in-memory
+        // latent the attack toggle preserves. Reading it as a fretting-hand touch made the release
+        // question answerable two ways for one note — the in-memory stream refusing what the saved
+        // stream allowed — which silently downgraded a pull D7 rules valid.
+        ChartNote latent_scrape = make_note(1, 1, 0);
+        latent_scrape.attack = NoteAttack::PickSlide;
+        latent_scrape.sustain = Fraction{1};
+        latent_scrape.harmonic_node = 12.0;
+        latent_scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 7};
+        CHECK_FALSE(fretHandHarmonic(latent_scrape));
+
+        // The exclusion is about the ATTACK owning the node, not about having a slide-out: the same
+        // note as an ordinary open-string harmonic is still a fret-hand harmonic.
+        ChartNote natural = make_note(1, 1, 0);
+        natural.harmonic_node = 12.0;
+        CHECK(fretHandHarmonic(natural));
+
+        // Both forms now answer the same way, which is the whole point of resolving the saved
+        // stream: the latent node is stripped before the walk reads the predecessor.
+        CHECK(resolve_claim({latent_scrape, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
+        CHECK(
+            resolve_claim({savedChartNote(latent_scrape), claim_at(2, 1, 5)}) ==
+            LegatoMotion::Pull);
+    }
+
+    SECTION("a left-hand tap resolves to the hammer motion with no predecessor at all")
+    {
+        ChartNote left_tap = make_note(2, 1, 5);
+        left_tap.attack = NoteAttack::LeftTap;
+        CHECK(resolve_claim({left_tap}) == LegatoMotion::Hammer);
+
+        // Not even a predecessor that would disprove a claim can withdraw it: the statement is
+        // local. Here an equal released fret justifies nothing, and the tap resolves anyway.
+        ChartNote equal_source = make_note(1, 1, 5);
+        equal_source.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({equal_source, left_tap}) == LegatoMotion::Hammer);
+    }
+
+    SECTION("a plain pick resolves to nothing, but the resolver still answers the hypothetical")
+    {
+        // The per-chart table is what display reads, so a note that makes no claim must carry no
+        // motion however justifiable a claim there would be — otherwise a plain pick after a higher
+        // note would draw a pull-off mark.
+        ChartNote source = make_note(1, 1, 9);
+        source.sustain = Fraction{3, 4};
+        const ChartNote plain = make_note(2, 1, 5);
+        CHECK(resolve_claim({source, plain}) == LegatoMotion::Unjustified);
+
+        // Asked directly, the resolver answers what a claim WOULD resolve to — the question the `H`
+        // toggle's plan is built from, and why it deliberately ignores the note's own attack.
+        CHECK(resolveLegato(plain, &source, source.sustain, tempo_map) == LegatoMotion::Pull);
+    }
+}
+
+// The two places an unjustifiable claim is flattened: the settle sweep every commit point runs, and
+// the document writer, which runs it so no file can carry a claim the chart does not justify.
+TEST_CASE("Chart settles unjustifiable legato claims", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    const auto note_at = [](const int beat, const int string, const int fret) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = beat};
+        note.string = string;
+        note.fret = fret;
+        return note;
+    };
+    // String 1 carries a justified claim (an eighth-note gap is under the kept-sustain bound, so
+    // the hold test passes on the gap alone); string 2 carries one with nothing to connect to; and
+    // a left-hand tap sits on string 3 with no predecessor of its own.
+    ChartNote justified = note_at(1, 1, 7);
+    justified.position.offset = Fraction{1, 2};
+    justified.attack = NoteAttack::Legato;
+    ChartNote unjustifiable = note_at(2, 2, 5);
+    unjustifiable.attack = NoteAttack::Legato;
+    ChartNote left_tap = note_at(3, 3, 9);
+    left_tap.attack = NoteAttack::LeftTap;
+    chart.notes = {note_at(1, 1, 5), justified, unjustifiable, left_tap};
+
+    // Every chart the sweep touches is legal data before and after: the flatten is a resolution,
+    // not a repair of something invalid.
+    CHECK(validateChartRules(chart, tempo_map).has_value());
+
+    SECTION("the sweep flattens only what nothing justifies, and says what it changed")
+    {
+        std::vector<ChartNote> notes = chart.notes;
+        const std::vector<std::string> conversions =
+            sweepUnjustifiedLegato(notes, chart.shapes, tempo_map);
+        REQUIRE(conversions.size() == 1);
+        // The note names the claim it flattened, so a load or an import can report which one.
+        CHECK(conversions.front().find("1:2") != std::string::npos);
+        CHECK(conversions.front().find("string 2") != std::string::npos);
+        CHECK(notes[1].attack == NoteAttack::Legato);
+        CHECK(notes[2].attack == NoteAttack::Pick);
+        CHECK(notes[3].attack == NoteAttack::LeftTap);
+
+        // Stateless and idempotent: a second pass over a settled stream finds nothing.
+        CHECK(sweepUnjustifiedLegato(notes, chart.shapes, tempo_map).empty());
+    }
+
+    SECTION("the writer serializes the resolved form, so no file carries a broken claim")
+    {
+        const auto written = parseChartDocument(chartDocumentText(chart, tempo_map));
+        REQUIRE(written.has_value());
+        REQUIRE(written->notes.size() == chart.notes.size());
+        CHECK(written->notes[1].attack == NoteAttack::Legato);
+        CHECK(written->notes[2].attack == NoteAttack::Pick);
+        CHECK(written->notes[3].attack == NoteAttack::LeftTap);
+
+        // Memory is richer than the file: the claim itself is untouched, so a later edit that
+        // justifies it brings the connection back with no re-authoring.
+        CHECK(chart.notes[2].attack == NoteAttack::Legato);
+    }
+
+    SECTION("the old direction tokens are unknown, and the new ones round-trip")
+    {
+        const auto parse_attack = [](const std::string& token) {
+            return parseChartDocument(
+                R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+                R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "attack": ")" +
+                token + R"(" } ] })");
+        };
+        CHECK_FALSE(parse_attack("hammer").has_value());
+        CHECK_FALSE(parse_attack("pull").has_value());
+        REQUIRE(parse_attack("legato").has_value());
+        REQUIRE(parse_attack("leftTap").has_value());
+        CHECK(parse_attack("legato")->notes[0].attack == NoteAttack::Legato);
+        CHECK(parse_attack("leftTap")->notes[0].attack == NoteAttack::LeftTap);
     }
 }
 
@@ -1042,7 +1211,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     scrape.mute = NoteMute::Full;
     scrape.accent = true;
 
-    const auto parsed = parseChartDocument(chartDocumentText(chart));
+    const auto parsed = parseChartDocument(chartDocumentText(chart, makeTempoMap()));
     REQUIRE(parsed.has_value());
     const ChartNote& saved = parsed->notes[7];
     CHECK(saved.attack == NoteAttack::PickSlide);

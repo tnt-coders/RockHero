@@ -1,10 +1,11 @@
 #include "chart/chart_edits.h"
 
-#include "chart/legato_normalize.h"
 #include "chart/pick_slide_defaults.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/session/session.h>
@@ -84,36 +85,28 @@ void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_o
 // True when a note's harmonic node cannot follow it into `target`, so the verb changing the attack
 // must send the node away with it.
 //
-// Three facts decide it, and nothing else. A pull-off releases onto a plain stopped pitch and
-// sounds no harmonic at any fret, so a node can never survive one. A TAP's node is a struck
-// contact point, and a strike is a strike whichever hand delivers it, so re-typing a tap carries
-// the node into any attack that can host it: Ctrl+H re-handing a tap harmonic lands on the
-// hammer-form tap harmonic E13 names — the one form only the force verb can author, since
-// derivation can never justify a fret-0 hammer — and the validation gate below still refuses a
-// strike point past the neck ceiling. (The reverse re-hand, hammer-form back to Tap, still drops
-// the node under the ownership test; no live verb sets Tap today, and truing that direction is the
-// note-view unification's business, not this verb's.) Otherwise the node survives exactly while
-// the same HAND still owns it: the stored number means a place on the neck under a fretting touch
-// and a place the picking hand damps otherwise, so a change that flips the owner silently
-// re-reads it as a different technique. On a stopped note nothing flips — an artificial harmonic's
-// fretting hand is on the stop and the picking hand on the node under every attack — which is why a
-// hammer-on onto a stopped harmonic keeps it and an open-string pinch's bridge-side graze, which is
-// not a strikeable place at all, strands its node and the E4 gate then refuses the form.
+// Two facts decide it, and nothing else. A TAP's node is a struck contact point, and a strike is a
+// strike whichever hand delivers it, so re-typing a tap carries the node into any attack that can
+// host it: Ctrl+H re-handing a tap harmonic lands on the left-hand-tap harmonic E13 names, and the
+// validation gate below still refuses a strike point past the neck ceiling. (The reverse re-hand,
+// left-hand tap back to Tap, still drops the node under the ownership test; no live verb sets Tap
+// today, and truing that direction is the note-view unification's business, not this verb's.)
+// Otherwise the node survives exactly while the same HAND still owns it: the stored number means a
+// place on the neck under a fretting touch and a place the picking hand damps otherwise, so a
+// change that flips the owner silently re-reads it as a different technique. On a stopped note
+// nothing flips — an artificial harmonic's fretting hand is on the stop and the picking hand on
+// the node under every attack — while an open-string pinch's bridge-side graze, which is not a
+// strikeable place at all, strands its node and the E4 gate then refuses the form.
 //
-// Both attack verbs ask this. They used to answer it separately and disagreed: for one pinch at a
-// real stop becoming a hammer-on, the legato verb kept the node (correctly, as the tapped-harmonic
-// gesture) while the attack verb dropped it, so two keystrokes specified as the same conversion
-// would have produced two different notes.
+// The connection verb no longer asks: a legato claim stores no direction, so it can never demand a
+// node leave. That is the shape difference the stored-direction model paid for with a rule the two
+// verbs had to agree on by hand — and disagreed on.
 [[nodiscard]] bool nodeLeavesWithAttack(
     const common::core::ChartNote& note, const common::core::NoteAttack target)
 {
     if (!note.harmonic_node.has_value())
     {
         return false;
-    }
-    if (target == common::core::NoteAttack::Pull)
-    {
-        return true;
     }
     if (note.attack == common::core::NoteAttack::Tap)
     {
@@ -244,24 +237,42 @@ void normalizeSustainOverlaps(
 }
 
 // Finalizes a candidate stream: restores (position, string) order, applies the 40-Q2-B overlap
-// normalization and the legato repair, gates the result through the whole technique matrix, and
-// diffs against the current stream. The gate is what makes authoring an invalid chart impossible
-// by construction — a plan whose candidate the document reader would reject refuses here, for
-// every present and future verb, with no per-verb guard to forget. It validates the SAVED form,
-// because a scrape's latent overrides are legal in memory and stripped by the writer.
+// normalization and the intra-note flatten, gates the result through the whole technique matrix,
+// and diffs against the current stream. The gate is what makes authoring an invalid chart
+// impossible by construction — a plan whose candidate the document reader would reject refuses
+// here, for every present and future verb, with no per-verb guard to forget. It validates the SAVED
+// form, because a scrape's latent overrides are legal in memory and stripped by the writer.
 [[nodiscard]] std::optional<ChartNotesEditPlan> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, keyLess);
     normalizeSustainOverlaps(candidate, tempo_map);
-    // The repair hands back the saved form it had to build to judge against, which is exactly what
-    // the gate validates — deriving it again here was a second deep copy of every note per
-    // keystroke.
-    const std::vector<common::core::ChartNote> saved_form =
-        normalizeChartLegato(candidate, chart.shapes, tempo_map);
-    if (!common::core::validateChartNotes(saved_form, chart.shapes, chart.tuning, tempo_map)
-             .has_value())
+    // The in-plan flatten, and the only one: an attack that STRIKES from nowhere needs somewhere to
+    // land (E4), and an edit to a note's own fret can strand it — retyping a tap or a left-hand tap
+    // down to the open string leaves nothing to strike. Flattening rides the entry that stranded
+    // it, because the truth it repairs is the note's OWN: refusing the plan instead would make a
+    // fret edit fail for a reason the user never asked about. Relational truths deliberately do not
+    // repair here (see planSettleLegato): mid-burst a claim the chart cannot justify simply plays
+    // as the pick it sounds like, and the burst stays one undo step. Sweeping the whole candidate
+    // needs no record of which notes the plan touched, because a note the plan left alone already
+    // passed this gate.
+    for (common::core::ChartNote& note : candidate)
+    {
+        if (common::core::nothingToStrike(note))
+        {
+            note.attack = common::core::NoteAttack::Pick;
+        }
+    }
+    // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
+    // by the writer, so validating the in-memory values would refuse charts the document accepts.
+    std::vector<common::core::ChartNote> saved_form;
+    saved_form.reserve(candidate.size());
+    for (const common::core::ChartNote& note : candidate)
+    {
+        saved_form.push_back(common::core::savedChartNote(note));
+    }
+    if (!common::core::validateChartNotes(saved_form, chart.tuning, tempo_map).has_value())
     {
         return std::nullopt;
     }
@@ -500,37 +511,33 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         beat_delta.numerator > 0 ? "Grow Sustain" : "Shrink Sustain");
 }
 
-// Derives each selected note's legato direction from the previous note on its own string. The
-// chart's notes are sorted by (position, string), so the note to come from is simply the last
-// earlier entry sharing the string — nothing on that string can sit between them.
+// Claims a connection for every selected note the resolver justifies one for. The chart's notes
+// are sorted by (position, string), so the note to connect from is simply the last earlier entry
+// sharing the string — nothing on that string can sit between them.
 //
-// Deliberately unbounded in time: a hammer-on from a note eight bars back is musically odd, but the
-// user asserting legato is the authority on whether the notes connect, and the editor's job is only
-// to record which direction that connection runs. Refusing on distance would be second-guessing the
-// author; refusing on an absent or equal fret is refusing to invent data that is not there.
-std::optional<ChartNotesEditPlan> planSetLegato(
+// Deliberately unbounded in time: a hammer-on from a note eight bars back is musically odd, but a
+// predecessor still holding is a predecessor, and the author asserting the connection is the
+// authority on whether the notes connect. Refusing on distance would be second-guessing them.
+ChartLegatoPlan planSetLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, const std::string_view label)
 {
+    // Counted by reason so the caller can say WHY an all-skipped press did nothing; index 0 (None)
+    // stays zero and makes the dominant-reason scan below a plain maximum.
+    std::array<int, 5> skips{};
     if (keys.empty())
     {
-        return std::nullopt;
+        return ChartLegatoPlan{.plan = std::nullopt, .skipped = 0, .reason = ChartLegatoSkip::None};
     }
 
+    // Resolutions of the ORIGINAL stream, in the SAVED form the gate validates: the original so
+    // that claiming one note's connection cannot change what the next note is asked about, and the
+    // saved form because a pick slide's latent mute can make an onset group read as all-muted
+    // (choked, no span extension) in memory where the saved chart reads it as held — which would
+    // have the verb deny a connection the gate, the sweep, and both surfaces all agree exists.
+    const common::core::ChartResolutions resolutions =
+        common::core::chartResolutions(chart.notes, chart.shapes, tempo_map);
     std::vector<common::core::ChartNote> candidate = chart.notes;
-    // Held lengths for the hold test, span-extended where the spans imply a held shape, judged in
-    // the SAVED form — the form the gate validates. A pick slide's latent mute is the difference
-    // that matters: in memory it can make an onset group read as all-muted (choked, no extension)
-    // where the saved chart reads it as held, so the verb would deny a connection the gate, the
-    // repair and the 3D preview all agree exists.
-    std::vector<common::core::ChartNote> saved_notes;
-    saved_notes.reserve(chart.notes.size());
-    for (const common::core::ChartNote& note : chart.notes)
-    {
-        saved_notes.push_back(common::core::savedChartNote(note));
-    }
-    const std::vector<common::core::Fraction> effective_sustains =
-        common::core::chartEffectiveSustains(saved_notes, chart.shapes, tempo_map);
     bool changed = false;
     for (std::size_t index = 0; index < candidate.size(); ++index)
     {
@@ -539,111 +546,127 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         {
             continue;
         }
-        // The previous note on this string, read from the saved form of the ORIGINAL stream: the
-        // original so that setting one note's attack cannot change what the next one derives from,
-        // and the saved form so the verb judges the same values the gate will.
-        const common::core::ChartNote* previous = nullptr;
-        std::size_t previous_index = 0;
+        // Picking-hand riders (tap, pinch, scrape) skip in both directions: their onset is already
+        // fully described, so a connection claim would say nothing about it.
+        if (!common::core::legatoClaimable(note.attack))
+        {
+            ++skips.at(static_cast<std::size_t>(ChartLegatoSkip::PickingHandOnset));
+            continue;
+        }
+        const common::core::ChartNote* predecessor = nullptr;
+        std::size_t predecessor_index = 0;
         for (std::size_t behind = index; behind > 0; --behind)
         {
-            const common::core::ChartNote& earlier = saved_notes[behind - 1];
-            if (earlier.string == note.string)
+            if (resolutions.saved_notes[behind - 1].string == note.string)
             {
-                previous = &earlier;
-                previous_index = behind - 1;
+                predecessor = &resolutions.saved_notes[behind - 1];
+                predecessor_index = behind - 1;
                 break;
             }
         }
-        // Option C: the verb records only what the predecessor justifies, which
-        // `derivedLegatoAttack` is the one authority for — including that the judged fret is the
-        // RELEASED one (a glide hands over its last waypoint), that the predecessor must still be
-        // holdable at this onset, and that equal frets justify nothing. Past the kept-sustain bound
-        // a disconnected tail is a proven release, and dragging the tail to reach the note is how
-        // legato across such a gap is authored.
-        //
-        // The one policy the verb adds is refusing to derive ACROSS a scrape: deriving onto a
-        // gesture is a guess, while accepting a pull an author already wrote from one is not, so
-        // the repair keeps such a pull standing and this never invents one. A scrape's pull stays
-        // authorable by ordering the edits.
-        if (previous != nullptr && previous->attack == common::core::NoteAttack::PickSlide)
-        {
-            continue;
-        }
-        // A fret-hand harmonic never converts here: on an open string the NODE is the note's
-        // pitch, so sending it away would silently rewrite the music rather than record a
-        // direction. A stopped harmonic is different — the stop still names the pitch — which is
-        // why the conversion below is willing to drop that node.
-        if (common::core::fretHandHarmonic(note))
-        {
-            continue;
-        }
-        // Asked of the note the verb intends to WRITE rather than the one on the page. A harmonic's
-        // node vetoes a pull-off, and the verb is willing to send a picking-hand node away for the
-        // conversion — so asking with it still attached would refuse the very edit it would have
-        // dropped the node for, which is how pressing H on a stopped harmonic came to do nothing.
-        common::core::ChartNote asked = note;
-        asked.harmonic_node.reset();
-        common::core::NoteAttack derived = common::core::derivedLegatoAttack(
+        // The hypothetical the press asks about: this note AS A CLAIM. The claim attack has to be
+        // in place because the resolver answers a `LeftTap` locally — it reports the hammer motion
+        // for a tap no predecessor could justify, and asking in that form would write a claim the
+        // chart cannot keep. Everything else the resolver reads is the note's own stored data, so
+        // no rule it applies is restated here: a fret-hand harmonic, for instance, skips itself,
+        // because its node vetoes the pull clause and its open string leaves nothing to hammer on.
+        common::core::ChartNote asked = resolutions.saved_notes[index];
+        asked.attack = common::core::NoteAttack::Legato;
+        common::core::LegatoMotion resolved = common::core::resolveLegato(
             asked,
-            previous,
-            previous == nullptr ? common::core::Fraction{} : effective_sustains[previous_index],
+            predecessor,
+            predecessor == nullptr ? common::core::Fraction{}
+                                   : resolutions.effective_sustains[predecessor_index],
             tempo_map);
-        // The D14 assist: when the HOLD TEST is the only blocker — the frets would justify a
-        // direction if the predecessor were still held — the verb grows the predecessor's tail
-        // to the margin point and sets the derived legato in the same plan, so pressing H on a
-        // note across the bound authors the connection instead of demanding the drag first (the
-        // tail IS the held-ness datum; the verb writes it rather than requiring it). The re-ask
-        // under a trivially reaching hold is the only-blocker test itself: an equal fret, a
-        // missing predecessor, or a fret-hand-harmonic predecessor still refuses. Growth is
-        // pre-checked against the shared growth limit — the assist never authors what a manual
-        // drag could not — and a blocked note is skipped whole rather than partially extended.
-        if (derived == common::core::NoteAttack::Pick && previous != nullptr)
+        // The D14 assist: when the HOLD is the only thing missing — the claim would resolve if the
+        // predecessor were still held — the verb grows that tail to the margin point in the same
+        // plan, so pressing H across the bound authors the connection instead of demanding the drag
+        // first (the tail IS the held-ness datum; the verb writes it rather than requiring it). The
+        // re-ask under a trivially reaching hold IS the only-blocker test: an equal fret, a missing
+        // predecessor, or a fret-hand-harmonic predecessor still refuses. Growth is pre-checked
+        // against the shared growth limit, so the assist can never author what a manual drag could
+        // not reach, and a blocked note is skipped whole rather than partially extended.
+        bool hold_was_the_only_blocker = false;
+        if (resolved == common::core::LegatoMotion::Unjustified && predecessor != nullptr)
         {
             const common::core::Fraction distance =
-                common::core::beatDistance(tempo_map, previous->position, note.position);
-            const common::core::NoteAttack if_held =
-                common::core::derivedLegatoAttack(asked, previous, distance, tempo_map);
-            if (if_held != common::core::NoteAttack::Pick && note.attack != if_held)
+                common::core::beatDistance(tempo_map, predecessor->position, note.position);
+            const common::core::LegatoMotion if_held =
+                common::core::resolveLegato(asked, predecessor, distance, tempo_map);
+            hold_was_the_only_blocker = if_held != common::core::LegatoMotion::Unjustified;
+            // A gesture carrier's tail is its authored window, not slack to spend: reshaping a
+            // scrape's travel or a trail-off's exit to buy a connection would rewrite the gesture.
+            // The connection itself stays legal — the resolver reads the RELEASED fret, so a pull
+            // off a scrape resolves — it just has to be authored by dragging that tail.
+            const bool gesture_carrier =
+                predecessor->attack == common::core::NoteAttack::PickSlide ||
+                predecessor->slide_out.has_value();
+            if (hold_was_the_only_blocker && !gesture_carrier)
             {
                 const common::core::TimeSignatureChange signature =
-                    tempo_map.timeSignatureAt(previous->position.measure);
+                    tempo_map.timeSignatureAt(predecessor->position.measure);
                 const common::core::Fraction required =
                     distance - common::core::minimumSustainDistanceBeats(signature.denominator);
                 const std::optional<common::core::Fraction> limit =
-                    sustainGrowthLimit(chart, tempo_map, *previous);
+                    sustainGrowthLimit(chart, tempo_map, *predecessor);
                 if (required.numerator > 0 && !(limit.has_value() && *limit < required))
                 {
-                    candidate[previous_index].sustain = required;
-                    clipPayloadsToSustain(candidate[previous_index]);
-                    derived = if_held;
+                    candidate[predecessor_index].sustain = required;
+                    clipPayloadsToSustain(candidate[predecessor_index]);
+                    resolved = if_held;
+                    changed = true;
                 }
             }
         }
-        if (derived == common::core::NoteAttack::Pick || note.attack == derived)
+        if (resolved == common::core::LegatoMotion::Unjustified)
         {
+            ++skips.at(
+                static_cast<std::size_t>(
+                    predecessor == nullptr      ? ChartLegatoSkip::NoPredecessor
+                    : hold_was_the_only_blocker ? ChartLegatoSkip::PredecessorReleased
+                                                : ChartLegatoSkip::NoConnection));
             continue;
         }
-        const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
-        const bool node_leaves = nodeLeavesWithAttack(note, derived);
-        note.attack = derived;
-        if (was_scrape)
+        // Which motion it resolved to is not recorded — that is the whole point of the model. A
+        // note already carrying the claim is left alone, and counts as neither a change nor a skip.
+        if (note.attack != common::core::NoteAttack::Legato)
         {
-            // A scrape's path was gesture geometry; as a pitched glide or an ordinary trail-off
-            // it would be a fiction, so it leaves with the attack exactly as in planSetAttack.
-            note.slides.clear();
-            note.slide_out.reset();
+            note.attack = common::core::NoteAttack::Legato;
+            changed = true;
         }
-        if (node_leaves)
-        {
-            note.harmonic_node.reset();
-        }
-        changed = true;
     }
-    if (!changed)
+
+    ChartLegatoPlan outcome{.plan = std::nullopt, .skipped = 0, .reason = ChartLegatoSkip::None};
+    for (std::size_t reason = 1; reason < skips.size(); ++reason)
+    {
+        outcome.skipped += skips.at(reason);
+        if (skips.at(reason) > skips.at(static_cast<std::size_t>(outcome.reason)))
+        {
+            outcome.reason = static_cast<ChartLegatoSkip>(reason);
+        }
+    }
+    if (changed)
+    {
+        outcome.plan = finalizePlan(chart, tempo_map, std::move(candidate), label);
+    }
+    return outcome;
+}
+
+std::optional<ChartNotesEditPlan> planSettleLegato(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<common::core::ChartNote>& base, const std::string_view label)
+{
+    std::vector<common::core::ChartNote> settled = chart.notes;
+    if (common::core::sweepUnjustifiedLegato(settled, chart.shapes, tempo_map).empty())
     {
         return std::nullopt;
     }
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+    // Deliberately not through finalizePlan: the sweep only ever turns a `Legato` into a `Pick`, so
+    // order, the 40-Q2-B overlap bound, and every intra-note rule are exactly as the stream already
+    // satisfied them — a plain pick demands nothing. Passing through the finalize would also diff
+    // against the current stream rather than `base`, which is the one thing this planner needs to
+    // control.
+    return diffNotes(base, settled, label);
 }
 
 std::optional<ChartNotesEditPlan> planSetAttack(

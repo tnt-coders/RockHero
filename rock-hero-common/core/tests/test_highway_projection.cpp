@@ -239,8 +239,9 @@ namespace
             .bend = {},
             .slides = {},
         },
-        // Fret 5 picked, hammered up to 7, pulled back to 5: the legato pair plus the note it
-        // releases from, which is what makes the pull-off a legal chart.
+        // Fret 5 picked, then two connection claims: the first resolves upward to a hammer-on, the
+        // second back down to a pull-off. The stored claim is identical in both — the direction is
+        // the resolver's answer, which is exactly what the projection has to carry.
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 4,
@@ -254,7 +255,7 @@ namespace
             .string = 4,
             .fret = 7,
             .sustain = Fraction{1},
-            .attack = NoteAttack::Hammer,
+            .attack = NoteAttack::Legato,
             .bend = {},
             .slides = {},
         },
@@ -263,7 +264,7 @@ namespace
             .string = 4,
             .fret = 5,
             .sustain = Fraction{1},
-            .attack = NoteAttack::Pull,
+            .attack = NoteAttack::Legato,
             .bend = {},
             .slides = {},
         },
@@ -402,6 +403,8 @@ TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core
 
     REQUIRE(flat.notes.size() == chart.notes.size());
     REQUIRE(board.notes.size() == chart.notes.size());
+    REQUIRE(flat.display_hold_ends.size() == flat.notes.size());
+    REQUIRE(board.display_hold_ends.size() == board.notes.size());
 
     // Non-vacuity: the field loop below would pass just as happily comparing defaults, so every
     // technique the two view types share has to be present in what was actually projected.
@@ -415,9 +418,13 @@ TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core
     CHECK(any_note([](const TabNoteView& note) { return note.harmonic_node.has_value(); }));
     CHECK(any_note([](const TabNoteView& note) { return !note.bend.empty(); }));
     CHECK(any_note([](const TabNoteView& note) { return !note.slides.empty(); }));
-    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::Hammer; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::Pull; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::Legato; }));
     CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::PickSlide; }));
+    // Both resolutions are present, which is what makes the per-note comparison below meaningful:
+    // one stored claim resolves up and the other down, so a projection that dropped the resolution
+    // could not pass.
+    CHECK(any_note([](const TabNoteView& note) { return note.legato == LegatoMotion::Hammer; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.legato == LegatoMotion::Pull; }));
 
     for (std::size_t index = 0; index < flat.notes.size(); ++index)
     {
@@ -436,7 +443,15 @@ TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core
         CHECK(flat_note.string == board_note.string);
         CHECK(flat_note.fret == board_note.fret);
         CHECK(flat_note.attack == board_note.attack);
+        // The resolved motion is a READ of the chart, not per-surface data: a claim resolving to a
+        // hammer-on on the board is a hammer-on in the lane, or the two surfaces would draw
+        // different music from one file.
+        CHECK(flat_note.legato == board_note.legato);
         CHECK(flat_note.mute == board_note.mute);
+        // The span-implied hold, resolved from the same authority on both sides (W9-A).
+        CHECK_THAT(
+            flat.display_hold_ends[index],
+            Catch::Matchers::WithinULP(board.display_hold_ends[index], 0));
         // Compared as optionals, exactly as both view types' own operator== compares this field.
         CHECK(flat_note.harmonic_node == board_note.harmonic_node);
         CHECK(flat_note.vibrato == board_note.vibrato);
@@ -890,6 +905,20 @@ TEST_CASE("Highway display hold ends resolve the effective sustains", "[core][hi
     CHECK(state.display_hold_ends[0] == Catch::Approx(4.0));
     CHECK(state.display_hold_ends[1] == Catch::Approx(4.0));
 
+    // W9-A: the 2D lane resolves the same rule from the same authority, so one chart's tails end at
+    // the same second on both surfaces. The lane drew bare heads with zero-width tails here until
+    // the two were unified.
+    const TabViewState lane = makeTabViewState(arrangement, map);
+    REQUIRE(lane.display_hold_ends.size() == lane.notes.size());
+    REQUIRE(lane.notes.size() == state.notes.size());
+    for (std::size_t index = 0; index < lane.notes.size(); ++index)
+    {
+        CAPTURE(index);
+        CHECK_THAT(
+            lane.display_hold_ends[index],
+            Catch::Matchers::WithinULP(state.display_hold_ends[index], 0));
+    }
+
     // Which is what keeps a span-held strum inside the visible range for as long as it is drawn.
     const std::vector<double> prefix_max = makeSustainPrefixMax(state.display_hold_ends);
     REQUIRE(prefix_max.size() == 2);
@@ -924,7 +953,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     add_note(3.0, 15, NoteAttack::Tap);
     add_note(3.0, 12, NoteAttack::Tap);
     add_note(3.000000000001, 17, NoteAttack::Tap);
-    add_note(4.0, 9, NoteAttack::Hammer); // Left-hand tap imports as Hammer: no entry.
+    add_note(4.0, 9, NoteAttack::LeftTap); // The FRETTING hand's tap: no entry.
 
     const std::vector<HighwayTapOnsetView> onsets =
         makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));

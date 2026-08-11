@@ -393,7 +393,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         // Deliberately chord-less: the signed keymap never assigned this verb one.
         {.id = EditorCommandId::ChartPickSlideToggle, .value = 0x1709, .chords = {}},
         {.id = EditorCommandId::ChartLegatoToggle, .value = 0x170A, .chords = {chord('h')}},
-        {.id = EditorCommandId::ChartForceHammer, .value = 0x170B, .chords = {chord('h', command)}},
+        {.id = EditorCommandId::ChartLeftTap, .value = 0x170B, .chords = {chord('h', command)}},
         {.id = EditorCommandId::TypeDigit0,
          .value = 0x1801,
          .chords = {chord('0'), chord(juce::KeyPress::numberPad0)}},

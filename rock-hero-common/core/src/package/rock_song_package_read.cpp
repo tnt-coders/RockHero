@@ -12,11 +12,13 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <juce_core/juce_core.h>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_document.h>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -1022,7 +1024,7 @@ std::expected<void, ArchiveError> extractArchiveToWorkspace(
 }
 
 // Reads song.json and resolves Rock song package-relative asset references into core data.
-std::expected<Song, SongPackageError> readRockSongPackageDirectory(
+std::expected<SongPackageRead, SongPackageError> readRockSongPackageDirectory(
     const std::filesystem::path& directory)
 {
     std::error_code error;
@@ -1100,11 +1102,34 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
     song.sections = std::move(*sections);
     song.arrangements = std::move(*arrangements);
 
-    return std::expected<Song, SongPackageError>{std::in_place, std::move(song)};
+    // Every load settles every chart it opens, so no consumer downstream — editor, game, or test —
+    // ever holds a connection claim the chart does not justify. Loading is the last of the three
+    // places the sweep runs, and the only one where the conversion is news the caller may need to
+    // act on: it means memory no longer equals disk.
+    std::vector<std::string> conversions;
+    for (Arrangement& arrangement : song.arrangements)
+    {
+        if (!arrangement.chart.has_value())
+        {
+            continue;
+        }
+        Chart& chart = *arrangement.chart;
+        std::vector<std::string> flattened =
+            sweepUnjustifiedLegato(chart.notes, chart.shapes, song.tempo_map);
+        conversions.insert(
+            conversions.end(),
+            std::make_move_iterator(flattened.begin()),
+            std::make_move_iterator(flattened.end()));
+    }
+
+    return std::expected<SongPackageRead, SongPackageError>{
+        std::in_place,
+        SongPackageRead{.song = std::move(song), .conversions = std::move(conversions)}
+    };
 }
 
 // Extracts a native song package and reads the root song document from the workspace.
-std::expected<Song, SongPackageError> readRockSongPackage(
+std::expected<SongPackageRead, SongPackageError> readRockSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory)
 {
     if (const auto package_error = extractArchiveToWorkspace(package_path, workspace_directory);

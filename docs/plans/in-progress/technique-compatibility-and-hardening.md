@@ -1,5 +1,15 @@
 # Technique Compatibility Matrix, and Hardening the Format Against Invalid Combinations
 
+> **The legato half was superseded 2026-08-11 by `legato-final-spec.md`.** No direction is stored any
+> more: `attack` reads `Pick`, `Pinch`, `Legato`, `LeftTap`, `Tap`, `Pop`, `Slap`, `PickSlide`, where
+> `Legato` is the authored claim "this onset connects to its same-string predecessor" and `LeftTap` is
+> the local statement the old `Ctrl+H` meaning made. Every `Hammer` / `Pull` below is a historical
+> spelling. **Validation is now intra-note only**, so the relational rows (E5, E6, E12's release half,
+> E19) are no longer validation rules that can refuse a document: they are clauses of the one resolver
+> (`resolveLegato`), and a claim they refuse plays and draws as the plain pick it sounds like. The
+> individual rows below are annotated where they state an enforcement fact; the physics each records
+> is unchanged and still binding.
+
 Status: **SIGNED AND ENFORCED 2026-08-09.** The full matrix is signed and every rule in it lives in
 `validateChartNotes`, with one exception: **E25 is signed but not yet implemented** — it still needs
 its validation rule, the import normalization, and the noise-idiom display (tracked as W4 in the
@@ -27,7 +37,7 @@ violates Phase 5's own rule against authoring an invalid state.
 
 | Field | Values |
 |---|---|
-| `attack` | `Pick`, **`Pinch`**, `Hammer`, `Pull`, `Tap`, `Pop`, `Slap`, `PickSlide` |
+| `attack` | `Pick`, **`Pinch`**, `Legato`, `LeftTap`, `Tap`, `Pop`, `Slap`, `PickSlide` (was `Hammer`/`Pull` when this matrix was signed) |
 | `mute` | `None`, `Palm`, `Full` |
 | ~~`harmonic`~~ | **DELETED 2026-08-08** — collapsed onto `attack` + `harmonic_node` |
 | `harmonic_node` | `optional<double>` — the node position, in fret units, **and the assertion that the note is a harmonic** |
@@ -76,9 +86,9 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | ~~**E1**~~ | **HALF DELETED 2026-08-08.** The `harmonic != None` half is gone: with the field collapsed there is nothing for a node to disagree with, so the state cannot be built. Only the range check survives, on `harmonic_node`. | `chart_rules.cpp` |
 | **E2** | `PickSlide` excludes the pitched techniques — `mute`, `harmonic_node`, `vibrato`, `tremolo`, `bend` — and requires the unpitched `slide_out` **terminal** exactly at `sustain`, with `slides` as optional turnaround waypoints and the whole path always traveling. `accent` is the scrape's own technique and allowed. | **Enforced**, the `PickSlide` block in `chart_rules.cpp`. **Reshaped 2026-08-08 by walkthrough D2+D4** (user): the terminal is definitionally unpitched, so it is the `slide_out` — a pitched waypoint terminal would imply a turnaround or a held landing — and an accented scrape is just an aggressively played one. |
 | ~~**E3**~~ | **UNVIOLATABLE 2026-08-08** — `Pinch` *is* an attack now, so it cannot be paired with a different one. Kept for the record: | Established 2026-08-07. A pinch harmonic is produced by the pick stroke with the thumb catching the string, so every attack that *replaces* the pick stroke — `Hammer`, `Pull`, `Tap`, `Slap`, `Pop`, and the left-hand tap stored as `Hammer` — excludes it. `PickSlide` already excluded by E2. **Not enforced anywhere today.** |
-| **E4** | `Hammer` and `Tap` require a positive **sounding position** — `fret` for an ordinary note, `node` for a natural harmonic | You cannot hammer onto, or tap, an open string or the nut. **Amended 2026-08-07** from the original `fret > 0`, which rejected every tap harmonic (`fret == 0`, `node == 12`); see the accessor note below. **Enforced 2026-08-09** (`validateChartNotes`). |
-| **E5** | `Pull` requires a preceding note on the same string at a **higher** released fret, **still holdable at the pull's onset** | Something must be released to sound it — and still held to release. The hold half (D13, signed 2026-08-09): past the kept-sustain bound (`g_minimum_kept_sustain_beats`) a held predecessor necessarily carries a tail reaching the minimum-sustain-distance margin, so a shorter tail is a proven release (`predecessorHoldReaches`). **Relational** — see the ceiling below. |
-| **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-authoring-model.md`. **Relational.** |
+| **E4** | The two attacks that STRIKE from nowhere — `LeftTap` and `Tap` — require a positive **sounding position**: `fret` for an ordinary note, `node` for a natural harmonic | You cannot strike an open string or the nut. **Amended 2026-08-07** from the original `fret > 0`, which rejected every tap harmonic (`fret == 0`, `node == 12`); see the accessor note below. **Enforced 2026-08-09** (`validateChartNotes`), spelled once as `nothingToStrike` since 2026-08-11 and read by three callers: validation refuses, the editor's plan finalize flattens the stranded attack to a pick, and the importer flattens it early. A `Legato` claim is deliberately NOT bound by it — whether it strikes at all is the resolver's answer. |
+| **E5** | A pull-off needs a preceding note on the same string at a **higher** released fret, **still holdable at the onset** | Something must be released to sound it — and still held to release. The hold half (D13, signed 2026-08-09): past the kept-sustain bound (`g_minimum_kept_sustain_beats`) a held predecessor necessarily carries a tail reaching the minimum-sustain-distance margin, so a shorter tail is a proven release (`predecessorHoldReaches`). **No longer a validation rule (2026-08-11):** it is the resolver's Pull clause, so a claim it refuses reads as a plain pick rather than refusing the document. |
+| **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-final-spec.md`. **The resolver is the sole authority**, asked per chart revision by both surfaces, the gameplay build, the reader, and the `H` planner. |
 | **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
 | **E8** | `Full` mute excludes `harmonic` | A full mute sounds no pitch; a harmonic *is* a pitch, so they contradict by definition. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so full mute never has to stretch to cover it, and that case is Q1 instead. |
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |

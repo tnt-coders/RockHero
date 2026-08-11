@@ -6,6 +6,7 @@ target_sources(
     rock_hero_common_core
     PRIVATE src/chart/chart.cpp
             src/chart/chart_document.cpp
+            src/chart/chart_legato.cpp
             src/chart/chart_rules.cpp
             src/chart/chart_tokens.cpp
             src/chart/grid_arithmetic.cpp
