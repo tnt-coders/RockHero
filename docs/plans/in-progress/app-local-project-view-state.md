@@ -152,8 +152,9 @@ regression test. That work is complete; it is only mentioned here so the branch 
    fallback is **never written back** as if user-chosen — no laundering a derived default into
    stored state.
 7. **A dangling persisted UUID falls back to the Lead -> Rhythm -> Bass walk**, not raw index 0.
-   Today `selectedArrangementIndex` only runs the walk for `nullopt`; a stale id semantically
-   *is* "no usable choice", and staleness becomes reachable once write-time validation
+   `selectedArrangementIndex` already treats a non-matching id as "no usable choice" and falls
+   through to the walk (its own comment says so); this item is about keeping that behavior
+   deliberate once staleness becomes reachable, when write-time validation
    (`selectedArrangementForSave`) is deleted. Silent (log at most). This dispositions the TODO at
    `project.cpp:406` about surfacing that mismatch — the fallback becomes the deliberate best
    default, and the TODO is deleted with its surrounding code.

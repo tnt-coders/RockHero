@@ -57,8 +57,8 @@ Structural validation exists and is a hard gate:
   node bound, because a fret-hand harmonic's node is capped by the neck while every other node is
   capped by the string. The cent-offset cap (±1200.0) is the one private constant
   (`g_max_cent_offset` in `rock-hero-common/core/src/chart/chart_rules.cpp`).
-- **The note rules live in their own authority, `validateChartNotes`** (`chart_rules.cpp:300-652`),
-  split out of `validateChartRules` (`chart_rules.cpp:119-234`)
+- **The note rules live in their own authority, `validateChartNotes`** (`chart_rules.cpp`),
+  split out of `validateChartRules`
   so the editor's chart planners can gate a CANDIDATE stream through exactly the checks the
   document reader applies. Every planner funnels through the shared `finalizePlan`
   (`rock-hero-editor/core/src/chart/chart_edits.cpp`), which validates the candidate's *saved*
@@ -83,8 +83,8 @@ Structural validation exists and is a hard gate:
   sections are song-level (`SongSection`), validated by the song document reader.
 - Package read HARD-REJECTS structural violations: chart load + `validateChartRules` failures
   become `SongPackageError{InvalidArrangement}` in
-  `rock-hero-common/core/src/package/rock_song_package_read.cpp:800-815`. The GP importer also
-  validates post-build (`rock-hero-editor/core/src/project/gp_chart_builder.cpp:2755-2763`).
+  `rock-hero-common/core/src/package/rock_song_package_read.cpp`. The GP importer also
+  validates post-build (`rock-hero-editor/core/src/project/gp_chart_builder.cpp`).
 - Tone-track structural validation:
   `rock-hero-common/core/src/tone/tone_track_rules.cpp` checks canonical unique region ids,
   valid endpoints, start-before-end, not past the terminal anchor, sorted/non-overlapping,
@@ -101,9 +101,9 @@ Gaps this plan fills (verified absent):
   sustain overlap as unvalidated for exactly this reason.
 - No note-name → pitch parser anywhere in common. Tuning strings ("E2") are validated only as
   non-empty (in `validateChartRules`); `"X9"` passes. A private MIDI→name formatter exists in
-  `rock-hero-editor/core/src/project/gp_chart_builder.cpp:92` (`midiNoteName`).
+  `rock-hero-editor/core/src/project/gp_chart_builder.cpp` (`midiNoteName`).
 - Chart positions are not bounded by the tempo map's terminal anchor (`isValidGridPosition`,
-  `chart_rules.cpp:30-35`), unlike tone regions (`tone_track_rules.cpp:73-79`). Notes past the
+  `chart_rules.cpp`), unlike tone regions (`tone_track_rules.cpp`). Notes past the
   terminal anchor load silently.
 - Dangling chord-template references are ALREADY a structural error (`shape.chord` out of range,
   the shape-span check in `validateChartRules`). The remaining lint scope is unused templates and note-vs-template
@@ -111,8 +111,8 @@ Gaps this plan fills (verified absent):
   ("Validation can advise when sounding notes under a span disagree with the template posture").
 - No lint/advisory layer, no all-findings collection, no editor validation report, no CLI or
   corpus harness. `rock-hero-game/` is a build-system skeleton (placeholder libs).
-- Chart files write `formatVersion: 1` (`rock-hero-common/core/src/chart/chart_document.cpp:518`)
-  and the reader gates on it (`chart_document.cpp:391-394`) — noted here because rule-id stability
+- Chart files write `formatVersion: 1` (`rock-hero-common/core/src/chart/chart_document.cpp`)
+  and the reader gates on it — noted here because rule-id stability
   follows the same discipline.
 - Tests: `rock-hero-common/core/tests/test_chart.cpp` covers the structural rules; the test
   target is `rock_hero_common_core_tests`
@@ -122,7 +122,7 @@ Gaps this plan fills (verified absent):
   `Rock Hero Stuff/Chart References` folder (outside the repo), with `_conversion_report.json`
   statistics (docs/plans/in-progress/note-format-and-tablature-plan.md, "Corpus validation").
 
-Inventory re-verified against code on 2026-08-10 (`master @ 0262aadb`). Intra-function sites are
+Inventory re-verified against code on 2026-08-10 (`code-review @ 0262aadb`). Sites are
 cited by rule or helper name rather than by line, because `chart_rules.cpp` line numbers have
 drifted three times since this plan was written and a named citation cannot go stale silently.
 

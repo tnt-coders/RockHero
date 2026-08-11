@@ -79,7 +79,10 @@ public:
         }
     }
 
-    /*! \brief Returns the last chord pressed, or an invalid key when none was. */
+    /*!
+    \brief Returns the last chord pressed.
+    \return The captured chord, or an invalid key when none was pressed.
+    */
     [[nodiscard]] const juce::KeyPress& captured() const noexcept
     {
         return m_captured;

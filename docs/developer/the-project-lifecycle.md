@@ -454,8 +454,9 @@ differently):
     harmonic is dropped and the note stays ordinary; on the fretted family the **octave** takes
     over (the lowest-order harmonic available at any stop, hence the easiest to ring), as it does
     when the source supplies no label at all. A node that would then sit past what the note can
-    reach — `harmonicNodeCeiling`, the neck for a fret-hand harmonic and the string for every other
-    — also falls back to the octave. All four cases carry their own counted conversion note.
+    reach — `harmonicNodeCeiling`: the neck when the fretting finger stands on the node, the
+    string otherwise (a tap harmonic's node is the picking hand's, so it runs to the string) —
+    also falls back to the octave. Each case carries a counted conversion note.
 
 **Reductions, and the closing repairs** (import is a commit point, so nothing invalid leaves here):
 

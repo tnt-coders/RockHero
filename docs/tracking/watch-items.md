@@ -24,9 +24,9 @@ item retired as resolved — see *Retired*).
 
 `install(DIRECTORY DESTINATION ...)` creates empty `resources/{fonts,sfx,textures}` under
 `cmake --install`, but whether the NSIS-packaged artifact preserves empty directories is
-unverified. `GameResources::create` only checks the root today
-(`rock-hero-game/core/src/resources/game_resources.cpp:142-156` — a single `is_directory` probe at
-`:148`), so nothing breaks either way —
+unverified. `GameResources::create` only checks the root today (a single `is_directory` probe in
+`rock-hero-game/core/src/resources/game_resources.cpp` — cited by name, since a line citation here
+went stale within one branch), so nothing breaks either way —
 verify once when inspecting a packaged installer (dovetails with the Windows CI installer work),
 and re-check the moment a resolver method starts requiring one of those subdirectories.
 
@@ -115,21 +115,9 @@ are distinct, no shared helper can read a projected note, so every derivation ov
 the other or omitted. Three such were fixed that day (where a note sounds, the visible-note range,
 the arrival rule's struck flag) and the fix each time was to hoist the rule out of the surfaces. The
 two note views are field-for-field identical, the bend views identical, and the slide views differ by
-one field. The remedy is now a live question for the user (walkthrough W9-B) rather than a watch.
-
-### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
-
-Both surfaces' view types are hand-written now, so there is nothing left to watch. Twelve of them
-were converted — five in `tab_view_state.h`, seven in `highway_view_state.h` — using the exact-float
-idiom `HighwayHandWindow` and the tap-light types already used. The remaining defaults are correct
-and deliberate: `TabViewState`, `HighwayViewState`, `TabArpeggioNoteView`, `HighwayDisplayOptions`
-and `HighwayShapeStringView` carry no floating member OF THEIR OWN, and hand-writing the first two
-would only create a member list to keep in sync by hand.
-
-One fact this settled, now recorded in `CLAUDE.md`'s blind-spot list: only a struct's own float
-member is diagnosed. A float compare reached through `std::optional<double>` or `std::vector<double>`
-is instantiated inside a standard-library header and is NOT — which is why `ChartNote`'s defaulted
-comparison over `std::optional<double> harmonic_node` has been odr-used and green on CI all along.
+one field. **Trigger**: fired (2026-08-10), as above. **Remedy**: awaiting the user's W9-B ruling
+(the walkthrough carries the design question); once ruled, design the one note-view semantic and
+migrate both projections behind their tests, then retire this item.
 
 ## 3D highway camera
 
@@ -376,6 +364,29 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ---
 
 ## Retired
+
+### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
+
+Ten scene view types were converted — three in `tab_view_state.h`, seven in
+`highway_view_state.h` — using the exact-float idiom `HighwayHandWindow` and the tap-light types
+already used (two more in `tab_view_state.h` were hand-written before this pass). The first
+retirement here overclaimed "nothing left to watch": a same-day verification sweep then found
+eight more instances of the shape elsewhere in the tree, and a second pass later that day resolved
+all eight — five comparisons deleted where nothing compares them (`HighwayCameraTarget`,
+`HighwayCameraPose`, `ToneGainPoint`, `AudioDeviceStatus`, `EditorViewState`), three hand-written
+where a gate is the natural next use (`InputCalibrationPrompt`, `InputCalibrationViewState`,
+`SongSectionView`), and one routed through a value type (`SignalChainViewState`'s gain). A
+whole-tree scan for the shape now returns nothing, so the retirement finally stands on a
+mechanism rather than a claim. The remaining defaults are correct and deliberate: `TabViewState`,
+`HighwayViewState`, `TabArpeggioNoteView`, `HighwayDisplayOptions` and `HighwayShapeStringView`
+carry no floating member OF THEIR OWN, and hand-writing the first two would only create a member
+list to keep in sync by hand.
+
+One fact this settled, now recorded in `CLAUDE.md`'s blind-spot list: only a struct's own float
+member is diagnosed. A float compare reached through `std::optional<double>` or `std::vector<double>`
+is instantiated inside a standard-library header and is NOT — which is why `ChartNote`'s defaulted
+comparison over `std::optional<double> harmonic_node` has been odr-used and green on CI all along.
+
 
 Items whose trigger fired and were handled. Kept for auditability.
 

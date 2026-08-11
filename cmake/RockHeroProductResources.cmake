@@ -30,6 +30,11 @@ include(GNUInstallDirs)
 function(rock_hero_deploy_product_resources)
     cmake_parse_arguments(PARSE_ARGV 0 ARG "" "TARGET;SHADER_TARGET" "EMPTY_DIRS")
 
+    if(ARG_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "rock_hero_deploy_product_resources: unknown arguments: "
+                            "${ARG_UNPARSED_ARGUMENTS}")
+    endif()
+
     foreach(required IN ITEMS TARGET SHADER_TARGET)
         if(NOT ARG_${required})
             message(FATAL_ERROR "rock_hero_deploy_product_resources: missing required argument "
@@ -73,6 +78,9 @@ function(rock_hero_deploy_product_resources)
     endif()
 
     set(stamp "${CMAKE_CURRENT_BINARY_DIR}/resources-deployed.stamp")
+    # make_empty_dirs_command LOOKS like part of the OUTPUT list (cmake-format folds it there) but
+    # is not one: it expands to nothing, or to a leading `COMMAND ...` that terminates the OUTPUT
+    # arguments, so the stamp stays the sole output either way.
     add_custom_command(
         OUTPUT "${stamp}" ${make_empty_dirs_command}
         COMMAND ${CMAKE_COMMAND} -E copy_directory "${shader_staging_dir}"

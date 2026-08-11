@@ -235,7 +235,8 @@ If a field does not apply, omit it.
 - If a Doxygen block has no verbose description, do not insert a blank line between `\brief` and
   the next Doxygen command.
 - If a Doxygen comment has only a `\brief`, use the single-line form unless the line would exceed
-  100 characters.
+  100 characters. Only a construct with nothing else required can have only a `\brief` — a
+  value-returning function always carries `\return` (see Required Fields), so it never qualifies.
 - Keep blank lines between logically separate paragraphs when a description spans multiple sections.
 
 # File Headers

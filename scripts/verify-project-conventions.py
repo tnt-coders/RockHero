@@ -13,7 +13,8 @@ Current checks:
 PENDING_CHECKS is empty: nothing is written-but-parked today. Pass --pending to run whatever it
 holds, which is how to inventory what a sweep must fix before a check moves into CHECKS.
 
-Run from the repository root (pre-commit does this automatically).
+Known gap, deliberate: the comment-column check covers comment LINES, not trailing comments on
+code lines (none violate today; the compound parse was not worth it until one does).
 """
 from __future__ import annotations
 
@@ -38,12 +39,15 @@ COLUMN_LIMIT = 100
 # appear inside a line; tab is legal in the fixtures and tool files that need it.
 STRAY_CONTROL = re.compile(r'[\x00-\x08\x0b-\x1f]')
 
-# A constant declaration whose declarator wears the g_ prefix, indented and without `static`.
+# A constant declaration whose declarator wears the g_ prefix, indented and without `static`
+# anywhere before the initializer — `constexpr static` and friends order the keywords freely, so
+# the exemption is a lookahead over the whole declarator rather than a first-token test.
 # Indentation and `static` are what separate the scopes: clang-format does not indent namespaces,
 # so a namespace-scope constant starts at column 0, and both a class constant and a function
-# static must spell `static`. What is left is a plain function local.
+# static must spell `static`. What is left is a plain function local (`auto` included, so
+# `auto const g_x` cannot slip past on its leading keyword).
 LOCAL_G_CONSTANT = re.compile(
-    r'^[ ]+(?!static\b)(?:const|constexpr|inline|thread_local)\b'
+    r'^[ ]+(?![^=;{]*\bstatic\b)(?:const|constexpr|inline|thread_local|auto)\b'
     r'[^=;{]*?\bg_[a-z0-9_]+\s*(?==|\{|\[|;)'
 )
 
@@ -56,9 +60,8 @@ class TextFile(NamedTuple):
 
 
 class Sources(NamedTuple):
-    """Everything the checks read: the repository root and its tracked text files."""
+    """Everything the checks read: the tracked text files, split once."""
 
-    repo: pathlib.Path
     text_files: tuple[TextFile, ...]
 
 
@@ -145,37 +148,33 @@ def commentLineNumbers(lines: tuple[str, ...]) -> Iterator[int]:
             yield number
 
 
-def rootFiles(directory: pathlib.Path) -> list[str]:
-    """Names of the source files sitting directly at one library root."""
-    if not directory.is_dir():
-        return []
-    return sorted(
-        entry.name for entry in directory.iterdir()
-        if entry.is_file() and entry.suffix in SOURCE_SUFFIXES and entry.name not in EXEMPT
-    )
-
-
 def checkLibraryRootPlacement(sources: Sources) -> list[str]:
     """Library roots hold folders only.
 
     Every source file lives in a feature folder, the library's hub folder (`engine/`,
     `controller/`, `main_window/`), or `shared/` — no .h/.cpp may sit directly at a library's
     include root or src root. The rule is purely structural, so this check needs no allowlist: it
-    fails on any file directly at a root.
+    fails on any file directly at a root. Derived from the tracked-file index like every other
+    check, so an untracked scratch file cannot fail a commit that does not include it.
 
     The single exemption is `placeholder.cpp`, the scaffolding translation unit that gives a
     not-yet-implemented library something to compile; it disappears when the library gains real
     code.
     """
-    violations: list[str] = []
+    roots: dict[str, str] = {}
     for product in PRODUCTS:
         for library in LIBRARIES:
-            base = sources.repo / f'rock-hero-{product}' / library
-            include_root = base / 'include' / 'rock_hero' / product / library
-            src_root = base / 'src'
-            for label, directory in (('include', include_root), ('src', src_root)):
-                for name in rootFiles(directory):
-                    violations.append(f'{product}/{library} {label} root: {name}')
+            roots[f'rock-hero-{product}/{library}/include/rock_hero/{product}/{library}'] = (
+                f'{product}/{library} include')
+            roots[f'rock-hero-{product}/{library}/src'] = f'{product}/{library} src'
+    violations: list[str] = []
+    for file in sources.text_files:
+        directory, _, name = file.path.rpartition('/')
+        if name in EXEMPT or not any(name.endswith(suffix) for suffix in SOURCE_SUFFIXES):
+            continue
+        label = roots.get(directory)
+        if label is not None:
+            violations.append(f'{label} root: {name}')
     return violations
 
 
@@ -306,7 +305,7 @@ PENDING_CHECKS: tuple[Check, ...] = ()
 
 def main() -> int:
     repo = pathlib.Path(__file__).resolve().parent.parent
-    sources = Sources(repo=repo, text_files=trackedTextFiles(repo))
+    sources = Sources(text_files=trackedTextFiles(repo))
 
     # --pending runs the parked checks as well, which is how to inventory what a sweep must fix.
     checks = CHECKS + PENDING_CHECKS if '--pending' in sys.argv[1:] else CHECKS

@@ -229,8 +229,8 @@ headless MVC, views send intents), "Separate State From Side Effects", "Preferre
   every arrangement. Positions are exact rational grid tokens, never seconds.
 - **Rules** (`chart/chart_rules.h`): `validateChartRules(chart, tempo_map)` enforces the
   corpus-validated set (sorted (position,string) notes, no duplicate onsets, payload windows,
-  template arity, shape references). `g_max_chart_strings = 8` (line 24), `g_max_fret = 30`
-  (line 33). No rule computes sustain endpoints; same-string sustain overlap is unvalidated
+  template arity, shape references). `g_max_chart_strings = 8` and `g_max_fret = 30` (named
+  constants in `chart_rules.h`). No rule computes sustain endpoints; same-string sustain overlap is unvalidated
   (open question recorded in `docs/plans/in-progress/note-format-and-tablature-plan.md`).
 - **Document IO** (`chart/chart_document.h`): `readChartDocument` (line 33), `chartDocumentText`
   (line 40), `writeChartDocument` (line 48) all exist — the writer is already built and used by

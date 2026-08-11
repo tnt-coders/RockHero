@@ -217,9 +217,10 @@ plan passes through:
   doc — the doc captures intent, not implementation state.
 
 Separately, **`docs/tracking/`** holds standing registries that never complete — they are not
-plans and do not move through the lifecycle above. Two files live there and are kept current:
-`watch-items.md` (accepted-for-now issues, each with a trigger that graduates it to action — you
-*monitor* these) and `backlog.md` (small concrete fixes to *do* when there is time). A small
+plans and do not move through the lifecycle above. Two standing registries live there and are
+kept current: `watch-items.md` (accepted-for-now issues, each with a trigger that graduates it to
+action — you *monitor* these) and `backlog.md` (small concrete fixes to *do* when there is time);
+dated review-followup files beside them are snapshots, not registries. A small
 fix belongs in `backlog.md`, not a `docs/plans/todo/` plan file; substantial multi-step work
 belongs in a `docs/plans/todo/` plan, not the backlog. Before folding an item from anywhere into
 either file, re-verify its claims against the current code — a stale registry is worse than none.

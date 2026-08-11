@@ -253,7 +253,7 @@ language on the 3D highway and the 2D tab.
   overridden techniques within the session on exit) and path-waypoint editing via the ordinary
   slide-editing patterns. Transposition/retype gains its pick-slide special case there.
 
-## Remaining phases
+## Phases (all shipped; later sight revisions marked where they superseded a landing)
 
 3. **Projection + 2D tab. FIRST CUT SHIPPED 2026-08-04; tail and junctions revised 2026-08-09.**
    Both projections suppress the latent overrides — and since 2026-08-09 they do it by calling
@@ -285,8 +285,10 @@ language on the 3D highway and the 2D tab.
    an X-mute composite under the V (reverted), a second incommensurate grit layer (reverted,
    read as noise), a bespoke serrated chirped scrape wave (shipped, then deleted in the
    2026-08-04 simplification) — and landed on the ordinary tremolo teeth framed in glowing
-   white ribbon edges, with the head reborn as the full-mute X under a near-touching V (see
-   the settled rendering above). The scrape drives a **moving right-hand light** through the
+   white ribbon edges, with the head reborn as the full-mute X under a near-touching V (both
+   since superseded on sight: the split plectrum replaced the whitened V 2026-08-06, and the
+   teeth were dropped 2026-08-09 when they were re-read as repeated attacks, which a scrape
+   never makes — the roadmap status row carries both). The scrape drives a **moving right-hand light** through the
    tap-light machinery — the light path rides the waypoint travel exactly as the fret-hand
    window rides left-hand glides, with the tap's margin rise.
    The root impact shards were built 2026-08-05 and DELETED the same day on the user's sight

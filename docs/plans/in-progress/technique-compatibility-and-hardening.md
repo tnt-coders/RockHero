@@ -690,7 +690,7 @@ format distinguishes them, kept loud with its own conversion note). `Feedback` s
 unsupported — feedback needs a real amp in the room, which headphone play cannot produce — and
 drops the harmonic loudly along with unknown types. `Artificial` still imports as
 `Pick` + stop + node — faithful data whose hand placement awaits the fretted-harmonic cluster
-ruling above. The standalone converter's psarc source has no semi/feedback/tap types, so only the
+ruling above. The standalone converter's input format has no semi/feedback/tap types, so only the
 threshold parity matters there (already present).
 
 ## Hardening the format: what can become impossible, and the ceiling

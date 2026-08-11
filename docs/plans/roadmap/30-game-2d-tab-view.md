@@ -133,7 +133,8 @@ review passes; line numbers from that audit):
 - **The JUCE-image→bgfx-texture seam ships in production**: `uploadAtlas(juce::Image)` at
   `rock-hero-common/ui/src/highway/highway_atlas.cpp:30-55`; the highway glyph atlas is
   runtime-rasterized with `juce::Graphics` on `juce::SoftwareImageType` (:189-220);
-  `rock-hero-common/ui` links `juce_graphics` and `bgfx` PRIVATE (CMakeLists.txt:25-28).
+  `rock-hero-common/ui` links `juce_graphics` PUBLIC (its headers name JUCE types — see this
+  plan's own 30-Q1 note above) and `bgfx` PRIVATE (CMakeLists.txt).
 - **The game process already runs the JUCE GUI runtime**:
   `const juce::ScopedJuceInitialiser_GUI juce_runtime;` at `rock-hero-game/app/main.cpp:223` —
   in-game JUCE software rasterization is current production behavior, not new machinery. *(This

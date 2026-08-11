@@ -52,7 +52,11 @@ menu shortcut text — must route through this function so the surfaces can neve
 [[nodiscard]] juce::String keyChordText(
     const juce::KeyPress& key, ShiftedCharacterResolver resolve_shifted);
 
-/*! \brief Formats a chord for display using the live keyboard layout's resolver. */
+/*!
+\brief Formats a chord for display using the live keyboard layout's resolver.
+\param key Chord to format.
+\return The display text for the chord.
+*/
 [[nodiscard]] juce::String keyChordText(const juce::KeyPress& key);
 
 /*!

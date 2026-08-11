@@ -68,9 +68,10 @@ checklist), `architectural-principles.md`, and the plans/tracking registries. On
 - **Atomic package replace.** `writeWorkspaceToArchive` still truncates the destination `.rock` in
   place, so a crash mid-save destroys the only copy. Re-confirmed real, but already scoped as
   **roadmap plan 10 Phase 5** with its own failure-injection tests. Do not fix ad hoc.
-- Per-frame renderer classification/allocation, atlas mips, the `makeHighwaySustainPrefixMax`
-  notes-overload removal (**done 2026-08-10** — all three highway forwarders were pure
-  pass-throughs and were deleted), the 88-method `IEditorController` ISP pressure, and the
-  song-select menu
-  scroll are all real but already carried by existing plans/watch-items; see the git history of this
-  file for the specific references.
+- Per-frame renderer classification/allocation (the classification half was executed 2026-08-10 —
+  see `docs/plans/completed/highway-onset-groups-into-the-projection.md`), atlas mips, the
+  `makeHighwaySustainPrefixMax` notes-overload removal (**done 2026-08-10** — all three highway
+  forwarders were pure pass-throughs and were deleted), and the 88-method `IEditorController` ISP
+  pressure are carried by existing plans/watch-items; the song-select menu scroll is carried by
+  its `backlog.md` entry (no plan or watch item covers it). See the git history of this file for
+  the specific references.

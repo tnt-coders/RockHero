@@ -9,14 +9,16 @@ entry when it's done — git history is the record.
 
 Five parallel reviews ran that day (audio, the game side plus the shared highway, editor UI, a
 whole-codebase consistency sweep, and a documentation-accuracy audit) and most of what they found was
-fixed on the `code-review` branch the same day. What remains here is the residue, in three kinds, so
+fixed on the `code-review` branch the same day. What remains here is the residue, in two kinds, so
 check which kind an entry is before picking it up:
 
 1. **Ordinary backlog items** — verified, small, and just waiting for time.
 2. **Items carrying a ruling** — the user decided something on 2026-08-10 and the entry records the
    decision and what it changed; read the ruling before the remedy.
-3. **Items handed to Fable for design work**, marked FOR FABLE. These are not fixes waiting to be
-   typed; the *shape* is open.
+
+(The review's design-level residue lives in `docs/plans/todo/`, per this file's charter — the
+FOR FABLE items that briefly sat here were either executed the same day or moved to
+`design-calls-from-the-2026-08-10-review.md`.)
 
 Two findings became plans rather than entries, because they are too large for this file:
 `docs/plans/roadmap/57-positions-past-the-drawn-board.md` (the board draws 24 frets while the chart
@@ -44,20 +46,25 @@ rest, each verified against the code, each a fix rather than a question unless m
   file and copies audio in the same iteration that validates, so a failure on arrangement N leaves
   N-1 rewritten and its audio copied while `song.json` still describes the old state. Its own comment
   claims the opposite and is true only within one iteration.
-- **Arrangements sharing one external backing file each get a copy.** The dedup map is consulted after
-  the import and keyed on the destination, so three arrangements pointing at one external file produce
-  three identical copies. It self-corrects on the second save, which is why no test caught it.
+- **Arrangements sharing one external backing file each get a copy, and the copies compound.** The
+  dedup map is consulted after the import and keyed on the destination, so three arrangements
+  pointing at one external file produce three identical copies — and the next save copies again
+  under fresh unique names (`uniqueAudioPath` deliberately picks a name that does not exist, and
+  nothing rewrites session paths after a save). Key the dedup map on the SOURCE path so the lookup
+  precedes the copy.
 - **Two authorities for which meter governs a moment.** The seconds-keyed lookup reads a column filled
   through a CLAMPING resolver, so every signature change past the terminal anchor collapses onto the
   last anchor's time and disagrees with the measure-keyed lookup. Bounding a signature's measure by
   the terminal anchor in validation is the fix; deriving one from the other is precision-fragile
   exactly at a meter-change downbeat, and that yield is the signal the clamped column was wrong.
 - **The terminal-anchor bound applies to tone regions but not to sections or automation points**,
-  so a marker past the end loads and silently piles onto the song's last instant. (The three
-  hand-written copies of `isValidGridPosition` this entry originally led with are gone — every
-  validator now calls the one authority.)
+  so a marker past the end loads and silently piles onto the song's last instant. (Plan 42 records
+  the same gap among the validation phases; this is the doing-entry. The three hand-written copies
+  of `isValidGridPosition` this entry originally led with are gone — every validator now calls the
+  one authority.)
 - **The measure-keyed signature lookup linearly rescans** the authored list, contradicting the class's
-  documented promise that construction precomputes indices — and three callers ask it once per note.
+  documented promise that construction precomputes indices — and five call sites ask it, some once
+  per note.
 - **The seconds-grid check rounds before anything bounds the magnitude**, so a hostile value makes the
   validity check itself undefined behavior; today the garbage result happens to fail the epsilon test.
 - ~~A package can be a decompression bomb.~~ **Moved to `watch-items.md` (2026-08-10)** — accepted
@@ -200,26 +207,19 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### Found while fixing the audio and package findings
 
-- **`Arrangement::difficulty` is dead, and deleting it is a design call.** Nothing in the tree writes
-  it: three sites default-construct it (the package reader, `gp_song_importer.cpp:211`, tests) and no
-  production code reads it. `library_entry_projection.cpp:37` records that intensity stays "Unknown"
-  until roadmap plan 11 ships a calculator, and `library_index.h` carries its own separate derived
-  field. So it is currently a field that lies about what a package carries, but plan 11 is its
-  intended owner — **decide whether an arrangement carries a difficulty at all** before deleting,
-  since the removal reaches `song/arrangement.h`, `editor/core`, and ~10 test files.
-- **`Arrangement` mixes persisted truth with runtime-derived state.** `audio_duration` turned out NOT
-  to be dead — `engine_song_audio.cpp:75` fills it at arrangement-prepare time and three callers read
-  it — which confirms the smell rather than clearing it: a reader of that struct cannot tell which
-  fields a package actually carries and which appear only after the engine has been asked. Splitting
-  the persisted shape from the prepared shape is the fix, and it is a design change, not a cleanup.
-- **A tone span shorter than the de-zipper ramp is reachable, though not through the editor.**
+- The `Arrangement` persisted-versus-prepared split (with the dead `difficulty` field folded in)
+  and the `ScoringRuleset` version factory moved to
+  `docs/plans/todo/design-calls-from-the-2026-08-10-review.md` — both are design decisions, which
+  this file's own charter sends to a plan.
+- **A tone span shorter than the de-zipper ramp is reachable — through the editor.**
   `makeToneGainEnvelope` clamps the crossfade to half the incoming span, so a span under 20 ms bakes
   one shorter than the 10 ms authority and under 10 ms drops below the 5 ms de-zipper.
-  `validateToneTrackRules` imposes ordering and non-overlap but **no minimum spacing**, and endpoints
-  carry arbitrary sub-beat offsets, so a hand-edited `song.json` with two tone changes a 1/64 beat
-  apart reaches it. A second route: `makeToneSchedule` floors the final span with `max(end, start)`,
-  so a song length earlier than the last region's start yields a zero-length span. The consequence is
-  a slightly smeared, already-inaudible switch rather than a click, which is why it was not chased.
+  `validateToneTrackRules` imposes ordering and non-overlap but **no minimum spacing**, and the
+  editor's own grid reaches the window: 1/128 spacing is 15.6 ms at 120 BPM and Ctrl precision
+  snaps to a 1/960-beat grid, so two adjacent tone changes land inside it natively. A second route:
+  `makeToneSchedule` floors the final span with `max(end, start)`, so a song length earlier than the
+  last region's start yields a zero-length span. The consequence is a slightly smeared,
+  already-inaudible switch rather than a click, which is why it was not chased.
 
 ### The 3D highway and the game
 
@@ -236,32 +236,28 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   allocations per frame, plus `makeHighwayTailSampleTimes` allocating and sorting up to ~430
   doubles per modulated tail. (The per-frame section-name copy-and-uppercase was fixed on the
   branch; the batches remain.)
-- **The song-select menu has no viewport.** `game/ui/src/game/game.cpp:117-131`, `:158-162`,
-  `:164-178` draw one row per library entry from a fixed origin. At 100 songs on 1080p, rows past 64
-  are off-screen, the key-hint footer never appears, and selecting song 80 puts the highlight bar at
-  y = 1328 — the player navigates blind. Also one heap `std::format` per entry per frame. Windowing
-  the rows adds code, but a fixed-height screen genuinely cannot state an unbounded list.
-- **`ScoringRuleset`'s version and constants must agree by hand** (`scoring_ruleset.h:25-113`): the
-  doc says any constant change bumps the version, nothing enforces it, and every score record is
-  stamped with that version and claimed self-describing. A factory keyed by a version enum makes the
-  lie unrepresentable. Separately `timing_window.cpp:53-57` divides by a bare `double speed_factor`
-  with no stated domain — at zero the hit window collapses and the recorded delta becomes NaN.
-- PLAUSIBLE: `slide_state_at` (`:2718`) returns no slide state when `note.fret <= 0`, so an
-  open-string note with waypoints would draw a straight tail while its waypoint furniture still
-  draws at the waypoint frets — unconfirmed whether the rules refuse open-string slides. Also every
-  dev-session hot reload calls `camera.reset()` (`:1251-1259`), so each save snaps the camera.
+- **The song-select menu has no viewport.** `rock-hero-game/ui/src/game/game.cpp` draws one row
+  per library entry from a fixed origin. At 100 songs on 1080p, rows past 64 are off-screen, the
+  key-hint footer never appears, and selecting song 80 puts the highlight bar at y = 1328 — the
+  player navigates blind. Also one heap `std::format` per entry per frame. Windowing the rows adds
+  code, but a fixed-height screen genuinely cannot state an unbounded list. (Plan 26's own
+  follow-up notes the same gap; this is the doing-entry.)
+- **CONFIRMED: `slide_state_at` returns no slide state when `note.fret <= 0`** and the rules do
+  not refuse open-string slides, so an open-string note with waypoints draws a straight tail while
+  its waypoint furniture still draws at the waypoint frets. Also every dev-session hot reload calls
+  `camera.reset()`, so each save snaps the camera.
 
 ### Editor UI
 
-- **~30 color literals outside the theme seam** (full census in the review), and the theme has **no
-  font or size roles at all**, so every font height in `ui/` is a literal by construction — that one
-  is a decision, not a sweep.
+- **~30 color literals outside the theme seam** (full census in the review) — a sweep once made.
+  Whether the theme also grows font/size roles is a design call, moved to
+  `docs/plans/todo/design-calls-from-the-2026-08-10-review.md`.
 - Smaller: `busy_overlay` and `audio_device_failure_overlay` each compute their centered geometry
   twice and are near-duplicates of one another with a comment admitting the hand-maintained
-  agreement; `signal_chain_view::paint()` re-walks `resized()`'s layout arithmetic. PLAUSIBLE:
-  `keymap_editor_view.cpp:349-373` removes a key press before removing the stored indices, so
-  rebinding Redo to a chord it already owns may keep the chord it was asked to replace — needs a
-  read of JUCE's index-removal path.
+  agreement; `signal_chain_view::paint()` re-walks `resized()`'s layout arithmetic. CONFIRMED:
+  `keymap_editor_view.cpp` removes a key press before removing the stored indices, and
+  `juce::Array::remove` compacts (invalidating them), so rebinding Redo to a chord it already owns
+  can keep the chord it was asked to replace.
 
 ### One rule in two places, across the tree
 
@@ -279,36 +275,11 @@ remains:
 
 ### Documentation claims that are wrong
 
-Twelve verified-wrong header claims. Four were fixed with their code; these are the rest, each
-stating a rule the code does not implement:
+The header-claim sweep on the branch fixed this section's original twelve entries with their
+code. Two residues survive it:
 
-- `highway_view_state.h:575` documents the pre-fix rule (fret-zero notes skipped) that a deliberate
-  fix replaced with the sounding fret; the inline comment 12 lines above says the opposite.
-- `tab_view_state.h:57-62` documents a `linked` discriminant the chart rules make impossible; the
-  real rule (offset versus sustain end) is stated correctly in `tab_projection.cpp:63-68`.
-- `chart_rules.h:275` claims `validateChartRules` requires positive sustains; zero is legal and is
-  the normal encoding. Its rule list at `:273-282` also reads as exhaustive while omitting most of
-  what now runs, and `:171-172` puts the hammer-landing rule in the relational half when it is
-  enforced in the one-note half.
-- `highway_view_state.h:433` calls `string_count` the count the chart uses when it is the padded
-  displayed count, so a consumer indexing the tuning with it reads out of range; `:455` names only
-  taps when the producer keys on taps *or* pick slides; `:242` versus `:294` document one
-  quantization for two (one `ceil`'d, one raw).
-- `tab_view_state.h:53` and `highway_view_state.h:89` carry the same wrong brief on both surfaces —
-  `unpitched` means "this waypoint is unpitched travel", not "the glide trails off", and every
-  waypoint of a scrape is flagged.
-- `highway_window.h:76-77` places the coverage ramp a full lane too far in; the `.cpp` is exact.
-- `tab_paint_core.h:50` states a fret-hand-harmonic-only scope that contradicts both the code and its
-  own next paragraph.
-- Three `\ref`s to symbols that do not exist (`highway_tail.h:60`, `:236`, `:264`), all naming a
-  superseded world-space design the same header explicitly rejects — these will emit unresolved-`\ref`
-  warnings in the CI Doxygen job. Plus `highway_projection.h:29` omitting the one option field with
-  real consequence, and `chart.h:418` citing a rule id that no longer has a row.
-- 11 missing `\param`/`\return` fields (listed in the review) and 33 over-100-column comment lines.
-  **But `documentation-conventions.md` contradicts itself first**: its block-format section offers a
-  brief-only one-liner on a non-void function as canonical while its required-fields section forbids
-  exactly that. Decide which rule wins before sweeping; practice overwhelmingly follows
-  required-fields.
-- `makeTabLaneMetrics` (`tab_paint_core.h:122-124`) and `paintTabLane` (`:162`) state preconditions
-  that nothing asserts or guards, and `GridPosition::offset`'s `[0, 1)` range is enforced only in
-  another module while several `grid_arithmetic.h` functions silently depend on it.
+- `highway_view_state.h` documents one tap-fret quantization in two places with two different
+  treatments (one `ceil`'d, one raw) — settle which the producer really applies and say it once.
+- `GridPosition::offset`'s `[0, 1)` range is enforced only by the validators while several
+  `grid_arithmetic.h` functions silently depend on it; the header should state the precondition
+  (or the functions should assert it), so the dependency stops being implicit.

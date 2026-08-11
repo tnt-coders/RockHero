@@ -78,8 +78,9 @@ hooks comes later, under [Before you push](#before-you-push).
 ## Before you push
 
 - **Build and test**: the debug build compiles clean and `ctest --preset debug` passes.
-- **Formatting and conventions**: `pre-commit run --all-files` is green (it also enforces file
-  placement via `scripts/verify-project-conventions.py`).
+- **Formatting and conventions**: `pre-commit run --all-files` is green (it also enforces the
+  project's mechanical conventions — file placement, comment columns, function-local constant
+  naming, stray control bytes — via `scripts/verify-project-conventions.py`).
 - **Static analysis**: run `cmake --build build/debug --target clang-tidy` when you need it —
   it is on-demand (see [Prerequisites](#recommended-for-pull-requests) for why). Write to the
   naming/style conventions (see `CLAUDE.md` and `docs/design/coding-conventions.md`) so a pass

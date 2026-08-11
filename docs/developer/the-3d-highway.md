@@ -148,15 +148,19 @@ string count to match its 2D tab lane).
 
 # The fretboard axis: one function, and a deliberate stop/node split
 
-Where a note sits on the board's fret axis is decided by exactly one function in the renderer,
-`noteFretboardX(note, fret_at_point, metrics, mirrored)`, and **every point of a gesture reads it** —
-the head, the tail band's base, and each glide station. The stop is a parameter because one gesture
-sounds from more than one of them: the onset from the note's own fret, a slide from each fret it
-travels to. A harmonic's node *rides* its stop — fret spacing is logarithmic, so the node's offset
-above the stop is constant in fret units and a glide that moves the stop moves the node by the same
-amount — which is why passing `note.fret` gives the onset's anchor with a zero shift. This is the
-same rule 2D labels heads by (`tabNoteHeadText`), so the two surfaces cannot disagree about what a
-glide arrives at.
+Where a STOPPED note sits on the board's fret axis is decided by exactly one function in the
+renderer, `noteFretboardX(note, fret_at_point, metrics, mirrored)`, and every point of a stopped
+gesture reads it — the head, the tail band's base, and each glide station. (A fret-0 note takes
+the open-string bar treatment across the hand window instead and never asks it.) The stop is a
+parameter because one gesture sounds from more than one of them: the onset from the note's own
+fret, a slide from each fret it travels to. A harmonic's node *rides* its stop — fret spacing is
+logarithmic, so the node's offset above the stop is constant in fret units and a glide that moves
+the stop moves the node by the same amount — which is why passing `note.fret` gives the onset's
+anchor with a zero shift. This is the same rule 2D labels heads by (`tabNoteHeadText`), with one
+deliberate 3D-only addition: the board clamp (`highwayDrawnSoundingPosition`) holds a node at the
+drawn board's edge, which the 2D label does not apply — the decided asymmetry roadmap 57 tracks.
+So the two surfaces cannot disagree about what a glide arrives at, only about where a
+past-the-board node is shown.
 
 The split worth stating plainly: **the note sounds from its node while the board's own furniture
 stays on the stop.** On an artificial harmonic the hand presses at `fret` while the sound comes from
@@ -174,7 +178,9 @@ Head marks arrive as atlas overlay cells seated on the head quad, not as silhoue
 cell, a pinch cell, and a split-plectrum cell for a scrape (which also suppresses the full-mute X
 beneath it, whose core showed through the fracture and read as a second mark). 2D expresses the same
 distinctions as actual head *shapes* — see the head-shape rule in \ref guide_2d_views. Per-surface
-idiom for one fact is fine; the two must never carry *different* facts.
+idiom for one fact is fine; the two must never carry *different* facts. One known gap against that
+law: the open-string bar carries no harmonic or pinch cell, while 2D gives a fret-0 harmonic its
+diamond and node — tracked with the note-view unification watch item rather than papered over.
 
 # Two visual paths: chart visuals vs screen-space overlays
 
@@ -233,6 +239,6 @@ Adding a new *shader program* is two declarations plus its use:
    table, so add the named `Impl` handle it lands in and draw with it.
 
 The one thing still stated twice is the *base name*: it names the `.sc` sources on disk and the
-compiled `vs_`/`fs_` binaries the enumerator's name resolves to. A mismatch fails loudly at load
-with a typed error naming the missing file, which is the reason the names are allowed to live in two
-languages.
+compiled `vs_`/`fs_` binaries the enumerator's name resolves to. A mismatch fails loudly at load —
+the game path with a typed error naming the missing file; the editor preview's loader reports
+through its own result type — which is the reason the names are allowed to live in two languages.

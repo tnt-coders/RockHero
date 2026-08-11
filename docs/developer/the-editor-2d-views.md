@@ -209,9 +209,10 @@ is deliberately single-sourced:
   exported `strokeTabNoteHeadOutline` instead: re-deriving the rule in the editor left every pick
   slide wearing a circular selection ring around a plectrum head.
 - **`tabNoteHeadText(note, fret_at_head)` decides the number a head carries**, and it takes *the
-  stop being labeled* rather than reading the note's own fret. A fret-hand harmonic names its node
-  (the node sets the pitch and is where the finger is; a trailing `.0` is dropped so 12 / 7 / 5 stay
-  as narrow as an ordinary fret, and a pinch keeps its fret because its node sits off the neck).
+  stop being labeled* rather than reading the note's own fret. Any harmonic whose node is on the
+  neck names its node — the predicate is `nodeIsOnNeck`, which excludes only a pinch — because the
+  node sets the pitch (a trailing `.0` is dropped so 12 / 7 / 5 stay as narrow as an ordinary
+  fret, and the pinch keeps its fret because its node sits off the neck).
   Passing the stop is what lets one rule label *every* head of a gesture: the onset passes
   `note.fret`, a linked slide junction passes the fret the glide has reached, so a harmonic labels
   nodes at all of them instead of a node at the onset and a raw fret at the junctions.
@@ -237,7 +238,7 @@ Boundaries and the split ghost render on the tempo grid's own integer pixel colu
 (`gridAlignedX`; the ghost is a 1px column fill), so a preview sits exactly on the line it will
 commit to.
 Every gesture ends as **one intent** through its `Listener`
-(`onToneRegionBoundaryMoveRequested`, `onToneChangeInsertRequested`, ...) — the view never
+(`onToneBoundaryMoveRequested`, `onToneChangeInsertRequested`, ...) — the view never
 mutates the model. Its input is the `makeToneTrackViewState` projection; the active region
 highlight advances by sampling `ITransport` at vblank cadence.
 

@@ -322,7 +322,8 @@ struct PosColorUvVertex
 // Where a STOPPED note sounds on the fretboard axis, and the one authority for that anchor; a
 // fret-0 note never asks it — the open-string bar across the hand window is its own treatment.
 //
-// A natural harmonic is touched AT its node rather than behind a fret wire, so its head, its tail
+// A stopped harmonic (a tapped artificial, say — a natural's fret 0 takes the open-string bar and
+// never reaches here) is touched AT its node rather than behind a fret wire, so its head, its tail
 // and every point its glide passes through must all read the same value: the node lands just past
 // a wire while the fret slot's middle sits between the two wires behind it, half a slot away.
 //

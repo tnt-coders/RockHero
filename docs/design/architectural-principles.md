@@ -775,8 +775,10 @@ one copy had already drifted — the game store omitted `millisecondsBeforeSavin
 a three-second auto-save timer the others did not. Two details keep the grant honest: the module is
 linked **INTERFACE**, so no common-core translation unit compiles against it and a common-core `.cpp`
 reaching for `PropertiesFile` itself fails to build; and common core produces the options struct
-without ever opening a properties file, which is what keeps the message-loop dependency out. The
-headless common-core suite is the standing proof.
+without ever opening a properties file, which is what keeps the message-loop dependency out (note
+"narrow" describes the USE, not the module — `juce_data_structures` publicly drags `juce_events`,
+which is exactly why the INTERFACE linkage and the options-only surface matter). The headless
+common-core suite is the standing proof.
 
 None of this is permission to move UI, message-loop ownership, audio-device ownership, GPU behavior,
 app startup, plugin scanning, or Tracktion runtime integration into common core. A JUCE facility that
