@@ -2073,7 +2073,7 @@ void resolveSlideOutExits(
         // A note naming a string the tuning does not have cannot be placed at all: the lane it
         // belongs on does not exist. Dropped and counted, rather than carried to validation, which
         // would refuse the song.
-        if (source.string < 0 || source.string + 1 > static_cast<int>(chart.tuning.strings.size()))
+        if (source.string < 0 || source.string >= static_cast<int>(chart.tuning.strings.size()))
         {
             ++notes_off_the_instrument;
             continue;
@@ -2096,10 +2096,14 @@ void resolveSlideOutExits(
         // capo and the open string stays 0. Clamped to the neck the model speaks about, which the
         // bound's own definition says import shares: a capo'd score can name a fret past the last
         // one, and that is junk rather than an instrument we do not know about.
-        note.fret = source.fret > 0 ? source.fret + chart.tuning.capo : 0;
-        if (note.fret > common::core::g_max_fret)
+        // Widened before the shift: the source fret is an untrusted raw integer, and adding the
+        // capo to INT_MAX in int is undefined before the clamp below could ever see it.
+        const std::int64_t shifted_fret =
+            source.fret > 0 ? static_cast<std::int64_t>(source.fret) + chart.tuning.capo : 0;
+        note.fret =
+            static_cast<int>(std::min<std::int64_t>(shifted_fret, common::core::g_max_fret));
+        if (shifted_fret > common::core::g_max_fret)
         {
-            note.fret = common::core::g_max_fret;
             ++frets_off_the_neck;
         }
         note.sustain = event.duration_beats;

@@ -857,6 +857,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
         m_has_untracked_unsaved_changes = false;
+        m_project_write_in_flight = false;
         m_session_faulted = false;
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_empty_project");
@@ -884,6 +885,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
         m_has_untracked_unsaved_changes = false;
+        m_project_write_in_flight = false;
         m_session_faulted = false;
         m_grid_note_value = g_default_tempo_grid_note_value;
         m_timeline_zoom_pixels_per_second = 0.0;
@@ -904,6 +906,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
     m_displaced_project_file.clear();
     m_save_requires_destination = false;
     m_has_untracked_unsaved_changes = false;
+    m_project_write_in_flight = false;
     m_session_faulted = false;
     m_grid_note_value = g_default_tempo_grid_note_value;
     m_timeline_zoom_pixels_per_second = 0.0;

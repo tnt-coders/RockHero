@@ -13,6 +13,7 @@
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/game/core/audio/game_audio_config.h>
 #include <rock_hero/game/core/audio/native_audio_setup.h>
 #include <rock_hero/game/core/settings/game_settings.h>
@@ -130,12 +131,7 @@ private:
 // A complete slot-0 route the setup binds; the fake device configuration resolves it after apply.
 [[nodiscard]] common::audio::InputDeviceIdentity guitarRoute()
 {
-    return common::audio::InputDeviceIdentity{
-        .backend_name = "ASIO",
-        .input_device_name = "Focusrite USB ASIO",
-        .input_channel_index = 0,
-        .input_channel_name = "Input 1",
-    };
+    return common::audio::testing::makeInputDeviceIdentity("ASIO", "Focusrite USB ASIO");
 }
 
 // A steady, non-clipping strum level well above the usable-signal floor, so a fixed measurement

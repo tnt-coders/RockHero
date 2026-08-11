@@ -4,6 +4,7 @@
 #include <juce_events/juce_events.h>
 #include <optional>
 #include <rock_hero/common/audio/input/input_device_identity.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/game/core/audio/game_audio_config.h>
 #include <rock_hero/game/core/settings/game_settings.h>
 #include <rock_hero/game/core/testing/null_game_settings.h>
@@ -55,12 +56,7 @@ private:
 // A complete slot-0 route the v1 single-player config binds.
 [[nodiscard]] common::audio::InputDeviceIdentity guitarRoute()
 {
-    return common::audio::InputDeviceIdentity{
-        .backend_name = "ASIO",
-        .input_device_name = "Focusrite USB ASIO",
-        .input_channel_index = 0,
-        .input_channel_name = "Input 1",
-    };
+    return common::audio::testing::makeInputDeviceIdentity("ASIO", "Focusrite USB ASIO");
 }
 
 } // namespace

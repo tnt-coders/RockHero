@@ -547,6 +547,14 @@ std::optional<ChartNotesEditPlan> planSetLegato(
         {
             continue;
         }
+        // A fret-hand harmonic never converts here: on an open string the NODE is the note's
+        // pitch, so sending it away would silently rewrite the music rather than record a
+        // direction. A stopped harmonic is different — the stop still names the pitch — which is
+        // why the conversion below is willing to drop that node.
+        if (common::core::fretHandHarmonic(note))
+        {
+            continue;
+        }
         // Asked of the note the verb intends to WRITE rather than the one on the page. A harmonic's
         // node vetoes a pull-off, and the verb is willing to send a picking-hand node away for the
         // conversion — so asking with it still attached would refuse the very edit it would have

@@ -30,6 +30,7 @@
 #include <rock_hero/common/audio/testing/configurable_song_audio.h>
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
@@ -1772,29 +1773,10 @@ private:
     };
 }
 
-/*!
-\brief Builds a stable route identity for calibration-gate tests.
-\param input_device_name Physical input device name.
-\param channel_index Zero-based input channel index.
-\param input_channel_name Optional physical input channel name.
-\return Input route identity using the test ASIO backend name.
-*/
-[[nodiscard]] inline common::audio::InputDeviceIdentity makeInputDeviceIdentity(
-    std::string input_device_name = "Interface A", int channel_index = 0,
-    std::string input_channel_name = {})
-{
-    if (input_channel_name.empty())
-    {
-        input_channel_name = "Input " + std::to_string(channel_index + 1);
-    }
-
-    return common::audio::InputDeviceIdentity{
-        .backend_name = "ASIO",
-        .input_device_name = std::move(input_device_name),
-        .input_channel_index = channel_index,
-        .input_channel_name = std::move(input_channel_name),
-    };
-}
+// The one identity builder, shared with the audio and game suites. Re-exported here so editor
+// tests keep their unqualified spelling; note the leading backend parameter — a device name is
+// its SECOND argument, which is exactly the trap the deleted local overload used to set.
+using common::audio::testing::makeInputDeviceIdentity;
 
 /*!
 \brief Builds song data with one arrangement.
@@ -1970,7 +1952,12 @@ mints one.
 {
     audio.next_prepared_audio_duration = timeline_range.duration();
     audio.next_set_active_arrangement_result = true;
-    project_services.next_song = makeSong(std::move(path), timeline_range);
+    // A song the test staged first wins; the default fixture is only a fallback, so a test that
+    // authors its own tones or arrangements is not silently overwritten by this helper.
+    if (!project_services.next_song.has_value())
+    {
+        project_services.next_song = makeSong(std::move(path), timeline_range);
+    }
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     return controller.session().currentArrangement() != nullptr;
 }

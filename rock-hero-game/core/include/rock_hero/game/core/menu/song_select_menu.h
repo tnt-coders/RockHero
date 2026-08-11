@@ -68,13 +68,14 @@ public:
 
     /*!
     \brief The scanned library, for rendering the song list.
-    \return Library the menu was built over; it outlives the menu.
+    \return The library this menu owns; the reference is valid for the menu's lifetime.
     */
     [[nodiscard]] const LibraryIndex& library() const noexcept;
 
     /*!
     \brief Index of the highlighted song row.
-    \return Zero-based index into the library's songs.
+    \return Zero-based index into the library's songs; not a valid index when the library is
+            empty.
     */
     [[nodiscard]] std::size_t selectedSongIndex() const noexcept;
 

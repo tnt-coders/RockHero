@@ -794,7 +794,7 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
 
-    audio_devices.current_input_identity = makeInputDeviceIdentity("Interface B");
+    audio_devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
     audio_devices.notifyChanged();
 
     const auto* const final_state = stateOrNull(view.last_state);
@@ -820,7 +820,8 @@ TEST_CASE("Input route change applies saved route calibration", "[core][editor-c
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
-    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+    const common::audio::InputDeviceIdentity next_identity =
+        makeInputDeviceIdentity("ASIO", "Interface B");
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -872,7 +873,8 @@ TEST_CASE("Input route change restores saved calibration on return", "[core][edi
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
-    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+    const common::audio::InputDeviceIdentity next_identity =
+        makeInputDeviceIdentity("ASIO", "Interface B");
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -921,10 +923,11 @@ TEST_CASE("Input route return restores renamed physical channel", "[core][editor
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity =
-        makeInputDeviceIdentity("Interface A", 0, "Input 1");
+        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Input 1");
     const common::audio::InputDeviceIdentity renamed_identity =
-        makeInputDeviceIdentity("Interface A", 0, "Mic/Inst 1");
-    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Mic/Inst 1");
+    const common::audio::InputDeviceIdentity next_identity =
+        makeInputDeviceIdentity("ASIO", "Interface B");
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -973,9 +976,9 @@ TEST_CASE("Input route channel change requires its own calibration", "[core][edi
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity channel_one =
-        makeInputDeviceIdentity("Interface A", 0);
+        makeInputDeviceIdentity("ASIO", "Interface A", 0);
     const common::audio::InputDeviceIdentity channel_three =
-        makeInputDeviceIdentity("Interface A", 2);
+        makeInputDeviceIdentity("ASIO", "Interface A", 2);
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -1022,7 +1025,8 @@ TEST_CASE("Audio settings close applies saved replacement route", "[core][editor
 {
     common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
-    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+    const common::audio::InputDeviceIdentity next_identity =
+        makeInputDeviceIdentity("ASIO", "Interface B");
     requireSaveInputCalibration(
         store,
         common::audio::InputCalibrationState{
@@ -1101,7 +1105,7 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     REQUIRE(measurement_started.has_value());
     CHECK(transport.calibration_input_monitoring_enabled);
 
-    audio_devices.current_input_identity = makeInputDeviceIdentity("Interface B");
+    audio_devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
     audio_devices.notifyChanged();
 
     const auto* const final_state = stateOrNull(view.last_state);
@@ -2027,7 +2031,7 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
     REQUIRE(live_input.live_input_monitoring_enabled);
 
     live_input.calls.clear();
-    audio_devices.current_input_identity = makeInputDeviceIdentity("Interface B");
+    audio_devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface B");
     audio_devices.notifyChanged();
 
     const std::vector<LiveInputSetterCall> trace{

@@ -10,6 +10,7 @@
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/testing/scoped_settings_file.h>
 
@@ -23,12 +24,7 @@ namespace
 
 [[nodiscard]] common::audio::InputDeviceIdentity guitarIdentity()
 {
-    return common::audio::InputDeviceIdentity{
-        .backend_name = "ASIO",
-        .input_device_name = "Focusrite",
-        .input_channel_index = 0,
-        .input_channel_name = "Input 1",
-    };
+    return common::audio::testing::makeInputDeviceIdentity("ASIO", "Focusrite");
 }
 
 [[nodiscard]] common::audio::ActiveDeviceRoute routeFor(

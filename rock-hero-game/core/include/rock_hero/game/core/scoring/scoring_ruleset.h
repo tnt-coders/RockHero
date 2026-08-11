@@ -30,10 +30,10 @@ struct ScoringRuleset
     /*!
     \brief Half-width of the onset hit window in real milliseconds around the expected time.
 
-    ±100 ms is the widest window the genre documents, kept at v1 as margin for detection timing
-    jitter. The signed feel baseline is attested tighter (no published figure of its own; Clone
-    Hero's 140 ms total is the closest published equivalent), so the recorded tuning direction is
-    toward ~±70 ms by ruleset version once plan 23 measures real jitter.
+    ±100 ms is the earlier-generation documented figure, kept at v1 as margin for detection
+    timing jitter. The signed feel baseline is attested tighter (no published figure of its own;
+    Clone Hero's 140 ms total is the closest published equivalent), so the recorded tuning
+    direction is toward ~±70 ms by ruleset version once plan 23 measures real jitter.
     */
     double onset_window_half_width_ms{100.0};
 

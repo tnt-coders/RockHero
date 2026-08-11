@@ -59,6 +59,7 @@ TEST_CASE("Sample rate text keeps only the digits a rate needs", "[core][audio-d
     CHECK(sampleRateText(44100.0) == "44100 Hz");
     CHECK(sampleRateText(176400.0) == "176400 Hz");
     CHECK(sampleRateText(11025.0) == "11025 Hz");
+    CHECK(sampleRateText(44100.5) == "44100.5 Hz");
 }
 
 } // namespace rock_hero::editor::core

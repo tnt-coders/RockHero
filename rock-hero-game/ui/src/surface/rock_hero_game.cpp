@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <print>
+#include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/render/render_device.h>

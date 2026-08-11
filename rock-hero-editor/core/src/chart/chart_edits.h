@@ -149,9 +149,14 @@ data actually carries. Deriving it means the two cannot disagree, and
 it is why one verb covers both.
 
 A note whose direction is not derivable is left untouched rather than guessed: no earlier note on
-its string to come from, or an earlier note at the same fret, which is neither hammered nor pulled.
-The plan therefore covers a subset of the keys when a selection mixes derivable and underivable
-notes, and reports no change at all when none are derivable.
+its string to come from, an earlier note at the same fret (neither hammered nor pulled), an
+earlier note whose hold no longer reaches this onset (a disconnected tail is a proven release),
+or an earlier note that is a scrape — deriving onto a gesture is a guess, though a pull an author
+already wrote from one stands. A fret-hand harmonic is also left untouched: its node IS its
+pitch, so converting would rewrite the music, where a stopped harmonic's node leaves with the
+conversion because the stop still names the pitch. The plan therefore covers a subset of the keys
+when a selection mixes derivable and underivable notes, and reports no change at all when none
+are derivable.
 
 \param chart Chart the plan is built against.
 \param tempo_map Tempo map the plan resolves distances through.

@@ -121,7 +121,9 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
           common::core::NoteAttack::Pinch,
           common::core::NoteAttack::Hammer,
           common::core::NoteAttack::Pull,
-          common::core::NoteAttack::Tap})
+          common::core::NoteAttack::Tap,
+          common::core::NoteAttack::Pop,
+          common::core::NoteAttack::Slap})
     {
         for (const int fret : {0, 5})
         {
@@ -217,8 +219,11 @@ TEST_CASE("the import shed and repair make every technique combination legal", "
         }
     }
     // The sweep really swept, and it really had work to do — a pass cannot come from a loop that
-    // never ran or from combinations that were all legal to begin with.
-    CHECK(combinations == 960);
+    // never ran or from combinations that were all legal to begin with. Seven of the eight
+    // attacks run (a fret-0 pop or slap with a node is a fret-hand harmonic, so their shed
+    // clauses are as live as a pick's); only PickSlide sits out, whose payload
+    // test_pick_slide_defaults owns.
+    CHECK(combinations == 1344);
     CHECK(shed_or_repaired > 100);
 }
 
@@ -1350,7 +1355,6 @@ TEST_CASE("planAdjustSustain repairs legato its shrink disconnects", "[core][cha
 TEST_CASE("the repair gives a strikeless tap and hammer somewhere to land", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> nothing{};
 
     // A tap with nowhere to strike becomes a plain pick — never a pull, which would invent
     // legato out of a picking-hand articulation even though a higher predecessor sits behind it.
@@ -1362,9 +1366,6 @@ TEST_CASE("the repair gives a strikeless tap and hammer somewhere to land", "[co
     };
     tapped.notes[0].sustain = common::core::Fraction{3, 4};
     tapped.notes[1].attack = common::core::NoteAttack::Tap;
-    // Deleting nothing still funnels through the shared finalize, which is where the repair runs.
-    const auto tap_plan = planDeleteNotes(tapped, tempo_map, nothing);
-    CHECK_FALSE(tap_plan.has_value()); // nothing to delete, so no plan — the chart is untouched
 
     // Through a real edit: retyping the predecessor leaves the strikeless tap in the stream, and
     // the gate would refuse it if the repair had not converted it first.

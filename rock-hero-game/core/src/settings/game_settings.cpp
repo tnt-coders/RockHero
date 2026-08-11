@@ -9,7 +9,6 @@
 #include <rock_hero/game/core/audio/game_audio_config.h>
 #include <span>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -152,7 +151,10 @@ constexpr const char* g_default_profile_display_name = "Player";
 
 } // namespace
 
-// Opens the per-user store lazily; a missing file is simply an empty property set.
+// Opens the per-user store lazily; a missing file is simply an empty property set. Adopting the
+// shared options also fixed a divergence: the old local copy left JUCE's three-second save timer
+// armed, which the game's SDL loop would never have fired, so a setter's value now reaches disk
+// at the write (settings_file_options.h states why zero is the one non-negotiable field).
 GameSettings::GameSettings()
     : m_properties{common::core::settingsFileOptions(common::core::gameApplicationName())}
 {}
