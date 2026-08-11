@@ -1338,35 +1338,81 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     const std::size_t entries_before = state->undo_history.labels.size();
+    // The claim's stored form, captured whole: every step below compares against this, because
+    // "pure re-projection" is a claim about BYTES and an attack check alone would not catch a
+    // repair that rewrote the note's tail or node.
+    const common::core::ChartNote claim_bytes = chartOrNull(controller)->notes[1];
 
-    // The 5-to-3-to-2 story: retyping the predecessor under the claim RE-PROJECTS it. The note's
-    // bytes never change — the claim is still exactly the claim the author wrote — and only the
-    // direction it reads back as moves, from a pull-off to a hammer-on.
-    controller.onChartFretDigitTyped(1);
-    const auto* chart = chartOrNull(controller);
-    REQUIRE(chart->notes.size() == 2);
-    CHECK(chart->notes[0].fret == 1);
-    CHECK(chart->notes[1].attack == common::core::NoteAttack::Legato);
-    CHECK(resolution(1) == common::core::LegatoMotion::Hammer);
-    // The armed caret's selection is still exactly the note under it, which is what keeps the
-    // window open for the next digit.
-    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    SECTION("two digits inside the window are one entry, and the mark follows each value")
+    {
+        // The 5-to-3-to-2 story: retyping the predecessor under the claim RE-PROJECTS it. The
+        // note's bytes never change — the claim is still exactly the claim the author wrote — and
+        // only the direction it reads back as moves, from a pull-off to a hammer-on.
+        controller.onChartFretDigitTyped(1);
+        const auto* chart = chartOrNull(controller);
+        REQUIRE(chart->notes.size() == 2);
+        CHECK(chart->notes[0].fret == 1);
+        CHECK(chart->notes[1] == claim_bytes);
+        CHECK(resolution(1) == common::core::LegatoMotion::Hammer);
+        // The armed caret's selection is still exactly the note under it, which is what keeps the
+        // window open for the next digit.
+        CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
-    // The second digit widens the SAME entry to fret 12, replanning from the reversed pre-entry
-    // stream, and the claim reads back as the pull-off again.
-    controller.onChartFretDigitTyped(2);
-    chart = chartOrNull(controller);
-    CHECK(chart->notes[0].fret == 12);
-    CHECK(chart->notes[1].attack == common::core::NoteAttack::Legato);
-    CHECK(resolution(1) == common::core::LegatoMotion::Pull);
-    CHECK(state->undo_history.labels.size() == entries_before + 1);
-    CHECK(state->undo_label == std::optional<std::string>{"Set Fret 12"});
+        // The second digit widens the SAME entry to fret 12, replanning from the reversed pre-entry
+        // stream, and the claim reads back as the pull-off again.
+        controller.onChartFretDigitTyped(2);
+        chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 12);
+        CHECK(chart->notes[1] == claim_bytes);
+        CHECK(resolution(1) == common::core::LegatoMotion::Pull);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        CHECK(state->undo_label == std::optional<std::string>{"Set Fret 12"});
 
-    // One undo restores the whole typed number in one step.
-    controller.onUndoRequested();
-    chart = chartOrNull(controller);
-    CHECK(chart->notes[0].fret == 9);
-    CHECK(chart->notes[1].attack == common::core::NoteAttack::Legato);
+        // One undo restores the whole typed number in one step.
+        controller.onUndoRequested();
+        chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 9);
+        CHECK(chart->notes[1] == claim_bytes);
+        CHECK(resolution(1) == common::core::LegatoMotion::Pull);
+    }
+
+    // The same story told in separate revisions rather than one widened entry, including the value
+    // that justifies NOTHING. That middle state is the one the old stored-direction model could not
+    // hold: there was no attack to name it, so an edit passing through had to repair the note or
+    // refuse. Here it is simply a claim displaying as the pick it plays as, and stepping back out
+    // of it needs no repair — the mark returns because the fret did.
+    SECTION("each wheel tick is its own revision, unjustifiable ones included")
+    {
+        controller.onChartFretShiftRequested(-1);
+        controller.onChartFretShiftRequested(-1);
+        controller.onChartFretShiftRequested(-1);
+        controller.onChartFretShiftRequested(-1);
+        const auto* chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 5);
+        CHECK(chart->notes[1] == claim_bytes);
+        // Equal released fret: nothing to hammer or pull, so the claim resolves to nothing and the
+        // lane draws a plain head.
+        CHECK(resolution(1) == common::core::LegatoMotion::Unjustified);
+        CHECK(state->undo_history.labels.size() == entries_before + 4);
+
+        // One tick further and the direction has crossed over.
+        controller.onChartFretShiftRequested(-1);
+        chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 4);
+        CHECK(resolution(1) == common::core::LegatoMotion::Hammer);
+
+        // Each undo is bit-exact, and the mark it restores is whatever that revision's frets
+        // justify — walked all the way back, the pull-off is there again with no re-authoring.
+        for (const int expected_fret : {5, 6, 7, 8, 9})
+        {
+            controller.onUndoRequested();
+            chart = chartOrNull(controller);
+            CAPTURE(expected_fret);
+            CHECK(chart->notes[0].fret == expected_fret);
+            CHECK(chart->notes[1] == claim_bytes);
+        }
+        CHECK(resolution(1) == common::core::LegatoMotion::Pull);
+    }
 }
 
 // Sustain growth clamps to the minimum-sustain-distance margin — the shared 1/16-whole-note
@@ -2043,7 +2089,9 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
 {
     // String 1 carries a bare predecessor four beats before its note — past the kept-sustain
     // bound, so no claim resolves until the assist authors the connection; string 2 an
-    // open string for changing the selection.
+    // open string for changing the selection. String 3 repeats the string-1 shape with a SCRAPE as
+    // the predecessor — the same missing hold, but a tail the assist is forbidden to spend — and
+    // sits later in the stream so the indices above stay put.
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
@@ -2064,6 +2112,26 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 4, .beat = 1, .offset = {}},
+            .string = 3,
+            .fret = 9,
+            .sustain = common::core::Fraction{1},
+            .attack = common::core::NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {common::core::SlideWaypoint{
+                .offset = common::core::Fraction{1, 2},
+                .fret = 3,
+            }},
+            .slide_out = common::core::SlideOut{.offset = common::core::Fraction{1}, .fret = 12},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 5, .beat = 1, .offset = {}},
+            .string = 3,
             .fret = 7,
             .bend = {},
             .slides = {},
@@ -2128,6 +2196,44 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         controller.onChartLegatoToggleRequested();
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
         CHECK(note(0).sustain == common::core::Fraction{15, 4});
+
+        // And Ctrl+Z is exact where the window would have been genuine: the clear is its own entry,
+        // so the first undo restores the claim with the grown tail still standing, and the second
+        // undoes the assist that grew it. Two steps rather than the toggle's zero, which is the
+        // price of the context switch, not a loss.
+        controller.onUndoRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Legato);
+        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+        controller.onUndoRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        CHECK(note(0).sustain == common::core::Fraction{});
+    }
+
+    // The assist writes a tail, and a tail is sometimes a gesture's own authored window. Where it
+    // is, the verb declines rather than reshaping it: a scrape's travel and a trail-off's exit are
+    // data the author placed, and spending them to buy a connection would silently rewrite the
+    // sound. The connection itself stays authorable — the resolver reads the released fret, so a
+    // pull off a scrape is legal — but only by dragging the tail out by hand first.
+    SECTION("the assist never spends a gesture carrier's tail, and says why it could not")
+    {
+        click(controller, 160.0f, 140.0f);
+        controller.onChartLegatoToggleRequested();
+
+        // Nothing changed at all: no claim, no growth, and the scrape's own geometry intact.
+        CHECK(note(4).attack == common::core::NoteAttack::Pick);
+        CHECK(note(3).sustain == common::core::Fraction{1});
+        CHECK(note(3).attack == common::core::NoteAttack::PickSlide);
+        REQUIRE(view.shown_errors.size() == 1);
+        CHECK(
+            view.shown_errors.back() ==
+            "No legato to set: the note before is already released, and its tail cannot be "
+            "extended far enough to reach (1 note skipped).");
+
+        // An all-skipped press leaves no undo entry behind either — reporting is the whole of what
+        // it does.
+        const EditorViewState* state = stateOrNull(view.last_state);
+        REQUIRE(state != nullptr);
+        CHECK(state->undo_label != std::optional<std::string>{"Legato"});
     }
 
     SECTION("undo after the pair is a no-op on the chart: the entry is gone")
@@ -2288,6 +2394,244 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
         CHECK(note(1).attack == common::core::NoteAttack::Pick);
         // Folded into the shrink rather than stacked, exactly as at any other settle event.
         CHECK(state->undo_history.labels.size() == entries_before + 1);
+    }
+}
+
+// Orphaning: deleting the note a claim connects to is not an edit to the claim. The statement stays
+// exactly as the author wrote it and only its resolution changes, which is what makes putting the
+// predecessor back a restoration rather than a re-authoring — under a stored direction the delete
+// would have had to rewrite or refuse. A left-hand tap rides through untouched, because its
+// statement was never relational to begin with.
+TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart]")
+{
+    // String 1: fret 9 held to the margin before a legato note at fret 5, so the claim resolves as
+    // a pull-off. String 2: a left-hand tap with nothing before it on its own string at all.
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 9,
+            .sustain = common::core::Fraction{15, 4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 5,
+            .attack = common::core::NoteAttack::Legato,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 2,
+            .fret = 7,
+            .attack = common::core::NoteAttack::LeftTap,
+            .bend = {},
+            .slides = {},
+        },
+    };
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+
+    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
+        return controller.session().currentArrangement()->chart->notes[index];
+    };
+    const auto resolution = [&](const std::size_t index) {
+        const common::core::Chart& current = *controller.session().currentArrangement()->chart;
+        return common::core::chartResolutions(
+                   current.notes, current.shapes, controller.session().song().tempo_map)
+            .legato[index];
+    };
+
+    const common::core::ChartNote claim_bytes = note(1);
+    const common::core::ChartNote tap_bytes = note(2);
+    CHECK(resolution(1) == common::core::LegatoMotion::Pull);
+    CHECK(resolution(2) == common::core::LegatoMotion::Hammer);
+
+    // Select the predecessor and remove it.
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    SECTION("mid-burst the orphaned claim is byte-identical and simply resolves to nothing")
+    {
+        controller.onSelectionDeleteRequested();
+        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 2);
+        CHECK(note(0) == claim_bytes);
+        CHECK(resolution(0) == common::core::LegatoMotion::Unjustified);
+        CHECK(note(1) == tap_bytes);
+        CHECK(resolution(1) == common::core::LegatoMotion::Hammer);
+
+        // Undo puts the predecessor back and the mark returns with it — nothing re-authored it,
+        // because nothing had unwritten it.
+        controller.onUndoRequested();
+        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 3);
+        CHECK(note(1) == claim_bytes);
+        CHECK(resolution(1) == common::core::LegatoMotion::Pull);
+        CHECK(note(2) == tap_bytes);
+    }
+
+    SECTION("the settle flattens the orphan and leaves the tap exactly as authored")
+    {
+        controller.onSelectionDeleteRequested();
+        controller.onChartEscapePressed();
+        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 2);
+        CHECK(note(0).attack == common::core::NoteAttack::Pick);
+        CHECK(note(1) == tap_bytes);
+
+        // Folded into the delete, so one undo restores the predecessor and the claim together.
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        REQUIRE_FALSE(state->undo_history.labels.empty());
+        CHECK(state->undo_history.labels.back() == "Delete Note");
+        controller.onUndoRequested();
+        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 3);
+        CHECK(note(1) == claim_bytes);
+        CHECK(resolution(1) == common::core::LegatoMotion::Pull);
+    }
+}
+
+// Red-team D3: a sweep that COMMITS closes both coalescing windows. A fold rewrites the top entry's
+// content without moving the history position, so every proof an armed window checks still passes —
+// and reversing or widening against a plan that no longer describes that entry would either
+// resurrect the claim the sweep just flattened or reconstruct the wrong pre-burst stream.
+TEST_CASE("EditorController closes its coalescing windows on a committing settle", "[core][chart]")
+{
+    // String 1 climbs 3 -> 7 -> 5, each a measure apart. The first two both hold to the margin, so
+    // the third note's claim resolves as a pull-off and a claim on the middle note would resolve as
+    // a hammer-on.
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 1, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 3,
+            .sustain = common::core::Fraction{15, 4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 7,
+            .sustain = common::core::Fraction{15, 4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 5,
+            .attack = common::core::NoteAttack::Legato,
+            .bend = {},
+            .slides = {},
+        },
+    };
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+
+    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
+        return controller.session().currentArrangement()->chart->notes[index];
+    };
+
+    // The middle note is the one every scenario below edits; the claim it carries is on the note
+    // after it.
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    SECTION("the toggle window: the next press means the ordinary law, not a reversal")
+    {
+        // Shrinking the middle note's tail breaks the claim after it, and the selection never
+        // changes, so no settle has run yet when the next press lands.
+        controller.onChartSustainAdjustRequested(-1, false);
+        CHECK(note(2).attack == common::core::NoteAttack::Legato);
+
+        // `H` claims the middle note's own connection and arms the toggle window.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(1).attack == common::core::NoteAttack::Legato);
+        CHECK(note(2).attack == common::core::NoteAttack::Legato);
+
+        // The write verb settles with the selection untouched and the window still armed — the one
+        // event that reaches the sweep that way. The flatten folds into the `H` entry.
+        controller.onSaveRequested();
+        REQUIRE(project_services.save_call_count == 1);
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        const std::size_t entries_after_settle = state->undo_history.labels.size();
+
+        // The press that follows is the ordinary law: it CLEARS the claim it can no longer set.
+        // Were the window still armed it would reverse the folded entry instead, resurrecting the
+        // claim the sweep just flattened.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(1).attack == common::core::NoteAttack::Pick);
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        CHECK(state->undo_history.labels.size() == entries_after_settle + 1);
+        REQUIRE_FALSE(state->undo_history.labels.empty());
+        CHECK(state->undo_history.labels.back() == "Remove Legato");
+    }
+
+    SECTION("the fret entry window: the next digit starts a fresh value")
+    {
+        // Retyping the middle note to the claim's own fret leaves nothing to hammer or pull, so the
+        // claim breaks — and the digit arms the multi-digit window.
+        controller.onChartFretDigitTyped(5);
+        CHECK(note(1).fret == 5);
+        CHECK(note(2).attack == common::core::NoteAttack::Legato);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+
+        // Esc's caret rung keeps the selection, so the digit below still has somewhere to land.
+        controller.onChartEscapePressed();
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        REQUIRE_FALSE(state->undo_history.labels.empty());
+        CHECK(state->undo_history.labels.back() == "Set Fret 5");
+
+        // A surviving window would have combined the digits into fret 54 — refused by the cap — or,
+        // worse, replanned the widened entry from a pre-burst stream the fold had already replaced.
+        controller.onChartFretDigitTyped(4);
+        CHECK(note(1).fret == 4);
+        CHECK(state->undo_history.labels.size() == entries_before + 2);
+
+        // Two undos, and the fold restores the retype and the claim in one step.
+        controller.onUndoRequested();
+        CHECK(note(1).fret == 5);
+        CHECK(note(2).attack == common::core::NoteAttack::Pick);
+        controller.onUndoRequested();
+        CHECK(note(1).fret == 7);
+        CHECK(note(2).attack == common::core::NoteAttack::Legato);
     }
 }
 

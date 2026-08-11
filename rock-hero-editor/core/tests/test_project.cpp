@@ -234,6 +234,67 @@ void writeMinimalProjectPackage(const std::filesystem::path& path)
         });
 }
 
+// Writes a project package carrying one charted note with the supplied attack token, or a plain
+// pick when the token is empty — the document has no pick token, because an absent attack IS the
+// pick. The audio asset already holds exactly the normalization the test analyzer produces, so
+// nothing in the audio half of the load can convert anything and the conversion flag isolates the
+// chart's own settle.
+void writeChartedProjectPackage(const std::filesystem::path& path, const std::string& attack)
+{
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    const std::string attack_property =
+        attack.empty() ? std::string{} : R"(, "attack": ")" + attack + '"';
+    writeArchive(
+        path,
+        std::vector{
+            ArchiveEntry{.path = "song/audio/backing.flac", .contents = "audio bytes"},
+            projectDocumentEntry(),
+            ArchiveEntry{
+                .path = "song/" + chart_ref,
+                .contents = R"({ "formatVersion": 1,)"
+                            R"( "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
+                            R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5)" +
+                            attack_property + R"( } ] })",
+            },
+            ArchiveEntry{
+                .path = "song/song.json",
+                .contents =
+                    R"({
+                "formatVersion": 1,)" +
+                    tempoMapJsonFragment() +
+                    R"(
+                "metadata": {
+                    "title": "Monument",
+                    "artist": "A Day To Remember"
+                },
+                "audioAssets": [
+                    {
+                        "id": "backing",
+                        "path": "audio/backing.flac",
+                        "normalization": {
+                            "gainDb": -4.0,
+                            "validationSha256": ")" +
+                    std::string(64, 'a') +
+                    R"("
+                        }
+                    }
+                ],
+                "arrangements": [
+                    {
+                        "id": ")" +
+                    std::string{g_lead_arrangement_id} +
+                    R"(",
+                        "part": "Lead",
+                        "audio": "backing",
+                        "chart": ")" +
+                    chart_ref + R"("
+                    }
+                ]
+            })",
+            },
+        });
+}
+
 // Writes a minimal valid .rock package with native song content at the archive root.
 void writeMinimalRockSongPackage(const std::filesystem::path& path)
 {
@@ -445,6 +506,53 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     CHECK(project.songConvertedOnLoad());
     CHECK(project.path() == path);
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
+}
+
+// The load settle (red-team D5): a hand-made document can carry a connection claim its own notes do
+// not justify, the reader flattens it rather than refusing the package, and a load that converted
+// anything leaves the session dirty — memory no longer equals disk, so the next save is what makes
+// the file agree. The audio half of this fixture converts nothing, so the flag can only have come
+// from the chart.
+TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
+{
+    const TemporaryArchiveDirectory directory;
+    const std::filesystem::path path = directory.path() / "song.rhp";
+
+    SECTION("a claim nothing justifies loads as a plain pick and opens dirty")
+    {
+        writeChartedProjectPackage(path, "legato");
+
+        Project project;
+        FakeAnalyzeAudio fake_analyze;
+        const auto result = project.load(path, {}, fake_analyze.function());
+
+        REQUIRE(result.has_value());
+        REQUIRE(result->arrangements.size() == 1);
+        REQUIRE(result->arrangements.front().chart.has_value());
+        if (result->arrangements.front().chart.has_value())
+        {
+            const common::core::Chart& chart = *result->arrangements.front().chart;
+            REQUIRE(chart.notes.size() == 1);
+            CHECK(chart.notes.front().attack == common::core::NoteAttack::Pick);
+        }
+        CHECK(project.songConvertedOnLoad());
+    }
+
+    SECTION("the same package with nothing to settle opens clean")
+    {
+        writeChartedProjectPackage(path, "");
+
+        Project project;
+        FakeAnalyzeAudio fake_analyze;
+        const auto result = project.load(path, {}, fake_analyze.function());
+
+        REQUIRE(result.has_value());
+        // The analysis still RAN — the stored validation hash cannot match a fixture audio file —
+        // and produced the record the fixture already held, so it changed nothing. That is what
+        // makes the flag above attributable to the chart alone.
+        CHECK(fake_analyze.invocations.size() == 1);
+        CHECK_FALSE(project.songConvertedOnLoad());
+    }
 }
 
 // Verifies project load fails before commit when required normalization analysis fails.

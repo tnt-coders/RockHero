@@ -1543,38 +1543,87 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
 TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-    for (const common::core::NoteAttack attack :
-         {common::core::NoteAttack::Tap, common::core::NoteAttack::LeftTap})
-    {
-        common::core::Chart chart;
-        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-        chart.notes = {
-            makeNote({.measure = 1, .beat = 1}, 1, 9),
-            makeNote({.measure = 1, .beat = 2}, 1, 0),
-        };
-        chart.notes[0].sustain = common::core::Fraction{3, 4};
-        chart.notes[1].attack = attack;
-        CAPTURE(static_cast<int>(attack));
 
-        // Through a real edit: retyping the predecessor leaves the strikeless strike in the stream,
-        // and the gate would refuse the whole plan if the flatten had not converted it first. Both
-        // attacks land on a plain pick — there is no direction left for one of them to be rescued
-        // into, which is the asymmetry the stored-direction model needed and this one does not.
-        const auto retyped =
-            planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 7, /*set_exact=*/true);
-        REQUIRE(retyped.has_value());
-        if (retyped.has_value())
+    SECTION("a strike already stranded in the stream is repaired by the plan that reaches it")
+    {
+        for (const common::core::NoteAttack attack :
+             {common::core::NoteAttack::Tap, common::core::NoteAttack::LeftTap})
         {
-            const auto struck =
-                std::ranges::find_if(retyped->inserted, [](const common::core::ChartNote& note) {
-                    return note.fret == 0;
-                });
-            REQUIRE(struck != retyped->inserted.end());
-            if (struck != retyped->inserted.end())
+            common::core::Chart chart;
+            chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+            chart.notes = {
+                makeNote({.measure = 1, .beat = 1}, 1, 9),
+                makeNote({.measure = 1, .beat = 2}, 1, 0),
+            };
+            chart.notes[0].sustain = common::core::Fraction{3, 4};
+            chart.notes[1].attack = attack;
+            CAPTURE(static_cast<int>(attack));
+
+            // Through a real edit: retyping the predecessor leaves the strikeless strike in the
+            // stream, and the gate would refuse the whole plan if the flatten had not converted it
+            // first. Both attacks land on a plain pick — there is no direction left for one of them
+            // to be rescued into, which is the asymmetry the stored-direction model needed and this
+            // one does not.
+            const auto retyped =
+                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 7, /*set_exact=*/true);
+            REQUIRE(retyped.has_value());
+            if (retyped.has_value())
             {
-                CHECK(struck->attack == common::core::NoteAttack::Pick);
+                const auto struck = std::ranges::find_if(
+                    retyped->inserted,
+                    [](const common::core::ChartNote& note) { return note.fret == 0; });
+                REQUIRE(struck != retyped->inserted.end());
+                if (struck != retyped->inserted.end())
+                {
+                    CHECK(struck->attack == common::core::NoteAttack::Pick);
+                }
+                applyAndValidate(chart, tempo_map, *retyped);
             }
-            applyAndValidate(chart, tempo_map, *retyped);
+        }
+    }
+
+    // The one thing that CAN take a left-hand tap away, and the reason it is intra-note: a tap
+    // needs a stop to strike, so its own fret reaching the open string strands it. Nothing
+    // relational may touch it — no neighbour, no sweep, no plain `H` — but this is the note's own
+    // edit, so the flatten rides that entry and one undo restores the tap with the fret.
+    SECTION("a strike its OWN edit strands flattens inside that edit's plan")
+    {
+        for (const common::core::NoteAttack attack :
+             {common::core::NoteAttack::Tap, common::core::NoteAttack::LeftTap})
+        {
+            common::core::Chart chart;
+            chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+            chart.notes = {makeNote({.measure = 1, .beat = 1}, 1, 5)};
+            chart.notes[0].attack = attack;
+            CAPTURE(static_cast<int>(attack));
+
+            const auto stranded =
+                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 0, /*set_exact=*/true);
+            REQUIRE(stranded.has_value());
+            if (stranded.has_value())
+            {
+                REQUIRE(stranded->inserted.size() == 1);
+                CHECK(stranded->inserted[0].fret == 0);
+                CHECK(stranded->inserted[0].attack == common::core::NoteAttack::Pick);
+                applyAndValidate(chart, tempo_map, *stranded);
+            }
+
+            // A node is the other thing a strike can land on, so the same retype leaves the attack
+            // standing: the gate is `fret > 0 || node`, not `fret > 0`.
+            common::core::Chart noded;
+            noded.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+            noded.notes = {makeNote({.measure = 1, .beat = 1}, 1, 5)};
+            noded.notes[0].attack = attack;
+            noded.notes[0].harmonic_node = 12.0;
+            const auto kept =
+                planRetypeFrets(noded, tempo_map, {noded.notes[0]}, 0, /*set_exact=*/true);
+            REQUIRE(kept.has_value());
+            if (kept.has_value())
+            {
+                REQUIRE(kept->inserted.size() == 1);
+                CHECK(kept->inserted[0].attack == attack);
+                applyAndValidate(noded, tempo_map, *kept);
+            }
         }
     }
 }

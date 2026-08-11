@@ -913,6 +913,16 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         harmonic_claim.harmonic_node = 17.0;
         CHECK(resolve_claim({source, harmonic_claim}) == LegatoMotion::Unjustified);
 
+        // The veto belongs to the pull clause ALONE, which is what makes the asymmetry a rule
+        // rather than a blanket "no nodes": the same node above its predecessor is the tapped
+        // harmonic — the fretting hand strikes the stop while the picking hand damps the node —
+        // and the hammer clause accepts a node as something to strike.
+        ChartNote lower_source = make_note(1, 1, 3);
+        lower_source.sustain = Fraction{3, 4};
+        ChartNote struck_harmonic = claim_at(2, 1, 9);
+        struck_harmonic.harmonic_node = 21.0;
+        CHECK(resolve_claim({lower_source, struck_harmonic}) == LegatoMotion::Hammer);
+
         // A fret-hand harmonic predecessor is a touch, not a press: it holds nothing to hand over.
         ChartNote harmonic_source = make_note(1, 1, 0);
         harmonic_source.harmonic_node = 12.0;
@@ -1027,6 +1037,34 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // Asked directly, the resolver answers what a claim WOULD resolve to — the question the `H`
         // toggle's plan is built from, and why it deliberately ignores the note's own attack.
         CHECK(resolveLegato(plain, &source, source.sustain, tempo_map) == LegatoMotion::Pull);
+    }
+
+    SECTION("resolution never cascades: a broken claim still justifies the note after it")
+    {
+        // Three notes down one string, the middle one making a claim nothing justifies. What the
+        // last note connects to is the middle note's STORED released fret and hold, never the
+        // middle note's own answer — so a broken claim is not contagious, which is what lets the
+        // sweep flatten in a single pass and lets display read the table with no fixed point to
+        // reach.
+        const ChartNote released = make_note(1, 1, 9);
+        ChartNote broken = claim_at(2, 1, 5);
+        broken.sustain = Fraction{3, 4};
+        const std::vector<ChartNote> notes{released, broken, claim_at(3, 1, 3)};
+
+        const ChartResolutions resolutions = chartResolutions(notes, {}, tempo_map);
+        REQUIRE(resolutions.legato.size() == 3);
+        // The bare predecessor at the bound is a proven release, so the middle claim resolves to
+        // nothing — and the last note pulls off it regardless.
+        CHECK(resolutions.legato[1] == LegatoMotion::Unjustified);
+        CHECK(resolutions.legato[2] == LegatoMotion::Pull);
+
+        // Which is exactly why the sweep needs no second pass: flattening the middle claim changes
+        // nothing the last note's justification reads.
+        std::vector<ChartNote> swept = notes;
+        CHECK(sweepUnjustifiedLegato(swept, {}, tempo_map).size() == 1);
+        CHECK(swept[1].attack == NoteAttack::Pick);
+        CHECK(swept[2].attack == NoteAttack::Legato);
+        CHECK(sweepUnjustifiedLegato(swept, {}, tempo_map).empty());
     }
 }
 
