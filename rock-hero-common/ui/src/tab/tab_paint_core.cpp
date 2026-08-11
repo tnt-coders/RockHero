@@ -660,7 +660,7 @@ void drawSlideWaypointHeads(
         }
 
         const float x = metrics.x(waypoint.seconds);
-        const float size = metrics.note_height + 1.0f;
+        const float size = metrics.headSize();
         fillHeadShape(g, style.border_inner, style.linked_inner, x, center_y, size, shape);
         if (metrics.draw_text)
         {
@@ -792,7 +792,7 @@ void drawMuteIcon(
     // The head's own extent, with no floor of its own. A floor made the X larger than the head it
     // marks at small lane scales and, below about eleven pixels, larger than the lane — painting
     // mute ink onto strings that carry no mute.
-    const float size = metrics.note_height + 1.0f;
+    const float size = metrics.headSize();
     const float space = std::max(2.0f, size / 8.0f);
     const float half = size / 2.0f;
     const float left = center_x - half;
@@ -980,9 +980,8 @@ void drawAttackIcon(
 {
     // The apex sits at (corner_x - width/2, corner_y) and the corner is tuck from the head's
     // center on both axes, so putting the apex on the rim is solving
-    // 2*tuck^2 + width*tuck + width^2/4 - radius^2 = 0. The head is drawn one pixel larger than
-    // the note height so it gets a center pixel on the string line (see drawNoteHead).
-    const float radius = (metrics.note_height + 1.0f) / 2.0f;
+    // 2*tuck^2 + width*tuck + width^2/4 - radius^2 = 0.
+    const float radius = metrics.headSize() / 2.0f;
     const float triangle_width = metrics.note_height / 2.0f;
     float tuck =
         (std::sqrt((8.0f * radius * radius) - (triangle_width * triangle_width)) - triangle_width) /
@@ -1090,9 +1089,7 @@ void drawNoteHead(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::TabNoteView& note, float onset_x, float center_y)
 {
-    // Charter renders heads one pixel larger than the configured height so they get a center
-    // pixel on the string line.
-    const float size = metrics.note_height + 1.0f;
+    const float size = metrics.headSize();
     const HeadShape shape = headShapeFor(note);
 
     if (note.accent)
@@ -1375,7 +1372,7 @@ void paintTabLane(
 
     // Bracket geometry shared by the string-line gaps below and the bracket pass further
     // down; the values depend only on the lane metrics, not on the individual note.
-    const float bracket_size = metrics.note_height + 1.0f;
+    const float bracket_size = metrics.headSize();
     const float bracket_border = std::max(1.0f, bracket_size / 15.0f);
     const float bracket_radius = bracket_size / 2.0f + bracket_border;
     constexpr int bracket_bar = g_arpeggio_bracket_thickness;

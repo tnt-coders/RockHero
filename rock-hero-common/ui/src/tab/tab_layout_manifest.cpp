@@ -14,7 +14,7 @@ TabNoteLayout tabNoteLayout(
     TabNoteLayout layout;
     layout.onset_x = geometry.x(note.start_seconds);
     layout.center_y = geometry.laneY(note.string);
-    layout.head_size = geometry.note_height + 1.0f;
+    layout.head_size = geometry.headSize();
     layout.head = TabLayoutRect{
         .x = layout.onset_x - layout.head_size / 2.0f,
         .y = layout.center_y - layout.head_size / 2.0f,

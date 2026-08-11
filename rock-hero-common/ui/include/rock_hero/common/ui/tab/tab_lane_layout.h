@@ -83,6 +83,21 @@ struct TabLaneGeometry
     /*! \brief Rendered note-head height. */
     float note_height{};
 
+    /*!
+    \brief Rendered note-head extent: one pixel more than the note height, the odd size that
+           centers the head's box on the string line the way the odd tail height centers the tail.
+
+    The one authority for the head's drawn extent — \ref TabNoteLayout::head_size reports this
+    value, and every head-sized element (outline, mute icon, harmonic diamond, bracket) draws
+    from it.
+
+    \return Head extent in pixels.
+    */
+    [[nodiscard]] float headSize() const noexcept
+    {
+        return note_height + 1.0f;
+    }
+
     /*! \brief Sustain tail height; odd so the tail centers on the string line. */
     float tail_height{};
 

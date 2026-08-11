@@ -644,15 +644,20 @@ tap onset's release.
             {
                 continue;
             }
+            // The station is the waypoint's DRAWN sounding position, exactly like the seed above:
+            // a node rides the stop it glides with, so a tapped harmonic's light walks the node
+            // path, not the stop path underneath it. Identity for a node-less note.
+            const double waypoint_position =
+                highwayDrawnSoundingPosition(note, waypoint.fret).position;
             if (seconds <= waypoint.seconds)
             {
                 const double span = waypoint.seconds - previous_seconds;
                 const double weight =
                     span > 0.0 ? std::clamp((seconds - previous_seconds) / span, 0.0, 1.0) : 1.0;
-                return previous_fret + ((waypoint.fret - previous_fret) * weight);
+                return previous_fret + ((waypoint_position - previous_fret) * weight);
             }
             previous_seconds = waypoint.seconds;
-            previous_fret = waypoint.fret;
+            previous_fret = waypoint_position;
         }
         return previous_fret;
     };

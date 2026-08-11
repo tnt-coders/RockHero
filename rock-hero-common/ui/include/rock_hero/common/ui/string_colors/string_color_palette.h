@@ -35,9 +35,10 @@ struct StringColorPalette
     /*!
     \brief Colors for lanes below the six-string window, seventh string downward.
 
-    Sized by the chart string cap on purpose: raising common::core::g_max_chart_strings refuses
-    to compile until every registered preset defines the new lane colors, so the string-cap
-    domain gate is compiler-enforced.
+    Sized by the chart string cap on purpose. The size alone does not refuse to compile when the
+    cap rises — a braced list shorter than the array zero-fills — so the enforcement is the
+    static_assert beside each preset definition, which requires every extended slot to be authored
+    opaque and therefore catches a zero-filled new lane at compile time.
     */
     std::array<ArgbColor, static_cast<std::size_t>(common::core::g_max_chart_strings) - 6U>
         extended{};

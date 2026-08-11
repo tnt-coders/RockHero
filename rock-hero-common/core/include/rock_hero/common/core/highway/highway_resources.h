@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 namespace rock_hero::common::core
 {
@@ -18,9 +19,11 @@ namespace rock_hero::common::core
 
 The names are the base names of the committed sources in rock-hero-common/ui/shaders and of the
 compiled binaries deployed beside each product (`vs_<name>.bin` / `fs_<name>.bin`). Both products
-resolve their programs by walking this enumeration, so a new program is added here and nowhere
-else: the game's resource paths, the game's shader loader, the editor preview's loader, and the
-renderer's own diagnostics all read the name from highwayShaderProgramName.
+resolve their programs by walking this enumeration, so the NAME is stated here and nowhere else:
+the game's resource paths, the game's shader loader, the editor preview's loader, and the
+renderer's own diagnostics all read it from highwayShaderProgramName. A new program still needs
+its `.sc` source pair, its slot in the renderer, and a draw call — the table owns the name and the
+set, not the wiring (docs/developer/the-3d-highway.md walks the full checklist).
 
 This lives in common/core rather than beside the renderer because the game resolves resource paths
 in game/core, which is headless and must not depend on common/ui.
@@ -93,7 +96,8 @@ enum class HighwayTexture : std::uint8_t
 \brief Every shader program, in enumeration order, for loaders that resolve the whole set.
 
 A new enumerator above needs a row here too; the name functions below are switches, so the
-compiler already refuses a program with no name.
+compiler already refuses a program with no name, and the assertion below refuses a row list that
+does not cover the enumeration.
 */
 inline constexpr std::array g_highway_shader_programs{
     HighwayShaderProgram::Color,
@@ -105,6 +109,24 @@ inline constexpr std::array g_highway_shader_programs{
     HighwayShaderProgram::BoxMute,
 };
 
+// A loader walks the array while the renderer indexes handle slots by enumerator value, so a
+// missing or misplaced row would leave a slot silently unloaded. Covering the enumeration is
+// asserted against the last enumerator; appending a program moves that name, which is the point —
+// the compiler stops anyone who adds an enumerator without its row.
+static_assert(
+    []() consteval {
+        for (std::size_t index = 0; index < g_highway_shader_programs.size(); ++index)
+        {
+            if (g_highway_shader_programs.at(index) != static_cast<HighwayShaderProgram>(index))
+            {
+                return false;
+            }
+        }
+        return g_highway_shader_programs.size() ==
+               static_cast<std::size_t>(HighwayShaderProgram::BoxMute) + 1;
+    }(),
+    "g_highway_shader_programs must list every program in enumeration order");
+
 /*! \brief Every highway texture asset, in enumeration order, for loaders that resolve the set. */
 inline constexpr std::array g_highway_textures{
     HighwayTexture::Notes,
@@ -112,6 +134,21 @@ inline constexpr std::array g_highway_textures{
     HighwayTexture::Fingering,
     HighwayTexture::ChordMarks,
 };
+
+// Same mechanism as the shader list: the row list must cover the enumeration in order.
+static_assert(
+    []() consteval {
+        for (std::size_t index = 0; index < g_highway_textures.size(); ++index)
+        {
+            if (g_highway_textures.at(index) != static_cast<HighwayTexture>(index))
+            {
+                return false;
+            }
+        }
+        return g_highway_textures.size() ==
+               static_cast<std::size_t>(HighwayTexture::ChordMarks) + 1;
+    }(),
+    "g_highway_textures must list every texture in enumeration order");
 
 /*!
 \brief Array index for one shader program in a per-program array.
@@ -173,7 +210,8 @@ inline constexpr std::array g_highway_textures{
         }
     }
 
-    return "color";
+    // The switch is exhaustive; renaming an out-of-range value would be a lie, not a fallback.
+    std::unreachable();
 }
 
 /*!
@@ -203,7 +241,8 @@ inline constexpr std::array g_highway_textures{
         }
     }
 
-    return "notes.png";
+    // The switch is exhaustive; renaming an out-of-range value would be a lie, not a fallback.
+    std::unreachable();
 }
 
 } // namespace rock_hero::common::core

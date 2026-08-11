@@ -7,7 +7,9 @@
 #include <expected>
 #include <juce_graphics/juce_graphics.h>
 #include <optional>
+#include <rock_hero/common/core/highway/highway_resources.h>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -268,7 +270,9 @@ TEST_CASE("Box mute profiles reject an alpha-bearing image", "[ui][highway]")
 // Plan 54 Phase 3 generalizes this shape to every themed asset.
 TEST_CASE("The shipped box mute art satisfies its authoring contract", "[ui][highway]")
 {
-    const juce::File art = juce::File{ROCK_HERO_TEXTURES_DIR}.getChildFile("chords.png");
+    const juce::File art = juce::File{ROCK_HERO_TEXTURES_DIR}.getChildFile(
+        std::string{common::core::highwayTextureFileName(
+            common::core::HighwayTexture::ChordMarks)});
     REQUIRE(art.existsAsFile());
     juce::MemoryBlock bytes;
     REQUIRE(art.loadFileAsData(bytes));

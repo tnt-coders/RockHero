@@ -207,9 +207,10 @@ HighwayCameraTarget makeHighwayCameraTarget(
     // hand, which no longer anchors it (taps are excluded from the fret-hand track, matching how
     // charters place anchors). The window light stays on the left hand, but the camera still has to
     // frame the tap, so any fretted note defined in the scanned zones widens the range as if the
-    // hand reached it. Open strings never reframe (played from anywhere, like the hand window they
-    // do not constrain). A note framed for its zone stays framed once consumed, which is the point
-    // of zone quantization: the target rests instead of narrowing note by note.
+    // hand reached it. An open string's stop never reframes (played from anywhere, like the hand
+    // window it does not constrain), though an open-string harmonic still reframes at its node. A
+    // note framed for its zone stays framed once consumed, which is the point of zone
+    // quantization: the target rests instead of narrowing note by note.
     const auto note_begin = std::ranges::lower_bound(
         state.notes, window_start, std::ranges::less{}, &HighwayNoteView::start_seconds);
     for (auto it = note_begin; it != state.notes.end(); ++it)
@@ -219,26 +220,30 @@ HighwayCameraTarget makeHighwayCameraTarget(
         {
             break; // notes ascend by onset, so nothing later is in the scan window
         }
-        if (note.fret <= 0)
-        {
-            continue;
-        }
-        low_line = std::min(low_line, static_cast<double>(note.fret - 1));
-        high_line = std::max(high_line, static_cast<double>(note.fret));
-
         // The head does not always draw over the stop. On a non-pinch harmonic the hand presses at
         // `fret` while the head is drawn on the node, which can be a dozen frets up the neck, so
         // framing the stop alone can leave the head, tail, and chevron entirely outside the
-        // viewport. Ask the same authority the renderer places the head with -- the DRAWN position,
-        // so the frame follows a node held at the board's edge instead of chasing it off the board
-        // -- rather than restating the node-or-fret rule here. The stop above still widens the
-        // range, because the hand goes there and the fret-span line is drawn there.
+        // viewport -- and on an OPEN string the node is the note's only position, which is why
+        // this runs before the open-string skip below rather than after it. Ask the same authority
+        // the renderer places the head with -- the DRAWN position, so the frame follows a node
+        // held at the board's edge instead of chasing it off the board -- rather than restating
+        // the node-or-fret rule here.
         const SoundingPosition sounding = highwayDrawnSoundingPosition(note, note.fret);
         if (sounding.at_node)
         {
             low_line = std::min(low_line, sounding.position);
             high_line = std::max(high_line, sounding.position);
         }
+        // An open string's STOP never reframes (played from anywhere, like the hand window it
+        // does not constrain); when it carries a node, the node above is what reframes.
+        if (note.fret <= 0)
+        {
+            continue;
+        }
+        // The stop widens the range too, because the hand goes there and the fret-span line is
+        // drawn there.
+        low_line = std::min(low_line, static_cast<double>(note.fret - 1));
+        high_line = std::max(high_line, static_cast<double>(note.fret));
 
         // A pick slide's head rides its whole traveled path with no fret-hand anchor chasing
         // it (the scrape is excluded from the fret-hand track like the tap above), so the

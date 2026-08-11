@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <memory>
 #include <rock_hero/common/core/shared/displayed_strings.h>
+#include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -399,7 +400,7 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(
         return std::nullopt;
     }
 
-    const float size = metrics.note_height + 1.0f;
+    const float size = metrics.headSize();
     const float center_y = metrics.laneY(m_edit.caret->string);
     const float x = metrics.x(m_edit.caret->seconds);
     return juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size};

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <bgfx/bgfx.h>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -318,7 +319,8 @@ struct PosColorUvVertex
     float v;
 };
 
-// Where a note SOUNDS on the fretboard axis, and the ONE authority for it.
+// Where a STOPPED note sounds on the fretboard axis, and the one authority for that anchor; a
+// fret-0 note never asks it — the open-string bar across the hand window is its own treatment.
 //
 // A natural harmonic is touched AT its node rather than behind a fret wire, so its head, its tail
 // and every point its glide passes through must all read the same value: the node lands just past
@@ -1255,6 +1257,11 @@ HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = 
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
 {
     m_impl->state = std::move(state);
+    // The draw path indexes display_hold_ends by note index with no per-frame check, so the
+    // one-per-note contract (highway_view_state.h) is asserted here, at the only place a state
+    // enters — a hand-built state that breaks it should fail loudly instead of reading past the
+    // vector inside the frame loop.
+    assert(m_impl->state.display_hold_ends.size() == m_impl->state.notes.size());
     m_impl->sustain_prefix_max =
         common::core::makeSustainPrefixMax(m_impl->state.display_hold_ends);
     m_impl->camera.reset();
@@ -2446,6 +2453,10 @@ void HighwayRenderer::Impl::draw(
             // A tapped chord box spans the taps' own fret extent instead of the fretting
             // hand's window (right-hand-tap-lighting plan); null for left-hand boxes.
             const common::core::HighwayTapOnsetView* tap;
+            // Build position, the sort's tiebreak: onset alone is not a total order (a
+            // tap-and-strum instant emits two boxes), and the deterministic build order is what
+            // keeps their overlap from flickering frame to frame.
+            std::size_t build_index;
         };
         std::vector<BoxDraw> boxes;
         for (const common::core::HighwayShapeView& shape : state.shapes)
@@ -2466,6 +2477,7 @@ void HighwayRenderer::Impl::draw(
                     .mute = common::core::NoteMute::None,
                     .arpeggio_shape = &shape,
                     .tap = nullptr,
+                    .build_index = boxes.size(),
                 });
         }
         for (const ChordGroup& group : chord_groups)
@@ -2495,6 +2507,7 @@ void HighwayRenderer::Impl::draw(
                     .mute = group.common_mute,
                     .arpeggio_shape = nullptr,
                     .tap = nullptr,
+                    .build_index = boxes.size(),
                 });
         }
         // Tapped chord boxes (right-hand-tap-lighting plan): two or more taps struck together
@@ -2515,17 +2528,20 @@ void HighwayRenderer::Impl::draw(
                     .mute = common::core::NoteMute::None,
                     .arpeggio_shape = nullptr,
                     .tap = &tap,
+                    .build_index = boxes.size(),
                 });
         }
-        // Stable, because onset alone is not a total order here and the note sweep above learned
-        // this the hard way: two boxes at one onset (a tap-and-strum instant emits a plain box and
-        // a tapped box) compare equivalent, and a non-stable sort then orders their overlapping
-        // panels by whatever the pivot sequence happened to be, which flickers as other boxes
-        // scroll in and out. The build order above is deterministic, so making the sort stable is
-        // enough — no tiebreak key needed, unlike the note sweep where the draw order also has to
-        // resolve lane height.
-        std::ranges::stable_sort(boxes, [](const BoxDraw& lhs, const BoxDraw& rhs) {
-            return lhs.start_seconds > rhs.start_seconds;
+        // The build-index tiebreak makes the order total, the same answer the note sweep reached:
+        // two boxes at one onset (a tap-and-strum instant emits a plain box and a tapped box)
+        // would otherwise order their overlapping panels by the pivot sequence, which flickers as
+        // other boxes scroll in and out. A tiebreak beats stable_sort here because stable_sort
+        // allocates its merge buffer inside the per-frame draw path.
+        std::ranges::sort(boxes, [](const BoxDraw& lhs, const BoxDraw& rhs) {
+            if (std::is_neq(lhs.start_seconds <=> rhs.start_seconds))
+            {
+                return lhs.start_seconds > rhs.start_seconds;
+            }
+            return lhs.build_index < rhs.build_index;
         });
 
         // One SDF-rendered mute mark over its repeat panel's interior — the rect between the
