@@ -291,7 +291,7 @@ back-dated timestamps keep its hit-window comparison honest. The onset F1 target
 latency target must be met simultaneously by one configuration, never traded against each other
 across separate runs. These two numbers — fast onset, slow pitch — are exactly why plan 24's
 provisional-hit state machine is mandatory, not optional: pitch confirmation on low strings
-consumes most of a genre-standard hit window.
+consumes most of a GH-style hit window.
 
 **Accuracy metrics** (defined here; plan 23 measures every one of them in CI):
 

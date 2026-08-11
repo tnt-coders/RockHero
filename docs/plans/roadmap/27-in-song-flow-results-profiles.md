@@ -218,8 +218,8 @@ Mirror all three into docs/plans/roadmap/00-roadmap.md Decisions-needed.
 3. **Resume pre-roll shape.** Options: (A) fixed rewind (e.g. 3.0 s) — simple, may land mid-beat;
    (B) rewind to the nearest measure boundary at least 3.0 s back (tempo-map-derived), with an
    audible click during the pre-roll and notes inside the pre-roll window replayed as
-   non-scoring "ghosts"; (C) no rewind, 3-2-1 unpause in place (the genre-standard shape, hostile
-   to fretting-hand placement).
+   non-scoring "ghosts"; (C) no rewind, 3-2-1 unpause in place (GH-style, hostile to fretting-hand
+   placement).
    - **Recommendation: B.** The player must re-place their fretting hand (constraint (i));
      a musical count-in beats a silent timer. Already-issued verdicts are immutable — replayed
      ghost notes are display-only, so pausing can never farm score.

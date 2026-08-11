@@ -11,13 +11,13 @@ contract with real-time-constant windows across playback speeds — with pure te
 the target already existed). Plan 22 Phase 1 defined the DetectionEvent value types first, as
 planned; Phase 2 consumes them. The full-mute matrix row below carries Gate A's vetting
 adjustment. **Amended same day after a three-pass max-effort review plus user decisions**
-(22's vetting record has the detection side): §6 overstrum policy reversed to the genre-standard
-streak-break behind a noise gate and one walk-back flag; §9 Phase 2 gained revoke-to-Armed, the
+(22's vetting record has the detection side): §6 overstrum policy reversed to GH streak-break
+behind a noise gate and one walk-back flag; §9 Phase 2 gained revoke-to-Armed, the
 evidence-gated lapse rule with MissNoPitchEvidence, the v1 mono chord rule (staged to
 PolyphonicSalience), legato PitchStep arming, the sustain trajectory tolerance, the display
 contract (committed-only counters), and the accuracy definition; Phase 3's schema gained
-missNoPitchEvidence, overstrumCount, and unmatchedOnsetCount; Phase 4 records the documented
-+1/−3 meter convention with chords as one meter unit. The ruleset grew sustain_tolerance_cents,
+missNoPitchEvidence, overstrumCount, and unmatchedOnsetCount; Phase 4 records GH's +1/−3 meter
+convention with chords as one meter unit. The ruleset grew sustain_tolerance_cents,
 overstrum_breaks_streak, overstrum_strength_threshold, and lapse_evidence_min_confidence — all
 still rh-score-1 (pre-ship). **No-fail refinements (user, 2026-07-16):** fail is ON by default,
 no-fail is the opt-in accessibility modifier (a same-day no-fail-default draft was corrected —
@@ -26,15 +26,15 @@ no-fail is the opt-in accessibility modifier (a same-day no-fail-default draft w
 a distinct modifier class); the star scale is now 0–5 (`starsForScoreRatio` counts cutoffs
 `{0.2, 0.6, 1.2, 2.0, 2.8}` instead of flooring at 1), so 0/1 stars are reachable on completed
 no-fail runs while a failed/incomplete run is 0★ by override; and `result.wouldHaveFailed` was
-added to the record so a no-fail run is self-describing about whether it was passing-grade. **Feel
-baseline signed 2026-07-16** (user decision) — a sourced mechanics survey of that baseline
-confirmed the core economy matches what is built (50/note, chord = sum, 25/beat, 10/20/30 ladder,
-25%/50%/2x SP, +1/−3 meter with overstrum penalty) and folded in the baseline's deltas: SP
-refillable while
-active, measure-based drain, the gold-stars strict-full-combo award over the recorded overstrum
-evidence (user refinement 2026-07-16: 5 GOLD stars for a 100% FC — the earlier-generation
-presentation — instead of the baseline's 6th star; same predicate, different rendering),
-star-ratio provenance labels, the tighter-window tuning direction (~±70 ms by ruleset version), the
+added to the record so a no-fail run is self-describing about whether it was passing-grade. **Feel baseline named 2026-07-16: Guitar
+Hero Warriors of Rock**
+(user decision) — a sourced WoR mechanics survey confirmed the core economy matches what is
+built (50/note, chord = sum, 25/beat, 10/20/30 ladder, 25%/50%/2x SP, +1/−3 meter with
+overstrum penalty) and folded in the WoR deltas: SP refillable while active, measure-based
+drain, the gold-stars strict-full-combo award over the recorded overstrum evidence (user
+refinement 2026-07-16: 5 GOLD stars for a 100% FC — the GH2-era presentation — instead of WoR's
+6th star; same predicate, different rendering), star-ratio
+provenance labels, the tighter-window tuning direction (~±70 ms by ruleset version), the
 legato no-combo-gate deviation (recorded with rationale), and the live star-meter HUD note in
 §8. **GATE-A CLOSED 2026-07-16: the user co-signed the contract jointly with plan 22 — Phase 2
 (the provisional-hit machine) is unblocked; Phases 3–4 were already gate-independent; Phases 5–6
@@ -43,13 +43,13 @@ still wait on 24-Q1..Q5.**
 ## 1. Goal
 
 A player plugging in a real guitar gets honest, responsive scoring: every chart note receives a
-verdict (hit/miss, timing delta, detected pitch, confidence), the genre-standard 4x multiplier
-ladder and streak, star power deployed hands-free via a MIDI foot controller, and a failure meter
-tuned toward expert-difficulty feel with **fail ON by default** (no-fail is an opt-in accessibility
-modifier). **The feel baseline is signed** (user decision 2026-07-16): where documented variants of
-the genre differ, model the signed feel baseline's own behavior; numbers cited from
-earlier-generation variants (community score documentation) are proxies, labeled as such, pending
-verification against the baseline. Every completed run emits a versioned score
+verdict (hit/miss, timing delta, detected pitch, confidence), a GH-style 4x multiplier ladder and
+streak, star power deployed hands-free via a MIDI foot controller, and a failure meter tuned
+toward GH-expert feel with **fail ON by default** (no-fail is an opt-in accessibility modifier).
+**The named feel baseline is Guitar Hero:
+Warriors of Rock** (user decision 2026-07-16): where GH versions differ, model WoR's documented
+behavior; numbers cited from other eras (GH3/ScoreHero) are proxies, labeled as such, pending
+WoR verification. Every completed run emits a versioned score
 record that docs/plans/roadmap/27-in-song-flow-results-profiles.md stores and
 docs/plans/roadmap/29-online-leaderboards.md uploads unchanged.
 
@@ -225,20 +225,19 @@ Decisions **established as normative by this plan** (restate when citing this pl
   0.2 floor and the 0–5 semantics live in `ScoringRuleset::star_ratio_thresholds` /
   `starsForScoreRatio` (Phase 1, already built to this shape).
 - **The provisional-hit state machine (section 9, Phase 2) is mandatory, not optional.**
-  Rationale, stated explicitly: "genre-exact scoring" assumes deterministic, instantaneous
+  Rationale, stated explicitly: "GH scoring exactly" assumes deterministic, instantaneous
   plastic-button events. Our observations are probabilistic and latency-delayed — low-string
   pitch confirmation costs 50–80 ms (per docs/plans/roadmap/22-note-detection.md Phase 1's budget),
-  which consumes most of a genre-standard hit window. We therefore adopt the 4x multiplier ladder
+  which consumes most of a GH-style hit window. We therefore adopt the GH 4x multiplier ladder
   and scoring constants *honestly adapted*: onsets register provisional hits immediately for
   responsiveness, late pitch evidence confirms or revokes them, and all authoritative accounting
   happens on a committed ledger (below). The displayed score may visibly self-correct on
   revocation; that is the honest cost of real-guitar physics and we do not hide it.
-- **Overstrum breaks the streak in ruleset v1 (genre-standard feel), behind a noise gate and one
-  walk-back flag** (user decision 2026-07-16, superseding the earlier no-penalty stance). A
-  *qualifying* unmatched onset — `Transient` origin, not strum-coalesced, strength ≥
+- **Overstrum breaks the streak in ruleset v1 (GH feel), behind a noise gate and one walk-back
+  flag** (user decision 2026-07-16, superseding the earlier no-penalty stance). A *qualifying*
+  unmatched onset — `Transient` origin, not strum-coalesced, strength ≥
   `overstrum_strength_threshold` — resets the committed streak and applies the miss-sized meter
-  delta, exactly like the genre's overstrum penalty (hit +1 / miss-or-overstrum −3 needle steps as
-  documented for an earlier installment). It
+  delta, exactly like GH's overstrum (hit +1 / miss-or-overstrum −3 needle steps in GH3). It
   never marks any chart note missed and never counts against accuracy. The noise gate exists
   because real guitars produce string noise, scrapes, and handling ghosts that must not kill
   streaks: the strength threshold is tuned against plan 23's noise-floor fixtures before the
@@ -271,13 +270,11 @@ Mirrored into docs/plans/roadmap/00-roadmap.md "Decisions needed".
     change. **Recommended** — consistent with derived-over-authored, ships without touching
     docs/plans/roadmap/10-format-versioning-and-chart-identity.md; can be upgraded later.
   - (b) *Authored phrase markers*: format addition via plan 10 plus editor authoring in
-    docs/plans/roadmap/40-chart-editing.md; musically curated the way the genre traditionally does
-    it, but hand-authored gameplay
+    docs/plans/roadmap/40-chart-editing.md; musically curated like GH, but hand-authored gameplay
     metadata contradicts the project's derived-over-authored stance and delays this plan.
   - (c) *Continuous accrual*: SP meter fills from confirmed-hit streaks, no phrases at all;
-    simplest, but loses the genre's "nail this passage" moments.
-- **Q2 — Does star-power deploy rescue the failure meter?** (a) Yes, matching the signed feel
-  baseline: deploy adds an
+    simplest, but loses GH's "nail this passage" moments.
+- **Q2 — Does star-power deploy rescue the failure meter?** (a) Yes, GH-authentic: deploy adds an
   immediate meter boost and doubles meter gain while active — **recommended** (it is the classic
   clutch-save loop and gives the pedal a defensive use); (b) No: SP is score-only, meter stays
   independent (simpler tuning).
@@ -295,8 +292,7 @@ Mirrored into docs/plans/roadmap/00-roadmap.md "Decisions needed".
 
 ## 8. Meter and star-power look-and-feel — discussion (Q4)
 
-The 3D highway needs its own design language, not the genre's traditional 2D bar bolted onto a
-corner. Three
+The 3D highway needs its own design language, not GH's 2D bar bolted onto a corner. Three
 directions, sketched for the user to react to; the chosen one becomes a
 docs/plans/roadmap/25-note-highway-3d.md HUD requirement:
 
@@ -312,9 +308,8 @@ docs/plans/roadmap/25-note-highway-3d.md HUD requirement:
   the note stream where they must be during real-guitar play; pairs naturally with 25's glow
   pipeline; can borrow B's charge lamp as a peripheral accent.
 
-Baseline HUD note for whichever direction wins: the signed feel baseline and the installments
-immediately preceding it show a live stars-earned meter filling toward the next star during play,
-with a gold no-miss ring while
+WoR-baseline HUD note for whichever direction wins: GH:Metallica onward (including WoR) shows a
+live stars-earned meter filling toward the next star during play, with a gold no-miss ring while
 the run is still a full combo — a strong candidate element here, and the committed-only display
 contract (§9 Phase 2) applies to it like every other counter.
 
@@ -327,33 +322,29 @@ onset-only-hit, revoked-wrong-pitch, no-pitch-evidence lapse, with timing delta 
 pitch cents, confidence, sustain-held fraction), `ScoringRuleset` (versioned constants,
 including the sustain trajectory tolerance, the overstrum flag + strength gate, and the lapse
 evidence threshold), timing-window math (expected note time from tempo map + calibration
-offsets per docs/plans/roadmap/13-audio-device-settings-and-calibration.md's contract), the
-multiplier ladder (1x/2x/3x/4x at streaks 0/10/20/30; star power doubles to 8x), base scoring
-(50/note; chords = sum of member notes, so a 2-note chord banks 100 and a 3-note chord 150;
-sustains 25 per beat pro-rated by held fraction), star thresholds on score/max-base-score ratio counted
+offsets per docs/plans/roadmap/13-audio-device-settings-and-calibration.md's contract), the GH
+ladder (1x/2x/3x/4x at streaks 0/10/20/30; star power doubles to 8x), base scoring (50/note;
+chords = sum of member notes, so a 2-note chord banks 100 and a 3-note chord 150; sustains 25
+per beat pro-rated by held fraction), star thresholds on score/max-base-score ratio counted
 0–5 (v1 defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6, 1★ ≥ 0.2, 0★ below 0.2 — tunable by
 ruleset version; a failed/incomplete run is 0★ by override). Star-system provenance under the
-signed feel baseline: the 4★ = 2.0 / 5★ = 2.8 ratios are the documented genre values
-community-assumed to carry into the baseline (never formally measured there — a recorded proxy);
-the 0.6 / 1.2 / 0.2 lower rungs are RockHero-chosen fill-ins for the sub-3★ floor the
-later-generation star system made possible (an earlier installment had no ratings below 3★), with
-the 0.2 one-star cutoff making the 0/1-star no-fail floor
-reachable (§6). The baseline additionally rewards a strict full combo —
+WoR baseline: the 4★ = 2.0 / 5★ = 2.8 ratios are the documented GH-era values community-assumed
+to carry into WoR (never formally measured there — a recorded proxy); the 0.6 / 1.2 / 0.2 lower
+rungs are RockHero-chosen fill-ins for the sub-3★ floor the GH5/WoR system made possible (GH3
+had no ratings below 3★), with the 0.2 one-star cutoff making the 0/1-star no-fail floor
+reachable (§6). WoR additionally rewards a strict full combo —
 every note hit AND zero stray strums; per the user's decision (2026-07-16) RockHero renders
-that achievement as **5 GOLD stars** (an earlier-generation presentation) rather than the
-baseline's 6th star. The
+that achievement as **5 GOLD stars** (the GH2-era presentation) rather than WoR's 6th star. The
 FC judgment is a predicate over the run (all verdicts hits, `overstrumCount == 0`), never a
 ratio threshold: the state machine sets `result.fullCombo`, ratio stars stay on the 0–5 scale
 from `starsForScoreRatio`, and presentation renders 5 gold whenever `fullCombo` is true — a
 100% FC is by definition the maximum achievable score for that chart, so gold overrides the
 ratio count even on degenerate short charts whose maximum ratio sits below the 5★ threshold.
 The overstrum evidence §6 records is exactly what makes the FC judgment possible. Chord sustains pay per member note (the only
-formally measured genre behavior, from an earlier generation; the signed feel baseline's own choice
-is undocumented and Clone Hero pays flat —
+formally measured GH behavior, GH1/2-era; WoR's own choice is undocumented and CH pays flat —
 recorded as a tunable). Default onset window ±100 ms around the calibrated expected time
-(ruleset constant); the baseline's window is community-attested tighter than the earlier-generation
-±100 ms (no published ms — Clone Hero's 140 ms total is the de facto reference for that feel), so
-the recorded tuning
+(ruleset constant); WoR's window is community-attested tighter than GH3's (no published ms —
+Clone Hero's 140 ms total is the de facto Neversoft-feel reference), so the recorded tuning
 direction once plan 23 measures detection jitter is toward ~±70 ms by ruleset version. Verdict
 timing delta always recorded signed (negative = early) for 27's tendency display.
 **Files**: new `rock-hero-game/core/include/rock_hero/game/core/scoring/` headers +
@@ -381,8 +372,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   disambiguated by early pitch evidence when present) `→ Provisional` — per-gem hit feedback
   fires *optimistically*, score not banked. Legato-charted notes (Hammer/Pull/Tap) accept
   `Transient` or `PitchStep` origin onsets; back-dated PitchStep timestamps make the same hit
-  window apply to both. Deliberate deviation from the signed feel baseline, recorded: the baseline
-  gates HOPO tapping on an active
+  window apply to both. Deliberate WoR deviation, recorded: WoR gates HOPO tapping on an active
   combo (after a break you must strum to re-enter) because plastic tapping is an input shortcut
   that needs an exploit guard; a real-guitar pitch step IS the technique itself, so PitchStep
   onsets arm regardless of streak — combo-gating them would punish authentic legato playing.
@@ -417,8 +407,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   optimistic (onset-time); the streak counter, multiplier, star-power meter, and failure meter
   render **committed state only** — they trail by at most one confirmation budget, which is
   imperceptible for counters ticking up, and they never roll back. A revocation surfaces as a
-  late miss cue on the gem, never as a decrement of any displayed counter. The genre never took
-  back a streak; neither do we.
+  late miss cue on the gem, never as a decrement of any displayed counter. GH never took back a
+  streak; neither do we.
 - **Accuracy definition**: `accuracyPercent` counts Hit and HitOnsetOnly as hits over all chart
   notes; MissNoPitchEvidence and both other miss codes count against it. Star-power phrase
   completion requires committed hits (either hit code). Overstrums affect streak and meter only.
@@ -502,7 +492,7 @@ confidence, sustainHeldFraction]`; verdict codes: `hit`, `hitOnsetOnly`, `missNo
 `accuracyPercent` counts `hit` + `hitOnsetOnly` over all notes. `result.stars` is the 0–5 ratio
 count (0/1 reachable only on completed no-fail runs; a failed/incomplete run is 0 by override);
 `result.fullCombo` is the strict-FC predicate (every verdict a hit AND `overstrumCount == 0` —
-the baseline's stray-strum rule), and presentation renders 5 gold stars whenever it is true.
+WoR's stray-strum rule), and presentation renders 5 gold stars whenever it is true.
 `result.wouldHaveFailed` is true when the committed failure meter reached zero at least once
 during the run: in fail mode it coincides with `failed`, and in no-fail mode it is the "you
 would have failed" signal the mode masked — it is what makes a no-fail record self-describing
@@ -530,17 +520,16 @@ reader policy); a full Phase 2 replay ends in a serialized record fixture.
 ### Phase 4 — Failure meter and no-fail (gate-independent; Q2 slot reserved)
 
 **Scope**: meter in [0, 1], start 0.5; v1 constants (ruleset-versioned): confirmed hit +0.005,
-committed miss −0.02, fail at 0 — tuned toward expert-difficulty feel via 23's replay harness
-against synthetic miss patterns, not vibes. Genre reference points (community rock-meter
-documentation, stated consistently through the signed feel baseline): the needle moves +1 step per
-hit and −3 per
+committed miss −0.02, fail at 0 — tuned toward GH-expert feel via 23's replay harness against
+synthetic miss patterns, not vibes. GH-authentic reference points (community rock-meter
+documentation, stated series-wide through WoR): the needle moves +1 step per hit and −3 per
 miss OR overstrum, per note *event* — a chord is ONE meter unit exactly as it is one streak
 unit, so missing a chord does not drain the meter more than missing a single note (only score
-scales with chord size; no documented game in the genre uses chord-weighted meter damage, and the
-one-unit convention is also Clone Hero's); the v1 +0.005/−0.02 pair keeps that same 1:4 asymmetry.
-The same documentation has the meter recovering faster per hit while SP is active — a free
-baseline-matching Q2 data point for the extension point below. A qualifying overstrum (§6) applies
-the same miss-sized delta. Verification gaps recorded for tuning: the baseline's exact step weights
+scales with chord size; no GH game documents chord-weighted meter damage, and the one-unit
+convention is also Clone Hero's); the v1 +0.005/−0.02 pair keeps a GH-like 1:4 asymmetry.
+Series documentation also has the meter recovering faster per hit while SP is active — a free
+WoR-authentic Q2 data point for the extension point below. A qualifying overstrum (§6) applies
+the same miss-sized delta. WoR-verification gaps recorded for tuning: exact WoR step weights
 and any difficulty scaling of the miss penalty are undocumented — the replay-harness tuning in
 this phase is the arbiter, not folklore precision. Fail is ON by default; no-fail is the opt-in
 modifier (§6). In fail mode the meter ends the song at zero (`result.failed: true`); in no-fail
@@ -632,21 +621,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 **Scope**: earning per the Q1 decision (recommended: derived phrases from a versioned generator
 in rock-hero-game/core, cached game-side with its generator version — never written into
-packages); the signed feel baseline's economy: completing a phrase (every phrase note
+packages); WoR-shaped economy (the named feel baseline): completing a phrase (every phrase note
 committed as hit) = +25% SP meter; deploy allowed at ≥ 50% via the Phase 5 `StarPower` trigger
 action; active SP doubles the current multiplier (to 8x max); drain is **measure-based** per the
-genre documentation — a full meter lasts 8 measures, half lasts 4 (32 quarter-note beats in
-4/4; ruleset-tunable). **SP is refillable while active** (a later-generation change the baseline
-carries, absent from earlier installments): star phrases persist during active SP, and completing
-one mid-deployment adds its +25%
-and extends the drain — the "keep the fire burning" loop that makes the baseline's SP pathing feel
-alive.
+GH-era documentation — a full meter lasts 8 measures, half lasts 4 (32 quarter-note beats in
+4/4; ruleset-tunable). **SP is refillable while active** (the WT-era change WoR carries, absent
+in GH3): star phrases persist during active SP, and completing one mid-deployment adds its +25%
+and extends the drain — the "keep the fire burning" loop that makes WoR SP pathing feel alive.
 If Q2 = yes, wire the Phase 4 extension point (+0.15 immediate, 2x meter gain while active).
 Deployments counted into the score record (`result.starPowerDeployments`); SP state changes
 published as events for docs/plans/roadmap/25-note-highway-3d.md. Vibrato-on-sustain as an SP
-filler (the whammy analog — the baseline lets whammy on star sustains both fill the meter and
-fight the active drain) is explicitly deferred to a later ruleset version, with that precedent
-recorded in its favor.
+filler (the whammy analog — WoR lets whammy on star sustains both fill the meter and fight the
+active drain) is explicitly deferred to a later ruleset version, with WoR precedent recorded in
+its favor.
 **Files/testing**: rock-hero-game/core + unit tests (phrase completion under
 provisional/revoked edges — a revoked note retroactively voids its phrase; deploy gating; drain
 math in musical time; ladder×SP interaction) and replay fixtures.

@@ -210,17 +210,14 @@ the options with the agent's recommendation.
   refuses to say how much. A downward bend is a real technique on a vibrato bar, so this is a format
   question before it is a drawing one: does the format admit negative amounts, and if so does 2D draw
   them below the tail?
-- [ ] **W9-L — Did the naming scrub apply to the right thing? (Agent error, needs your call FIRST.)**
-  I read the standing no-naming rule as covering the plastic-guitar franchise whose installments the
-  scoring plan names as its feel baseline, and scrubbed 54 such references out of git. On re-reading
-  the rule afterwards, it covers a DIFFERENT product — the real-guitar game — and those installment
-  names had survived the earlier history purge deliberately. So the scrub was not required by the
-  rule; it was my scope error. Its cost is real: the signed feel baseline is no longer resolvable
-  from anything in the repository, which the plan's own reasoning depends on. Nothing is pushed, so
-  either direction is one command. Options: (a) revert that commit and leave the baseline named, then
-  decide separately whether you want it scrubbed; (b) keep the scrub, because the same DMCA reasoning
-  plausibly extends to any franchise whose numbers we copy, and accept that the mapping lives only
-  outside version control.
+- [x] **W9-L — Did the naming scrub apply to the right thing? RULED 2026-08-10: no — reverted.**
+  The scrub had read the standing no-naming rule as covering the plastic-guitar franchise whose
+  installments the scoring plan names as its feel baseline, and removed 54 such references. The
+  rule covers a DIFFERENT product — the real-guitar game — and the user ruled explicitly that
+  Guitar Hero does not need to be avoided. The scrub commit was reverted the same day, restoring
+  the named baseline (Guitar Hero: Warriors of Rock and the era references) everywhere it
+  carried information; the no-naming rule remains in force, unchanged, for the real-guitar game
+  only.
 
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 
@@ -566,8 +563,8 @@ the options with the agent's recommendation.
   (like slides); `Ctrl+H` stays self-addressed (an attack property, no transition). Costs and
   opens: 2D connector rendering (thin connector vs the sustain ribbon — a visual design pass;
   interacts with the parked bend redesign's connected family), the 3D highway treatment (HOPO
-  gems with tiny connection sustains — render/scoring idiom vs the signed feel baseline), import
-  keeps legato predecessors' tails (exempt from the drop rule — GP notates slur origins full-duration,
+  gems with tiny connection sustains — render/scoring idiom vs the WoR baseline), import keeps
+  legato predecessors' tails (exempt from the drop rule — GP notates slur origins full-duration,
   so they connect naturally; verify by corpus scan), and corpus re-import (no legacy handling,
   per the standing rule). Evidence to pre-assemble for the gate: corpus measurement of legato
   pairs — gap distribution and whether notated origin durations reach the destination.

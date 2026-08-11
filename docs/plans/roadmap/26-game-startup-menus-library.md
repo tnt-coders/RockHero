@@ -242,8 +242,8 @@ inventory above, which predates the Stage A game work:
   "Separate State From Side Effects").
 - Visuals stay simple until gameplay fundamentals are proven (docs/design/architecture.md
   "Development Approach") — menu phases ship functional placeholder styling first.
-- Art direction (recorded here as the durable statement; no earlier doc exists): classic
-  genre menu energy, modernized in the spirit of the signed feel baseline. Concrete visual design is
+- Art direction (recorded here as the durable statement; no earlier doc exists): classic GH-era
+  menu energy, modernized in the spirit of GH: Warriors of Rock. Concrete visual design is
   deferred until docs/plans/roadmap/20-game-architecture-and-render-stack.md fixes the stack.
 
 ## 8. Open questions for the user

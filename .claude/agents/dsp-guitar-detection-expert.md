@@ -78,7 +78,7 @@ and two-period floors:
 
 On top of the algorithmic floor add device input buffering, FIFO hop alignment, and any
 smoothing/decoding lag. Realistic low-string pitch confirmation is therefore 50–80 ms — most of a
-genre-standard hit window — which is why onset-first provisional hits (plan 24) are mandatory, not
+GH-style hit window — which is why onset-first provisional hits (plan 24) are mandatory, not
 optional. Per-tuning confirm-time budgets are computed from the arrangement's actual `ChartTuning`
 (lowest sounding pitch after capo), not from a global worst case.
 
