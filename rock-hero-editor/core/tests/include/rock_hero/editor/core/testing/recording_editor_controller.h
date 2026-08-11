@@ -286,6 +286,12 @@ public:
         chart_legato_toggle_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartForceHammerRequested */
+    void onChartForceHammerRequested() override
+    {
+        chart_force_hammer_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
     void onChartPickSlideToggleRequested() override
     {
@@ -775,6 +781,9 @@ public:
 
     /*! \brief Number of onChartLegatoToggleRequested() intents received. */
     int chart_legato_toggle_count{0};
+
+    /*! \brief Number of onChartForceHammerRequested() intents received. */
+    int chart_force_hammer_count{0};
 
     /*! \brief Number of onChartPickSlideToggleRequested() intents received. */
     int chart_pick_slide_toggle_count{0};

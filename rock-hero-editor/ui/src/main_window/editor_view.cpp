@@ -1106,11 +1106,12 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::NeutralInsert);
     add(note_menu, EditorCommandId::SelectionDelete);
     note_menu.addSeparator();
-    // Both technique verbs, so the menu teaches the whole set. The legato toggle was the one verb
+    // The technique verbs, so the menu teaches the whole set. The legato toggle was the one verb
     // with a chord to teach and the one missing here, while the scrape toggle — which has no chord
     // yet — was reachable ONLY through this menu, making it the second way to act the menu is not
     // supposed to be.
     add(note_menu, EditorCommandId::ChartLegatoToggle);
+    add(note_menu, EditorCommandId::ChartForceHammer);
     add(note_menu, EditorCommandId::ChartPickSlideToggle);
 
     juce::PopupMenu move_menu;
@@ -1420,6 +1421,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SelectionDelete:
         case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::ChartLegatoToggle:
+        case EditorCommandId::ChartForceHammer:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::SustainLengthenFine:
@@ -1603,6 +1605,14 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartLegatoToggleRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::ChartForceHammer:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartForceHammerRequested();
             }
             return true;
         }

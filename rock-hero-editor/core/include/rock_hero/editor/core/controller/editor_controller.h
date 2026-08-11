@@ -472,6 +472,9 @@ public:
     /*! \copydoc IEditorController::onChartLegatoToggleRequested */
     void onChartLegatoToggleRequested() override;
 
+    /*! \copydoc IEditorController::onChartForceHammerRequested */
+    void onChartForceHammerRequested() override;
+
     /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
     void onChartPickSlideToggleRequested() override;
 

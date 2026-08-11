@@ -186,6 +186,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction, bool fine);
     void onChartLegatoToggleRequested();
+    void onChartForceHammerRequested();
     void onChartPickSlideToggleRequested();
     void onChartEscapePressed();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;

@@ -1839,4 +1839,150 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
     }
 }
 
+TEST_CASE("EditorController force hammer states the left-hand tap", "[core][chart]")
+{
+    // String 1 carries a derivable descending pair (released 7 over fret 5, tail reaching the
+    // onset, so plain H derives Pull); string 2 the open string with no node — the verb's sole
+    // matrix-grounds refusal; string 3 a fret-0 tap harmonic whose strike point the force verb
+    // re-hands; string 4 a stopped pinch whose node survives as the tapped-harmonic gesture;
+    // string 5 an open-string pinch whose bridge-side graze can never become a strike point.
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 7,
+            .sustain = common::core::Fraction{4},
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 2,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 3,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 4,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .string = 5,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::ChartNote{
+            .position = {.measure = 3, .beat = 1, .offset = {}},
+            .string = 1,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    chart.notes[2].attack = common::core::NoteAttack::Tap;
+    chart.notes[2].harmonic_node = 12.0;
+    chart.notes[3].attack = common::core::NoteAttack::Pinch;
+    chart.notes[3].harmonic_node = 17.0;
+    chart.notes[4].attack = common::core::NoteAttack::Pinch;
+    chart.notes[4].harmonic_node = 24.0;
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+
+    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
+        return controller.session().currentArrangement()->chart->notes[index];
+    };
+
+    SECTION("it overrides a derived pull and plain H re-derives it back")
+    {
+        click(controller, 80.0f, 220.0f);
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(5).attack == common::core::NoteAttack::Pull);
+
+        // Only the author knows the predecessor was damped: the force overrides the derivation,
+        // and Layer 1 leaves the deliberate descending Hammer untouched.
+        controller.onChartForceHammerRequested();
+        CHECK(note(5).attack == common::core::NoteAttack::Hammer);
+
+        // The signed symmetry between the stating verb and the inferring one.
+        controller.onChartLegatoToggleRequested();
+        CHECK(note(5).attack == common::core::NoteAttack::Pull);
+    }
+
+    SECTION("it skips the open string with no node and converts the rest")
+    {
+        click(controller, 80.0f, 220.0f);
+        click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
+
+        controller.onChartForceHammerRequested();
+        CHECK(note(5).attack == common::core::NoteAttack::Hammer);
+        CHECK(note(1).attack == common::core::NoteAttack::Pick);
+    }
+
+    SECTION("it re-hands a tap harmonic's strike point into the hammer form")
+    {
+        click(controller, 40.0f, 140.0f);
+
+        controller.onChartForceHammerRequested();
+        CHECK(note(2).attack == common::core::NoteAttack::Hammer);
+        REQUIRE(note(2).harmonic_node.has_value());
+        if (note(2).harmonic_node.has_value())
+        {
+            CHECK(*note(2).harmonic_node == Catch::Approx(12.0));
+        }
+    }
+
+    SECTION("it keeps a stopped pinch's node as the tapped-harmonic gesture")
+    {
+        click(controller, 40.0f, 100.0f);
+
+        controller.onChartForceHammerRequested();
+        CHECK(note(3).attack == common::core::NoteAttack::Hammer);
+        REQUIRE(note(3).harmonic_node.has_value());
+        if (note(3).harmonic_node.has_value())
+        {
+            CHECK(*note(3).harmonic_node == Catch::Approx(17.0));
+        }
+    }
+
+    SECTION("it refuses to re-hand an open-string pinch's bridge-side graze")
+    {
+        click(controller, 40.0f, 60.0f);
+
+        controller.onChartForceHammerRequested();
+        CHECK(note(4).attack == common::core::NoteAttack::Pinch);
+        REQUIRE(note(4).harmonic_node.has_value());
+        if (note(4).harmonic_node.has_value())
+        {
+            CHECK(*note(4).harmonic_node == Catch::Approx(24.0));
+        }
+    }
+}
+
 } // namespace rock_hero::editor::core

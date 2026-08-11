@@ -934,6 +934,11 @@ void EditorController::onChartLegatoToggleRequested()
     m_impl->onChartLegatoToggleRequested();
 }
 
+void EditorController::onChartForceHammerRequested()
+{
+    m_impl->onChartForceHammerRequested();
+}
+
 void EditorController::onChartPickSlideToggleRequested()
 {
     m_impl->onChartPickSlideToggleRequested();
@@ -3251,6 +3256,30 @@ void EditorController::Impl::onChartLegatoToggleRequested()
         legato_keys,
         common::core::NoteAttack::Pick,
         "Remove Legato")));
+}
+
+// Forces the selection to the hammer-on attack as one compound undo entry, uniform scope. The
+// stating verb beside the inferring toggle (Ctrl means precision): a left-hand tap is stored as
+// a Hammer the fret relationship cannot justify, so plain H can never produce it and this verb
+// is its sole author — including overriding a derived Pull, since only the author knows whether
+// the predecessor was still ringing. planSetAttack already IS the mixed-validity policy: each
+// note is retyped and asked of the rule authority, so the open string with no node (E4's
+// boundary) is skipped, a pinch's bridge-side graze refuses to re-hand, and a tap harmonic's
+// strike point carries into the hammer form E13 names.
+void EditorController::Impl::onChartForceHammerRequested()
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
+        chartSelection().empty())
+    {
+        return;
+    }
+    static_cast<void>(applyChartEditPlan(planSetAttack(
+        *arrangement->chart,
+        session().song().tempo_map,
+        chartSelection().notes(),
+        common::core::NoteAttack::Hammer,
+        "Force Hammer-On")));
 }
 
 // Toggles the selection to or from the pick-slide attack as one compound undo entry, uniform

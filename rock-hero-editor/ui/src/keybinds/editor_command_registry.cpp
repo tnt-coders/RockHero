@@ -322,6 +322,10 @@ namespace
     // than authored. Guitar Pro's Shift+H "Legato" is a sheet-music slur that does not change the
     // hammer/pull state, so it has nothing to map onto here and stays unbound.
     add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('h')});
+    // Ctrl means precision — "I will state it exactly, do not infer" — so the force verb lives on
+    // the toggle's own key: plain H derives the direction the frets justify, Ctrl+H states the
+    // left-hand tap the frets never can. Exact-modifier matching keeps the two chords apart.
+    add(EditorCommandId::ChartForceHammer, "Force Hammer-On", "Authoring", {chord('h', command)});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

@@ -111,15 +111,14 @@ item ships, mark it and name the commit.
   `tremolo` or a slide payload), the import normalization that zeroes such a sustain so a re-read
   cannot refuse the chart, and the noise-idiom tail display. Blocks nothing but touches W1, E10,
   E24 and the display; build before the lock/break work so the tail rules are stated once.
-- [ ] **W5 — `H` eligible-subset fix + counted feedback.** The APPLY half already behaves as
-  intended: the controller's `all_legato` test is false on a mixed selection, so the verb runs and
-  sets legato on every derivable note, leaving the rest — the mixed-validity policy's "apply where
-  valid". The defect is narrower and sits entirely on the CLEAR half: `all_legato` reads each
-  note's current attack, so a selection containing a note that can *never* carry `Hammer` or `Pull`
-  (an open string with no node and no predecessor — the gate refuses both attacks) can never
-  satisfy it, and the toggle is therefore stuck in apply mode forever. The fix is the settled one:
-  compute the toggle over the **eligible subset**, so a second press always undoes the first. And
-  every refusal is still silent — the feedback channel is load-bearing for W6.
+- [ ] **W5 — `H` eligible-subset fix + counted feedback.** The eligible-subset half **shipped
+  2026-08-10**: the controller asks `planSetLegato` itself whether applying would change anything
+  (the oracle, never a restated predicate), and only when it would not does the press clear —
+  targeting just the legato subset, so an underivable `Tap` or `Pinch` riding the selection keeps
+  its own attack. A second press now always undoes the first; pinned by the mixed-selection
+  round-trip test. What remains here is the counted feedback: every refusal is still silent — the
+  feedback channel is load-bearing for W6 and rides the planner refusal-channel refactor noted
+  above.
 - [ ] **W6 — Tail lock + break verb + locked-tail feedback (40-Q5).** One shared mechanism for
   legato and slides; the break verb frees a tail from the origin's side; the feedback is
   **editor-only** (user ruling: not visible in 3D).

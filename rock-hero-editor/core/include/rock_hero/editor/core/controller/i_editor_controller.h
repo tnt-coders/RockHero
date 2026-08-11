@@ -360,6 +360,32 @@ public:
     virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
 
     /*!
+    \brief Handles a request to toggle the selected notes to or from a legato attack.
+
+    Uniform scope, one compound undo entry, measured on the ELIGIBLE subset: applying is always
+    the first answer — every note whose fret relationship justifies a hammer-on or pull-off gets
+    its derived direction — and only when applying would change nothing does the press mean
+    clear. The clear targets only the notes actually carrying legato, so an underivable note
+    riding the selection keeps its own attack. The direction is derived, never authored; a note
+    with no earlier note on its string — or one at the same fret, which is neither hammered nor
+    pulled — is left alone rather than guessed at.
+    */
+    virtual void onChartLegatoToggleRequested() = 0;
+
+    /*!
+    \brief Handles a request to force the selected notes to the hammer-on attack.
+
+    The stating verb beside the inferring toggle: a left-hand tap is stored as a hammer-on whose
+    fret relationship cannot justify it, so it exists only by being stated, and this is the sole
+    verb that states it. Uniform scope, one compound undo entry, applying where valid: any note
+    with something to strike — a positive fret, or a harmonic node the strike re-hands — becomes
+    a hammer-on, including overriding a derived pull-off (only the author knows whether the
+    predecessor was still ringing), while the open string with no node is skipped. A later legato
+    toggle re-derives the fret-justified direction back.
+    */
+    virtual void onChartForceHammerRequested() = 0;
+
+    /*!
     \brief Handles a request to toggle the selected notes to or from the pick-slide attack.
 
     Uniform scope, one compound undo entry: when every selected note is already a pick slide
@@ -368,17 +394,6 @@ public:
     selection becomes pick slides, each keeping its fret as the scrape start and gaining the
     default path toward the far default endpoint.
     */
-    /*!
-    \brief Handles a request to toggle the selected notes to or from a legato attack.
-
-    Uniform scope, one compound undo entry: when every selected note is already legato the whole
-    selection reverts to a plain picked attack, otherwise each becomes a hammer-on or a pull-off
-    according to the fret it comes from on its own string. The direction is derived, never authored,
-    so a note with no earlier note on its string — or one at the same fret, which is neither
-    hammered nor pulled — is left alone rather than guessed at.
-    */
-    virtual void onChartLegatoToggleRequested() = 0;
-
     virtual void onChartPickSlideToggleRequested() = 0;
 
     /*!

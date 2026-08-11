@@ -139,8 +139,8 @@ and chart-bound extends of the grid-locked `TimeSelection` — the range edge re
 shared destination helpers, so the two can never drift on the same motion),
 `onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction, fine)`,
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
-`onNeutralInsertRequested`, `onChartLegatoToggleRequested`,
-`onChartPickSlideToggleRequested` (the two technique verbs — uniform scope over the selection, one
+`onNeutralInsertRequested`, `onChartLegatoToggleRequested`, `onChartForceHammerRequested`,
+`onChartPickSlideToggleRequested` (the technique verbs — uniform scope over the selection, one
 compound undo entry each), `onChartEscapePressed` — implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`
 (`rock-hero-editor/core/src/controller/editor_controller_impl.h`), always present, exactly one

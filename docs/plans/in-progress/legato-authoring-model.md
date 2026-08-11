@@ -1,9 +1,10 @@
 # Legato Authoring Model — hammer-on, pull-off, and the left-hand tap
 
-Status: **FULLY SETTLED 2026-08-09 — every open question ruled; awaiting implementation** (plan 40
-Phase 5; the technique enforcement half shipped 2026-08-09 — validation, the finalize gate,
-`normalizeChartLegato` at import and in every plan — leaving Phase 5 the recalc window, the
-`Ctrl+H` verb, and the toggle UX). The deep review established the design — the recalc
+Status: **FULLY SETTLED 2026-08-09 — every open question ruled; recalc window awaiting
+implementation** (plan 40 Phase 5; the technique enforcement half shipped 2026-08-09 —
+validation, the finalize gate, `normalizeChartLegato` at import and in every plan — and the
+toggle's eligible-subset UX plus the `Ctrl+H` force verb shipped 2026-08-10, leaving Phase 5 only
+the recalc window). The deep review established the design — the recalc
 window that **settles on any undo or redo**, making the binding constraint (*undo must always
 restore exactly the pre-action state*) hold by construction — and the walkthrough then closed all
 five user calls and question B (Option C: strict derivation, merged notation, `Ctrl+H` the sole
@@ -17,10 +18,14 @@ scrape — all of it by delegating to the one shared authority, `derivedLegatoAt
 (`chart_rules.h`). Layer 1's repair is `normalizeChartLegato` (`legato_normalize.h`), which runs in
 the planners' shared `finalizePlan` step and again at Guitar Pro import completion.
 
-**What remains**, all of it plan 40 Phase 5: Layer 2's recalc window, the `Ctrl+H` force verb (no
-command is registered for that chord today), and the toggle's eligible-subset UX — the controller
-still computes `all_legato` over the whole selection, so a selection holding a permanently
-ineligible note can never clear.
+**What remains**, all of it plan 40 Phase 5: Layer 2's recalc window. The toggle's
+eligible-subset UX shipped 2026-08-10 (the controller asks `planSetLegato` itself whether applying
+would change anything — the oracle, never a restated predicate — and only then clears, targeting
+just the legato subset), and the `Ctrl+H` force verb shipped the same day: `ChartForceHammer`
+binds the chord to `planSetAttack(Hammer)`, whose written-form validity check yields the ruled
+domain from the one rule authority — sole refusal the no-node open string, the open-string
+pinch's graze refusing to re-hand, and the tap harmonic's strike point carrying into E13's
+hammer form.
 
 Scope note: this concerns **legato only**, and that is a finding rather than an assumption — see
 [Does this generalize?](#does-this-generalize) at the end.
@@ -240,10 +245,16 @@ left-hand tap is stored as `Hammer` and therefore inherits every Hammer cell:
   rules already protect the override (a Hammer on a descending pair is untouched), and a later
   plain `H` re-derives it back to Pull — the correct symmetry between the inferring verb and the
   stating one.
-- **Two conversion guards, both enforcement-pass items:** on a **pinch**, `Ctrl+H` must clear
-  the node as it converts (the attack-away-from-pinch hazard — an off-neck graze position would
-  silently become a fret-hand node); on a **scrape**, it is ordinary attack replacement, the
-  gesture leaving with the attack per `planSetAttack`.
+- **Two conversion guards, refined by the unified node law as they shipped:** on a **pinch**,
+  the node survives only where its meaning does — at a real stop it stays (the picking hand damps
+  the same point under either attack: the tapped-harmonic gesture), while an **open-string**
+  pinch's bridge-side graze is not a strikeable place, so the node is stranded and the E4 gate
+  refuses the note (the attack-away-from-pinch hazard — kept, that graze position would silently
+  become a fret-hand node). On a **scrape**, it is ordinary attack replacement, the gesture
+  leaving with the attack per `planSetAttack`. A **tap harmonic's** node is a struck contact
+  point either hand can deliver, so `Ctrl+H` carries it into the hammer form — the re-handing is
+  the verb's stated meaning, not a silent re-read — bounded by the neck ceiling on the written
+  form.
 
 ## The release-inference refinement (D13, signed and shipped 2026-08-09)
 

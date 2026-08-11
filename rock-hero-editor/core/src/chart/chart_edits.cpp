@@ -84,13 +84,21 @@ void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_o
 // True when a note's harmonic node cannot follow it into `target`, so the verb changing the attack
 // must send the node away with it.
 //
-// Two facts decide it, and nothing else. A pull-off releases onto a plain stopped pitch and sounds
-// no harmonic at any fret, so a node can never survive one. Otherwise the node survives exactly
-// while the same HAND still owns it: the stored number means a place on the neck under a fretting
-// touch and a place the picking hand damps otherwise, so a change that flips the owner silently
+// Three facts decide it, and nothing else. A pull-off releases onto a plain stopped pitch and
+// sounds no harmonic at any fret, so a node can never survive one. A TAP's node is a struck
+// contact point, and a strike is a strike whichever hand delivers it, so re-typing a tap carries
+// the node into any attack that can host it: Ctrl+H re-handing a tap harmonic lands on the
+// hammer-form tap harmonic E13 names — the one form only the force verb can author, since
+// derivation can never justify a fret-0 hammer — and the validation gate below still refuses a
+// strike point past the neck ceiling. (The reverse re-hand, hammer-form back to Tap, still drops
+// the node under the ownership test; no live verb sets Tap today, and truing that direction is the
+// note-view unification's business, not this verb's.) Otherwise the node survives exactly while
+// the same HAND still owns it: the stored number means a place on the neck under a fretting touch
+// and a place the picking hand damps otherwise, so a change that flips the owner silently
 // re-reads it as a different technique. On a stopped note nothing flips — an artificial harmonic's
 // fretting hand is on the stop and the picking hand on the node under every attack — which is why a
-// hammer-on onto a stopped harmonic keeps it and a tap on an open string does not.
+// hammer-on onto a stopped harmonic keeps it and an open-string pinch's bridge-side graze, which is
+// not a strikeable place at all, strands its node and the E4 gate then refuses the form.
 //
 // Both attack verbs ask this. They used to answer it separately and disagreed: for one pinch at a
 // real stop becoming a hammer-on, the legato verb kept the node (correctly, as the tapped-harmonic
@@ -106,6 +114,10 @@ void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_o
     if (target == common::core::NoteAttack::Pull)
     {
         return true;
+    }
+    if (note.attack == common::core::NoteAttack::Tap)
+    {
+        return false;
     }
     common::core::ChartNote retyped = note;
     retyped.attack = target;
