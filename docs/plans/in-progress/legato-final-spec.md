@@ -54,7 +54,15 @@ by design.
   H press that skipped notes reports the count and the dominant reason through the existing
   view reporting seam, so an all-skipped press is never a dead key.
 - **The toggle window** (shipped `ChartLegatoToggleEntry` + `dropTop`) is kept: `H` again with
-  the same selection and history top reverses the previous press exactly, grown tails included.
+  the same selection and history top reverses the previous press exactly, grown tails included
+  — a genuine toggle: H-H leaves no trace. **The save case is strengthened (ruled
+  2026-08-11):** when the proof holds but the entry is the reachable clean state (the user
+  saved between the presses), the reversal proceeds by pushing the exact inverse as a NEW
+  entry instead of dropping — the tail still comes back and the toggle stays genuine, while
+  "return to clean" stays truthful and the session is correctly dirty. The window dies only
+  on the deliberate context switches of the ruled settle set (selection change, Esc, seek,
+  playback, undo/redo, any other edit), where the second press means the ordinary law and
+  Ctrl+Z is the exact revert.
 
 ## `Ctrl+H`
 
