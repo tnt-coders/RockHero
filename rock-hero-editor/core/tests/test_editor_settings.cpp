@@ -6,6 +6,7 @@
 #include <optional>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/settings_file_options.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
@@ -22,23 +23,11 @@ using testing::ScopedSettingsFile;
 namespace
 {
 
-// Builds explicit settings-file options so tests can seed obsolete/raw properties.
+// Opens seeded properties through the same options production uses, so a malformed value tests the
+// real storage rather than a second definition of the settings-file policy.
 [[nodiscard]] juce::PropertiesFile::Options testSettingsOptions()
 {
-    juce::PropertiesFile::Options options;
-    const std::string_view application_name = common::core::editorApplicationName();
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    options.applicationName = juce::String{application_name.data(), application_name.size()};
-    options.filenameSuffix = ".settings";
-    options.folderName = juce::String{folder_name.data(), folder_name.size()};
-    options.osxLibrarySubFolder = "Application Support";
-    options.commonToAllUsers = false;
-    options.ignoreCaseOfKeyNames = false;
-    options.doNotSave = false;
-    options.millisecondsBeforeSaving = 0;
-    options.storageFormat = juce::PropertiesFile::storeAsXML;
-    options.processLock = nullptr;
-    return options;
+    return common::core::settingsFileOptions(common::core::editorApplicationName());
 }
 
 // Writes one raw property through JUCE so malformed settings use production storage.

@@ -1,4 +1,4 @@
-#include "rock_hero/common/core/tone/tone_automation.h"
+#include "tone/tone_automation.h"
 
 #include <rock_hero/common/core/chart/chart_rules.h>
 

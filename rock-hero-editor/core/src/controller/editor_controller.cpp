@@ -22,7 +22,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <compare>
@@ -45,6 +44,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tab/tab_projection.h>
@@ -626,19 +626,14 @@ void logEditorUndoTransitionResult(
     Project& project, const std::filesystem::path& file,
     const EditorController::ProjectOperationProgress& report_progress)
 {
-    std::string extension = file.extension().string();
-    std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-
-    if (extension == ".rock")
+    if (common::core::hasExtensionIgnoringCase(file, ".rock"))
     {
         RockSongImporter importer;
         const AudioNormalizationAnalyzer analyzer =
             makeReportingAudioNormalizationAnalyzer(report_progress);
         return project.import(file, importer, {}, analyzer);
     }
-    if (extension == ".gp")
+    if (common::core::hasExtensionIgnoringCase(file, ".gp"))
     {
         GpSongImporter importer;
         const AudioNormalizationAnalyzer analyzer =
@@ -2421,15 +2416,6 @@ namespace
     return common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}};
 }
 
-// The chart's terminal downbeat — the tempo map's closing barline, seated past the last measure
-// (defaultMap places it beyond the audio end). The End / chart-end destination.
-[[nodiscard]] common::core::GridPosition chartEndPosition(const common::core::TempoMap& tempo_map)
-{
-    const auto [end_measure, end_beat] =
-        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-    return common::core::GridPosition{.measure = end_measure, .beat = end_beat, .offset = {}};
-}
-
 // The nearest song section starting strictly after (later) or before (!later) the reference, or
 // nullopt when there is none in that direction. Sections are stored sorted by position.
 [[nodiscard]] std::optional<common::core::GridPosition> adjacentSectionPosition(
@@ -2564,7 +2550,7 @@ void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
             destination = chartStartPosition();
             break;
         case ChartCaretJump::ChartEnd:
-            destination = chartEndPosition(tempo_map);
+            destination = common::core::terminalGridPosition(tempo_map);
             break;
         case ChartCaretJump::PreviousSection:
             destination = adjacentSectionPosition(session().song().sections, reference, false);
@@ -2666,7 +2652,8 @@ void EditorController::Impl::onTimeSelectionExtendRequested(
                 adjacentSectionPosition(session().song().sections, focus, later).value_or(focus);
             break;
         case TimeSelectionExtent::ChartBound:
-            next_focus = later ? chartEndPosition(tempo_map) : chartStartPosition();
+            next_focus =
+                later ? common::core::terminalGridPosition(tempo_map) : chartStartPosition();
             break;
     }
 
@@ -3876,29 +3863,6 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
 namespace
 {
 
-// Labels one arrangement by its part, numbering duplicates ("Rhythm 1", "Rhythm 2") so every
-// switcher entry stays distinguishable.
-[[nodiscard]] std::string arrangementPartLabel(common::core::Part part)
-{
-    switch (part)
-    {
-        case common::core::Part::Lead:
-        {
-            return "Lead";
-        }
-        case common::core::Part::Rhythm:
-        {
-            return "Rhythm";
-        }
-        case common::core::Part::Bass:
-        {
-            return "Bass";
-        }
-    }
-
-    return "Arrangement";
-}
-
 // Builds the switcher entries for every arrangement of the loaded song, ordered Lead, Rhythm,
 // Bass regardless of how the song stores its arrangements. The Part enum already ranks the parts
 // in that order, and a stable sort keeps the original order within each part so duplicate
@@ -3919,7 +3883,9 @@ namespace
         return static_cast<int>(arrangements[index].part);
     });
 
-    std::vector<int> part_totals(3, 0);
+    // Sized from the Part enumeration, not a literal count: a new part would otherwise index past
+    // the end of both tallies.
+    std::vector<int> part_totals(common::core::g_parts.size(), 0);
     for (const common::core::Arrangement& arrangement : arrangements)
     {
         part_totals[static_cast<std::size_t>(arrangement.part)] += 1;
@@ -3927,13 +3893,15 @@ namespace
 
     std::vector<ArrangementChoiceViewState> choices;
     choices.reserve(arrangements.size());
-    std::vector<int> part_counts(3, 0);
+    std::vector<int> part_counts(common::core::g_parts.size(), 0);
     for (const std::size_t index : display_order)
     {
         const common::core::Arrangement& arrangement = arrangements[index];
         const auto part_index = static_cast<std::size_t>(arrangement.part);
         part_counts[part_index] += 1;
-        std::string label = arrangementPartLabel(arrangement.part);
+        // The persisted token doubles as the display label: the switcher shows exactly the part
+        // vocabulary the song document speaks, so there is no second table to keep in step.
+        std::string label{common::core::partToken(arrangement.part)};
         if (part_totals[part_index] > 1)
         {
             label += " " + std::to_string(part_counts[part_index]);

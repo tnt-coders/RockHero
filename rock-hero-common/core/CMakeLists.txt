@@ -53,9 +53,18 @@ find_package(quill REQUIRED)
 target_compile_definitions(rock_hero_common_core PUBLIC QUILL_DISABLE_NON_PREFIXED_MACROS=1)
 
 # JSON package helpers expose JUCE core utility types through a project-owned public header.
+#
+# juce_data_structures is INTERFACE, not PUBLIC, on purpose: settings_file_options.h states the one
+# settings-file location policy the editor settings, the game settings, and the audio-config store
+# all open their properties files with, and that policy is expressed as
+# juce::PropertiesFile::Options. Consumers of that header therefore need the module, but common core
+# itself compiles against nothing from it — so an INTERFACE link keeps the module's own sources
+# inside their narrow juce_core grant, and a common-core source that reached for PropertiesFile
+# would fail to compile rather than quietly widening the grant.
 target_link_libraries(
     rock_hero_common_core
     PUBLIC rock_hero::juce_core quill::quill
+    INTERFACE rock_hero::juce_data_structures
     PRIVATE rock_hero::build_policy)
 
 add_subdirectory(tests)

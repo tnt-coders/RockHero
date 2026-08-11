@@ -6,9 +6,10 @@
 #include <cstdint>
 #include <memory>
 #include <ranges>
+#include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/shared/gain.h>
-#include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/settings_file_options.h>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -25,33 +26,17 @@ constexpr const char* g_active_device_route_tag{"ACTIVE_DEVICE_ROUTE"};
 constexpr const char* g_serialized_state_property{"serializedState"};
 constexpr const char* g_identity_tag{"IDENTITY"};
 
-constexpr const char* g_backend_name_property{"backendName"};
-constexpr const char* g_input_device_name_property{"inputDeviceName"};
-constexpr const char* g_input_channel_index_property{"inputChannelIndex"};
-constexpr const char* g_input_channel_name_property{"inputChannelName"};
-
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
 
-// Builds the JUCE properties-file options shared by both store constructors. applicationName is
-// empty for the explicit-path constructor because the file is supplied directly and the name only
-// matters when JUCE derives the default per-user path. processLock is always null because each app
-// owns exactly one writer for its own audio-config file.
+// Takes the shared settings-file location policy and applies the one variation this store owns.
+// The application name is empty for the explicit-path constructor because the file is supplied
+// directly and the name only matters when JUCE derives the default per-user path.
 [[nodiscard]] juce::PropertiesFile::Options audioConfigOptions(
-    const juce::String& application_name, AudioConfigStore::Access access)
+    std::string_view application_name, AudioConfigStore::Access access)
 {
-    juce::PropertiesFile::Options options;
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    options.applicationName = application_name;
-    options.filenameSuffix = ".settings";
-    options.folderName = juce::String{folder_name.data(), folder_name.size()};
-    options.osxLibrarySubFolder = "Application Support";
-    options.commonToAllUsers = false;
-    options.ignoreCaseOfKeyNames = false;
+    juce::PropertiesFile::Options options = common::core::settingsFileOptions(application_name);
     options.doNotSave = access == AudioConfigStore::Access::ReadOnly;
-    options.millisecondsBeforeSaving = 0;
-    options.storageFormat = juce::PropertiesFile::storeAsXML;
-    options.processLock = nullptr;
     return options;
 }
 
@@ -141,12 +126,14 @@ constexpr const char* g_format_version_property{"formatVersion"};
 void writeIdentityAttributes(juce::XmlElement& element, const InputDeviceIdentity& identity)
 {
     element.setAttribute(
-        g_backend_name_property, juce::String::fromUTF8(identity.backend_name.c_str()));
+        g_identity_backend_name_property, juce::String::fromUTF8(identity.backend_name.c_str()));
     element.setAttribute(
-        g_input_device_name_property, juce::String::fromUTF8(identity.input_device_name.c_str()));
-    element.setAttribute(g_input_channel_index_property, identity.input_channel_index);
+        g_identity_input_device_name_property,
+        juce::String::fromUTF8(identity.input_device_name.c_str()));
+    element.setAttribute(g_identity_input_channel_index_property, identity.input_channel_index);
     element.setAttribute(
-        g_input_channel_name_property, juce::String::fromUTF8(identity.input_channel_name.c_str()));
+        g_identity_input_channel_name_property,
+        juce::String::fromUTF8(identity.input_channel_name.c_str()));
 }
 
 // Reads the physical-route identity attributes, dropping entries missing any field. The channel
@@ -154,13 +141,13 @@ void writeIdentityAttributes(juce::XmlElement& element, const InputDeviceIdentit
 [[nodiscard]] std::optional<InputDeviceIdentity> readIdentity(const juce::XmlElement& element)
 {
     const std::optional<std::string> backend_name =
-        readStringAttribute(element, g_backend_name_property);
+        readStringAttribute(element, g_identity_backend_name_property);
     const std::optional<std::string> input_device_name =
-        readStringAttribute(element, g_input_device_name_property);
+        readStringAttribute(element, g_identity_input_device_name_property);
     const std::optional<int> input_channel_index =
-        parseIntAttribute(element, g_input_channel_index_property);
+        parseIntAttribute(element, g_identity_input_channel_index_property);
     const std::optional<std::string> input_channel_name =
-        readStringAttribute(element, g_input_channel_name_property);
+        readStringAttribute(element, g_identity_input_channel_name_property);
     if (!backend_name.has_value() || !input_device_name.has_value() ||
         !input_channel_index.has_value() || !input_channel_name.has_value() ||
         *input_channel_index < 0)
@@ -329,8 +316,7 @@ using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 // Opens the store at the standard per-user location for an application name.
 AudioConfigStore::AudioConfigStore(std::string_view application_name, Access access)
     : m_read_only(access == Access::ReadOnly)
-    , m_properties(audioConfigOptions(
-          juce::String{application_name.data(), application_name.size()}, access))
+    , m_properties(audioConfigOptions(application_name, access))
 {}
 
 // Opens an explicit store file so lifecycle behavior can be exercised in isolation.
@@ -338,6 +324,14 @@ AudioConfigStore::AudioConfigStore(const std::filesystem::path& settings_file, A
     : m_read_only(access == Access::ReadOnly)
     , m_properties(common::core::juceFileFromPath(settings_file), audioConfigOptions({}, access))
 {}
+
+// Composition roots need the per-user path of another application's audio-config file (the editor's
+// read-only view of the game's) without restating the location policy this store opens files with.
+std::filesystem::path AudioConfigStore::fileFor(std::string_view application_name)
+{
+    return common::core::pathFromJuceFile(
+        common::core::settingsFileOptions(application_name).getDefaultFile());
+}
 
 // Reads the paired device blob and resolved identity, treating unreadable state as absence.
 std::optional<ActiveDeviceRoute> AudioConfigStore::activeDeviceRoute() const

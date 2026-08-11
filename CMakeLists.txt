@@ -63,6 +63,7 @@ include(RockHeroBuildPolicy)
 include(RockHeroJuceHelpers)
 include(RockHeroExternalModules)
 include(RockHeroRenderStack)
+include(RockHeroProductResources)
 
 # --------------------------------------------------------------------------
 # Tests

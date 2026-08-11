@@ -1,4 +1,4 @@
-#include "rock_hero/game/core/settings/game_settings_error.h"
+#include "settings/game_settings_error.h"
 
 #include <utility>
 

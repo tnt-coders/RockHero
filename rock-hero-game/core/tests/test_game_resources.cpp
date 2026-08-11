@@ -14,6 +14,8 @@ namespace rock_hero::game::core
 namespace
 {
 
+using ShaderProgram = common::core::HighwayShaderProgram;
+
 // Creates a unique empty fixture directory and removes it (and everything in it) on scope exit.
 class TempResourcesRoot
 {
@@ -95,7 +97,7 @@ TEST_CASE("GameResources resolves shader stage binaries by convention", "[core][
     if (resources.has_value())
     {
         const auto vertex = resources->shaderPath(
-            GameShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+            ShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
         REQUIRE(vertex.has_value());
         if (vertex.has_value())
         {
@@ -103,7 +105,7 @@ TEST_CASE("GameResources resolves shader stage binaries by convention", "[core][
         }
 
         const auto fragment = resources->shaderPath(
-            GameShaderProgram::Color, ShaderStage::Fragment, ShaderBackend::Direct3D11);
+            ShaderProgram::Color, ShaderStage::Fragment, ShaderBackend::Direct3D11);
         REQUIRE(fragment.has_value());
         if (fragment.has_value())
         {
@@ -122,7 +124,7 @@ TEST_CASE("GameResources reports a missing shader binary as a typed error", "[co
     if (resources.has_value())
     {
         const auto fragment = resources->shaderPath(
-            GameShaderProgram::Color, ShaderStage::Fragment, ShaderBackend::Direct3D11);
+            ShaderProgram::Color, ShaderStage::Fragment, ShaderBackend::Direct3D11);
         REQUIRE_FALSE(fragment.has_value());
         if (!fragment.has_value())
         {
@@ -142,7 +144,7 @@ TEST_CASE("GameResources reads shader binary bytes", "[core][resources]")
     if (resources.has_value())
     {
         const auto bytes = resources->shaderBytes(
-            GameShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+            ShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
         REQUIRE(bytes.has_value());
         if (bytes.has_value())
         {
@@ -163,7 +165,7 @@ TEST_CASE("GameResources reports an empty shader binary as a typed error", "[cor
     if (resources.has_value())
     {
         const auto bytes = resources->shaderBytes(
-            GameShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+            ShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
         REQUIRE_FALSE(bytes.has_value());
         if (!bytes.has_value())
         {

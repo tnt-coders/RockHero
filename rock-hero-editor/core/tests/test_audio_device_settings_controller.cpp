@@ -212,7 +212,7 @@ TEST_CASE("AudioDeviceSettingsController maps settings state", "[core][audio-dev
     REQUIRE(view.set_state_call_count == 1);
     CHECK(view.last_state.audio_systems[0].label == "ASIO");
     CHECK(view.last_state.output_devices[1].label == "Output B");
-    CHECK(view.last_state.sample_rates[1].label == "48000 Hz");
+    CHECK(view.last_state.sample_rates[1].label == "48kHz");
     CHECK(view.last_state.buffer_sizes[0].label == "128 samples");
     CHECK(view.last_state.ok_enabled);
 }

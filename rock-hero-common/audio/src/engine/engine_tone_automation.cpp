@@ -2,6 +2,7 @@
 #include "tracktion/tone_automation_curve.h"
 
 #include <juce_events/juce_events.h>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>

@@ -14,7 +14,7 @@
 #include <string_view>
 #include <vector>
 
-namespace rock_hero::editor::core::project_io
+namespace rock_hero::editor::core
 {
 
 /*! \brief Fixed directory name used for native song content inside editor project packages. */
@@ -45,4 +45,4 @@ inline constexpr std::string_view g_song_directory_name{"song"};
 [[nodiscard]] std::expected<void, ProjectError> writeProjectFiles(
     const std::filesystem::path& workspace_directory, const common::core::Song& song);
 
-} // namespace rock_hero::editor::core::project_io
+} // namespace rock_hero::editor::core

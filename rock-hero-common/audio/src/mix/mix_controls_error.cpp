@@ -1,4 +1,4 @@
-#include "rock_hero/common/audio/mix/mix_controls_error.h"
+#include "mix/mix_controls_error.h"
 
 #include <utility>
 

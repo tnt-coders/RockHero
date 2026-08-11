@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <compare>
 #include <cstddef>
@@ -15,6 +14,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -405,31 +405,13 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 // import rather than guessing. Tracked in docs/plans/todo/gp-track-part-mapping.md.
 [[nodiscard]] common::core::Part partForTrack(const GpTrack& track, bool first_track)
 {
-    std::string lower_name = track.name;
-    std::ranges::transform(lower_name, lower_name.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
+    const std::string lower_name = common::core::asciiLowered(track.name);
     if (track.tuning_midi.size() <= 4 || lower_name.find("bass") != std::string::npos)
     {
         return common::core::Part::Bass;
     }
 
     return first_track ? common::core::Part::Lead : common::core::Part::Rhythm;
-}
-
-// Names a part for the human-readable conversion note about the import's part guesses.
-[[nodiscard]] const char* partName(common::core::Part part)
-{
-    switch (part)
-    {
-        case common::core::Part::Lead:
-            return "Lead";
-        case common::core::Part::Rhythm:
-            return "Rhythm";
-        case common::core::Part::Bass:
-            return "Bass";
-    }
-    return "Lead";
 }
 
 // Splits a global-beat-axis position back into measure/beat/offset grid fields. Grace leads can
@@ -2799,8 +2781,10 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
             }};
         }
 
-        part_guesses +=
-            (part_guesses.empty() ? "" : ", ") + track.name + " -> " + partName(arrangement.part);
+        // The persisted part token is also what the note shows, so the conversion note and the
+        // song document name the same part identically.
+        part_guesses += (part_guesses.empty() ? "" : ", ") + track.name + " -> " +
+                        std::string{common::core::partToken(arrangement.part)};
         song.arrangements.push_back(std::move(arrangement));
     }
 

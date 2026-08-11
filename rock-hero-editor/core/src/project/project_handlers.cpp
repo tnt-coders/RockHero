@@ -47,8 +47,7 @@ namespace
 // Resolves the extracted native-song directory owned by an editor project workspace.
 [[nodiscard]] std::filesystem::path songDirectoryForProject(const Project& project)
 {
-    return project.workspaceDirectory() /
-           std::filesystem::path{std::string{project_io::g_song_directory_name}};
+    return project.workspaceDirectory() / std::filesystem::path{std::string{g_song_directory_name}};
 }
 
 // Chooses the arrangement shown when there is no usable saved choice: prefer Lead, then Rhythm,
@@ -72,7 +71,7 @@ namespace
 // Resolves a persisted arrangement id to the current song order. A missing choice, or a stored id
 // that no longer matches any arrangement (reachable now that save no longer validates the id), both
 // mean "no usable choice" and fall back to the guitar-forward default rather than raw index 0.
-[[nodiscard]] std::size_t getSelectedArrangementIndex(
+[[nodiscard]] std::size_t selectedArrangementIndex(
     const common::core::Song& song, const std::optional<std::string>& selected_arrangement)
 {
     if (selected_arrangement.has_value())
@@ -1574,7 +1573,7 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
         return std::unexpected{std::move(prepared.error())};
     }
 
-    const std::size_t selected_index = getSelectedArrangementIndex(song, selected_arrangement);
+    const std::size_t selected_index = selectedArrangementIndex(song, selected_arrangement);
     m_session_load_in_progress = true;
     auto active_arrangement_set =
         m_song_audio.setActiveArrangement(song.arrangements[selected_index]);

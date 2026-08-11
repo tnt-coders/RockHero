@@ -130,13 +130,6 @@ struct ToneDocument
     LiveRigErrorCode write_error_code);
 
 /*!
-\brief Serializes identity to the tone document's JSON shape.
-\param identity Persisted plugin identity.
-\return Identity JSON object.
-*/
-[[nodiscard]] juce::var makeIdentityJson(const PluginIdentity& identity);
-
-/*!
 \brief Serializes the v1 tone document subset used by the current linear chain.
 \param document Tone document to serialize.
 \return Tone document JSON object.

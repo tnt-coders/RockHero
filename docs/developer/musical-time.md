@@ -50,6 +50,10 @@ validation gate all resolve through — so a spacing rule cannot mean two things
 - `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
   `snapGridPosition` — the exact `GridPosition` ↔ beat conversions, signed and inverse-exact, all
   crossing beat, measure, and meter boundaries without floating-point drift.
+- `terminalGridPosition(tempo_map)` — the chart's closing barline as a `GridPosition`. Four callers
+  need the same end of the chart (package read closing the last tone region, tone-track
+  normalization, tone-track validation, and the editor's chart-end navigation), so the
+  terminal-anchor lookup and the position it becomes are spelled once here.
 
 # The TempoMap
 

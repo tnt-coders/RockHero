@@ -30,6 +30,11 @@ is the short operational version.
 
 # While you are in there
 
+- A `.cpp` includes **its own header first, quoted, relative to the library's include root** —
+  `#include "chart/chart_rules.h"`, which is exactly what the library's
+  `PRIVATE include/rock_hero/<product>/<library>` include directory exists to serve. Not the full
+  public path, and not angle brackets: three spellings all compile, so nothing but consistency keeps
+  them from multiplying.
 - Follow the naming table in `CLAUDE.md` (types `CamelCase`, functions `camelCase`, members
   `m_lower_case`) — clang-tidy treats violations as errors, but it runs on demand, not in
   pre-commit, so you will not be told at commit time.

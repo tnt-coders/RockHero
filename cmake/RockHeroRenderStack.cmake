@@ -87,17 +87,27 @@ endfunction()
 # rock_hero_stage_highway_shaders(<target_name> <staging_dir>)
 function(rock_hero_stage_highway_shaders target_name staging_dir)
     set(shader_source_dir "${CMAKE_SOURCE_DIR}/rock-hero-common/ui/shaders")
+
+    # The program list is derived from the committed vertex sources rather than restated here: it
+    # used to be a hand-written list that had to agree with the renderer's program table, and a
+    # program added to one and forgotten in the other either failed to deploy or rendered with an
+    # unlinked program. Each program's fragment source is required, so a missing fs_*.sc fails the
+    # build loudly at shaderc rather than being skipped.
+    file(GLOB shader_vertex_sources CONFIGURE_DEPENDS "${shader_source_dir}/vs_*.sc")
+    set(shader_programs "")
+    foreach(vertex_source IN LISTS shader_vertex_sources)
+        cmake_path(GET vertex_source STEM shader_program_stem)
+        string(REGEX REPLACE "^vs_" "" shader_program "${shader_program_stem}")
+        list(APPEND shader_programs "${shader_program}")
+    endforeach()
+    if(NOT shader_programs)
+        message(FATAL_ERROR "rock_hero_stage_highway_shaders: no vs_*.sc sources found under "
+                            "'${shader_source_dir}'")
+    endif()
+
     set(staged_files "")
     if(WIN32)
-        foreach(
-            shader_program IN
-            ITEMS color
-                  color_fade
-                  texture_tint
-                  glyph
-                  texture
-                  window_light
-                  box_mute)
+        foreach(shader_program IN LISTS shader_programs)
             foreach(shader_stage IN ITEMS vertex fragment)
                 if(shader_stage STREQUAL "vertex")
                     set(stage_prefix vs)

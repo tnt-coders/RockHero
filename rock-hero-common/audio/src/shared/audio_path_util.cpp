@@ -1,5 +1,7 @@
 #include "audio_path_util.h"
 
+#include <rock_hero/common/core/shared/ascii_case.h>
+
 namespace rock_hero::common::audio
 {
 
@@ -25,20 +27,14 @@ namespace rock_hero::common::audio
     // differ only in case; POSIX is case-sensitive, where folding would wrongly merge distinct
     // files — so no OS-agnostic form exists and the guard is confined to this one seam.
 #if defined(_WIN32)
-    std::ranges::transform(key, key.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
+    key = core::asciiLowered(key);
 #endif
     return key;
 }
 
 [[nodiscard]] bool hasVst3Extension(const std::filesystem::path& path)
 {
-    std::string extension = path.extension().string();
-    std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return extension == ".vst3";
+    return core::hasExtensionIgnoringCase(path, ".vst3");
 }
 
 // JUCE may persist a VST3 either as the bundle directory or as the architecture-specific module

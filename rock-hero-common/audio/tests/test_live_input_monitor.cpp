@@ -13,8 +13,8 @@
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -27,21 +27,12 @@ using testing::ConfigurableAudioDeviceConfiguration;
 using testing::FakeLiveInput;
 using testing::InMemoryAudioConfigStore;
 using testing::LiveInputSetterCall;
+using testing::makeInputDeviceIdentity;
 using testing::setCalibrationInputMonitoringCall;
 using testing::setInputGainCall;
 using testing::setLiveInputMonitoringCall;
 
 constexpr LiveInputMonitoringContext g_ready{.live_input_ready = true, .arrangement_loaded = true};
-
-[[nodiscard]] InputDeviceIdentity makeIdentity(std::string device = "Interface A", int channel = 0)
-{
-    return InputDeviceIdentity{
-        .backend_name = "ASIO",
-        .input_device_name = std::move(device),
-        .input_channel_index = channel,
-        .input_channel_name = "Input " + std::to_string(channel + 1),
-    };
-}
 
 [[nodiscard]] InputCalibrationState makeCalibration(
     const InputDeviceIdentity& identity, double gain_db)
@@ -126,7 +117,7 @@ TEST_CASE("LiveInputMonitor gate disables when session not ready", "[audio][live
 {
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = makeIdentity();
+    devices.current_input_identity = makeInputDeviceIdentity();
     InMemoryAudioConfigStore store;
     LiveInputMonitor monitor{live_input, devices, store};
 
@@ -141,7 +132,7 @@ TEST_CASE("LiveInputMonitor gate disables without calibration", "[audio][live-in
 {
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
-    devices.current_input_identity = makeIdentity();
+    devices.current_input_identity = makeInputDeviceIdentity();
     InMemoryAudioConfigStore store;
     LiveInputMonitor monitor{live_input, devices, store};
 
@@ -154,7 +145,7 @@ TEST_CASE("LiveInputMonitor gate disables without calibration", "[audio][live-in
 // refresh re-reads the store, finds the matching calibration, and arms in the pinned order.
 TEST_CASE("LiveInputMonitor refresh arms matching route in order", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -180,7 +171,7 @@ TEST_CASE("LiveInputMonitor refresh arms matching route in order", "[audio][live
 // A corrupt store read surfaces CalibrationStoreUnavailable and does not arm any monitoring.
 TEST_CASE("LiveInputMonitor refresh surfaces corrupt store and does not arm", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -203,7 +194,7 @@ TEST_CASE("LiveInputMonitor refresh surfaces corrupt store and does not arm", "[
 // A route-unavailable gain rejection during arming rolls the gate into BackendUnavailable.
 TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -229,7 +220,7 @@ TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[audio][live-inpu
 // A route-unavailable monitoring rejection after gain succeeds still disables and marks the backend.
 TEST_CASE("LiveInputMonitor gate rolls back on enable failure", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -274,7 +265,7 @@ TEST_CASE("LiveInputMonitor disableMonitoring tears down both paths", "[audio][l
 // Measurement start rolls back the captured route when the neutral-gain reset is rejected.
 TEST_CASE("LiveInputMonitor measurement start rolls back on gain failure", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -308,7 +299,7 @@ TEST_CASE("LiveInputMonitor measurement start rolls back on gain failure", "[aud
 // persists the calibration through the store.
 TEST_CASE("LiveInputMonitor commit applies gain and persists calibration", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -343,7 +334,7 @@ TEST_CASE("LiveInputMonitor commit applies gain and persists calibration", "[aud
 // the workflow keeps the committed calibration.
 TEST_CASE("LiveInputMonitor commit tolerates a store write failure", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -370,7 +361,7 @@ TEST_CASE("LiveInputMonitor commit tolerates a store write failure", "[audio][li
 // the expected-identity check and the plan build cannot be observed mid-operation.
 TEST_CASE("LiveInputMonitor samples the input identity once per operation", "[audio][live-input]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     FakeLiveInput live_input;
     CountingDeviceConfiguration devices;
     devices.identity = identity;

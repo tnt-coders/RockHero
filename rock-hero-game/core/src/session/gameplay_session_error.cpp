@@ -1,4 +1,4 @@
-#include "rock_hero/game/core/session/gameplay_session_error.h"
+#include "session/gameplay_session_error.h"
 
 #include <utility>
 

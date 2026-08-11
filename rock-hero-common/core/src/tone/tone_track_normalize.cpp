@@ -1,3 +1,4 @@
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
@@ -23,13 +24,11 @@ void ensureExplicitToneRegions(Song& song)
         // Materialize the implicit whole-song region so the editor always has a concrete region to
         // split, select, and delete rather than a synthesized default with no identity. The first
         // catalog tone is the arrangement's baseline.
-        const auto [terminal_measure, terminal_beat] =
-            song.tempo_map.beatAtGlobalIndex(song.tempo_map.terminalGlobalBeatIndex());
         arrangement.tone_track.regions.push_back(
             ToneRegion{
                 .id = generatePackageId(),
                 .start = GridPosition{.measure = 1, .beat = 1},
-                .end = GridPosition{.measure = terminal_measure, .beat = terminal_beat},
+                .end = terminalGridPosition(song.tempo_map),
                 .tone_document_ref = arrangement.tones.front().tone_document_ref,
             });
     }

@@ -12,7 +12,7 @@
 #include <system_error>
 #include <utility>
 
-namespace rock_hero::editor::core::project_io
+namespace rock_hero::editor::core
 {
 
 namespace
@@ -126,4 +126,4 @@ std::expected<void, ProjectError> writeProjectFiles(
     return std::expected<void, ProjectError>{};
 }
 
-} // namespace rock_hero::editor::core::project_io
+} // namespace rock_hero::editor::core

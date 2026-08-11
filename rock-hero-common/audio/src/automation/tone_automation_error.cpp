@@ -1,4 +1,4 @@
-#include "rock_hero/common/audio/automation/tone_automation_error.h"
+#include "automation/tone_automation_error.h"
 
 #include <utility>
 

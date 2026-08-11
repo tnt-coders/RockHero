@@ -32,6 +32,15 @@ namespace rock_hero::common::ui
 namespace
 {
 
+// The shared resource table this renderer is built against. Pulled in unqualified because the draw
+// and creation code names a program or texture asset by enumerator many times over.
+using common::core::g_highway_shader_programs;
+using common::core::g_highway_textures;
+using common::core::highwayShaderProgramName;
+using common::core::indexOf;
+using Program = common::core::HighwayShaderProgram;
+using TextureAsset = common::core::HighwayTexture;
+
 // The three fixed render views, executed in id order (plan 25 Phase 3 checkpoint). View 0 is
 // shared with RenderDevice's backstop (its g_default_view): the device touches it so a frame
 // with no scene still clears and presents, and this renderer's per-frame setViewClear wins
@@ -1127,31 +1136,29 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
 {
     auto impl = std::make_unique<Impl>();
 
-    auto color = linkProgram(shaders.color, "color");
-    auto color_fade = linkProgram(shaders.color_fade, "color_fade");
-    auto texture_tint = linkProgram(shaders.texture_tint, "texture_tint");
-    auto glyph = linkProgram(shaders.glyph, "glyph");
-    auto texture = linkProgram(shaders.texture, "texture");
-    auto window_light = linkProgram(shaders.window_light, "window_light");
-    auto box_mute = linkProgram(shaders.box_mute, "box_mute");
-    if (!color || !color_fade || !texture_tint || !glyph || !texture || !window_light || !box_mute)
+    // Link every program in the shared table, so adding one is a table row rather than another
+    // link site here. The first bad binary fails creation: a broken install is broken whichever
+    // stage bgfx rejected, and the error names the program.
+    std::array<UniqueBgfxHandle<bgfx::ProgramHandle>, g_highway_shader_programs.size()> linked;
+    for (const Program program : g_highway_shader_programs)
     {
-        const auto& failed = !color          ? color.error()
-                             : !color_fade   ? color_fade.error()
-                             : !texture_tint ? texture_tint.error()
-                             : !glyph        ? glyph.error()
-                             : !texture      ? texture.error()
-                             : !window_light ? window_light.error()
-                                             : box_mute.error();
-        return std::unexpected{failed};
+        auto result = linkProgram(shaders.at(indexOf(program)), highwayShaderProgramName(program));
+        if (!result.has_value())
+        {
+            return std::unexpected{result.error()};
+        }
+        linked.at(indexOf(program)) = std::move(*result);
     }
-    impl->color_program = std::move(*color);
-    impl->color_fade_program = std::move(*color_fade);
-    impl->texture_tint_program = std::move(*texture_tint);
-    impl->glyph_program = std::move(*glyph);
-    impl->texture_program = std::move(*texture);
-    impl->window_light_program = std::move(*window_light);
-    impl->box_mute_program = std::move(*box_mute);
+
+    // The renderer's own named handles: the one place a program in the shared table is bound to the
+    // slot the draw code reaches for.
+    impl->color_program = std::move(linked.at(indexOf(Program::Color)));
+    impl->color_fade_program = std::move(linked.at(indexOf(Program::ColorFade)));
+    impl->texture_tint_program = std::move(linked.at(indexOf(Program::TextureTint)));
+    impl->glyph_program = std::move(linked.at(indexOf(Program::Glyph)));
+    impl->texture_program = std::move(linked.at(indexOf(Program::Texture)));
+    impl->window_light_program = std::move(linked.at(indexOf(Program::WindowLight)));
+    impl->box_mute_program = std::move(linked.at(indexOf(Program::BoxMute)));
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
@@ -1164,12 +1171,12 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->box_mute_arms = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_box_mute_arms", bgfx::UniformType::Vec4)};
 
-    impl->atlases = makeHighwayAtlases(textures.note_atlas_png);
-    UploadedTexture inlay = uploadPngTexture(textures.inlay_atlas_png);
+    impl->atlases = makeHighwayAtlases(textures.at(indexOf(TextureAsset::Notes)));
+    UploadedTexture inlay = uploadPngTexture(textures.at(indexOf(TextureAsset::Inlays)));
     impl->inlay_texture_width = inlay.width;
     impl->inlay_texture_height = inlay.height;
     impl->inlay_texture = std::move(inlay.handle);
-    UploadedTexture fingering = uploadPngTexture(textures.fingering_png);
+    UploadedTexture fingering = uploadPngTexture(textures.at(indexOf(TextureAsset::Fingering)));
     impl->fingering_texture = std::move(fingering.handle);
 
     // Box-mute marks: chords.png is the single source of truth for the marks' STRUCTURE. Measure
@@ -1178,7 +1185,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     // render, with hue and opacity applied per draw as vertex color. Draw needs only the layout
     // fractions afterwards — the ramps live in the GPU texture.
     const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
-        measureBoxMuteProfiles(textures.chord_marks_png);
+        measureBoxMuteProfiles(textures.at(indexOf(TextureAsset::ChordMarks)));
     if (profiles.has_value())
     {
         impl->box_mute_layouts = {

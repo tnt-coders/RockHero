@@ -51,6 +51,18 @@ public:
     */
     AudioConfigStore(const std::filesystem::path& settings_file, Access access);
 
+    /*!
+    \brief Resolves the per-user file this store opens for one application name.
+
+    Lets a composition root point a read-only store at another application's audio-config file —
+    the editor's read-only view of the game's — by asking the store where that file is instead of
+    rebuilding the location policy at the call site.
+
+    \param application_name Application name that partitions the audio-config file.
+    \return Native path of that application's audio-config file.
+    */
+    [[nodiscard]] static std::filesystem::path fileFor(std::string_view application_name);
+
     /*! \brief Copying is disabled because juce::PropertiesFile is stateful file IO. */
     AudioConfigStore(const AudioConfigStore&) = delete;
 

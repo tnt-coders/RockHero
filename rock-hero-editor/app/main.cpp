@@ -6,6 +6,7 @@
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/audio_config_identity.h>
+#include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -42,22 +43,13 @@ constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 
     return common::core::pathFromJuceFile(log_file);
 }
 
-// Resolves the game's audio-config file by the same per-user path AudioConfigStore derives for the
-// game's application name, so the editor's read-only view targets exactly the file the game writes.
-// Composed from the shared app-data folder and the game audio-config application name, with zero
-// game-code linkage.
+// Asks the store where the game's audio-config file lives, so the editor's read-only view targets
+// exactly the file the game writes without restating the location policy. Named by the game's
+// audio-config application name only, with zero game-code linkage.
 [[nodiscard]] std::filesystem::path gameAudioConfigFile()
 {
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    const std::string_view application_name =
-        rock_hero::common::audio::gameAudioConfigApplicationName();
-    juce::PropertiesFile::Options options;
-    options.applicationName = juce::String{application_name.data(), application_name.size()};
-    options.filenameSuffix = ".settings";
-    options.folderName = juce::String{folder_name.data(), folder_name.size()};
-    options.osxLibrarySubFolder = "Application Support";
-    options.commonToAllUsers = false;
-    return common::core::pathFromJuceFile(options.getDefaultFile());
+    return rock_hero::common::audio::AudioConfigStore::fileFor(
+        rock_hero::common::audio::gameAudioConfigApplicationName());
 }
 
 // Maps the concrete Tracktion-backed engine into the editor's narrow audio-port bundle. This

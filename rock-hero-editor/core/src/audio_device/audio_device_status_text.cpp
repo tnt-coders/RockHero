@@ -35,20 +35,6 @@ constexpr std::string_view g_unknown_backend_text{"Unknown"};
     return std::string{backend_name};
 }
 
-// Displays common studio sample rates in kHz without a redundant decimal.
-[[nodiscard]] std::string sampleRateText(double sample_rate_hz)
-{
-    const double kilohertz = sample_rate_hz / 1000.0;
-    const double rounded_kilohertz = std::round(kilohertz);
-    constexpr double integer_tolerance{0.001};
-    if (std::abs(kilohertz - rounded_kilohertz) < integer_tolerance)
-    {
-        return std::format("{}kHz", static_cast<int>(rounded_kilohertz));
-    }
-
-    return std::format("{:.1f}kHz", kilohertz);
-}
-
 // Rounds latencies of at least ten milliseconds to whole units; keeps shorter delays precise
 // enough to compare low-latency device routes.
 [[nodiscard]] std::string latencyText(double latency_ms)
@@ -63,6 +49,13 @@ constexpr std::string_view g_unknown_backend_text{"Unknown"};
 }
 
 } // namespace
+
+// One sample-rate rendering for every audio-device surface. See the header for why the shortest
+// round-tripping form replaces the integrality tolerance this used to carry.
+std::string sampleRateText(double sample_rate_hz)
+{
+    return std::format("{}kHz", sample_rate_hz / 1000.0);
+}
 
 // Produces the menu-bar text consumed by EditorView without leaking formatting rules into UI code.
 std::string audioDeviceStatusText(const common::audio::AudioDeviceStatus& status)

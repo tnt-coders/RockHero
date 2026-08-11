@@ -211,11 +211,4 @@ private:
 [[nodiscard]] PluginCandidate makePluginCandidate(
     const juce::PluginDescription& description, const std::filesystem::path& plugin_path);
 
-/*!
-\brief Reads the identity object for one tone plugin record.
-\param object Parsed identity JSON object.
-\return Persisted plugin identity fields.
-*/
-[[nodiscard]] PluginIdentity readPluginIdentity(const juce::var& object);
-
 } // namespace rock_hero::common::audio

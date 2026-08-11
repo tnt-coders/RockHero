@@ -1,13 +1,12 @@
 #include "rock_song_package_format.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <set>
 #include <string>
@@ -67,11 +66,7 @@ constexpr double g_timing_epsilon = 1.0e-9;
 
 [[nodiscard]] bool hasFlacExtension(const std::filesystem::path& path)
 {
-    std::string extension = path.extension().string();
-    std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return extension == ".flac";
+    return hasExtensionIgnoringCase(path, ".flac");
 }
 
 [[nodiscard]] std::expected<void, SongPackageError> validateTempoMap(const TempoMap& tempo_map)

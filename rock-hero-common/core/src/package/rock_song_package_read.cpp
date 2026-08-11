@@ -20,6 +20,7 @@
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
@@ -555,10 +556,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         {
             tone_track.regions[index].end = tone_track.regions[index + 1].start;
         }
-        const auto [terminal_measure, terminal_beat] =
-            tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-        tone_track.regions.back().end =
-            GridPosition{.measure = terminal_measure, .beat = terminal_beat};
+        tone_track.regions.back().end = terminalGridPosition(tempo_map);
     }
 
     if (const auto structural = validateToneTrack(tone_track, tempo_map); !structural.has_value())

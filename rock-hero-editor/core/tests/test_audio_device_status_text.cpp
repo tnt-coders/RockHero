@@ -51,4 +51,14 @@ TEST_CASE("Audio device status text maps Windows Audio", "[core][audio-device-st
     CHECK(audioDeviceStatusText(status) == "[44.1kHz 24bit: 2/2ch 512spls ~7.5/30ms WASAPI]");
 }
 
+// The shared rate formatter prints exactly the digits a rate needs, so the studio rates lose their
+// redundant decimal while an unusual rate keeps every digit that distinguishes it.
+TEST_CASE("Sample rate text keeps only the digits a rate needs", "[core][audio-device-status]")
+{
+    CHECK(sampleRateText(48000.0) == "48kHz");
+    CHECK(sampleRateText(44100.0) == "44.1kHz");
+    CHECK(sampleRateText(176400.0) == "176.4kHz");
+    CHECK(sampleRateText(11025.0) == "11.025kHz");
+}
+
 } // namespace rock_hero::editor::core

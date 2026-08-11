@@ -194,7 +194,10 @@ in pixels" for hit testing, and `tab_paint_core.h` — the one designated juce_g
 common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
 surface so editor widgets and tests are unaffected; the paint core's pixel output is pinned by
-exact-color tests in `rock_hero_common_ui_tests`.
+exact-color tests in `rock_hero_common_ui_tests`. Those delegates carry no documentation of their
+own rules — `tab_view.h` points at the shared declarations instead, because a delegate that restates
+the rule it forwards gives the reader two descriptions to reconcile and no compiler to catch the
+drift.
 
 Three notation rules inside the paint core are worth knowing before touching a head, because each
 is deliberately single-sourced:

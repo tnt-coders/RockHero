@@ -8,6 +8,9 @@ namespace rock_hero::editor::ui
 namespace
 {
 
+using testing::getPlayPauseButton;
+using testing::getStopButton;
+
 // Drives a key press through the command manager's mapping set exactly the way the window
 // shell's key-listener attachment does: chord matching, enablement, then perform.
 [[nodiscard]] bool pressCommandKey(EditorView& view, const juce::KeyPress& key)

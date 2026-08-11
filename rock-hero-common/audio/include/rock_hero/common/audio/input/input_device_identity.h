@@ -42,6 +42,26 @@ struct [[nodiscard]] InputDeviceIdentity
 };
 
 /*!
+\brief Persisted property name carrying InputDeviceIdentity::backend_name.
+
+This name and its three siblings below are an on-disk contract rather than a private detail: the
+shared audio-config store writes them as XML attributes and the game's settings file writes them as
+JSON properties, and each application must find the names the other one wrote. They are declared
+here, beside the fields they carry, because a rename in only one of those files would silently drop
+the user's saved input-device selection — a missing property reads as absence, not as an error.
+*/
+inline constexpr const char* g_identity_backend_name_property{"backendName"};
+
+/*! \brief Persisted property name carrying InputDeviceIdentity::input_device_name. */
+inline constexpr const char* g_identity_input_device_name_property{"inputDeviceName"};
+
+/*! \brief Persisted property name carrying InputDeviceIdentity::input_channel_index. */
+inline constexpr const char* g_identity_input_channel_index_property{"inputChannelIndex"};
+
+/*! \brief Persisted property name carrying InputDeviceIdentity::input_channel_name. */
+inline constexpr const char* g_identity_input_channel_name_property{"inputChannelName"};
+
+/*!
 \brief Reports whether an input identity is complete enough to validate calibration.
 \param identity Identity to inspect.
 \return True when the identity names a backend, input device, and physical input channel.

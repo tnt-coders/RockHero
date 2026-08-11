@@ -1,4 +1,4 @@
-#include "rock_hero/game/core/session/gameplay_session.h"
+#include "session/gameplay_session.h"
 
 #include <algorithm>
 #include <memory>

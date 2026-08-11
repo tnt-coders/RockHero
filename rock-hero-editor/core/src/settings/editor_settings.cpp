@@ -11,6 +11,7 @@
 #include <rock_hero/common/audio/settings/audio_config_identity.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/settings_file_options.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -32,25 +33,6 @@ constexpr const char* g_use_game_audio_settings_key{"useGameAudioSettings"};
 constexpr const char* g_suppress_game_audio_recommendation_key{"suppressGameAudioRecommendation"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
 constexpr const char* g_keymap_xml_key{"keymapXml"};
-
-// Builds the per-user settings file options used by the editor app.
-[[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
-{
-    juce::PropertiesFile::Options options;
-    const std::string_view application_name = common::core::editorApplicationName();
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    options.applicationName = juce::String{application_name.data(), application_name.size()};
-    options.filenameSuffix = ".settings";
-    options.folderName = juce::String{folder_name.data(), folder_name.size()};
-    options.osxLibrarySubFolder = "Application Support";
-    options.commonToAllUsers = false;
-    options.ignoreCaseOfKeyNames = false;
-    options.doNotSave = false;
-    options.millisecondsBeforeSaving = 0;
-    options.storageFormat = juce::PropertiesFile::storeAsXML;
-    options.processLock = nullptr;
-    return options;
-}
 
 // Parses text as a finite double, rejecting empty, malformed, or non-finite input so a corrupt
 // entry reads as absent rather than a bogus number. juce::CharacterFunctions rather than
@@ -190,7 +172,7 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
 // Opens the JUCE properties file plus the owned per-app audio-config store. The store uses the
 // editor audio-config application name so it partitions from the workflow-state file.
 EditorSettings::EditorSettings()
-    : m_properties(editorSettingsOptions())
+    : m_properties(common::core::settingsFileOptions(common::core::editorApplicationName()))
     , m_audio_config_store(
           common::audio::editorAudioConfigApplicationName(),
           common::audio::AudioConfigStore::Access::ReadWrite)
@@ -199,7 +181,9 @@ EditorSettings::EditorSettings()
 // Opens an explicit settings file so lifecycle behavior can be exercised in isolation. The owned
 // store opens at a sibling path so the two files never share a writer.
 EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
-    : m_properties(common::core::juceFileFromPath(settings_file), editorSettingsOptions())
+    : m_properties(
+          common::core::juceFileFromPath(settings_file),
+          common::core::settingsFileOptions(common::core::editorApplicationName()))
     , m_audio_config_store(
           audioConfigFileFor(settings_file), common::audio::AudioConfigStore::Access::ReadWrite)
 {}

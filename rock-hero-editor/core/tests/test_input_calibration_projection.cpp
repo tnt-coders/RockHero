@@ -8,8 +8,7 @@
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
-#include <string>
-#include <utility>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 
 namespace rock_hero::editor::core
 {
@@ -17,18 +16,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Builds a physical input identity with defaults that represent one stable ASIO route.
-[[nodiscard]] common::audio::InputDeviceIdentity makeIdentity(
-    std::string backend_name = "ASIO", std::string input_device_name = "Interface A",
-    int input_channel_index = 0, std::string input_channel_name = "Input 1")
-{
-    return common::audio::InputDeviceIdentity{
-        .backend_name = std::move(backend_name),
-        .input_device_name = std::move(input_device_name),
-        .input_channel_index = input_channel_index,
-        .input_channel_name = std::move(input_channel_name),
-    };
-}
+using common::audio::testing::makeInputDeviceIdentity;
 
 // Builds a saved calibration state for a physical route.
 [[nodiscard]] common::audio::InputCalibrationState calibrationFor(
@@ -103,7 +91,7 @@ TEST_CASE(
     "Input calibration projection builds an active calibrated projection",
     "[core][input-calibration]")
 {
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     common::audio::testing::FakeLiveInput live_input;
     common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -128,7 +116,7 @@ TEST_CASE(
     "Input calibration projection keeps calibrated status while settings are open",
     "[core][input-calibration]")
 {
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     common::audio::testing::FakeLiveInput live_input;
     common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;
@@ -151,7 +139,7 @@ TEST_CASE(
     "Input calibration projection projects the prompt with the stored gain",
     "[core][input-calibration]")
 {
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     common::audio::testing::FakeLiveInput live_input;
     common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
     devices.current_input_identity = identity;

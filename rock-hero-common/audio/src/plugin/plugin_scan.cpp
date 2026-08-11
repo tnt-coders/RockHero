@@ -2,7 +2,6 @@
 
 #include "shared/audio_path_util.h"
 
-#include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <tracktion_engine/tracktion_engine.h>
 #include <utility>
@@ -134,26 +133,6 @@ void logPluginValidationSummary(
         .format_name = description.pluginFormatName.toStdString(),
         .category = description.category.toStdString(),
         .file_path = vst3DisplayPath(plugin_path),
-    };
-}
-
-// Reads the identity object for one tone plugin record.
-[[nodiscard]] PluginIdentity readPluginIdentity(const juce::var& object)
-{
-    return PluginIdentity{
-        .format_name = core::Json::readOptionalString(object, "format"),
-        .name = core::Json::readOptionalString(object, "name"),
-        .descriptive_name = core::Json::readOptionalString(object, "descriptiveName"),
-        .manufacturer = core::Json::readOptionalString(object, "manufacturer"),
-        .version = core::Json::readOptionalString(object, "version"),
-        .unique_id = core::Json::readOptionalString(object, "uniqueId"),
-        .deprecated_uid = core::Json::readOptionalString(object, "deprecatedUid"),
-        .is_instrument = core::Json::readOptionalBool(object, "isInstrument"),
-        .original_file_or_identifier =
-            core::Json::readOptionalString(object, "originalFileOrIdentifier"),
-        .juce_identifier_hint = core::Json::readOptionalString(object, "juceIdentifierHint"),
-        .tracktion_identifier_hint =
-            core::Json::readOptionalString(object, "tracktionIdentifierHint"),
     };
 }
 

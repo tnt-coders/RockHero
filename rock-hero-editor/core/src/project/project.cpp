@@ -365,14 +365,14 @@ std::expected<Song, ProjectError> Project::load(
         }};
     }
 
-    if (auto document_valid = project_io::readProjectDocument(loaded_project.m_workspace_directory);
+    if (auto document_valid = readProjectDocument(loaded_project.m_workspace_directory);
         !document_valid.has_value())
     {
         return std::unexpected{std::move(document_valid.error())};
     }
 
     auto loaded_song = common::core::readRockSongPackageDirectory(
-        loaded_project.m_workspace_directory / project_io::g_song_directory_name);
+        loaded_project.m_workspace_directory / g_song_directory_name);
     if (!loaded_song.has_value())
     {
         return std::unexpected{ProjectError{
@@ -415,7 +415,7 @@ std::expected<Song, ProjectError> Project::import(
     Project imported_project;
     imported_project.m_workspace_directory = std::move(*workspace_directory);
     const std::filesystem::path song_directory =
-        imported_project.m_workspace_directory / project_io::g_song_directory_name;
+        imported_project.m_workspace_directory / g_song_directory_name;
     std::error_code create_error;
     std::filesystem::create_directories(song_directory, create_error);
     if (create_error)
@@ -482,8 +482,7 @@ std::expected<void, ProjectError> Project::save(const Song& song)
         }};
     }
 
-    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song);
-        !write_error.has_value())
+    if (auto write_error = writeProjectFiles(m_workspace_directory, song); !write_error.has_value())
     {
         return std::unexpected{std::move(write_error.error())};
     }
@@ -526,8 +525,7 @@ std::expected<void, ProjectError> Project::saveAs(
         saved_project.m_path = path;
         saved_project.m_workspace_directory = std::move(*workspace_directory);
 
-        if (auto write_error =
-                project_io::writeProjectFiles(saved_project.m_workspace_directory, song);
+        if (auto write_error = writeProjectFiles(saved_project.m_workspace_directory, song);
             !write_error.has_value())
         {
             return std::unexpected{std::move(write_error.error())};
@@ -548,8 +546,7 @@ std::expected<void, ProjectError> Project::saveAs(
         return std::expected<void, ProjectError>{};
     }
 
-    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song);
-        !write_error.has_value())
+    if (auto write_error = writeProjectFiles(m_workspace_directory, song); !write_error.has_value())
     {
         return std::unexpected{std::move(write_error.error())};
     }
@@ -589,8 +586,7 @@ std::expected<void, ProjectError> Project::publish(
         }};
     }
 
-    const std::filesystem::path song_directory =
-        m_workspace_directory / project_io::g_song_directory_name;
+    const std::filesystem::path song_directory = m_workspace_directory / g_song_directory_name;
     std::error_code error;
     if (!std::filesystem::is_directory(m_workspace_directory, error))
     {

@@ -46,71 +46,6 @@ namespace
     return "vs";
 }
 
-// Base name shared by a program's committed .sc sources and its compiled binaries.
-[[nodiscard]] std::string_view shaderProgramName(const GameShaderProgram program)
-{
-    switch (program)
-    {
-        case GameShaderProgram::Color:
-        {
-            return "color";
-        }
-        case GameShaderProgram::ColorFade:
-        {
-            return "color_fade";
-        }
-        case GameShaderProgram::TextureTint:
-        {
-            return "texture_tint";
-        }
-        case GameShaderProgram::Glyph:
-        {
-            return "glyph";
-        }
-        case GameShaderProgram::Texture:
-        {
-            return "texture";
-        }
-        case GameShaderProgram::WindowLight:
-        {
-            return "window_light";
-        }
-        case GameShaderProgram::BoxMute:
-        {
-            return "box_mute";
-        }
-    }
-
-    return "color";
-}
-
-// Path of a texture asset relative to <root>/textures/. The directory is flat; LICENSE.txt
-// beside the files explicitly lists which are Charter-adapted (BSD 3-Clause).
-[[nodiscard]] std::string_view textureRelativePath(const GameTexture texture)
-{
-    switch (texture)
-    {
-        case GameTexture::HighwayNotes:
-        {
-            return "notes.png";
-        }
-        case GameTexture::HighwayInlays:
-        {
-            return "inlays.png";
-        }
-        case GameTexture::HighwayFingering:
-        {
-            return "fingering.png";
-        }
-        case GameTexture::HighwayChordMarks:
-        {
-            return "chords.png";
-        }
-    }
-
-    return "notes.png";
-}
-
 } // namespace
 
 GameResourcesError::GameResourcesError(
@@ -156,11 +91,12 @@ std::expected<GameResources, GameResourcesError> GameResources::create(
 }
 
 std::expected<std::filesystem::path, GameResourcesError> GameResources::shaderPath(
-    const GameShaderProgram program, const ShaderStage stage, const ShaderBackend backend) const
+    const common::core::HighwayShaderProgram program, const ShaderStage stage,
+    const ShaderBackend backend) const
 {
     std::filesystem::path path = m_resources_root / "shaders" / shaderBackendDirectory(backend);
-    path /= std::string{shaderStagePrefix(stage)} + "_" + std::string{shaderProgramName(program)} +
-            ".bin";
+    path /= std::string{shaderStagePrefix(stage)} + "_" +
+            std::string{common::core::highwayShaderProgramName(program)} + ".bin";
 
     // Non-throwing probe; failures to inspect the file intentionally count as missing, and any
     // probe/read race is caught by the read in shaderBytes anyway.
@@ -218,7 +154,8 @@ namespace
 } // namespace
 
 std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderBytes(
-    const GameShaderProgram program, const ShaderStage stage, const ShaderBackend backend) const
+    const common::core::HighwayShaderProgram program, const ShaderStage stage,
+    const ShaderBackend backend) const
 {
     const auto path = shaderPath(program, stage, backend);
     if (!path.has_value())
@@ -229,9 +166,11 @@ std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderB
 }
 
 std::expected<std::vector<std::byte>, GameResourcesError> GameResources::textureBytes(
-    const GameTexture texture) const
+    const common::core::HighwayTexture texture) const
 {
-    const std::filesystem::path path = m_resources_root / "textures" / textureRelativePath(texture);
+    // The textures directory is flat; LICENSE.txt beside the files lists the Charter-adapted ones.
+    const std::filesystem::path path =
+        m_resources_root / "textures" / common::core::highwayTextureFileName(texture);
 
     std::error_code probe_error;
     if (!std::filesystem::is_regular_file(path, probe_error))

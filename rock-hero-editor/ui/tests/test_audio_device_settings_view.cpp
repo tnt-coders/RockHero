@@ -109,7 +109,7 @@ public:
         .selected_input_channel_id = 1,
         .stereo_output_pairs = {{.id = 1, .label = "Output 1 + Output 2"}},
         .selected_stereo_output_pair_id = 1,
-        .sample_rates = {{.id = 1, .label = "44100 Hz"}, {.id = 2, .label = "48000 Hz"}},
+        .sample_rates = {{.id = 1, .label = "44.1kHz"}, {.id = 2, .label = "48kHz"}},
         .selected_sample_rate_id = 2,
         .buffer_sizes = {{.id = 1, .label = "128 samples"}},
         .selected_buffer_size_id = 1,

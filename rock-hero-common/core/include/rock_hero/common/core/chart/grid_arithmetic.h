@@ -132,6 +132,23 @@ so defining it once keeps their timing from silently diverging.
 }
 
 /*!
+\brief The grid position of the tempo map's terminal anchor: the chart's closing barline.
+
+Named once because four callers need the same end of the chart — package read closing the last tone
+region, tone-track normalization materializing the whole-song region, tone-track validation bounding
+every region, and the editor's chart-end navigation destination. The offset is zero: the terminal
+anchor sits exactly on a beat.
+
+\param tempo_map Tempo map whose terminal anchor is being addressed.
+\return Grid position of the terminal anchor.
+*/
+[[nodiscard]] inline GridPosition terminalGridPosition(const TempoMap& tempo_map)
+{
+    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
+    return GridPosition{.measure = measure, .beat = beat, .offset = {}};
+}
+
+/*!
 \brief Advances a grid position by an exact number of beats.
 
 Whole beats carry across beat and measure boundaries through the tempo map's time-signature

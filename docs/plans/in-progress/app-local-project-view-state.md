@@ -16,7 +16,7 @@ Two related threads on branch `tone-capture-scope`:
 
 A third, already-finished change rides on the same branch and is independent of the above:
 the fresh-open arrangement default now walks **Lead -> Rhythm -> Bass** before falling back to the
-first stored arrangement (`getSelectedArrangementIndex` in `project_handlers.cpp`), with a
+first stored arrangement (`selectedArrangementIndex` in `project_handlers.cpp`), with a
 regression test. That work is complete; it is only mentioned here so the branch state is clear.
 
 ## Background / current design
@@ -152,7 +152,7 @@ regression test. That work is complete; it is only mentioned here so the branch 
    fallback is **never written back** as if user-chosen — no laundering a derived default into
    stored state.
 7. **A dangling persisted UUID falls back to the Lead -> Rhythm -> Bass walk**, not raw index 0.
-   Today `getSelectedArrangementIndex` only runs the walk for `nullopt`; a stale id semantically
+   Today `selectedArrangementIndex` only runs the walk for `nullopt`; a stale id semantically
    *is* "no usable choice", and staleness becomes reachable once write-time validation
    (`selectedArrangementForSave`) is deleted. Silent (log at most). This dispositions the TODO at
    `project.cpp:406` about surfacing that mismatch — the fallback becomes the deliberate best
@@ -189,7 +189,7 @@ referenced widely).
    `ProjectWriteTaskState::editor_state`.
 5. `project_handlers.cpp`: `completeOpenProject` passes `std::nullopt` to `loadSessionSong` (the
    settings read arrives in Phase 3); remove `projectEditorStateForSave` and the worker save
-   call's `editor_state` argument. Restructure `getSelectedArrangementIndex` so the not-found
+   call's `editor_state` argument. Restructure `selectedArrangementIndex` so the not-found
    branch reuses the Lead -> Rhythm -> Bass walk (decision 7).
 6. `rock-hero-common/audio/src/tracktion/plugin_window.cpp:481`: update the stale comment that
    references `ProjectEditorState` plumbing.
@@ -256,7 +256,7 @@ whole-project clang-tidy is clean, and pre-commit (clang-format + conventions) p
 - **Phase 1 — `ProjectEditorState` tear-out:** struct/overloads/`editorState()`/`m_editor_state`
   removed from `Project`; `project_io` `readProjectDocument` validates `formatVersion` only and
   `project.json` is written as `{ "formatVersion": 1 }`; `SaveFunction`/`SaveAsFunction` and the
-  worker save call shrank; `getSelectedArrangementIndex` restructured so a missing OR stale id
+  worker save call shrank; `selectedArrangementIndex` restructured so a missing OR stale id
   reuses the Lead->Rhythm->Bass walk (`defaultArrangementIndex`); `:406` TODO and the
   `plugin_window.cpp` comment updated; harness + `test_project` + lifecycle tests updated.
 - **Phase 2 — flat-key settings:** the four per-project families store one flat key each

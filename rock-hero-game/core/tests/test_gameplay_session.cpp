@@ -20,6 +20,7 @@
 #include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/fake_tone_automation.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
@@ -46,6 +47,7 @@ using common::audio::testing::FakeLiveInput;
 using common::audio::testing::FakeToneAutomation;
 using common::audio::testing::InMemoryAudioConfigStore;
 using common::audio::testing::LiveInputSetterCall;
+using common::audio::testing::makeInputDeviceIdentity;
 using common::audio::testing::setCalibrationInputMonitoringCall;
 using common::audio::testing::setInputGainCall;
 using common::audio::testing::setLiveInputMonitoringCall;
@@ -55,17 +57,6 @@ using common::audio::testing::ToneAutomationWriteCall;
 // the fixture's "lead" and "bass" arrangements in that order.
 constexpr std::string_view g_first_arrangement_id{"4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"};
 constexpr std::string_view g_second_arrangement_id{"7b2d9e10-3c4f-45a8-9d21-e5f6a7b8c9d0"};
-
-// A stable physical input route the monitoring tests calibrate against.
-[[nodiscard]] common::audio::InputDeviceIdentity makeIdentity(std::string device = "Interface A")
-{
-    return common::audio::InputDeviceIdentity{
-        .backend_name = "ASIO",
-        .input_device_name = std::move(device),
-        .input_channel_index = 0,
-        .input_channel_name = "Input 1",
-    };
-}
 
 // A calibration record bound to one physical route at the given gain.
 [[nodiscard]] common::audio::InputCalibrationState makeCalibration(
@@ -668,7 +659,7 @@ struct SessionHarness
     // reaching Ready arms monitoring for that route.
     void seedMatchingCalibration(double gain_db)
     {
-        const common::audio::InputDeviceIdentity identity = makeIdentity();
+        const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
         devices.current_input_identity = identity;
         REQUIRE(config_store.saveInputCalibration(makeCalibration(identity, gain_db)).has_value());
     }
@@ -976,7 +967,7 @@ TEST_CASE(
     "Gameplay session leaves monitoring silent without calibration", "[core][session][live-input]")
 {
     SessionHarness harness;
-    harness.devices.current_input_identity = makeIdentity();
+    harness.devices.current_input_identity = makeInputDeviceIdentity();
     REQUIRE(harness.startFixture().has_value());
 
     harness.live_rig.completeSuccessfully();
@@ -993,10 +984,11 @@ TEST_CASE(
     "[core][session][live-input]")
 {
     SessionHarness harness;
-    harness.devices.current_input_identity = makeIdentity("Interface A");
-    REQUIRE(
-        harness.config_store.saveInputCalibration(makeCalibration(makeIdentity("Interface B"), 4.0))
-            .has_value());
+    harness.devices.current_input_identity = makeInputDeviceIdentity("ASIO", "Interface A");
+    REQUIRE(harness.config_store
+                .saveInputCalibration(
+                    makeCalibration(makeInputDeviceIdentity("ASIO", "Interface B"), 4.0))
+                .has_value());
     REQUIRE(harness.startFixture().has_value());
 
     harness.live_rig.completeSuccessfully();
@@ -1013,7 +1005,7 @@ TEST_CASE(
     "[core][session][live-input]")
 {
     SessionHarness harness;
-    harness.devices.current_input_identity = makeIdentity();
+    harness.devices.current_input_identity = makeInputDeviceIdentity();
     harness.config_store.next_input_calibration_for_error = common::audio::AudioConfigError{
         common::audio::AudioConfigErrorCode::InvalidInputCalibrationHistory,
         "fake store read failure"

@@ -28,6 +28,7 @@
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
+#include <rock_hero/editor/ui/testing/transport_controls_test_helpers.h>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -419,39 +420,6 @@ template <class ComponentType>
     }
 
     throw std::runtime_error{"Missing top-level component: " + id.toStdString()};
-}
-
-/*!
-\brief Returns the play/pause button from the transport-controls child.
-\param controls Transport controls to inspect.
-\return Play/pause button child.
-\throws std::runtime_error when the child is missing.
-*/
-[[nodiscard]] inline juce::DrawableButton& getPlayPauseButton(TransportControls& controls)
-{
-    auto* button =
-        dynamic_cast<juce::DrawableButton*>(controls.findChildWithID("play_pause_button"));
-    if (button == nullptr)
-    {
-        throw std::runtime_error{"TransportControls play/pause button missing"};
-    }
-    return *button;
-}
-
-/*!
-\brief Returns the stop button from the transport-controls child.
-\param controls Transport controls to inspect.
-\return Stop button child.
-\throws std::runtime_error when the child is missing.
-*/
-[[nodiscard]] inline juce::DrawableButton& getStopButton(TransportControls& controls)
-{
-    auto* button = dynamic_cast<juce::DrawableButton*>(controls.findChildWithID("stop_button"));
-    if (button == nullptr)
-    {
-        throw std::runtime_error{"TransportControls stop button missing"};
-    }
-    return *button;
 }
 
 /*!

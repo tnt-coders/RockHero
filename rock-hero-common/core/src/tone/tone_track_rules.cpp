@@ -1,6 +1,7 @@
 #include "tone/tone_track_rules.h"
 
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <set>
 #include <string>
@@ -11,9 +12,7 @@ namespace rock_hero::common::core
 std::expected<void, ToneTrackError> validateToneTrackRules(
     const ToneTrack& tone_track, const TempoMap& tempo_map)
 {
-    const auto [terminal_measure, terminal_beat] =
-        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-    const GridPosition terminal_position{.measure = terminal_measure, .beat = terminal_beat};
+    const GridPosition terminal_position = terminalGridPosition(tempo_map);
     std::set<std::string> region_ids;
     GridPosition previous_end;
     bool has_previous_region = false;

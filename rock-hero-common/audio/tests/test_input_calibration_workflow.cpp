@@ -3,7 +3,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration_workflow.h>
-#include <string>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <utility>
 
 namespace rock_hero::common::audio
@@ -12,18 +12,7 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// Builds a physical input identity with defaults that represent one stable ASIO route.
-[[nodiscard]] InputDeviceIdentity makeIdentity(
-    std::string backend_name = "ASIO", std::string input_device_name = "Interface A",
-    int input_channel_index = 0, std::string input_channel_name = "Input 1")
-{
-    return InputDeviceIdentity{
-        .backend_name = std::move(backend_name),
-        .input_device_name = std::move(input_device_name),
-        .input_channel_index = input_channel_index,
-        .input_channel_name = std::move(input_channel_name),
-    };
-}
+using testing::makeInputDeviceIdentity;
 
 // Builds controller context where arrangement audio is loaded and live input may be calibrated.
 [[nodiscard]] InputCalibrationWorkflow::Context readyContext(
@@ -59,7 +48,7 @@ namespace
 TEST_CASE("Input calibration workflow ignores invalid saved identity", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
     const InputCalibrationWorkflow::Effects effects = workflow.syncCommittedInputDeviceIdentity(
         identity,
@@ -78,7 +67,7 @@ TEST_CASE(
     "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
     const InputCalibrationWorkflow::Effects effects =
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 5.0));
@@ -97,9 +86,10 @@ TEST_CASE(
     "Input calibration workflow accepts renamed physical channel", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity saved_identity = makeIdentity("ASIO", "Interface A", 0, "Input 1");
+    const InputDeviceIdentity saved_identity =
+        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Input 1");
     const InputDeviceIdentity current_identity =
-        makeIdentity("ASIO", "Interface A", 0, "Mic/Inst 1");
+        makeInputDeviceIdentity("ASIO", "Interface A", 0, "Mic/Inst 1");
 
     REQUIRE(
         workflow
@@ -125,8 +115,9 @@ TEST_CASE(
     "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity initial_identity = makeIdentity();
-    const InputDeviceIdentity next_identity = makeIdentity("Windows Audio", "Interface B");
+    const InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
+    const InputDeviceIdentity next_identity =
+        makeInputDeviceIdentity("Windows Audio", "Interface B");
     REQUIRE(workflow
                 .syncCommittedInputDeviceIdentity(
                     initial_identity, calibrationFor(initial_identity, 4.0))
@@ -155,8 +146,9 @@ TEST_CASE(
     "Input calibration workflow selects saved state on route change", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity initial_identity = makeIdentity();
-    const InputDeviceIdentity next_identity = makeIdentity("Windows Audio", "Interface B");
+    const InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
+    const InputDeviceIdentity next_identity =
+        makeInputDeviceIdentity("Windows Audio", "Interface B");
     REQUIRE(workflow
                 .syncCommittedInputDeviceIdentity(
                     initial_identity, calibrationFor(initial_identity, 4.0))
@@ -182,8 +174,9 @@ TEST_CASE(
     "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity initial_identity = makeIdentity();
-    const InputDeviceIdentity next_identity = makeIdentity("Windows Audio", "Interface B");
+    const InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
+    const InputDeviceIdentity next_identity =
+        makeInputDeviceIdentity("Windows Audio", "Interface B");
     REQUIRE(workflow
                 .syncCommittedInputDeviceIdentity(
                     initial_identity, calibrationFor(initial_identity, 4.0))
@@ -213,7 +206,7 @@ TEST_CASE(
     "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
 
@@ -241,7 +234,7 @@ TEST_CASE(
     "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
     REQUIRE(workflow.requestPrompt(readyContext(identity)));
@@ -282,7 +275,7 @@ TEST_CASE(
     "Input calibration workflow closes prompt on backend unavailable", "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
     REQUIRE(workflow.requestPrompt(readyContext(identity)));
@@ -304,7 +297,7 @@ TEST_CASE(
     "Input calibration workflow rejects stale measurement start", "[audio][input-calibration]")
 {
     const InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
     const auto measurement = workflow.prepareMeasurementStart(readyContext(identity));
 
@@ -318,7 +311,7 @@ TEST_CASE(
     "[audio][input-calibration]")
 {
     InputCalibrationWorkflow workflow;
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
     REQUIRE(workflow.requestPrompt(readyContext(identity)));
@@ -345,7 +338,7 @@ TEST_CASE(
 TEST_CASE(
     "Input calibration workflow evaluateMonitoring branch matrix", "[audio][input-calibration]")
 {
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
     SECTION("open audio-device settings win over every other reason")
     {
@@ -425,7 +418,8 @@ TEST_CASE(
     SECTION("stored calibration for a different route reports a route mismatch")
     {
         InputCalibrationWorkflow workflow;
-        const InputDeviceIdentity other_identity = makeIdentity("Windows Audio", "Interface B");
+        const InputDeviceIdentity other_identity =
+            makeInputDeviceIdentity("Windows Audio", "Interface B");
         REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
                     .empty());
 

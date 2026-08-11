@@ -1,4 +1,4 @@
-#include "rock_hero/common/audio/automation/tone_automation_rebuild.h"
+#include "automation/tone_automation_rebuild.h"
 
 #include <expected>
 #include <rock_hero/common/core/shared/logger.h>

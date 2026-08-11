@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstring>
 #include <juce_core/juce_core.h>
+#include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <string>
 #include <utility>
@@ -57,35 +58,23 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
 {
     common::ui::HighwayShaderSet set;
 
-    const auto load_pair = [](const std::string& program) -> common::ui::HighwayShaderPair {
-        return common::ui::HighwayShaderPair{
-            .vertex = readShaderStage("vs_" + program + ".bin"),
-            .fragment = readShaderStage("fs_" + program + ".bin"),
-        };
-    };
-
-    set.color = load_pair("color");
-    set.color_fade = load_pair("color_fade");
-    set.texture_tint = load_pair("texture_tint");
-    set.glyph = load_pair("glyph");
-    set.texture = load_pair("texture");
-    set.window_light = load_pair("window_light");
-    set.box_mute = load_pair("box_mute");
-
-    for (const common::ui::HighwayShaderPair* pair :
-         {&set.color,
-          &set.color_fade,
-          &set.texture_tint,
-          &set.glyph,
-          &set.texture,
-          &set.window_light,
-          &set.box_mute})
+    // Walk the shared program table instead of spelling program names here: a name that does not
+    // match a deployed binary used to read as an empty stage, and a program the preview forgot
+    // entirely used to render with a default-constructed handle.
+    for (const common::core::HighwayShaderProgram program : common::core::g_highway_shader_programs)
     {
-        if (pair->vertex.empty() || pair->fragment.empty())
+        const std::string name{common::core::highwayShaderProgramName(program)};
+        common::ui::HighwayShaderPair pair{
+            .vertex = readShaderStage("vs_" + name + ".bin"),
+            .fragment = readShaderStage("fs_" + name + ".bin"),
+        };
+        if (pair.vertex.empty() || pair.fragment.empty())
         {
             return std::nullopt;
         }
+        set.at(common::core::indexOf(program)) = std::move(pair);
     }
+
     return set;
 }
 
@@ -93,10 +82,12 @@ common::ui::HighwayTextureSet loadPreviewHighwayTextures()
 {
     const juce::File textures = resourcesRoot().getChildFile("textures");
     common::ui::HighwayTextureSet set;
-    set.note_atlas_png = readFileBytes(textures.getChildFile("notes.png"));
-    set.inlay_atlas_png = readFileBytes(textures.getChildFile("inlays.png"));
-    set.fingering_png = readFileBytes(textures.getChildFile("fingering.png"));
-    set.chord_marks_png = readFileBytes(textures.getChildFile("chords.png"));
+    for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
+    {
+        const std::string file_name{common::core::highwayTextureFileName(texture)};
+        set.at(common::core::indexOf(texture)) =
+            readFileBytes(textures.getChildFile(juce::String{file_name}));
+    }
     return set;
 }
 

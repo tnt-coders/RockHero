@@ -4,7 +4,6 @@
 #include "project/gp_score_parser.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <expected>
 #include <filesystem>
@@ -14,6 +13,7 @@
 #include <rock_hero/common/audio/song/audio_transcode.h>
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <string>
@@ -124,11 +124,9 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
         }};
     }
 
-    std::string source_extension =
-        std::filesystem::path{score->embedded_audio_entry}.extension().string();
-    std::ranges::transform(source_extension, source_extension.begin(), [](unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
+    // Folded once and kept: the staged-source file name below reuses it.
+    const std::string source_extension = common::core::asciiLowered(
+        std::filesystem::path{score->embedded_audio_entry}.extension().string());
 
     if (source_extension == ".flac")
     {

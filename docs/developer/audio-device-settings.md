@@ -56,6 +56,20 @@ loudly was chosen over a flag someone could forget to check (see "no code that l
 project's conventions). `gameSourceState()` reports `Available` only when the game's route has a
 resolved input identity *and* a matching calibration.
 
+Both stores — and the editor's and game's own settings files beside them — open through one
+settings-file location policy, `common::core::settingsFileOptions` (`common/core`
+`shared/settings_file_options.h`): the shared per-user folder, the `.settings` suffix, and a
+write-through save with no timer, so an acknowledged write is on disk before the call returns. The
+editor's composition root does not rebuild the game's path either; it asks
+`AudioConfigStore::fileFor(gameAudioConfigApplicationName())`, so the read-only view can only ever
+target the file the game writes.
+
+The four persisted property names for one input route (`backendName`, `inputDeviceName`,
+`inputChannelIndex`, `inputChannelName`) are declared beside `InputDeviceIdentity` itself
+(`common/audio` `input/input_device_identity.h`) because both the shared store's XML and the game
+settings file's JSON write them: a rename in one file alone would silently drop the user's saved
+input-device selection, since a missing property reads as absence rather than an error.
+
 The calibration UI reflects the same source split: when mirroring the game, the input-calibration
 window shows controls visible-but-disabled ("derived from game settings"), and the signal chain
 surfaces `InputCalibrationStatus` in its view state.
@@ -79,6 +93,8 @@ input plumbing.
    a device goes through `applyAudioSourceAndRoute(...)` so it paints the busy overlay and
    re-evaluates the failure prompt exactly once.
 3. New persisted config belongs in `AudioConfigStore` behind `IAudioConfigStore` — with strict
-   parsing that treats corrupt values as absence, and setters that respect the read-only gate.
+   parsing that treats corrupt values as absence, and setters that respect the read-only gate. A
+   property name two files must agree on is declared beside the type it belongs to, never once per
+   store; a new settings *file* takes its options from `settingsFileOptions`, never its own copy.
 4. Tests: the controller runs dispatcher-less and synchronous; the store fakes are
    `ConfigurableAudioDeviceConfiguration` and `InMemoryAudioConfigStore`.

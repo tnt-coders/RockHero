@@ -26,6 +26,9 @@ constexpr const char* g_windows_audio_low_latency_type_name = "Windows Audio (Lo
 constexpr const char* g_windows_audio_exclusive_type_name = "Windows Audio (Exclusive Mode)";
 constexpr const char* g_direct_sound_type_name = "DirectSound";
 constexpr const char* g_wave_out_type_name = "WaveOut";
+// Hertz below which two reported rates are the same hardware selection. This is the project's only
+// sample-rate tolerance: the editor's rate display carries none, because it renders the shortest
+// text that round-trips the value instead of rounding to an assumed precision.
 constexpr double g_sample_rate_match_tolerance{0.001};
 
 // Creates stable fallback text for settings failures that do not carry backend detail.

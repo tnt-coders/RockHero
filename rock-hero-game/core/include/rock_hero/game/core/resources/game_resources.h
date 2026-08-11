@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <rock_hero/common/core/highway/highway_resources.h>
 #include <string>
 #include <vector>
 
@@ -36,62 +37,6 @@ enum class ShaderStage : std::uint8_t
 
     /*! \brief Fragment shader binary (fs_*.bin). */
     Fragment,
-};
-
-/*!
-\brief Shader programs the game ships.
-
-Each enumerator names one committed .sc source pair in the shared rock-hero-common/ui/shaders/
-tree (compiled per product) whose binaries land in the deployed resources tree. The set mirrors
-the highway reference's programs (plan 25 § Decisions): plain vertex color, distance-faded color,
-channel-scheme tinted texture, and glyph text.
-*/
-enum class GameShaderProgram : std::uint8_t
-{
-    /*! \brief Flat vertex-color geometry (board furniture, rails, boxes). */
-    Color,
-
-    /*! \brief Vertex color with a Z-ramp alpha fade (beat bars fading toward the horizon). */
-    ColorFade,
-
-    /*!
-    \brief Atlas-textured quads with the reference channel scheme: texture R multiplies the tint
-    color, G adds white highlight, B is the alpha mask — one atlas serves every string color.
-    */
-    TextureTint,
-
-    /*! \brief Glyph-atlas text (fret numbers, section labels). */
-    Glyph,
-
-    /*! \brief Plain textured quads modulated by vertex color (fretboard skin, background art). */
-    Texture,
-
-    /*! \brief The hand-window light: per-fragment soft-edged brightness across the FHP width. */
-    WindowLight,
-
-    /*! \brief Repeat-box mute mark: SDF-evaluated X in box-local world units. */
-    BoxMute,
-};
-
-/*!
-\brief Texture assets the game ships under resources/textures/.
-
-The directory is flat; LICENSE.txt beside the files explicitly lists which of them are the
-Charter-adapted assets it covers (BSD 3-Clause) — the rest are original Rock Hero art.
-*/
-enum class GameTexture : std::uint8_t
-{
-    /*! \brief Note-head atlas (4x4 grid, reference channel scheme). */
-    HighwayNotes,
-
-    /*! \brief Fretboard skin atlas (8x4 grid, one cell per fret). */
-    HighwayInlays,
-
-    /*! \brief Fingering panel shapes and digits (4x4 grid). */
-    HighwayFingering,
-
-    /*! \brief Repeat-box mute mark art (two stacked cells: palm above full, final colors). */
-    HighwayChordMarks,
 };
 
 /*! \brief Stable reasons resource resolution can fail. */
@@ -152,7 +97,7 @@ public:
     \return Absolute path of the existing binary, or a typed error naming the missing file.
     */
     [[nodiscard]] std::expected<std::filesystem::path, GameResourcesError> shaderPath(
-        GameShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
+        common::core::HighwayShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
 
     /*!
     \brief Resolves and reads one compiled shader-stage binary into memory.
@@ -167,7 +112,7 @@ public:
     \return The binary's bytes (never empty), or a typed error naming the failing file.
     */
     [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> shaderBytes(
-        GameShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
+        common::core::HighwayShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
 
     /*!
     \brief Resolves and reads one texture asset into memory.
@@ -176,7 +121,7 @@ public:
     \return The image file's bytes (never empty), or a typed error naming the failing file.
     */
     [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> textureBytes(
-        GameTexture texture) const;
+        common::core::HighwayTexture texture) const;
 
 private:
     // Only create() constructs a resolver, after validating the root.

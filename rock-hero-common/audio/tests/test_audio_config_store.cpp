@@ -10,8 +10,9 @@
 #include <rock_hero/common/audio/settings/audio_config_identity.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/audio/shared/gain.h>
-#include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/audio/testing/input_device_identity_fixtures.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/settings_file_options.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -26,6 +27,8 @@ namespace rock_hero::common::audio
 
 namespace
 {
+
+using testing::makeInputDeviceIdentity;
 
 constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
 
@@ -69,22 +72,12 @@ private:
     std::filesystem::path m_path;
 };
 
-// Builds explicit properties-file options matching the store's explicit-path constructor so tests
-// can seed raw and malformed properties through the same JUCE storage the store reads.
+// Matches the store's explicit-path constructor, which leaves the application name empty because
+// the file is supplied directly, so seeded raw and malformed properties go through the same JUCE
+// storage the store reads.
 [[nodiscard]] juce::PropertiesFile::Options testStoreOptions()
 {
-    juce::PropertiesFile::Options options;
-    const std::string_view folder_name = common::core::applicationDataFolderName();
-    options.filenameSuffix = ".settings";
-    options.folderName = juce::String{folder_name.data(), folder_name.size()};
-    options.osxLibrarySubFolder = "Application Support";
-    options.commonToAllUsers = false;
-    options.ignoreCaseOfKeyNames = false;
-    options.doNotSave = false;
-    options.millisecondsBeforeSaving = 0;
-    options.storageFormat = juce::PropertiesFile::storeAsXML;
-    options.processLock = nullptr;
-    return options;
+    return common::core::settingsFileOptions({});
 }
 
 // Writes one raw property through JUCE so malformed settings use production storage.
@@ -103,24 +96,6 @@ void writeRawSetting(
 {
     std::ifstream stream{settings_file, std::ios::binary};
     return std::string{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
-}
-
-// Builds a stable route identity for store tests.
-[[nodiscard]] InputDeviceIdentity makeIdentity(
-    std::string input_device_name = "Interface A", int channel_index = 0,
-    std::string backend_name = "ASIO", std::string channel_name = {})
-{
-    if (channel_name.empty())
-    {
-        channel_name = "Input " + std::to_string(channel_index + 1);
-    }
-
-    return InputDeviceIdentity{
-        .backend_name = std::move(backend_name),
-        .input_device_name = std::move(input_device_name),
-        .input_channel_index = channel_index,
-        .input_channel_name = std::move(channel_name),
-    };
 }
 
 // Builds a calibration record for one physical route.
@@ -151,7 +126,7 @@ TEST_CASE("AudioConfigStore starts empty", "[audio][config-store]")
     const AudioConfigStore store{settings_file.path(), AudioConfigStore::Access::ReadWrite};
 
     CHECK_FALSE(store.activeDeviceRoute().has_value());
-    CHECK_FALSE(inputCalibrationFor(store, makeIdentity()).has_value());
+    CHECK_FALSE(inputCalibrationFor(store, makeInputDeviceIdentity()).has_value());
 }
 
 // The store persists the device blob paired with its resolved input route identity.
@@ -161,7 +136,7 @@ TEST_CASE(
     const ScopedSettingsFile settings_file{"config_store_active_route.settings"};
     const ActiveDeviceRoute route{
         .serialized_state = R"(<DEVICESETUP deviceType="ASIO" audioOutputDeviceName="ASIO"/>)",
-        .identity = makeIdentity(),
+        .identity = makeInputDeviceIdentity(),
     };
 
     {
@@ -201,7 +176,7 @@ TEST_CASE("AudioConfigStore persists an active route without identity", "[audio]
 TEST_CASE("AudioConfigStore clears the active device route", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_clear_active_route.settings"};
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
     AudioConfigStore store{settings_file.path(), AudioConfigStore::Access::ReadWrite};
     REQUIRE(store
@@ -221,8 +196,8 @@ TEST_CASE("AudioConfigStore clears the active device route", "[audio][config-sto
 TEST_CASE("AudioConfigStore persists physical input calibration", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_calibration.settings"};
-    const InputDeviceIdentity identity = makeIdentity();
-    const InputDeviceIdentity other_identity = makeIdentity("Interface B");
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
+    const InputDeviceIdentity other_identity = makeInputDeviceIdentity("ASIO", "Interface B");
 
     {
         AudioConfigStore store{settings_file.path(), AudioConfigStore::Access::ReadWrite};
@@ -244,7 +219,7 @@ TEST_CASE("AudioConfigStore persists physical input calibration", "[audio][confi
 TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_duplicate_calibration.settings"};
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     writeRawSetting(
         settings_file.path(),
         g_input_calibration_states_key,
@@ -270,8 +245,8 @@ TEST_CASE("AudioConfigStore collapses duplicate calibration history", "[audio][c
 TEST_CASE("AudioConfigStore removes one physical calibration", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_remove_calibration.settings"};
-    const InputDeviceIdentity first_identity = makeIdentity("Interface A");
-    const InputDeviceIdentity second_identity = makeIdentity("Interface B");
+    const InputDeviceIdentity first_identity = makeInputDeviceIdentity("ASIO", "Interface A");
+    const InputDeviceIdentity second_identity = makeInputDeviceIdentity("ASIO", "Interface B");
     AudioConfigStore store{settings_file.path(), AudioConfigStore::Access::ReadWrite};
     REQUIRE(store.saveInputCalibration(calibrationFor(first_identity, 3.0)).has_value());
     REQUIRE(store.saveInputCalibration(calibrationFor(second_identity, 6.0)).has_value());
@@ -291,7 +266,7 @@ TEST_CASE("AudioConfigStore removes one physical calibration", "[audio][config-s
 TEST_CASE("AudioConfigStore clamps calibration gain", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_clamp_gain.settings"};
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     AudioConfigStore store{settings_file.path(), AudioConfigStore::Access::ReadWrite};
 
     REQUIRE(store.saveInputCalibration(calibrationFor(identity, 100.0)).has_value());
@@ -309,7 +284,7 @@ TEST_CASE("AudioConfigStore clamps calibration gain", "[audio][config-store]")
 TEST_CASE("AudioConfigStore preserves malformed calibration history", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_malformed_calibration.settings"};
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     writeRawSetting(settings_file.path(), g_input_calibration_states_key, juce::String{"[not-xml"});
 
     AudioConfigStore store{settings_file.path(), AudioConfigStore::Access::ReadWrite};
@@ -323,7 +298,8 @@ TEST_CASE("AudioConfigStore preserves malformed calibration history", "[audio][c
     REQUIRE_FALSE(removed.has_value());
     CHECK(removed.error().code == AudioConfigErrorCode::InvalidInputCalibrationHistory);
 
-    const auto saved = store.saveInputCalibration(calibrationFor(makeIdentity("Interface B"), 4.0));
+    const auto saved = store.saveInputCalibration(
+        calibrationFor(makeInputDeviceIdentity("ASIO", "Interface B"), 4.0));
     REQUIRE_FALSE(saved.has_value());
     CHECK(saved.error().code == AudioConfigErrorCode::InvalidInputCalibrationHistory);
 }
@@ -332,7 +308,7 @@ TEST_CASE("AudioConfigStore preserves malformed calibration history", "[audio][c
 TEST_CASE("AudioConfigStore keeps route and calibration independent", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_independence.settings"};
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
     const ActiveDeviceRoute route{
         .serialized_state = "<DEVICESETUP deviceType=\"ASIO\"/>",
         .identity = identity,
@@ -358,7 +334,7 @@ TEST_CASE("AudioConfigStore keeps route and calibration independent", "[audio][c
 TEST_CASE("AudioConfigStore read-only rejects every setter", "[audio][config-store]")
 {
     const ScopedSettingsFile settings_file{"config_store_read_only.settings"};
-    const InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeInputDeviceIdentity();
 
     {
         AudioConfigStore writer{settings_file.path(), AudioConfigStore::Access::ReadWrite};
@@ -383,8 +359,8 @@ TEST_CASE("AudioConfigStore read-only rejects every setter", "[audio][config-sto
     REQUIRE_FALSE(route_result.has_value());
     CHECK(route_result.error().code == AudioConfigErrorCode::CouldNotSave);
 
-    const auto save_result =
-        reader.saveInputCalibration(calibrationFor(makeIdentity("Interface B"), 8.0));
+    const auto save_result = reader.saveInputCalibration(
+        calibrationFor(makeInputDeviceIdentity("ASIO", "Interface B"), 8.0));
     REQUIRE_FALSE(save_result.has_value());
     CHECK(save_result.error().code == AudioConfigErrorCode::CouldNotSave);
 

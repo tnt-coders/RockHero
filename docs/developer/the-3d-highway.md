@@ -60,6 +60,11 @@ Each layer has one job, and the boundaries are the reason the sharing works:
        std::vector<std::byte> fragment;
    };
 
+   // Both sets are arrays indexed by the shared name table's enumerators, so a program or asset
+   // is declared once in common/core and neither product's loader enumerates them by hand.
+   using HighwayShaderSet = std::array<HighwayShaderPair, g_highway_shader_programs.size()>;
+   using HighwayTextureSet = std::array<std::vector<std::byte>, g_highway_textures.size()>;
+
    static std::expected<HighwayRenderer, HighwayRendererError>
        create(const HighwayShaderSet& shaders, const HighwayTextureSet& textures);
    void setViewState(common::core::HighwayViewState state);
@@ -67,7 +72,10 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    ```
 
    The renderer never touches the filesystem — shaders and textures arrive as bytes, so each
-   consumer decides where they load from. GPU handles are held in a move-only RAII wrapper
+   consumer decides where they load from. What each program and asset *is*, and the file name it
+   deploys as, lives in `common/core` (`highway/highway_resources.h`) rather than beside the
+   renderer, because the game resolves resource paths in `game/core`, which is headless and must
+   not depend on `common/ui`. GPU handles are held in a move-only RAII wrapper
    (`bgfx_handle.h`, `UniqueBgfxHandle`) that must be destroyed before `bgfx::shutdown()`.
 
 3. **Two shells** feed it frames. That is the entire product-specific surface.
@@ -129,6 +137,8 @@ and `EditorView` pushes the resulting shared pointer into the preview window.
 | String colors (Charter rules) | `common/ui` `string_color_palette.h` | renderer + 2D tab lane |
 | Shader sources (seven programs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
+| Resource deploy + install | `rock_hero_deploy_product_resources` | both call it per executable |
+| Program + texture name table | `common/core` `highway_resources.h` | both loaders walk it |
 | Shader *loading* | per product (game/editor loaders) | same byte-vector seam |
 
 What differs per consumer is exactly what should differ: the window (SDL top-level vs JUCE child
@@ -197,26 +207,32 @@ Adding a new *visual element* (a new marker, lane decoration, feedback effect):
    node has nowhere to sit there and becomes a *number* instead — say so where the element is
    documented, so a later reader can tell a decided asymmetry from a forgotten one.
 
-If the element is *textured*, the asset fan-out is its own silent list:
+If the element is *textured*, the asset lives in one table and the fan-out is short:
 
-1. A `GameTexture` enumerator (`game/core/.../resources/game_resources.h`) and a
-   `HighwayTextureSet` member (`highway_renderer.h`).
-2. The game-side load in `RockHeroGame::onInit` (`rock_hero_game.cpp` — every texture is
-   REQUIRED content; a missing or invalid one fails `HighwayRenderer::create` with a typed
-   `TextureAssetInvalid` error) **and** the editor-side load in the preview resources.
-3. The CMake deploy of the shared texture tree (`rock-hero-game/app/CMakeLists.txt`, copying
-   `rock-hero-common/ui/resources/textures`) — see the deploy contract in \ref guide_game.
+1. Drop the PNG in `rock-hero-common/ui/resources/textures` and add a `HighwayTexture` enumerator
+   plus its file name to `highwayTextureFileName` — both in
+   `common/core/.../highway/highway_resources.h`. That is the whole asset declaration: both
+   products' loaders walk `g_highway_textures`, and `HighwayTextureSet` is an array indexed by
+   `indexOf(HighwayTexture)`, so neither loader needs an edit.
+2. Use the bytes in the renderer (`textures.at(indexOf(HighwayTexture::…))`). Every texture is
+   REQUIRED content: a missing or invalid one fails `HighwayRenderer::create` with a typed
+   `TextureAssetInvalid` error.
+3. Nothing in CMake. Both products deploy the whole shared texture tree through
+   `rock_hero_deploy_product_resources` — see the deploy contract in \ref guide_game.
 
-Adding a new *shader program* is wider, and every step is silent:
+Adding a new *shader program* is two declarations plus its use:
 
 1. The `.sc` sources in `rock-hero-common/ui/shaders/` (the `vs_`/`fs_` naming and the shared
-   `varying.def.sc` are load-bearing for the compile function).
-2. The program list inside `rock_hero_stage_highway_shaders` (`cmake/RockHeroRenderStack.cmake`
-   — the `foreach(shader_program IN ITEMS ...)` list).
-3. A new `HighwayShaderPair` member in `HighwayShaderSet` (`highway_renderer.h`).
-4. A new `GameShaderProgram` enumerator (`game/core/.../resources/game_resources.h`) — the
-   game loader is enum-driven; the editor loader is string-keyed, so the two are asymmetric.
-5. **Both** loaders: the game's `loadHighwayShaderSet` and the editor's
-   `loadPreviewHighwayShaders` — forgetting one product compiles fine and fails at runtime in
-   that product only.
-6. Program linking + use in the renderer implementation.
+   `varying.def.sc` are load-bearing: `rock_hero_stage_highway_shaders` derives the program list by
+   globbing `vs_*.sc`, so a source drop is the CMake side of the change — there is no list to edit).
+2. A `HighwayShaderProgram` enumerator plus its base name in `highwayShaderProgramName`
+   (`common/core/.../highway/highway_resources.h`), and a row in `g_highway_shader_programs`. Both
+   loaders — the game's `loadHighwayShaderSet` and the editor's `loadPreviewHighwayShaders` — walk
+   that table, so they need no edit and cannot disagree.
+3. Program use in the renderer implementation: `HighwayRenderer::create` links every program in the
+   table, so add the named `Impl` handle it lands in and draw with it.
+
+The one thing still stated twice is the *base name*: it names the `.sc` sources on disk and the
+compiled `vs_`/`fs_` binaries the enumerator's name resolves to. A mismatch fails loudly at load
+with a typed error naming the missing file, which is the reason the names are allowed to live in two
+languages.

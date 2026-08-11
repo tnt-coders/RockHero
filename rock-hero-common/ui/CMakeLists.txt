@@ -38,4 +38,12 @@ target_link_libraries(
     PUBLIC rock_hero::common::core rock_hero::juce_graphics
     PRIVATE rock_hero::build_policy rock_hero::bgfx)
 
+# Both product deploys copy the shared texture assets from here (44-Q3: shared asset sources under
+# common, deployed per product). The path is published as a target property rather than spelled at
+# each deploy site, so moving this directory fails the deploys at configure time instead of leaving
+# them copying nothing.
+set(rock_hero_common_ui_texture_dir "${CMAKE_CURRENT_SOURCE_DIR}/resources/textures")
+set_target_properties(rock_hero_common_ui PROPERTIES ROCK_HERO_TEXTURE_DIR
+                                                     "${rock_hero_common_ui_texture_dir}")
+
 add_subdirectory(tests)

@@ -1,4 +1,4 @@
-#include "rock_hero/common/core/tone/tone_schedule.h"
+#include "tone/tone_schedule.h"
 
 #include <algorithm>
 #include <cstddef>

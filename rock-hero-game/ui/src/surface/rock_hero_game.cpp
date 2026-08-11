@@ -137,41 +137,17 @@ std::optional<int> RockHeroGame::onInit()
     // the set and fails startup with a typed error on any missing or invalid asset — textures
     // are required product content.
     common::ui::HighwayTextureSet highway_textures;
-    auto note_atlas = resources->textureBytes(core::GameTexture::HighwayNotes);
-    if (note_atlas.has_value())
+    for (const common::core::HighwayTexture texture : common::core::g_highway_textures)
     {
-        highway_textures.note_atlas_png = std::move(*note_atlas);
-    }
-    else
-    {
-        RH_LOG_WARNING("game.highway", "{}", note_atlas.error().message);
-    }
-    auto inlay_atlas = resources->textureBytes(core::GameTexture::HighwayInlays);
-    if (inlay_atlas.has_value())
-    {
-        highway_textures.inlay_atlas_png = std::move(*inlay_atlas);
-    }
-    else
-    {
-        RH_LOG_WARNING("game.highway", "{}", inlay_atlas.error().message);
-    }
-    auto fingering = resources->textureBytes(core::GameTexture::HighwayFingering);
-    if (fingering.has_value())
-    {
-        highway_textures.fingering_png = std::move(*fingering);
-    }
-    else
-    {
-        RH_LOG_WARNING("game.highway", "{}", fingering.error().message);
-    }
-    auto chord_marks = resources->textureBytes(core::GameTexture::HighwayChordMarks);
-    if (chord_marks.has_value())
-    {
-        highway_textures.chord_marks_png = std::move(*chord_marks);
-    }
-    else
-    {
-        RH_LOG_WARNING("game.highway", "{}", chord_marks.error().message);
+        auto bytes = resources->textureBytes(texture);
+        if (bytes.has_value())
+        {
+            highway_textures.at(common::core::indexOf(texture)) = std::move(*bytes);
+        }
+        else
+        {
+            RH_LOG_WARNING("game.highway", "{}", bytes.error().message);
+        }
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(*highway_shaders, highway_textures);

@@ -3,7 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
-#include <stdexcept>
+#include <rock_hero/editor/ui/testing/transport_controls_test_helpers.h>
 
 namespace rock_hero::editor::ui
 {
@@ -14,6 +14,8 @@ namespace
 {
 
 using testing::clickButton;
+using testing::getPlayPauseButton;
+using testing::getStopButton;
 
 // Records transport button intents so widget tests can verify local listener dispatch.
 class FakeTransportControlsListener final : public TransportControls::Listener
@@ -37,29 +39,6 @@ public:
     // Number of stop intents observed.
     int stop_press_count{0};
 };
-
-// Returns the concrete play/pause button owned by the widget under test.
-[[nodiscard]] juce::DrawableButton& getPlayPauseButton(TransportControls& controls)
-{
-    auto* button =
-        dynamic_cast<juce::DrawableButton*>(controls.findChildWithID("play_pause_button"));
-    if (button == nullptr)
-    {
-        throw std::runtime_error{"TransportControls play/pause button missing"};
-    }
-    return *button;
-}
-
-// Returns the concrete stop button owned by the widget under test.
-[[nodiscard]] juce::DrawableButton& getStopButton(TransportControls& controls)
-{
-    auto* button = dynamic_cast<juce::DrawableButton*>(controls.findChildWithID("stop_button"));
-    if (button == nullptr)
-    {
-        throw std::runtime_error{"TransportControls stop button missing"};
-    }
-    return *button;
-}
 
 } // namespace
 

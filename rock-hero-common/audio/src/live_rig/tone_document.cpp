@@ -21,6 +21,75 @@ namespace
 constexpr std::string_view g_tone_state_directory_name{"state"};
 constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 
+// Every tone-document property name this file both writes and reads back. They are named here
+// because the writer and the reader are one round trip: a key spelled twice can drift, and the
+// reader treats an unknown name as absence rather than as an error, so a drifted key silently loses
+// the field instead of failing the load. Write-only placeholders for the not-yet-parsed parts of
+// the format stay inline below, because nothing reads them to disagree with.
+constexpr const char* g_format_version_key{"formatVersion"};
+constexpr const char* g_slots_key{"slots"};
+constexpr const char* g_slot_chain_key{"chain"};
+constexpr const char* g_slot_output_gain_db_key{"outputGainDb"};
+
+constexpr const char* g_plugin_id_key{"id"};
+constexpr const char* g_plugin_identity_key{"identity"};
+constexpr const char* g_plugin_tracktion_state_key{"tracktionState"};
+constexpr const char* g_plugin_block_index_key{"blockIndex"};
+constexpr const char* g_plugin_display_type_override_key{"displayTypeOverride"};
+constexpr const char* g_plugin_stable_id_key{"stableId"};
+
+constexpr const char* g_identity_format_key{"format"};
+constexpr const char* g_identity_name_key{"name"};
+constexpr const char* g_identity_descriptive_name_key{"descriptiveName"};
+constexpr const char* g_identity_manufacturer_key{"manufacturer"};
+constexpr const char* g_identity_version_key{"version"};
+constexpr const char* g_identity_unique_id_key{"uniqueId"};
+constexpr const char* g_identity_deprecated_uid_key{"deprecatedUid"};
+constexpr const char* g_identity_is_instrument_key{"isInstrument"};
+constexpr const char* g_identity_original_file_key{"originalFileOrIdentifier"};
+constexpr const char* g_identity_juce_hint_key{"juceIdentifierHint"};
+constexpr const char* g_identity_tracktion_hint_key{"tracktionIdentifierHint"};
+
+// Serializes identity to the tone document's JSON shape. The tone document owns this shape, so its
+// writer and its reader below live together rather than one per feature folder.
+[[nodiscard]] juce::var makeIdentityJson(const PluginIdentity& identity)
+{
+    return core::Json::makeObject({
+        {g_identity_format_key, core::Json::makeString(identity.format_name)},
+        {g_identity_name_key, core::Json::makeString(identity.name)},
+        {g_identity_descriptive_name_key, core::Json::makeString(identity.descriptive_name)},
+        {g_identity_manufacturer_key, core::Json::makeString(identity.manufacturer)},
+        {g_identity_version_key, core::Json::makeString(identity.version)},
+        {g_identity_unique_id_key, core::Json::makeString(identity.unique_id)},
+        {g_identity_deprecated_uid_key, core::Json::makeString(identity.deprecated_uid)},
+        {g_identity_is_instrument_key, juce::var{identity.is_instrument}},
+        {g_identity_original_file_key,
+         core::Json::makeString(identity.original_file_or_identifier)},
+        {g_identity_juce_hint_key, core::Json::makeString(identity.juce_identifier_hint)},
+        {g_identity_tracktion_hint_key, core::Json::makeString(identity.tracktion_identifier_hint)},
+    });
+}
+
+// Reads the identity object for one tone plugin record.
+[[nodiscard]] PluginIdentity readIdentityJson(const juce::var& object)
+{
+    return PluginIdentity{
+        .format_name = core::Json::readOptionalString(object, g_identity_format_key),
+        .name = core::Json::readOptionalString(object, g_identity_name_key),
+        .descriptive_name = core::Json::readOptionalString(object, g_identity_descriptive_name_key),
+        .manufacturer = core::Json::readOptionalString(object, g_identity_manufacturer_key),
+        .version = core::Json::readOptionalString(object, g_identity_version_key),
+        .unique_id = core::Json::readOptionalString(object, g_identity_unique_id_key),
+        .deprecated_uid = core::Json::readOptionalString(object, g_identity_deprecated_uid_key),
+        .is_instrument = core::Json::readOptionalBool(object, g_identity_is_instrument_key),
+        .original_file_or_identifier =
+            core::Json::readOptionalString(object, g_identity_original_file_key),
+        .juce_identifier_hint = core::Json::readOptionalString(object, g_identity_juce_hint_key),
+        .tracktion_identifier_hint =
+            core::Json::readOptionalString(object, g_identity_tracktion_hint_key),
+    };
+}
+
 } // namespace
 
 // Resolves a package-relative file and verifies it exists inside the song workspace.
@@ -123,24 +192,6 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     return {};
 }
 
-// Serializes identity to the tone document's JSON shape.
-[[nodiscard]] juce::var makeIdentityJson(const PluginIdentity& identity)
-{
-    return core::Json::makeObject({
-        {"format", core::Json::makeString(identity.format_name)},
-        {"name", core::Json::makeString(identity.name)},
-        {"descriptiveName", core::Json::makeString(identity.descriptive_name)},
-        {"manufacturer", core::Json::makeString(identity.manufacturer)},
-        {"version", core::Json::makeString(identity.version)},
-        {"uniqueId", core::Json::makeString(identity.unique_id)},
-        {"deprecatedUid", core::Json::makeString(identity.deprecated_uid)},
-        {"isInstrument", juce::var{identity.is_instrument}},
-        {"originalFileOrIdentifier", core::Json::makeString(identity.original_file_or_identifier)},
-        {"juceIdentifierHint", core::Json::makeString(identity.juce_identifier_hint)},
-        {"tracktionIdentifierHint", core::Json::makeString(identity.tracktion_identifier_hint)},
-    });
-}
-
 // Serializes the v1 tone document subset used by the current linear chain.
 [[nodiscard]] juce::var makeToneDocumentJson(const ToneDocument& document)
 {
@@ -148,20 +199,21 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     for (const PluginRecord& plugin : document.chain)
     {
         const juce::var plugin_json = core::Json::makeObject({
-            {"id", core::Json::makeString(plugin.id)},
-            {"identity", makeIdentityJson(plugin.identity)},
-            {"tracktionState", core::Json::makeString(plugin.tracktion_state_ref)},
-            {"blockIndex", juce::var{static_cast<int>(plugin.block_index)}},
+            {g_plugin_id_key, core::Json::makeString(plugin.id)},
+            {g_plugin_identity_key, makeIdentityJson(plugin.identity)},
+            {g_plugin_tracktion_state_key, core::Json::makeString(plugin.tracktion_state_ref)},
+            {g_plugin_block_index_key, juce::var{static_cast<int>(plugin.block_index)}},
         });
         if (!plugin.display_type_override.empty())
         {
             plugin_json.getDynamicObject()->setProperty(
-                "displayTypeOverride", core::Json::makeString(plugin.display_type_override));
+                g_plugin_display_type_override_key,
+                core::Json::makeString(plugin.display_type_override));
         }
         if (!plugin.stable_id.empty())
         {
             plugin_json.getDynamicObject()->setProperty(
-                "stableId", core::Json::makeString(plugin.stable_id));
+                g_plugin_stable_id_key, core::Json::makeString(plugin.stable_id));
         }
 
         chain.append(plugin_json);
@@ -172,9 +224,9 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
         core::Json::makeObject({
             {"id", core::Json::makeString("default")},
             {"name", core::Json::makeString("Default")},
-            {"chain", chain},
+            {g_slot_chain_key, chain},
             {"automation", core::Json::makeArray()},
-            {"outputGainDb", juce::var{document.output_gain.db}},
+            {g_slot_output_gain_db_key, juce::var{document.output_gain.db}},
         }));
 
     juce::var tone_clips = core::Json::makeArray();
@@ -186,8 +238,8 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
         }));
 
     return core::Json::makeObject({
-        {"formatVersion", juce::var{1}},
-        {"slots", slots},
+        {g_format_version_key, juce::var{1}},
+        {g_slots_key, slots},
         {"toneClips", tone_clips},
     });
 }
@@ -197,14 +249,14 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     const juce::var& document_json, const std::filesystem::path& expected_state_directory)
 {
     if (!document_json.isObject() ||
-        core::Json::readOptionalInt(document_json, "formatVersion", 0) != 1)
+        core::Json::readOptionalInt(document_json, g_format_version_key, 0) != 1)
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::InvalidToneDocument, "Unsupported tone document formatVersion"
         }};
     }
 
-    const juce::var& slots_json = core::Json::value(document_json, "slots");
+    const juce::var& slots_json = core::Json::value(document_json, g_slots_key);
     if (!slots_json.isArray() || slots_json.size() == 0)
     {
         return std::unexpected{LiveRigError{
@@ -220,7 +272,7 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
         }};
     }
 
-    const juce::var& chain_json = core::Json::value(default_slot_json, "chain");
+    const juce::var& chain_json = core::Json::value(default_slot_json, g_slot_chain_key);
     if (!chain_json.isArray())
     {
         return std::unexpected{LiveRigError{
@@ -250,8 +302,9 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
             }};
         }
 
-        const auto id = core::Json::tryReadString(plugin_json, "id");
-        const auto tracktion_state = core::Json::tryReadString(plugin_json, "tracktionState");
+        const auto id = core::Json::tryReadString(plugin_json, g_plugin_id_key);
+        const auto tracktion_state =
+            core::Json::tryReadString(plugin_json, g_plugin_tracktion_state_key);
         if (!id.has_value() || id->empty() || !tracktion_state.has_value() ||
             tracktion_state->empty())
         {
@@ -269,12 +322,12 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
             }};
         }
 
-        const juce::var& identity_json = core::Json::value(plugin_json, "identity");
+        const juce::var& identity_json = core::Json::value(plugin_json, g_plugin_identity_key);
         // Block placement is editor-owned metadata; carry the raw value through opaquely and leave
         // interpretation (validity, gap rules, fallback) to the editor. Absent or negative values
         // default to zero and are resolved by the editor like any other invalid placement.
         const std::optional<std::int64_t> block_index_value =
-            core::Json::tryReadInt64(plugin_json, "blockIndex");
+            core::Json::tryReadInt64(plugin_json, g_plugin_block_index_key);
         const std::size_t block_index = block_index_value.has_value() && *block_index_value >= 0
                                             ? static_cast<std::size_t>(*block_index_value)
                                             : 0;
@@ -282,18 +335,19 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
             PluginRecord{
                 .id = *id,
                 .identity =
-                    identity_json.isObject() ? readPluginIdentity(identity_json) : PluginIdentity{},
+                    identity_json.isObject() ? readIdentityJson(identity_json) : PluginIdentity{},
                 .tracktion_state_ref = *tracktion_state,
                 .block_index = block_index,
                 .display_type_override =
-                    core::Json::readOptionalString(plugin_json, "displayTypeOverride"),
-                .stable_id = core::Json::readOptionalString(plugin_json, "stableId"),
+                    core::Json::readOptionalString(plugin_json, g_plugin_display_type_override_key),
+                .stable_id = core::Json::readOptionalString(plugin_json, g_plugin_stable_id_key),
             });
     }
 
-    // outputGainDb is optional and defaults to 0.0 dB when absent.
+    // The output gain is optional and defaults to 0.0 dB when absent.
     document.output_gain = clampGain(
-        Gain{core::Json::readOptionalDouble(default_slot_json, "outputGainDb", defaultGainDb())});
+        Gain{core::Json::readOptionalDouble(
+            default_slot_json, g_slot_output_gain_db_key, defaultGainDb())});
 
     return document;
 }

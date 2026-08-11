@@ -1,7 +1,7 @@
 #include "audio_device/audio_device_settings_controller.h"
 
-#include <cmath>
-#include <format>
+#include "audio_device/audio_device_status_text.h"
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -11,11 +11,6 @@ namespace rock_hero::editor::core
 
 namespace
 {
-
-// Distance from an integer at which a sample rate is rendered without a fractional component.
-// Distinct from common/audio's same-selection tolerance: this is a display-rounding rule, not a
-// hardware-rate comparison. The two values happen to agree today but track different concerns.
-constexpr double g_integer_sample_rate_display_threshold{0.001};
 
 // Converts a label list into one-based choices consumed by JUCE ComboBox item IDs.
 [[nodiscard]] std::vector<AudioDeviceSettingsViewState::Choice> choicesFromLabels(
@@ -36,19 +31,6 @@ constexpr double g_integer_sample_rate_display_threshold{0.001};
     return choices;
 }
 
-// Formats sample-rate choices as whole Hz when possible.
-[[nodiscard]] std::string sampleRateLabel(double sample_rate)
-{
-    const auto rounded = static_cast<int>(std::lround(sample_rate));
-    if (std::abs(sample_rate - static_cast<double>(rounded)) <
-        g_integer_sample_rate_display_threshold)
-    {
-        return std::format("{} Hz", rounded);
-    }
-
-    return std::format("{:.1f} Hz", sample_rate);
-}
-
 // Converts available sample rates into one-based display choices.
 [[nodiscard]] std::vector<AudioDeviceSettingsViewState::Choice> sampleRateChoices(
     const std::vector<double>& sample_rates)
@@ -61,7 +43,7 @@ constexpr double g_integer_sample_rate_display_threshold{0.001};
         choices.push_back(
             AudioDeviceSettingsViewState::Choice{
                 .id = index + 1,
-                .label = sampleRateLabel(sample_rates[static_cast<std::size_t>(index)]),
+                .label = sampleRateText(sample_rates[static_cast<std::size_t>(index)]),
             });
     }
 

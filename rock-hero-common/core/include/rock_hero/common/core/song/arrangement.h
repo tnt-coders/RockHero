@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -30,6 +31,16 @@ enum class Part : std::uint8_t
     /*! \brief Bass guitar part. */
     Bass
 };
+
+/*!
+\brief Every guitar part, in enumeration order.
+
+The one list of the parts that exist, so code that ranks parts, counts them, or searches them sizes
+itself from the enum instead of repeating a literal count that a new part would silently overrun.
+\ref partToken is a switch, so the compiler already refuses a part with no token; this list is what
+\ref parsePartToken walks, which is what keeps the inverse from drifting from it.
+*/
+inline constexpr std::array g_parts{Part::Lead, Part::Rhythm, Part::Bass};
 
 /*!
 \brief Returns the stable song-document token for a guitar part.

@@ -28,25 +28,22 @@ namespace rock_hero::editor::ui
 {
 
 /*!
-\brief String count whose lane spacing every displayed count matches.
+\brief String count the hosting row's height is sized against.
 
-Six lanes across the default waveform row is the reference density. The hosting row is sized in
-proportion to the string count at this density (see TrackViewport), so a four-string bass shrinks
-the row to fit and an eight-string display grows it, both keeping identical per-lane spacing
-instead of compressing the lanes or leaving empty margins.
+Six lanes across the default waveform row is the editor's reference density: TrackViewport scales
+the row's height by the displayed string count relative to this number, so a four-string bass
+shrinks the row and an eight-string display grows it rather than the lanes compressing or leaving
+empty margins. The per-lane spacing that results is the shared lane geometry's, not a second rule —
+see common::ui::tabLaneCenterY.
 */
 inline constexpr int g_tab_reference_string_count{6};
 
 /*!
 \brief Returns the base display color for one string lane.
 
-The six highest lanes take Charter's default six string colors — red, yellow, blue, orange,
-green, purple from the sixth-highest lane upward — so a four-string bass keeps red through
-orange and a standard guitar keeps the familiar six. Lanes below that window continue with the
-extended tier going down — teal for the 7th, achromatic near-white gray for the 8th —
-cycling defensively for even lower lanes; further colors arrive with the string-cap raise. The
-palette data and Charter's fixed derivation multipliers live in rock-hero-common/ui
-(string_color_palette.h), shared with the game highway; this is a thin JUCE-converting wrapper.
+Delegates to common::ui::tabStringColor, which owns the rule and the palette; the editor keeps this
+name so its lane and ruler code reads in its own vocabulary. Do not restate the derivation here —
+the shared declaration is the one place it is described.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
@@ -57,10 +54,9 @@ palette data and Charter's fixed derivation multipliers live in rock-hero-common
 /*!
 \brief Returns the hand-shape mark color shared by the tab lane and the ruler's name chips.
 
-The Charter hand-shape base brightened so the narrow span rails and the chord/arpeggio name
-chips read clearly against dark chrome. The tablature lane (rails) and the timeline ruler
-(name chips derived from the same tab projection) must agree on it so a chip visually belongs
-to the rails below it.
+Delegates to common::ui::tabShapeMarkColor, which owns the rule. The editor's own reason for
+reaching for it: the lane's span rails and the ruler's chord/arpeggio name chips derive from the
+same tab projection, so a chip visually belongs to the rails below it.
 
 \param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
 \return Opaque mark color.
@@ -70,10 +66,8 @@ to the rails below it.
 /*!
 \brief Returns the vertical center of one string lane inside the tablature bounds.
 
-Lanes stack in standard tablature orientation: the highest-pitched string sits in the top lane
-and the lowest in the bottom lane, evenly filling the bounds. The host sizes those bounds in
-proportion to the string count (see TrackViewport and g_tab_reference_string_count), so the even
-division yields the reference per-lane spacing at every count.
+Delegates to common::ui::tabLaneCenterY, which owns the lane stacking and spacing rule. The editor
+supplies bounds sized against \ref g_tab_reference_string_count.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
@@ -84,17 +78,16 @@ division yields the reference per-lane spacing at every count.
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept;
 
 /*!
-\brief Renders the chart tablature over the arrangement waveform lane in Charter's visual style.
+\brief Renders the chart tablature over the arrangement waveform lane.
 
-The view draws string lines with Charter's modern-theme note presentation — layered circular
-note heads (diamonds for harmonics) with fret numbers, bordered sustain tails, technique icons,
-slide and bend lines with label chips, and hand-shape spans — from the controller's
-seconds-resolved tab projection, mapping time to pixels with the same visible-timeline
-convention as the waveform beneath it, then the chart-editing overlays (selection rings, the
-white square of the armed caret, and the in-flight marquee) above the notation. While a chart
-is displayed the lane owns its pointer events, converting them to lane-local chart pointer
-intents; the controller decides what a press means (select, caret arming, marquee, or — while
-playing — a plain seek). Without a chart the lane is pointer-transparent as before.
+The notation itself is drawn by the shared paint core (common/ui tab_paint_core.h), which both
+products render through and which describes what it draws; this view supplies the bounds and the
+visible-timeline mapping, matching the waveform beneath it, from the controller's seconds-resolved
+tab projection. On top of the notation it draws the chart-editing overlays the editor alone owns:
+selection rings, the white square of the armed caret, and the in-flight marquee. While a chart is
+displayed the lane owns its pointer events, converting them to lane-local chart pointer intents; the
+controller decides what a press means (select, caret arming, marquee, or — while playing — a plain
+seek). Without a chart the lane is pointer-transparent as before.
 */
 class TabView final : public juce::Component
 {

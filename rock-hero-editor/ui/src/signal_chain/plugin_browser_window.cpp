@@ -4,9 +4,9 @@
 #include "shared/editor_theme.h"
 
 #include <algorithm>
-#include <cctype>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/shared/ascii_case.h>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -36,14 +36,8 @@ const juce::Colour g_selected_row_color{juce::Colour{0xff2f6f96}};
 const juce::Colour g_row_color{juce::Colour{0xff20242b}};
 const juce::Colour g_alternate_row_color{juce::Colour{0xff23272f}};
 
-// Normalizes text for the lightweight browser filter.
-[[nodiscard]] std::string lowerText(std::string text)
-{
-    std::ranges::transform(text, text.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return text;
-}
+// The project's one case fold; the browser's filter compares folded text on both sides.
+using common::core::asciiLowered;
 
 // Builds the count label shown under the list.
 [[nodiscard]] juce::String pluginCountText(std::size_t count)
@@ -161,7 +155,7 @@ private:
     text.append(plugin.manufacturer);
     text.push_back(' ');
     text.append(plugin.format_name);
-    return lowerText(std::move(text));
+    return asciiLowered(std::move(text));
 }
 
 } // namespace
@@ -437,7 +431,7 @@ private:
     void rebuildFilteredIndices()
     {
         m_filtered_indices.clear();
-        const std::string filter = lowerText(m_filter_editor.getText().toStdString());
+        const std::string filter = asciiLowered(m_filter_editor.getText().toStdString());
         for (std::size_t index = 0; index < m_state.plugins.size(); ++index)
         {
             if (pluginMatchesTypeFilter(index) && pluginMatchesTextFilter(index, filter))
