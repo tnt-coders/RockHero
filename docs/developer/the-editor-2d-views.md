@@ -226,6 +226,15 @@ is deliberately single-sourced:
   draws nothing, so a claim the chart cannot justify is pixel-identical to a plain pick —
   deliberately, per `docs/plans/in-progress/legato-authoring-model.md`. Nothing in the paint core
   knows the rules that produced the value.
+- **A stored `LeftTap` is the one exception: it wears its own charting mark** — the tap letter on
+  the LIGHT plate (ruled 2026-08-12). The lettered-plate family's hand signature is its FILL
+  POLARITY (55-Q1's basis: dark ink marks the picking hand, light the fretting hand), so the
+  right-hand tap's dark T and the left-hand tap's light T share a letter without colliding; one
+  shared mid-grey rim (`g_plate_rim`, perceptually equidistant from both fills) keeps the two
+  polarities at equal visual weight. This is a CHARTING mark — it states how editor verbs treat
+  the note, not how it is performed — which is the ruled reason it exists in the editor's 2D lane
+  only: the 3D surfaces keep the merged hammer-motion reading, and the game's future 2D tab view
+  must suppress it (recorded in roadmap plan 30).
 - **A tail's end is `display_hold_ends[index]`, not the note's own sustain.** A sustainless member
   of a strum a hand-shape span holds is drawn held to the span's end, because the span is what tells
   the player how long to keep the shape fretted. Both surfaces resolve that one field from the same

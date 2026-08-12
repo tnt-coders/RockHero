@@ -59,6 +59,16 @@ a claim would justify — so the resolver deliberately never short-circuits on t
 Resolution reads the predecessor's **stored** fields only, so there is no cascade: resolving one
 note can never change what another resolves to, and one sweep pass is therefore enough.
 
+Two rulings landed 2026-08-12 on the statement's edges. **F3 (the review's open question) is
+closed as shipped**: plain `H` on a stored `LeftTap` converts it to `Legato` where the resolver
+justifies a claim — the inferring verb overriding the stating one — and skips it where nothing
+does; the clear half still never touches one. What made the conversion acceptable is the second
+ruling: **the stored statement is visible.** A `LeftTap` wears its own charting mark in the 2D
+lane — the tap letter on the LIGHT plate, fill polarity being the plate family's hand signature —
+so which notes `H` will convert and which are deliberate statements is always readable. The mark
+is editor-only by the charting-mark law (it states editor-verb behavior, never performance); both
+3D surfaces keep the merged hammer-motion reading.
+
 `chartResolutions(notes, shapes, tempo_map)` answers it for a whole stream in one forward walk
 carrying the most recent note per string, and returns the per-note facts that travel together
 because they are computed together: `saved_notes` (`savedChartNote`), `effective_sustains`

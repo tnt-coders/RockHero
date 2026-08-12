@@ -197,3 +197,24 @@ substance (the sweep at commit points + resolved serialization); C3's spirit (re
 flattens ride the burst's entry where the cursor allows, defer otherwise). D10's no-indicator
 justification is transience, not stored-data display. Not touched: D13 entire, released-fret
 semantics, D16/E25, the forward-H rejection, undo exactness (strengthened).
+
+## Addendum — ruled 2026-08-12, after implementation
+
+- **F3 (the review's open question) is CLOSED as shipped**: plain `H` converts a stored `LeftTap`
+  to `Legato` where the resolver justifies a claim — the inferring verb overriding the stating
+  one — and skips it where nothing does; the clear half never touches one. The conversion is
+  acceptable because the statement became visible (below).
+- **The `LeftTap` charting mark**: a stored `LeftTap` wears the tap letter on the LIGHT plate in
+  the editor's 2D lane, always-on. Basis correction to 55-Q1 recorded: the lettered plate family's
+  hand signature is FILL POLARITY (dark ink = picking hand, light = fretting hand), not the plate
+  shape — so the light T extends the vocabulary rather than colliding with the right-hand tap's
+  dark T. New law category ruled with it: **charting marks** state editor-verb behavior, never
+  performance, and exist only in the editor's 2D lane — the 3D surfaces keep the merged
+  hammer-motion reading, and the game's future tab view must suppress them (plan 30). This
+  amends the notation pass's S2 editor-only-ink kill on its corrected basis; the pass's terminal
+  grounds (player-useless on performance surfaces) stand.
+- **Plate palette settled by measurement**: both polarities share one rim (`g_plate_rim`,
+  #7D7D7D — the exact balance point of the weakest-side rule; the texture review's sheets carry
+  the derivation), with fill and letter ink mirroring per hand. Two geometric defects the review
+  measured (sub-pixel rim phase flicker; the small-size letter/rim merge) are recorded in
+  `docs/tracking/backlog.md`.

@@ -407,3 +407,13 @@ The sanctioned bundle as separate invocations — `-Targets all`, then `-RunTouc
 - If tile determinism ever proves brittle (the diff test flakes), the recorded fallback is
   full-strip repaint per frame (low-single-digit-millisecond software raster, measured before
   adopting) — a hosting change only; the paint core and its consumers are untouched.
+
+## Charting marks must not reach the game lane (obligation recorded 2026-08-12)
+
+The shared paint core now draws one **charting mark** — a stored `LeftTap`'s light tap plate —
+which states editor-verb behavior, never performance (the ruled law category; see
+`docs/plans/in-progress/legato-final-spec.md`). When this plan builds the game's tab view on the
+same paint core, it must add the charting-marks seam the editor currently doesn't need (a render
+flag the game path leaves off), so a `LeftTap` draws the merged hammer-motion triangle in the
+game exactly as the 3D highway does. Building the game lane without this seam would leak
+editor-only vocabulary to players.

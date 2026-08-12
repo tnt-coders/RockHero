@@ -33,6 +33,46 @@ const juce::Colour g_mute_border_color{0xff808080};         // java Color.GRAY
 const juce::Colour g_full_mute_text_border{0xffc0c0c0};     // java Color.LIGHT_GRAY
 const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
 
+// The lane's hand axis (55-Q1): a mark's hand signature is its FILL POLARITY, not its shape —
+// dark ink marks the picking hand, light ink the fretting hand, exactly as the legato triangles
+// already draw white-on-black. The letter names the gesture and the polarity names the hand,
+// which is how the right-hand tap (dark T) and the left-hand tap (light T) share one letter
+// without colliding.
+enum class Hand
+{
+    Picking,
+    Fretting
+};
+
+/*! \brief One plate's two inks, chosen by the hand axis above; every plate shares one rim. */
+struct PlatePalette
+{
+    /*! \brief Plate body fill. */
+    juce::Colour fill;
+
+    /*! \brief Letter ink. */
+    juce::Colour ink;
+};
+
+// Every plate's rim, both hands. An outline is only as visible as its POORER neighbour, and this
+// rim has two: the plate's own fill inside, the lane outside. Equalising those two contrasts is
+// what balances the polarities, and it is not the same thing as equalising the rim against its
+// fill alone: the ink-matched rim that read as a blazing outline on the dark plate and no outline
+// at all beside the light one scores a perfect zero on that rule (100 either way in CIE L*), yet
+// against the LANE it measures L* 95.3 on one hand and 4.7 on the other.
+//
+// The weakest side is therefore largest, and equal for both hands, where rim-to-lane equals
+// rim-to-white-fill: L* (100 + 4.68) / 2 = 52.34, which is this grey (L* 52.41). Measured weakest
+// sides are 47.7 dark and 47.6 light, against 48.9 / 46.4 for the mid-grey that preceded it.
+const juce::Colour g_plate_rim{0xff7d7d7d};
+
+[[nodiscard]] PlatePalette platePalette(const Hand hand)
+{
+    return hand == Hand::Picking
+               ? PlatePalette{.fill = juce::Colours::black, .ink = juce::Colours::white}
+               : PlatePalette{.fill = juce::Colours::white, .ink = juce::Colours::black};
+}
+
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
@@ -883,13 +923,13 @@ void drawTriangleIcon(
     g.strokePath(triangle, juce::PathStrokeType{1.0f});
 }
 
-// Draws a picking-hand attack as its standard tab letter on a rounded plate.
+// Draws an attack as its standard tab letter on a rounded plate, in the hand's polarity.
 //
 // The plate's PARALLEL SIDES are the whole point. A triangle tapers, so at the height where a
 // capital's ink sits it retains barely half its width — the letters slap and pop used to carry
 // overflowed their own badges at every lane size. A square holds the letter at the badge's full
-// width, so the three picking-hand attacks can share one silhouette and let the letter name
-// them, which is what a guitarist reads anyway (T, S, P).
+// width, so every lettered attack can share one silhouette and let the letter name the gesture
+// and the polarity name the hand, which is what a guitarist reads anyway (T, S, P).
 //
 // The letter is the fret number's own font, so it is exactly as legible as the digit the reader
 // is already reading — no separate size to tune. It draws only when the plate can hold its ink:
@@ -898,21 +938,22 @@ void drawTriangleIcon(
 // only about half the number the font was asked for, and a plate smaller than that ink would
 // spill the letter over its edges the way the triangles did.
 void drawLetterPlate(
-    juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<float> plate,
+    juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<float> plate, const Hand hand,
     const juce::String& letters)
 {
     const float border = std::max(1.0f, plate.getHeight() / 9.0f);
     const float radius = plate.getHeight() * 0.22f;
+    const PlatePalette palette = platePalette(hand);
 
-    g.setColour(juce::Colours::black);
+    g.setColour(palette.fill);
     g.fillRoundedRectangle(plate, radius);
-    g.setColour(g_full_mute_text_border);
+    g.setColour(g_plate_rim);
     g.drawRoundedRectangle(plate, radius, border);
 
     const float ink = metrics.fret_font.getHeight() * g_capital_ink_fraction;
     if (metrics.draw_text && plate.getHeight() >= ink + (2.0f * border))
     {
-        g.setColour(juce::Colours::white);
+        g.setColour(palette.ink);
         g.setFont(metrics.fret_font);
         g.drawText(letters, plate, juce::Justification::centred);
     }
@@ -921,13 +962,14 @@ void drawLetterPlate(
 // The square single-capital case the three picking-hand attacks share.
 void drawLetterBadge(
     juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
-    const juce::String& letter)
+    const Hand hand, const juce::String& letter)
 {
     const float side = metrics.note_height * g_letter_badge_fraction;
     drawLetterPlate(
         g,
         metrics,
         juce::Rectangle<float>{center_x - side / 2.0f, center_y - side / 2.0f, side, side},
+        hand,
         letter);
 }
 
@@ -950,12 +992,15 @@ constexpr float g_chip_letter_clearance = 1.0f;
            (2.0f * g_chip_letter_clearance);
 }
 
-// Draws the attack technique icon beside the head. The vocabulary reads by SHAPE, and the shape
-// says what the attack IS: a triangle means legato — the note is not re-attacked — so it needs
-// no letter, only a direction (down for a hammer-on, up for a pull-off). Everything that IS
-// re-attacked by the picking hand wears a lettered plate carrying the letter printed tab
-// already uses (T, S, P), so those three share one silhouette and the letter names them. The pick
-// slide takes the same plate in the same slot, just two letters wide.
+// Draws the attack technique icon beside the head. The vocabulary reads by SHAPE and by FILL:
+// the shape says what the gesture IS, the polarity says whose hand performs it. A triangle
+// means a resolved connection — the note is not re-attacked — so it needs no letter, only a
+// direction (down for a hammer-on, up for a pull-off). Every struck technique wears a lettered
+// plate carrying the letter printed tab already uses (T, S, P), one silhouette with the letter
+// naming the gesture and the fill naming the hand: the picking hand's marks are dark, the
+// fretting hand's light, so the right-hand tap (dark T) and the stated left-hand tap (light T)
+// share a letter without colliding. The pick slide takes the same plate in the same slot, just
+// two letters wide.
 //
 // Its chip is deliberately redundant with the plectrum head under it: both say "pick scrape". The
 // slot cannot be contested — `attack` is a single field and the chart rules forbid a scrape any
@@ -1013,12 +1058,11 @@ void drawAttackIcon(
     {
         case common::core::NoteAttack::Pick:
         case common::core::NoteAttack::Legato:
-        case common::core::NoteAttack::LeftTap:
         {
-            // The connection family shares one branch because the mark is the note's RESOLVED
-            // motion, never its stored attack: a left-hand tap draws the hammer triangle, a claim
-            // resolves to whichever triangle its predecessor justifies, and a claim nothing
-            // justifies draws exactly what the plain pick beside it draws — nothing.
+            // The claim family shares one branch because the mark is the note's RESOLVED motion,
+            // never its stored attack: a claim resolves to whichever triangle its predecessor
+            // justifies, and a claim nothing justifies draws exactly what the plain pick beside
+            // it draws — nothing.
             if (note.legato == common::core::LegatoMotion::Hammer)
             {
                 // The apex is this mark's lowest ink and stops half a triangle-width short of its
@@ -1047,19 +1091,30 @@ void drawAttackIcon(
             }
             break;
         }
+        case common::core::NoteAttack::LeftTap:
+        {
+            // The stated tap wears the tap letter in the FRETTING hand's polarity — the editor's
+            // charting mark (ruled 2026-08-11): the motion is a hammer motion, which is why the
+            // 3D surfaces draw it merged, but which triangles answer to `H` and which are
+            // deliberate statements is information a charter reads constantly, so the lane says
+            // it always. The light plate shares the T because it is the same gesture; the
+            // polarity names the hand, per the axis above.
+            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Fretting, "T");
+            break;
+        }
         case common::core::NoteAttack::Tap:
         {
-            drawLetterBadge(g, metrics, badge.x, badge.y, "T");
+            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Picking, "T");
             break;
         }
         case common::core::NoteAttack::Slap:
         {
-            drawLetterBadge(g, metrics, badge.x, badge.y, "S");
+            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Picking, "S");
             break;
         }
         case common::core::NoteAttack::Pop:
         {
-            drawLetterBadge(g, metrics, badge.x, badge.y, "P");
+            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Picking, "P");
             break;
         }
         case common::core::NoteAttack::PickSlide:
@@ -1078,6 +1133,7 @@ void drawAttackIcon(
                 juce::Rectangle<float>{
                     chip.x - (width / 2.0f), chip.y - (badge_side / 2.0f), width, badge_side
                 },
+                Hand::Picking,
                 letters);
             break;
         }

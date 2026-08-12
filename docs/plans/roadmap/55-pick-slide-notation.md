@@ -331,3 +331,13 @@ language on the 3D highway and the 2D tab.
   overridden techniques.
 - FHP output is identical with scrape notes present or absent (the transparency invariant, as
   a test).
+
+## 55-Q1 basis, corrected for the record (2026-08-12)
+
+The vocabulary rule this plan's marks obey is finer than the wording above suggests and was
+misread by one later analysis: the hand signature is **ink polarity** — dark ink marks the
+picking hand, light ink the fretting hand — not the plate or letter shape itself. The lettered
+plate is a silhouette any hand may wear in its own polarity; 2026-08-12 the fretting hand took
+its first (the stored left-hand tap's light T, an editor-only charting mark). The 3D whitened-V
+supersession above is the same rule seen from the atlas side: the V read as fretting-hand ink
+precisely because lightness carries the hand.

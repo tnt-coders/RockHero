@@ -4,9 +4,19 @@
 (`006ae58e`, `2e840872`, `7f6c4517`). How each signature landed, against `legato-final-spec.md` as
 the ruling of record:
 
-- **S1, S2, S5 — signed as written.** The merged mark stands on all surfaces under the new storage,
-  the tap-notation question is closed for the third and final time, and the per-note intent modifier
+- **S1, S5 — signed as written.** The causal correction stands, and the per-note intent modifier
   stays shelved priced-but-unadopted.
+- **S2 — signed, then AMENDED 2026-08-12 with a carve-out this pass could not have priced.** The
+  user corrected 55-Q1's recorded basis: the lettered plate is not the picking hand's shape — the
+  hand signature is FILL POLARITY (dark ink picking, light fretting), a basis this pass's agents
+  misread from the plan's wording. On that basis an editor-2D-only mark was adopted: a stored
+  `LeftTap` wears the tap letter on the LIGHT plate, always-on, under a new law category —
+  **charting marks**, which state editor-verb behavior (what `H`/`Ctrl+H` will do to the note) and
+  never performance. The pass's terminal grounds survive untouched: the game and 3D surfaces stay
+  merged (player-useless holds — the motion is one motion), and no derivation-driven mark exists
+  anywhere (the mark is driven by stored intent, which only split storage makes possible). What
+  the carve-out reverses is only this pass's editor-only-ink kill, which rested on the misread
+  vocabulary basis and on treating the mark as performance notation.
 - **S3 — signed in substance, minus its chrome.** An unjustified `Legato` does read as the narrower
   true pair rather than "the left-hand tap", and the merged mark now comes from the RESOLVED motion
   (`resolveLegato`) — but it draws as a plain pick with **nothing added**, not as "plain pick +

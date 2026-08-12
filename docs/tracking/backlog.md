@@ -340,3 +340,14 @@ code. Two residues survive it:
 - `GridPosition::offset`'s `[0, 1)` range is enforced only by the validators while several
   `grid_arithmetic.h` functions silently depend on it; the header should state the precondition
   (or the functions should assert it), so the dependency stops being implicit.
+
+### Tab lane plate geometry (measured by the 2026-08-12 palette review)
+
+- The plate rim is a centered 1.00 px stroke on an unsnapped rect at every note height ≤ 16.36,
+  so the same grey renders anywhere between L* 30.6 and 53.6 depending on sub-pixel phase — a
+  23 L* note-to-note swing, twenty times the entire rim-value decision. Fix: snap the plate rect
+  (or the rim) to whole pixels below that height.
+- At the smallest letter-drawing size (note height 11.70) the T's antialias tail merges into the
+  rim and both plate polarities read "II". `g_capital_ink_fraction` (0.55) under-measures Verdana
+  Bold's true capital footprint; raise it toward 0.75 so the letter is suppressed before it
+  merges, or give letters the chip's ink-to-rim clearance.

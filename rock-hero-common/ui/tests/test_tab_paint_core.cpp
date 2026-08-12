@@ -177,6 +177,55 @@ TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab
     CHECK(worstPixelDelta(hammer, pull) > 0);
 }
 
+// The stated left-hand tap wears its own charting mark — the tap letter in the fretting hand's
+// LIGHT polarity — never the merged triangle and never the picking hand's dark plate. Three
+// identities kill the three ways the mark can silently regress: drawing nothing, folding back
+// into the resolved-motion branch, and drawing the right-hand tap's polarity (a dark T is the
+// OTHER hand's statement — fill polarity is the hand signature).
+TEST_CASE("Tab paint core draws a left-hand tap as the light tap plate", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const auto painted = [](const common::core::NoteAttack attack,
+                            const common::core::LegatoMotion motion) {
+        common::core::TabViewState state;
+        state.string_count = 6;
+        state.notes = {
+            common::core::TabNoteView{
+                .start_seconds = 5.0,
+                .end_seconds = 9.0,
+                .string = 3,
+                .fret = 7,
+                .attack = attack,
+                .legato = motion,
+                .bend = {},
+                .slides = {},
+            },
+        };
+        const std::vector<double> prefix_max = resolveHoldEnds(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, referenceMetrics(state.string_count), state, prefix_max);
+        return image;
+    };
+
+    // A left-hand tap always resolves to the hammer motion, so the merged-branch mutation would
+    // paint it exactly like the resolved hammer-on below.
+    const juce::Image left_tap =
+        painted(common::core::NoteAttack::LeftTap, common::core::LegatoMotion::Hammer);
+    const juce::Image bare_pick =
+        painted(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
+    const juce::Image hammer =
+        painted(common::core::NoteAttack::Legato, common::core::LegatoMotion::Hammer);
+    const juce::Image right_tap =
+        painted(common::core::NoteAttack::Tap, common::core::LegatoMotion::Unjustified);
+
+    // A mark exists at all; it is not the triangle; it is not the dark plate.
+    CHECK(worstPixelDelta(left_tap, bare_pick) > 0);
+    CHECK(worstPixelDelta(left_tap, hammer) > 0);
+    CHECK(worstPixelDelta(left_tap, right_tap) > 0);
+}
+
 // Every tail the lane draws is drawn to the note's DISPLAY hold end, teeth and sine included, and
 // the hit-test rectangle stops exactly where that ink does. A span-held strum member stores no
 // sustain at all, so a tail keyed off `end_seconds` would draw nothing here and a hit rectangle
@@ -606,45 +655,51 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     // the empty lane, which is what would fail first if the raise overshot the plectrum's broad
     // band or the silhouette were too narrow to hold a number unboxed. Checked for the two-digit
     // fret as well, on its own lane: that is the widest number the unboxed head has to hold.
-    const auto digit_ink_clear_of_rim = [&image](int center_x, int center_y, int window) {
-        int found = 0;
-        bool clear = true;
-        for (int y = center_y - 20; y <= center_y + 20; ++y)
-        {
-            for (int x = center_x - window; x <= center_x + window; ++x)
+    // The scan starts at the digit's own topmost ink row rather than a fixed reach above the
+    // lane center: the beside-head chip sits above-left, and its rim is white ink too now that
+    // the plate palette mirrors — a symmetric window would read the chip's rim as digit ink and
+    // fail on the empty lane beyond it.
+    const auto digit_ink_clear_of_rim =
+        [&image](int center_x, int center_y, int digit_top, int window) {
+            int found = 0;
+            bool clear = true;
+            for (int y = digit_top; y <= center_y + 20; ++y)
             {
-                if (!isWhiteInk(image.getPixelAt(x, y)))
+                for (int x = center_x - window; x <= center_x + window; ++x)
                 {
-                    continue;
-                }
-                ++found;
-                for (int dy = -2; dy <= 2; ++dy)
-                {
-                    for (int dx = -2; dx <= 2; ++dx)
+                    if (!isWhiteInk(image.getPixelAt(x, y)))
                     {
-                        const juce::Colour near_ink = image.getPixelAt(x + dx, y + dy);
-                        clear = clear && near_ink.getAlpha() == 255 &&
-                                near_ink != juce::Colour{0xff101010};
+                        continue;
+                    }
+                    ++found;
+                    for (int dy = -2; dy <= 2; ++dy)
+                    {
+                        for (int dx = -2; dx <= 2; ++dx)
+                        {
+                            const juce::Colour near_ink = image.getPixelAt(x + dx, y + dy);
+                            clear = clear && near_ink.getAlpha() == 255 &&
+                                    near_ink != juce::Colour{0xff101010};
+                        }
                     }
                 }
             }
-        }
-        return std::pair{found, clear};
-    };
+            return std::pair{found, clear};
+        };
 
     const auto [one_digit_ink, one_digit_clear] =
-        digit_ink_clear_of_rim(scrape_x, lane_y, g_digit_window);
+        digit_ink_clear_of_rim(scrape_x, lane_y, scrape_digit_top, g_digit_window);
     CHECK(one_digit_ink > 0);
     CHECK(one_digit_clear);
 
     // The two-digit scrape sits on string 5 (lane center y = 60). Its window stops short of the
     // chip's own letters so only the fret number answers.
     constexpr int wide_lane_y = 60;
-    const auto [two_digit_ink, two_digit_clear] = digit_ink_clear_of_rim(scrape_x, wide_lane_y, 6);
+    const int wide_scrape_digit_top = topDigitInkRow(image, scrape_x, wide_lane_y);
+    const auto [two_digit_ink, two_digit_clear] =
+        digit_ink_clear_of_rim(scrape_x, wide_lane_y, wide_scrape_digit_top, 6);
     CHECK(two_digit_ink > one_digit_ink);
     CHECK(two_digit_clear);
     // And it is raised by the same three pixels as the one-digit number.
-    const int wide_scrape_digit_top = topDigitInkRow(image, scrape_x, wide_lane_y);
     const int wide_plain_digit_top = topDigitInkRow(image, plain_x, wide_lane_y);
     CHECK(wide_plain_digit_top - wide_scrape_digit_top == 3);
 }
