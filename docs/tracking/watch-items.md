@@ -482,3 +482,12 @@ Items whose trigger fired and were handled. Kept for auditability.
   (whose destructor calls `bgfx::shutdown()`); consumers declare the device before the renderer so
   the renderer — and its handles — destroy first (`preview_surface.h:109-110`). The project rule
   (never pass `destroyShaders=true`/`destroyTextures=true`) remains in force in `bgfx_program`.
+
+- **Light tap plate glare (accepted 2026-08-12).** The fretting hand's white plate throws ~4.8x
+  the dark plate's luminous mass and a ~9 L* stronger halo against the near-black lane; no rim
+  value can close it (measured across nine candidates). Accepted as shipped — the rare,
+  information-bearing mark drawing the eye is arguably correct. **Trigger:** the light plate
+  reads heavy/glary in real charting use. **The measured remedy, priced:** fill #F2F2F2 with the
+  shared rim re-solved to #777777 cuts the halo by 2.4 L* and the mass ratio to 4.5x, at the
+  price of splitting the fretting hand's whites — the legato triangles are pure white in the
+  same slot, so the clean form moves both through one shared constant.
