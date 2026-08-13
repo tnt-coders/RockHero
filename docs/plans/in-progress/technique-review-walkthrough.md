@@ -183,11 +183,15 @@ item ships, mark it and name the commit.
 - [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below; **two are now
   closed** (W9-L reverted 2026-08-10, W9-A ruled and shipped 2026-08-11), leaving ten. Nothing else
   from that review is waiting: the rest was fixed in place on 2026-08-10.
-- [ ] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law (opened 2026-08-12;
-  user-signed direction, build blocked on its open rulings).** Design in the W10 section below.
-  Absorbs W6's break verb. The technique-letter amendment that opened it (legato `H`→`L`, left tap
-  `Ctrl+H`→`Shift+T`, `H` freed for harmonics — SHIPPED 2026-08-12 in the registry and its locked
-  test) is recorded in `keymap-matrix.md`.
+- [ ] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law (opened AND fully ruled
+  2026-08-12 — ready to build).** Design and the three signed rulings in the W10 section below:
+  the split head's attack (stored `Legato`, derived `Continuation` motion, struck/unstruck verb
+  boundary, merge-settle for de-justified continuations), slide tails (digits state the path —
+  waypoint authoring; technique verbs split only at stated frets), and the tie ghost
+  (editor-2D-only). Absorbs W6's break verb. Refusal feedback + typed-waypoint entry surfaces land
+  with W3; the verb can build silent-at-parity first. The technique-letter amendment that opened
+  it (legato `H`→`L`, left tap `Ctrl+H`→`Shift+T`, `H` freed for harmonics — SHIPPED 2026-08-12 in
+  the registry and its locked test) is recorded in `keymap-matrix.md`.
 
 ## W9 — Rulings the deep review needs (opened 2026-08-10)
 
@@ -331,18 +335,74 @@ creates a head there — the predecessor's tail shortens to the split, the new n
 remainder and the technique. Technique verbs thereby gain the digits' own three-rung ladder: apply
 to the selection, else split-the-tail at the armed caret, else inert.
 
-**Open rulings (build blocked on these):**
+**RULED 2026-08-12 — the split head's attack (user-signed):**
 
-1. **The split head's attack.** The string keeps ringing, so a `Pick` attack would lie. The
-   principled option amends the justification rule: a same-fret legato claim is justified precisely
-   when the junction changes technique — the exact dual of the head-exists law. That touches
-   `resolveLegato`, the importer's equal-fret flatten, and W8's conversion rule, so it needs its
-   own ruling before anything builds.
-2. **Mid-slide split.** Between waypoints the tail's fret is interpolated; the likely rule is
-   refuse (a head must sit on a stated fret) — confirm.
-3. **Does the tie's ghost show in the editor's 3D preview?** Editor chrome is exempt from the
-   surfaces law, and at settle both surfaces show the merged tail identically — decide whether the
-   in-window ghost is 2D-only like the other charting-mark chrome.
+- **The split head stores plain `Legato`; `LegatoMotion` gains `Continuation`.** No new stored
+  value (`Pick` killed for authoring a strike that is not in the music; a stored `Tie` killed on
+  derived-over-authored — struck-ness is fully derivable, so storing it would let two facts
+  disagree). The resolver's equal-fret arm is amended: equal released fret resolves to
+  `Continuation` (no strike), **justified iff the junction changes technique** — the exact dual of
+  the head-exists law. Physics closes the derivation: on equal frets no fret-hand strike is
+  possible (a same-fret re-strike is the left-hand tap, already `Shift+T`'s stated attack), and on
+  unequal frets an unstruck connection requires travel, which is slide geometry — so
+  frets-plus-geometry always answer "was it struck."
+- **Struck/unstruck verb boundary** (replaces the draft's convergence note): plain `L` authors and
+  clears STRIKE-motion claims only — it never authors a continuation and its clear never destroys
+  one, the LeftTap precedent enforced by the derived motion instead of a stored value (the planner
+  filters on what the resolver derives; still one authority). `Shift+L` is the sole author of
+  unstruck connections: the tie merge when nothing changes at the junction, the `Continuation`
+  claim when a technique does, and slide geometry for travel. Severing via `Shift+L`'s toggle
+  reverts the head to `Pick`, which is then true.
+- **1a — a de-justified continuation settles by MERGE, not a Pick flatten.** Editing away the
+  junction's technique difference leaves an equal-fret claim nothing justifies; a Pick flatten
+  would invent a strike, so for equal-fret claims the sweep's sound-preserving flatten is the tie
+  merge itself (one authority with `Shift+L`'s settle). Direction claims keep their Pick flatten.
+- **1b — W8's junk-hopo-flag landing is untouched:** an equal-fret hopo FLAG is author junk, not a
+  tie (GP's tie is the explicit no-restrike notation, which the importer already merges), so it
+  keeps landing as a counted Pick conversion.
+- **Import evidence that motivated the ruling:** the importer already implements tie-as-merge
+  (`gp_chart_builder.cpp` tie_destination arm; positional payloads keep their junction per policy
+  rule 15) but SMEARS boolean techniques — `origin.note.vibrato = origin.note.vibrato ||
+  source.vibrato` — so "vibrato starts at the tie junction" is currently destroyed on import.
+  Under this ruling the tie merge gains the same guard as `Shift+L`'s settle: merge when nothing
+  changes, keep a `Continuation` head when something does. Import and editor become one law.
+- **Slides confirmed outside the attack model entirely** (`tab_paint_core.cpp:682-686`): an
+  unpicked slide chain is ONE note whose travel is waypoints — no second note exists to carry an
+  attack; a re-picked landing is an ordinary `Pick` note.
+- **Staging re-confirmed at sign-off:** the no-change tie stores nothing — pending intent + ghost
+  head through the window, merge at selection-change settle. The `Continuation` claim exists only
+  where the head survives.
+
+**RULED 2026-08-12 — slide tails: digits state the path, technique verbs split it (user-signed,
+with the waypoint-authoring rule the user added):**
+
+- **Technique verbs split only at stated frets.** Legal at a waypoint (the split un-merges exactly
+  one link of the chain — the precise inverse of the importer's Charter-linked-note merge; the new
+  head's claim resolves `Continuation` naturally, the handed-over waypoint fret equalling the new
+  head's) and on the post-travel hold segment (a plain tail split, the fret being the last
+  waypoint's). Refused strictly between waypoints — the fret there is interpolated travel, and a
+  head must sit on a stated fret. Snapping to the nearest waypoint was killed as a clamp; rounding
+  the interpolated fret as invented data.
+- **Digits on a slide note's tail author the path** (user rule): a digit is a fret statement, and
+  on a travel path "the hand is at fret N here" has one honest meaning — caret between waypoints
+  creates a waypoint, caret on a waypoint retypes it. Plain-note tails keep insert-with-truncation
+  (40-Q2-B); the region rule is by note kind, not by segment. This converts W6's lock refusal into
+  the useful meaning (an insert-truncate mid-travel would have been refused anyway), and it gives
+  the technique-verb refusal a composable escape hatch: state a waypoint, then split at it —
+  everything stated, nothing guessed. Waypoint fret validity rides the normal fret-entry
+  validation under W3's pending model (provisional in the window, red when invalid; direction
+  reversals are representable — scrape turnarounds prove it).
+
+**RULED 2026-08-12 — the tie's ghost is editor-2D-only (user-signed):** no editor-authoring
+chrome displays in 3D — the ghost heads exist strictly to help authoring, and the 3D view is
+specifically for reading, not authoring. Same footing as the light-T charting mark, the FHP chips,
+and W6's lock indication; at settle both surfaces show the merged tail identically, so nothing
+diverges.
+
+**All three rulings closed 2026-08-12 — W10 is fully specified and ready to build.** Sequencing
+note, not a gate: the refusal *feedback* and the typed-waypoint entry ride W3's channel and pending
+model, so those surfaces land with W3; the verb itself can build silent-at-parity first, like the
+shipped technique verbs.
 
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 
