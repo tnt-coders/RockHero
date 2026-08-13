@@ -503,7 +503,8 @@ what attack coverage exists before executing this phase; the mute/harmonic/vibra
 properties and the §9a mixed-validity feedback are what remain.
 
 **The connection family is DONE as of 2026-08-11** and is the pattern the remaining verbs should
-copy. `H` (`ChartLegatoToggle`) and `Ctrl+H` (`ChartLeftTap`) ship the full ruled model
+copy. `L` (`ChartLegatoToggle`) and `Shift+T` (`ChartLeftTap`) — default chords since the
+2026-08-12 technique-letter amendment (`keymap-matrix.md`); they shipped on `H`/`Ctrl+H` — ship the full ruled model
 (`docs/plans/in-progress/legato-authoring-model.md`): the chart stores a claim and never a direction,
 `resolveLegato` answers the motion for every consumer, and the planner uses that resolver as its own
 oracle so no eligibility list is restated in the verb. Three things there are precedents for the rest

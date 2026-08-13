@@ -317,16 +317,20 @@ namespace
     // reachable at all — it appears in the Actions dialog and the chart's discovery menu, and the
     // user can bind it there.
     add(EditorCommandId::ChartPickSlideToggle, "Toggle Pick Slide", "Authoring", {});
-    // `H` matches Guitar Pro's own "Hammer On / Pull Off" key, verified against the GP8 manual's
-    // shortcut appendix. One key covers both because no direction is stored at all: the note claims
-    // a connection and which way it runs is read back from the predecessor. Guitar Pro's Shift+H
-    // "Legato" is a sheet-music slur that does not change that claim, so it has nothing to map onto
-    // here and stays unbound.
-    add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('h')});
-    // Ctrl means precision — "I will state it exactly, do not infer" — so the stating verb lives on
-    // the toggle's own key: plain H claims a connection the chart has to justify, Ctrl+H states the
-    // left-hand tap no predecessor can. Exact-modifier matching keeps the two chords apart.
-    add(EditorCommandId::ChartLeftTap, "Left-Hand Tap", "Authoring", {chord('h', command)});
+    // `L` matches the claim's direction, not Guitar Pro's technique letter: the claim is stored on
+    // the arriving note and reaches backward to its predecessor, which is the shape of GP's "Tie
+    // note" (L) — GP's H links the selected note FORWARD to the next, so an H habit here authored
+    // an off-by-one link (the 2026-08-12 technique-letter amendment in keymap-matrix.md moved the
+    // default and freed H for the harmonics). One key covers both motions because no direction is
+    // stored: which way the connection runs is read back from the predecessor. Shift+L is reserved
+    // for the tie/slide-link verb (walkthrough W10, unbuilt).
+    add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('l')});
+    // The charting marks already declare the tap family — one letter T, plate fill polarity as the
+    // hand signature — so the keymap mirrors the visible structure: plain T is reserved for the
+    // right-hand tap, Shift+T states the left-hand one. Shift+letter is the typed family's sibling
+    // modifier; Ctrl stays the app-command plane (Save/Open/tone change), which is why the earlier
+    // Ctrl+H default moved here.
+    add(EditorCommandId::ChartLeftTap, "Left-Hand Tap", "Authoring", {chord('t', shift)});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

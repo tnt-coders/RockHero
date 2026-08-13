@@ -8,6 +8,12 @@ physics, and the graveyard of everything this replaced — is `legato-authoring-
 trail: `legato-simplicity-analysis.md`, `legato-design-options-explained.md`,
 `legato-tap-notation-final-pass.md`.
 
+**Chord substitution 2026-08-12 (recorded rather than silent, like the departures below):** the
+technique-letter amendment (`keymap-matrix.md`, user-signed) moved the toggle's default chord to
+plain `L` and the left-hand tap's to `Shift+T`; this document's chord names were substituted
+throughout to match. The verbs, their semantics, and every signed sentence's meaning are unchanged —
+they shipped on `H`/`Ctrl+H`, and the deliberation records keep those letters.
+
 Two departures the implementation made from the letter of this spec, both recorded rather than
 silent: the toggle window stores only its armed keys, because the burst's plan already lives once in
 `m_chart_notes_top` (`ChartNotesTopEntry`) where the settle sweep also reads it, so no
@@ -16,13 +22,13 @@ return (`ChartLegatoPlan{plan, skipped, reason}`) rather than through W3's unbui
 
 A third, found by the independent review of 2026-08-11 and folded in below: the counted-skip
 feedback's *reporting half* is deferred, because the "existing view reporting seam" is a modal error
-box. The `H` section records it in full.
+box. The `L` section records it in full.
 
 ## Stored model
 
 `attack ∈ {Pick, Legato, LeftTap, Tap, Pinch, PickSlide}`. `Legato` is the authored relational
 statement "this onset connects to its same-string predecessor"; `LeftTap` is the authored local
-statement "the fretting hand strikes this from nowhere" (the old `Ctrl+H` meaning). **No
+statement "the fretting hand strikes this from nowhere" (the stating verb's unchanged meaning). **No
 direction is ever stored.** Serialization tokens swap in place; no back-compat, no old-token
 acceptance. All other fields, D13's constants, spans, and nodes are unchanged.
 
@@ -41,7 +47,7 @@ by TRANSIENCE (broken claims cannot cross a top-of-history settle or reach any f
 "marks always show stored data" — mid-burst, a broken claim and a true Pick are pixel-identical
 by design.
 
-## The `H` toggle (final law — the planner is the oracle, the resolver the only authority)
+## The `L` toggle (final law — the planner is the oracle, the resolver the only authority)
 
 - Domain: selected notes with attack ∈ {Pick, Legato, LeftTap}; picking-hand riders (Tap,
   Pinch, PickSlide) skipped in both directions.
@@ -53,8 +59,8 @@ by design.
   fret → skip; fret-hand-harmonic predecessor → skip; a noded note under a higher predecessor →
   skip, since the Pull clause vetoes nodes.) **If the plan is non-empty, apply it. Only when
   applying would change nothing does the press mean clear, and the clear flattens the
-  stored-`Legato` subset only — a `LeftTap` keeps its attack through clear** (Ctrl+H is the
-  tap's sole author; plain H never destroys one).
+  stored-`Legato` subset only — a `LeftTap` keeps its attack through clear** (Shift+T is the
+  tap's sole author; plain L never destroys one).
 - **The assist:** for a note being set whose predecessor's effective hold does not reach (gap
   at/past the kept-sustain bound), grow the predecessor's tail to `(distance − margin)` in the
   same plan when that makes the claim resolve and the growth is within `sustainGrowthLimit`.
@@ -69,13 +75,13 @@ by design.
   but the *reporting* does not, because this sentence is not satisfiable as written: the only
   existing view reporting seam is a modal `showThemedWarningBox` titled "Could not complete
   request", so routing the count through it popped a dialog on the commonest press there is
-  (select a phrase's first note, press `H`) to announce that nothing had failed. `H` is therefore
-  SILENT when it applies nothing, at parity with `Ctrl+H` and the pick-slide toggle. The count
+  (select a phrase's first note, press `L`) to announce that nothing had failed. `L` is therefore
+  SILENT when it applies nothing, at parity with `Shift+T` and the pick-slide toggle. The count
   surfaces when W3's non-modal refusal channel lands (tasks #33/#35); the payload is already
   built and waiting for it.
-- **The toggle window** (shipped `ChartLegatoToggleEntry` + `dropTop`) is kept: `H` again with
+- **The toggle window** (shipped `ChartLegatoToggleEntry` + `dropTop`) is kept: `L` again with
   the same selection and history top reverses the previous press exactly, grown tails included
-  — a genuine toggle: H-H leaves no trace. **The save case is strengthened (ruled
+  — a genuine toggle: L-L leaves no trace. **The save case is strengthened (ruled
   2026-08-11):** when the proof holds but the entry is the reachable clean state (the user
   saved between the presses), the reversal proceeds by pushing the exact inverse as a NEW
   entry instead of dropping — the tail still comes back and the toggle stays genuine, while
@@ -84,7 +90,7 @@ by design.
   playback, undo/redo, any other edit), where the second press means the ordinary law and
   Ctrl+Z is the exact revert.
 
-## `Ctrl+H`
+## `Shift+T`
 
 `planSetAttack(LeftTap)` — sole author of the left-hand tap, no predecessor needed, E4 gate
 (`fret > 0 || harmonic node`), the shipped node-conversion guards. Label: "Left-Hand Tap"
@@ -200,7 +206,7 @@ semantics, D16/E25, the forward-H rejection, undo exactness (strengthened).
 
 ## Addendum — ruled 2026-08-12, after implementation
 
-- **F3 (the review's open question) is CLOSED as shipped**: plain `H` converts a stored `LeftTap`
+- **F3 (the review's open question) is CLOSED as shipped**: plain `L` converts a stored `LeftTap`
   to `Legato` where the resolver justifies a claim — the inferring verb overriding the stating
   one — and skips it where nothing does; the clear half never touches one. The conversion is
   acceptable because the statement became visible (below).

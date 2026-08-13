@@ -143,8 +143,11 @@ item ships, mark it and name the commit.
   2026-08-11** by the legato ruling: a connection claim stores no direction, so shrinking its
   predecessor's tail drops the mark live, regrowing restores it inside the burst, and the settle
   sweep flattens what is left as one folded batch — nothing to lock and nothing to break. Slides
-  keep all three (waypoints are real data). The break verb frees a tail from the origin's side; the
-  feedback is **editor-only** (user ruling: not visible in 3D). **Still blocked on the channel
+  keep all three (waypoints are real data). ~~The break verb frees a tail from the origin's side,
+  binding TBD in keymap review~~ — **break verb DISSOLVED INTO W10 (2026-08-12):** `Shift+L`'s
+  apply-or-clear toggle severs an existing link, so the break needs no verb or binding of its own;
+  W6's remaining scope is the slide tail lock and the 40-Q5 feedback. The feedback is
+  **editor-only** (user ruling: not visible in 3D). **Still blocked on the channel
   (corrected 2026-08-11):** W5's counted-skip report is not the precedent it briefly looked like — its
   data ships but its surface does not, because the only reporting seam is a modal error box. The
   locked-tail feedback and W5's count are now two payloads waiting on the same W3 work.
@@ -180,6 +183,11 @@ item ships, mark it and name the commit.
 - [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below; **two are now
   closed** (W9-L reverted 2026-08-10, W9-A ruled and shipped 2026-08-11), leaving ten. Nothing else
   from that review is waiting: the rest was fixed in place on 2026-08-10.
+- [ ] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law (opened 2026-08-12;
+  user-signed direction, build blocked on its open rulings).** Design in the W10 section below.
+  Absorbs W6's break verb. The technique-letter amendment that opened it (legato `H`→`L`, left tap
+  `Ctrl+H`→`Shift+T`, `H` freed for harmonics — SHIPPED 2026-08-12 in the registry and its locked
+  test) is recorded in `keymap-matrix.md`.
 
 ## W9 — Rulings the deep review needs (opened 2026-08-10)
 
@@ -282,6 +290,59 @@ the options with the agent's recommendation.
   the named baseline (Guitar Hero: Warriors of Rock and the era references) everywhere it
   carried information; the no-naming rule remains in force, unchanged, for the real-guitar game
   only.
+
+## W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law (opened 2026-08-12)
+
+User-signed direction 2026-08-12, alongside the technique-letter amendment recorded in
+`keymap-matrix.md` (legato `H`→`L`, left tap `Ctrl+H`→`Shift+T`, `H` freed for the harmonics).
+`Shift+L` is the `L` verb extended with travel; GP's own `Shift+L` ("tie the beat") is subsumed by
+the uniform-scope law, so the slot is vacated by our design, not stolen.
+
+**Semantics by junction:**
+
+- **Different frets → author the slide.** Grow/shape the predecessor's tail to the junction and
+  link it — origin-side geometry authored from the destination-side press, the D14 assist's own
+  precedent. Applies AT PRESS (a generated slide must draw as real geometry, never as fiction);
+  within the selection window a second press reverses exactly via the W7 mechanism
+  (`{keys, history_position}`, applied-plan inverse, grown tails included — the window generalizes
+  into a shared authority, not a second copy). Beyond any window, `Shift+L` on an already-linked
+  junction CLEARS the link — apply-or-clear parity with `L` — which IS the slide break: W6's
+  separate break verb dissolves into this toggle and its binding question closes with it.
+- **Equal frets, no technique change → the tie, and the tie never enters the format.** The settled
+  truth is one longer sustain. The press commits NOTHING: a pending intent held for the selection
+  window, the junction head drawn GHOSTED through the shared paint primitive (the Alt-ghost idiom —
+  here ghost means about-to-vanish; the data still holds both notes, so nothing fictitious is drawn
+  and the "provisional renderer" costs one style substitution). A second press DISCARDS the intent —
+  no reversal machinery at all. Selection change settles: delete the arriving note, grow the
+  predecessor's sustain over it, one undo entry. The guard (equal fret, equal technique set at the
+  junction) is exactly what makes the merge lossless — removing the strike is the verb's point, and
+  the guard ensures the strike is the only thing removed. The two halves deliberately stage
+  differently: an addition previews as reality because its reversal machinery already exists; a
+  removal previews as a ghost because deferring it costs nothing (the data still holds the head)
+  and makes the discard trivial.
+- **Refusals:** a gesture-carrying predecessor (scrape, slide-out) refuses the tie — its tail is
+  authored geometry, the D14 assist's own rule. Refusal feedback rides W3's non-modal channel like
+  every other refusal.
+
+**The split-tail law — the inverse gesture, and it is general.** A settled tie leaves no trace, so
+re-splitting cannot be tie-specific; the law is: **a note head exists exactly where something
+changes (fret or technique)**. A technique verb pressed with the armed caret on a tail point
+creates a head there — the predecessor's tail shortens to the split, the new note carries the
+remainder and the technique. Technique verbs thereby gain the digits' own three-rung ladder: apply
+to the selection, else split-the-tail at the armed caret, else inert.
+
+**Open rulings (build blocked on these):**
+
+1. **The split head's attack.** The string keeps ringing, so a `Pick` attack would lie. The
+   principled option amends the justification rule: a same-fret legato claim is justified precisely
+   when the junction changes technique — the exact dual of the head-exists law. That touches
+   `resolveLegato`, the importer's equal-fret flatten, and W8's conversion rule, so it needs its
+   own ruling before anything builds.
+2. **Mid-slide split.** Between waypoints the tail's fret is interpolated; the likely rule is
+   refuse (a head must sit on a stated fret) — confirm.
+3. **Does the tie's ghost show in the editor's 3D preview?** Editor chrome is exempt from the
+   surfaces law, and at settle both surfaces show the merged tail identically — decide whether the
+   in-window ghost is 2D-only like the other charting-mark chrome.
 
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 

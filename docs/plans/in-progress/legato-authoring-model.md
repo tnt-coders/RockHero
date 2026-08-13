@@ -6,13 +6,16 @@ chart stores, what every consumer reads, what the two verbs do, and why each of 
 it is. The *ruling* that produced it is `legato-final-spec.md`, kept sentence-for-sentence as
 signed; the analysis that killed the alternatives is `legato-simplicity-analysis.md`,
 `legato-design-options-explained.md`, and `legato-tap-notation-final-pass.md`. Where this file and
-the code disagree, the code is the truth and this file is the defect.
+the code disagree, the code is the truth and this file is the defect. Default chords since
+2026-08-12: the toggle on plain `L`, the left-hand tap on `Shift+T` (the technique-letter amendment
+in `keymap-matrix.md`; they shipped on `H`/`Ctrl+H`, and the deliberation records keep those
+letters).
 
 **The model in five lines.** `attack` stores `Legato` — the relational claim "this onset connects
 to its same-string predecessor" — and `LeftTap`, the local statement "the fretting hand strikes this
 from nowhere". **No direction is stored.** One resolver, `resolveLegato`
 (`common/core/chart/chart_legato.h`), answers `{Hammer, Pull, Unjustified}` from the predecessor's
-stored fields, and every surface, the gameplay build, the reader, and the `H` planner ask it rather
+stored fields, and every surface, the gameplay build, the reader, and the `L` planner ask it rather
 than reading a field. A claim nothing justifies draws, plays, and scores as the plain pick it sounds
 like, and is flattened to `Pick` by the stateless settle sweep (`sweepUnjustifiedLegato`) at the
 ruled settle events, at load, and by the document writer as it serializes.
@@ -23,8 +26,8 @@ Scope note: this concerns **legato only**, and that is a finding rather than an 
 ## Stored model
 
 `attack ∈ {Pick, Pinch, Legato, LeftTap, Tap, Pop, Slap, PickSlide}`. The two connection values are
-`Legato` (relational) and `LeftTap` (local); `legatoClaimable` (`chart.h`) names the family `H` and
-`Ctrl+H` move a note between — `Pick`, `Legato`, `LeftTap` — and every other attack is a
+`Legato` (relational) and `LeftTap` (local); `legatoClaimable` (`chart.h`) names the family `L` and
+`Shift+T` move a note between — `Pick`, `Legato`, `LeftTap` — and every other attack is a
 picking-hand or bass articulation whose onset is already fully described.
 
 Serialization tokens are `"legato"` and `"leftTap"` (`chart_document.cpp`), swapped in place with no
@@ -54,18 +57,18 @@ asked for the clauses to be moved byte-identical, which is how the old rule's re
 (2026-08-11, review fix F10) and the row is now the whole rule.
 
 `LeftTap` resolves to `Hammer` unconditionally and reads no predecessor at all. Every other attack
-is answered as the hypothetical it is — asking about a `Pick` is how the `H` toggle finds the notes
+is answered as the hypothetical it is — asking about a `Pick` is how the `L` toggle finds the notes
 a claim would justify — so the resolver deliberately never short-circuits on the note's own attack.
 Resolution reads the predecessor's **stored** fields only, so there is no cascade: resolving one
 note can never change what another resolves to, and one sweep pass is therefore enough.
 
 Two rulings landed 2026-08-12 on the statement's edges. **F3 (the review's open question) is
-closed as shipped**: plain `H` on a stored `LeftTap` converts it to `Legato` where the resolver
+closed as shipped**: plain `L` on a stored `LeftTap` converts it to `Legato` where the resolver
 justifies a claim — the inferring verb overriding the stating one — and skips it where nothing
 does; the clear half still never touches one. What made the conversion acceptable is the second
 ruling: **the stored statement is visible.** A `LeftTap` wears its own charting mark in the 2D
 lane — the tap letter on the LIGHT plate, fill polarity being the plate family's hand signature —
-so which notes `H` will convert and which are deliberate statements is always readable. The mark
+so which notes `L` will convert and which are deliberate statements is always readable. The mark
 is editor-only by the charting-mark law (it states editor-verb behavior, never performance); both
 3D surfaces keep the merged hammer-motion reading.
 
@@ -73,7 +76,7 @@ is editor-only by the charting-mark law (it states editor-verb behavior, never p
 carrying the most recent note per string, and returns the per-note facts that travel together
 because they are computed together: `saved_notes` (`savedChartNote`), `effective_sustains`
 (`chartEffectiveSustains`), `legato`, and `predecessors` — the same-string predecessor index the walk
-established, handed out rather than kept private so the `H` toggle asks its own hypothetical against
+established, handed out rather than kept private so the `L` toggle asks its own hypothetical against
 the same relation instead of re-deriving it with a backward scan per selected note. The tab lane, the
 highway, the gameplay build, and the package reader all consume that one pass — computed per chart
 revision, never per frame. Computing them separately is exactly how those four came to disagree about
@@ -89,7 +92,7 @@ choice rests on TRANSIENCE — a broken claim cannot cross a top-of-history sett
 not on "marks always show stored data": mid-burst, a broken claim and a true Pick are
 pixel-identical by design.
 
-## The `H` toggle — the planner is the oracle, the resolver the only authority
+## The `L` toggle — the planner is the oracle, the resolver the only authority
 
 `planSetLegato` (`editor/core/src/chart/chart_edits.h`) returns
 `ChartLegatoPlan{plan, skipped, reason}`.
@@ -105,7 +108,7 @@ pixel-identical by design.
   nodes.)
 - **If the plan is non-empty, apply it.** Only when applying would change nothing does the press
   mean clear, and the clear flattens the stored-`Legato` subset only — **a `LeftTap` keeps its
-  attack through clear**, because `Ctrl+H` is the tap's sole author and plain `H` never destroys
+  attack through clear**, because `Shift+T` is the tap's sole author and plain `L` never destroys
   one. Measuring the press by what the PLAN does, rather than by what the selection already holds,
   is what keeps a rider note from stranding the toggle in apply mode forever.
 - **The assist:** for a note being set whose predecessor's effective hold does not reach, the
@@ -117,17 +120,17 @@ pixel-identical by design.
 - **Counted-skip DATA, reporting deferred** (W5's second half, as amended 2026-08-11 by the
   independent review's F1): `ChartLegatoSkip` carries the dominant reason and `ChartLegatoPlan`
   the count, and both are pinned by `test_chart_edits.cpp` for every refusal class. Nothing is
-  *shown*: `H` is silent when it applies nothing, at parity with `Ctrl+H` and the pick-slide
+  *shown*: `L` is silent when it applies nothing, at parity with `Shift+T` and the pick-slide
   toggle. The rendering half (`chartLegatoSkipText`) was deleted because the view's only reporting
-  seam is a modal `showThemedWarningBox` titled "Could not complete request" — so an `H` on a
+  seam is a modal `showThemedWarningBox` titled "Could not complete request" — so an `L` on a
   phrase's first note, the commonest press in charting, opened a dialog to announce that nothing
   had failed. **This is where W3's refusal channel is still needed** (tasks #33/#35): the payload
   is built and waiting for a non-modal surface. The count deliberately counts only notes the
   resolver REFUSED — a note already carrying the claim is unchanged, not skipped, which is what
   lets the caller tell "nothing left to claim, so this press means clear" from "this press had
   nothing to say".
-- **The toggle window:** `H` again with the same selection and history top reverses the previous
-  press exactly, grown tails included — H-H leaves no trace. **The save case (ruled 2026-08-11):**
+- **The toggle window:** `L` again with the same selection and history top reverses the previous
+  press exactly, grown tails included — L-L leaves no trace. **The save case (ruled 2026-08-11):**
   when the proof holds but the entry is the reachable clean state, the reversal pushes the exact
   inverse as a NEW entry (`"Revert Legato"`) instead of dropping — the tail still comes back and the
   toggle stays genuine, while "return to clean" stays truthful and the session is correctly dirty.
@@ -150,7 +153,7 @@ finds itself pushed with no record retires the window instead of guessing, which
 own `m_chart_fret_entry.reset()` the ruled behaviour rather than the only thing standing between a
 committing fold and a widen against a plan that no longer exists.
 
-## `Ctrl+H`
+## `Shift+T`
 
 `planSetAttack(LeftTap)` — the sole author of the left-hand tap, no predecessor needed, the E4 gate
 (`nothingToStrike`: a fret or a node to strike) and the shipped node-conversion guards. Label
@@ -327,7 +330,7 @@ drawing follows the same rule, and Phase 7 waypoint edits therefore change what 
 The scan takes the last earlier note on the **same string**, so an intervening note on another
 string is correctly ignored. The resolver is deliberately **unbounded in time**: a hammer-on from a
 note eight bars back is musically odd, but a predecessor still holding is a predecessor, and a
-threshold would be a magic constant guessing at what the user can state exactly (`Ctrl+H` states the
+threshold would be a magic constant guessing at what the user can state exactly (`Shift+T` states the
 far descending case in one keystroke).
 
 **Trap to avoid:** do not require the pull's predecessor to still be *sounding*. Charts legitimately
@@ -346,13 +349,13 @@ from it is not real. Under the bound nothing changes: tails that short are legit
 resolution stays fret-only.
 
 `predecessorHoldReaches` (`grid_arithmetic`) is the one statement of the test, and both readers use
-it identically: the resolver's disqualifying clause, and the `H` assist's only-blocker test. Two
+it identically: the resolver's disqualifying clause, and the `L` assist's only-blocker test. Two
 consequences worth naming. A sustain edit that disconnects a tail drops the dependent claim's mark
 live and the sweep flattens it at the burst's end. And authoring legato across a gap at or past the
 bound writes the connection — the tail IS the held-ness datum — which is what the D14 assist does in
 one entry; dragging the tail first remains equivalent.
 
-## `Ctrl+H`'s validity domain, verified against the full matrix
+## `Shift+T`'s validity domain, verified against the full matrix
 
 Checked rule-by-rule at the user's foundational-soundness request (2026-08-09). It was verified when
 the left-hand tap was stored as `Hammer` and therefore inherited every Hammer cell; with `LeftTap`
@@ -361,21 +364,21 @@ its own value the conclusion is unchanged and now structural.
 - **E4 is the only intra-note gate.** E13 (node + the hammer form, the rare hammer-form tap
   harmonic), E24 (the muted tap), E17 (slide payloads), tremolo (H1 rejected) and accent (H3) all
   allow. The one place both forms are invalid is exactly E4's boundary: the open string with no
-  node, `Ctrl+H`'s sole matrix-grounds refusal.
+  node, `Shift+T`'s sole matrix-grounds refusal.
 - **No relational gate, deliberately — including over a higher predecessor.** If the higher note
   genuinely rings, sounding the lower fret means the upper finger lifts and the release IS a
   pull-off. But *genuinely rings* is not in the data, and a **damped** higher predecessor followed
   by a struck lower note is a real, common left-hand tap (descending staccato tapping runs).
-  Forbidding it would reject genuine music. So `Ctrl+H` may override a standing claim: only the
+  Forbidding it would reject genuine music. So `Shift+T` may override a standing claim: only the
   author knows whether the predecessor was ringing. Under the new model this is stronger than a
-  precedent — `LeftTap` is a different value, so nothing can withdraw it, and plain `H` can never
+  precedent — `LeftTap` is a different value, so nothing can withdraw it, and plain `L` can never
   produce it.
 - **Two conversion guards, from the unified node law.** On a **pinch**, the node survives only where
   its meaning does — at a real stop it stays (the picking hand damps the same point under either
   attack: the tapped-harmonic gesture), while an **open-string** pinch's bridge-side graze is not a
   strikeable place, so the node is stranded and the E4 gate refuses the note. On a **scrape** it is
   ordinary attack replacement, the gesture leaving with the attack. A **tap harmonic's** node is a
-  struck contact point either hand can deliver, so `Ctrl+H` carries it into the hammer form — the
+  struck contact point either hand can deliver, so `Shift+T` carries it into the hammer form — the
   re-handing is the verb's stated meaning, not a silent re-read — bounded by the neck ceiling.
 
 ## What changes what a claim resolves to
@@ -474,7 +477,7 @@ survives as the toggle window's.
 Its own variants were ranked and killed inside the same analysis, and each kill still applies to
 anything shaped like it:
 
-1. **Flag survives undo.** Kill sequence: `Ctrl+H` a descending left-hand tap; retype the note's
+1. **Flag survives undo.** Kill sequence: `Shift+T` a descending left-hand tap; retype the note's
    fret to 0 so the E4 repair rides the entry and a flag is born; **undo**; retype 3→4, which
    disturbs nothing — and a surviving stale flag fires, re-derives, and rewrites the deliberate
    assertion. An attack change with no visible cause.
@@ -492,8 +495,8 @@ anything shaped like it:
 5. **Recalc scoped to the coalescing window.** A2 wearing `replaceTop`'s costume: the entry's open
    lifetime is a 750 ms typing clock, so the timer objection applies unchanged, and the scope is
    strictly narrower for no gain.
-6. **An explicit affordance** ("legato broken — press H to restore"). Honest and undo-trivial, but
-   scope-mismatched: `H` acts on the selection and the disturbed note is not in it.
+6. **An explicit affordance** ("legato broken — press L to restore"). Honest and undo-trivial, but
+   scope-mismatched: `L` acts on the selection and the disturbed note is not in it.
 7. **Layer 1 alone** — not killed, demoted: it was the bottom layer, and standalone it failed the
    restore wish. Both are gone now, and the resolver satisfies the restore wish by construction: a
    claim becomes justified again the instant the chart justifies it, with no mechanism at all.
@@ -509,10 +512,10 @@ detection cannot hear the difference, so gameplay can never need it.
 
 The old **alias-zone** objection (a `LeftTap` with a predecessor being a second spelling of a
 hammer-on) is answered rather than inherited: the resolver reports the hammer motion for it
-unconditionally, and the `H` planner is forbidden from producing one, so the two spellings differ in
+unconditionally, and the `L` planner is forbidden from producing one, so the two spellings differ in
 exactly one thing that is real — whether the author asserted the strike locally.
 
-## D15 — connected legato: stored connection plus forward-addressed `H`
+## D15 — connected legato: stored connection plus forward-addressed `L`
 
 **Rejected, and re-signed by the final ruling.** The display half (a connector from origin to
 destination) died with the 2026-08-09 user ruling that rejected the 2D connector: it would diverge
@@ -520,14 +523,14 @@ the surfaces the player and the charter read. The data half — requiring a conn
 gaps — died on corpus arithmetic: 73.8% of real legato pairs are a sixteenth apart or closer, where
 the spacing margin makes the maximum representable connection tail exactly ZERO, so the rule is
 vacuous yet undrawable for most legato; above that it converts routine sustain edits into silent
-legato loss for 26.2% of pairs (against 1.0% under D13). Forward-addressed `H` died on eight
+legato loss for 26.2% of pairs (against 1.0% under D13). Forward-addressed `L` died on eight
 concrete kills, three of them against shipped mechanisms (the selection-follow rule enlarging the
 verb's own scope each press; the growth clamp turning unreachable extensions into mutating no-ops;
 the multi-digit fret window settling on the hot path).
 
 ## The derivation-restatement toggle, and the enumerated skip list
 
-An `H` planner that restated eligibility as its own predicate list — one rule spelled in the verb
+An `L` planner that restated eligibility as its own predicate list — one rule spelled in the verb
 and again in the derivation. Killed as a rule stated twice: the planner asks the resolver instead,
 which is why there is no list to keep in step. Option C's refusal *substance* is restored through
 that one authority rather than through an enumeration.

@@ -13,6 +13,12 @@
 > *defaults*. The modifier rules below describe the default map's shape, no longer an enforced
 > restriction; a user who rebinds away from the algebra owns the result, with per-command and
 > reset-all defaults as the fallback.
+>
+> **Amended 2026-08-12 (user-signed): the technique letter map.** The typed technique family now
+> follows one rule — the plain letter is the first letter of our own verb's name, and
+> `Shift`+letter is the related sibling technique — replacing per-key Guitar Pro compatibility.
+> Legato moved `H` → `L`, the left-hand tap `Ctrl+H` → `Shift+T`, and `H` was freed for the
+> harmonics. Rationale and the full map in the technique verb section.
 
 ## The rule this encodes
 
@@ -168,7 +174,7 @@ likely subsumes that one too by the same argument.
 | `+` / `-` (main-row or numpad — numpad arrives as the same character key codes) · `=` / `_` convenience aliases | **grid** finer (`+`) / coarser (`-`) | Live (chord sets corrected 2026-07-21: `numberPad*` chords never matched on Windows and were removed; display-equal shapes group into one chip; `=`/`_` aliases kept until something better claims them) |
 | `Ctrl` + the same `+`/`-` family (incl. the `Ctrl+_` alias) | **zoom** in / out, marker-centered | Live (44f24ab6; chord sets corrected 2026-07-21) |
 | `[` / `]` | **free** — grid moved to `+/-` | `—` |
-| `L` | reserved (link/slide) — unbound | `—` |
+| `L` | claimed by **legato** since the 2026-08-12 technique-letter amendment — the link/slide reservation fulfilled (see the technique verb table; `Shift+L` reserved there for the tie/slide-link verb) | Live |
 | `B` | reserved for **bend** (plan 40 Phase 7), no longer for the pencil — unbound (user 2026-08-07: "B for bend makes more sense than B for pencil"; `Alt` already *is* the held pencil quasimode for the pointer, so the pencil needed no letter) | `—` |
 
 ## Technique verbs — the typed family (plan 40 Phase 5)
@@ -178,34 +184,53 @@ act on the selection (or the armed marker) and no-op when there is none, exactly
 retype a fret already do. That is the interaction model's law — *plain input never mutates; every
 mutation passes a gate*, applied per input family — not a new rule. So these are **plain letters**.
 
-**Settled 2026-08-07:**
+**The letter map (amended 2026-08-12, user-signed).** One rule instead of per-key Guitar Pro
+compatibility: **the plain letter is the first letter of our own verb's name, and `Shift`+letter is
+the related sibling technique** — `L`/`Shift+L` legato / link-with-travel, `T`/`Shift+T` right/left
+tap (mirroring the plates' one-letter-two-polarities hand signature), `H`/`Shift+H` natural/pinch
+harmonic, `M`/`Shift+M` palm/full mute, `V`/`Shift+V` vibrato/wide. `Ctrl`+letter stays out of the
+typed family entirely: it is the app-command plane (`Ctrl+S/O/W/Q/T`, the reserved `Ctrl+D`).
+Guitar Pro familiarity is weighed, not binding: where GP's key matches our *semantics* it survives —
+`L` is GP's "Tie note", the destination-stored backward link, exactly this model's claim shape, and
+`V`/`B`/`A` line up too — and where it conflicts it is dropped: GP's `H` links the selected note
+FORWARD to the next, so an H habit here authored a silent off-by-one link, the worst of both
+worlds. The freed `H` now means the loudest first-letter mnemonic in the map instead (Harmonic).
+
+**Settled 2026-08-07, amended 2026-08-12:**
 
 | Keybind | Verb | Status |
 |---|---|---|
-| `H` | **legato** — one verb for hammer-on and pull-off, because **no direction is stored**: the note claims a connection to its same-string predecessor and which way that runs is read back by `resolveLegato` (amended 2026-08-11, `legato-final-spec.md`). Three things gate the claim beyond the frets: the judged fret is the predecessor's **released** one (its last waypoint, or a scrape's slide-out end), the predecessor must still be **holdable** at this onset (past the kept-sustain bound a disconnected tail is a proven release), and a fret-hand-harmonic predecessor is disqualified outright. Then the released fret picks the motion — higher = pull, lower = hammer — and a claim nothing justifies is refused rather than guessed, plays as the pick it sounds like where it already stands, and is flattened at the next settle. When the hold is the only thing missing, the verb authors the connection itself (the D14 assist): the plan grows the predecessor's tail to the margin point in the same undo entry, bounded by the duration verb's growth clamp, and skips a gesture-carrying predecessor (a scrape or a slide-out) whose tail is authored geometry. While the selection and history still prove the previous press was this verb's own, a second press reverses it exactly — grown tails included — leaving no trace (ruling 4's true toggle), and when a save between the presses made that entry the file's clean state the reversal pushes the exact inverse as a new entry instead of erasing it, so the tail still returns while "return to clean" stays truthful. Otherwise the press means apply-or-clear — **applying wins whenever it changes anything**, and the clear flattens the stored claims only, so a left-hand tap riding the selection keeps its attack — and a press that only skipped reports the count and the dominant reason | **Live** (`planSetLegato` + `ChartLegatoToggle`, labelled "Toggle Legato", default chord plain `H` — verified in `editor_command_registry.cpp`). Verified against the official GP8 manual's shortcut appendix: Guitar Pro binds `H` to "Hammer On / Pull Off" the same way. Its `Shift+H` "Legato" is a sheet-music slur that does not change the claim, so it has nothing to map onto here and stays unbound |
-| `Ctrl+H` | **left-hand tap** — the **sole author of the left-hand tap**, the one statement no predecessor can justify or withdraw, valid across E4's domain (positive sounding position) and able to override a standing connection claim. `Ctrl` means *precision* — "I will state it exactly, do not infer" — and there is deliberately no second stating verb, a pull-off to a higher fret being physically impossible. Plain `H` can never produce this attack and its clear never destroys one — which is what makes the claim/statement split policeable rather than a convention. Under the derived-direction model the statement is its own stored value (`LeftTap`), so no neighbour edit and no settle sweep can withdraw it | **Live** (`ChartLeftTap`, labelled "Left-Hand Tap" since 2026-08-11 with its command id value retained, default chord `Ctrl+H` — verified in `editor_command_registry.cpp`). The verb is `planSetAttack(LeftTap)`: its written-form validity check yields the ruled domain from the one rule authority — the no-node open string is the sole skip, an open-string pinch's bridge-side graze refuses to re-hand, and a tap harmonic's strike point carries into E13's form. Since 2026-08-12 the stored statement wears its own charting mark in the 2D lane: the tap letter on the LIGHT plate - fill polarity is the plate family's hand signature (55-Q1's corrected basis), so the right-hand tap's dark T and this light T share a letter without colliding. Editor-only by the charting-mark law; the 3D surfaces stay merged |
+| `L` | **legato** — one verb for hammer-on and pull-off, because **no direction is stored**: the note claims a connection to its same-string predecessor and which way that runs is read back by `resolveLegato` (amended 2026-08-11, `legato-final-spec.md`). Three things gate the claim beyond the frets: the judged fret is the predecessor's **released** one (its last waypoint, or a scrape's slide-out end), the predecessor must still be **holdable** at this onset (past the kept-sustain bound a disconnected tail is a proven release), and a fret-hand-harmonic predecessor is disqualified outright. Then the released fret picks the motion — higher = pull, lower = hammer — and a claim nothing justifies is refused rather than guessed, plays as the pick it sounds like where it already stands, and is flattened at the next settle. When the hold is the only thing missing, the verb authors the connection itself (the D14 assist): the plan grows the predecessor's tail to the margin point in the same undo entry, bounded by the duration verb's growth clamp, and skips a gesture-carrying predecessor (a scrape or a slide-out) whose tail is authored geometry. While the selection and history still prove the previous press was this verb's own, a second press reverses it exactly — grown tails included — leaving no trace (ruling 4's true toggle), and when a save between the presses made that entry the file's clean state the reversal pushes the exact inverse as a new entry instead of erasing it, so the tail still returns while "return to clean" stays truthful. Otherwise the press means apply-or-clear — **applying wins whenever it changes anything**, and the clear flattens the stored claims only, so a left-hand tap riding the selection keeps its attack — and a press that only skipped reports the count and the dominant reason | **Live** (`planSetLegato` + `ChartLegatoToggle`, labelled "Toggle Legato", default chord plain `L` since 2026-08-12, shipped on `H` 2026-08-07 to 2026-08-12 — verified in `editor_command_registry.cpp`). **Correction 2026-08-12:** the old note here claimed GP binds `H` "the same way" — the chord matched but the direction did not. GP's `H` is origin-stored and links the selected note forward; this claim is destination-stored and reaches backward, which is the shape of GP's "Tie note" (`L`) — the reason for the move |
+| `Shift+L` | **tie / slide-link** — the `L` verb extended with travel: on an equal-fret junction with no technique change, a tie whose settled truth is one longer sustain (the tie never enters the format); on different frets it authors the connecting slide on the predecessor's tail. Apply-or-clear toggle at parity with `L` — clearing an existing link IS the slide break, dissolving W6's separate break verb. GP's own `Shift+L` ("tie the beat") is subsumed by the uniform-scope law, so the slot is vacated by our design, not stolen. Full design + open rulings: `technique-review-walkthrough.md` W10 | reserved 2026-08-12 (verb unbuilt) |
+| `T` | **tap** — the right-hand tap attack; the dark-T plate's letter | reserved 2026-08-12 (verb unbuilt) |
+| `Shift+T` | **left-hand tap** — the **sole author of the left-hand tap**, the one statement no predecessor can justify or withdraw, valid across E4's domain (positive sounding position) and able to override a standing connection claim. The chord mirrors the notation's own family structure — the charting marks give both taps ONE letter with plate fill polarity as the hand signature, so the keymap does the same: plain `T` for the right hand, `Shift+T` for the left (moved off `Ctrl+H` 2026-08-12; `Ctrl` is the app-command plane). There is deliberately no second stating verb, a pull-off to a higher fret being physically impossible. Plain `L` can never produce this attack and its clear never destroys one — which is what makes the claim/statement split policeable rather than a convention. Under the derived-direction model the statement is its own stored value (`LeftTap`), so no neighbour edit and no settle sweep can withdraw it | **Live** (`ChartLeftTap`, labelled "Left-Hand Tap" since 2026-08-11 with its command id value retained, default chord `Shift+T` since 2026-08-12, `Ctrl+H` before — verified in `editor_command_registry.cpp`). The verb is `planSetAttack(LeftTap)`: its written-form validity check yields the ruled domain from the one rule authority — the no-node open string is the sole skip, an open-string pinch's bridge-side graze refuses to re-hand, and a tap harmonic's strike point carries into E13's form. Since 2026-08-12 the stored statement wears its own charting mark in the 2D lane: the tap letter on the LIGHT plate - fill polarity is the plate family's hand signature (55-Q1's corrected basis), so the right-hand tap's dark T and this light T share a letter without colliding. Editor-only by the charting-mark law; the 3D surfaces stay merged |
 | — | **pick-slide toggle** — converts the selection to or from the scrape attack | **Live but UNBOUND** (`planSetAttack` + `ChartPickSlideToggle`), deliberately registered with **no default chord**: the verb shipped with plan 55 while the signed keymap never assigned it one, and inventing one in the registry would be an unsigned keymap decision. Reachable through the chart's context menu (the Actions dialog binds chords, it does not invoke — the walkthrough's W9-I states this correctly), and the user can bind it a chord there. **Needs a chord picked here** |
-| `V` | **vibrato** | settled. `Alt+V` for a *wide* vibrato is an open possibility, not a decision — the field is a bool today, so a width distinction would need the format to carry one |
+| `V` | **vibrato** | settled. **`Shift+V` reserved for a *wide* vibrato** (2026-08-12: `Shift` is the sibling modifier, superseding the earlier `Alt+V` float) — still a possibility rather than a decision: the field is a bool today, so a width distinction would need the format to carry one |
 | `A` | **accent** | settled, conditional on `A` not being wanted elsewhere. Checked 2026-08-07: plain `A` and `;` are both unassigned everywhere in this matrix, the interaction model and the registry; "select all" would be `Ctrl+A`, which is a different chord, and the arpeggio reading is derived rather than authored so it needs no key |
+| `H` | **natural harmonic** — freed by legato's move; the strongest first-letter mnemonic in the map (GP's `Y` is legacy). A GP `H` habit now authors a loud, visible, undoable wrong mark instead of the silent off-by-one link it authored before — an improvement even for the habit it breaks | reserved 2026-08-12 (verb unbuilt) |
+| `Shift+H` | **pinch harmonic** — the natural harmonic's sibling | reserved 2026-08-12 (verb unbuilt) |
+| `M` | **palm mute** | reserved 2026-08-12 (verb unbuilt) |
+| `Shift+M` | **full mute** — the fuller mute as the sibling; moving the mutes to `M` is what keeps `P` free for pop | reserved 2026-08-12 (verb unbuilt) |
+| `S` | **slap** — the S plate's letter (GP's `S` is its legato slide; slides live on `Shift+L` here, so no collision) | reserved 2026-08-12 (verb unbuilt) |
+| `P` | **pop** — the P plate's letter | reserved 2026-08-12 (verb unbuilt) |
 
 **Open — do not bind before discussing:**
 
 - **A chord for the pick-slide toggle.** The verb ships registered and enabled with no default,
-  so it is the one live technique verb no key reaches. Checked 2026-08-10: `Ctrl+H` is claimed by
-  the left-hand tap verb (registered that day), so the scrape needs its own chord rather than a
-  variant of `H`.
+  so it is the one live technique verb no key reaches. Unresolved by the 2026-08-12 letter map:
+  "pick slide" contests `P` with pop, and the scrape is not `S`'s sibling (that's slap), so it
+  still needs its own discussion.
 - **`;` as an alias for accent.** The only argument for it is familiarity to Guitar Pro users, and
   that premise is unverified: the search that suggested it also claimed `[` was Guitar Pro's palm
   mute, which is wrong (`[` starts a repeat section there). Verify Guitar Pro's real accent key from
   a reliable source before adding the alias, since without the familiarity argument the alias has no
   purpose. Also weigh that a punctuation key chosen for muscle memory only transfers on layouts that
-  place it identically.
-- **palm mute, full mute, tap, slap, pop, tremolo picking, natural harmonic, pinch harmonic.** Eight
-  verbs, no chords settled. Our own 2D marks supply obvious letters for three of them (the lettered
-  plates read `T`, `S`, `P`) and the on-head X for full mute, but Guitar Pro's real map needs
-  verifying first — see the reliability note above. Guitar Pro's technique shortcuts are also heavily
-  **digit**-based, and plain digits are committed to fret entry here while `Shift`+anything means
-  extend, so some divergence is forced rather than chosen.
+  place it identically. (2026-08-12: a shortcut cheat sheet corroborates `;` = "Accented note", but
+  the same page repeats the wrong `[` claim, so it may describe an older GP — the official GP8
+  appendix remains the bar.)
+- **tremolo picking.** The one technique verb the 2026-08-12 letter map left without a letter (`T`
+  is the tap's). The other seven of the formerly-open eight settled into the table above; this one
+  still needs its discussion.
 
 ---
 

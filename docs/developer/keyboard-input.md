@@ -142,7 +142,7 @@ shared destination helpers, so the two can never drift on the same motion),
 `onNeutralInsertRequested`, `onChartLegatoToggleRequested`, `onChartLeftTapRequested`,
 `onChartPickSlideToggleRequested` (the technique verbs — uniform scope over the selection, one
 compound undo entry each; all of them SILENT when they apply nothing, because the view's only
-reporting seam is a modal error box and "nothing to do" is not an error — `H` counts its skips and
+reporting seam is a modal error box and "nothing to do" is not an error — `L` counts its skips and
 their dominant reason in `ChartLegatoPlan` for the non-modal channel W3 will build, and shows
 nothing until then), `onChartEscapePressed` —
 implemented in editor core against the
