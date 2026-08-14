@@ -404,6 +404,28 @@ note, not a gate: the refusal *feedback* and the typed-waypoint entry ride W3's 
 model, so those surfaces land with W3; the verb itself can build silent-at-parity first, like the
 shipped technique verbs.
 
+**Addendum 2026-08-13 — the fret-verb law, waypoint gestures, and path scope (user-signed):**
+
+- **The deliberate-placement principle, and the law it yields.** Every waypoint was placed on its
+  fret on purpose, so **a fret verb edits exactly the selected objects' own frets — no path ever
+  rides, in either mode.** The shipped scrape special case in `planRetypeFrets` (the path
+  translating with the start, both modes) is ruled a bug and dies whole. A typed or transposed
+  start stilled against its adjacent path position refuses via always-traveling — a **scrape-only**
+  rule: a pitched slide legally holds (the repeated-fret hold-then-glide encoding the importer
+  emits), so retyping a pitched 5→7 slide's start to 7 is a legitimate correction, not data loss.
+- **Waypoint creation needs no new gesture for the typed path.** Clicking a tail arms the caret,
+  ruling 2's digit creates the waypoint, and W3's pending model supplies the ghost — which appears
+  at the first digit, never on the bare click. **`Insert` on a slide note's tail creates a
+  waypoint at the path's current fret** (a hold boundary): the automation lanes' own "on-curve
+  point at the caret" meaning imported, no letter chord consumed. A plain note's tail keeps the
+  fret-0 note insert — the same by-note-kind split as the digit rule.
+- **Once waypoints are selectable** — requirements recorded in
+  `docs/plans/todo/2d-bend-waypoint-redesign.md` — a selected waypoint retypes like a head,
+  transpose scopes to exactly the selected points, and string moves are allowed whenever the head
+  is in the selection (the path rides by construction; a waypoint-only selection refuses).
+- **Build order:** the `planRetypeFrets` deletion (with tests) ships as its own small change
+  before W3, whose typing path sits on that planner.
+
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 
 - [x] **R1 — Semi-harmonics import as pinch.** User: a semi-harmonic is "basically a pinch

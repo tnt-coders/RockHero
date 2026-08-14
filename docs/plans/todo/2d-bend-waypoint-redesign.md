@@ -91,3 +91,25 @@ rejected; the *visual* execution was.
 - Whether the onset chevron (3D's cue, drawn below the head in 2D trials) participates.
 - Editing gestures land with plan 40 Phase 7 regardless of the visual outcome; fold the
   MuseScore pitfall list above into that phase when it starts.
+
+## Requirements added 2026-08-13 — slide waypoints join the selectability scope (user-signed)
+
+Recorded from the fret-verb rulings (`technique-review-walkthrough.md`, W10 addendum 2026-08-13)
+so the redesign inherits them when revived:
+
+- **Slide waypoints (and the slide-out terminal) become selection citizens** alongside bend
+  points — the selection model, hit-testing, and per-point verb scoping are this redesign's
+  machinery, shared across both payload kinds.
+- **A selected waypoint retypes by typed digit exactly like a note head**, through W3's pending
+  model (provisional in the window, red when invalid).
+- **Transpose scopes to exactly the selected path points** (the uniform-scope law): a boundary
+  stilled against its neighbour goes red on scrapes (always-traveling); a boundary equality forms
+  a legal hold on pitched slides.
+- **String moves:** allowed whenever the note head is in the selection — the path rides by
+  construction, waypoints storing no string — and refused for a waypoint-only selection, which
+  has nothing the move could mean.
+- **Creation gestures are already ruled and do not wait for selectability:** caret-on-tail plus a
+  digit creates a waypoint at that fret (W10 ruling 2, W3 ghost at the first digit, never on the
+  bare click), and `Insert` on a slide note's tail creates a waypoint at the path's current fret —
+  the automation lanes' "on-curve point at the caret" meaning imported; a plain note's tail keeps
+  the fret-0 insert.
