@@ -25,6 +25,10 @@ recommendation so the user can rule with full context in front of them.
 Approved order, user-signed 2026-08-09. Keep this list and the session task list in step; when an
 item ships, mark it and name the commit.
 
+> The highway's note-ART pass (harmonic heads, vibrato motion, tail geometry) runs on a separate
+> track with its own live state at `highway-note-art-state.md`. Neither file restates the other;
+> on a fresh session read both.
+
 - [x] **W1 — Span-blind hold rule** (defect in D13's implementation). SHIPPED `4f1e793c`:
   `chartEffectiveSustains` resolves span-extended held lengths; three call sites pass shapes.
   **Its all-muted carve-out is CORRECT and stays** — an earlier note here called it a display
