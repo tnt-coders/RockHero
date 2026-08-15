@@ -274,6 +274,25 @@ trim as an editor plan operation over the current chart, so the flatten rides th
 entry and is visible and reversible as one edit — never as a silent conversion inside
 `readRockSongPackageDirectory`.
 
+## Highway note art
+
+### The pick slide lost its deliberate over-coverage in the family shrink — trigger: scrapes read hard in practice
+
+The 2026-08-15 sizing pass (`c463230f`) took every technique symbol to 85% of its authored
+height, the pick slide included, so it now stands at **1.30x the head's solid height** rather
+than the **1.57x** its own documentation calls out. That over-coverage is not decoration: it is
+why a scrape wears the plectrum alone with **no X beneath it** — the mark covers the head's own
+footprint, so an X would show only through the plectrum's fracture and read as a second mark
+inside the crack. The user sighted the shrunk mark and approved it, with this reservation
+recorded deliberately.
+
+**Trigger**: pick slides read as hard to make out when actually used in real material — the mark
+sitting *inside* the head rather than covering it. **Remedy**: ramp the pick slide back toward
+its authored size, exempting it from the family percentage the way the accent and bend already
+are (the accent because it derives from the head plus a halo band, the bend because it is an
+offset satellite). Its cell is the only one that changes, and `highway_atlas.h` documents the
+1.57x figure the remedy restores.
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer

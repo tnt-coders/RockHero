@@ -28,6 +28,28 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found in the 2026-08-15 highway visual pass
+
+Both sighted by the user against the technique-showcase package; each carries a ruling.
+
+- **A pick slide's turnarounds are abrupt where an ordinary slide's are eased.** A scrape with
+  direction waypoints kinks at each one, and its slide-out draws unlike an ordinary slide-out.
+  Ruling: a pick slide's waypoints should navigate smoothly exactly as a pitched slide's do, and
+  the terminal should draw the same shape an ordinary slide-out draws. Check whether the easing
+  authority (`highwaySlideEaseWeight`) is simply not reached on the scrape path rather than
+  needing a second easing rule — a scrape is unpitched, so the question is which easing a
+  *travel* gesture takes, not whether pitch eases.
+- **The two notes of a chord wobble in OPPOSITE directions under vibrato**, because
+  `highwayBendInverted` answers per note from that note's own lane, and a chord straddling the
+  middle of the stack therefore splits. Ruling (user, 2026-08-15): the direction belongs to the
+  ONSET GROUP, not the note — a majority vote over the group's members decides one direction for
+  all of them, counting members on the strings below G against those on G and above, with ties
+  resolved to the same side the majority-high case takes. **Confirm the orientation against the
+  user's own examples before building** (their colour language reads G+D as one way and G+D+A as
+  the other, which pins which side "above" names), and check whether a group-wide direction can
+  push a member into `highwayBentNoteY`'s saturation clamp — the per-note rule exists precisely
+  to pick the roomier side, so overriding it is what could make a bend hit the board edge.
+
 ## Found by the 2026-08-10 save/undo and timeline reviews
 
 The severe half shipped the same day: the package write is atomic, a NaN automation value is refused,

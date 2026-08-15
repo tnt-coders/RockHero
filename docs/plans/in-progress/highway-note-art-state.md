@@ -98,6 +98,19 @@ depth 0.125 semitones, wave anchored to the note's own extremes so it stays rigi
    analysis and variants before ruling.
 
 2. **The bend display anchor** — is *half step = exactly one string gap, every string* right?
+
+   **The user's proposal (2026-08-15), now the leading candidate:** anchor it so a THREE-WHOLE-STEP
+   bend travels exactly **two string spacings** — a full bend on one lane reaches the lane two
+   away and touches it. The curve's shape is fixed (three steps is 2.86x a half step's travel), so
+   that anchor makes a half step **≈ 0.70 gaps**, about 30% smaller than today's 1.0. Two things
+   fall out. It is *below* the physically measured range for the user's stated standard (real
+   half-step travel is ≈ 0.9–1.5 gaps depending on string), so this is a legibility choice that
+   trades away some of the physical accuracy the same conversation asked about — worth stating
+   plainly rather than presenting the two as compatible. And it *removes* the saturation problem
+   rather than creating one: at 2.0 gaps a full bend fits any six-lane grid with room to spare,
+   where today's 2.86 was already near the edge and a larger anchor would have clamped legal
+   bends. Needs sighting in the app before it is signed.
+
    The curve SHAPE in `highwayBendLiftY` is verified physics; the anchor is a display choice. For
    the user's stated standard (25.5" scale, .009 set, measured at the 12th fret) true travel is
    per-string: high E ≈ 1.5 gaps, B ≈ 1.15, G ≈ 0.9, wound ≈ 0.9–1.1 — so physical accuracy means
