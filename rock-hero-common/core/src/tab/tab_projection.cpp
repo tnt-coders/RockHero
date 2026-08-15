@@ -60,7 +60,7 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         view.harmonic_node = note.harmonic_node;
         view.vibrato = note.vibrato;
         view.tremolo = note.tremolo;
-        view.accent = note.accent;
+        view.emphasis = note.emphasis;
         view.bend.reserve(note.bend.size());
         for (const BendPoint& point : note.bend)
         {

@@ -106,8 +106,17 @@ struct GpNote
     /*! \brief True for notes played with vibrato. */
     bool vibrato{false};
 
-    /*! \brief True for accented notes. */
+    /*! \brief True for accented notes (Guitar Pro's accent and heavy-accent tiers alike). */
     bool accent{false};
+
+    /*!
+    \brief True for ghost notes — Guitar Pro's `AntiAccent`, its one quiet tier.
+
+    Parsed as its own flag rather than folded into \ref accent because the source file carries the
+    two as INDEPENDENT elements and could in principle set both; this model mirrors the file, and
+    \ref gp_chart_builder.cpp resolves the pair onto our single emphasis axis.
+    */
+    bool ghost{false};
 
     /*! \brief Guitar Pro slide flag bitset; zero when the note does not slide. */
     int slide_flags{0};

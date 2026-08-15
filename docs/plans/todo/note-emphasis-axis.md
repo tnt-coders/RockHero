@@ -1,8 +1,23 @@
 # Note Emphasis Axis — ghost notes, and accent's generalization
 
-Status: **DEFERRED — design settled 2026-08-09 (technique walkthrough D8), unscheduled.** Re-verify
-against the current code before executing; the technique-compatibility doc and the walkthrough doc
-record the decisions this plan inherits.
+Status: **PARTLY BUILT 2026-08-15.** Checklist items 1-3 and the importer half of item 2 are
+shipped: `NoteEmphasis` replaces the `accent` bool through the format, both projections, and both
+surfaces; the document writes `"emphasis"` and refuses the old key loudly; the Guitar Pro importer
+maps `AntiAccent` to `Ghost` and both loud tiers to `Accent`. What remains is item 4's ghost
+RENDERING (accent and ghost appearances are being sampled live behind toggles — see
+`highway-note-art-state.md`), item 5's editing verb, item 6's detection touchpoint, and item 7's
+re-import.
+
+Two findings from building it, recorded because they were not obvious from the design:
+
+- **Guitar Pro's ghost is a sibling element, not another accent bit.** `<AntiAccent>Normal</...>`
+  sits beside `<Accent>`, so the two are independently settable in the source file even though our
+  axis makes them exclusive. `gp_score.h` mirrors the file with two flags and the builder resolves
+  them, with the louder claim winning — a hit drawn quiet invites under-playing it, where the
+  reverse merely over-plays. Nothing in the corpus exercises that tie-break: across 15,245 notes,
+  104 accents and 160 ghosts, not one note carried both.
+- **The 2D ghost has no conflict with the Alt pending-entry head** (user's observation): that
+  preview is an empty circle, so transparency remains free to mean "ghost" in the lane.
 
 ## The decision
 

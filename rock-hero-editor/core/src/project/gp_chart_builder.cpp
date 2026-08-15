@@ -33,6 +33,7 @@ using common::core::ChordTemplate;
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::NoteAttack;
+using common::core::NoteEmphasis;
 using common::core::NoteMute;
 using common::core::SlideWaypoint;
 
@@ -555,7 +556,11 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                 }
                 if (index > 0)
                 {
+                    // Later strokes are plain picks: the emphasis belongs to the stroke that was
+                    // actually marked, and a ghost run would be as wrong to repeat as an accented
+                    // one.
                     note.accent = false;
+                    note.ghost = false;
                     note.hopo_destination = false;
                 }
                 if (note.bend.has_value())
@@ -2113,7 +2118,16 @@ void resolveSlideOutExits(
         note.sustain = event.duration_beats;
         note.vibrato = source.vibrato;
         note.tremolo = event.tremolo;
-        note.accent = source.accent;
+        // The score's two independent marks resolve onto our single dynamics axis. Guitar Pro
+        // notates its heavy accent as a second loud tier, which the parser already folds into
+        // `accent` (the enum can grow a heavier value later without disturbing this). A note
+        // claiming BOTH loud and quiet is contradictory data rather than a state we model — the
+        // louder claim wins, because a hit drawn quiet invites under-playing it, where the
+        // reverse merely over-plays. Nothing in the corpus exercises the tie-break: across
+        // 15,245 notes, 104 accents and 160 ghosts, not one note carried both.
+        note.emphasis = source.accent  ? NoteEmphasis::Accent
+                        : source.ghost ? NoteEmphasis::Ghost
+                                       : NoteEmphasis::Normal;
 
         if (source.left_hand_tapped)
         {

@@ -1044,6 +1044,72 @@ TEST_CASE("Guitar Pro import trims tie-merged sustains at a changed onset", "[co
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// The score's two dynamics marks land on one axis. Written against the real XML because the
+// element is what the parser reads: Guitar Pro spells a ghost note as an `AntiAccent` SIBLING of
+// `Accent` rather than another bit in the accent bitset, so a builder-level fixture would prove
+// nothing about the parse. Every occurrence in the corpus carries the text "Normal", which is why
+// presence alone is the claim.
+TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_emphasis_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    SECTION("an AntiAccent note imports as a ghost")
+    {
+        const std::string gpif = fixtureWithReplacement(
+            "<Note id=\"2\">", "<Note id=\"2\"><AntiAccent>Normal</AntiAccent>");
+        const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[2].emphasis == common::core::NoteEmphasis::Ghost);
+        // Its neighbours stay normal: the mark belongs to the note that carries it.
+        CHECK(chart.notes[1].emphasis == common::core::NoteEmphasis::Normal);
+    }
+
+    SECTION("the accent bitset's loud tiers import as accents and staccato alone does not")
+    {
+        // 8 is the accent bit, 4 the heavy accent (imported as an accent for now), 1 staccato —
+        // which is articulation, not dynamics, and must not read as an accent.
+        const std::string gpif =
+            fixtureWithReplacement("<Note id=\"2\">", "<Note id=\"2\"><Accent>1</Accent>");
+        const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[2].emphasis == common::core::NoteEmphasis::Normal);
+    }
+
+    SECTION("a note claiming both loud and quiet resolves to the louder claim")
+    {
+        // Contradictory data rather than a state we model. No note in the corpus carries both
+        // (15,245 notes, 104 accents, 160 ghosts, zero overlaps), so this pins the tie-break
+        // rather than describing real material.
+        const std::string gpif = fixtureWithReplacement(
+            "<Note id=\"2\">", "<Note id=\"2\"><Accent>8</Accent><AntiAccent>Normal</AntiAccent>");
+        const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[2].emphasis == common::core::NoteEmphasis::Accent);
+    }
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 TEST_CASE("Guitar Pro import pins the terminal downbeat to a final sync point", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
@@ -1582,8 +1648,8 @@ TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
             CHECK(chart.notes[index].position.offset == Fraction{static_cast<int>(index), 4});
         }
         // Only the first stroke carries the notated accent; the rest are plain picks.
-        CHECK(chart.notes[0].accent);
-        CHECK_FALSE(chart.notes[1].accent);
+        CHECK(chart.notes[0].emphasis == common::core::NoteEmphasis::Accent);
+        CHECK(chart.notes[1].emphasis == common::core::NoteEmphasis::Normal);
         // Strokes normalize to sustainless like any hand-charted sixteenth run, the final
         // stroke's sub-margin tail included.
         CHECK(chart.notes[0].sustain == Fraction{});

@@ -168,8 +168,8 @@ struct HighwayNoteView
     /*! \brief True when the note is tremolo picked. */
     bool tremolo{false};
 
-    /*! \brief True when the note is accented. */
-    bool accent{false};
+    /*! \brief How hard the note is struck relative to its neighbours. */
+    NoteEmphasis emphasis{NoteEmphasis::Normal};
 
     /*! \brief Bend curve points in ascending time order; empty when not bent. */
     std::vector<HighwayBendPointView> bend;
@@ -190,7 +190,7 @@ struct HighwayNoteView
                lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
                lhs.mute == rhs.mute && lhs.harmonic_node == rhs.harmonic_node &&
                lhs.vibrato == rhs.vibrato && lhs.tremolo == rhs.tremolo &&
-               lhs.accent == rhs.accent && lhs.bend == rhs.bend && lhs.slides == rhs.slides;
+               lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides;
     }
 };
 
@@ -1012,7 +1012,7 @@ whatever window a renderer happens to be drawing.
             {
                 ++group.fretting_hand_count;
             }
-            group.any_accent = group.any_accent || note.accent;
+            group.any_accent = group.any_accent || note.emphasis == NoteEmphasis::Accent;
             if (note.mute != group.common_mute)
             {
                 group.common_mute = NoteMute::None;

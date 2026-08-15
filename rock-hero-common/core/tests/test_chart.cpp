@@ -102,7 +102,7 @@ namespace
             // writer silently truncates every real measurement, which is what it did.
             .harmonic_node = 5.0 + (12.0 * std::log2(5.0 / 4.0)),
             .tremolo = true,
-            .accent = true,
+            .emphasis = NoteEmphasis::Accent,
             .bend = {},
             .slides = {},
         },
@@ -589,6 +589,82 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "2")").has_value());
     CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "attack": "tap")").has_value());
     CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "mute": "palm")").has_value());
+}
+
+// Emphasis is one axis with a never-written default, so three things have to hold together: both
+// named values load, the default is spelled by ABSENCE, and the bool this replaced is refused
+// loudly rather than ignored — a silently dropped "accent" would strip every accent in the corpus
+// on the next save.
+TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
+{
+    const auto parseNote = [](const std::string& note_body) {
+        return parseChartDocument(
+            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
+            R"( } ] })");
+    };
+    const auto emphasisOf = [&](const std::string& note_body) {
+        const auto parsed = parseNote(note_body);
+        REQUIRE(parsed.has_value());
+        REQUIRE(parsed->notes.size() == 1);
+        return parsed->notes.front().emphasis;
+    };
+
+    CHECK(emphasisOf(R"("position": "1:1", "string": 1, "fret": 5)") == NoteEmphasis::Normal);
+    CHECK(
+        emphasisOf(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": "accent")") ==
+        NoteEmphasis::Accent);
+    CHECK(
+        emphasisOf(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": "ghost")") ==
+        NoteEmphasis::Ghost);
+
+    // "normal" is the value absence already means, so spelling it is malformed like an explicit
+    // "pick" attack, and an unknown token is a hard read error rather than a silent default.
+    CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": "normal")")
+                    .has_value());
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": "loud")").has_value());
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": true)").has_value());
+
+    // The tripwire: the removed key fails the load and names the fix, exactly as the removed
+    // harmonic/touch keys do. Delete this with the tripwire once the corpus is re-imported.
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "accent": true)").has_value());
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "accent": false)").has_value());
+
+    // Round trip: both named values survive a write and read, and a normal note writes no key at
+    // all — which is what keeps a package that predates the axis byte-identical after a save.
+    Chart chart;
+    chart.tuning.strings = {"E2"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .emphasis = NoteEmphasis::Accent
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 2},
+            .string = 1,
+            .fret = 7,
+            .emphasis = NoteEmphasis::Ghost
+        },
+        ChartNote{.position = GridPosition{.measure = 1, .beat = 3}, .string = 1, .fret = 9},
+    };
+    const std::string text = chartDocumentText(chart, makeTempoMap());
+    CHECK(text.find(R"("emphasis": "accent")") != std::string::npos);
+    CHECK(text.find(R"("emphasis": "ghost")") != std::string::npos);
+    CHECK(text.find(R"("emphasis": "normal")") == std::string::npos);
+    const auto reparsed = parseChartDocument(text);
+    REQUIRE(reparsed.has_value());
+    if (reparsed.has_value())
+    {
+        REQUIRE(reparsed->notes.size() == 3);
+        CHECK(reparsed->notes[0].emphasis == NoteEmphasis::Accent);
+        CHECK(reparsed->notes[1].emphasis == NoteEmphasis::Ghost);
+        CHECK(reparsed->notes[2].emphasis == NoteEmphasis::Normal);
+    }
 }
 
 // The WHOLE hand window must fit on the neck: bounding only the index finger let a wide hand run
@@ -1183,8 +1259,14 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     // An accented scrape is legal — an aggressively played pick slide, the scrape's own
     // technique rather than an override.
     Chart accented = makeFullChart();
-    accented.notes[scrape].accent = true;
+    accented.notes[scrape].emphasis = NoteEmphasis::Accent;
     CHECK(validateChartRules(accented, tempo_map).has_value());
+
+    // A ghosted scrape is legal for the same reason, at the other end of the axis: a lightly
+    // played one. Emphasis is dynamics, so it composes with every attack there is.
+    Chart ghosted = makeFullChart();
+    ghosted.notes[scrape].emphasis = NoteEmphasis::Ghost;
+    CHECK(validateChartRules(ghosted, tempo_map).has_value());
 
     Chart missing_terminal = makeFullChart();
     missing_terminal.notes[scrape].slide_out.reset();
@@ -1256,7 +1338,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     scrape.tremolo = true;
     scrape.vibrato = true;
     scrape.mute = NoteMute::Full;
-    scrape.accent = true;
+    scrape.emphasis = NoteEmphasis::Accent;
 
     const auto parsed = parseChartDocument(chartDocumentText(chart, makeTempoMap()));
     REQUIRE(parsed.has_value());
@@ -1265,7 +1347,7 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     CHECK_FALSE(saved.tremolo);
     CHECK_FALSE(saved.vibrato);
     CHECK(saved.mute == NoteMute::None);
-    CHECK(saved.accent);
+    CHECK(saved.emphasis == NoteEmphasis::Accent);
     REQUIRE(saved.slide_out.has_value());
     if (saved.slide_out.has_value())
     {

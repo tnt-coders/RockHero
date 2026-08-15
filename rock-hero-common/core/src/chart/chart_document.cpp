@@ -101,7 +101,7 @@ namespace
         {"harmonicNode", [](const juce::var& v) { return v.isDouble() || v.isInt(); }},
         {"vibrato", [](const juce::var& v) { return v.isBool(); }},
         {"tremolo", [](const juce::var& v) { return v.isBool(); }},
-        {"accent", [](const juce::var& v) { return v.isBool(); }},
+        {"emphasis", [](const juce::var& v) { return v.isString(); }},
     };
     for (const auto& [key, matches] : scalar_rules)
     {
@@ -191,7 +191,33 @@ namespace
 
     note.vibrato = Json::readOptionalBool(note_json, "vibrato", false);
     note.tremolo = Json::readOptionalBool(note_json, "tremolo", false);
-    note.accent = Json::readOptionalBool(note_json, "accent", false);
+
+    // The accent bool became one end of the emphasis axis, whose other end is the ghost note.
+    // A document still carrying the old key predates that and would otherwise load with every
+    // accent silently stripped, so refuse it and name the fix — the same tripwire the
+    // harmonic/touch removal got, and deleted on the same schedule.
+    if (!Json::value(note_json, "accent").isVoid())
+    {
+        return std::unexpected{malformed(
+            "chart note uses the removed \"accent\" field; re-import the package to get "
+            "\"emphasis\": \"accent\"")};
+    }
+
+    const std::string emphasis = Json::readOptionalString(note_json, "emphasis", "");
+    if (emphasis == "accent")
+    {
+        note.emphasis = NoteEmphasis::Accent;
+    }
+    else if (emphasis == "ghost")
+    {
+        note.emphasis = NoteEmphasis::Ghost;
+    }
+    else if (!emphasis.empty())
+    {
+        // "normal" included: it is the default and never written, so spelling it is as much a
+        // malformed document as an unknown token — the same rule the absent pick attack follows.
+        return std::unexpected{malformed("chart note emphasis is unknown: " + emphasis)};
+    }
 
     if (const juce::var& bend_json = Json::value(note_json, "bend"); !bend_json.isVoid())
     {
@@ -368,9 +394,14 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     {
         line += R"(, "tremolo": true)";
     }
-    if (note.accent)
+    // Normal is the implied default and never written, so the common note costs nothing.
+    if (note.emphasis == NoteEmphasis::Accent)
     {
-        line += R"(, "accent": true)";
+        line += R"(, "emphasis": "accent")";
+    }
+    else if (note.emphasis == NoteEmphasis::Ghost)
+    {
+        line += R"(, "emphasis": "ghost")";
     }
     if (!note.bend.empty())
     {

@@ -332,7 +332,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .legato = common::core::LegatoMotion::Hammer,
             .mute = common::core::NoteMute::Palm,
             .vibrato = true,
-            .accent = true,
+            .emphasis = common::core::NoteEmphasis::Accent,
             .bend = {common::core::TabBendPointView{.seconds = 4.0, .semitones = 2.0}},
             .slides = {common::core::TabSlideView{.seconds = 7.0, .fret = 9, .unpitched = false}},
         },

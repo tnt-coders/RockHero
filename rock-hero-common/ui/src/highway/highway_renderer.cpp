@@ -3758,7 +3758,7 @@ void HighwayRenderer::Impl::draw(
                 }
             }
             pushOpenNoteBar(open_vertices, open_indices, x0, x1, head_y, z, base_color, fade, 1.0);
-            if (note.accent)
+            if (note.emphasis == common::core::NoteEmphasis::Accent)
             {
                 // Charter's accent halo: the same bar drawn thicker and faint, at the weight the
                 // fretted head's accent cell carries (see the constants).
@@ -3986,7 +3986,7 @@ void HighwayRenderer::Impl::draw(
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pop, tint);
             }
-            if (note.accent)
+            if (note.emphasis == common::core::NoteEmphasis::Accent)
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_accent, tint);
             }

@@ -227,6 +227,11 @@ constexpr double g_sync_frame_rate{44100.0};
         note.accent = (accent_flags & (4 | 8)) != 0;
     }
 
+    // The ghost note is a sibling element rather than another accent bit, and its PRESENCE is the
+    // claim — every occurrence in the corpus spells the text "Normal", so reading the text would
+    // add a branch that no file exercises.
+    note.ghost = note_element.getChildByName("AntiAccent") != nullptr;
+
     if (const juce::XmlElement* const slide = findProperty(note_element, "Slide"); slide != nullptr)
     {
         note.slide_flags = childInt(*slide, "Flags", 0);

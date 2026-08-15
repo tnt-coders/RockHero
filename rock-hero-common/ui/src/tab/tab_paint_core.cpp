@@ -1264,7 +1264,7 @@ void drawNoteHead(
     const float size = metrics.headSize();
     const HeadShape shape = headShapeFor(note);
 
-    if (note.accent)
+    if (note.emphasis == common::core::NoteEmphasis::Accent)
     {
         drawAccentGlow(g, style, onset_x, center_y, size, shape);
     }

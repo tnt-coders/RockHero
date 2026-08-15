@@ -122,6 +122,33 @@ enum class NoteAttack : std::uint8_t
 };
 
 /*!
+\brief How hard a note is struck relative to its neighbours — the dynamics axis.
+
+One axis rather than two flags, so the two loud/quiet claims cannot both be set: a note that is
+simultaneously accented and ghosted is not a rule to enforce but a state that cannot be written
+down. `Normal` is the implied default and never serializes.
+
+Dynamics, not technique: emphasis composes with every attack, mute, and articulation there is,
+scrapes included — an accented scrape is one played aggressively, a ghosted one played lightly —
+so no combination is refused and no compatibility cell opens.
+
+A heavier tier above `Accent` is deliberately absent for now. Guitar Pro notates two loud tiers
+and both import as `Accent`; the enum extends without disturbing anything if the distinction ever
+earns its place.
+*/
+enum class NoteEmphasis : std::uint8_t
+{
+    /*! \brief Ghost note: struck deliberately quietly, drawn as a faded note. */
+    Ghost,
+
+    /*! \brief The default weight; never written to a document. */
+    Normal,
+
+    /*! \brief Accented: struck harder than its neighbours, drawn with added light. */
+    Accent
+};
+
+/*!
 \brief What a note's connection claim resolves to: the motion it plays as, or nothing.
 
 The read side of \ref NoteAttack::Legato. Direction is never stored, so this is the only place a
@@ -369,8 +396,8 @@ struct ChartNote
     */
     bool tremolo{false};
 
-    /*! \brief True when the note is accented. */
-    bool accent{false};
+    /*! \brief How hard the note is struck relative to its neighbours. */
+    NoteEmphasis emphasis{NoteEmphasis::Normal};
 
     /*! \brief Bend curve across the sustain; empty when the note is not bent. */
     std::vector<BendPoint> bend;

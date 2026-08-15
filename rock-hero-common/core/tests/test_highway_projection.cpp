@@ -214,17 +214,19 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 4,
             .fret = 12,
-            .accent = true,
+            .emphasis = NoteEmphasis::Accent,
             .bend = {},
             .slides = {},
         },
         // Both payload kinds on one tail: a bend point mid-sustain and a pitched glide landing on
-        // the sustain end.
+        // the sustain end. Ghosted, so the fixture carries BOTH ends of the emphasis axis and the
+        // comparison below cannot pass by finding one value everywhere.
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 2},
             .string = 3,
             .fret = 7,
             .sustain = Fraction{2},
+            .emphasis = NoteEmphasis::Ghost,
             .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
             .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
         },
@@ -414,7 +416,8 @@ TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core
     CHECK(any_note([](const TabNoteView& note) { return note.mute == NoteMute::Palm; }));
     CHECK(any_note([](const TabNoteView& note) { return note.tremolo; }));
     CHECK(any_note([](const TabNoteView& note) { return note.vibrato; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.accent; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.emphasis == NoteEmphasis::Accent; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.emphasis == NoteEmphasis::Ghost; }));
     CHECK(any_note([](const TabNoteView& note) { return note.harmonic_node.has_value(); }));
     CHECK(any_note([](const TabNoteView& note) { return !note.bend.empty(); }));
     CHECK(any_note([](const TabNoteView& note) { return !note.slides.empty(); }));
@@ -456,7 +459,7 @@ TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core
         CHECK(flat_note.harmonic_node == board_note.harmonic_node);
         CHECK(flat_note.vibrato == board_note.vibrato);
         CHECK(flat_note.tremolo == board_note.tremolo);
-        CHECK(flat_note.accent == board_note.accent);
+        CHECK(flat_note.emphasis == board_note.emphasis);
 
         REQUIRE(flat_note.bend.size() == board_note.bend.size());
         for (std::size_t point = 0; point < flat_note.bend.size(); ++point)
@@ -1262,7 +1265,7 @@ TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]
         chordNote(1.0, 3, 5, NoteMute::None, NoteAttack::Tap),
         chordNote(2.0, 1, 3),
     };
-    notes[0].accent = true;
+    notes[0].emphasis = NoteEmphasis::Accent;
 
     const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
 
