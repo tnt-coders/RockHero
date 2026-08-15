@@ -180,9 +180,13 @@ item ships, mark it and name the commit.
   convention, and carries the `legato`/`leftTap` tokens since 2026-08-11; ~~and the recalc-window
   settle-list wording~~ **dissolved** — the window was cancelled unbuilt, so it has no settle list
   left to word (the sweep's settle set is stated once, in `legato-authoring-model.md`).
-- [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below; **two are now
-  closed** (W9-L reverted 2026-08-10, W9-A ruled and shipped 2026-08-11), leaving ten. Nothing else
-  from that review is waiting: the rest was fixed in place on 2026-08-10.
+- [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below; **five are now
+  closed** (W9-L reverted 2026-08-10, W9-A ruled and shipped 2026-08-11, W9-B ruled 2026-08-13 —
+  the fold tracked as its own work item, W9-C ruled and SHIPPED 2026-08-13, W9-D ruled 2026-08-13 —
+  which uncovered W13), leaving seven: W9-E, F, G, H, I, J, K. W9-K is pre-answered by the
+  whammy-channel ruling in `docs/plans/todo/whammy-bar-support.md`, and W9-F should be ruled
+  together with W9-D's open glyph choice — both are the one question of how 2D says *pitched* versus
+  *falls away*. Nothing else from that review is waiting: the rest was fixed in place on 2026-08-10.
 - [ ] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law (opened AND fully ruled
   2026-08-12 — ready to build).** Design and the three signed rulings in the W10 section below:
   the split head's attack (stored `Legato`, derived `Continuation` motion, struck/unstruck verb
@@ -192,6 +196,54 @@ item ships, mark it and name the commit.
   with W3; the verb can build silent-at-parity first. The technique-letter amendment that opened
   it (legato `H`→`L`, left tap `Ctrl+H`→`Shift+T`, `H` freed for harmonics — SHIPPED 2026-08-12 in
   the registry and its locked test) is recorded in `keymap-matrix.md`.
+- [x] **W12 — The right-hand chord box: ALREADY SHIPPED — corrected 2026-08-13 (user memory,
+  verified against code).** Two or more taps struck together already derive a tapped chord box in
+  3D through the same chord-membership logic as every box (`highway_renderer.cpp:2300`, the
+  right-hand-tap-lighting plan), spanning the taps' own fret extent instead of the fretting
+  hand's (`:2228`); new tap positions get their own orange floor numbers. The hand-partition law
+  (W9-C) therefore RECOGNIZES shipped design rather than ordering work: posture notation is
+  fretting-hand-only, the tapping hand has its own parallel family, and no right-hand arpeggio
+  notation exists. 2D currently shows tapped simultaneity by the vertical alignment of the
+  T-plate heads; whether it wants more is open only if live use says so.
+- [ ] **W11 — Slide-out ends the note: delete the stored offset (user-ruled 2026-08-13).** The
+  ruling: nothing rings after a slide-out — the unpitched exit IS the note's end; a pitched path
+  that finishes mid-sustain simply ends at its last waypoint with no slide-out, and the sustain
+  rings on. So `slide_out.offset == sustain` always, for every attack, and the stored offset is a
+  datum stored twice (validation already pinned it for scrapes, and `clipPayloadsToSustain`'s
+  re-termination arm kept the two agreeing by hand). Delete the offset from the format (changes in
+  place): the terminal becomes fret-only, the payload rule collapses to "every waypoint strictly
+  before the sustain when a slide-out exists", and the scrape re-termination keeps only its
+  fret-compression half. Touchpoints: the chart types, reader/writer, `file-formats.md`,
+  `chart_rules`, `clipPayloadsToSustain`, the importer's slide resolution, and both renderers'
+  terminal geometry.
+- [ ] **W13 — A slide waypoint cannot carry its own techniques. User-ruled a REAL DEFECT
+  2026-08-13; the design is open.** Surfaced while ruling W9-D, and recorded in full because
+  several other items now wait on it.
+  **The defect.** Every technique a note can carry — `mute`, `harmonic_node`, `vibrato`, `tremolo`,
+  `accent`, `bend` — is a field on `ChartNote`, so it applies to the WHOLE gesture. A
+  `SlideWaypoint` carries only `{offset, fret}`. In the user's words: *"An unpicked slide waypoint
+  can ABSOLUTELY have its own techniques so I think the original design was broken if it couldn't
+  represent this"*, and *"The landing MUST be able to carry its own techniques."*
+  **It is live today and needs no new model to bite.** Slide 8→4 legato and vibrato the 4: vibrato
+  is a note-level flag, so it also claims the 8. The chart cannot say "vibrato from the arrival
+  onward". Every note-level technique has this shape on any note carrying a path.
+  **Why it surfaced now.** It is also the price of the picked-waypoint model — a shift slide encoded
+  as ONE note whose path carries a struck point, which deletes the landing fret currently stored
+  twice (once as the glide's target, once as the landing note's own fret). That merge is the only
+  remaining way to remove the duplication: referencing another note was rejected 2026-07-23
+  (`file-formats.md:160-165`), and letting the waypoint coincide with the landing does not remove
+  it. So "can a waypoint carry techniques" and "can a landing BE a waypoint" are one question.
+  **The compatibility matrix must be revisited with it (user).** A picked point and a point slid
+  into without picking may not admit the same technique set — an accent needs a strike, vibrato does
+  not. The real question is which techniques are per-onset, which are per-point, and which are
+  genuinely *ranged* (vibrato over part of a sustain — the same complaint from the other side).
+  Adding three bools to `SlideWaypoint` is the shape to distrust: it is the "when the fix adds
+  fields, suspect the model" signal, and what it is really saying is that a picked point with its
+  own properties is a note.
+  **Sequencing.** Blocks nothing currently building. Must be settled before the picked-waypoint
+  model, before W9-D's glyph choice hardens, and before the W9-B fold freezes the shared element
+  types — a fold that bakes today's `{offset, fret}` waypoint into the shared view state would have
+  to be reopened.
 
 ## W9 — Rulings the deep review needs (opened 2026-08-10)
 
@@ -219,31 +271,132 @@ the options with the agent's recommendation.
   implementation of one rule. Options: (a) one shared display helper both view states feed from
   (recommended — it is the only option that does not add a copy); (b) the tab projection gains its
   own derivation; (c) drop the 3D extension and let the span rail carry the hold on both surfaces.
-- [ ] **W9-B — Should the two projections become one?** `TabNoteView` and `HighwayNoteView` are
-  field-for-field identical; the bend views are identical; the slide views differ by exactly one
-  field (`linked`, which D18 already ruled is a per-surface READ of one fact rather than per-surface
-  data). The two projection functions differ only by that field and by where display string padding
-  is resolved. This is the root cause of several smaller findings: because the view types are
-  distinct, no shared helper can read a projected note, so every derivation over one gets copied for
-  the other or omitted. Folding them would delete roughly 120 lines and make the surfaces agree by
-  construction, at the cost of a mechanical rename sweep through both renderers. **Needs a ruling
-  because of its size, not its direction.**
-- [ ] **W9-C — What does an arpeggio bracket's `sounded` mean?** 2D marks a posture string
-  `sounded` when ANY note sounds there at the span start, a two-hand tap included — so on a held
-  chord under a tap it brackets the TAP's fret and never states the posture's, while 3D brackets the
-  posture's. `rightHandOnset`'s own contract says those onsets "never anchor, cover, or ring into a
-  fretting-hand posture", which argues for the first reading. Options: (a) `sounded` means the
-  FRETTING hand struck this posture string, so picking-hand onsets are excluded and the highway
-  gains the flag (recommended); (b) it means a head is drawn here whichever hand, and 3D adopts it.
-- [ ] **W9-D — Does a glide end state its fret when a landing exists?** `TabSlideView::linked` is
-  documented as false when a re-picked note sounds exactly at the waypoint — a condition validation
-  makes impossible — and is implemented as `offset < sustain`, which assumes a waypoint at the
-  sustain end implies a landing shortly after. A pitched glide ending at the sustain with NO landing
-  note therefore draws a diagonal and states its arrival fret nowhere in 2D (3D draws the waypoint's
-  post and fret-span line). Options: (a) drop the `unpitched &&` term from the chip guard so every
-  unlinked leg states its arrival, which double-states the fret when a landing does exist; (b)
-  derive `linked` from an actual re-picked note within the margin, which makes the doc true and costs
-  about eight lines.
+- [x] **W9-B — Should the two projections become one? RULED 2026-08-13: FOLD, with the naming
+  corrected to the documented pattern.** `TabNoteView` and `HighwayNoteView` are field-for-field
+  identical; the bend views are identical; the slide views differ by exactly one field (`linked`,
+  which D18 already ruled is a per-surface READ of one fact rather than per-surface data); the two
+  projection functions differ only by that field and by where display string padding is resolved —
+  the root cause of copied-or-omitted derivations, the two-producer defect shape. The ruling: the
+  shared element types are view state and named so — `NoteViewState`, `SlideViewState`,
+  `BendPointViewState` in common core — composed by both `TabViewState` and `HighwayViewState`,
+  with ONE shared element producer the two surface projections compose (killing the duplicated
+  producer, not just the duplicated types). The light-T and `linked` remain per-surface *reads* of
+  shared fields — divergence lives only in the painters, where the charting-mark law permits it.
+  The pattern catalog's View-state push entry gains the element rule in the same change set: types
+  inside a view state are view state, named `*ViewState`, never `*View` (noting the float-member
+  `std::is_eq` nuance against "defaulted =="), closing the doc gap that let the interior go
+  unlegislated. An `INoteView` interface was considered and killed: it keeps the second producer,
+  insures against divergence the surfaces law forbids, and costs vtables or double instantiation
+  on the render path; if a genuine per-surface field ever appears, compose extras beside the
+  shared core at that point. Sequencing: fold before W10's build, so the split-tail law touches
+  one projection.
+- [x] **W9-C — What does an arpeggio bracket's `sounded` mean? RULED 2026-08-13, reframed: it was
+  never a musical claim.** The brackets always draw — they state the POSTURE, the fretting hand's
+  placement, which is their whole job — heads render in the normal note pass, and the flag gates
+  exactly one thing (`tab_paint_core.cpp:1562`): whether the bracket writes its own fret text.
+  Draw-dedup, misnamed. The bug was deduplicating non-duplicates: a span-start TAP suppressed the
+  posture's fret while its head stated a different one, so the hand-placement information appeared
+  nowhere.
+  **SUPERSEDED THE SAME DAY, and the replacement is strictly simpler.** The first ruling was to
+  suppress the bracket's text exactly when a span-start head states THIS POSTURE'S fret (reusing
+  `rightHandOnset`, renaming the field to `head_states_fret` in the fold). The user then found that
+  it is geometrically broken: the bracket's text and a head's own digit share the head's centering
+  box, so a tap over a bracket would print two numbers on top of each other. The user's replacement:
+  **give the posture digit its own slot so it never contends, and the flag disappears entirely.**
+  SHIPPED 2026-08-13 — `sounded` is deleted from `TabArpeggioNoteView`, the projection's
+  cross-reference scan against the notes at the span start is deleted with it (a shape projection
+  now asks the note list nothing), and the digit draws unconditionally in a satellite slot outboard
+  of the closing bracket bar, in neutral grey at 0.8x the fret font, with the lane-line gap widened
+  to cover it. Ten labelled candidate slots were measured before choosing; the deciding facts were
+  that the upper-left shoulder is owned by the attack-icon family, the space above by the floating
+  chips, and that a bare digit anywhere the head can reach is destroyed by it.
+  **THE SATELLITE WAS THEN REJECTED IN LIVE USE (user, 2026-08-14) and the display question is
+  OPEN.** Two objections, neither of which four rounds of harness measurement could catch because
+  neither is a contrast problem: the digits are unreadable at the real lane size, and a number
+  *outside* the brackets "just straight up reads weird" — enclosure is a grouping cue, the brackets
+  ARE the posture mark, so a number outside them reads as detached from what it names. Only the
+  digit CENTRED in the brackets reads acceptably. What survives from this entry is the deletion of
+  `sounded` and the principle that the posture states unconditionally; WHERE it states is being
+  worked in `docs/plans/in-progress/arpeggio-posture-display-options.md`, with a live `F6`/`F7`
+  experiment in the editor. The measured leader is a centred digit that slides in TIME past a head
+  occupying the span start, suppressing only true duplicates. The record below is kept because its
+  measurements stand and its dead ends should not be re-walked.
+  **The ribbon problem and its answer (user-ruled and SHIPPED 2026-08-13).** A bare digit does not
+  survive a sustain ribbon, which crosses the slot from BOTH directions — a previous note holding
+  into the span start, and a posture string struck and held at it (the ordinary arpeggio picture:
+  six ribbons through six digits at once). Measured: 15.6 dL* / 1.65:1 on the yellow string's own
+  ribbon and 17.3 / 1.74:1 on the green, five of six strings under WCAG's 3:1 floor, and on yellow
+  the ribbon's bright edge is BRIGHTER than the ink, inverting the polarity inside one ribbon.
+  Ruled: a **1 px casing** — the near-black the heads already back themselves with, stroked behind
+  the letterforms — which restores the full 67.3 dL* of the clean lane. The casing grows into the
+  gap the digit already keeps from the bar, so the mark costs exactly the clearance it cost before.
+  **Why a casing and not a plate or a chip (user's reasoning, and it is the general rule):** a
+  backing with its own ground would have to pick a polarity, and polarity is how this lane names a
+  HAND — dark is the picking hand's. A casing in the lane's own colour is not a ground at all, it
+  is the lane showing through, so it cannot be read as either hand and it adds no silhouette for the
+  attack-plate or label-chip vocabularies to collide with. A white fretting-hand plate was examined
+  seriously and lost on geometry rather than semantics: a rim-bearing plate cannot be shorter than
+  10.25 px while a ribbon's interior is 9.92 px, so **no plate fits inside a sustain at either lane
+  size**, and six of them would carry 3.82x the near-white pixels of the six heads they annotate.
+  The LEFT slot (semantically better — the hand prepares the posture before the notes arrive) was
+  reopened once the background dissolved its ribbon objection, and lost on the tap case it exists to
+  serve: 2.3 px of clearance to the T plate against the right slot's 22.5, which no backing improves
+  and every backing worsens.
+  **The simpler alternative was reconsidered on its merits and rejected — record it so it is not
+  re-litigated.** The alternative: keep the digit dead centre and let a real attack on a different
+  fret simply overrule it. In its favour, one of the arguments originally made against it was WRONG
+  and is retracted here: suppression does not leave the posture column holey, because a head draws
+  its own number, so a digit appears on every posture string either way. The loss is narrower than
+  that — it is exactly the case where the two frets DIFFER, which in practice means a right-hand tap
+  (a fretting-hand note at a fret other than the template's would mean a stale template, a data
+  problem rather than a notation one). Two things decided it against. First, the saving is smaller
+  than it looks: one of the three conditions that MAKE a span an arpeggio is a posture string still
+  ringing through the start un-struck, and in that case no head exists, so the centred digit draws
+  over the incoming ribbon and needs the casing anyway (white measures 3.34:1 on the yellow fill and
+  1.66:1 on its bright edge). Only the satellite slot, the posture font and the widened gap would be
+  saved. Second, and decisive (user, 2026-08-13): **taps commonly have a left-hand shape held under
+  them**, and the arrival rule's own documentation agrees — it names "a held chord under two-hand
+  tapping" as one of the conditions that create an arpeggio bracket (`chart_rules.h:141-148`). So
+  the yield would drop the fretting hand's posting precisely in a figure the notation was written to
+  produce, on the one string where it is hardest to infer.
+  **The hand-partition law (user, same ruling):** posture notation — arpeggio brackets, shape-span
+  chord boxes, FHP — is FRETTING-HAND-ONLY. The tapping hand gets its own parallel family: tap
+  positions (3D's orange tap-position floor numbers), and simultaneous taps derive a RIGHT-HAND
+  CHORD BOX (W12 — verified already shipped in 3D). There is NO right-hand arpeggio notation, by
+  law.
+- [x] **W9-D — Does a glide end state its fret when a landing exists? RULED 2026-08-13 — and the
+  ruling uncovered a deeper defect, tracked as W13.**
+  The defect held: `linked` is `waypoint.offset < note.sustain` (`tab_projection.cpp`), and the chip
+  guard is `unpitched && !linked` (`tab_paint_core.cpp`) where a waypoint's `unpitched` is true only
+  for scrapes. So a pitched glide arriving at the sustain end draws neither a continuation head nor
+  a chip, and its arrival fret is stated nowhere in 2D while 3D draws it. Confirmed in real imported
+  data: `Periphery - It's Only Smiles` measure 20 beat 4 carries two GP shift slides (Slide flag 1 —
+  the destination IS re-picked), string 4 fret 8→4 and string 3 fret 6→2.
+  **Two premises of the original writeup were wrong; corrected here so they cannot mislead again.**
+  (1) Validation does not make the documented condition impossible. It forbids a waypoint sitting
+  *on* a later onset of its own string, but a shift-slide glide legitimately ends the minimum
+  sustain distance *before* its landing (`chart.h:257-261`, `file-formats.md:152`) — the landing is
+  real, just later. That kills option (b): deriving `linked` from a nearby re-picked note becomes a
+  proximity heuristic guessing intent the format does not store. (2) `SlideOut`'s own doc
+  (`chart.h:286`) claims "no landing note exists — that is what distinguishes a slide-out from a
+  pitched glide". That is the wrong discriminator. *Pitched-target vs falls-away* and *has-a-landing
+  vs not* are independent axes, and the payload types already encode the first. A pitched glide that
+  genuinely lands with nothing picked after is a real technique — 3D renders it correctly today by
+  straightening the tail where an unpitched exit dims away — so the proposal to make that state
+  illegal was wrong and is **withdrawn**.
+  **Ruled: 2D states a pitched glide's arrival fret always.** No cross-note lookup, no proximity
+  test, no validation rule. `chart.h:286` and `file-formats.md:153` get the discriminator corrected
+  in the same change.
+  **Open, and deliberately entangled with W9-F:** which glyph states it. The user's direction is the
+  waypoint's own head rather than the unpitched chip — sized to the TAIL's height so it reads as
+  part of the tail rather than as an event, which moves the strike/no-strike distinction onto the
+  size channel instead of fill darkness alone (`headShapeFor(note)`'s plectrum-at-turnarounds
+  behaviour must survive it; see `tab_paint_core.cpp:688-692`). Once every pitched waypoint draws a
+  head, `linked` has no job left — but deleting it exposes that the projection flattens the
+  slide-out into the same `view.slides` vector, so paint would need a replacement flag. The simpler
+  shape is to stop flattening: the view state mirrors the domain (waypoints plus an optional
+  terminal), which the W9-B fold is rebuilding these element types for anyway. 3D needs the
+  counterpart glyph or the no-surface-divergence law is broken.
 - [ ] **W9-E — Where does the attack mark go on a muted head?** (Still open, and unchanged by the
   legato model — the mark's *value* now comes from the resolved motion, but its geometry is the same
   triangle in the same slot.) The beside-head mark (the connection
@@ -415,10 +568,16 @@ shipped technique verbs.
   emits), so retyping a pitched 5→7 slide's start to 7 is a legitimate correction, not data loss.
 - **Waypoint creation needs no new gesture for the typed path.** Clicking a tail arms the caret,
   ruling 2's digit creates the waypoint, and W3's pending model supplies the ghost — which appears
-  at the first digit, never on the bare click. **`Insert` on a slide note's tail creates a
-  waypoint at the path's current fret** (a hold boundary): the automation lanes' own "on-curve
-  point at the caret" meaning imported, no letter chord consumed. A plain note's tail keeps the
-  fret-0 note insert — the same by-note-kind split as the digit rule.
+  at the first digit, never on the bare click. **`Insert` on a slide note's tail arms a pending
+  ghost waypoint at the previous path point's fret** (the automation lanes' "on-curve point at the
+  caret" meaning imported, no letter chord consumed); digits during the window state its fret. A
+  plain note's tail keeps the fret-0 note insert — the same by-note-kind split as the digit rule.
+- **The waypoint-commit law (user-signed 2026-08-13; closes the junk state).** A pending waypoint
+  COMMITS at settle only if it changes the path function — a fret change, or a hold boundary that
+  alters when travel resumes — and otherwise dissolves back into plain tail, exactly like an
+  unjustified pending entry. One oracle question (the path with it versus without it), the
+  waypoint half of the head-exists law: the all-equal junk path is unrepresentable by
+  construction, because no gesture can commit a waypoint that states nothing.
 - **Once waypoints are selectable** — requirements recorded in
   `docs/plans/todo/2d-bend-waypoint-redesign.md` — a selected waypoint retypes like a head,
   transpose scopes to exactly the selected points, and string moves are allowed whenever the head

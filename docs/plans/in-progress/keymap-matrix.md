@@ -118,7 +118,7 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
 | `Delete` / `Backspace` | delete note(s) | delete point | delete region (merges) | Live |
-| `Insert` | fret-0 note at caret; **on a slide note's tail: a waypoint at the path's current fret** — the lanes' on-curve meaning imported (ruled 2026-08-13, rides the waypoint work) | on-curve point at caret | `✗` (no keyboard) | Live (waypoint half `✚`) |
+| `Insert` | fret-0 note at caret; **on a slide note's tail: a pending ghost waypoint at the previous path point's fret**, committing at settle only if it changes the path — the lanes' on-curve meaning imported (ruled 2026-08-13, rides the waypoint work) | on-curve point at caret | `✗` (no keyboard) | Live (waypoint half `✚`) |
 | ~~`Ctrl+D`~~ | — | — | **verb dropped** | **RESOLVED 2026-08-08 — see below** |
 
 **RESOLVED 2026-08-08 — there is no duplicate verb in the chart scope.** The user: *"Wouldn't

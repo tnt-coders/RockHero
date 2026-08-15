@@ -110,6 +110,9 @@ so the redesign inherits them when revived:
   has nothing the move could mean.
 - **Creation gestures are already ruled and do not wait for selectability:** caret-on-tail plus a
   digit creates a waypoint at that fret (W10 ruling 2, W3 ghost at the first digit, never on the
-  bare click), and `Insert` on a slide note's tail creates a waypoint at the path's current fret —
-  the automation lanes' "on-curve point at the caret" meaning imported; a plain note's tail keeps
-  the fret-0 insert.
+  bare click), and `Insert` on a slide note's tail arms a pending ghost waypoint at the previous
+  path point's fret — the automation lanes' "on-curve point at the caret" meaning imported; a
+  plain note's tail keeps the fret-0 insert. **The waypoint-commit law** (user-signed 2026-08-13):
+  a pending waypoint commits at settle only if it changes the path function (a fret change, or a
+  hold boundary that alters when travel resumes) and otherwise dissolves — junk waypoints are
+  unrepresentable by construction.
