@@ -59,27 +59,58 @@ TEST_CASE("Highway tech head follows the drawn marks", "[ui][highway]")
     CHECK(highwayTechHead(
         noteWith(common::core::NoteAttack::Legato, common::core::LegatoMotion::Pull)));
 
-    // The other three clauses, so the connection one cannot be masking them: a full mute, a node
-    // the FRETTING hand stands on, and a scrape's unpitched travel.
+    // The other two clauses, so the connection one cannot be masking them: a full mute and a
+    // scrape's unpitched travel.
     common::core::HighwayNoteView muted =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     muted.mute = common::core::NoteMute::Full;
     CHECK(highwayTechHead(muted));
 
+    CHECK(highwayTechHead(
+        noteWith(common::core::NoteAttack::PickSlide, common::core::LegatoMotion::Unjustified)));
+
+    // A node head is deliberately NOT a tech head anymore: it wears its own round base, which
+    // outranks the darkening.
     common::core::HighwayNoteView artificial_harmonic =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     artificial_harmonic.harmonic_node = 17.0;
-    CHECK(highwayTechHead(artificial_harmonic));
+    CHECK_FALSE(highwayTechHead(artificial_harmonic));
+}
 
-    // A pinch's node is the picking hand's damping point, not a fretting stop, so it is the one
-    // node that leaves the head standard.
+// The round node base follows the board's own placement rule: exactly the heads DRAWN on a node
+// take it, so the base shape and the head station can never disagree.
+TEST_CASE("Highway node head follows the drawn sounding position", "[ui][highway]")
+{
+    // No node, no round base.
+    CHECK_FALSE(highwayNodeHead(
+        noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified)));
+
+    // A picked harmonic's head sits on its node.
+    common::core::HighwayNoteView artificial_harmonic =
+        noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
+    artificial_harmonic.harmonic_node = 17.0;
+    CHECK(highwayNodeHead(artificial_harmonic));
+
+    // A tap harmonic strikes the node directly, so its head sits there too — the placement rule
+    // ignores which hand owns the node, unlike the fretting-hand predicates.
+    common::core::HighwayNoteView tap_harmonic =
+        noteWith(common::core::NoteAttack::Tap, common::core::LegatoMotion::Unjustified);
+    tap_harmonic.harmonic_node = 12.0;
+    CHECK(highwayNodeHead(tap_harmonic));
+
+    // A pinch's node is the picking hand's graze over the body; its head stays on the stop and
+    // keeps the family rectangle.
     common::core::HighwayNoteView pinch =
         noteWith(common::core::NoteAttack::Pinch, common::core::LegatoMotion::Unjustified);
     pinch.harmonic_node = 17.0;
-    CHECK_FALSE(highwayTechHead(pinch));
+    CHECK_FALSE(highwayNodeHead(pinch));
 
-    CHECK(highwayTechHead(
-        noteWith(common::core::NoteAttack::PickSlide, common::core::LegatoMotion::Unjustified)));
+    // A node past the drawn board still draws AS a node (capped to the last fret), so it keeps
+    // the round base.
+    common::core::HighwayNoteView far_node =
+        noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
+    far_node.harmonic_node = 40.0;
+    CHECK(highwayNodeHead(far_node));
 }
 
 } // namespace rock_hero::common::ui

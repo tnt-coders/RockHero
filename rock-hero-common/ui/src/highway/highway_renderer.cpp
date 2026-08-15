@@ -3933,12 +3933,16 @@ void HighwayRenderer::Impl::draw(
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
 
-        // Head base: the technique variant under left-hand technique markers and under a scrape
-        // — its travel is unpitched noise, so it takes the darker base a full-muted note takes,
-        // and the pick mark then sits on that base rather than on an X — else the standard head
-        // (Charter's base-cell selection, stated once in highway_head_marks.h).
+        // Head base: the round node base when the head sits ON its harmonic node (it lands
+        // between fret wires, where the family rectangle reads as a misaligned ordinary note);
+        // else the technique variant under left-hand technique markers and under a scrape — its
+        // travel is unpitched noise, so it takes the darker base a full-muted note takes, and
+        // the pick mark then sits on that base rather than on an X — else the standard head.
+        // Both predicates are stated once, in highway_head_marks.h.
         const std::array<float, 4> base_cell =
-            highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
+            highwayNodeHead(note)   ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
+            : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
+                                    : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
                 x + (dx * cos_r) - (dy * sin_r),
@@ -3965,7 +3969,7 @@ void HighwayRenderer::Impl::draw(
             }
             else if (note.harmonic_node.has_value())
             {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic_icon, tint);
             }
             if (note.mute == common::core::NoteMute::Palm)
             {

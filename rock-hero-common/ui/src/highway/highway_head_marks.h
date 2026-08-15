@@ -67,11 +67,30 @@ lane drew for the same note. One authority removes the class.
 }
 
 /*!
+\brief True when a head sits ON its harmonic node and takes the round base cell.
+
+A node head lands between fret wires wherever the overtone lives, so the family rectangle reads
+as a misaligned ordinary note there; the round base has no edge to disagree with a wire. Asks the
+board's own placement rule (\ref highwayDrawnSoundingPosition, the one every 3D consumer must
+ask) rather than restating its condition, so the base shape can never disagree with where the
+head is actually drawn. Takes precedence over \ref highwayTechHead: the base SHAPE tracks where
+the head sits, and the technique markers still stack over it.
+
+\param note Projected note whose head is being drawn.
+\return True when the round node base applies.
+*/
+[[nodiscard]] inline bool highwayNodeHead(const common::core::HighwayNoteView& note)
+{
+    return common::core::highwayDrawnSoundingPosition(note, note.fret).at_node;
+}
+
+/*!
 \brief True when a head takes the darker technique base cell instead of the standard one.
 
 Charter's base-cell selection: a head wearing a left-hand technique marker, and a scrape — whose
 travel is unpitched noise, so it takes the base a full-muted note takes and lets its pick mark sit
-on that rather than on an X.
+on that rather than on an X. A node head is no longer among them: it wears its own round base
+(\ref highwayNodeHead), which outranks this darkening.
 
 Asks \ref highwayLegatoCell rather than testing the motion again, so the base can never darken for
 a claim that draws no mark (or stay light under one that does).
@@ -82,7 +101,6 @@ a claim that draws no mark (or stay light under one that does).
 [[nodiscard]] constexpr bool highwayTechHead(const common::core::HighwayNoteView& note) noexcept
 {
     return note.mute == common::core::NoteMute::Full ||
-           (note.harmonic_node.has_value() && common::core::nodeIsOnNeck(note.attack)) ||
            highwayLegatoCell(note.legato) != HighwayLegatoCell::None ||
            note.attack == common::core::NoteAttack::PickSlide;
 }

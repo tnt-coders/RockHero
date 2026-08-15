@@ -103,12 +103,13 @@ struct HighwayAtlases
     HighwayAtlasLayout glyph_layout{};
 };
 
-// The cell vocabulary, row-major on the 4x4 grid, sorted semantically rather than in the
+// The cell vocabulary, row-major on the 4-column grid, sorted semantically rather than in the
 // Charter reference asset's order: head bases + emphasis, then one row per hand — the fretting
 // hand's posture brackets, legato mark and bend, then the picking hand's marks — then damping +
-// timbre. One art set serves every head-composite consumer deliberately (absolute consistency,
-// no dedicated variants); repeat-box mute marks render through the SDF program instead of any
-// cell, because their line weights must hold across arbitrary box aspects.
+// timbre, then the fifth row's later-added bases. One art set serves every head-composite
+// consumer deliberately (absolute consistency, no dedicated variants); repeat-box mute marks
+// render through the SDF program instead of any cell, because their line weights must hold
+// across arbitrary box aspects.
 
 /*! \brief Cell index of the standard note head inside the head atlas. */
 inline constexpr int g_head_cell_standard = 0;
@@ -134,8 +135,8 @@ inline constexpr int g_head_cell_arpeggio_open_bracket = 5;
 One cell, not two. Drawn separately they disagreed — the flat edges carried different border
 thicknesses and the solid cores differed by 26 pixels, because each was authored rather than
 mirrored (measured: 377 of 4096 pixels differed from a true mirror). Flipping one cell makes the
-pair exact inverses by construction, and frees the seventeenth cell that had forced the atlas to
-a fifth row.
+pair exact inverses by construction, and freed a cell at the time (the fifth row that exists now
+came later, for the harmonic base).
 */
 inline constexpr int g_head_cell_legato = 6;
 
@@ -192,14 +193,49 @@ inline constexpr int g_head_cell_palm_mute = 12;
 /*! \brief Full-mute marker. */
 inline constexpr int g_head_cell_full_mute = 13;
 
-/*! \brief Natural-harmonic head marker. */
+/*!
+\brief Natural-harmonic head marker at authoring resolution.
+
+Kept as the icon's source of truth, but the draw pushes its pre-scaled twin
+(\ref g_head_cell_harmonic_icon) instead — full-quad this cell renders the ring 1.47x the
+approved size, and drawing this cell on a shrunken quad would break the one-quad-size
+convention every other mark keeps.
+*/
 inline constexpr int g_head_cell_harmonic = 14;
 
 /*! \brief Pinch-harmonic head marker. */
 inline constexpr int g_head_cell_pinch_harmonic = 15;
 
-/*! \brief Cells the renderer requires the head atlas to carry (a 4x4 grid, all 16 used). */
-inline constexpr int g_head_cell_count = 16;
+/*!
+\brief Round base under the harmonic marker, for the head that sits ON its node.
+
+A node head lands between fret wires wherever the overtone lives, so the family rectangle's
+flat ears read as a misaligned ordinary note there; the circle has no edge to disagree with a
+wire. Fitted to stack clean at the lane pitch (the E-fit candidate the user chose), it replaces
+the base cell only — the harmonic marker draws over it at its approved size via
+\ref g_head_cell_harmonic_icon.
+*/
+inline constexpr int g_head_cell_harmonic_base = 16;
+
+/*!
+\brief The harmonic marker pre-scaled to its approved seat size, drawn over the round base.
+
+The icon of \ref g_head_cell_harmonic resampled to 0.6767 of authoring resolution IN the cell,
+so every quad keeps the one uniform size — the same way each mark already carries its seat
+scale in its own art. Baked rather than merged into the base cell because per-quad shader
+clamping is load-bearing: the family highlight deliberately overdrives past white and the
+icon's translucent moat then darkens the CLAMPED result, which a single merged structural cell
+cannot express (measured 74 counts off).
+*/
+inline constexpr int g_head_cell_harmonic_icon = 17;
+
+/*!
+\brief Cells the renderer requires the head atlas to carry (a 4-column grid, five rows).
+
+The shipped 256x320 asset's fifth row holds the two harmonic cells and two empty spares, so
+the atlas's capacity exceeds this count; the startup check requires only that it reaches it.
+*/
+inline constexpr int g_head_cell_count = 18;
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
