@@ -19,6 +19,14 @@ exists or has drifted, which sizes are load-bearing signals, and which structura
 family-wide shrink could break — then delivering 3–5 complete atlas variants implementing
 coherent schemes.
 
+**Scope, ruled by the user 2026-08-15.** SETTLED and not to be resized — the rectangular head
+bases (standard, tech, anticipation hollow), the diamond harmonic base and its hollow, and the
+arpeggio brackets ("look proper at their current size"). UNDER EVALUATION — the technique
+symbols only: accent, legato, tap, pick slide, slap, pop, palm mute, full mute, harmonic, pinch.
+The bend chevron is borderline ("seems to look good too, but can be considered"). Because the
+head bases are fixed, they are the yardstick: sizes and scheme rules are expressed as ratios to
+the settled head rather than as absolute texels.
+
 **The toggle mechanism, and why it is files rather than cells.** The engine loads the head atlas
 as a whole file by name, so a sizing scheme is a complete atlas variant: switching is copying a
 variant over `rock-hero-common/ui/resources/textures/notes.png` and rebuilding, with NO code
