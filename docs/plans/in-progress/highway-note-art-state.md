@@ -26,6 +26,12 @@ generator that produced it. Load it to judge any art change against the full voc
 rather than hunting a real song for an example. Its silent backing track carries precomputed
 normalization metadata, because the loudness analyzer refuses silence outright.
 
+**Ruled 2026-08-15: the harmonic marker's height EQUALS the full mute's, in every scheme.** It
+tracks that mark rather than carrying a size of its own, so whatever a sizing scheme sets the
+mutes to is what the harmonic gets. This supersedes both the seat-scale fitting the round-base
+rounds produced and an intermediate "keep it head-matched" rule — at family sizes above the head
+those left the harmonic visibly smaller than the marks beside it.
+
 **Scope, ruled by the user 2026-08-15.** SETTLED and not to be resized — the rectangular head
 bases (standard, tech, anticipation hollow), the diamond harmonic base and its hollow, and the
 arpeggio brackets ("look proper at their current size"). UNDER EVALUATION — the technique
