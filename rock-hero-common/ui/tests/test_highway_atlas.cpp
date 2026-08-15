@@ -20,9 +20,9 @@ TEST_CASE("Highway atlas layout reports its grid capacity", "[ui][highway]")
 
     // The head atlas holds at least the cells the renderer names — the covenant the renderer's
     // own startup check states (the last row keeps two spare cells).
-    const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 384, .cell_size = 64};
+    const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 320, .cell_size = 64};
     CHECK(heads.columns() == 4);
-    CHECK(heads.rows() == 6);
+    CHECK(heads.rows() == 5);
     CHECK(heads.capacity() >= g_head_cell_count);
 
     // Rectangular grids still count rows by height, so a non-square asset cannot silently
@@ -70,19 +70,19 @@ TEST_CASE("Highway atlas cells tile the texture with a half-texel inset", "[ui][
 // art did. Swapping a cell's v coordinates is exactly that flip, and it stays inside the cell.
 TEST_CASE("Highway atlas legato cell mirrors within its own bounds", "[ui][highway]")
 {
-    const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 384, .cell_size = 64};
+    const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 320, .cell_size = 64};
     const auto cell = heads.cellRect(g_head_cell_legato);
 
     // The flip is a swap of the vertical pair, so it samples the same rows in reverse and
     // never reaches a neighbouring cell.
     CHECK(cell[1] < cell[3]);
-    const float row_top = 64.0F / 384.0F;
-    CHECK_THAT(cell[1], Catch::Matchers::WithinAbs(row_top + (0.5F / 384.0F), 1e-7));
-    CHECK_THAT(cell[3], Catch::Matchers::WithinAbs((2.0F * row_top) - (0.5F / 384.0F), 1e-7));
+    const float row_top = 64.0F / 320.0F;
+    CHECK_THAT(cell[1], Catch::Matchers::WithinAbs(row_top + (0.5F / 320.0F), 1e-7));
+    CHECK_THAT(cell[3], Catch::Matchers::WithinAbs((2.0F * row_top) - (0.5F / 320.0F), 1e-7));
 
     // Every named cell is inside the grid the shipped asset provides.
     CHECK(g_head_cell_bend < g_head_cell_count);
-    CHECK(g_head_cell_harmonic_diamond_large_hollow < g_head_cell_count);
+    CHECK(g_head_cell_harmonic_anticipation < g_head_cell_count);
     CHECK(heads.capacity() >= g_head_cell_count);
 }
 
