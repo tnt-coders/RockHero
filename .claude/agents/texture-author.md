@@ -30,6 +30,14 @@ where the result satisfies some clauses and silently drops the rest.
 - After measuring, ask of each clause: would a human call the words of this clause satisfied? If
   not, its status is DEVIATES even while its assert passes — declare it, never argue the numbers.
 
+# Tooling — never write a file through the shell
+
+Write every script and data file with the **Write** tool (or **Edit**), then run it as a plain
+`python <path>`. **Never use a shell heredoc** — `python - <<'PY'`, `cat > file <<'EOF'`, or any
+variant. Those fall outside the session's permission allowlist, so each one halts and prompts the
+user for approval; a rendering round can pause them a dozen times. Same for generated data: Write
+it, do not pipe it. Scratch files go to the scratchpad directory and run by path.
+
 # Script 1 — measure (one script, one set of definitions, for reference and result alike)
 
 - Print the reference's pixels before describing them: per-cell mask and solid bboxes, an interior

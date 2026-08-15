@@ -29,9 +29,15 @@ const juce::Colour g_note_background_color{0xff101010};     // NOTE_BACKGROUND
 const juce::Colour g_hand_shape_color{0xff3157a7};          // HAND_SHAPE
 const juce::Colour g_hand_shape_arpeggio_color{0xff8559b7}; // HAND_SHAPE_ARPEGGIO
 const juce::Colour g_vibrato_sine_color{0xffb6b6b6};        // java Color.GRAY.brighter()
-const juce::Colour g_mute_border_color{0xff808080};         // java Color.GRAY
-const juce::Colour g_full_mute_text_border{0xffc0c0c0};     // java Color.LIGHT_GRAY
-const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
+// The arpeggio posture digit's ink: the same Charter grey the vibrato sine uses, chosen here for
+// its own reason. A posture digit must read on every string, and the per-string inks do not: the
+// bracket's own fill measures barely 18 peak dL* against the lane band on the red string (and a
+// couple of dL* against a note's ring), where this neutral holds 67 on all six. It is also NOT
+// white, which is what keeps the posture from reading as a struck fret number.
+const juce::Colour g_arpeggio_posture_ink{0xffb6b6b6};
+const juce::Colour g_mute_border_color{0xff808080};     // java Color.GRAY
+const juce::Colour g_full_mute_text_border{0xffc0c0c0}; // java Color.LIGHT_GRAY
+const juce::Colour g_palm_mute_inner_color{0xff050505}; // palm-mute X fill
 
 // The lane's hand axis (55-Q1): a mark's hand signature is its FILL POLARITY, not its shape —
 // dark ink marks the picking hand, light ink the fretting hand, exactly as the legato triangles
@@ -85,6 +91,27 @@ constexpr double g_arpeggio_mark_brightness{1.3};
 // pixel-snapped rectangles — a fractional width or position antialiases into fuzzy, unsquare
 // edges.
 constexpr int g_arpeggio_bracket_thickness{2};
+// Clear pixels between the closing bracket bar and the posture digit outboard of it. One pixel
+// binds the digit to its bracket by proximity — its nearest competing mark, the next note's head
+// in a dense passage, stays several pixels further away — without letting the glyph's
+// antialiasing merge into the bar the way touching it does.
+constexpr int g_arpeggio_posture_gap{1};
+// The posture digit's height as a fraction of the fret font's, floored by that font's own
+// minimum: quieter than a struck fret number without becoming a second text size to tune.
+constexpr float g_arpeggio_posture_scale{0.8f};
+// Casing width behind the posture digit. The digit's slot is crossed by sustain ribbons from both
+// directions — a previous note holding into the span start, and a posture string struck and held at
+// it — and a bare grey digit does not survive them: over its own ribbon it measures 15.6 dL* on the
+// yellow string and 17.3 on the green (1.65:1 and 1.74:1, under the 3:1 floor for a meaningful
+// graphical object), and a strummed arpeggio puts six ribbons through six digits at once. One pixel
+// restores the full 67.3 dL* of the clean lane. Not more than one: at this cap height a pixel is
+// already a sixth of the glyph, which is why the cartographic "subtle halo" advice does not
+// transfer down to notation-lane sizes.
+constexpr float g_arpeggio_posture_casing{1.0f};
+// TEMPORARY (attachment experiment): length of the stem joining a freestanding posture chip to its
+// bracket — long enough to read as a connector rather than a gap, short enough that the chip still
+// reads as hanging off the bracket rather than merely near it.
+constexpr int g_arpeggio_posture_stem{3};
 
 // Measures one line of text through a GlyphArrangement layout (JUCE's direct Font string-width
 // helpers are deprecated), rounding up so reserved label space never truncates the final glyph.
@@ -95,6 +122,39 @@ constexpr int g_arpeggio_bracket_thickness{2};
     juce::GlyphArrangement arrangement;
     arrangement.addLineOfText(font, text, 0.0f, 0.0f);
     return static_cast<int>(std::ceil(arrangement.getBoundingBox(0, -1, true).getWidth()));
+}
+
+// Draws one line of text over a CASING: the glyph outlines stroked behind the ink, so whatever the
+// mark happens to sit on cannot bleed into the letterforms.
+//
+// A casing sits BEHIND the glyph rather than outlining it, which is why it never eats the shape it
+// protects, and — unlike a plate or a chip — it adds no silhouette of its own, so there is nothing
+// for the attack-plate and label-chip vocabularies to collide with. Stroked at twice the casing
+// width because a centred stroke spends half of itself inside the glyph.
+//
+// One arrangement, one stroke, one fill: the offset-copies idiom would cost nine text draws per
+// mark on a path that repaints with every scroll.
+void drawCasedText(
+    juce::Graphics& g, const juce::Font& font, const juce::String& text, juce::Rectangle<float> box,
+    juce::Colour ink, juce::Colour casing, float casing_width)
+{
+    juce::GlyphArrangement arrangement;
+    arrangement.addLineOfText(font, text, 0.0f, 0.0f);
+    arrangement.justifyGlyphs(
+        0,
+        arrangement.getNumGlyphs(),
+        box.getX(),
+        box.getY(),
+        box.getWidth(),
+        box.getHeight(),
+        juce::Justification::centred);
+
+    juce::Path path;
+    arrangement.createPath(path);
+    g.setColour(casing);
+    g.strokePath(path, juce::PathStrokeType{casing_width * 2.0f});
+    g.setColour(ink);
+    g.fillPath(path);
 }
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation for the in-file call
@@ -146,7 +206,27 @@ struct StringStyle
     styles.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
     for (int chart_string = 1; chart_string <= common::core::g_max_chart_strings; ++chart_string)
     {
-        styles.emplace_back(metrics.baseColor(chart_string));
+        StringStyle style{metrics.baseColor(chart_string)};
+        // TEMPORARY (tail experiment): applied here because this table is the one place a string's
+        // whole derived palette exists, so every tail changes together. The EDGE is deliberately
+        // untouched — it is what carries string identity and says the note rings, so leaving it
+        // lets the fill go far darker than darkening both allowed. Delete with the experiment.
+        switch (tailExperimentStep())
+        {
+            case 1:
+                style.tail = charterMultiply(style.tail, 0.6);
+                break;
+            case 2:
+                style.tail = charterMultiply(style.tail, 0.4);
+                break;
+            case 3:
+                // As dark as the heads that ride it: one fill for the tail and its waypoints.
+                style.tail = style.linked_inner;
+                break;
+            default:
+                break;
+        }
+        styles.push_back(style);
     }
     return styles;
 }
@@ -163,13 +243,72 @@ struct LabelChip
 // One visible arpeggio bracket: the posture note it marks and the pixel-snapped outer extent of
 // the "[ fret ]" pair drawn around it. Resolved once per paint, because the string-line gaps and
 // the brackets themselves must agree on where a bracket sits to the pixel.
+// TEMPORARY (posture-variant experiment): the fret of a note head sounding on this string exactly
+// at the span start, or nullopt when the string is silent there. That head is what the centred
+// candidates contend with, and its FRET is what decides whether the posture is already stated.
+// Delete with the experiment.
+[[nodiscard]] const common::core::TabNoteView* headAtSpanStart(
+    const common::core::TabViewState& tab, double span_start_seconds, int chart_string)
+{
+    constexpr double tolerance = 1.0e-9;
+    const auto onset = &common::core::TabNoteView::start_seconds;
+    for (auto it = std::ranges::lower_bound(
+             tab.notes, span_start_seconds - tolerance, std::ranges::less{}, onset);
+         it != tab.notes.end() && it->start_seconds <= span_start_seconds + tolerance;
+         ++it)
+    {
+        if (it->string == chart_string)
+        {
+            return &*it;
+        }
+    }
+    return nullptr;
+}
+
+// TEMPORARY (posture-variant experiment): a sustain from an EARLIER note still ringing across this
+// instant on this string. That ring-through is one of the things that MAKES a span an arpeggio, and
+// it is the case where a centred posture digit needs a ground: the ribbon and whatever technique
+// rides it — a slide diagonal, a bend curve, the vibrato sine — cross the digit's own column.
+[[nodiscard]] bool sustainCrossesAt(
+    const common::core::TabViewState& tab, const std::vector<double>& prefix_max_end_seconds,
+    double seconds, int chart_string)
+{
+    const auto [first, last] =
+        common::core::visibleEventRange(tab.notes, prefix_max_end_seconds, seconds, seconds);
+    for (std::size_t index = first; index < last; ++index)
+    {
+        if (tab.notes[index].string == chart_string && tab.notes[index].start_seconds < seconds &&
+            tab.display_hold_ends[index] > seconds)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct ArpeggioBracket
 {
     common::core::TabArpeggioNoteView note;
-    // The span start in pixels: the pair's center, and the column the held fret number centers on.
+    // The span start in pixels: the bracket pair's center, and the head's own column.
     float center_x{};
-    int left{};
-    int right{};
+    // TEMPORARY (posture-variant experiment): the candidate this bracket's layout was resolved
+    // under, plus the resolved digit box. Delete with the experiment; the shipped candidate needs
+    // only bar_left/bar_right/mark_right.
+    ArpeggioPostureVariant variant{};
+    int digit_left{};
+    int digit_width{};
+    // TEMPORARY: PostureSmart's two resolved facts — whether this string's posture was displaced
+    // into the side slot, and whether a centred digit needs a ground under it.
+    bool side_slot{};
+    bool chip_behind{};
+    // The bracket bars' own pixel columns.
+    int bar_left{};
+    int bar_right{};
+    // Right edge of the WHOLE mark: the bars plus the posture digit sitting outboard of the
+    // closing bar. The lane line is gapped from bar_left to here rather than to bar_right, so the
+    // digit reads on clean background exactly like the bracketed head does. Equals bar_right when
+    // the lane is too short to carry text at all.
+    int mark_right{};
 };
 
 // Draws one string line per displayed lane across the given clip (the repaint region held to the
@@ -198,12 +337,12 @@ void drawStringLines(
             }
 
             const float gap_start =
-                std::min(right, std::max(cursor, static_cast<float>(bracket.left)));
+                std::min(right, std::max(cursor, static_cast<float>(bracket.bar_left)));
             if (gap_start > cursor)
             {
                 g.fillRect(juce::Rectangle<float>{cursor, row, gap_start - cursor, 1.0f});
             }
-            cursor = std::max(cursor, static_cast<float>(bracket.right));
+            cursor = std::max(cursor, static_cast<float>(bracket.mark_right));
         }
         if (cursor < right)
         {
@@ -407,9 +546,27 @@ void drawNoteTail(
                 onset_x - 1.0f, span.top, length + 1.0f, span.bottom - span.top
             });
         g.setColour(style.tail_edge);
-        g.drawRect(
-            juce::Rectangle<float>{onset_x, span.top - 1.0f, length, span.bottom - span.top + 1.0f},
-            metrics.tail_edge_size);
+        const juce::Rectangle<float> border{
+            onset_x, span.top - 1.0f, length, span.bottom - span.top + 1.0f
+        };
+        if (tailExperimentStep() == 0)
+        {
+            g.drawRect(border, metrics.tail_edge_size);
+        }
+        else
+        {
+            // TEMPORARY (tail experiment): top and bottom rails only — no end cap. A tail that
+            // simply stops has nothing to cap, and the 3D highway draws none, so capping it is a
+            // 2D-only flourish that also boxes in whatever mark sits at the tail's end. The left
+            // edge is omitted too: the note head covers it. Delete with the experiment.
+            const float thickness = metrics.tail_edge_size;
+            g.fillRect(
+                juce::Rectangle<float>{border.getX(), border.getY(), border.getWidth(), thickness});
+            g.fillRect(
+                juce::Rectangle<float>{
+                    border.getX(), border.getBottom() - thickness, border.getWidth(), thickness
+                });
+        }
     }
 
     if (note.vibrato)
@@ -1376,6 +1533,118 @@ juce::Colour TabLaneMetrics::baseColor(int chart_string) const
     return tabStringColor(chart_string + extra_lanes, displayed_count);
 }
 
+// TEMPORARY (posture-variant experiment). A mutable module-level selection is exactly the shape
+// this codebase avoids; it is tolerated here only because the whole experiment is scaffolding with
+// a single UI-thread writer, and it comes out with the rest of it. Delete this, the two accessors,
+// the enum in the header, the switches in the bracket pass, and the editor's cycle command as one
+// change once a candidate is chosen.
+// Starts on the only arrangement that survived live use: one number per string, always at the
+// bracket's centre. The satellite reads as detached from the mark it belongs to, and the deferred
+// variants were rejected because the brackets cannot move and offsetting SOME strings and not
+// others reads inconsistently — so the lane's mark is uniform by construction, and the posture a
+// sounding head displaces is stated outside the lane instead. F6 still reaches the rest.
+ArpeggioPostureVariant g_arpeggio_posture_variant{ArpeggioPostureVariant::PostureSmart};
+
+// TEMPORARY (darker-tail experiment). Steps rather than a slider so the comparison is repeatable
+// and nameable; 1.0 first so the lane starts on the shipped derivation.
+constexpr int g_tail_experiment_steps{4};
+int g_tail_experiment_step{0};
+
+int tailExperimentStep() noexcept
+{
+    return g_tail_experiment_step;
+}
+
+int cycleTailExperiment() noexcept
+{
+    g_tail_experiment_step = (g_tail_experiment_step + 1) % g_tail_experiment_steps;
+    return g_tail_experiment_step;
+}
+
+constexpr int g_bracket_ink_steps{3};
+int g_bracket_ink_step{0};
+
+int bracketInkStep() noexcept
+{
+    return g_bracket_ink_step;
+}
+
+int cycleBracketInk() noexcept
+{
+    g_bracket_ink_step = (g_bracket_ink_step + 1) % g_bracket_ink_steps;
+    return g_bracket_ink_step;
+}
+
+const char* bracketInkName(const int step) noexcept
+{
+    switch (step)
+    {
+        case 0:
+            return "note-fill";
+        case 1:
+            return "note-ring";
+        case 2:
+            return "tail-edge";
+        default:
+            break;
+    }
+    return "unknown";
+}
+
+const char* arpeggioPostureVariantName(const ArpeggioPostureVariant variant) noexcept
+{
+    switch (variant)
+    {
+        case ArpeggioPostureVariant::SatelliteCased:
+            return "satellite-cased";
+        case ArpeggioPostureVariant::SatelliteBare:
+            return "satellite-bare";
+        case ArpeggioPostureVariant::SatelliteFull:
+            return "satellite-full-size";
+        case ArpeggioPostureVariant::CentredYield:
+            return "centred-yield";
+        case ArpeggioPostureVariant::ChipMerged:
+            return "chip-bordered";
+        case ArpeggioPostureVariant::ChipFillOnly:
+            return "chip-fill-only";
+        case ArpeggioPostureVariant::ChipFillLarge:
+            return "chip-fill-only-large-digit";
+        case ArpeggioPostureVariant::PostureSmart:
+            return "posture-smart";
+        case ArpeggioPostureVariant::Count:
+            break;
+    }
+    return "unknown";
+}
+
+const char* tailExperimentName(const int step) noexcept
+{
+    switch (step)
+    {
+        case 0:
+            return "shipped";
+        case 1:
+            return "fill-x0.6-no-end-cap";
+        case 2:
+            return "fill-x0.4-no-end-cap";
+        case 3:
+            return "fill-waypoint-dark-no-end-cap";
+        default:
+            break;
+    }
+    return "unknown";
+}
+
+ArpeggioPostureVariant arpeggioPostureVariant() noexcept
+{
+    return g_arpeggio_posture_variant;
+}
+
+void setArpeggioPostureVariant(ArpeggioPostureVariant variant) noexcept
+{
+    g_arpeggio_posture_variant = variant;
+}
+
 TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
     int chart_string_count, TabLaneStyle style)
@@ -1401,6 +1670,10 @@ TabLaneMetrics makeTabLaneMetrics(
     metrics.bounds = bounds;
     metrics.fret_font =
         juce::Font{juce::FontOptions{std::max(8.0f, metrics.note_height / 2.0f)}.withStyle("Bold")};
+    metrics.posture_font = juce::Font{
+        juce::FontOptions{std::max(8.0f, metrics.fret_font.getHeight() * g_arpeggio_posture_scale)}
+            .withStyle("Bold")
+    };
     metrics.bend_font = juce::Font{juce::FontOptions{std::max(10.0f, metrics.note_height / 4.0f)}};
     metrics.label_font = juce::Font{juce::FontOptions{g_shape_label_height}.withStyle("Bold")};
     return metrics;
@@ -1466,20 +1739,138 @@ void paintTabLane(
         }
 
         const float start_x = metrics.x(shape.start_seconds);
-        const int left =
-            juce::roundToInt(start_x - bracket_radius - static_cast<float>(bracket_bar) / 2.0f);
-        const int right =
-            juce::roundToInt(start_x + bracket_radius + static_cast<float>(bracket_bar) / 2.0f);
+        const ArpeggioPostureVariant variant = arpeggioPostureVariant();
+        // TEMPORARY (attachment experiment): the WIDEST digit in this span, so every container in
+        // the column is the same width and the stack closes on one straight right wall. Sizing each
+        // container to its own digit leaves a two-digit string jutting past its neighbours, which
+        // is the one defect a container adds that a bare digit never had.
+        int span_digit_width = 0;
+        if (metrics.draw_text)
+        {
+            const ArpeggioPostureVariant span_variant = arpeggioPostureVariant();
+            const juce::Font& span_font =
+                span_variant == ArpeggioPostureVariant::ChipFillLarge ||
+                        span_variant == ArpeggioPostureVariant::PostureSmart
+                    ? metrics.fret_font
+                    : metrics.posture_font;
+            for (const common::core::TabArpeggioNoteView& note : shape.arpeggio_notes)
+            {
+                span_digit_width =
+                    std::max(span_digit_width, textWidth(span_font, juce::String{note.fret}));
+            }
+        }
         for (const common::core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
             const int displayed = arpeggio_note.string + metrics.extra_lanes;
-            if (displayed >= 1 && displayed <= metrics.displayed_count)
+            if (displayed < 1 || displayed > metrics.displayed_count)
             {
-                brackets.push_back(
-                    ArpeggioBracket{
-                        .note = arpeggio_note, .center_x = start_x, .left = left, .right = right
-                    });
+                continue;
             }
+
+            // Measured per note because a two-digit posture is nearly twice the width of a
+            // one-digit one, and both the lane-line gap and the widened-bracket candidates have to
+            // clear whichever this string holds.
+            const bool centred = variant == ArpeggioPostureVariant::CentredYield;
+            const bool full_size = centred || variant == ArpeggioPostureVariant::SatelliteFull ||
+                                   variant == ArpeggioPostureVariant::ChipFillLarge ||
+                                   variant == ArpeggioPostureVariant::PostureSmart;
+            const juce::Font& font = full_size ? metrics.fret_font : metrics.posture_font;
+            const int digit_width =
+                metrics.draw_text ? textWidth(font, juce::String{arpeggio_note.fret}) : 0;
+
+            // Only the candidates that contend for the head's slot need to ask; the fixed outboard
+            // ones keep their own regardless of what sounds.
+            const bool asks_head = centred || variant == ArpeggioPostureVariant::PostureSmart;
+            const common::core::TabNoteView* const head =
+                asks_head ? headAtSpanStart(tab, shape.start_seconds, arpeggio_note.string)
+                          : nullptr;
+            bool side_slot = false;
+            bool chip_behind = false;
+
+            int bar_left =
+                juce::roundToInt(start_x - bracket_radius - static_cast<float>(bracket_bar) / 2.0f);
+            int bar_right =
+                juce::roundToInt(start_x + bracket_radius + static_cast<float>(bracket_bar) / 2.0f);
+            int digit_left = bar_right + g_arpeggio_posture_gap;
+            int mark_right = bar_right;
+            int drawn_width = digit_width;
+
+            switch (variant)
+            {
+                case ArpeggioPostureVariant::SatelliteCased:
+                case ArpeggioPostureVariant::SatelliteBare:
+                case ArpeggioPostureVariant::SatelliteFull:
+                    mark_right = digit_width == 0 ? bar_right
+                                                  : digit_left + digit_width +
+                                                        juce::roundToInt(g_arpeggio_posture_casing);
+                    break;
+                case ArpeggioPostureVariant::ChipMerged:
+                case ArpeggioPostureVariant::ChipFillOnly:
+                case ArpeggioPostureVariant::ChipFillLarge:
+                    // The container's left wall is the bracket's own closing bar, so it and the
+                    // bracket are one silhouette — which is what makes it read as the bracket's
+                    // LABEL rather than a second thing beside it. Mere adjacency does not do that:
+                    // the bare satellite already touched the bar at short lanes and still read as
+                    // detached.
+                    digit_left = bar_right + g_arpeggio_posture_gap;
+                    drawn_width = span_digit_width;
+                    mark_right = span_digit_width == 0 ? bar_right
+                                                       : digit_left + span_digit_width +
+                                                             g_arpeggio_posture_gap + bracket_bar;
+                    break;
+                case ArpeggioPostureVariant::CentredYield:
+                    digit_left = juce::roundToInt(start_x) - (digit_width / 2);
+                    // A head sounding here draws its own number in this very box, so the posture
+                    // yields — the loss this candidate exists to make visible.
+                    drawn_width = head == nullptr ? digit_width : 0;
+                    break;
+                case ArpeggioPostureVariant::PostureSmart:
+                    if (head == nullptr)
+                    {
+                        // Nothing sounds here, so the posture takes the centre a fret number
+                        // belongs in, and earns a ground only when a ribbon is crossing it.
+                        digit_left = juce::roundToInt(start_x) - (digit_width / 2);
+                        drawn_width = digit_width;
+                        chip_behind = sustainCrossesAt(
+                            tab, prefix_max_end_seconds, shape.start_seconds, arpeggio_note.string);
+                    }
+                    else if (
+                        common::core::rightHandOnset(head->attack) &&
+                        head->fret != arpeggio_note.fret
+                    )
+                    {
+                        // The tap is what rings, so it keeps the centre; the fretting hand has not
+                        // moved, so its fret is still true and takes the side slot.
+                        side_slot = true;
+                        digit_left = bar_right + g_arpeggio_posture_gap;
+                        drawn_width = span_digit_width;
+                        mark_right = digit_left + span_digit_width + g_arpeggio_posture_gap;
+                    }
+                    else
+                    {
+                        // Either the head already states this fret, or a fretting-hand onset
+                        // moved the hand off the template — in which case the posture is no
+                        // longer held and stating it would be false.
+                        drawn_width = 0;
+                    }
+                    break;
+                case ArpeggioPostureVariant::Count:
+                    break;
+            }
+
+            brackets.push_back(
+                ArpeggioBracket{
+                    .note = arpeggio_note,
+                    .center_x = start_x,
+                    .variant = variant,
+                    .digit_left = digit_left,
+                    .digit_width = drawn_width,
+                    .side_slot = side_slot,
+                    .chip_behind = chip_behind,
+                    .bar_left = bar_left,
+                    .bar_right = bar_right,
+                    .mark_right = mark_right
+                });
         }
     }
 
@@ -1533,8 +1924,24 @@ void paintTabLane(
     //
     // Left and right square brackets hugging the head's ring, in the head's muted interior color
     // so they mark the posture without competing with real heads. A string sounded exactly at the
-    // start keeps its full head (drawn by the note pass) inside the brackets; a string struck
-    // later in the arpeggio shows only its held fret number between them.
+    // start keeps its full head (drawn by the note pass) inside the brackets.
+    //
+    // The held fret is stated ALWAYS, in its own slot outboard of the closing bar, and that slot
+    // is the whole reason the statement can be unconditional. The digit used to sit dead centre —
+    // the head's own box — so it had to yield whenever a note landed there. That yield looks
+    // harmless, and mostly is: a head draws its own number, so the column of digits stays complete
+    // either way. What it loses is the case where the two numbers DIFFER, and that case is a tap
+    // over a held shape — ordinary rather than rare, since the arrival rule names "a held chord
+    // under two-hand tapping" as one of the things that MAKE a span an arpeggio. Yielding there
+    // prints the tapped fret and silently drops where the fretting hand is posted, which is the
+    // one thing a posture bracket exists to say. Giving the two claims two slots makes the
+    // conflict unrepresentable instead of arbitrated: the head's centre carries the sounding fret,
+    // the satellite carries the posture, and where they agree, saying it twice in two registers is
+    // what makes the shape plain. Outboard RIGHT because every other side is spoken for — the
+    // attack icons own the upper-left shoulder, the floating chips own the space above, and the
+    // left is where the previous note's head and its arriving sustain ribbon live.
+    //
+    // The bracket bars are unchanged by all this; only the lane-line gap grew to cover the digit.
     //
     // The note's VISIBLE top and bottom are the bright ring's edges: the head's outermost layer is
     // the near-black backing, which melts into the dark lane. The brackets stop a bar-width inside
@@ -1550,29 +1957,148 @@ void paintTabLane(
         const float center_y = metrics.laneY(bracket.note.string);
         const int top = juce::roundToInt(center_y - bracket_half_height);
         const int bottom = juce::roundToInt(center_y + bracket_half_height);
+        // TEMPORARY (bracket-ink experiment): the shipped fill colour was chosen to sit quietly
+        // against a BRIGHT tail; once the tail experiment darkens the fill, that reasoning inverts
+        // and the marks go dark-on-dark. Delete with the experiment, keeping the chosen arm.
+        const juce::Colour bracket_ink = bracketInkStep() == 1   ? style.border_inner
+                                         : bracketInkStep() == 2 ? style.tail_edge
+                                                                 : style.inner;
 
-        g.setColour(style.inner);
-        g.fillRect(bracket.left, top, bracket_bar, bottom - top);
-        g.fillRect(bracket.left, top, bracket_serif, bracket_bar);
-        g.fillRect(bracket.left, bottom - bracket_bar, bracket_serif, bracket_bar);
-        g.fillRect(bracket.right - bracket_bar, top, bracket_bar, bottom - top);
-        g.fillRect(bracket.right - bracket_serif, top, bracket_serif, bracket_bar);
-        g.fillRect(bracket.right - bracket_serif, bottom - bracket_bar, bracket_serif, bracket_bar);
+        g.setColour(bracket_ink);
+        g.fillRect(bracket.bar_left, top, bracket_bar, bottom - top);
+        g.fillRect(bracket.bar_left, top, bracket_serif, bracket_bar);
+        g.fillRect(bracket.bar_left, bottom - bracket_bar, bracket_serif, bracket_bar);
+        g.fillRect(bracket.bar_right - bracket_bar, top, bracket_bar, bottom - top);
+        g.fillRect(bracket.bar_right - bracket_serif, top, bracket_serif, bracket_bar);
+        g.fillRect(
+            bracket.bar_right - bracket_serif, bottom - bracket_bar, bracket_serif, bracket_bar);
 
-        if (!bracket.note.sounded && metrics.draw_text)
+        if (metrics.draw_text && bracket.digit_width > 0)
         {
-            // The same centering box drawNoteHead uses for a plain fret number.
-            g.setColour(juce::Colours::white);
-            g.setFont(metrics.fret_font);
-            g.drawText(
-                juce::String{bracket.note.fret},
-                juce::Rectangle<float>{
-                    bracket.center_x - bracket_size,
-                    center_y - bracket_size,
-                    bracket_size * 2.0f,
-                    bracket_size * 2.0f
-                },
-                juce::Justification::centred);
+            const juce::String text{bracket.note.fret};
+            const juce::Rectangle<float> box{
+                static_cast<float>(bracket.digit_left),
+                center_y - bracket_size / 2.0f,
+                static_cast<float>(bracket.digit_width),
+                bracket_size
+            };
+            // TEMPORARY (posture-variant experiment): one arm per candidate, compared in the real
+            // editor. Delete the switch and keep the chosen arm.
+            switch (bracket.variant)
+            {
+                case ArpeggioPostureVariant::SatelliteCased:
+                    // The casing grows into the gap the digit already keeps from the bar rather
+                    // than pushing the digit outward, so the mark costs exactly the clearance it
+                    // would without one — the price is that it meets the bar's antialiasing. Its
+                    // colour is the near-black the heads back themselves with, so casing and head
+                    // melt into the same dark lane and cannot drift apart under a theme change.
+                    drawCasedText(
+                        g,
+                        metrics.posture_font,
+                        text,
+                        box,
+                        g_arpeggio_posture_ink,
+                        g_note_background_color,
+                        g_arpeggio_posture_casing);
+                    break;
+                case ArpeggioPostureVariant::SatelliteBare:
+                    g.setColour(g_arpeggio_posture_ink);
+                    g.setFont(metrics.posture_font);
+                    g.drawText(text, box, juce::Justification::centred);
+                    break;
+                case ArpeggioPostureVariant::SatelliteFull:
+                    g.setColour(g_arpeggio_posture_ink);
+                    g.setFont(metrics.fret_font);
+                    g.drawText(text, box, juce::Justification::centred);
+                    break;
+                case ArpeggioPostureVariant::CentredYield:
+                    // White at full size, exactly as the pre-satellite code drew it — the one
+                    // reading the user judged acceptable in live use.
+                    g.setColour(juce::Colours::white);
+                    g.setFont(metrics.fret_font);
+                    g.drawText(text, box, juce::Justification::centred);
+                    break;
+                case ArpeggioPostureVariant::PostureSmart:
+                {
+                    // One ground, two placements. The patch is the tail's own interior in the
+                    // tail's own fill, so where it appears it reads as a clean stretch OF the
+                    // ribbon rather than an object on it — and it appears only where something
+                    // would otherwise cross the digit: beside the bracket when a tap has taken
+                    // the centre, or behind the centred digit when a sustain rings through.
+                    if (bracket.side_slot || bracket.chip_behind)
+                    {
+                        const TailSpan tail = tailSpan(metrics, center_y);
+                        const int patch_top =
+                            juce::roundToInt(tail.top - 1.0f + metrics.tail_edge_size);
+                        const int patch_bottom =
+                            juce::roundToInt(tail.bottom - metrics.tail_edge_size);
+                        const int patch_left = bracket.side_slot
+                                                   ? bracket.bar_right
+                                                   : bracket.digit_left - g_arpeggio_posture_gap;
+                        const int patch_right =
+                            bracket.side_slot
+                                ? bracket.mark_right
+                                : bracket.digit_left + bracket.digit_width + g_arpeggio_posture_gap;
+                        g.setColour(style.tail);
+                        g.fillRect(
+                            patch_left,
+                            patch_top,
+                            patch_right - patch_left,
+                            patch_bottom - patch_top);
+                    }
+                    g.setColour(juce::Colours::white);
+                    g.setFont(metrics.fret_font);
+                    g.drawText(text, box, juce::Justification::centred);
+                    break;
+                }
+                case ArpeggioPostureVariant::ChipMerged:
+                case ArpeggioPostureVariant::ChipFillOnly:
+                case ArpeggioPostureVariant::ChipFillLarge:
+                {
+                    // TEMPORARY (attachment experiment). The container's job is not contrast — it
+                    // is to be an OBJECT THE BRACKET OWNS, because a bare digit beside a mark
+                    // reads as detached while a container sharing the mark's own wall reads as
+                    // its label.
+                    //
+                    // Sized to the DIGIT, never to the bracket: the posture font floors at 8 px
+                    // while the bracket keeps shrinking with the lane, so a bracket-height
+                    // container spills its digit a pixel a side at the short lanes this ships at.
+                    const bool bordered = bracket.variant == ArpeggioPostureVariant::ChipMerged;
+                    const juce::Font& chip_font =
+                        bracket.variant == ArpeggioPostureVariant::ChipFillLarge
+                            ? metrics.fret_font
+                            : metrics.posture_font;
+                    // Exactly the tail's own interior: the band between its two edge rails, which
+                    // `drawNoteTail` lays at `span.top - 1` and `span.bottom`, each
+                    // `tail_edge_size` thick. Filling precisely that, in the tail's own fill
+                    // colour, makes the mark read as a clean stretch OF the tail rather than a
+                    // chip sitting on one — it masks the slide diagonals and bend curves crossing
+                    // this column without introducing an object of its own.
+                    const TailSpan tail = tailSpan(metrics, center_y);
+                    const int chip_top = juce::roundToInt(tail.top - 1.0f + metrics.tail_edge_size);
+                    const int chip_bottom = juce::roundToInt(tail.bottom - metrics.tail_edge_size);
+                    const int chip_left = bracket.bar_right;
+                    const int chip_width = bracket.mark_right - chip_left;
+                    const int chip_height = chip_bottom - chip_top;
+
+                    g.setColour(style.tail);
+                    g.fillRect(chip_left, chip_top, chip_width, chip_height);
+                    if (bordered)
+                    {
+                        g.setColour(bracket_ink);
+                        g.fillRect(chip_left, chip_top, chip_width, bracket_bar);
+                        g.fillRect(chip_left, chip_bottom - bracket_bar, chip_width, bracket_bar);
+                        g.fillRect(
+                            bracket.mark_right - bracket_bar, chip_top, bracket_bar, chip_height);
+                    }
+                    g.setColour(juce::Colours::white);
+                    g.setFont(chip_font);
+                    g.drawText(text, box, juce::Justification::centred);
+                    break;
+                }
+                case ArpeggioPostureVariant::Count:
+                    break;
+            }
         }
     }
 

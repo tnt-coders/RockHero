@@ -112,10 +112,6 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
     {
         const ChartShape& shape = chart.shapes[shape_index];
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
-        // Chart notes are sorted, so the onsets at the span start are contiguous (used for the
-        // per-string sounded flags below).
-        const auto first_at_start = std::ranges::lower_bound(
-            chart.notes, shape.position, std::ranges::less{}, &ChartNote::position);
 
         std::string name = shape.chord < chart.templates.size() ? chart.templates[shape.chord].name
                                                                 : std::string{};
@@ -123,8 +119,10 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         // start un-restruck, renders as arpeggio brackets.
         const bool arpeggio = arrivals[shape_index];
 
-        // An arpeggio bracket start marks the whole held posture: every template string, each
-        // flagged by whether a chart note actually sounds there at the start. Template array
+        // An arpeggio bracket start marks the whole held posture: every template string, stated
+        // whether or not a note sounds there at the start. The posture is a claim about the
+        // fretting hand, not about what is struck, so it needs no cross-reference against the
+        // notes at all — the bracket's own slot never contends with a head. Template array
         // index 0 is the lowest string, matching the highway projection's convention.
         std::vector<TabArpeggioNoteView> arpeggio_notes;
         if (arpeggio && shape.chord < chart.templates.size())
@@ -139,16 +137,8 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
                 {
                     continue;
                 }
-                const int string = static_cast<int>(index) + 1;
-                bool sounded = false;
-                for (auto it = first_at_start;
-                     it != chart.notes.end() && it->position == shape.position;
-                     ++it)
-                {
-                    sounded = sounded || it->string == string;
-                }
                 arpeggio_notes.push_back(
-                    TabArpeggioNoteView{.string = string, .fret = *fret, .sounded = sounded});
+                    TabArpeggioNoteView{.string = static_cast<int>(index) + 1, .fret = *fret});
             }
         }
 

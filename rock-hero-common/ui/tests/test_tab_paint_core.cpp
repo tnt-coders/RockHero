@@ -372,8 +372,8 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .name = "Dm",
             .arpeggio = true,
             .arpeggio_notes = {
-                common::core::TabArpeggioNoteView{.string = 3, .fret = 7, .sounded = true},
-                common::core::TabArpeggioNoteView{.string = 5, .fret = 8, .sounded = false},
+                common::core::TabArpeggioNoteView{.string = 3, .fret = 7},
+                common::core::TabArpeggioNoteView{.string = 5, .fret = 8},
             },
         },
     };
@@ -397,6 +397,10 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
     const std::vector<double> prefix_max = resolveHoldEnds(state);
+    // TEMPORARY: this case pins the satellite treatment's own geometry, and the live default is
+    // whichever candidate the posture experiment currently leads with, so state the variant here
+    // rather than inheriting it. Remove with the experiment.
+    setArpeggioPostureVariant(ArpeggioPostureVariant::SatelliteCased);
     paintTabLane(graphics, metrics, state, prefix_max);
 
     // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
@@ -423,20 +427,63 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
 
     // The arpeggio start marks every posture string with square brackets hugging the head
     // ring — probed on the right bracket's vertical (x ~214.7 from the lane center at 200),
-    // clear of string lines, serifs, and text: the unsounded string 5 (lane center y = 60)
-    // and the sounded string 3 (y = 140) both wear them.
+    // clear of string lines, serifs, and text: string 5 (lane center y = 60) and string 3
+    // (y = 140) both wear them.
     CHECK(image.getPixelAt(214, 55).getARGB() != 0);
     CHECK(image.getPixelAt(214, 135).getARGB() != 0);
 
-    // Inside the brackets the head area stays empty (no backing disc), and the sounded string
-    // draws no held fret number — its full head comes from the note pass instead.
+    // The bracket interior stays empty on every string: no backing disc, and no fret number
+    // either — the posture digit sits outboard of the closing bar rather than in the head's own
+    // centering box, which is what lets it state unconditionally without contending with a head.
     CHECK(image.getPixelAt(206, 52).getARGB() == 0);
     CHECK(image.getPixelAt(197, 136).getARGB() == 0);
+    CHECK(image.getPixelAt(200, 60).getARGB() == 0);
 
-    // The string line hides between the brackets (probed right of the fret number, left of the
-    // bracket's vertical) and resumes past them.
+    // The posture fret states outboard of the closing bar on EVERY posture string — the struck
+    // string 3 as well as the unstruck string 5 — so the held shape reads as one complete column
+    // however the arpeggio happens to be played. The probe window is the satellite slot: past
+    // the closing bar, inside the lane-line gap that now extends to cover the digit.
+    const auto posture_digit_ink = [&image](int center_y) {
+        for (int x = 217; x <= 222; ++x)
+        {
+            for (int y = center_y - 5; y <= center_y + 5; ++y)
+            {
+                if (image.getPixelAt(x, y).getARGB() != 0)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    CHECK(posture_digit_ink(60));
+    CHECK(posture_digit_ink(140));
+
+    // The digit wears a casing — its own near-black backing, stroked behind the letterforms — so a
+    // sustain ribbon crossing the slot cannot bleed into them. Only the casing can put an opaque
+    // near-black pixel in the satellite slot: the fixture's lane is transparent, the string line is
+    // gapped across the whole mark, and the digit's own ink is light grey.
+    const auto posture_casing_ink = [&image](int center_y) {
+        for (int x = 216; x <= 224; ++x)
+        {
+            for (int y = center_y - 8; y <= center_y + 8; ++y)
+            {
+                const juce::Colour pixel = image.getPixelAt(x, y);
+                if (pixel.getAlpha() == 255 && pixel.getBrightness() < 0.15f)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    CHECK(posture_casing_ink(60));
+    CHECK(posture_casing_ink(140));
+
+    // The string line hides across the whole mark — brackets and posture digit alike — and
+    // resumes past it.
     CHECK(image.getPixelAt(208, 60).getARGB() == 0);
-    CHECK(image.getPixelAt(220, 60).getARGB() != 0);
+    CHECK(image.getPixelAt(230, 60).getARGB() != 0);
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row

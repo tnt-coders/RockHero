@@ -28,8 +28,11 @@
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+// TEMPORARY: only for the posture-display experiment's cycle command. Remove with it.
+#include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
 #include <utility>
@@ -40,6 +43,19 @@ namespace rock_hero::editor::ui
 
 namespace
 {
+
+// TEMPORARY (posture-display experiment): prints the whole active combination on every cycle, so a
+// preferred look can be reported back exactly rather than described. Both keys log both axes,
+// because what is being judged is the pair, not either half. Delete with the experiment.
+void logPostureExperiment()
+{
+    RH_LOG_INFO(
+        "editor.ui",
+        "posture experiment posture={:?} tail={:?} bracket={:?}",
+        std::string{common::ui::arpeggioPostureVariantName(common::ui::arpeggioPostureVariant())},
+        std::string{common::ui::tailExperimentName(common::ui::tailExperimentStep())},
+        std::string{common::ui::bracketInkName(common::ui::bracketInkStep())});
+}
 
 // Command-backed menu items use the registry's EditorCommandId values as their item ids; only
 // the tablature lane-count submenu keeps raw ids. Its ids encode the requested minimum as an
@@ -1422,6 +1438,9 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::ChartLegatoToggle:
         case EditorCommandId::ChartLeftTap:
+        case EditorCommandId::ChartPostureVariantCycle:
+        case EditorCommandId::TailDarknessCycle:
+        case EditorCommandId::BracketInkCycle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::SustainLengthenFine:
@@ -1598,6 +1617,37 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 m_controller.onChartPickSlideToggleRequested();
             }
+            return true;
+        }
+        case EditorCommandId::ChartPostureVariantCycle:
+        {
+            // TEMPORARY scaffolding: steps the arpeggio posture-display candidate and repaints, so
+            // the candidates can be compared in a real chart. Purely a view concern — no controller
+            // call, no undo entry, nothing persisted. Delete with the experiment.
+            const auto next = static_cast<std::uint8_t>(
+                (static_cast<std::uint8_t>(common::ui::arpeggioPostureVariant()) + 1) %
+                static_cast<std::uint8_t>(common::ui::ArpeggioPostureVariant::Count));
+            common::ui::setArpeggioPostureVariant(
+                static_cast<common::ui::ArpeggioPostureVariant>(next));
+            logPostureExperiment();
+            repaint();
+            return true;
+        }
+        case EditorCommandId::TailDarknessCycle:
+        {
+            // TEMPORARY scaffolding, independent of the posture cycle so any candidate can be seen
+            // against any tail darkness. Delete with the experiment.
+            common::ui::cycleTailExperiment();
+            logPostureExperiment();
+            repaint();
+            return true;
+        }
+        case EditorCommandId::BracketInkCycle:
+        {
+            // TEMPORARY scaffolding. Delete with the experiment.
+            common::ui::cycleBracketInk();
+            logPostureExperiment();
+            repaint();
             return true;
         }
         case EditorCommandId::ChartLegatoToggle:

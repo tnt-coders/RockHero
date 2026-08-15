@@ -168,12 +168,6 @@ struct TabArpeggioNoteView
     int fret{0};
 
     /*!
-    \brief True when a chart note actually sounds on this string exactly at the span start;
-    false for posture strings that are held but struck later in the arpeggio.
-    */
-    bool sounded{false};
-
-    /*!
     \brief Compares two arpeggio note views by their stored fields.
     \param lhs Left-hand arpeggio note view.
     \param rhs Right-hand arpeggio note view.
@@ -203,8 +197,11 @@ struct TabShapeView
 
     /*!
     \brief Every template posture note, in ascending string order. Populated only for arpeggio
-    spans, where each renders bracket marks at the span start — around the sounded note's full
-    head, or around a bare fret number for strings struck later in the arpeggio.
+    spans, where each renders bracket marks at the span start with its held fret stated beside
+    them. The posture is stated unconditionally: what sounds at the start is the notes' own
+    business, so a head landing inside a bracket neither suppresses the fret nor contends with it.
+    That matters most where the two frets DIFFER — a tap over a held shape states the tapped fret,
+    and the hand's posting would otherwise go unsaid on the one string it is hardest to infer.
     */
     std::vector<TabArpeggioNoteView> arpeggio_notes;
 

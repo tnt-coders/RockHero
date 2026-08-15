@@ -199,6 +199,26 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Set the selected notes to the left-hand tap attack (`Ctrl+H`). */
     ChartLeftTap = 0x170B,
 
+    /*!
+    \brief TEMPORARY: cycle the arpeggio posture-display candidate the tab lane paints (`F6`).
+
+    Scaffolding for judging the candidates in the real editor rather than a rendering harness.
+    Delete this id, its registration, its perform arm, its locked-table row, and
+    \ref rock_hero::common::ui::ArpeggioPostureVariant once a candidate is chosen.
+    */
+    ChartPostureVariantCycle = 0x170C,
+
+    /*!
+    \brief TEMPORARY: cycle the sustain-tail darkness experiment (`F7`).
+
+    Independent of \ref ChartPostureVariantCycle so any posture candidate can be judged against any
+    tail darkness. Delete with the experiment.
+    */
+    TailDarknessCycle = 0x170D,
+
+    /*! \brief TEMPORARY: cycle the arpeggio bracket-ink experiment (`F8`). Delete with it. */
+    BracketInkCycle = 0x170E,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

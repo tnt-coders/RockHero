@@ -26,8 +26,8 @@ namespace
             .frets = {1, 3, 3, std::nullopt, std::nullopt, std::nullopt},
             .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
         },
-        // Held posture for the arpeggio span; string 4 is struck at the bracket start, so its
-        // entry is the only sounded one.
+        // Held posture for the arpeggio span; string 4 is struck at the bracket start and the
+        // other two are not, which the posture entries are expected to be blind to.
         ChordTemplate{
             .name = "Dm7",
             .frets = {std::nullopt, 5, std::nullopt, 7, 8, std::nullopt},
@@ -167,18 +167,14 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[core][tab]")
     CHECK(state.shapes[0].arpeggio_notes.empty());
     CHECK(state.shapes[1].arpeggio);
 
-    // The arpeggio start brackets the whole held posture; string 4 is struck right at the
-    // bracket start, so its entry is sounded and the template's other two entries are not.
+    // The arpeggio start brackets the whole held posture. String 4 is struck right at the bracket
+    // start and strings 2 and 5 are not, and the entries are identical either way: a posture
+    // states where the fretting hand is, never what sounds there, so the projection asks the
+    // notes nothing.
     REQUIRE(state.shapes[1].arpeggio_notes.size() == 3);
-    CHECK(
-        state.shapes[1].arpeggio_notes[0] ==
-        TabArpeggioNoteView{.string = 2, .fret = 5, .sounded = false});
-    CHECK(
-        state.shapes[1].arpeggio_notes[1] ==
-        TabArpeggioNoteView{.string = 4, .fret = 7, .sounded = true});
-    CHECK(
-        state.shapes[1].arpeggio_notes[2] ==
-        TabArpeggioNoteView{.string = 5, .fret = 8, .sounded = false});
+    CHECK(state.shapes[1].arpeggio_notes[0] == TabArpeggioNoteView{.string = 2, .fret = 5});
+    CHECK(state.shapes[1].arpeggio_notes[1] == TabArpeggioNoteView{.string = 4, .fret = 7});
+    CHECK(state.shapes[1].arpeggio_notes[2] == TabArpeggioNoteView{.string = 5, .fret = 8});
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));

@@ -325,6 +325,21 @@ namespace
     // stored: which way the connection runs is read back from the predecessor. Shift+L is reserved
     // for the tie/slide-link verb (walkthrough W10, unbuilt).
     add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('l')});
+    // TEMPORARY scaffolding, on a function key so it cannot collide with an authoring letter:
+    // cycles the arpeggio posture-display candidates in the live lane. Delete with the experiment.
+    add(EditorCommandId::ChartPostureVariantCycle,
+        "Cycle Posture Display (experiment)",
+        "Authoring",
+        {chord(juce::KeyPress::F6Key)});
+    add(EditorCommandId::TailDarknessCycle,
+        "Cycle Tail Darkness (experiment)",
+        "Authoring",
+        {chord(juce::KeyPress::F7Key)});
+    // F9, not F8: F8 already belongs to the Undo History view toggle.
+    add(EditorCommandId::BracketInkCycle,
+        "Cycle Bracket Ink (experiment)",
+        "Authoring",
+        {chord(juce::KeyPress::F9Key)});
     // The charting marks already declare the tap family — one letter T, plate fill polarity as the
     // hand signature — so the keymap mirrors the visible structure: plain T is reserved for the
     // right-hand tap, Shift+T states the left-hand one. Shift+letter is the typed family's sibling
