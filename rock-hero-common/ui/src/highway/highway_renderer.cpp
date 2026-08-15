@@ -1,6 +1,7 @@
 #include "highway/bgfx_program.h"
 #include "highway/box_mute_profile.h"
 #include "highway/highway_atlas.h"
+#include "highway/highway_emphasis_styles.h"
 #include "highway/highway_head_marks.h"
 
 #include <algorithm>
@@ -1101,6 +1102,12 @@ struct HighwayRenderer::Impl
     // Player scroll speed; a free setting later (25-Q3), the default until then.
     double scroll_speed{1.3};
 
+    // EXPERIMENT SCAFFOLDING — indices into the emphasis candidate tables, cycled from the
+    // editor while the two looks are being sighted. Deleted with the tables once each end of the
+    // axis is chosen and its numbers move inline.
+    std::size_t accent_style{1};
+    std::size_t ghost_style{1};
+
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
@@ -1292,6 +1299,20 @@ HighwayRenderer::HighwayRenderer(std::unique_ptr<Impl> impl) noexcept
 HighwayRenderer::~HighwayRenderer() = default;
 HighwayRenderer::HighwayRenderer(HighwayRenderer&& other) noexcept = default;
 HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = default;
+
+std::string HighwayRenderer::cycleEmphasisStyle(const bool accent)
+{
+    if (accent)
+    {
+        m_impl->accent_style = (m_impl->accent_style + 1) % g_accent_light_styles.size();
+    }
+    else
+    {
+        m_impl->ghost_style = (m_impl->ghost_style + 1) % g_ghost_styles.size();
+    }
+    return "emphasis: accent=" + std::string{g_accent_light_styles.at(m_impl->accent_style).name} +
+           " | ghost=" + std::string{g_ghost_styles.at(m_impl->ghost_style).name};
+}
 
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
 {
@@ -2063,6 +2084,12 @@ void HighwayRenderer::Impl::draw(
     std::vector<std::uint16_t> rail_indices;
     std::vector<PosColorVertex> open_vertices;
     std::vector<std::uint16_t> open_indices;
+    // The accent light: added light around an accented note, submitted between the open bars and
+    // the heads so it sits UNDER the note it belongs to. Drawn over, it repaints the note's own
+    // pixels (measured at dE76 22-47, which is the shipped ring's whole problem); drawn under an
+    // opaque head it leaves them at dE76 1-4 and shows only where the note is not.
+    std::vector<PosColorVertex> accent_vertices;
+    std::vector<std::uint16_t> accent_indices;
     std::vector<PosColorUvVertex> head_vertices;
     std::vector<std::uint16_t> head_indices;
 
@@ -2633,6 +2660,17 @@ void HighwayRenderer::Impl::draw(
             shadow_vertices, shadow_indices, posColorLayout(), color_fade_program.get(), nullptr);
         submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
         submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
+        // Additively: a light can only ADD. Alpha blending over the lit lane subtracts up to 29
+        // counts of blue where the light is warm, and a mark that darkens part of what it covers
+        // reads as a decal rather than as light.
+        submitBatch(
+            accent_vertices,
+            accent_indices,
+            posColorLayout(),
+            color_program.get(),
+            nullptr,
+            g_board_view,
+            g_additive_state);
         submitBatch(
             head_vertices,
             head_indices,
@@ -2645,6 +2683,8 @@ void HighwayRenderer::Impl::draw(
         rail_indices.clear();
         open_vertices.clear();
         open_indices.clear();
+        accent_vertices.clear();
+        accent_indices.clear();
         head_vertices.clear();
         head_indices.clear();
     };
@@ -3757,26 +3797,62 @@ void HighwayRenderer::Impl::draw(
                     }
                 }
             }
-            pushOpenNoteBar(open_vertices, open_indices, x0, x1, head_y, z, base_color, fade, 1.0);
+            // An open string has no head to thin, so the emphasis axis rides its BAR: one
+            // thickness knob carries the whole axis here, quiet below one and the accent's light
+            // above it. That is the seam where the old design diverged — the fretted head wore an
+            // atlas cell an open bar could never wear, so the same chart mark said two different
+            // things depending on the fret.
+            const bool open_ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
+            const GhostStyle& open_ghost = g_ghost_styles.at(ghost_style);
+            const double open_bar_thickness = open_ghosted ? open_ghost.open_bar_thickness : 1.0;
+            const double open_bar_alpha = open_ghosted ? open_ghost.head_alpha : 1.0;
+            pushOpenNoteBar(
+                open_vertices,
+                open_indices,
+                x0,
+                x1,
+                head_y,
+                z,
+                base_color,
+                fade * open_bar_alpha,
+                open_bar_thickness);
             if (common::core::isAccented(note.emphasis))
             {
-                // Charter's accent halo: the same bar drawn thicker and faint, at the weight the
-                // fretted head's accent cell carries (see the constants).
-                pushOpenNoteBar(
-                    open_vertices,
-                    open_indices,
-                    x0,
-                    x1,
-                    head_y,
-                    z,
-                    base_color,
-                    fade * g_open_accent_halo_alpha,
-                    g_open_accent_halo_thickness);
+                // The same nested-band light the fretted head wears, laid along the bar: its
+                // reach is the candidate's own, so both silhouettes gain the accent at one
+                // weight instead of each carrying its own idea of loud.
+                const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
+                const double bar_half_h = g_open_note_middle_half_thickness;
+                double previous = 0.0;
+                for (std::size_t band = 0; band < g_accent_light_bands; ++band)
+                {
+                    const double t = 1.0 - (static_cast<double>(band) /
+                                            static_cast<double>(g_accent_light_bands));
+                    const double profile =
+                        light.peak_alpha * std::pow(1.0 - t, light.falloff_exponent);
+                    const double step = profile - previous;
+                    previous = profile;
+                    if (!(step > 0.0))
+                    {
+                        continue;
+                    }
+                    const double half_h = bar_half_h + (light.reach_y * t);
+                    const std::uint32_t light_tint =
+                        packAbgr(mixArgb(base_color, 0xFFFFFFFFU, light.white_mix), fade * step);
+                    pushQuad(
+                        accent_vertices,
+                        accent_indices,
+                        makeVertex(x0, head_y - half_h, z, light_tint),
+                        makeVertex(x1, head_y - half_h, z, light_tint),
+                        makeVertex(x1, head_y + half_h, z, light_tint),
+                        makeVertex(x0, head_y + half_h, z, light_tint));
+                }
             }
             // Technique markers at the window center (Charter's open-note overlay set).
             {
                 const double center_x = (x0 + x1) / 2.0;
-                const std::uint32_t marker_tint = packAbgr(base_color, fade);
+                const std::uint32_t marker_tint =
+                    packAbgr(base_color, fade * (open_ghosted ? open_ghost.marker_alpha : 1.0));
                 // The connection cell, from the same authority the fretted head below asks: an open
                 // string usually carries only the pull-off, but a left-hand tap resolves to the
                 // hammer motion unconditionally and is legal on an open string with a node.
@@ -3930,7 +4006,58 @@ void HighwayRenderer::Impl::draw(
             in_chord || highwayNodeHead(note) ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
-        const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
+
+        // The quiet end of the emphasis axis takes mass out of the note — alpha, size, or both,
+        // per the candidate being sighted. A ghost's markers quiet with it: a full-brightness
+        // mark over a dim head reads as a rendering fault rather than as dynamics.
+        const bool ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
+        const GhostStyle& ghost = g_ghost_styles.at(ghost_style);
+        const double head_alpha = ghosted ? ghost.head_alpha : 1.0;
+        const double head_scale = ghosted ? ghost.head_scale : 1.0;
+        const double head_half_w_drawn = head_half_w * head_scale;
+        const double head_half_h_drawn = head_half_h * head_scale;
+        const std::uint32_t head_tint = packAbgr(base_color, fade * head_slide.alpha * head_alpha);
+        // The markers carry their OWN emphasis weight rather than the head's: a candidate may
+        // quiet the fill while leaving the technique marks legible, which is the difference
+        // between a note played softly and a note that failed to draw.
+        const std::uint32_t tint =
+            packAbgr(base_color, fade * head_slide.alpha * (ghosted ? ghost.marker_alpha : 1.0));
+
+        // The loud end is added LIGHT rather than art: nested filled quads, brightest at the
+        // note's own edge and dissolving outward, stacked additively so the visible profile is
+        // the falloff the candidate names. They nest rather than ring because the opaque head
+        // covers the stack's centre, which turns a ring of eight quads per band into one.
+        if (common::core::isAccented(note.emphasis))
+        {
+            const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
+            const double light_alpha = fade * head_slide.alpha;
+            double previous = 0.0;
+            for (std::size_t band = 0; band < g_accent_light_bands; ++band)
+            {
+                // Bands walk outside in, so each adds only what the profile gains over the band
+                // outside it and the sum lands on the falloff exactly at every step.
+                const double t =
+                    1.0 - (static_cast<double>(band) / static_cast<double>(g_accent_light_bands));
+                const double profile = light.peak_alpha * std::pow(1.0 - t, light.falloff_exponent);
+                const double step = profile - previous;
+                previous = profile;
+                if (!(step > 0.0))
+                {
+                    continue;
+                }
+                const double half_w = head_half_w_drawn + (light.reach_x * t);
+                const double half_h = head_half_h_drawn + (light.reach_y * t);
+                const std::uint32_t light_tint =
+                    packAbgr(mixArgb(base_color, 0xFFFFFFFFU, light.white_mix), light_alpha * step);
+                pushQuad(
+                    accent_vertices,
+                    accent_indices,
+                    makeVertex(x - half_w, head_y - half_h, z, light_tint),
+                    makeVertex(x + half_w, head_y - half_h, z, light_tint),
+                    makeVertex(x + half_w, head_y + half_h, z, light_tint),
+                    makeVertex(x - half_w, head_y + half_h, z, light_tint));
+            }
+        }
 
         // Head base: the round node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
@@ -3938,26 +4065,56 @@ void HighwayRenderer::Impl::draw(
         // travel is unpitched noise, so it takes the darker base a full-muted note takes, and
         // the pick mark then sits on that base rather than on an X — else the standard head.
         // Both predicates are stated once, in highway_head_marks.h.
+        // A ghost candidate may draw the hollow outline in place of the filled art, which takes
+        // the note's mass out without touching a single alpha — the treatment that composes
+        // exactly as today with every fade already on this surface.
         const std::array<float, 4> base_cell =
-            highwayNodeHead(note)   ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
-            : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
-                                    : head_cell;
+            ghosted && ghost.hollow_head
+                ? hollow_cell
+                : (highwayNodeHead(note)   ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
+                   : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
+                                           : head_cell);
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
                 x + (dx * cos_r) - (dy * sin_r),
                 head_y + (dx * sin_r) + (dy * cos_r),
                 z,
-                tint,
+                head_tint,
                 u,
                 v);
         };
         pushQuad(
             head_vertices,
             head_indices,
-            corner(-head_half_w, -head_half_h, base_cell[0], base_cell[3]),
-            corner(head_half_w, -head_half_h, base_cell[2], base_cell[3]),
-            corner(head_half_w, head_half_h, base_cell[2], base_cell[1]),
-            corner(-head_half_w, head_half_h, base_cell[0], base_cell[1]));
+            corner(-head_half_w_drawn, -head_half_h_drawn, base_cell[0], base_cell[3]),
+            corner(head_half_w_drawn, -head_half_h_drawn, base_cell[2], base_cell[3]),
+            corner(head_half_w_drawn, head_half_h_drawn, base_cell[2], base_cell[1]),
+            corner(-head_half_w_drawn, head_half_h_drawn, base_cell[0], base_cell[1]));
+
+        // The rim a dimmed fill keeps, so a ghost's silhouette cannot degrade into a ragged core
+        // while its interior quiets — the failure that reads as a bug rather than as dynamics.
+        if (ghosted && ghost.rim_alpha > 0.0)
+        {
+            const std::uint32_t rim_tint =
+                packAbgr(base_color, fade * head_slide.alpha * ghost.rim_alpha);
+            const auto rim_corner =
+                [&](const double dx, const double dy, const float u, const float v) {
+                    return makeUvVertex(
+                        x + (dx * cos_r) - (dy * sin_r),
+                        head_y + (dx * sin_r) + (dy * cos_r),
+                        z,
+                        rim_tint,
+                        u,
+                        v);
+                };
+            pushQuad(
+                head_vertices,
+                head_indices,
+                rim_corner(-head_half_w_drawn, -head_half_h_drawn, hollow_cell[0], hollow_cell[3]),
+                rim_corner(head_half_w_drawn, -head_half_h_drawn, hollow_cell[2], hollow_cell[3]),
+                rim_corner(head_half_w_drawn, head_half_h_drawn, hollow_cell[2], hollow_cell[1]),
+                rim_corner(-head_half_w_drawn, head_half_h_drawn, hollow_cell[0], hollow_cell[1]));
+        }
 
         {
             // Rotating markers ride the rolling flip (Charter bakes these into the head

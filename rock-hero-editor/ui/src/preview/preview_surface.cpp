@@ -238,6 +238,15 @@ void PreviewSurface::setCaretSeconds(const std::optional<double> seconds)
     m_caret_seconds = seconds;
 }
 
+void PreviewSurface::cycleEmphasisStyle(const bool accent)
+{
+    if (!m_renderer.has_value())
+    {
+        return;
+    }
+    RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleEmphasisStyle(accent));
+}
+
 void PreviewSurface::resized()
 {
     updateChildBounds();

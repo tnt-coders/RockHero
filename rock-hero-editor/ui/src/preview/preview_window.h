@@ -72,6 +72,12 @@ public:
     */
     void setCaretSeconds(std::optional<double> seconds);
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycles an emphasis appearance on the surface and logs the pair.
+    \param accent True to advance the accent light, false to advance the ghost treatment.
+    */
+    void cycleEmphasisStyle(bool accent);
+
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 

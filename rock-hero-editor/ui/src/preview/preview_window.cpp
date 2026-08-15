@@ -77,6 +77,11 @@ void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
     m_surface->setCaretSeconds(seconds);
 }
 
+void PreviewWindow::cycleEmphasisStyle(const bool accent)
+{
+    m_surface->cycleEmphasisStyle(accent);
+}
+
 void PreviewWindow::closeButtonPressed()
 {
     close();

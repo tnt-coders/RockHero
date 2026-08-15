@@ -130,6 +130,23 @@ namespace
             .category = "View",
             .default_keypresses = {chord(juce::KeyPress::F3Key)},
         });
+    // EXPERIMENT SCAFFOLDING — the emphasis-appearance samplers, deleted with the candidate
+    // tables once both ends of the axis are chosen. Registered as real commands rather than raw
+    // key handling so they appear in the actions list and can be rebound like anything else.
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::CycleAccentStyle,
+            .name = "Cycle Accent Appearance (experiment)",
+            .category = "View",
+            .default_keypresses = {chord(juce::KeyPress::F9Key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::CycleGhostStyle,
+            .name = "Cycle Ghost Appearance (experiment)",
+            .category = "View",
+            .default_keypresses = {chord(juce::KeyPress::F10Key)},
+        });
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,

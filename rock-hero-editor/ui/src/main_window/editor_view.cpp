@@ -1392,6 +1392,11 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // purpose: their old decoder branches declined silently, and a disabled command whose
         // chord matches makes JUCE play the system alert sound (KeyPressMappingSet::keyPressed)
         // — so perform self-gates instead, and the core self-gates its intents anyway.
+        // EXPERIMENT SCAFFOLDING — always active, self-gating on whether a preview is live, for
+        // the same reason the verbs below do: a disabled command whose chord matches makes JUCE
+        // play the system alert sound.
+        case EditorCommandId::CycleAccentStyle:
+        case EditorCommandId::CycleGhostStyle:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1569,6 +1574,20 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::InsertToneChange:
         {
             createToneMarkerAtCursor();
+            return true;
+        }
+
+        // EXPERIMENT SCAFFOLDING — sampling the two ends of the emphasis axis. The surface logs
+        // the active PAIR after each step, because the pair is what is being judged.
+        case EditorCommandId::CycleAccentStyle:
+        case EditorCommandId::CycleGhostStyle:
+        {
+            if (m_preview_window != nullptr)
+            {
+                m_preview_window->cycleEmphasisStyle(
+                    static_cast<EditorCommandId>(info.commandID) ==
+                    EditorCommandId::CycleAccentStyle);
+            }
             return true;
         }
 

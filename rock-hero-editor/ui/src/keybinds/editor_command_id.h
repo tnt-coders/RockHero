@@ -81,6 +81,17 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief View > 3D Preview (`F3`). */
     TogglePreview3D = 0x1303,
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycle the accent light candidate (`F9`).
+
+    The emphasis axis's two looks are being sighted in the app rather than argued. Deleted with
+    the candidate tables once each end is chosen.
+    */
+    CycleAccentStyle = 0x1304,
+
+    /*! \brief EXPERIMENT SCAFFOLDING — cycle the ghost-note candidate (`F10`). */
+    CycleGhostStyle = 0x1305,
+
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,

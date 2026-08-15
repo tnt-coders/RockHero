@@ -149,6 +149,21 @@ public:
     void setViewState(common::core::HighwayViewState state);
 
     /*!
+    \brief EXPERIMENT SCAFFOLDING — advances the accent or ghost appearance to the next candidate.
+
+    The two ends of the emphasis axis are being sighted in the app rather than argued, so every
+    candidate ships at once and the editor cycles them from a keybind. Returns the line naming
+    BOTH ends, because the PAIR is what is being judged: a candidate that reads well beside one
+    partner can read as an accident beside another (an accent whose light spills onto a
+    neighbouring lane makes a ghost there look lit rather than quiet). Deleted along with the
+    candidate tables once each end is chosen and its numbers move inline.
+
+    \param accent True to advance the accent light, false to advance the ghost treatment.
+    \return Text naming the active accent and ghost candidates.
+    */
+    [[nodiscard]] std::string cycleEmphasisStyle(bool accent);
+
+    /*!
     \brief Encodes one frame of the highway into the render views.
 
     \param now_seconds Playback song time for this frame (from the consumer's clock port).

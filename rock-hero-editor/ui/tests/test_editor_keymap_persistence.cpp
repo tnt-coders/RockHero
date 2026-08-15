@@ -115,9 +115,11 @@ TEST_CASE("EditorKeymapPersistence drops unknown stored entries", "[ui][keybinds
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingKeymapSettings settings;
+    // F12 carries the unknown id because it is bound to nothing by default, which is what makes
+    // "the entry was dropped" distinguishable from "something else claimed the key".
     settings.stored_keymap =
         std::string{R"(<KEYMAPPINGS>)"
-                    R"(<MAPPING commandId="9999" description="F10" key="F10"/>)"
+                    R"(<MAPPING commandId="9999" description="F12" key="F12"/>)"
                     R"(<MAPPING commandId="1101" description="F11" key="F11"/>)"
                     R"(<MAPPING commandId="1302" description="F9" key="F9"/>)"
                     R"(</KEYMAPPINGS>)"};
@@ -135,7 +137,7 @@ TEST_CASE("EditorKeymapPersistence drops unknown stored entries", "[ui][keybinds
     CHECK(
         mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F11Key}) ==
         toJuceCommandId(EditorCommandId::Undo));
-    CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F10Key}) == 0);
+    CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F12Key}) == 0);
 }
 
 // A corrupt blob must never brick startup: restore falls back to pure defaults.
