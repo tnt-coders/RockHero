@@ -211,6 +211,18 @@ put a second timeline concept into every consumer.
 
 ## Chart editing (tab lane)
 
+### Bracket clipping gaps a scrape's travel diagonals — trigger: seen in real material
+
+Technique marks riding a tail — slide diagonals, bend curves, the vibrato sine — clip against
+every arpeggio bracket's columns on their string (2026-08-14, the posture-display work), so a
+posture mark is never cut through by a diagonal. The accepted edge: a pick scrape, or a slid
+right-hand tap, whose path crosses a *later* span's bracket has its travel diagonals gapped there
+— arguably the note's own body rather than a technique on it. Judged EXTREMELY rare with the user
+and deliberately left undecided. **Trigger**: the gap shows up in real imported or authored
+material and reads wrong. **Remedy**: decide then whether a scrape's diagonals are body (exempt
+them from the clip, as the ribbon and tremolo teeth already are) or technique (keep the gap), and
+record the ruling in the walkthrough.
+
 ### Gesture-deferred pushes have no lifecycle reset — trigger: a report of a frozen tone row
 
 `ToneTrackView` and `ToneAutomationLanesView` defer state pushes while a view-owned drag holds

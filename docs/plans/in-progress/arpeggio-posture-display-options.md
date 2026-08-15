@@ -10,10 +10,16 @@ One decision per posture string, at the span start:
 
 | At the span start | Result |
 |---|---|
-| nothing sounds | the posture states CENTRED in the bracket, at fret-number size — plus a tail-coloured ground **only** when a sustain is crossing that column |
+| nothing sounds | the posture states CENTRED in the bracket, at fret-number size |
 | a head at the posture's own fret | nothing added; the head already states it |
-| a head at a DIFFERENT fret, picking-hand onset | the tap keeps the centre; the posture takes a side chip beside the bracket |
+| a head at a DIFFERENT fret, picking-hand onset | the tap keeps the centre; the posture takes a side chip beside the bracket, on a ground of the tail's own fill |
 | a head at a different fret, fretting-hand onset | nothing added — the hand has left the template, so the posture is no longer held and stating it would be false |
+
+Technique marks riding a tail — slide diagonals, bend curves, the vibrato sine — CLIP against every
+arpeggio bracket's columns on their string (the tail's body and the tremolo teeth show through
+untouched), so a centred digit needs no ground of its own: the marks that would cross it die at the
+bracket's edge. Accepted-for-now consequence in `docs/tracking/watch-items.md`: a scrape or a slid
+tap crossing a bracket has its travel diagonals gapped there.
 
 That last row is what makes the rule honest, and it reuses `rightHandOnset`, whose own
 documentation already says these onsets "never anchor, cover, or ring into a fretting-hand posture".

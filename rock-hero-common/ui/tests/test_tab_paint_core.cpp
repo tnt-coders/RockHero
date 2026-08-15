@@ -2,9 +2,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
+#include <cstdlib>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
@@ -475,6 +477,125 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     // The five-fret-wide FHP at 14.0s (x = 280) draws its "3-7" range marker box along the top
     // edge; the probe sits inside the box fill, left of the centered text.
     CHECK(image.getPixelAt(282, 7) == juce::Colour{0xff2a2f36});
+}
+
+// The case the posture rule exists for: a right-hand tap at the span start on a posture string,
+// sounding a DIFFERENT fret from the held one. The tap keeps the bracket's centre — it is what
+// rings — and the still-held posture moves to a side chip whose ground masks whatever technique
+// rides the crossing sustain. A silent posture string in the same span keeps its digit centred
+// with no chip at all, so the side slot is conditional, never a fixture.
+TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    common::core::TabViewState state;
+    state.string_count = 6;
+    state.notes = {
+        // Rings across the span start on string 3 with vibrato, so its sine crosses the side
+        // chip's column — the ink the chip's ground exists to mask.
+        common::core::TabNoteView{
+            .start_seconds = 7.0,
+            .end_seconds = 13.0,
+            .string = 3,
+            .fret = 7,
+            .vibrato = true,
+            .bend = {},
+            .slides = {},
+        },
+        // The tap: span-start onset on the same string at a fret the posture does not hold.
+        common::core::TabNoteView{
+            .start_seconds = 10.0,
+            .end_seconds = 10.0,
+            .string = 3,
+            .fret = 12,
+            .attack = common::core::NoteAttack::Tap,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    state.shapes = {
+        common::core::TabShapeView{
+            .start_seconds = 10.0,
+            .end_seconds = 14.0,
+            .name = "X",
+            .arpeggio = true,
+            .arpeggio_notes = {
+                common::core::TabArpeggioNoteView{.string = 3, .fret = 7},
+                common::core::TabArpeggioNoteView{.string = 5, .fret = 8},
+            },
+        },
+    };
+
+    const juce::Rectangle<int> bounds{0, 0, 400, 240};
+    const common::core::TimeRange visible_timeline{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{20.0},
+    };
+    const TabLaneMetrics metrics = makeTabLaneMetrics(
+        bounds,
+        visible_timeline,
+        common::core::displayedStringCount(state.string_count, 0),
+        state.string_count);
+
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics graphics{image};
+    const std::vector<double> prefix_max = resolveHoldEnds(state);
+    paintTabLane(graphics, metrics, state, prefix_max);
+
+    // Six lanes in 240px: string 3 renders at lane center y = 140, string 5 at y = 60. The span
+    // start (10.0s) lands at x = 200; the bracket's closing bar ends at x = 216, so the side
+    // chip's ground starts on column 216 and its digit sits from 217.
+    const auto white_in = [&image](int left, int right, int top, int bottom) {
+        for (int x = left; x <= right; ++x)
+        {
+            for (int y = top; y <= bottom; ++y)
+            {
+                const juce::Colour pixel = image.getPixelAt(x, y);
+                if (pixel.getRed() >= 0xF0 && pixel.getGreen() >= 0xF0 && pixel.getBlue() >= 0xF0)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // String 3: the posture "7" states in the side chip, in white, right of the closing bar.
+    CHECK(white_in(217, 227, 135, 144));
+
+    // The chip's ground is the tail's own fill, and it MASKS the sine. The vibrato path crosses
+    // column 216 at row 144 with full coverage, so without the ground that pixel would carry the
+    // sine's grey; with it, it is exactly the tail fill.
+    const juce::Colour tail_fill{StringLaneStyle{metrics.baseColor(3).getARGB()}.linked_inner};
+    CHECK(image.getPixelAt(216, 144) == tail_fill);
+
+    // And the sine really does draw past the chip, so the masked pixel is a masked pixel rather
+    // than a sine that never reached the column: some full-coverage stretch of the wave sits just
+    // right of the chip.
+    const auto sine_grey_in = [&image](int left, int right, int top, int bottom) {
+        for (int x = left; x <= right; ++x)
+        {
+            for (int y = top; y <= bottom; ++y)
+            {
+                const juce::Colour pixel = image.getPixelAt(x, y);
+                const int red = pixel.getRed();
+                if (pixel.getAlpha() == 255 && red >= 0x98 &&
+                    std::abs(red - pixel.getGreen()) <= 8 &&
+                    std::abs(pixel.getGreen() - pixel.getBlue()) <= 8)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    CHECK(sine_grey_in(228, 234, 140, 148));
+
+    // String 5 is silent at the span start, so its posture "8" states CENTRED in the bracket —
+    // with no ground (centred digits never need one: technique marks clip against the bracket's
+    // own columns, so the corner stays empty) and no side chip.
+    CHECK(white_in(192, 208, 53, 67));
+    CHECK(image.getPixelAt(192, 54).getARGB() == 0);
+    CHECK_FALSE(white_in(218, 228, 54, 66));
 }
 
 // A fret-hand harmonic's head names its node, not its fret.

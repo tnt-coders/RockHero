@@ -197,11 +197,12 @@ struct TabShapeView
 
     /*!
     \brief Every template posture note, in ascending string order. Populated only for arpeggio
-    spans, where each renders bracket marks at the span start with its held fret stated beside
-    them. The posture is stated unconditionally: what sounds at the start is the notes' own
-    business, so a head landing inside a bracket neither suppresses the fret nor contends with it.
-    That matters most where the two frets DIFFER — a tap over a held shape states the tapped fret,
-    and the hand's posting would otherwise go unsaid on the one string it is hardest to infer.
+    spans, where each renders bracket marks at the span start. The paint pass decides per string
+    where the held fret states, from what sounds there: a silent string states it centred in the
+    brackets; a head at the posture's own fret already states it, so nothing is added; a
+    picking-hand head at a DIFFERENT fret keeps the centre — it is what rings — and the still-held
+    posture moves to a side chip; a fretting-hand head at a different fret means the hand has left
+    the template, so claiming the posture would be false and nothing is added.
     */
     std::vector<TabArpeggioNoteView> arpeggio_notes;
 

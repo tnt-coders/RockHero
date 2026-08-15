@@ -126,20 +126,28 @@ struct StringStyle
     juce::Colour border_inner; // note ring: lane brightened
     juce::Colour inner;        // note fill: ring darkened twice
     juce::Colour linked_inner; // linked-note fill: the fill darkened twice more
-    juce::Colour tail;         // sustain fill: base x0.66
-    juce::Colour tail_edge;    // sustain border: tail brightened
+    juce::Colour tail;         // sustain fill: the linked-note fill (see the constructor)
+    juce::Colour tail_edge;    // sustain border: the authority's bright x0.66 tail, brightened
     juce::Colour accent;       // accent glow: ring brightened, hue-preserving
 
     explicit StringStyle(juce::Colour base)
         : StringStyle(StringLaneStyle{base.getARGB()})
     {}
 
+    // The one deliberate divergence from the authority: the 2D tail FILL is the linked-note fill —
+    // as dark as the waypoint heads riding it — not the authority's bright base x0.66. Both
+    // surfaces subdue tails, each through its own compositing model: the highway keeps the bright
+    // tail and applies translucency over its dark world, while this opaque lane darkens the fill
+    // outright. At the bright fill everything drawn ON a tail fought it (the vibrato sine measured
+    // barely 6 dL* on the yellow string, whose tail EDGE was lighter than the grey ink crossing
+    // it). The edge keeps the authority's derivation untouched: it carries string identity and
+    // says the note rings, and keeping it bright is what lets the fill go this dark.
     explicit StringStyle(const StringLaneStyle& style)
         : lane(style.lane)
         , border_inner(style.border_inner)
         , inner(style.inner)
         , linked_inner(style.linked_inner)
-        , tail(style.tail)
+        , tail(style.linked_inner)
         , tail_edge(style.tail_edge)
         , accent(style.accent)
     {}
@@ -155,18 +163,7 @@ struct StringStyle
     styles.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
     for (int chart_string = 1; chart_string <= common::core::g_max_chart_strings; ++chart_string)
     {
-        StringStyle style{metrics.baseColor(chart_string)};
-        // The tail's fill is the LINKED-note fill — as dark as the waypoint heads riding it, so a
-        // tail and its waypoints share one darkness. Applied here because this table is the one
-        // place a string's whole derived palette exists, so every tail moves together.
-        //
-        // The EDGE is deliberately left alone. It carries string identity and says the note rings,
-        // so keeping it bright is what lets the fill go this dark: at Charter's own tail brightness
-        // everything drawn ON a tail fights it — the vibrato sine measured barely 6 dL* against the
-        // yellow string, whose tail edge was actually LIGHTER than the grey ink crossing it, which
-        // inverted the contrast outright.
-        style.tail = style.linked_inner;
-        styles.push_back(style);
+        styles.emplace_back(metrics.baseColor(chart_string));
     }
     return styles;
 }
@@ -180,13 +177,9 @@ struct LabelChip
     juce::Colour border;
 };
 
-// One visible arpeggio bracket: the posture note it marks and the pixel-snapped outer extent of
-// the "[ fret ]" pair drawn around it. Resolved once per paint, because the string-line gaps and
-// the brackets themselves must agree on where a bracket sits to the pixel.
-//the fret of a note head sounding on this string exactly
-// at the span start, or nullopt when the string is silent there. That head is what the centred
-// candidates contend with, and its FRET is what decides whether the posture is already stated.
-// Delete with the experiment.
+// The note head sounding on this string exactly at the span start, or nullptr when the string is
+// silent there. That head is what the centred posture digit contends with; its ATTACK decides
+// which hand produced it and its FRET whether the posture is already stated.
 [[nodiscard]] const common::core::TabNoteView* headAtSpanStart(
     const common::core::TabViewState& tab, double span_start_seconds, int chart_string)
 {
@@ -205,38 +198,17 @@ struct LabelChip
     return nullptr;
 }
 
-//a sustain from an EARLIER note still ringing across this
-// instant on this string. That ring-through is one of the things that MAKES a span an arpeggio, and
-// it is the case where a centred posture digit needs a ground: the ribbon and whatever technique
-// rides it — a slide diagonal, a bend curve, the vibrato sine — cross the digit's own column.
-[[nodiscard]] bool sustainCrossesAt(
-    const common::core::TabViewState& tab, const std::vector<double>& prefix_max_end_seconds,
-    double seconds, int chart_string)
-{
-    const auto [first, last] =
-        common::core::visibleEventRange(tab.notes, prefix_max_end_seconds, seconds, seconds);
-    for (std::size_t index = first; index < last; ++index)
-    {
-        if (tab.notes[index].string == chart_string && tab.notes[index].start_seconds < seconds &&
-            tab.display_hold_ends[index] > seconds)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 struct ArpeggioBracket
 {
     common::core::TabArpeggioNoteView note;
     // The span start in pixels: the bracket pair's center, and the head's own column.
     float center_x{};
-    // The resolved digit box, plus the two facts that placed it: whether this string's posture was
-    // displaced into the side slot by a tap, and whether a centred digit needs a ground under it.
+    // The resolved digit box, plus the fact that placed it: whether this string's posture was
+    // displaced into the side slot by a tap. A centred digit needs no ground of its own — the
+    // technique marks that would cross it clip against the bracket's columns at the source.
     int digit_left{};
     int digit_width{};
     bool side_slot{};
-    bool chip_behind{};
     // The bracket bars' own pixel columns.
     int bar_left{};
     int bar_right{};
@@ -445,8 +417,9 @@ void drawTremoloTail(
     g.fillPath(inner_band);
 }
 
-// Draws the sustain tail: Charter's filled bar with a brighter stroked border, the tremolo gem
-// strip variant, and the vibrato sine overlay.
+// Draws the sustain tail's BODY: Charter's filled bar with its brighter rails, or the tremolo gem
+// strip variant. The vibrato sine is drawn separately (drawVibratoSine) because it is a technique
+// mark riding the tail, clipped against arpeggio brackets where the body is not.
 void drawNoteTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::TabNoteView& note, double hold_end_seconds, float onset_x, float center_y)
@@ -496,40 +469,51 @@ void drawNoteTail(
                 border.getX(), border.getBottom() - thickness, border.getWidth(), thickness
             });
     }
+}
 
-    if (note.vibrato)
+// Draws the vibrato sine along a tail. Separate from drawNoteTail because the sine is a technique
+// mark RIDING the tail rather than the tail's own body, and the caller clips the technique marks
+// against the arpeggio brackets while the ribbon shows through them untouched.
+void drawVibratoSine(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView& note,
+    double hold_end_seconds, float onset_x, float center_y)
+{
+    const float length = metrics.x(hold_end_seconds) - onset_x;
+    if (!note.vibrato || length <= 0.0f)
     {
-        const float amplitude = metrics.tail_height / 3.0f;
-        const float period = amplitude * 3.0f;
-        // Sampled on whole-pixel distances from the onset, so the run the clip can show carries
-        // the same vertices at the same places the whole tail would have put there.
-        const TailRun run = visibleTailRun(g, metrics, onset_x, length);
-        if (run.empty())
-        {
-            return;
-        }
-        const auto first_step = static_cast<int>(std::ceil(run.from_dx));
-        const auto last_step = static_cast<int>(std::floor(run.to_dx));
-        juce::Path wave;
-        for (int step = first_step; step <= last_step; ++step)
-        {
-            const auto dx = static_cast<float>(step);
-            const juce::Point<float> point{
-                onset_x + dx,
-                center_y + amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period)
-            };
-            if (step == first_step)
-            {
-                wave.startNewSubPath(point);
-            }
-            else
-            {
-                wave.lineTo(point);
-            }
-        }
-        g.setColour(g_vibrato_sine_color);
-        g.strokePath(wave, juce::PathStrokeType{std::max(1.0f, metrics.tail_height / 8.0f)});
+        return;
     }
+
+    const float amplitude = metrics.tail_height / 3.0f;
+    const float period = amplitude * 3.0f;
+    // Sampled on whole-pixel distances from the onset, so the run the clip can show carries
+    // the same vertices at the same places the whole tail would have put there.
+    const TailRun run = visibleTailRun(g, metrics, onset_x, length);
+    if (run.empty())
+    {
+        return;
+    }
+    const auto first_step = static_cast<int>(std::ceil(run.from_dx));
+    const auto last_step = static_cast<int>(std::floor(run.to_dx));
+    juce::Path wave;
+    for (int step = first_step; step <= last_step; ++step)
+    {
+        const auto dx = static_cast<float>(step);
+        const juce::Point<float> point{
+            onset_x + dx,
+            center_y + amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period)
+        };
+        if (step == first_step)
+        {
+            wave.startNewSubPath(point);
+        }
+        else
+        {
+            wave.lineTo(point);
+        }
+    }
+    g.setColour(g_vibrato_sine_color);
+    g.strokePath(wave, juce::PathStrokeType{std::max(1.0f, metrics.tail_height / 8.0f)});
 }
 
 // The note-head silhouettes. The shape carries what KIND of note this is; it never carries which
@@ -1577,7 +1561,6 @@ void paintTabLane(
             const common::core::TabNoteView* const head =
                 headAtSpanStart(tab, shape.start_seconds, arpeggio_note.string);
             bool side_slot = false;
-            bool chip_behind = false;
 
             const int bar_left =
                 juce::roundToInt(start_x - bracket_radius - static_cast<float>(bracket_bar) / 2.0f);
@@ -1588,28 +1571,27 @@ void paintTabLane(
             int drawn_width = digit_width;
 
             // WHERE the posture states, decided per string by what sounds on it at the span start.
-            if (head == nullptr)
+            // The defaults above are the silent-string case: the posture keeps the centre a fret
+            // number belongs in, and needs no ground there because the technique marks that would
+            // cross it clip against the bracket's own columns.
+            if (head != nullptr)
             {
-                // Nothing sounds here, so the posture takes the centre a fret number belongs in,
-                // and earns a ground only when a ribbon is crossing it.
-                chip_behind = sustainCrossesAt(
-                    tab, prefix_max_end_seconds, shape.start_seconds, arpeggio_note.string);
-            }
-            else if (common::core::rightHandOnset(head->attack) && head->fret != arpeggio_note.fret)
-            {
-                // The tap is what rings, so it keeps the centre; the fretting hand has NOT moved,
-                // so its fret is still true and takes the side slot beside the bracket.
-                side_slot = true;
-                digit_left = bar_right + g_arpeggio_posture_gap;
-                drawn_width = span_digit_width;
-                mark_right = digit_left + span_digit_width + g_arpeggio_posture_gap;
-            }
-            else
-            {
-                // Either the head already states this fret, or a fretting-hand onset moved the hand
-                // off the template — in which case the posture is no longer held and stating it
-                // would be false.
-                drawn_width = 0;
+                if (common::core::rightHandOnset(head->attack) && head->fret != arpeggio_note.fret)
+                {
+                    // The tap is what rings, so it keeps the centre; the fretting hand has NOT
+                    // moved, so its fret is still true and takes the side slot beside the bracket.
+                    side_slot = true;
+                    digit_left = bar_right + g_arpeggio_posture_gap;
+                    drawn_width = span_digit_width;
+                    mark_right = digit_left + span_digit_width + g_arpeggio_posture_gap;
+                }
+                else
+                {
+                    // Either the head already states this fret, or a fretting-hand onset moved
+                    // the hand off the template — in which case the posture is no longer held and
+                    // stating it would be false.
+                    drawn_width = 0;
+                }
             }
 
             brackets.push_back(
@@ -1619,7 +1601,6 @@ void paintTabLane(
                     .digit_left = digit_left,
                     .digit_width = drawn_width,
                     .side_slot = side_slot,
-                    .chip_behind = chip_behind,
                     .bar_left = bar_left,
                     .bar_right = bar_right,
                     .mark_right = mark_right
@@ -1667,6 +1648,29 @@ void paintTabLane(
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
         drawNoteTail(g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
+
+        // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
+        // clip against every arpeggio bracket on this string: a posture mark states where the hand
+        // is, and a diagonal cutting through it muddies the one column the reader is decoding. The
+        // tail's own body (ribbon, tremolo teeth) shows through untouched, so the sustain still
+        // plainly continues; only the marks yield, the same way the lane line already does. The
+        // deferred label chips are collected here but drawn later, outside this clip, so a
+        // clipped-away leg keeps its floating fret label.
+        juce::Graphics::ScopedSaveState technique_clip{g};
+        for (const ArpeggioBracket& bracket : brackets)
+        {
+            if (bracket.note.string == note.string)
+            {
+                g.excludeClipRegion(
+                    juce::Rectangle<int>{
+                        bracket.bar_left,
+                        juce::roundToInt(center_y - metrics.lane_height / 2.0f),
+                        bracket.bar_right - bracket.bar_left,
+                        juce::roundToInt(metrics.lane_height)
+                    });
+            }
+        }
+        drawVibratoSine(g, metrics, note, tab.display_hold_ends[index], onset_x, center_y);
         drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
         drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
     }
@@ -1735,26 +1739,22 @@ void paintTabLane(
                 static_cast<float>(bracket.digit_width),
                 bracket_size
             };
-            // One ground, two placements. The patch is the tail's own interior in the tail's
-            // own fill, so where it appears it reads as a clean stretch OF the ribbon rather than
-            // an object on it — and it appears only where something would otherwise cross the
-            // digit: beside the bracket when a tap has taken the centre, or behind the centred
-            // digit when a sustain rings through.
-            if (bracket.side_slot || bracket.chip_behind)
+            // The side chip's ground: the tail's own interior in the tail's own fill, so it reads
+            // as a clean stretch OF the ribbon rather than an object on it, masking whatever
+            // technique mark crosses its columns. Only the SIDE slot needs one — it sits outside
+            // the bracket bars, past the clip that already keeps technique marks out of the
+            // bracket's own columns, which is all the ground a centred digit requires.
+            if (bracket.side_slot)
             {
                 const TailSpan tail = tailSpan(metrics, center_y);
                 const int patch_top = juce::roundToInt(tail.top - 1.0f + metrics.tail_edge_size);
                 const int patch_bottom = juce::roundToInt(tail.bottom - metrics.tail_edge_size);
-                const int patch_left = bracket.side_slot
-                                           ? bracket.bar_right
-                                           : bracket.digit_left - g_arpeggio_posture_gap;
-                const int patch_right =
-                    bracket.side_slot
-                        ? bracket.mark_right
-                        : bracket.digit_left + bracket.digit_width + g_arpeggio_posture_gap;
                 g.setColour(style.tail);
                 g.fillRect(
-                    patch_left, patch_top, patch_right - patch_left, patch_bottom - patch_top);
+                    bracket.bar_right,
+                    patch_top,
+                    bracket.mark_right - bracket.bar_right,
+                    patch_bottom - patch_top);
             }
             g.setColour(juce::Colours::white);
             g.setFont(metrics.fret_font);
