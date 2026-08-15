@@ -12,25 +12,30 @@ separate track. When resuming, read both.
 
 ## In flight right now
 
-**The harmonic icon size iteration — awaiting the user's verdict, uncommitted.**
+**A deep dive into the atlas's SIZE SYSTEM, with whole-atlas variants to judge as a whole.**
+The texture agent is measuring every marker cell (mutes, pick slide, slap, pop, tap, hammer-on,
+accent, harmonic, pinch, bend) against the head bases and reporting whether one size system
+exists or has drifted, which sizes are load-bearing signals, and which structural constraints a
+family-wide shrink could break — then delivering 3–5 complete atlas variants implementing
+coherent schemes.
 
-Working tree holds two modified files:
+**The toggle mechanism, and why it is files rather than cells.** The engine loads the head atlas
+as a whole file by name, so a sizing scheme is a complete atlas variant: switching is copying a
+variant over `rock-hero-common/ui/resources/textures/notes.png` and rebuilding, with NO code
+change and the cell vocabulary identical in every variant. Only the winner enters the repo; the
+rest are deleted. An earlier per-cell candidate seam for the icon sizes was reverted in favour of
+this — it cost atlas cells and code for a switch the file swap does for free.
 
-- `rock-hero-common/ui/resources/textures/notes.png` — cell 14 restored to the icon's
-  authoring-resolution bytes (sha `1c563476…`; the committed D atlas is `a9cba048…`).
-- `rock-hero-common/ui/src/highway/highway_renderer.cpp` — node heads no longer roll on approach.
-
-Both are built and deployed; the editor shows them on restart. The verdict question is stated
-under [Open decisions](#open-decisions) below.
-
-To abandon the icon experiment and keep the rest: `git checkout --
-rock-hero-common/ui/resources/textures/notes.png` restores the committed D atlas (the renderer
-change is independent and stands on its own).
+Working tree holds only `notes.png` (currently the full-size-icon experiment, sha `1c563476…`).
+`git checkout -- rock-hero-common/ui/resources/textures/notes.png` restores the committed D
+atlas at any time.
 
 ## Shipped 2026-08-15 (newest first)
 
 | Commit | What |
 |---|---|
+| `33e43599` | Node heads hold flat through the approach (no rolling flip) |
+| `832558b7` | This state file |
 | `ae589b2e` | Locked in the edge-height diamond harmonic base (D); rejected candidates removed |
 | `21bfa768` | The A/B/C/D candidate rounds, all four in the atlas behind one alias seam |
 | `528c412b` | (superseded by the two above) the E-fit round base and `highwayNodeHead` |
@@ -60,17 +65,16 @@ depth 0.125 semitones, wave anchored to the note's own extremes so it stays rigi
 
 ## Open decisions
 
-1. **Does the mute-sized harmonic icon ship?** Restoring the icon's original size (the measured
-   answer to *"is that how big it was originally?"* — the mutes and the original icon are the same
-   height, 32.7 tx, against the 22.0 tx seat scale that shipped) makes the icon, not the diamond,
-   bound the head: D's diamond then contributes **no silhouette at all** (points recessed 1.0 tx,
-   flats covered by 4.7 tx; 73 diamond texels remain, visible only *through* the icon's annular
-   gap), and stacking worsens to ≈ 4.8 tx per side. The diamond identity survives fully in the
-   hollow approach outline, which is unaffected.
-   **The knob, measured**: the icon binds the union only above ≈ 0.94 of original size (30.8 tx).
-   At or below that the diamond bounds it again and stacking returns to D's own ≈ 3.7 tx per side;
-   icon scale 0.881 puts the points 1.0 tx proud again. So the middle ground is a real, calibrated
-   option if full size hides too much.
+1. **The marker family's sizing — one system or drift, and should it shrink?** The user's standing
+   preference on the harmonic marker is the SEAT scale (0.6767, 22.0 tx) over the mute-matched
+   full size; that question folded into this larger one rather than being settled alone.
+   Measured so far: the mutes and the icon's own authored size are the same height (32.75 vs
+   32.70 tx) — so *"as tall as the mutes"* and *"as authored"* are one size, and at it the marker
+   bounds the head outright (D's diamond points recessed 1.0 tx, flats covered by 4.7, stacking
+   ≈ 4.8 tx per side). **The calibrated knob**: the marker binds the union only above ≈ 0.94 of
+   authored size (30.8 tx); at or below, the diamond bounds it again and stacking returns to D's
+   ≈ 3.7 tx per side, with scale 0.881 putting the points 1.0 tx proud. Awaiting the deep dive's
+   analysis and variants before ruling.
 
 2. **The bend display anchor** — is *half step = exactly one string gap, every string* right?
    The curve SHAPE in `highwayBendLiftY` is verified physics; the anchor is a display choice. For
