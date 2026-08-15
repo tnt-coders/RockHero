@@ -832,14 +832,15 @@ void pushFaceQuad(
 // here: the caller submits the SDF-program mark over the panel's frame interior.
 // \param full_height_y1 The box top for a full-height box (a repeat box is half this).
 // \param box_only Half-height repeat box.
-// \param with_top Full sides plus a top bar (3+ note chords); ignored under box_only/accent.
-// \param any_accent Accent chevrons on the sides.
+// \param with_top Full sides plus a top bar (3+ note chords); ignored under box_only.
+// \param alpha_scale Multiplies every part's alpha — the quiet end of the emphasis axis, which
+//        takes the box's presence down the way a ghost takes a head's.
 // \param frame_thickness Bar/column width of the frame; callers pass the string grid's base
 //        height so the bottom bar fills the gap under the grid exactly.
 void pushChordBoxPanel(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double z, const double full_height_y1, const bool box_only,
-    const bool with_top, const bool any_accent, const double frame_thickness)
+    const bool with_top, const double alpha_scale, const double frame_thickness)
 {
     const double y0 = 0.0;
     const double y1 = box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
@@ -848,11 +849,15 @@ void pushChordBoxPanel(
     // read per-part.
     const double thickness = frame_thickness;
 
-    const std::uint32_t box_solid = packAbgr(g_chord_box_color);
-    const std::uint32_t box_half = packAbgr(g_chord_box_color, g_chord_box_frame_alpha);
-    const std::uint32_t dark_half = packAbgr(g_chord_box_dark_color, g_chord_box_frame_alpha);
-    const std::uint32_t box_faint = packAbgr(g_chord_box_color, 32.0 / 255.0);
-    const std::uint32_t dark_faint = packAbgr(g_chord_box_dark_color, 32.0 / 255.0);
+    // Every part scales by the one emphasis alpha, so a quiet box keeps its whole construction
+    // — holders, fades and all — and only its presence changes.
+    const std::uint32_t box_solid = packAbgr(g_chord_box_color, alpha_scale);
+    const std::uint32_t box_half =
+        packAbgr(g_chord_box_color, g_chord_box_frame_alpha * alpha_scale);
+    const std::uint32_t dark_half =
+        packAbgr(g_chord_box_dark_color, g_chord_box_frame_alpha * alpha_scale);
+    const std::uint32_t box_faint = packAbgr(g_chord_box_color, (32.0 / 255.0) * alpha_scale);
+    const std::uint32_t dark_faint = packAbgr(g_chord_box_dark_color, (32.0 / 255.0) * alpha_scale);
     const std::uint32_t box_clear = packAbgr(g_chord_box_color, 0.0);
 
     // Corner-holder fan outlines (Charter's ChordBoxHolderModel): a teal L behind a dark L, at
@@ -924,44 +929,12 @@ void pushChordBoxPanel(
         push_fan(holder_front, origin_x, x_sign, packAbgr(g_chord_box_dark_color));
     }
 
-    // Frame: bottom bar always; accent chevrons, full sides with a top bar, or short fading
-    // sides (Charter's three variants).
+    // Frame: bottom bar always, then full sides with a top bar or short fading sides. The accent
+    // chevrons that used to be a third variant here are gone: emphasis is a rendered light now,
+    // so a box states it the same way a note does rather than by changing shape into a mark that
+    // meant "loud" only by convention.
     push_bar(y0);
-    if (any_accent)
-    {
-        const double dx = (x1 - x0) / 3.0;
-        const double y2 = y1 + (thickness * 2.0);
-        for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-        {
-            const std::array<std::array<double, 2>, 6> strip{
-                {{0.0, y0},
-                 {thickness * 2.0, y0},
-                 {0.0, y2},
-                 {thickness * 2.0, y1},
-                 {dx, y2},
-                 {dx + thickness, y1}}
-            };
-            const std::array<std::uint32_t, 6> strip_colors{
-                box_solid, box_solid, box_solid, box_solid, box_half, box_half
-            };
-            const auto base = static_cast<std::uint16_t>(vertices.size());
-            for (std::size_t point = 0; point < strip.size(); ++point)
-            {
-                vertices.push_back(makeVertex(
-                    origin_x + (x_sign * strip.at(point)[0]),
-                    strip.at(point)[1],
-                    z,
-                    strip_colors.at(point)));
-            }
-            for (std::size_t point = 0; point + 2 < strip.size(); ++point)
-            {
-                indices.push_back(static_cast<std::uint16_t>(base + point));
-                indices.push_back(static_cast<std::uint16_t>(base + point + 1));
-                indices.push_back(static_cast<std::uint16_t>(base + point + 2));
-            }
-        }
-    }
-    else if (with_top)
+    if (with_top)
     {
         for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
         {
@@ -2286,7 +2259,10 @@ void HighwayRenderer::Impl::draw(
             double start_seconds;
             bool box_only;
             bool with_top;
-            bool any_accent;
+            // The box's own dynamics. An arpeggio box never carries one: the bracket is a
+            // POSTURE — the hand holding a shape, not a strike — so emphasis belongs to the
+            // notes inside it, which state their own.
+            common::core::NoteEmphasis emphasis;
             common::core::NoteMute mute;
             const common::core::HighwayShapeView* arpeggio_shape;
             // A tapped chord box spans the taps' own fret extent instead of the fretting
@@ -2305,6 +2281,18 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
+            // An arpeggio box carries emphasis only by INHERITANCE, never on its own account: it
+            // is a posture, and a hand holding a shape is not struck. But where a strummed chord
+            // lands on the arpeggio's onset, this box replaces that chord's box (the coincidence
+            // test below skips the chord), so it must say what the box it replaced would have
+            // said. A single accented note inside the arpeggio is not a strum and does not glow
+            // the box — its own head already states it.
+            const auto struck_group = std::ranges::find_if(
+                state.chord_groups, [&](const common::core::HighwayChordGroupView& group) {
+                    return group.fretting_hand_count >= 2 &&
+                           std::abs(group.start_seconds - shape.start_seconds) <
+                               g_onset_match_epsilon;
+                });
             boxes.push_back(
                 BoxDraw{
                     .start_seconds = shape.start_seconds,
@@ -2312,7 +2300,9 @@ void HighwayRenderer::Impl::draw(
                     // Charter's chord-box rule (3+ sounding strings get the top bar),
                     // counted from the arpeggio's posture strings.
                     .with_top = shape.strings.size() > 2,
-                    .any_accent = false,
+                    .emphasis = struck_group != state.chord_groups.end()
+                                    ? struck_group->emphasis
+                                    : common::core::NoteEmphasis::Normal,
                     .mute = common::core::NoteMute::None,
                     .arpeggio_shape = &shape,
                     .tap = nullptr,
@@ -2354,7 +2344,7 @@ void HighwayRenderer::Impl::draw(
                     .start_seconds = group.start_seconds,
                     .box_only = group.box_only,
                     .with_top = group.fretting_hand_count > 2,
-                    .any_accent = group.any_accent,
+                    .emphasis = group.emphasis,
                     .mute = group.common_mute,
                     .arpeggio_shape = nullptr,
                     .tap = nullptr,
@@ -2375,7 +2365,9 @@ void HighwayRenderer::Impl::draw(
                     .start_seconds = tap.seconds,
                     .box_only = false,
                     .with_top = tap.count > 2,
-                    .any_accent = false,
+                    // A tapped box has no strummed group behind it to read an emphasis from; the
+                    // taps state their own on their heads.
+                    .emphasis = common::core::NoteEmphasis::Normal,
                     .mute = common::core::NoteMute::None,
                     .arpeggio_shape = nullptr,
                     .tap = &tap,
@@ -2497,6 +2489,54 @@ void HighwayRenderer::Impl::draw(
         for (const BoxDraw& box : boxes)
         {
             const double z = std::max(0.0, time_to_z(box.start_seconds));
+            // The box carries the strum's dynamics the same way its notes carry theirs — quiet
+            // takes its presence down, loud adds light around it — so a repeat box, which draws
+            // NO heads, still states the axis, and a plain box states it in parity with the
+            // repeat it may become.
+            const bool box_ghosted = box.emphasis == common::core::NoteEmphasis::Ghost;
+            const double box_alpha = box_ghosted ? g_ghost_styles.at(ghost_style).head_alpha : 1.0;
+            const auto push_box_accent_light = [&](const double light_x0, const double light_x1) {
+                if (!common::core::isAccented(box.emphasis))
+                {
+                    return;
+                }
+                const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
+                const double box_top = box.box_only ? full_height_y1 / 2.0 : full_height_y1;
+                double previous = 0.0;
+                for (std::size_t band = 0; band < g_accent_light_bands; ++band)
+                {
+                    const double t = 1.0 - (static_cast<double>(band) /
+                                            static_cast<double>(g_accent_light_bands));
+                    const double profile =
+                        light.peak_alpha * std::pow(1.0 - t, light.falloff_exponent);
+                    const double step = profile - previous;
+                    previous = profile;
+                    if (!(step > 0.0))
+                    {
+                        continue;
+                    }
+                    // A box spans several strings, so it has no single string colour to take:
+                    // its light is the box's own teal, which also sidesteps the palette's 4x
+                    // luma spread that forces the per-note candidates to choose between string
+                    // identity and even brightness.
+                    const std::uint32_t light_tint = packAbgr(g_chord_box_color, step);
+                    pushQuad(
+                        accent_vertices,
+                        accent_indices,
+                        makeVertex(light_x0 - (light.reach_x * t), 0.0, z, light_tint),
+                        makeVertex(light_x1 + (light.reach_x * t), 0.0, z, light_tint),
+                        makeVertex(
+                            light_x1 + (light.reach_x * t),
+                            box_top + (light.reach_y * t),
+                            z,
+                            light_tint),
+                        makeVertex(
+                            light_x0 - (light.reach_x * t),
+                            box_top + (light.reach_y * t),
+                            z,
+                            light_tint));
+                }
+            };
             if (box.tap != nullptr)
             {
                 // A tapped box spans the taps' own fret slots — their derived right-hand
@@ -2505,6 +2545,7 @@ void HighwayRenderer::Impl::draw(
                     common::core::highwayFretLineX(box.tap->fret_low - 1, metrics, mirrored);
                 const double tap_high =
                     common::core::highwayFretLineX(box.tap->fret_high, metrics, mirrored);
+                push_box_accent_light(std::min(tap_low, tap_high), std::max(tap_low, tap_high));
                 pushChordBoxPanel(
                     box_vertices,
                     box_indices,
@@ -2514,7 +2555,7 @@ void HighwayRenderer::Impl::draw(
                     full_height_y1,
                     box.box_only,
                     box.with_top,
-                    box.any_accent,
+                    box_alpha,
                     metrics.string_grid_base_y);
                 continue;
             }
@@ -2526,6 +2567,7 @@ void HighwayRenderer::Impl::draw(
             const common::core::HighwayHandWindow window =
                 common::core::highwayHandWindowAt(state.fret_hand_positions, window_seconds);
             const auto [x0, x1] = handWindowXAt(state, window_seconds, metrics, mirrored);
+            push_box_accent_light(x0, x1);
             pushChordBoxPanel(
                 box_vertices,
                 box_indices,
@@ -2535,7 +2577,7 @@ void HighwayRenderer::Impl::draw(
                 full_height_y1,
                 box.box_only,
                 box.with_top,
-                box.any_accent,
+                box_alpha,
                 metrics.string_grid_base_y);
             if (box.box_only && box.mute != common::core::NoteMute::None)
             {

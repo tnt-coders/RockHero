@@ -450,8 +450,18 @@ struct HighwayChordGroupView
     */
     std::size_t fretting_hand_count{0};
 
-    /*! \brief True when any member is accented. */
-    bool any_accent{false};
+    /*!
+    \brief The strum's own emphasis, for the box that STANDS IN for its heads.
+
+    A repeat box draws no note heads (\ref box_only), so the box is the only surface left to
+    carry the group's dynamics; every other box draws over heads that state their own, and
+    restating it there would be the same claim in two places.
+
+    Summarized the way the axis reads out loud: ACCENTED when any member is, because one struck
+    accent makes the strum an accented strum, and QUIET only when every member is ghosted,
+    because a chord is not played softly while part of it is not.
+    */
+    NoteEmphasis emphasis{NoteEmphasis::Normal};
 
     /*! \brief The mute every member shares, or None when the members disagree. */
     NoteMute common_mute{NoteMute::None};
@@ -494,7 +504,7 @@ struct HighwayChordGroupView
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) && lhs.first == rhs.first &&
                lhs.count == rhs.count && lhs.fretting_hand_count == rhs.fretting_hand_count &&
-               lhs.any_accent == rhs.any_accent && lhs.common_mute == rhs.common_mute &&
+               lhs.emphasis == rhs.emphasis && lhs.common_mute == rhs.common_mute &&
                lhs.all_full_muted == rhs.all_full_muted && lhs.box_only == rhs.box_only &&
                std::is_eq(lhs.hold_cap_seconds <=> rhs.hold_cap_seconds);
     }
@@ -997,7 +1007,7 @@ whatever window a renderer happens to be drawing.
             .first = index,
             .count = group_end - index,
             .fretting_hand_count = 0,
-            .any_accent = false,
+            .emphasis = NoteEmphasis::Normal,
             .common_mute = notes[index].mute,
             .all_full_muted = true,
             .box_only = false,
@@ -1005,6 +1015,9 @@ whatever window a renderer happens to be drawing.
         };
         std::vector<std::pair<int, int>> frets;
         frets.reserve(group.count);
+        // Quiet is the unanimous claim, so it starts true and any non-ghost member clears it;
+        // loud is the existential one and starts false. Both fold in the same pass below.
+        bool all_ghosted = true;
         for (std::size_t member = index; member < group_end; ++member)
         {
             const HighwayNoteView& note = notes[member];
@@ -1012,7 +1025,11 @@ whatever window a renderer happens to be drawing.
             {
                 ++group.fretting_hand_count;
             }
-            group.any_accent = group.any_accent || isAccented(note.emphasis);
+            if (isAccented(note.emphasis))
+            {
+                group.emphasis = NoteEmphasis::Accent;
+            }
+            all_ghosted = all_ghosted && note.emphasis == NoteEmphasis::Ghost;
             if (note.mute != group.common_mute)
             {
                 group.common_mute = NoteMute::None;
@@ -1020,6 +1037,12 @@ whatever window a renderer happens to be drawing.
             group.all_full_muted = group.all_full_muted && note.mute == NoteMute::Full;
             frets.emplace_back(note.string, note.fret);
             grouping.note_group[member] = grouping.groups.size();
+        }
+        // Loud wins a mixed strum, matching the note-level tie-break: one struck accent makes the
+        // strum accented, where a lone ghost among normal notes does not make it quiet.
+        if (all_ghosted && group.emphasis != NoteEmphasis::Accent)
+        {
+            group.emphasis = NoteEmphasis::Ghost;
         }
         std::ranges::sort(frets);
         group_frets.push_back(std::move(frets));

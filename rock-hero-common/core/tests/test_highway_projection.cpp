@@ -1275,12 +1275,41 @@ TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]
     CHECK(strum.first == 0);
     CHECK(strum.count == 3);
     CHECK(strum.fretting_hand_count == 2);
-    CHECK(strum.any_accent);
+    // One accented member makes the strum accented; the other two are normal.
+    CHECK(strum.emphasis == NoteEmphasis::Accent);
     CHECK(strum.common_mute == NoteMute::None);
     CHECK_FALSE(strum.all_full_muted);
     CHECK_FALSE(strum.box_only);
     CHECK(grouping.note_group == std::vector<std::size_t>({0, 0, 0, 1}));
     CHECK(grouping.groups[1].count == 1);
+}
+
+// The group's emphasis is what a box STANDING IN for the heads states, so the two folds differ on
+// purpose: loud is existential, quiet unanimous. A strum is not played softly while part of it is
+// struck normally, and one accent among ghosts still makes the strum an accented one.
+TEST_CASE("Highway chord groups fold emphasis loud-wins, quiet-unanimous", "[core][highway]")
+{
+    const auto groupEmphasis = [](const std::vector<NoteEmphasis>& members) {
+        std::vector<HighwayNoteView> notes;
+        notes.reserve(members.size());
+        for (std::size_t index = 0; index < members.size(); ++index)
+        {
+            notes.push_back(chordNote(1.0, static_cast<int>(index) + 1, 3));
+            notes.back().emphasis = members[index];
+        }
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
+        REQUIRE(grouping.groups.size() == 1);
+        return grouping.groups.front().emphasis;
+    };
+
+    using enum NoteEmphasis;
+    CHECK(groupEmphasis({Normal, Normal}) == Normal);
+    CHECK(groupEmphasis({Ghost, Ghost, Ghost}) == Ghost);
+    // A part-ghosted strum is not a quiet strum.
+    CHECK(groupEmphasis({Ghost, Normal}) == Normal);
+    CHECK(groupEmphasis({Accent, Normal}) == Accent);
+    // Loud outranks quiet the way it does on a single note carrying both claims.
+    CHECK(groupEmphasis({Accent, Ghost}) == Accent);
 }
 
 // The repeat chain (Charter's chord visibility rules): under a covering shape, a strum that
