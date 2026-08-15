@@ -686,6 +686,27 @@ void fillHeadShape(
     layer(border * 2.0f, inner);
 }
 
+// The tail's INTERIOR: the band between its two edge rails, which drawNoteTail lays with their
+// outer boundaries at `span.top - 1` and `span.bottom`, each `tail_edge_size` thick. This is the
+// one definition of where a technique mark may live — the slide diagonals anchor their endpoints
+// on it, the technique clip holds every mark inside it, and the side chip's ground fills exactly
+// it — so a mark can meet the tail's edge but never ride onto the rail, and the three call sites
+// cannot drift apart.
+struct TailInterior
+{
+    float top;
+    float bottom;
+};
+
+[[nodiscard]] TailInterior tailInterior(const TabLaneMetrics& metrics, const float center_y)
+{
+    const TailSpan span = tailSpan(metrics, center_y);
+    return TailInterior{
+        .top = span.top - 1.0f + metrics.tail_edge_size,
+        .bottom = span.bottom - metrics.tail_edge_size
+    };
+}
+
 // Draws Charter's slide line: a white two-pixel diagonal across the tail toward the target fret,
 // rising for ascending slides. Waypoint chains continue segment by segment; unpitched targets
 // get Charter's fret label chip (white on the tail color darkened three times) at the segment
@@ -702,6 +723,10 @@ void drawSlideLines(
 
     constexpr float line_thickness = 2.0f;
     const TailSpan span = tailSpan(metrics, center_y);
+    // Diagonals span the tail's INTERIOR, endpoint stroke included: anchored a half-thickness
+    // inside the rails' inner boundaries, so the line meets the tail's edge without ever riding
+    // onto the rail — a mark reaching the outer edge reads as leaking out of the sustain.
+    const TailInterior interior = tailInterior(metrics, center_y);
     float from_x = onset_x + metrics.note_height / 4.0f;
     int previous_fret = note.fret;
     for (const common::core::TabSlideView& waypoint : note.slides)
@@ -716,9 +741,9 @@ void drawSlideLines(
         }
         const bool upward = waypoint.fret >= previous_fret;
         const float from_y =
-            upward ? span.bottom - line_thickness / 2.0f : span.top + line_thickness / 2.0f;
+            upward ? interior.bottom - line_thickness / 2.0f : interior.top + line_thickness / 2.0f;
         const float to_y =
-            upward ? span.top + line_thickness / 2.0f : span.bottom - line_thickness / 2.0f;
+            upward ? interior.top + line_thickness / 2.0f : interior.bottom - line_thickness / 2.0f;
 
         g.setColour(juce::Colours::white);
         g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
@@ -1657,6 +1682,20 @@ void paintTabLane(
         // deferred label chips are collected here but drawn later, outside this clip, so a
         // clipped-away leg keeps its floating fret label.
         juce::Graphics::ScopedSaveState technique_clip{g};
+        // And they never leave the tail's INTERIOR — the band between the edge rails. The
+        // diagonals anchor their endpoints on it, but stroke corners and antialiasing still
+        // overshoot by a pixel, and the sine's crest grazes the rails at short lanes; a mark
+        // riding onto a rail reads as leaking out of the sustain, so the clip is the guarantee
+        // the geometry aims for.
+        const TailInterior technique_band = tailInterior(metrics, center_y);
+        const int band_top = static_cast<int>(std::floor(technique_band.top));
+        g.reduceClipRegion(
+            juce::Rectangle<int>{
+                metrics.bounds.getX(),
+                band_top,
+                metrics.bounds.getWidth(),
+                static_cast<int>(std::ceil(technique_band.bottom)) - band_top
+            });
         for (const ArpeggioBracket& bracket : brackets)
         {
             if (bracket.note.string == note.string)
@@ -1746,9 +1785,9 @@ void paintTabLane(
             // bracket's own columns, which is all the ground a centred digit requires.
             if (bracket.side_slot)
             {
-                const TailSpan tail = tailSpan(metrics, center_y);
-                const int patch_top = juce::roundToInt(tail.top - 1.0f + metrics.tail_edge_size);
-                const int patch_bottom = juce::roundToInt(tail.bottom - metrics.tail_edge_size);
+                const TailInterior interior = tailInterior(metrics, center_y);
+                const int patch_top = juce::roundToInt(interior.top);
+                const int patch_bottom = juce::roundToInt(interior.bottom);
                 g.setColour(style.tail);
                 g.fillRect(
                     bracket.bar_right,
