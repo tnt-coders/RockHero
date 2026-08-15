@@ -146,21 +146,26 @@ struct TabLaneGeometry
     common::core::TimeRange visible_timeline, int displayed_count, int chart_string_count,
     TabLaneStyle style = {});
 
-/*! \brief Vertical span of a sustain tail around the string line. */
+/*! \brief Vertical span of a sustain tail around the string line: the whole drawn envelope. */
 struct TailSpan
 {
-    /*! \brief Top of the tail span. */
+    /*! \brief Top of the tail envelope (the top rail's outer edge). */
     float top;
 
-    /*! \brief Bottom of the tail span. */
+    /*! \brief Bottom of the tail envelope (the bottom rail's outer edge). */
     float bottom;
 };
 
 /*!
-\brief Returns the vertical sustain-tail span around one lane center (Charter's tail top/bottom).
+\brief Returns the vertical sustain-tail envelope around one lane center, edge rails included.
+
+Symmetric about the lane center by construction, so every consumer — the ribbon, the tremolo
+band's midline, the hit-test rectangle — centers on the string line without its own balancing
+arithmetic.
+
 \param geometry Lane geometry supplying the tail height.
 \param center_y Vertical lane center the tail straddles.
-\return Tail span in the bounds' coordinate space.
+\return Tail envelope in the bounds' coordinate space.
 */
 [[nodiscard]] TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept;
 

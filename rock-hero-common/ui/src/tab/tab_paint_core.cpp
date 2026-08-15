@@ -449,26 +449,42 @@ void drawNoteTail(
     }
     else
     {
+        // The fill covers the whole envelope and the rails lay over its top and bottom — every
+        // color here is opaque, so painting the rails over the fill is the same pixels as
+        // abutting them, without the two rectangles having to agree on a seam.
         g.setColour(style.tail);
         g.fillRect(
             juce::Rectangle<float>{
                 onset_x - 1.0f, span.top, length + 1.0f, span.bottom - span.top
             });
-        g.setColour(style.tail_edge);
-        const juce::Rectangle<float> border{
-            onset_x, span.top - 1.0f, length, span.bottom - span.top + 1.0f
-        };
         // Top and bottom rails only — no end cap. A tail that simply stops has nothing to cap, and
         // the 3D highway draws none, so capping it is a 2D-only flourish that also boxes in
         // whatever mark sits at the tail's end. The left edge is omitted too: the head covers it.
+        g.setColour(style.tail_edge);
         const float thickness = metrics.tail_edge_size;
-        g.fillRect(
-            juce::Rectangle<float>{border.getX(), border.getY(), border.getWidth(), thickness});
-        g.fillRect(
-            juce::Rectangle<float>{
-                border.getX(), border.getBottom() - thickness, border.getWidth(), thickness
-            });
+        g.fillRect(juce::Rectangle<float>{onset_x, span.top, length, thickness});
+        g.fillRect(juce::Rectangle<float>{onset_x, span.bottom - thickness, length, thickness});
     }
+}
+
+// The tail's INTERIOR: the band between the two edge rails drawNoteTail lays inside the span's
+// envelope, symmetric about the string line like the envelope itself. This is the one definition
+// of where a technique mark may live — the sine and the bend polyline COMPRESS their swing to fit
+// it, the slide diagonals anchor their endpoints on it, the technique clip holds every mark inside
+// it, and the side chip's ground fills exactly it — so a mark meets the tail's edge scaled, never
+// cut.
+struct TailInterior
+{
+    float top;
+    float bottom;
+};
+
+[[nodiscard]] TailInterior tailInterior(const TabLaneMetrics& metrics, const float center_y)
+{
+    const TailSpan span = tailSpan(metrics, center_y);
+    return TailInterior{
+        .top = span.top + metrics.tail_edge_size, .bottom = span.bottom - metrics.tail_edge_size
+    };
 }
 
 // Draws the vibrato sine along a tail. Separate from drawNoteTail because the sine is a technique
@@ -484,8 +500,16 @@ void drawVibratoSine(
         return;
     }
 
-    const float amplitude = metrics.tail_height / 3.0f;
-    const float period = amplitude * 3.0f;
+    // The swing COMPRESSES to the tail's interior, stroke included, rather than being clipped
+    // against it: a truncated crest reads as a drawing error where a scaled one still reads as
+    // vibrato. Only the amplitude compresses; the period keeps its tail-height derivation so the
+    // wave's pacing never changes with the squeeze.
+    const float stroke = std::max(1.0f, metrics.tail_height / 8.0f);
+    const TailInterior interior = tailInterior(metrics, center_y);
+    const float interior_center = (interior.top + interior.bottom) / 2.0f;
+    const float amplitude =
+        std::max(1.0f, ((interior.bottom - interior.top) / 2.0f) - (stroke / 2.0f));
+    const float period = metrics.tail_height;
     // Sampled on whole-pixel distances from the onset, so the run the clip can show carries
     // the same vertices at the same places the whole tail would have put there.
     const TailRun run = visibleTailRun(g, metrics, onset_x, length);
@@ -501,7 +525,7 @@ void drawVibratoSine(
         const auto dx = static_cast<float>(step);
         const juce::Point<float> point{
             onset_x + dx,
-            center_y + amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period)
+            interior_center + amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period)
         };
         if (step == first_step)
         {
@@ -513,7 +537,7 @@ void drawVibratoSine(
         }
     }
     g.setColour(g_vibrato_sine_color);
-    g.strokePath(wave, juce::PathStrokeType{std::max(1.0f, metrics.tail_height / 8.0f)});
+    g.strokePath(wave, juce::PathStrokeType{stroke});
 }
 
 // The note-head silhouettes. The shape carries what KIND of note this is; it never carries which
@@ -686,26 +710,10 @@ void fillHeadShape(
     layer(border * 2.0f, inner);
 }
 
-// The tail's INTERIOR: the band between its two edge rails, which drawNoteTail lays with their
-// outer boundaries at `span.top - 1` and `span.bottom`, each `tail_edge_size` thick. This is the
-// one definition of where a technique mark may live — the slide diagonals anchor their endpoints
-// on it, the technique clip holds every mark inside it, and the side chip's ground fills exactly
-// it — so a mark can meet the tail's edge but never ride onto the rail, and the three call sites
-// cannot drift apart.
-struct TailInterior
-{
-    float top;
-    float bottom;
-};
-
-[[nodiscard]] TailInterior tailInterior(const TabLaneMetrics& metrics, const float center_y)
-{
-    const TailSpan span = tailSpan(metrics, center_y);
-    return TailInterior{
-        .top = span.top - 1.0f + metrics.tail_edge_size,
-        .bottom = span.bottom - metrics.tail_edge_size
-    };
-}
+// Charter's white technique-line stroke, shared by the slide diagonals and the bend polyline.
+// One constant because the interior anchoring assumes it: both drawers inset their endpoints by
+// half of THIS stroke, so a divergence would push one of them back onto the rails.
+constexpr float g_technique_line_thickness = 2.0f;
 
 // Draws Charter's slide line: a white two-pixel diagonal across the tail toward the target fret,
 // rising for ascending slides. Waypoint chains continue segment by segment; unpitched targets
@@ -721,7 +729,7 @@ void drawSlideLines(
         return;
     }
 
-    constexpr float line_thickness = 2.0f;
+    constexpr float line_thickness = g_technique_line_thickness;
     const TailSpan span = tailSpan(metrics, center_y);
     // Diagonals span the tail's INTERIOR, endpoint stroke included: anchored a half-thickness
     // inside the rails' inner boundaries, so the line meets the tail's edge without ever riding
@@ -834,11 +842,17 @@ void drawBendLines(
         return;
     }
 
-    // Charter maps bend height across two thirds of the tail, full at three whole steps.
+    // Charter maps bend height across the tail, full at three whole steps — compressed into the
+    // tail's INTERIOR with the stroke included, like the vibrato sine, so the polyline meets the
+    // rails scaled instead of being cut by the technique clip: rest sits on the interior's floor,
+    // three whole steps on its ceiling.
+    constexpr float line_thickness = g_technique_line_thickness;
+    const TailInterior interior = tailInterior(metrics, center_y);
+    const float rest_y = interior.bottom - line_thickness / 2.0f;
+    const float full_y = interior.top + line_thickness / 2.0f;
     const auto bend_y = [&](double semitones) {
         const double steps = std::clamp(semitones / 2.0, 0.0, 3.0);
-        return center_y + metrics.tail_height / 3.0f -
-               static_cast<float>(steps / 3.0) * metrics.tail_height * 2.0f / 3.0f;
+        return rest_y - static_cast<float>(steps / 3.0) * (rest_y - full_y);
     };
 
     const juce::Colour chip_background = charterDarker(charterDarker(style.lane));
@@ -848,7 +862,7 @@ void drawBendLines(
     for (const common::core::TabBendPointView& point : note.bend)
     {
         const juce::Point<float> to{metrics.x(point.seconds), bend_y(point.semitones)};
-        g.drawLine(last.x, last.y, to.x, to.y, 2.0f);
+        g.drawLine(last.x, last.y, to.x, to.y, line_thickness);
         if (metrics.draw_text)
         {
             // Chips sit on the bend line, or above the head when the bend is at the onset.
@@ -867,7 +881,7 @@ void drawBendLines(
         }
         last = {to.x + 1.0f, to.y};
     }
-    g.drawLine(last.x, last.y, end_x - 2.0f, last.y, 2.0f);
+    g.drawLine(last.x, last.y, end_x - 2.0f, last.y, line_thickness);
 }
 
 // Draws Charter's accent glow behind the head: a soft ring fading out just past the head edge.
@@ -1678,11 +1692,11 @@ void paintTabLane(
         // deferred label chips are collected here but drawn later, outside this clip, so a
         // clipped-away leg keeps its floating fret label.
         juce::Graphics::ScopedSaveState technique_clip{g};
-        // And they never leave the tail's INTERIOR — the band between the edge rails. The
-        // diagonals anchor their endpoints on it, but stroke corners and antialiasing still
-        // overshoot by a pixel, and the sine's crest grazes the rails at short lanes; a mark
-        // riding onto a rail reads as leaking out of the sustain, so the clip is the guarantee
-        // the geometry aims for.
+        // And they never leave the tail's INTERIOR — the band between the edge rails. Every mark
+        // already COMPRESSES its geometry to fit it (the sine's and bend polyline's swing, the
+        // diagonals' anchors), but stroke corners and antialiasing still overshoot by a pixel; a
+        // mark riding onto a rail reads as leaking out of the sustain, so the clip is the
+        // guarantee the geometry aims for.
         const TailInterior technique_band = tailInterior(metrics, center_y);
         const int band_top = static_cast<int>(std::floor(technique_band.top));
         g.reduceClipRegion(

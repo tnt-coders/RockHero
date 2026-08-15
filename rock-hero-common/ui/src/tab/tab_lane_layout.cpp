@@ -75,9 +75,15 @@ TabLaneGeometry makeTabLaneGeometry(
 
 TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
 {
+    // The tail's whole outer envelope, rails included, symmetric about the string line. Charter
+    // spells this as an asymmetric body span plus a one-pixel border overhang at the top; folding
+    // the overhang in here keeps the symmetry in ONE place instead of asking every consumer to
+    // re-balance it (the tremolo band and the hit-test rectangle both sagged a pixel low when
+    // they didn't).
+    const float half = geometry.tail_height / 3.0f + 1.0f;
     return TailSpan{
-        .top = center_y - geometry.tail_height / 3.0f,
-        .bottom = center_y + geometry.tail_height / 3.0f + 1.0f,
+        .top = center_y - half,
+        .bottom = center_y + half,
     };
 }
 
