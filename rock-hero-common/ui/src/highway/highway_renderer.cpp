@@ -3910,10 +3910,14 @@ void HighwayRenderer::Impl::draw(
 
         // Rolling flip: single notes stand vertical as they enter the visibility window and
         // roll flat around their travel axis across the whole approach, landing flat
-        // g_flip_flat_lead_seconds before the hit line; chord notes stay flat throughout. The
-        // clock (flip_remaining) is computed beside the head station, where the pre-bend
-        // reveal shares it.
-        const double rotation = in_chord ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
+        // g_flip_flat_lead_seconds before the hit line. Chord notes stay flat throughout, and
+        // so do node heads: the roll reads as a card turning face-up only while the art has a
+        // face to turn, and a diamond rolling out of a flat line reads as a shape morphing
+        // instead — the more so with the marker covering most of it. The clock
+        // (flip_remaining) is computed beside the head station, where the pre-bend reveal
+        // shares it, so a node head still RISES onto a pre-bent station; it just never spins.
+        const double rotation =
+            in_chord || highwayNodeHead(note) ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
