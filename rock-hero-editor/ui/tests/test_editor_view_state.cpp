@@ -393,17 +393,6 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         // Deliberately chord-less: the signed keymap never assigned this verb one.
         {.id = EditorCommandId::ChartPickSlideToggle, .value = 0x1709, .chords = {}},
         {.id = EditorCommandId::ChartLegatoToggle, .value = 0x170A, .chords = {chord('l')}},
-        // TEMPORARY: the posture-display experiment's cycle key, registered directly after the
-        // legato toggle. Remove this row with the experiment.
-        {.id = EditorCommandId::ChartPostureVariantCycle,
-         .value = 0x170C,
-         .chords = {chord(juce::KeyPress::F6Key)}},
-        {.id = EditorCommandId::TailDarknessCycle,
-         .value = 0x170D,
-         .chords = {chord(juce::KeyPress::F7Key)}},
-        {.id = EditorCommandId::BracketInkCycle,
-         .value = 0x170E,
-         .chords = {chord(juce::KeyPress::F9Key)}},
         {.id = EditorCommandId::ChartLeftTap, .value = 0x170B, .chords = {chord('t', shift)}},
         {.id = EditorCommandId::TypeDigit0,
          .value = 0x1801,

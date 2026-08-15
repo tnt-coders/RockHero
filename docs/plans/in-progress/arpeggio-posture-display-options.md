@@ -1,9 +1,31 @@
 # Arpeggio Posture Display — Options
 
-Status: **OPEN — options for the user to choose from (drafted overnight 2026-08-13/14).** Nothing
-here is signed. The satellite treatment currently in the working tree is one of the options, not the
-answer; the user's verdict on it in live use was "the numbers are unreadable" and "the number
-outside the brackets just straight up reads weird".
+Status: **SETTLED 2026-08-14.** The rule below under "What shipped" is in the code; everything else
+here is the option space it was chosen from, kept because the dead ends are expensive to re-walk and
+several were rejected for reasons no measurement would have found.
+
+## What shipped
+
+One decision per posture string, at the span start:
+
+| At the span start | Result |
+|---|---|
+| nothing sounds | the posture states CENTRED in the bracket, at fret-number size — plus a tail-coloured ground **only** when a sustain is crossing that column |
+| a head at the posture's own fret | nothing added; the head already states it |
+| a head at a DIFFERENT fret, picking-hand onset | the tap keeps the centre; the posture takes a side chip beside the bracket |
+| a head at a different fret, fretting-hand onset | nothing added — the hand has left the template, so the posture is no longer held and stating it would be false |
+
+That last row is what makes the rule honest, and it reuses `rightHandOnset`, whose own
+documentation already says these onsets "never anchor, cover, or ring into a fretting-hand posture".
+
+Two changes to the tail came with it, both of which fixed problems wider than this mark: the tail's
+**fill** drops to the linked-note fill (as dark as the waypoint heads riding it) while its **edge**
+stays at full brightness, and the tail's right **end cap** is gone. The bracket marks moved from the
+note fill to that surviving tail edge, since the fill colour was chosen against a bright tail and
+inverts once the tail darkens.
+
+The experiment that produced this — three cyclable axes on `F6`/`F7`/`F9` — is preserved in full in
+commit `25f17375` and was removed immediately after.
 
 ## The problem, stated once
 
@@ -200,7 +222,7 @@ the voicing on dense maps, and (2) whether A's text or B's diagram reads better 
 the only single-mark option that satisfies the grammar, and its measured cost may not exist at the
 lane size actually in use.
 
-## Test harness — BUILT, press `F6`
+## Test harness — REMOVED 2026-08-14 (recorded for the method, not for use)
 
 Cycling the candidates in the real editor is the right instrument: four rounds of harness
 measurement missed both objections that actually mattered (the sustain ribbon, and the enclosure

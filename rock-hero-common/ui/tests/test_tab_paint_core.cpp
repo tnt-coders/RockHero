@@ -397,10 +397,6 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};
     const std::vector<double> prefix_max = resolveHoldEnds(state);
-    // TEMPORARY: this case pins the satellite treatment's own geometry, and the live default is
-    // whichever candidate the posture experiment currently leads with, so state the variant here
-    // rather than inheriting it. Remove with the experiment.
-    setArpeggioPostureVariant(ArpeggioPostureVariant::SatelliteCased);
     paintTabLane(graphics, metrics, state, prefix_max);
 
     // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
@@ -432,21 +428,12 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
     CHECK(image.getPixelAt(214, 55).getARGB() != 0);
     CHECK(image.getPixelAt(214, 135).getARGB() != 0);
 
-    // The bracket interior stays empty on every string: no backing disc, and no fret number
-    // either — the posture digit sits outboard of the closing bar rather than in the head's own
-    // centering box, which is what lets it state unconditionally without contending with a head.
-    CHECK(image.getPixelAt(206, 52).getARGB() == 0);
-    CHECK(image.getPixelAt(197, 136).getARGB() == 0);
-    CHECK(image.getPixelAt(200, 60).getARGB() == 0);
-
-    // The posture fret states outboard of the closing bar on EVERY posture string — the struck
-    // string 3 as well as the unstruck string 5 — so the held shape reads as one complete column
-    // however the arpeggio happens to be played. The probe window is the satellite slot: past
-    // the closing bar, inside the lane-line gap that now extends to cover the digit.
-    const auto posture_digit_ink = [&image](int center_y) {
-        for (int x = 217; x <= 222; ++x)
+    // Nothing sounds on either posture string at the span start, so each states its held fret in
+    // the bracket's CENTRE — the slot a fret number belongs in.
+    const auto centred_digit_ink = [&image](int center_y) {
+        for (int x = 194; x <= 206; ++x)
         {
-            for (int y = center_y - 5; y <= center_y + 5; ++y)
+            for (int y = center_y - 6; y <= center_y + 6; ++y)
             {
                 if (image.getPixelAt(x, y).getARGB() != 0)
                 {
@@ -456,32 +443,15 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
         }
         return false;
     };
-    CHECK(posture_digit_ink(60));
-    CHECK(posture_digit_ink(140));
+    CHECK(centred_digit_ink(60));
+    CHECK(centred_digit_ink(140));
 
-    // The digit wears a casing — its own near-black backing, stroked behind the letterforms — so a
-    // sustain ribbon crossing the slot cannot bleed into them. Only the casing can put an opaque
-    // near-black pixel in the satellite slot: the fixture's lane is transparent, the string line is
-    // gapped across the whole mark, and the digit's own ink is light grey.
-    const auto posture_casing_ink = [&image](int center_y) {
-        for (int x = 216; x <= 224; ++x)
-        {
-            for (int y = center_y - 8; y <= center_y + 8; ++y)
-            {
-                const juce::Colour pixel = image.getPixelAt(x, y);
-                if (pixel.getAlpha() == 255 && pixel.getBrightness() < 0.15f)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    };
-    CHECK(posture_casing_ink(60));
-    CHECK(posture_casing_ink(140));
+    // And neither earns a ground, because no sustain is crossing either column here. A ground is
+    // a filled band, so its corners would be opaque where a glyph's never are.
+    CHECK(image.getPixelAt(195, 55).getARGB() == 0);
+    CHECK(image.getPixelAt(204, 65).getARGB() == 0);
 
-    // The string line hides across the whole mark — brackets and posture digit alike — and
-    // resumes past it.
+    // The string line hides across the bracket and resumes past it.
     CHECK(image.getPixelAt(208, 60).getARGB() == 0);
     CHECK(image.getPixelAt(230, 60).getARGB() != 0);
 
