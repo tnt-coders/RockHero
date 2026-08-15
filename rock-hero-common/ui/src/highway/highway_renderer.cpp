@@ -2969,7 +2969,8 @@ void HighwayRenderer::Impl::draw(
         // release dims the head and its post in step with the tail.
         const SlideState head_slide = slide_state_at(
             note,
-            note.fret > 0 ? noteFretboardX(note, note.fret, metrics, mirrored) : 0.0,
+            common::core::openString(note) ? 0.0
+                                           : noteFretboardX(note, note.fret, metrics, mirrored),
             head_seconds);
 
         // Bend geometry: highwayBentNoteY applies the lift per semitone, inverted on the upper
@@ -3077,7 +3078,7 @@ void HighwayRenderer::Impl::draw(
             std::array<double, 4> band{};
             bool band_valid = tail_to > tail_from;
             double base_x = 0.0;
-            if (note.fret > 0)
+            if (!common::core::openString(note))
             {
                 base_x = noteFretboardX(note, note.fret, metrics, mirrored);
                 const double half = common::core::highwayTailHalfWidth(metrics);
@@ -3102,7 +3103,7 @@ void HighwayRenderer::Impl::draw(
             // An open band whose window moves under it must sample its stations along the tail
             // (the tail travels with the hand — fhp-window-motion plan).
             const bool open_band_moves =
-                note.fret == 0 && handWindowMovesWithin(state, tail_from, tail_to);
+                common::core::openString(note) && handWindowMovesWithin(state, tail_from, tail_to);
             if (band_valid && !modulated && !open_band_moves)
             {
                 const auto ribbon_end = [&](const double seconds) {
@@ -3114,7 +3115,8 @@ void HighwayRenderer::Impl::draw(
                         .z = time_to_z(seconds),
                         .edge_abgr = edge,
                         .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * alpha),
-                        .outer_abgr = note.fret > 0 ? edge : packAbgr(style.tail, 0.0),
+                        .outer_abgr =
+                            common::core::openString(note) ? packAbgr(style.tail, 0.0) : edge,
                     };
                 };
                 // Split where the tip fade begins: alpha is linear on each side of the split,
@@ -3366,7 +3368,8 @@ void HighwayRenderer::Impl::draw(
                             .z = a.z,
                             .edge_abgr = packAbgr(tail_a, a.alpha),
                             .inner_abgr = packAbgr(tail_a, g_tail_inner_alpha * a.alpha),
-                            .outer_abgr = packAbgr(tail_a, note.fret > 0 ? a.alpha : 0.0),
+                            .outer_abgr =
+                                packAbgr(tail_a, common::core::openString(note) ? 0.0 : a.alpha),
                         },
                         RibbonEnd{
                             .x_offset = b.x_offset,
@@ -3374,7 +3377,8 @@ void HighwayRenderer::Impl::draw(
                             .z = b.z,
                             .edge_abgr = packAbgr(tail_b, b.alpha),
                             .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
-                            .outer_abgr = packAbgr(tail_b, note.fret > 0 ? b.alpha : 0.0),
+                            .outer_abgr =
+                                packAbgr(tail_b, common::core::openString(note) ? 0.0 : b.alpha),
                         });
                 }
             }
@@ -3512,7 +3516,7 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(g_chord_box_color, g_attack_line_alpha * fade));
         };
 
-        if (note.fret == 0)
+        if (common::core::openString(note))
         {
             // Open string: Charter's thin rounded bar spanning the active hand window, in
             // the full note color (the flat tail-width slab it replaces read as a plank). A bar
@@ -4504,7 +4508,7 @@ void HighwayRenderer::Impl::draw(
                 if (!common::core::rightHandOnset(note.attack))
                 {
                     ++fretting_hand_count;
-                    any_open = any_open || note.fret == 0;
+                    any_open = any_open || common::core::openString(note);
                 }
             }
             const bool boxed = fretting_hand_count >= 2;

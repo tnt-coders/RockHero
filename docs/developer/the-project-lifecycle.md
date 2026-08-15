@@ -135,8 +135,11 @@ sustains):
    heads).
 3. **Drop short effect-free tails, per notated strum.** A strum that carries no sustain technique
    (bend, slide, vibrato, tremolo) on any string and is *notated* shorter than the kept-sustain
-   bound (`g_minimum_kept_sustain_beats` in grid_arithmetic.h, currently one beat — shared with
-   the legato hold test, which relies on this rule to read a missing tail as a proven release)
+   bound (`minimumKeptSustainBeats` over `g_minimum_kept_sustain_whole_note` in
+   grid_arithmetic.h — a QUARTER NOTE, quarter-note-referenced per the user rule of 2026-08-14
+   because one signature beat of 12/8 is an eighth and a beat-referenced bound gave nearly every
+   note of a 12/8 song a tail; shared with the legato hold test, which relies on this rule to
+   read a missing tail as a proven release)
    loses its tails entirely after trimming. The comparison reads the notated length, not the
    trimmed one (user rule 2026-07-28, superseding the post-trim comparison): a note held to the
    bound or longer in the source keeps its trimmed tail even though the margin leaves it slightly

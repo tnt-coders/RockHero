@@ -129,7 +129,10 @@ struct HighwayNoteView
     */
     int string{1};
 
-    /*! \brief Fret sounded; zero is the open string. */
+    /*!
+    \brief Fret sounded; zero is the open string — or a natural harmonic, whose position lives in
+    \ref harmonic_node instead. Ask \ref openString rather than testing this against zero.
+    */
     int fret{0};
 
     /*! \brief How the onset is produced. */
@@ -190,6 +193,23 @@ struct HighwayNoteView
                lhs.accent == rhs.accent && lhs.bend == rhs.bend && lhs.slides == rhs.slides;
     }
 };
+
+/*!
+\brief True when nothing stops OR touches the string: a genuine open string.
+
+Fret zero alone cannot answer this — a natural harmonic (and a tap harmonic on an open string)
+also stores fret 0, with the node carrying its position, and rendering one as an open string
+erased the harmonic from the board outright: every renderer decision between the open-string
+treatment (the hand-window bar, the window-spanning tail band, the faded tail edge) and the
+fretted treatment must ask this instead of testing `fret == 0`.
+
+\param note Note to classify.
+\return True when the note is an open string with no harmonic node.
+*/
+[[nodiscard]] inline bool openString(const HighwayNoteView& note) noexcept
+{
+    return note.fret == 0 && !note.harmonic_node.has_value();
+}
 
 /*!
 \brief Where a note sounds on the DRAWN 3D board, in fret units.

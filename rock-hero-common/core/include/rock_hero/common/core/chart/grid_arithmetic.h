@@ -42,16 +42,37 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
-\brief The shortest notated ring that earns a kept sustain tail, in signature beats.
+\brief The shortest notated ring that earns a kept sustain tail: a quarter note.
 
 Two readers must agree on this bound, which is why it is named once. The import drop rule
 removes the tail of any effect-free note notated shorter than this — a shorter ring reads as
 noise in a chart, not a deliberate sustain. Consequently a note held through a gap of at least
 this length necessarily carries a tail reaching the minimum-sustain-distance margin, which is
 what lets \ref predecessorHoldReaches read a shorter (or absent) tail as a proven release.
-Currently one beat.
+
+Quarter-note-referenced, never signature-beat-referenced (user rule 2026-08-14), matching the
+tempo semantics: one signature beat of 12/8 is an eighth note, and an eighth-note chug is noise,
+not a sustain — the old one-BEAT bound handed nearly every note of a 12/8 song a tail. In x/4
+meters the two references coincide, so 4/4 behavior is unchanged.
 */
-inline constexpr Fraction g_minimum_kept_sustain_beats{1};
+inline constexpr Fraction g_minimum_kept_sustain_whole_note{1, 4};
+
+/*!
+\brief Returns the kept-sustain bound in signature beats.
+
+A whole note is `signature_denominator` beats, so the bound scales with the meter: one beat in
+x/4, two beats in x/8.
+
+\param signature_denominator Note value that represents one beat (the signature's denominator).
+\return The bound as an exact beat fraction.
+*/
+[[nodiscard]] constexpr Fraction minimumKeptSustainBeats(const int signature_denominator) noexcept
+{
+    return Fraction{
+        signature_denominator * g_minimum_kept_sustain_whole_note.numerator,
+        g_minimum_kept_sustain_whole_note.denominator
+    };
+}
 
 /*!
 \brief Resolves each note's effective held length: its sustain, span-extended for chord strums.
@@ -98,12 +119,12 @@ separately, so it is a contract here now rather than a habit at three call sites
 \brief True unless the chart proves the predecessor was released before the onset.
 
 The legato hold test: a hammer-on or pull-off is real only while its predecessor can still be
-held when the new note starts. Under an onset gap shorter than
-\ref g_minimum_kept_sustain_beats that is assumed — tails below the bound are legitimately
-absent. At or beyond it, a held-through predecessor necessarily carries a tail reaching the
-minimum-sustain-distance margin before the onset, so a hold ending short of that margin —
-evaluated at the predecessor's measure, the same margin every trim derives — proves the string
-was released.
+held when the new note starts. Under an onset gap shorter than the kept-sustain bound
+(\ref minimumKeptSustainBeats at the predecessor's measure) that is assumed — tails below the
+bound are legitimately absent. At or beyond it, a held-through predecessor carries a tail
+reaching the minimum-sustain-distance margin before the onset, so a hold ending short of that
+margin — evaluated at the predecessor's measure, the same margin every trim derives — proves the
+string was released.
 
 The held length is the EFFECTIVE one (\ref chartEffectiveSustains), never the stored sustain: a
 sustainless member of a strum under a hand-shape span is held by the span, and reading its zero

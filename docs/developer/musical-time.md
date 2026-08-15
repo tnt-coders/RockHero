@@ -36,9 +36,12 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
 - `g_minimum_sustain_distance_whole_note` (1/16 of a whole note) and
   `minimumSustainDistanceBeats(signature_denominator)` — the one settled gap every element keeps
   before the next event, expressed in signature beats so it scales with the meter.
-- `g_minimum_kept_sustain_beats` (one beat) — the shortest notated ring that earns a tail. Import's
-  drop rule and the legato hold test share it deliberately: that is what lets a missing tail read
-  as a *proven* release.
+- `g_minimum_kept_sustain_whole_note` (a quarter note) and
+  `minimumKeptSustainBeats(signature_denominator)` — the shortest notated ring that earns a tail.
+  Import's drop rule and the legato hold test share it deliberately: that is what lets a missing
+  tail read as a *proven* release. Quarter-note-referenced, never signature-beat-referenced (user
+  rule 2026-08-14): one signature beat of 12/8 is an eighth, and the old one-beat bound handed
+  nearly every note of a 12/8 song a tail. In x/4 meters the two references coincide.
 - `chartEffectiveSustains(notes, shapes, tempo_map)` — per-note held lengths, extending a
   sustainless member of a strum that a hand-shape span holds. Callers pass notes in **saved** form.
   Spans may overlap, so what it remembers is the **furthest-reaching** span already started, not the

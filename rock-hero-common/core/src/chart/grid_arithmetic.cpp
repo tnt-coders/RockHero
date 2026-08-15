@@ -185,12 +185,12 @@ bool predecessorHoldReaches(
     const TempoMap& tempo_map)
 {
     const Fraction gap = beatDistance(tempo_map, predecessor, onset);
-    if (gap < g_minimum_kept_sustain_beats)
+    const int denominator = tempo_map.timeSignatureAt(predecessor.measure).denominator;
+    if (gap < minimumKeptSustainBeats(denominator))
     {
         return true;
     }
-    const Fraction margin =
-        minimumSustainDistanceBeats(tempo_map.timeSignatureAt(predecessor.measure).denominator);
+    const Fraction margin = minimumSustainDistanceBeats(denominator);
     return effective_sustain + margin >= gap;
 }
 

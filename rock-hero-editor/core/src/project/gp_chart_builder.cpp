@@ -1098,8 +1098,12 @@ void normalizeImportedSustains(
     std::map<Fraction, bool> strum_earned_tail;
     for (std::size_t index = 0; index < built.size(); ++index)
     {
-        const bool earned = deliberate_hold[index] || hasSustainTechnique(built[index].note) ||
-                            notated_sustain[index] >= common::core::g_minimum_kept_sustain_beats;
+        // The bound in the note's own measure's beat frame — the frame its sustain is notated in.
+        const auto measure = static_cast<std::size_t>(built[index].note.position.measure - 1);
+        const int denominator = measure < grid.denominator.size() ? grid.denominator[measure] : 4;
+        const bool earned =
+            deliberate_hold[index] || hasSustainTechnique(built[index].note) ||
+            notated_sustain[index] >= common::core::minimumKeptSustainBeats(denominator);
         const auto strum = strum_earned_tail.try_emplace(built[index].notated_beat, false).first;
         strum->second = strum->second || earned;
     }
