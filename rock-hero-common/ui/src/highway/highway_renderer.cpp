@@ -2523,8 +2523,6 @@ void HighwayRenderer::Impl::draw(
     }
 
     const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
-    const std::array<float, 4> anticipation_cell =
-        atlases.head_layout.cellRect(g_head_cell_anticipation);
     // Charter's head is a square quad (0.96 x 0.96 world units), not a lane-squashed one.
     const double head_half_w = metrics.note_half_width;
     const double head_half_h = metrics.note_half_width;
@@ -3830,6 +3828,13 @@ void HighwayRenderer::Impl::draw(
             push_glow_post(x, z, post_floor_alpha);
         }
 
+        // The hollow silhouette is the head's own outline: a node head's landing ring and
+        // pre-bend outline are its base's shape (the harmonic hollow) while every other head
+        // keeps the rectangle — one shape law for the filled head and everything that previews
+        // it, asked from the same predicate the base cell asks.
+        const std::array<float, 4> hollow_cell = atlases.head_layout.cellRect(
+            highwayNodeHead(note) ? g_head_cell_harmonic_anticipation : g_head_cell_anticipation);
+
         // Anticipation ring: scales down onto the landing spot over the last half second
         // (reference atlas cell; chart-driven, so the editor preview shows it too — 44-Q1).
         // The landing spot is the chart-truth station: a pre-bend's ring shrinks onto the
@@ -3848,33 +3853,13 @@ void HighwayRenderer::Impl::draw(
                 head_vertices,
                 head_indices,
                 makeUvVertex(
-                    x - half,
-                    chart_head_y - half,
-                    0.0,
-                    ring_tint,
-                    anticipation_cell[0],
-                    anticipation_cell[3]),
+                    x - half, chart_head_y - half, 0.0, ring_tint, hollow_cell[0], hollow_cell[3]),
                 makeUvVertex(
-                    x + half,
-                    chart_head_y - half,
-                    0.0,
-                    ring_tint,
-                    anticipation_cell[2],
-                    anticipation_cell[3]),
+                    x + half, chart_head_y - half, 0.0, ring_tint, hollow_cell[2], hollow_cell[3]),
                 makeUvVertex(
-                    x + half,
-                    chart_head_y + half,
-                    0.0,
-                    ring_tint,
-                    anticipation_cell[2],
-                    anticipation_cell[1]),
+                    x + half, chart_head_y + half, 0.0, ring_tint, hollow_cell[2], hollow_cell[1]),
                 makeUvVertex(
-                    x - half,
-                    chart_head_y + half,
-                    0.0,
-                    ring_tint,
-                    anticipation_cell[0],
-                    anticipation_cell[1]));
+                    x - half, chart_head_y + half, 0.0, ring_tint, hollow_cell[0], hollow_cell[1]));
         }
 
         // Pre-bend target outline: the anticipation cell — already a hollow copy of the head's
@@ -3898,29 +3883,29 @@ void HighwayRenderer::Impl::draw(
                     chart_head_y - head_half_h,
                     z,
                     outline_tint,
-                    anticipation_cell[0],
-                    anticipation_cell[3]),
+                    hollow_cell[0],
+                    hollow_cell[3]),
                 makeUvVertex(
                     x + head_half_w,
                     chart_head_y - head_half_h,
                     z,
                     outline_tint,
-                    anticipation_cell[2],
-                    anticipation_cell[3]),
+                    hollow_cell[2],
+                    hollow_cell[3]),
                 makeUvVertex(
                     x + head_half_w,
                     chart_head_y + head_half_h,
                     z,
                     outline_tint,
-                    anticipation_cell[2],
-                    anticipation_cell[1]),
+                    hollow_cell[2],
+                    hollow_cell[1]),
                 makeUvVertex(
                     x - head_half_w,
                     chart_head_y + head_half_h,
                     z,
                     outline_tint,
-                    anticipation_cell[0],
-                    anticipation_cell[1]));
+                    hollow_cell[0],
+                    hollow_cell[1]));
         }
 
         // Rolling flip: single notes stand vertical as they enter the visibility window and
@@ -3969,7 +3954,7 @@ void HighwayRenderer::Impl::draw(
             }
             else if (note.harmonic_node.has_value())
             {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic_icon, tint);
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
             }
             if (note.mute == common::core::NoteMute::Palm)
             {

@@ -194,12 +194,14 @@ inline constexpr int g_head_cell_palm_mute = 12;
 inline constexpr int g_head_cell_full_mute = 13;
 
 /*!
-\brief Natural-harmonic head marker at authoring resolution.
+\brief Natural-harmonic head marker, authored at its approved seat scale.
 
-Kept as the icon's source of truth, but the draw pushes its pre-scaled twin
-(\ref g_head_cell_harmonic_icon) instead — full-quad this cell renders the ring 1.47x the
-approved size, and drawing this cell on a shrunken quad would break the one-quad-size
-convention every other mark keeps.
+Drawn on the one uniform quad with its seat scale carried in the cell's own art — 0.6767 of
+the icon's original authoring resolution, the fitted size approved with the round base (the
+original full-size art was retired with the rectangle base it fit). Its own cell rather than
+a bake into the bases because per-quad shader clamping is load-bearing: the family highlight
+deliberately overdrives past white and the icon's translucent moat darkens the CLAMPED
+result, which a single merged structural cell cannot express (measured 74 counts off).
 */
 inline constexpr int g_head_cell_harmonic = 14;
 
@@ -207,35 +209,71 @@ inline constexpr int g_head_cell_harmonic = 14;
 inline constexpr int g_head_cell_pinch_harmonic = 15;
 
 /*!
-\brief Round base under the harmonic marker, for the head that sits ON its node.
+\brief Round harmonic base, FILLED: the halo circle under a node-sitting head's marker.
 
 A node head lands between fret wires wherever the overtone lives, so the family rectangle's
 flat ears read as a misaligned ordinary note there; the circle has no edge to disagree with a
-wire. Fitted to stack clean at the lane pitch (the E-fit candidate the user chose), it replaces
-the base cell only — the harmonic marker draws over it at its approved size via
-\ref g_head_cell_harmonic_icon.
+wire, and the halo keeps a visible ring band around the marker at the cost of a measured
+visible-level overlap when node heads stack at the lane pitch.
 */
-inline constexpr int g_head_cell_harmonic_base = 16;
+inline constexpr int g_head_cell_harmonic_circle = 16;
 
 /*!
-\brief The harmonic marker pre-scaled to its approved seat size, drawn over the round base.
-
-The icon of \ref g_head_cell_harmonic resampled to 0.6767 of authoring resolution IN the cell,
-so every quad keeps the one uniform size — the same way each mark already carries its seat
-scale in its own art. Baked rather than merged into the base cell because per-quad shader
-clamping is load-bearing: the family highlight deliberately overdrives past white and the
-icon's translucent moat then darkens the CLAMPED result, which a single merged structural cell
-cannot express (measured 74 counts off).
+\brief Hollow twin of \ref g_head_cell_harmonic_circle, derived from its base the way the
+rectangle's anticipation ring (\ref g_head_cell_anticipation) derives from the standard head.
 */
-inline constexpr int g_head_cell_harmonic_icon = 17;
+inline constexpr int g_head_cell_harmonic_circle_hollow = 17;
+
+/*! \brief Diamond harmonic base, FILLED: the 2D lane's diamond in the halo's own box — the
+A/B alternate to the circle. */
+inline constexpr int g_head_cell_harmonic_diamond = 18;
+
+/*! \brief Hollow twin of \ref g_head_cell_harmonic_diamond. */
+inline constexpr int g_head_cell_harmonic_diamond_hollow = 19;
 
 /*!
-\brief Cells the renderer requires the head atlas to carry (a 4-column grid, five rows).
-
-The shipped 256x320 asset's fifth row holds the two harmonic cells and two empty spares, so
-the atlas's capacity exceeds this count; the startup check requires only that it reaches it.
+\brief Diamond harmonic base CAPPED at the regular head's height: its vertex-to-vertex
+diagonal equals the family rectangle's measured height, so a node head occupies a regular
+note's vertical space and stacks clean at the lane pitch — the third A/B/C candidate. The
+marker's ring is wider than this box, so the ring surrounds the diamond rather than riding
+inside it.
 */
-inline constexpr int g_head_cell_count = 18;
+inline constexpr int g_head_cell_harmonic_diamond_capped = 20;
+
+/*! \brief Hollow twin of \ref g_head_cell_harmonic_diamond_capped. */
+inline constexpr int g_head_cell_harmonic_diamond_capped_hollow = 21;
+
+/*!
+\brief Diamond harmonic base whose EDGE equals the regular head's height — the head-height
+square rotated 45 degrees, so its slanted sides cross the head-height lines and the points
+reach past them (vertex span x sqrt(2), about 30.6). The largest A/B/C/D candidate: the
+marker's ring barely grazes its flats, the points show plainly, and stacked node heads
+overlap the most.
+*/
+inline constexpr int g_head_cell_harmonic_diamond_large = 22;
+
+/*! \brief Hollow twin of \ref g_head_cell_harmonic_diamond_large. */
+inline constexpr int g_head_cell_harmonic_diamond_large_hollow = 23;
+
+/*!
+\brief The ACTIVE harmonic base pair — the one seam the circle/diamond A/B flips.
+
+Point both at the circle pair or both at the diamond pair: the base and its hollow previews
+(the landing ring, the pre-bend outline) must switch together, or the approach previews a
+different shape than lands. Collapse these aliases into the winner once the user decides.
+*/
+inline constexpr int g_head_cell_harmonic_base = g_head_cell_harmonic_diamond_large;
+
+/*! \copydoc g_head_cell_harmonic_base */
+inline constexpr int g_head_cell_harmonic_anticipation = g_head_cell_harmonic_diamond_large_hollow;
+
+/*!
+\brief Cells the renderer requires the head atlas to carry (a 4-column grid, six rows).
+
+The shipped 256x384 asset's fifth and sixth rows hold the harmonic base candidates, filling
+the grid; the startup check requires only that capacity reaches this count.
+*/
+inline constexpr int g_head_cell_count = 24;
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
