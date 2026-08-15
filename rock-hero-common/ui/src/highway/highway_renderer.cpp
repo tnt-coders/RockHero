@@ -124,6 +124,15 @@ constexpr double g_bend_marker_offset_heads = 0.38;
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
 // chart-truth height is an annotation, dimmed so the rising head stays the subject.
 constexpr double g_prebend_outline_alpha = 0.5;
+
+// An open string's accent halo: the open-note bar redrawn thicker and faint. An open note has no
+// head quad, so it cannot wear the accent atlas cell the fretted heads do — these two numbers are
+// the open string's whole accent, and they exist to be tuned ALONGSIDE that cell. Sized so the
+// halo adds roughly the light the cell's own glow adds (the marker's added light was measured at
+// about half again the bar's), because an accent that reads loud on a fretted note and quiet on
+// an open one is the same chart mark saying two different things.
+constexpr double g_open_accent_halo_thickness = 4.0;
+constexpr double g_open_accent_halo_alpha = 128.0 / 255.0;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -3751,7 +3760,8 @@ void HighwayRenderer::Impl::draw(
             pushOpenNoteBar(open_vertices, open_indices, x0, x1, head_y, z, base_color, fade, 1.0);
             if (note.accent)
             {
-                // Charter's accent halo: the same bar at triple thickness, faint.
+                // Charter's accent halo: the same bar drawn thicker and faint, at the weight the
+                // fretted head's accent cell carries (see the constants).
                 pushOpenNoteBar(
                     open_vertices,
                     open_indices,
@@ -3760,8 +3770,8 @@ void HighwayRenderer::Impl::draw(
                     head_y,
                     z,
                     base_color,
-                    fade * (96.0 / 255.0),
-                    3.0);
+                    fade * g_open_accent_halo_alpha,
+                    g_open_accent_halo_thickness);
             }
             // Technique markers at the window center (Charter's open-note overlay set).
             {
