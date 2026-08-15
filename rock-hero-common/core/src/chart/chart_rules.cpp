@@ -513,7 +513,7 @@ std::expected<void, ChartError> validateChartNotes(
 
         // A SAVED pick-slide note carries no pitched technique — the document writer omits them
         // (the in-memory override design, chart.h) — so a document that does is hand-made or a
-        // bug and fails loudly; accent is a scrape's own technique and passes. The gesture is
+        // bug and fails loudly; emphasis is a scrape's own dynamics and passes. The gesture is
         // the required unpitched slide-out terminal, exactly at the sustain (nothing rings past
         // a scrape), plus optional turnaround waypoints; the whole path keeps traveling
         // (consecutive neck positions strictly differ, the start fret included — a scrape

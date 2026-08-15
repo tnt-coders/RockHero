@@ -80,7 +80,7 @@ made by editing a rule here and re-aligning the code
 (`gp_chart_builder.cpp` — `normalizeImportedSustains`, `generateFretHandPositions`,
 `resolveSlideIns` (rule 16's scoops), and `resolveSlideOutExits` (rule 9's trail-off rides and
 rule 13's exit fret), closing with the shared `executableChartNote` shed and
-`sweepUnjustifiedLegato` (rule 25), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
+`sweepUnjustifiedLegato` (rule 26), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
 only: `.rock` imports and editor-authored charts are never rewritten beyond the settle sweep every
 load path runs.
 
@@ -124,7 +124,7 @@ sustains):
    glide** (rule 15), so a trailing hold pins a pitch the tail already sounds and cannot hold the
    tail open. A slide still reaches its target note, because a shift glide's landing waypoint is
    by definition a fret change (exact adjacency stays legal). Whole-note techniques — vibrato,
-   tremolo, accent, muting, harmonics — cannot change mid-sustain, so they never override the
+   tremolo, emphasis, muting, harmonics — cannot change mid-sustain, so they never override the
    margin at all. The unpitched slide-out is not payload either (user rule 2026-07-28): its end
    is gesture geometry derived from the notated duration, not a musical event, so it trims back
    with the tail and respects the margin. A crowding that would crush it — a non-positive
@@ -243,7 +243,7 @@ handshape or diagram data, so the tab's chord boxes are derived):
     derives no chord, and a mixed onset is judged by its non-tap members alone (rule 11).
 11. **Repeated strums of one articulation share one span.** Consecutive onsets whose strings
     are played *identically in every way except duration* — same frets, attack (legato, left-hand
-    tap, tap, slap, pop), muting, harmonics, vibrato, tremolo, accent, bends, and slides; the
+    tap, tap, slap, pop), muting, harmonics, vibrato, tremolo, emphasis, bends, and slides; the
     comparison is the whole note with position and duration neutralized, so techniques added
     later join it automatically — merge into a single shape span from the first strum through
     the last strum's *notated* duration (the duration before the sustain policy trims tails —
@@ -415,7 +415,8 @@ through the trim rules):
     collection and they flow through positions, graces, ties, and sustain trims like
     hand-notated notes. Strokes re-pick: a tie INTO the beat releases its origin, only the
     last stroke keeps a notated onward tie (a ring-out continuation still binds), and only the
-    first keeps the accent or a legato arrival. A bent tremolo spells out too: each
+    first keeps the emphasis — accent or ghost — or a legato arrival. A bent tremolo spells out
+    too: each
     stroke samples the master curve at its own onset and carries the value as a flat prebend —
     the run reads as progressively larger prebent picks, and a sustainless note's bend
     narrows to that single prebend point generally (a zero-sustain pick has exactly one
@@ -433,10 +434,20 @@ through the trim rules):
     capo itself is clamped to `0..12` (`g_max_capo`) with a conversion note when it was out of
     range.
 
+22. **The score's two dynamics marks resolve onto one emphasis axis.** GP notates loudness as an
+    `Accent` bitset (1 = staccato, 4 = heavy accent, 8 = accent) and quietness as a separate
+    sibling element, `AntiAccent`, whose presence alone is the claim. Both loud bits import as
+    `Accent` — a heavier chart tier is deferred, not lost — while **staccato is articulation, not
+    dynamics, and never counts on its own**. The ghost mark imports as `Ghost`. Because the
+    source keeps the two independent, a note can in principle claim both; that is contradictory
+    data rather than a state the chart models, and the **louder claim wins**, since a hit drawn
+    quiet invites under-playing it where the reverse merely over-plays. No file in the corpus
+    exercises the tie-break.
+
 **Harmonics** (Guitar Pro's `HarmonicFret` means two different things, so the two families resolve
 differently):
 
-22. **A natural's label is its node; every other harmonic's is a partial label against its stop.**
+23. **A natural's label is its node; every other harmonic's is a partial label against its stop.**
     For `Natural`, the notated value (or, absent one, the source fret — which for a natural *is*
     the touched position in GP's capo-relative frame) resolves against an open string and lands on
     the real stop as `capo + offset`, with the note's own `fret` set to 0. For the fretted family —
@@ -449,7 +460,7 @@ differently):
     `Artificial` keeps whatever attack the note had. **`Feedback` and unknown types are
     deliberately unsupported** — feedback needs a real amp in the room, which headphone play cannot
     produce — so the note survives as an ordinary one and the loss is counted.
-23. **Labels snap to the node they name, inside a half-fret window.** Notation writes rounded
+24. **Labels snap to the node they name, inside a half-fret window.** Notation writes rounded
     labels, not measurements, and a touch even slightly off a node chokes the harmonic, so each
     label snaps to the true node nearest it, capped at the 8th partial
     (`g_max_snapped_partial` — taken from Guitar Pro's own output). Real labels land within 0.331
@@ -464,12 +475,12 @@ differently):
 
 **Reductions, and the closing repairs** (import is a commit point, so nothing invalid leaves here):
 
-24. **An out-of-range value is reduced and reported, never carried to validation** — where it would
+25. **An out-of-range value is reduced and reported, never carried to validation** — where it would
     refuse the *whole* song over one field. A note naming a string the tuning does not have is
     dropped (the lane does not exist); a fret past the last one, once shifted by the capo, is
     pulled back to `g_max_fret`; a track declaring more than eight courses loses the extra ones.
     Each reduction is counted and named in the import log.
-25. **Each note sheds what it cannot execute, then the stream's connection claims are settled.** The
+26. **Each note sheds what it cannot execute, then the stream's connection claims are settled.** The
     per-note shed is `executableChartNote`, which lives beside the rules it satisfies in
     `chart_rules` — a list kept in the importer drifted from the list there twice, and a dead note
     carrying a bend reached validation intact and failed a whole import. It covers exactly what a

@@ -1012,7 +1012,7 @@ whatever window a renderer happens to be drawing.
             {
                 ++group.fretting_hand_count;
             }
-            group.any_accent = group.any_accent || note.emphasis == NoteEmphasis::Accent;
+            group.any_accent = group.any_accent || isAccented(note.emphasis);
             if (note.mute != group.common_mute)
             {
                 group.common_mute = NoteMute::None;

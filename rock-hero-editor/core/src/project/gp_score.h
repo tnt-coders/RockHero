@@ -12,6 +12,7 @@ the parser rejects scores that would need them.
 
 #include <cstdint>
 #include <optional>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <string>
 #include <vector>
@@ -106,17 +107,18 @@ struct GpNote
     /*! \brief True for notes played with vibrato. */
     bool vibrato{false};
 
-    /*! \brief True for accented notes (Guitar Pro's accent and heavy-accent tiers alike). */
-    bool accent{false};
-
     /*!
-    \brief True for ghost notes — Guitar Pro's `AntiAccent`, its one quiet tier.
+    \brief How hard the note is struck, already resolved onto the chart's one dynamics axis.
 
-    Parsed as its own flag rather than folded into \ref accent because the source file carries the
-    two as INDEPENDENT elements and could in principle set both; this model mirrors the file, and
-    \ref gp_chart_builder.cpp resolves the pair onto our single emphasis axis.
+    The score spells this as two INDEPENDENT elements — an `Accent` bitset and a sibling
+    `AntiAccent` — which could in principle both be set, so something has to reconcile them.
+    That happens in the parser, beside the rest of the reading this model already interprets
+    rather than mirrors: the same field drops Guitar Pro's staccato bit and folds its two loud
+    tiers together. Resolving here rather than downstream is also what keeps the beat splitter
+    honest, since clearing "the dynamics marks" from a repeated stroke is then one assignment
+    that a third source flag could never fall out of.
     */
-    bool ghost{false};
+    common::core::NoteEmphasis emphasis{common::core::NoteEmphasis::Normal};
 
     /*! \brief Guitar Pro slide flag bitset; zero when the note does not slide. */
     int slide_flags{0};

@@ -28,6 +28,21 @@ domain allows 30 and nodes 48) and the onset-grouping move, EXECUTED 2026-08-10 
 that the 2D lane shows in full, and with the classification in core either surface can read it —
 the user picks which way the two surfaces reconcile.
 
+## Found by the 2026-08-15 emphasis-axis reviews
+
+- **The note-token parse/format pairs are stated twice each, and there are now three of them.**
+  `attack`, `mute` and `emphasis` each spell their tokens once in the reader's if-chain and again
+  in the writer's switch, with only a round-trip test standing between a writer-side rename and
+  silent divergence. `chart_tokens.h` already owns exactly this parse/format-pair shape for grid
+  positions and beat fractions, so the third instance is the one that earns lifting all three into
+  it. Deliberately not done with the emphasis change: it would have pulled two unrelated enums
+  into that diff.
+- **The harmonic/touch tripwire is weaker than the emphasis one it was the model for.** It tests
+  `readOptionalString(...).empty()` and `tryReadDouble(...)`, both type-dependent, so
+  `"harmonic": 1` or `"touch": "12"` slips through where the newer `!Json::value(...).isVoid()`
+  form catches any type. Harmless today (the real old keys were a string and a number), but the
+  older tripwire should be rewritten in the newer shape while both still exist.
+
 ## Found in the 2026-08-15 highway visual pass
 
 Both sighted by the user against the technique-showcase package; each carries a ruling.

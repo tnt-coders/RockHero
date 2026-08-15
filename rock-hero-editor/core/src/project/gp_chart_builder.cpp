@@ -497,7 +497,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 // noise, and Guitar Pro's tremolo is measured — the mark carries a precise stroke duration).
 // Strokes re-pick: every stroke clears tie_destination, so a tie INTO the beat releases its
 // origin when the first stroke's fresh onset lands, and only the last stroke keeps a notated
-// onward tie so a ring-out continuation still binds. The first stroke keeps the accent and
+// onward tie so a ring-out continuation still binds. The first stroke keeps the emphasis and
 // any hammer/pull arrival; later strokes are plain picks. A bent tremolo spells out too —
 // each stroke samples the master curve at its own onset and carries the value as a flat
 // prebend, so the run reads as progressively larger prebent picks.
@@ -557,10 +557,9 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                 if (index > 0)
                 {
                     // Later strokes are plain picks: the emphasis belongs to the stroke that was
-                    // actually marked, and a ghost run would be as wrong to repeat as an accented
-                    // one.
-                    note.accent = false;
-                    note.ghost = false;
+                    // actually marked, and a ghosted run would be as wrong to repeat as an
+                    // accented one.
+                    note.emphasis = NoteEmphasis::Normal;
                     note.hopo_destination = false;
                 }
                 if (note.bend.has_value())
@@ -854,7 +853,8 @@ struct BuiltNote
 // (a HOLD, not a glide) both say what the tail already said, so a trailing run of them is not a
 // reason to keep a tail open past the margin. The note starts unbent at its own fret, which is
 // what the first point of each payload is measured against. Whole-note techniques — vibrato,
-// tremolo, accent, muting, harmonics — cannot change mid-sustain and so never appear here at all.
+// tremolo, emphasis, muting, harmonics — cannot change mid-sustain and so never appear here at
+// all.
 // The unpitched slide-out is deliberately absent: its end is gesture geometry that trims back
 // with the tail rather than pinning it (rule 2), and the trim compresses it separately.
 [[nodiscard]] Fraction lastChangingPayloadOffset(const ChartNote& note)
@@ -906,7 +906,7 @@ struct BuiltNote
 //    target note). Payload that repeats what the tail already said holds nothing open: a
 //    trailing hold waypoint is a pin, not a glide, and a repeated bend value is not news, so
 //    points the trim passes leave with the tail. Whole-note techniques — vibrato, tremolo,
-//    accent, muting, harmonics — cannot change mid-sustain and so never override the margin at
+//    emphasis, muting, harmonics — cannot change mid-sustain and so never override the margin at
 //    all.
 // 3. A note with no sustain-carried technique NOTATED shorter than the kept-sustain bound
 //    (g_minimum_kept_sustain_beats — shared with the legato hold test, which relies on this
@@ -1146,7 +1146,7 @@ void normalizeImportedSustains(
 // neither form postures nor close held spans, letting a ringing chord's span cover the taps above
 // it. ANY articulation difference is a new chord: span continuity compares each string's whole note
 // with only its position and duration neutralized, so attack (hammer/pull/tap/slap/pop), muting,
-// harmonics, vibrato, tremolo, accent, bends, and slides — and any technique added to ChartNote
+// harmonics, vibrato, tremolo, emphasis, bends, and slides — and any technique added to ChartNote
 // later — all split the span, while strum durations never do. The template table stays deduplicated
 // by frets alone (the hand posture is identical; techniques render on the notes). A note still
 // ringing through a chord's onset (tie-held from before, not re-struck) joins the posture on its
@@ -2118,16 +2118,7 @@ void resolveSlideOutExits(
         note.sustain = event.duration_beats;
         note.vibrato = source.vibrato;
         note.tremolo = event.tremolo;
-        // The score's two independent marks resolve onto our single dynamics axis. Guitar Pro
-        // notates its heavy accent as a second loud tier, which the parser already folds into
-        // `accent` (the enum can grow a heavier value later without disturbing this). A note
-        // claiming BOTH loud and quiet is contradictory data rather than a state we model — the
-        // louder claim wins, because a hit drawn quiet invites under-playing it, where the
-        // reverse merely over-plays. Nothing in the corpus exercises the tie-break: across
-        // 15,245 notes, 104 accents and 160 ghosts, not one note carried both.
-        note.emphasis = source.accent  ? NoteEmphasis::Accent
-                        : source.ghost ? NoteEmphasis::Ghost
-                                       : NoteEmphasis::Normal;
+        note.emphasis = source.emphasis;
 
         if (source.left_hand_tapped)
         {
@@ -2388,8 +2379,8 @@ void resolveSlideOutExits(
             ChartNote& note = kept.note;
             note.attack = NoteAttack::PickSlide;
             // The suppression set lives in savedChartNote alone. Restating it here had already
-            // drifted from it: this cleared `accent` too, but an accented scrape is legal and
-            // meaningful — an aggressively played one (H3/D4) — so an accent the score marked was
+            // drifted from it: this cleared the emphasis too, but an accented scrape is legal and
+            // meaningful — an aggressively played one (H3/D4) — so a mark the score made was
             // silently discarded on import.
             note = common::core::savedChartNote(note);
             // Carriers are dead strings with meaningless frets, so the import owns the start too;

@@ -713,7 +713,7 @@ shipped technique verbs.
   ghost+accent unrepresentable by construction (the enum IS the hardening). `Soft` dropped (GP
   has one quiet tier; detection argues against a second), `Heavy` deferred — **GP heavy accents
   import as regular accents for now, with a comment that Heavy may be supported later** (user
-  ruling). Full design recorded as `docs/plans/todo/note-emphasis-axis.md`; implementation
+  ruling). Full design recorded as `docs/plans/in-progress/note-emphasis-axis.md`; implementation
   unscheduled.
 - [x] **D9 — The GP capo frame — ANSWERED 2026-08-09: capo-relative, and shipped.** The user ran
   the authored experiment: with a capo at 3, an entered "1" resolves to the pitch at absolute

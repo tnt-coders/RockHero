@@ -115,8 +115,8 @@ enum class NoteAttack : std::uint8_t
     the whole path always traveling. The pitched techniques (mute, harmonic node, vibrato,
     tremolo, bend) are overridden while this attack is set: kept in memory so switching the
     attack back restores them, but suppressed by projections and omitted by the document
-    writer. Accent is a scrape's own technique — an aggressively played scrape — never
-    overridden.
+    writer. Emphasis is never overridden — a scrape has its own dynamics, played aggressively
+    or lightly.
     */
     PickSlide
 };
@@ -133,20 +133,44 @@ scrapes included — an accented scrape is one played aggressively, a ghosted on
 so no combination is refused and no compatibility cell opens.
 
 A heavier tier above `Accent` is deliberately absent for now. Guitar Pro notates two loud tiers
-and both import as `Accent`; the enum extends without disturbing anything if the distinction ever
-earns its place.
+and both import as `Accent`; the enum extends if the distinction ever earns its place, which is
+why no consumer compares against `Accent` directly — they ask \ref isAccented, and the document
+writer switches exhaustively so a new value cannot serialize as nothing.
 */
 enum class NoteEmphasis : std::uint8_t
 {
-    /*! \brief Ghost note: struck deliberately quietly, drawn as a faded note. */
-    Ghost,
+    /*!
+    \brief The default weight; never written to a document.
 
-    /*! \brief The default weight; never written to a document. */
+    Listed FIRST rather than in the axis's musical order so that value-initialization lands on
+    it: a zero-valued `Ghost` would make every default-constructed or resized emphasis the quiet
+    extreme, which is an illegal default hiding behind correct-looking code. Nothing compares
+    these values for loudness — \ref isAccented is the one classifier — so the declaration order
+    costs no meaning.
+    */
     Normal,
-
-    /*! \brief Accented: struck harder than its neighbours, drawn with added light. */
+    /*! \brief Ghost note: struck deliberately quietly. */
+    Ghost,
+    /*! \brief Struck harder than its neighbours. */
     Accent
 };
+
+/*!
+\brief Reports whether a note is struck LOUDER than normal.
+
+The one place the loud end of the axis is defined, so a heavier tier arriving above \ref
+NoteEmphasis::Accent lights up every consumer at once instead of leaving each open-coded
+comparison quietly answering "not accented". Deliberately not paired with a ghost predicate
+while nothing asks that question in more than one place.
+
+\param emphasis How hard the note is struck.
+
+\return True for every emphasis above normal.
+*/
+[[nodiscard]] constexpr bool isAccented(NoteEmphasis emphasis) noexcept
+{
+    return emphasis == NoteEmphasis::Accent;
+}
 
 /*!
 \brief What a note's connection claim resolves to: the motion it plays as, or nothing.

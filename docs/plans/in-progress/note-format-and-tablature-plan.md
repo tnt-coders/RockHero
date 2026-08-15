@@ -239,7 +239,7 @@ the song document. Everything below lives in that chart file. Design rules that 
     { "position": "12:1", "string": 3, "fret": 5 },
     { "position": "12:1+1/2", "string": 3, "fret": 7, "attack": "hammer" },
     { "position": "12:2", "string": 3, "fret": 5, "attack": "pull", "sustain": "1/2" },
-    { "position": "12:3", "string": 2, "fret": 9, "attack": "tap", "accent": true },
+    { "position": "12:3", "string": 2, "fret": 9, "attack": "tap", "emphasis": "accent" },
     { "position": "13:1", "string": 4, "fret": 5, "sustain": "2", "vibrato": true },
     { "position": "13:3", "string": 5, "fret": 0, "mute": "palm", "tremolo": true, "sustain": "1" },
     { "position": "14:1", "string": 5, "fret": 3, "mute": "full" },

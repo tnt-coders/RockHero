@@ -625,6 +625,10 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
         parseNote(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": "loud")").has_value());
     CHECK_FALSE(
         parseNote(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": true)").has_value());
+    // The empty string is not a token either. It reads back as the same "" the absent key gives,
+    // so accepting it would let a present-but-meaningless field pass as the default.
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "emphasis": "")").has_value());
 
     // The tripwire: the removed key fails the load and names the fix, exactly as the removed
     // harmonic/touch keys do. Delete this with the tripwire once the corpus is re-imported.
@@ -642,15 +646,25 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .emphasis = NoteEmphasis::Accent
+            .emphasis = NoteEmphasis::Accent,
+            .bend = {},
+            .slides = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 2},
             .string = 1,
             .fret = 7,
-            .emphasis = NoteEmphasis::Ghost
+            .emphasis = NoteEmphasis::Ghost,
+            .bend = {},
+            .slides = {},
         },
-        ChartNote{.position = GridPosition{.measure = 1, .beat = 3}, .string = 1, .fret = 9},
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 3},
+            .string = 1,
+            .fret = 9,
+            .bend = {},
+            .slides = {},
+        },
     };
     const std::string text = chartDocumentText(chart, makeTempoMap());
     CHECK(text.find(R"("emphasis": "accent")") != std::string::npos);

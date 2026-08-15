@@ -203,20 +203,25 @@ namespace
             "\"emphasis\": \"accent\"")};
     }
 
-    const std::string emphasis = Json::readOptionalString(note_json, "emphasis", "");
-    if (emphasis == "accent")
+    // Present means it must name a token: `normal` is refused along with anything unknown,
+    // because absence already says it — the rule the absent pick attack follows. Keyed on
+    // PRESENCE rather than on emptiness so `""` is refused too, instead of slipping through as
+    // the value the reader cannot tell from an absent key.
+    if (!Json::value(note_json, "emphasis").isVoid())
     {
-        note.emphasis = NoteEmphasis::Accent;
-    }
-    else if (emphasis == "ghost")
-    {
-        note.emphasis = NoteEmphasis::Ghost;
-    }
-    else if (!emphasis.empty())
-    {
-        // "normal" included: it is the default and never written, so spelling it is as much a
-        // malformed document as an unknown token — the same rule the absent pick attack follows.
-        return std::unexpected{malformed("chart note emphasis is unknown: " + emphasis)};
+        const std::string emphasis = Json::readOptionalString(note_json, "emphasis", "");
+        if (emphasis == "accent")
+        {
+            note.emphasis = NoteEmphasis::Accent;
+        }
+        else if (emphasis == "ghost")
+        {
+            note.emphasis = NoteEmphasis::Ghost;
+        }
+        else
+        {
+            return std::unexpected{malformed("chart note emphasis is unknown: " + emphasis)};
+        }
     }
 
     if (const juce::var& bend_json = Json::value(note_json, "bend"); !bend_json.isVoid())
@@ -394,14 +399,25 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     {
         line += R"(, "tremolo": true)";
     }
-    // Normal is the implied default and never written, so the common note costs nothing.
-    if (note.emphasis == NoteEmphasis::Accent)
+    // Normal is the implied default and never written, so the common note costs nothing. A
+    // switch without a default, like the attack writer above: a value added to the enum has to
+    // be given a token here or the build stops, rather than serializing as silently nothing.
+    switch (note.emphasis)
     {
-        line += R"(, "emphasis": "accent")";
-    }
-    else if (note.emphasis == NoteEmphasis::Ghost)
-    {
-        line += R"(, "emphasis": "ghost")";
+        case NoteEmphasis::Normal:
+        {
+            break;
+        }
+        case NoteEmphasis::Ghost:
+        {
+            line += R"(, "emphasis": "ghost")";
+            break;
+        }
+        case NoteEmphasis::Accent:
+        {
+            line += R"(, "emphasis": "accent")";
+            break;
+        }
     }
     if (!note.bend.empty())
     {

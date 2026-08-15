@@ -1074,12 +1074,12 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
         CHECK(chart.notes[1].emphasis == common::core::NoteEmphasis::Normal);
     }
 
-    SECTION("the accent bitset's loud tiers import as accents and staccato alone does not")
-    {
-        // 8 is the accent bit, 4 the heavy accent (imported as an accent for now), 1 staccato —
-        // which is articulation, not dynamics, and must not read as an accent.
-        const std::string gpif =
-            fixtureWithReplacement("<Note id=\"2\">", "<Note id=\"2\"><Accent>1</Accent>");
+    // The accent bitset: 1 = staccato, 4 = heavy accent, 8 = accent. Both loud bits import as an
+    // accent (the ruling that a heavy accent folds into the one loud tier for now), while
+    // staccato is articulation rather than dynamics and never counts on its own.
+    const auto emphasisWithAccentBits = [&](const std::string& flags) {
+        const std::string gpif = fixtureWithReplacement(
+            "<Note id=\"2\">", "<Note id=\"2\"><Accent>" + flags + "</Accent>");
         const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
 
         GpSongImporter importer;
@@ -1087,14 +1087,33 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
         REQUIRE(song.has_value());
         const common::core::Chart& chart = requiredChart(song->arrangements.front());
         REQUIRE(chart.notes.size() == 5);
-        CHECK(chart.notes[2].emphasis == common::core::NoteEmphasis::Normal);
+        return chart.notes[2].emphasis;
+    };
+
+    SECTION("the accent bit imports as an accent")
+    {
+        CHECK(emphasisWithAccentBits("8") == common::core::NoteEmphasis::Accent);
+    }
+
+    SECTION("the heavy-accent bit imports as an accent too")
+    {
+        CHECK(emphasisWithAccentBits("4") == common::core::NoteEmphasis::Accent);
+    }
+
+    SECTION("staccato alone is not an accent")
+    {
+        CHECK(emphasisWithAccentBits("1") == common::core::NoteEmphasis::Normal);
+    }
+
+    SECTION("staccato riding an accent still reads as an accent")
+    {
+        CHECK(emphasisWithAccentBits("9") == common::core::NoteEmphasis::Accent);
     }
 
     SECTION("a note claiming both loud and quiet resolves to the louder claim")
     {
-        // Contradictory data rather than a state we model. No note in the corpus carries both
-        // (15,245 notes, 104 accents, 160 ghosts, zero overlaps), so this pins the tie-break
-        // rather than describing real material.
+        // Contradictory data rather than a state we model, and no real file exercises it, so
+        // this pins the tie-break rather than describing material anyone has charted.
         const std::string gpif = fixtureWithReplacement(
             "<Note id=\"2\">", "<Note id=\"2\"><Accent>8</Accent><AntiAccent>Normal</AntiAccent>");
         const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
@@ -1634,7 +1653,7 @@ TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
     {
         GpScore score = makeLinearScore(1, syncs);
         GpBeat beat = tremoloBeat(Fraction{1, 4}, 5, Fraction{1, 16});
-        beat.notes.front().accent = true;
+        beat.notes.front().emphasis = common::core::NoteEmphasis::Accent;
         score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
 
         const auto built = buildGpSong(score);
@@ -1647,13 +1666,33 @@ TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
             CHECK(chart.notes[index].fret == 5);
             CHECK(chart.notes[index].position.offset == Fraction{static_cast<int>(index), 4});
         }
-        // Only the first stroke carries the notated accent; the rest are plain picks.
+        // Only the first stroke carries the notated emphasis; the rest are plain picks.
         CHECK(chart.notes[0].emphasis == common::core::NoteEmphasis::Accent);
         CHECK(chart.notes[1].emphasis == common::core::NoteEmphasis::Normal);
+        CHECK(chart.notes[2].emphasis == common::core::NoteEmphasis::Normal);
+        CHECK(chart.notes[3].emphasis == common::core::NoteEmphasis::Normal);
         // Strokes normalize to sustainless like any hand-charted sixteenth run, the final
         // stroke's sub-margin tail included.
         CHECK(chart.notes[0].sustain == Fraction{});
         CHECK(chart.notes[3].sustain == Fraction{});
+    }
+
+    SECTION("a ghosted tremolo beat ghosts only its first stroke")
+    {
+        // The quiet end of the axis has to survive the spell-out the same way the loud end does:
+        // repeating it would ghost a whole run the score marked once.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = tremoloBeat(Fraction{1, 4}, 5, Fraction{1, 16});
+        beat.notes.front().emphasis = common::core::NoteEmphasis::Ghost;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].emphasis == common::core::NoteEmphasis::Ghost);
+        CHECK(chart.notes[1].emphasis == common::core::NoteEmphasis::Normal);
+        CHECK(chart.notes[3].emphasis == common::core::NoteEmphasis::Normal);
     }
 
     SECTION("a tie into a tremolo beat releases the origin and the strokes re-pick")

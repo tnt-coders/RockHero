@@ -253,7 +253,7 @@ floors; harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-req
 full-mute exclusions; the tap landing rule (both tapping attacks); tap-harmonic tremolo; the
 fret-hand-harmonic slide, bend, and vibrato exclusions; the cent-offset bound;
 and, on pick-slide notes, no pitched techniques (a saved scrape carries none — the writer omits
-the in-memory overrides; accent is a scrape's own technique) plus the required unpitched slide-out
+the in-memory overrides; emphasis is a scrape's own dynamics) plus the required unpitched slide-out
 terminal exactly at the sustain and an always-traveling path (consecutive neck positions, the
 start fret included, must strictly differ — a scrape cannot sit still).
 

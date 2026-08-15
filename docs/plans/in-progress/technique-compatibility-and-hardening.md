@@ -41,7 +41,8 @@ violates Phase 5's own rule against authoring an invalid state.
 | `mute` | `None`, `Palm`, `Full` |
 | ~~`harmonic`~~ | **DELETED 2026-08-08** — collapsed onto `attack` + `harmonic_node` |
 | `harmonic_node` | `optional<double>` — the node position, in fret units, **and the assertion that the note is a harmonic** |
-| `vibrato`, `tremolo`, `accent` | `bool` |
+| `vibrato`, `tremolo` | `bool` |
+| `emphasis` | `NoteEmphasis` (`Ghost` \| `Normal` \| `Accent`) — replaced the `accent` bool 2026-08-15 |
 | `bend` | `vector<BendPoint>` — `{offset, semitones}` |
 | `slides` | `vector<SlideWaypoint>` — `{offset, fret}` |
 | `slide_out` | `optional<SlideOut>` — `{offset, fret}` |

@@ -218,19 +218,25 @@ constexpr double g_sync_frame_rate{44100.0};
     note.full_mute = findProperty(note_element, "Muted") != nullptr;
     note.vibrato = note_element.getChildByName("Vibrato") != nullptr;
 
-    // Accent is a bitset: 1 = staccato, 4 = heavy accent, 8 = accent. Staccato alone is not an
-    // accent in the chart's sense.
-    const std::string accent_text = childText(note_element, "Accent");
-    if (!accent_text.empty())
+    // The score's two dynamics marks, reconciled onto the chart's one axis. Accent is a bitset:
+    // 1 = staccato, 4 = heavy accent, 8 = accent. Staccato is articulation rather than dynamics
+    // and never counts; the two loud tiers both read as an accent until a heavier chart tier
+    // earns its place. The ghost note is a SIBLING element rather than another accent bit, and
+    // its presence is the claim — every occurrence in the corpus spells the text "Normal", so
+    // reading that text would add a branch no file exercises.
+    //
+    // A note marked both loud and quiet is contradictory data rather than a state the chart
+    // models, and the louder claim wins: a hit drawn quiet invites under-playing it, where the
+    // reverse merely over-plays. No file in the corpus exercises that tie-break.
+    const int accent_flags = juce::String{childText(note_element, "Accent")}.getIntValue();
+    if ((accent_flags & (4 | 8)) != 0)
     {
-        const int accent_flags = juce::String{accent_text}.getIntValue();
-        note.accent = (accent_flags & (4 | 8)) != 0;
+        note.emphasis = common::core::NoteEmphasis::Accent;
     }
-
-    // The ghost note is a sibling element rather than another accent bit, and its PRESENCE is the
-    // claim — every occurrence in the corpus spells the text "Normal", so reading the text would
-    // add a branch that no file exercises.
-    note.ghost = note_element.getChildByName("AntiAccent") != nullptr;
+    else if (note_element.getChildByName("AntiAccent") != nullptr)
+    {
+        note.emphasis = common::core::NoteEmphasis::Ghost;
+    }
 
     if (const juce::XmlElement* const slide = findProperty(note_element, "Slide"); slide != nullptr)
     {
