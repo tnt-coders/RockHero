@@ -314,10 +314,12 @@ HighwayViewState makeHighwayViewState(
     state.beats.reserve(static_cast<std::size_t>(terminal_beat) + 1);
     for (std::int64_t index = 0; index <= terminal_beat; ++index)
     {
+        const auto [measure, beat_in_measure] = tempo_map.beatAtGlobalIndex(index);
         state.beats.push_back(
             HighwayBeatView{
                 .seconds = beat_cursor.secondsAt(static_cast<double>(index)),
-                .measure_downbeat = tempo_map.beatAtGlobalIndex(index).second == 1,
+                .measure_downbeat = beat_in_measure == 1,
+                .signature_denominator = tempo_map.timeSignatureAt(measure).denominator,
             });
     }
 

@@ -312,21 +312,32 @@ TEST_CASE("Highway tremolo envelope ramps in teeth, not duration", "[core][highw
     CHECK(highwayTremoloEnvelope(5.0, 1.0) == Catch::Approx(0.0));
 }
 
-// The vibrato period locks to the song grid: one full wobble per sixteenth note (a quarter
-// of the local beat interval), the nearest interval outside the grid, and the fallback
-// without one.
-TEST_CASE("Highway vibrato period follows the grid's sixteenth note", "[core][highway][tail]")
+// The vibrato period locks to the song grid: one full wobble per EIGHTH NOTE — a
+// quarter-note-referenced duration, converted through the measure's denominator, never a raw
+// fraction of the signature-beat interval — plus the nearest interval outside the grid and the
+// fallback without one.
+TEST_CASE("Highway vibrato period follows the grid's eighth note", "[core][highway][tail]")
 {
     const std::vector<HighwayBeatView> beats{
         {.seconds = 0.0, .measure_downbeat = true},
         {.seconds = 0.5, .measure_downbeat = false},
         {.seconds = 1.1, .measure_downbeat = false},
     };
-    CHECK(highwayVibratoPeriodSeconds(beats, 0.25) == Catch::Approx(0.125));
-    CHECK(highwayVibratoPeriodSeconds(beats, 0.8) == Catch::Approx(0.15));
-    CHECK(highwayVibratoPeriodSeconds(beats, -1.0) == Catch::Approx(0.125));
-    CHECK(highwayVibratoPeriodSeconds(beats, 5.0) == Catch::Approx(0.15));
+    CHECK(highwayVibratoPeriodSeconds(beats, 0.25) == Catch::Approx(0.25));
+    CHECK(highwayVibratoPeriodSeconds(beats, 0.8) == Catch::Approx(0.3));
+    CHECK(highwayVibratoPeriodSeconds(beats, -1.0) == Catch::Approx(0.25));
+    CHECK(highwayVibratoPeriodSeconds(beats, 5.0) == Catch::Approx(0.3));
     CHECK(highwayVibratoPeriodSeconds({}, 1.0) == Catch::Approx(g_highway_vibrato_period_seconds));
+
+    // A beat of 12/8 is an EIGHTH note. At the same tempo where a 4/4 beat lasts 0.5s, the
+    // eighth-note beat lasts 0.25s — and the wobble must come out at the same 0.25s eighth,
+    // not half of it (the raw-interval bug that ran vibrato at double speed in x/8 meters).
+    const std::vector<HighwayBeatView> compound{
+        {.seconds = 0.0, .measure_downbeat = true, .signature_denominator = 8},
+        {.seconds = 0.25, .measure_downbeat = false, .signature_denominator = 8},
+        {.seconds = 0.5, .measure_downbeat = false, .signature_denominator = 8},
+    };
+    CHECK(highwayVibratoPeriodSeconds(compound, 0.1) == Catch::Approx(0.25));
 }
 
 // Sample times cover the span, include every technique control point inside it exactly, and

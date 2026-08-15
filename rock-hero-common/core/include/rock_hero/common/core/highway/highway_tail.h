@@ -14,30 +14,35 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Fallback vibrato wobble period in seconds — the sixteenth note at 120 BPM.
+\brief Fallback vibrato wobble period in seconds — the eighth note at 120 BPM.
 
-The drawn vibrato completes one full wobble per sixteenth note of the song grid
+The drawn vibrato completes one full wobble per eighth note of the song grid
 (highwayVibratoPeriodSeconds), so the wobble breathes with the song's tempo instead of a
-fixed wall-clock rate (the prior 160 ms sine read too frantic). This constant only covers
-grids that yield no beat interval around the onset.
+fixed wall-clock rate (the prior 160 ms sine read too frantic, as did the sixteenth-note
+lock this replaced). This constant only covers grids that yield no beat interval around the
+onset.
 */
-inline constexpr double g_highway_vibrato_period_seconds = 0.125;
+inline constexpr double g_highway_vibrato_period_seconds = 0.25;
 
 /*!
-\brief Vibrato wobble depth in semitones of bend lift — an eighth of a step each way.
+\brief Vibrato wobble depth in semitones of bend lift — a sixteenth of a step each way.
 
-A quarter of a semitone. Drawing the wobble at the unit factor's full swing (±1 semitone of
-lift) reads as a whammy dive, not a vibrato. Callers multiply this into the wobble factor
-when converting it to bend-lift semitones.
+Authored in SEMITONES on purpose, so the wobble rides the same tension curve as every bend —
+but that curve is steepest near the unbent pitch, so the drawn swing shrinks slower than the
+constant: a quarter semitone drew ±0.49 string gaps and read as too much sweep, this eighth
+draws ±0.34, and the next stop down if it still reads large is 0.0625 (±0.24, the visual
+halving of the original). Full unit swing (±1 semitone) reads as a whammy dive, not a
+vibrato. Callers multiply this into the wobble factor when converting it to bend-lift
+semitones.
 */
-inline constexpr double g_highway_vibrato_depth_semitones = 0.25;
+inline constexpr double g_highway_vibrato_depth_semitones = 0.125;
 
 /*!
 \brief The head's vibrato swing as a fraction of the tail's depth.
 
-Half the tail's eighth-step swing — a sixteenth of a step each way. A fully pinned head
-looked odd against the wobbling tail and a full-depth head bounced; the head breathing at
-half depth keeps it visibly alive while the tail carries the motion.
+Half of whatever \ref g_highway_vibrato_depth_semitones swings, so it retunes with the tail.
+A fully pinned head looked odd against the wobbling tail and a full-depth head bounced; the
+head breathing at half depth keeps it visibly alive while the tail carries the motion.
 */
 inline constexpr double g_highway_vibrato_head_depth_fraction = 0.5;
 
@@ -198,11 +203,12 @@ release early (1 - sin((1 - progress) * pi / 2)).
 [[nodiscard]] double highwaySlideEaseWeight(double progress, bool unpitched) noexcept;
 
 /*!
-\brief Returns the vibrato wobble period at an onset: one full wobble per sixteenth note.
+\brief Returns the vibrato wobble period at an onset: one full wobble per eighth note.
 
-A quarter of the song-grid beat interval containing the onset (the nearest interval when
-the onset falls outside the grid), so the wobble tracks the song's tempo; falls back to
-g_highway_vibrato_period_seconds when the grid yields no positive interval.
+Half the quarter-note duration around the onset, derived from the song-grid beat interval
+containing it (the nearest interval when the onset falls outside the grid), so the wobble
+tracks the song's tempo; falls back to g_highway_vibrato_period_seconds when the grid
+yields no positive interval.
 
 \param beats The song grid beats in ascending order.
 \param onset_seconds The note onset.

@@ -109,8 +109,8 @@ constexpr double g_tail_slope_shade_depth = 0.5;
 // and foreshortening at screen center compressed that snap into a hard band that read as a
 // sharp point on a smooth curve. Smoothing over a fixed TIME window guarantees the fade-in/out
 // spans the same stretch of tail whatever the sample density or viewing angle. Stays under
-// half the vibrato period — tempo-locked to one wobble per sixteenth note — up to roughly
-// 150 BPM; faster songs dull the wobble's shimmer toward its average rather than breaking,
+// half the vibrato period — tempo-locked to one wobble per eighth note — up to roughly
+// 300 BPM; faster songs dull the wobble's shimmer toward its average rather than breaking,
 // while the geometric wobble itself is unaffected.
 constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 
@@ -3096,7 +3096,7 @@ void HighwayRenderer::Impl::draw(
         const int displayed_lane = invert ? (state.string_count + 1 - note.string) : note.string;
         const double bend_direction =
             common::core::highwayBendInverted(displayed_lane, state.string_count) ? -1.0 : 1.0;
-        // The wobble completes one full period per sixteenth note of the song grid at the
+        // The wobble completes one full period per eighth note of the song grid at the
         // note's onset, so vibrato breathes with the song's tempo.
         const double vibrato_period_seconds =
             note.vibrato
@@ -3330,6 +3330,31 @@ void HighwayRenderer::Impl::draw(
                         const double seconds =
                             note.start_seconds +
                             common::core::highwayTremoloTailSecondsAtCycle(0.5 * tooth);
+                        if (!(seconds < tail_to))
+                        {
+                            break;
+                        }
+                        if (seconds > tail_from)
+                        {
+                            wobble_times.push_back(seconds);
+                        }
+                    }
+                }
+                // The vibrato wave's own turning points, handed to the sampler exactly like the
+                // teeth above. The uniform grid spans the VISIBLE window, which advances every
+                // frame, so a wave sampled by the grid alone is re-sampled at new phases each
+                // frame and visibly morphs on approach; the sine's extremes are note-anchored —
+                // (k + 1/4) and (k + 3/4) of the onset-phased period — so pinning a sample to
+                // each keeps the drawn wave rigid on the note, the way the teeth already are.
+                if (note.vibrato && vibrato_period_seconds > 0.0)
+                {
+                    const double half_period = vibrato_period_seconds / 2.0;
+                    const double from_halves =
+                        ((tail_from - note.start_seconds) / half_period) - 0.5;
+                    for (int extreme = static_cast<int>(std::floor(from_halves)) + 1;; ++extreme)
+                    {
+                        const double seconds = note.start_seconds +
+                                               ((0.5 + static_cast<double>(extreme)) * half_period);
                         if (!(seconds < tail_to))
                         {
                             break;
