@@ -454,6 +454,26 @@ leaves the head outside the window 18 times and `round` 7 times; `ceil` never do
 [[nodiscard]] int fretFor(const ChartNote& note);
 
 /*!
+\brief \ref fretFor on the raw fields, for the view-state twins that mirror them.
+\param fret Stored fret; zero is the open string.
+\param harmonic_node Harmonic node when the note is a harmonic.
+\param attack How the onset is produced.
+\return Fret the fretting hand is on; zero when nothing stops the string.
+*/
+[[nodiscard]] int fretFor(int fret, const std::optional<double>& harmonic_node, NoteAttack attack);
+
+/*!
+\brief Formats a harmonic node for display: one decimal, dropped when whole.
+
+The one label authority for both surfaces — the 2D head text and the 3D floor numbers print a
+node through this, so 2.311741 reads "2.3" everywhere and the two can never round apart.
+
+\param node Node position in fret units; never negative.
+\return "2.3" for fractional nodes, "12" for whole ones.
+*/
+[[nodiscard]] std::string harmonicNodeText(double node);
+
+/*!
 \brief The note as a saved document records it: in-memory latent overrides stripped.
 
 The one seam between memory and document. A pick slide overrides the pitched techniques in
@@ -489,10 +509,17 @@ node, not whether a stop is pressed.
 
 \return True when the fretting hand touches the node and presses nothing.
 */
+[[nodiscard]] inline bool fretHandHarmonic(
+    const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack) noexcept
+{
+    return harmonic_node.has_value() && fret == 0 && attack != NoteAttack::Pinch &&
+           attack != NoteAttack::PickSlide;
+}
+
+/*! \copydoc fretHandHarmonic(int,const std::optional<double>&,NoteAttack) */
 [[nodiscard]] inline bool fretHandHarmonic(const ChartNote& note) noexcept
 {
-    return note.harmonic_node.has_value() && note.fret == 0 && note.attack != NoteAttack::Pinch &&
-           note.attack != NoteAttack::PickSlide;
+    return fretHandHarmonic(note.fret, note.harmonic_node, note.attack);
 }
 
 /*!
@@ -593,9 +620,16 @@ hand is damping it, so the board's own axis ignores which hand that is.
 
 \return True when the fretting hand's finger is the one touching the node.
 */
+[[nodiscard]] inline bool frettingFingerOnNode(
+    const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack) noexcept
+{
+    return fretHandHarmonic(fret, harmonic_node, attack) && attack != NoteAttack::Tap;
+}
+
+/*! \copydoc frettingFingerOnNode(int,const std::optional<double>&,NoteAttack) */
 [[nodiscard]] inline bool frettingFingerOnNode(const ChartNote& note) noexcept
 {
-    return fretHandHarmonic(note) && note.attack != NoteAttack::Tap;
+    return frettingFingerOnNode(note.fret, note.harmonic_node, note.attack);
 }
 
 /*!

@@ -758,30 +758,58 @@ void pushFaceQuad(
         makeVertex(x0, y1, z, abgr));
 }
 
+// One glyph's pen advance. The atlas is monospace-ish — digit and letter ink fills ~0.6 of the
+// cell — but a period's ink is a sliver, and advancing it a full slot floats the dot mid-gap
+// ("2 . 3" where the label means "2.3"), so the narrow punctuation advances narrow.
+[[nodiscard]] double glyphAdvance(const char character, const double glyph_height)
+{
+    return glyph_height * (character == '.' ? 0.28 : 0.62);
+}
+
+// The pen width a text string will advance — the width authority every caller centring a label
+// must use, so measurement and drawing cannot disagree about where the ink lands.
+[[nodiscard]] double glyphTextWidth(const std::string_view text, const double glyph_height)
+{
+    double width = 0.0;
+    for (const char character : text)
+    {
+        width += glyphAdvance(character, glyph_height);
+    }
+    return width;
+}
+
 // Appends billboarded (constant-z) glyph quads for a text string to a glyph batch, left-anchored
 // at (left_x, baseline_y) and growing right; returns the advanced pen width. Shared by every text
-// pass (fret numbers, section labels, chord names).
+// pass (fret numbers, section labels, chord names). Each quad centres on its own advance — the
+// glyph ink is cell-centred, so this is what makes a narrow advance pull the INK in rather than
+// just the pen.
 [[nodiscard]] double pushGlyphText(
     std::vector<PosColorUvVertex>& vertices, std::vector<std::uint16_t>& indices,
     const HighwayAtlasLayout& glyph_layout, const std::string_view text, const double left_x,
     const double baseline_y, const double z, const double glyph_height, const std::uint32_t color)
 {
-    const double advance = glyph_height * 0.62;
     double pen_x = left_x;
     for (const char character : text)
     {
+        const double advance = glyphAdvance(character, glyph_height);
         const std::optional<int> cell = highwayGlyphCellIndex(character);
         if (cell.has_value())
         {
             const std::array<float, 4> rect = glyph_layout.cellRect(*cell);
+            const double quad_left = pen_x + (advance / 2.0) - (glyph_height / 2.0);
             pushQuad(
                 vertices,
                 indices,
-                makeUvVertex(pen_x, baseline_y, z, color, rect[0], rect[3]),
-                makeUvVertex(pen_x + glyph_height, baseline_y, z, color, rect[2], rect[3]),
+                makeUvVertex(quad_left, baseline_y, z, color, rect[0], rect[3]),
+                makeUvVertex(quad_left + glyph_height, baseline_y, z, color, rect[2], rect[3]),
                 makeUvVertex(
-                    pen_x + glyph_height, baseline_y + glyph_height, z, color, rect[2], rect[1]),
-                makeUvVertex(pen_x, baseline_y + glyph_height, z, color, rect[0], rect[1]));
+                    quad_left + glyph_height,
+                    baseline_y + glyph_height,
+                    z,
+                    color,
+                    rect[2],
+                    rect[1]),
+                makeUvVertex(quad_left, baseline_y + glyph_height, z, color, rect[0], rect[1]));
         }
         pen_x += advance;
     }
@@ -2716,6 +2744,10 @@ void HighwayRenderer::Impl::draw(
         double seconds{0.0};
         double z{0.0};
         int fret{0};
+        // A natural harmonic's node: the label prints the DECIMAL position and centers on the
+        // node's exact spot rather than the fret slot's middle, because the decimal is the
+        // information — nothing else on the board states where between the wires the touch lands.
+        std::optional<double> node{};
         ArgbColor base{0};
         bool fade{false};
         double alpha{1.0};
@@ -2731,8 +2763,80 @@ void HighwayRenderer::Impl::draw(
                 common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret)));
         };
 
+        // A natural harmonic states its NODE — the first of a repeated series only (user rule
+        // 2026-08-15). The fretting finger STANDS on the node, so a new node is a hand position
+        // being established under the same one-rule model, and the decimal is the information:
+        // position alone does not tell the player 2.3 from 2.4. A repeat of the same node in an
+        // unbroken run of naturals is already established and stays unlabeled (a chord of
+        // naturals at one node is one statement); any fretting-hand note that is NOT a natural
+        // breaks the run, because the hand left the node. Picking-hand onsets are invisible to
+        // the series, exactly as they are to posture derivation. Runs first because the series'
+        // spans also SUPPRESS the dotted-fret downbeat numbers on the node's own fret — two
+        // numbers in one slot muddy each other, and the node's is the one with information.
+        struct NodeSeries
+        {
+            int fret{0};
+            double begin_seconds{0.0};
+            double end_seconds{0.0};
+        };
+        std::vector<NodeSeries> node_series;
+        {
+            std::optional<double> established_node;
+            for (const common::core::HighwayNoteView& note : state.notes)
+            {
+                if (common::core::rightHandOnset(note.attack))
+                {
+                    continue;
+                }
+                if (!common::core::frettingFingerOnNode(
+                        note.fret, note.harmonic_node, note.attack) ||
+                    !note.harmonic_node.has_value())
+                {
+                    established_node.reset();
+                    continue;
+                }
+                if (established_node == note.harmonic_node)
+                {
+                    node_series.back().end_seconds = note.start_seconds;
+                    continue;
+                }
+                established_node = note.harmonic_node;
+                node_series.push_back(
+                    NodeSeries{
+                        .fret = common::core::fretFor(note),
+                        .begin_seconds = note.start_seconds,
+                        .end_seconds = note.start_seconds,
+                    });
+                if (note.start_seconds > now_seconds && note.start_seconds <= span_end_seconds)
+                {
+                    floor_numbers.push_back(
+                        FloorNumber{
+                            .seconds = note.start_seconds,
+                            .z = time_to_z(note.start_seconds),
+                            .fret = node_series.back().fret,
+                            .node = note.harmonic_node,
+                            .base = g_fret_number_fhp_color,
+                            .fade = true,
+                            .alpha = 1.0,
+                        });
+                }
+            }
+        }
+        const auto node_suppresses = [&node_series](const int fret, const double seconds) {
+            for (const NodeSeries& series : node_series)
+            {
+                if (series.fret == fret && seconds >= series.begin_seconds &&
+                    seconds <= series.end_seconds)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
         // Dotted-fret numbers on each visible measure downbeat, lit within the hand range (a
-        // downbeat mid-transition blends the dim and active colors by its coverage).
+        // downbeat mid-transition blends the dim and active colors by its coverage). A downbeat
+        // inside a harmonic series' span yields its number on the node's own fret.
         for (const common::core::HighwayBeatView& beat : state.beats)
         {
             if (!beat.measure_downbeat || beat.seconds < now_seconds - 0.2 ||
@@ -2745,7 +2849,7 @@ void HighwayRenderer::Impl::draw(
             const double z = time_to_z(beat.seconds);
             for (int fret = 1; fret <= g_face_fret_count; ++fret)
             {
-                if (!isDottedFret(fret))
+                if (!isDottedFret(fret) || node_suppresses(fret, beat.seconds))
                 {
                     continue;
                 }
@@ -2783,10 +2887,15 @@ void HighwayRenderer::Impl::draw(
                 });
         };
 
-        // Upcoming hand-position arrivals, in the FHP orange.
+        // Upcoming hand-position arrivals, in the FHP orange. An arrival on a harmonic series'
+        // own fret yields to the node number — the placement exists BECAUSE the hand goes to the
+        // node, so the decimal label already states everything the integer would, and more.
         for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
         {
-            push_target_number(fhp.fret, fhp.seconds);
+            if (!node_suppresses(fhp.fret, fhp.seconds))
+            {
+                push_target_number(fhp.fret, fhp.seconds);
+            }
         }
 
         // Tap numbers label POSITIONS, not notes (per-note numbers over-labeled dense runs):
@@ -2876,10 +2985,15 @@ void HighwayRenderer::Impl::draw(
             const FloorNumber& entry = floor_numbers[next_floor_number];
             ++next_floor_number;
             const double glyph_height = entry.z > 0.0 ? 0.70 : 0.40;
-            const std::string label = std::to_string(entry.fret);
-            const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
-            const double left_x = common::core::highwayNoteCenterX(entry.fret, metrics, mirrored) -
-                                  (text_width / 2.0);
+            const std::string label = entry.node.has_value()
+                                          ? common::core::harmonicNodeText(*entry.node)
+                                          : std::to_string(entry.fret);
+            const double text_width = glyphTextWidth(label, glyph_height);
+            const double center_x =
+                entry.node.has_value()
+                    ? common::core::highwayFretLineX(*entry.node, metrics, mirrored)
+                    : common::core::highwayNoteCenterX(entry.fret, metrics, mirrored);
+            const double left_x = center_x - (text_width / 2.0);
             double alpha_scale = entry.alpha;
             if (entry.fade && entry.z < number_z_close)
             {
@@ -3678,10 +3792,14 @@ void HighwayRenderer::Impl::draw(
 
         if (!in_chord)
         {
-            // Span from the note's own fret slot, not the (possibly harmonic-shifted) head x.
+            // Span from the FRETTING HAND's fret slot, not the (possibly harmonic-shifted) head
+            // x: fret wires bound the line so it sits aligned in a fret, and for a natural that
+            // is the fret containing the node — the head keeps the node's exact position while
+            // the line under it stays wire-to-wire.
+            const int slot_fret = common::core::fretFor(note);
             const double slot_low_x =
-                common::core::highwayFretLineX(note.fret - 1, metrics, mirrored);
-            const double slot_high_x = common::core::highwayFretLineX(note.fret, metrics, mirrored);
+                common::core::highwayFretLineX(slot_fret - 1, metrics, mirrored);
+            const double slot_high_x = common::core::highwayFretLineX(slot_fret, metrics, mirrored);
             const auto [span_x0, span_x1] = std::minmax(slot_low_x, slot_high_x);
             push_span_line(span_x0, span_x1);
             push_glow_post(x, z, post_floor_alpha);
@@ -4549,8 +4667,11 @@ void HighwayRenderer::Impl::draw(
                             g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing));
                     if (envelope > 0.0)
                     {
-                        light_line(note.fret - 1, envelope);
-                        light_line(note.fret, envelope);
+                        // The fretting hand's slot, so a natural's strike lights the fret its
+                        // node sits in rather than the pair around fret zero.
+                        const int slot_fret = common::core::fretFor(note);
+                        light_line(slot_fret - 1, envelope);
+                        light_line(slot_fret, envelope);
                     }
                 }
             }

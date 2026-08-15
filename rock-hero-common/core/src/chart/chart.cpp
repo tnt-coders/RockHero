@@ -1,20 +1,38 @@
 #include "chart/chart.h"
 
 #include <cmath>
+#include <string>
 
 namespace rock_hero::common::core
 {
 
-int fretFor(const ChartNote& note)
+int fretFor(const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack)
 {
     // The has_value() guard is implied by the predicate but spelled out anyway: the CI-only
     // optional-access checker cannot see through a wrapper (chart.h documents the pattern), so the
     // dereference stays visibly paired with its own check.
-    if (note.harmonic_node.has_value() && frettingFingerOnNode(note))
+    if (harmonic_node.has_value() && frettingFingerOnNode(fret, harmonic_node, attack))
     {
-        return static_cast<int>(std::ceil(*note.harmonic_node));
+        return static_cast<int>(std::ceil(*harmonic_node));
     }
-    return note.fret;
+    return fret;
+}
+
+int fretFor(const ChartNote& note)
+{
+    return fretFor(note.fret, note.harmonic_node, note.attack);
+}
+
+std::string harmonicNodeText(const double node)
+{
+    // Rounded to tenths in integer space so the whole-number test and the printed tenth cannot
+    // disagree the way separate float roundings can.
+    const long tenths = std::lround(node * 10.0);
+    if (tenths % 10 == 0)
+    {
+        return std::to_string(tenths / 10);
+    }
+    return std::to_string(tenths / 10) + "." + std::to_string(tenths % 10);
 }
 
 ChartNote savedChartNote(const ChartNote& note)

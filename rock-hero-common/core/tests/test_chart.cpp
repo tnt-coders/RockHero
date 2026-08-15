@@ -288,6 +288,15 @@ TEST_CASE("Chart harmonic nodes snap onto the physics", "[core][chart]")
     // A cap below 2 has no partials to search, so it yields the octave rather than nothing.
     CHECK_THAT(snapHarmonicNode(3.2, 1), Catch::Matchers::WithinULP(12.0, 0));
 
+    // The one node-label authority (shared by the 2D head text and the 3D floor numbers): one
+    // decimal, dropped when whole, rounded in integer tenths so the whole test and the printed
+    // tenth cannot disagree.
+    CHECK(harmonicNodeText(2.311741) == "2.3");
+    CHECK(harmonicNodeText(3.155814) == "3.2");
+    CHECK(harmonicNodeText(4.98) == "5");
+    CHECK(harmonicNodeText(12.0) == "12");
+    CHECK(harmonicNodeText(19.0196) == "19");
+
     // Which fret the FRETTING hand occupies. A natural harmonic has no stop of its own, so the hand
     // is at the node; fret N spans wire N-1 to wire N, making that fret ceil(node) — NOT round and
     // NOT floor.

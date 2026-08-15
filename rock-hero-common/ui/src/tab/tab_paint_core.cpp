@@ -1446,14 +1446,10 @@ juce::String tabNoteHeadText(const common::core::TabNoteView& note, const int fr
     {
         return juce::String{fret_at_head};
     }
-    // One decimal because a node is fractional; the shared rule already carried it to this head's
+    // Through the one node-label authority (shared with the 3D floor numbers), so a node reads
+    // identically on both surfaces; the shared sounding rule already carried it to this head's
     // own stop, so an onset and a junction of one gesture state the same quantity.
-    juce::String text{sounding.position, 1};
-    if (text.endsWith(".0"))
-    {
-        text = text.dropLastCharacters(2);
-    }
-    return text;
+    return juce::String{common::core::harmonicNodeText(sounding.position)};
 }
 
 // Shared with host name chips (the editor timeline ruler's chord/arpeggio band) so chip and

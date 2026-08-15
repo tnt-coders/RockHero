@@ -212,6 +212,22 @@ fretted treatment must ask this instead of testing `fret == 0`.
 }
 
 /*!
+\brief The fret slot the note's fretting hand occupies on the drawn board.
+
+\ref fretFor through the mirrored fields: a natural harmonic's finger stands on the node, so its
+slot is the fret CONTAINING the node (the ceil law chart.h derives), while every other note's slot
+is its own fret. This is what fret-aligned furniture — the onset span line, the hit-glow fret
+lines — aligns to; the head itself keeps the node's exact fractional position.
+
+\param note Note to place.
+\return Fret slot of the fretting hand; zero for a true open string.
+*/
+[[nodiscard]] inline int fretFor(const HighwayNoteView& note)
+{
+    return fretFor(note.fret, note.harmonic_node, note.attack);
+}
+
+/*!
 \brief Where a note sounds on the DRAWN 3D board, in fret units.
 
 \ref soundingPositionAt answers the chart question and is deliberately unbounded by the board: a
