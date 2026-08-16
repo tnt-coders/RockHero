@@ -56,11 +56,17 @@ struct AccentLightStyle
     /*!
     \brief How far the light's colour is mixed toward white, from zero (the string's own colour).
 
-    Not decoration: the ring this must beat gets most of its brightness from a white lift, and an
-    additive string-tinted light on the red string can add at most a fifth of what the ring adds.
-    Zero keeps full string identity and costs the palette's 4.08x luma spread — the accent is
-    four times quieter on red than on yellow. Half matches the ring. Higher flattens the spread
-    toward one at the cost of the string's colour.
+    Ruled 2026-08-15: the light is the STRING'S colour, so this sits at or near zero. A white glow
+    was tried first, on the reasoning that the atlas ring it replaced got most of its brightness
+    from a white lift — but a white light says the same thing on every string, and the whole point
+    of a light on a coloured note is that it belongs to that note.
+
+    The cost is real and is paid elsewhere. Full string identity carries the palette's 4.08x luma
+    spread, so the same alpha reads four times quieter on the red string than on the yellow. The
+    knob that closes that WITHOUT touching the colour is \ref core_reach_texels and
+    \ref ember_reach_texels — more area, not more white — which is why the candidates below run
+    from tight to wide rather than from tinted to white. One row keeps a quarter of a white lift
+    as the compromise, for comparison against the pure ones.
     */
     double white_mix;
 };
@@ -71,10 +77,17 @@ struct AccentLightStyle
 Index 0 exists so the sampling can include the board without any accent light, which is the only
 honest reference for judging whether a candidate reads as emphasis or as decoration.
 
-The RIM WIDTH is settled at a texel and a half and is the same in every row: the wider rims were
-sighted and lost. What is still open is how loud that rim should be, so each remaining row moves
-exactly one thing about its intensity — brightness, colour, or a soft bloom outside it — and
-nothing about its size. Comparing rows therefore answers one question at a time.
+Every row is the STRING'S OWN COLOUR now (see \ref AccentLightStyle::white_mix), so what the rows
+vary is SIZE: the tight rim that was sighted first, then progressively more reach. Width is the
+right axis to open once the colour is fixed, because width is what buys back the brightness the
+white lift used to supply — and it is the only knob that can, since the hot core is already at
+full alpha and a string colour cannot be made brighter without becoming white again.
+
+The wide rows are deliberately allowed past the boundary the first round enforced. That round's
+rule — keep the light's steepest gradient at the note's own edge, or it reads as a lit box the
+note sits inside — was measured against a WHITE field, which competes with the note. A light in
+the note's own colour does not compete with it the same way, so how far it may reach before it
+stops belonging to the note is genuinely re-opened rather than settled.
 */
 inline constexpr std::array<AccentLightStyle, 5> g_accent_light_styles{{
     {.name = "none",
@@ -83,37 +96,38 @@ inline constexpr std::array<AccentLightStyle, 5> g_accent_light_styles{{
      .core_alpha = 0.0,
      .core_reach_texels = 0.0,
      .white_mix = 0.0},
-    // The sighted rim, unchanged — the reference the other rows are judged against.
-    {.name = "tight",
-     .ember_reach_texels = 0.0,
-     .ember_alpha = 0.0,
-     .core_alpha = 0.95,
-     .core_reach_texels = 1.5,
-     .white_mix = 0.78},
-    // Same rim, two thirds the light: is the accent still unmistakable when it stops shouting?
-    {.name = "tight soft",
-     .ember_reach_texels = 0.0,
-     .ember_alpha = 0.0,
-     .core_alpha = 0.60,
-     .core_reach_texels = 1.5,
-     .white_mix = 0.78},
-    // The brightest this width can be: full alpha and a pure white edge. Costs the string's
-    // identity in the light itself, which is the trade to judge here.
-    {.name = "tight hot",
+    // The width sighted in the white round, now in the string's colour: the control that isolates
+    // the colour change from every other variable.
+    {.name = "string tight",
      .ember_reach_texels = 0.0,
      .ember_alpha = 0.0,
      .core_alpha = 1.00,
      .core_reach_texels = 1.5,
-     .white_mix = 1.00},
-    // The same rim with a faint falloff outside it. The bloom stays inside half the head's own
-    // half-height, so the light's steepest gradient is still the rim's edge — which is what keeps
-    // it reading as the note's glow rather than as a field the note sits in.
-    {.name = "tight bloom",
-     .ember_reach_texels = 4.0,
-     .ember_alpha = 0.12,
-     .core_alpha = 0.95,
-     .core_reach_texels = 1.5,
-     .white_mix = 0.78},
+     .white_mix = 0.0},
+    // A thicker core with a real ember behind it — about a head's own half-height of reach.
+    {.name = "string wide",
+     .ember_reach_texels = 6.0,
+     .ember_alpha = 0.25,
+     .core_alpha = 1.00,
+     .core_reach_texels = 2.5,
+     .white_mix = 0.0},
+    // The widest that still belongs to one string. Ten texels is 0.15 world past the art, so a
+    // head's glow ends 0.89 of the 0.35 lane pitch from its own centre — just short of the
+    // neighbouring string's line. Wider than this and two adjacent accents merge into one field.
+    {.name = "string bloom",
+     .ember_reach_texels = 10.0,
+     .ember_alpha = 0.35,
+     .core_alpha = 1.00,
+     .core_reach_texels = 2.0,
+     .white_mix = 0.0},
+    // Wide, with a quarter of a white lift kept: closes most of the red-to-yellow spread while
+    // the string is still plainly the source of the light. The compromise row.
+    {.name = "string lifted",
+     .ember_reach_texels = 6.0,
+     .ember_alpha = 0.28,
+     .core_alpha = 1.00,
+     .core_reach_texels = 2.0,
+     .white_mix = 0.25},
 }};
 
 /*!
@@ -235,43 +249,52 @@ inline constexpr std::array<GhostStyle, 6> g_ghost_styles{{
 }};
 
 /*!
-\brief Texels the box's frame light reaches outward and inward from the frame bar.
+\brief An accented chord box's light: its own frame redrawn additively, twice.
 
-A box is read THROUGH, so its light hugs the bar from both sides and stops well before the
-interior: lighting the bar itself is what makes the frame emit, where an outside-only halo never
-does. The innermost band still leaves the see-through region untouched.
+A box spans several strings, so unlike a note it has no string colour to take — its light is the
+box's own teal, which is also why it cannot be matched to a note's rim by alpha and is instead
+tuned by eye in the same sighting pass.
+
+Both stages redraw the PANEL rather than laying an outline beside it, so the light follows every
+variant of the shape (half-height repeat boxes, the top bar that only appears on three-note
+chords, the columns that fade out at the midpoint when it does not, the corner holders) and cannot
+drift from it. The interior fill is suppressed in both: a box is read THROUGH, and light in the
+middle is opacity where the notes behind it have to stay legible.
+
+**Why the HALO carries this, where a note's rim is carried by its core.** Adding a colour on top
+of itself is the least perceptible change available: the first version of this light put nearly
+all of its alpha on the frame bar, which is already painted this exact teal, so it only made teal
+slightly more teal and the user reported seeing no effect at all — twice. The stage that actually
+reads is the one OUTSIDE the frame, where the same teal lands on the near-black board and the
+contrast is enormous. So the halo reaches further and carries more weight than its counterpart on
+a note, and the on-bar stage is there to keep the frame from looking like it is merely wearing a
+ring that does not belong to it.
+
+The alphas are the panel's own `alpha_scale`, so they land on the frame at about half these
+numbers (its bars draw at 128/255 of the scale) and on the corner holders at the full value.
+
+These are NOT part of the F9 accent cycle. A box has no string colour, so it shares none of the
+candidates' variables, and cycling the note styles deliberately leaves boxes untouched.
 */
-struct BoxLightBand
-{
-    /*! \brief Texels outward from the frame's outer boundary. */
-    double out_texels;
-
-    /*! \brief Texels inward from the frame's outer boundary. */
-    double in_texels;
-
-    /*! \brief Alpha this band adds on top of the bands outside it. */
-    double step_alpha;
-};
 
 /*!
-\brief The box frame light, outside in — the last band lands on the bar itself.
+\brief How far the outer stage grows past the frame, in world units (six texels).
 
-The three bands are a halo outside the boundary, a band straddling it, and the bar itself; their
-alphas accumulate to about half the box colour added on the bar. A box takes its own teal rather
-than a string colour, so its light cannot be matched to a note's rim by alpha anyway — the two are
-tuned to read as one volume of "loud" by eye, in the same sighting pass that picks the note rim.
-
-The inward reaches are stated in the same texels the note rim uses, and the last band's five texels
-are exactly the frame's bar thickness — the panel takes `HighwayMetrics::string_grid_base_y` for
-that, 0.075 world, which is five of these texels on the nose. Nothing reaches past the bar, so the
-see-through interior a player reads notes through is untouched.
+Reaches well past the frame on purpose — this is the stage that lands on the dark board, so it is
+where the accent is actually seen.
 */
-inline constexpr std::array<BoxLightBand, 3> g_box_light_bands{{
-    {.out_texels = 3.0, .in_texels = 0.0, .step_alpha = 0.07},
-    {.out_texels = 1.5, .in_texels = 2.0, .step_alpha = 0.12},
-    // The bar itself, inward by its own thickness: this is the band that makes the frame emit
-    // rather than merely wear a halo.
-    {.out_texels = 0.0, .in_texels = 5.0, .step_alpha = 0.30},
-}};
+inline constexpr double g_box_light_halo_reach{0.09};
+
+/*! \brief Alpha of the outer stage — the one that reads, per the note above. */
+inline constexpr double g_box_light_halo_alpha{0.50};
+
+/*!
+\brief Alpha of the hot stage, laid exactly on the frame.
+
+Near one on purpose: additively at this scale the bars land at roughly double their unlit value.
+Against a same-coloured frame even that is a modest read, which is exactly why it is not asked to
+carry the effect alone.
+*/
+inline constexpr double g_box_light_core_alpha{0.85};
 
 } // namespace rock_hero::common::ui

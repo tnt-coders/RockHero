@@ -620,6 +620,13 @@ void pushMiddleFadedQuads(
         make_vertex(middle_x, y1, middle_abgr));
 }
 
+// Which parts of a chord box panel to lay down; see \ref pushChordBoxPanel.
+enum class BoxPanelParts : std::uint8_t
+{
+    FrameAndFill,
+    FrameOnly
+};
+
 // Axis-aligned quad on the floor plane (y constant, spanning x and z).
 void pushFloorQuad(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
@@ -846,9 +853,19 @@ void pushFaceQuad(
 // color batch. Geometry is explicit rather than taken from a chord group so both strummed chord
 // boxes and arpeggio-styled hand-shape boxes reuse it. A repeat box's mute mark is not drawn
 // here: the caller submits the SDF-program mark over the panel's frame interior.
+//
+// This is the ONE definition of a box's shape, and an accented box's light is drawn by calling it
+// again rather than by laying rectangles that would have to agree with it. That matters because
+// the shape is not one shape: `box_only` halves it, `with_top` decides between a top bar and two
+// columns that fade out at the midpoint, and the corner holders are their own silhouette. A
+// hand-rolled outline drew a top bar where a two-note chord has none and full-height columns
+// beside fading ones — the same defect the open string's light had, for the same reason.
 // \param full_height_y1 The box top for a full-height box (a repeat box is half this).
 // \param box_only Half-height repeat box.
 // \param with_top Full sides plus a top bar (3+ note chords); ignored under box_only.
+// \param parts Whether to lay the see-through interior fill as well as the frame. The accent
+//        light draws FrameOnly: a box is a thing the player reads notes THROUGH, so lighting its
+//        interior trades legibility for glow, and the frame is where the emphasis belongs anyway.
 // \param alpha_scale Multiplies every part's alpha — the quiet end of the emphasis axis, which
 //        takes the box's presence down the way a ghost takes a head's.
 // \param frame_thickness Bar/column width of the frame; callers pass the string grid's base
@@ -856,7 +873,8 @@ void pushFaceQuad(
 void pushChordBoxPanel(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double z, const double full_height_y1, const bool box_only,
-    const bool with_top, const double alpha_scale, const double frame_thickness)
+    const bool with_top, const BoxPanelParts parts, const double alpha_scale,
+    const double frame_thickness)
 {
     const double y0 = 0.0;
     const double y1 = box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
@@ -976,18 +994,21 @@ void pushChordBoxPanel(
     }
 
     // Filling: the faint panel, carrying the frame's end-to-middle fade.
-    pushMiddleFadedQuads(
-        vertices,
-        indices,
-        x0,
-        x1,
-        y0,
-        y1,
-        box_faint,
-        dark_faint,
-        [&](const double vx, const double vy, const std::uint32_t abgr) {
-            return makeVertex(vx, vy, z, abgr);
-        });
+    if (parts == BoxPanelParts::FrameAndFill)
+    {
+        pushMiddleFadedQuads(
+            vertices,
+            indices,
+            x0,
+            x1,
+            y0,
+            y1,
+            box_faint,
+            dark_faint,
+            [&](const double vx, const double vy, const std::uint32_t abgr) {
+                return makeVertex(vx, vy, z, abgr);
+            });
+    }
 }
 
 // Links one program from its compiled pair; the typed error names the failing program.
@@ -2544,48 +2565,36 @@ void HighwayRenderer::Impl::draw(
             // repeat it may become.
             const bool box_ghosted = box.emphasis == common::core::NoteEmphasis::Ghost;
             const double box_alpha = box_ghosted ? g_ghost_styles.at(ghost_style).head_alpha : 1.0;
+            // An accented box emits from its FRAME: the panel redrawn additively, frame only, at
+            // its own geometry and again slightly larger. Two stages, matching the two a note's
+            // rim wears — a hot one exactly on the bars, which is what makes them emit, and a
+            // fainter one hugging their outside, which is what makes it read as light rather
+            // than as a brighter bar.
+            //
+            // Grown outward only: the panel stands ON the floor, so pushing its base below y=0
+            // would tuck the light under the board. Left, right and top grow; the bottom bar
+            // gains its glow from the hot stage alone.
             const auto push_box_accent_light = [&](const double light_x0, const double light_x1) {
                 if (!common::core::isAccented(box.emphasis))
                 {
                     return;
                 }
-                const double box_top = box.box_only ? full_height_y1 / 2.0 : full_height_y1;
-                for (const BoxLightBand& band : g_box_light_bands)
-                {
-                    // A box spans several strings, so it has no single string colour to take:
-                    // its light is the box's own teal, which also sidesteps the palette's 4x
-                    // luma spread that forces the per-note candidates to choose between string
-                    // identity and even brightness.
-                    const std::uint32_t light_tint = packAbgr(g_chord_box_color, band.step_alpha);
-                    // The light HUGS THE FRAME from both sides and stops well short of the
-                    // middle. Lighting the bar itself is what makes a frame emit — an
-                    // outside-only halo never does — while the interior stays exactly as
-                    // see-through as it was, because a box is a thing the player reads through
-                    // and any light there is opacity where the notes behind it must stay
-                    // legible.
-                    // `out` reaches past the box's boundary, `in` reaches INWARD from it — so a
-                    // band whose `in` equals the frame thickness lands on the bar itself, which
-                    // is what makes the frame emit rather than merely wear a halo. Nothing
-                    // reaches past the bar, so the see-through interior is untouched.
-                    const double out = band.out_texels * g_head_art_texel_world;
-                    const double in = band.in_texels * g_head_art_texel_world;
-                    const auto push_edge = [&](const double ex0,
-                                               const double ey0,
-                                               const double ex1,
-                                               const double ey1) {
-                        pushQuad(
-                            box_light_vertices,
-                            box_light_indices,
-                            makeVertex(ex0, ey0, z, light_tint),
-                            makeVertex(ex1, ey0, z, light_tint),
-                            makeVertex(ex1, ey1, z, light_tint),
-                            makeVertex(ex0, ey1, z, light_tint));
-                    };
-                    push_edge(light_x0 - out, -out, light_x1 + out, in);
-                    push_edge(light_x0 - out, in, light_x0 + in, box_top - in);
-                    push_edge(light_x1 - in, in, light_x1 + out, box_top - in);
-                    push_edge(light_x0 - out, box_top - in, light_x1 + out, box_top + out);
-                }
+                const auto push_stage = [&](const double grow, const double alpha) {
+                    pushChordBoxPanel(
+                        box_light_vertices,
+                        box_light_indices,
+                        light_x0 - grow,
+                        light_x1 + grow,
+                        z,
+                        full_height_y1 + grow,
+                        box.box_only,
+                        box.with_top,
+                        BoxPanelParts::FrameOnly,
+                        alpha,
+                        metrics.string_grid_base_y);
+                };
+                push_stage(g_box_light_halo_reach, g_box_light_halo_alpha);
+                push_stage(0.0, g_box_light_core_alpha);
             };
             if (box.tap != nullptr)
             {
@@ -2605,6 +2614,7 @@ void HighwayRenderer::Impl::draw(
                     full_height_y1,
                     box.box_only,
                     box.with_top,
+                    BoxPanelParts::FrameAndFill,
                     box_alpha,
                     metrics.string_grid_base_y);
                 continue;
@@ -2627,6 +2637,7 @@ void HighwayRenderer::Impl::draw(
                 full_height_y1,
                 box.box_only,
                 box.with_top,
+                BoxPanelParts::FrameAndFill,
                 box_alpha,
                 metrics.string_grid_base_y);
             if (box.box_only && box.mute != common::core::NoteMute::None)

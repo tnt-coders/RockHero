@@ -18,22 +18,40 @@ transparency treatment; both are sampled live from candidate tables in
 which pair is active. Each table's DEFAULT index is its current front-runner, so the app opens on
 the look last preferred: accent `tight`, ghost `half light`.
 
-- **Accent, sighted 2026-08-15:** the user chose `art rim tight` over the broad rims (*"the accent
-  light looks hideous… it should just be a narrow rim around the note"*). The width is therefore
-  SETTLED at 1.5 texels; the four remaining rows hold that width and vary only the intensity —
-  `tight` (the reference), `tight soft` (two thirds the light), `tight hot` (full alpha, pure
-  white edge, no string identity in the light), `tight bloom` (the same rim plus a faint falloff).
-  **That is the open question: how loud should the settled rim be?**
+- **Accent colour, RULED 2026-08-15: the light is the STRING'S colour.** The first round was 78%
+  to 100% white on every candidate, which the user caught (*"Is the accent glow only using WHITE
+  light? … It needs to use the string color for note heads and open strings"*). White was chosen
+  because the atlas ring it replaced got most of its brightness from a white lift; the ruling is
+  that a light which says the same thing on every string does not belong to the note it marks.
+
+  The cost is paid in reach rather than in white: full string identity carries the palette's
+  4.08x luma spread (the same alpha reads four times quieter on red than on yellow), and the only
+  knob that closes that without whitening is AREA, since the core is already at full alpha. So
+  the candidates now run tight → wide instead of tinted → white: `string tight` (the sighted
+  1.5-texel width, as a control), `string wide`, `string bloom` (the widest that still belongs to
+  one string — a head's glow ends 0.89 of a lane pitch from its centre, just short of the
+  neighbour), and `string lifted` (wide, keeping a quarter of a white lift as the compromise).
+  **Open question: how far may a string-coloured glow reach before it stops belonging to the
+  note?** The first round's answer was measured against a WHITE field, which competes with the
+  note in a way its own colour does not, so it is genuinely re-opened.
 - **The three defects the same sighting reported are fixed and await re-sighting.** (a) Open
   strings looked like *"a box of light with sharp corners over the string"* — the light was a
   plain quad in a batch that submits AFTER the bars. It is now the BAR'S OWN GEOMETRY redrawn at a
   thicker cross-section, in its own batch submitted before the bars, so it inherits the rounded
   profile and the tapered fading ends; its alpha is HALVED because a closed unculled prism
   accumulates an additive pass twice where a head's flat art accumulates once. (b) No glow on
-  chord-box edges — the band table's inward reaches were negative, so no band landed on the frame
-  bar, and the light was queued into a NOTE batch that only reaches the screen when notes happen
-  to be visible. Bands now straddle the bar (the last one covers it exactly, five texels = the
-  frame's own thickness) and flush with the panel they light. (c) The accent atlas ring was still
+  chord-box edges — reported TWICE, and the band-outline approach was wrong three ways. The
+  outline was hand-rolled, so it drew a top bar where a two-note chord has none and full-height
+  columns beside ones that fade out at the midpoint; its inward reaches were negative, so no band
+  landed on the bar at all; and it was queued into a NOTE batch that only reaches the screen when
+  notes happen to be visible. **But the reason it read as nothing even where it landed is
+  perceptual**: it added the box's own teal on top of a frame already painted that exact teal,
+  which is the least perceptible change available. The light is now the PANEL ITSELF redrawn
+  additively, frame-only, twice — so it follows every variant of the shape by construction — and
+  the stage that carries the read is the HALO outside the frame, where the same teal lands on the
+  near-black board. Note the box light is deliberately NOT on the F9 cycle: a box has no string
+  colour and shares none of the candidates' variables, so cycling note styles leaves it alone.
+  (c) The accent atlas ring was still
   being drawn under the light; that draw, the `g_head_cell_accent` constant, and the art itself
   are all gone (cell 3 is now empty and byte-identical to spare cells 18 and 19).
 - **Ghost:** the user ruled alpha is the right mechanism and that a sustain must quiet with its
@@ -51,6 +69,12 @@ repo at `C:\__MAIN__\Coding\__scratch__\rockhero-showcase\technique-showcase.rhp
 generator that produced it. Load it to judge any art change against the full vocabulary at once
 rather than hunting a real song for an example. Its silent backing track carries precomputed
 normalization metadata, because the loudness analyzer refuses silence outright.
+
+Currently 52 measures, 343 notes, 26 sections, 34 FHPs, with 32 accents and 32 ghosts. It covers
+emphasis on fretted heads, on open strings (a different code path entirely), composed with mutes
+and slides, on full six-string strums, and — added 2026-08-15 after an audit found the gap — on
+REPEAT boxes, the one case where the box draws no heads and is therefore the only surface left to
+state the dynamic.
 
 **Ruled 2026-08-15: the harmonic marker's height EQUALS the full mute's, in every scheme.** It
 tracks that mark rather than carrying a size of its own, so whatever a sizing scheme sets the
