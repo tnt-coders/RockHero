@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
+#include <string_view>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -133,6 +134,15 @@ public:
     \param edit Overlay state resolved against the same projection instance as setState's tab.
     */
     void setEditState(core::ChartEditViewState edit);
+
+    /*!
+    \brief EXPERIMENT SCAFFOLDING: steps to the next ghost-note look and repaints.
+
+    Deleted with the paint core's candidate table once a look is chosen.
+
+    \return Short name of the look now in use, for the caller's log line.
+    */
+    std::string_view cycleGhostStyle();
 
     /*!
     \brief Reports whether the lane wants the pointer at a lane-local position.
@@ -266,6 +276,9 @@ private:
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
+
+    // EXPERIMENT SCAFFOLDING: the ghost-note look being sighted; see cycleGhostStyle.
+    std::size_t m_ghost_style{0};
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};

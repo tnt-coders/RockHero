@@ -1582,11 +1582,18 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::CycleAccentStyle:
         case EditorCommandId::CycleGhostStyle:
         {
+            const bool accent =
+                static_cast<EditorCommandId>(info.commandID) == EditorCommandId::CycleAccentStyle;
             if (m_preview_window != nullptr)
             {
-                m_preview_window->cycleEmphasisStyle(
-                    static_cast<EditorCommandId>(info.commandID) ==
-                    EditorCommandId::CycleAccentStyle);
+                m_preview_window->cycleEmphasisStyle(accent);
+            }
+            // The ghost key moves BOTH surfaces, because what is being judged is whether the two
+            // say one thing about the same note — and the 2D lane's candidates are deliberately
+            // different mechanisms from the highway's, not the same numbers.
+            if (!accent)
+            {
+                RH_LOG_INFO("editor.view", "2D ghost: {}", m_tab_view.cycleGhostStyle());
             }
             return true;
         }

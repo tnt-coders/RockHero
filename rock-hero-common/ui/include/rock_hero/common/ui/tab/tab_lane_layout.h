@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 
@@ -27,6 +28,16 @@ struct TabLaneStyle
     and smaller lanes shrink notes proportionally (laneHeight = 1.5 x noteHeight).
     */
     float max_note_height{25.0f};
+
+    /*!
+    \brief EXPERIMENT SCAFFOLDING: which ghost-note look to draw, while one is being chosen.
+
+    Index into the paint core's candidate table. The host cycles it with a keybind and logs the
+    result; when the user picks, the winner's behaviour moves inline and this field, the table and
+    the command are deleted together. Zero is the shipped look, so a default-constructed style
+    keeps every existing consumer byte-identical.
+    */
+    std::size_t ghost_style{0};
 };
 
 /*!
@@ -109,6 +120,9 @@ struct TabLaneGeometry
 
     /*! \brief Style ceiling the note height was derived under (visibility slack derives here). */
     float max_note_height{};
+
+    /*! \brief EXPERIMENT SCAFFOLDING: the ghost look being sighted; see \ref TabLaneStyle. */
+    std::size_t ghost_style{0};
 
     /*! \brief True when notes are large enough to carry readable fret numbers. */
     bool draw_text{};

@@ -90,7 +90,7 @@ constexpr int g_digit_window = 4;
 
 // The 400x240 six-lane band every case in this file paints into: 20 px/s across 20 seconds, so a
 // second is twenty columns and 2.0s lands at x = 40.
-[[nodiscard]] TabLaneMetrics referenceMetrics(int string_count)
+[[nodiscard]] TabLaneMetrics referenceMetrics(int string_count, std::size_t ghost_style = 0)
 {
     return makeTabLaneMetrics(
         juce::Rectangle<int>{0, 0, 400, 240},
@@ -99,7 +99,24 @@ constexpr int g_digit_window = 4;
             .end = common::core::TimePosition{20.0},
         },
         common::core::displayedStringCount(string_count, 0),
-        string_count);
+        string_count,
+        TabLaneStyle{.ghost_style = ghost_style});
+}
+
+// The index of a named ghost candidate, so cases name the look they mean rather than pinning an
+// ordering the table is free to change.
+[[nodiscard]] std::size_t ghostStyleNamed(const std::string_view name)
+{
+    std::size_t found = tabGhostStyleCount();
+    for (std::size_t index = 0; index < tabGhostStyleCount(); ++index)
+    {
+        if (tabGhostStyleName(index) == name)
+        {
+            found = index;
+        }
+    }
+    REQUIRE(found < tabGhostStyleCount());
+    return found;
 }
 
 // The largest per-channel difference anywhere between two renders: zero means the two are the same
@@ -1277,6 +1294,98 @@ TEST_CASE("Tab paint core quiets a ghost note by color, not by opacity", "[ui][t
     CHECK(tail_retained > head_retained);
     CHECK_THAT(head_retained, Catch::Matchers::WithinAbs(0.45, 0.02));
     CHECK_THAT(tail_retained, Catch::Matchers::WithinAbs(0.65, 0.02));
+}
+
+// The mechanism the translucent ghost rests on, isolated from the painter: JUCE composites a
+// transparency layer ONCE, so two opaque draws that overlap inside it do not compound. If this
+// ever stops holding, the ghost candidate above is built on sand and the failure should say so
+// here rather than as a puzzling colour in a note.
+TEST_CASE("A JUCE transparency layer composites its group once", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 32, 32, true)};
+    {
+        juce::Graphics graphics{image};
+        graphics.beginTransparencyLayer(0.5f);
+        graphics.setColour(juce::Colours::white);
+        graphics.fillRect(juce::Rectangle<int>{0, 0, 20, 32});
+        graphics.fillRect(juce::Rectangle<int>{10, 0, 22, 32});
+        graphics.endTransparencyLayer();
+    }
+
+    const int single = static_cast<int>(image.getPixelAt(4, 16).getAlpha());
+    const int overlapped = static_cast<int>(image.getPixelAt(15, 16).getAlpha());
+    CAPTURE(single, overlapped);
+    // Half, not compounded to three quarters — and the same wherever the group is opaque.
+    CHECK(single > 100);
+    CHECK(single < 155);
+    CHECK(overlapped == single);
+}
+
+// The GROUP-translucent candidate renders a ghost's whole note opaquely into one layer and
+// composites that layer once. The property that buys — and the only reason it is worth drawing a
+// ghost note-at-a-time instead of in the two passes everything else uses — is that a translucent
+// head does NOT reveal its own sustain ribbon through itself. Per-element alpha would; a group
+// cannot, because inside the group the head covers the ribbon at full opacity and only the
+// finished result is faded.
+//
+// Checked as an identity rather than by eyeballing a colour: the head's ink must land the same
+// whether the ribbon runs beneath that pixel or not. A regression to per-element alpha, or a
+// second composite from the head pass forgetting to skip grouped ghosts, both break it.
+TEST_CASE("Tab paint core composites a translucent ghost once, as a group", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    // One long ghost sustain: its ribbon runs to the right of the onset, so the head's right half
+    // sits over its own tail and its left half does not.
+    const auto painted = [](const std::size_t ghost_style,
+                            const common::core::NoteEmphasis emphasis) {
+        const TabLaneMetrics metrics = referenceMetrics(6, ghost_style);
+        common::core::TabViewState state;
+        state.string_count = 6;
+        state.notes = {
+            common::core::TabNoteView{
+                .start_seconds = 5.0,
+                .end_seconds = 12.0,
+                .string = 3,
+                .fret = 7,
+                .emphasis = emphasis,
+                .bend = {},
+                .slides = {},
+            },
+        };
+        const std::vector<double> prefix_max = resolveHoldEnds(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, metrics, state, prefix_max);
+        return image;
+    };
+
+    const std::size_t translucent = ghostStyleNamed("translucent");
+    const juce::Image ghost = painted(translucent, common::core::NoteEmphasis::Ghost);
+    const juce::Image plain = painted(translucent, common::core::NoteEmphasis::Normal);
+
+    const TabLaneMetrics metrics = referenceMetrics(6, translucent);
+    const int onset_x = juce::roundToInt(metrics.x(5.0));
+    const int center_y = juce::roundToInt(metrics.laneY(3));
+    // Two points on the head's own fill, mirrored about the onset and clear of the fret digit.
+    // Note ALPHA is useless as a probe here: the lane line runs opaque beneath the whole note, so
+    // even a perfectly faded head composites to full alpha over it. Colour is the evidence.
+    const int offset = juce::roundToInt(metrics.headSize() * 0.32f);
+    const juce::Colour over_tail = ghost.getPixelAt(onset_x + offset, center_y);
+    const juce::Colour over_lane = ghost.getPixelAt(onset_x - offset, center_y);
+    CAPTURE(over_tail.toString(), over_lane.toString(), onset_x, center_y, offset);
+
+    // THE property, and the only reason a ghost is worth drawing note-at-a-time: the head lands
+    // the same whether its own ribbon runs beneath that pixel or not. Per-element alpha would
+    // show the ribbon through the right half; a group composited once cannot.
+    CHECK(over_tail == over_lane);
+
+    // ...and it is genuinely faded, not merely drawn: the same note struck normally is not this
+    // colour, and the difference is large rather than a rounding wobble.
+    const juce::Colour struck = plain.getPixelAt(onset_x + offset, center_y);
+    CHECK(over_tail != struck);
+    CHECK(worstPixelDelta(ghost, plain) > 8);
 }
 
 } // namespace rock_hero::common::ui

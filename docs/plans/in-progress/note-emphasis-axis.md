@@ -96,8 +96,25 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    drawn after every head, outside any layer, so the loudest floating ink on a ghost would have
    stayed at full strength.
 
-   The shape that made all of that go away was **generalizing the one ink authority that already
-   existed**. `StringStyle` held the per-string chain while a dozen file-scope greys and raw
+   **Reopened 2026-08-15 at the user's request** — *"translucent feels more CORRECT for ghost
+   notes because ghosts are spooky and kind of see through"* — with the semantics specified
+   exactly: render the whole note fully, THEN make that rendering translucent. That is group
+   transparency, and it does dissolve the self-reveal objection above by construction. It is now
+   a **toggleable 2D trial** (F10 cycles both surfaces) alongside the opaque lean, plus a hollow
+   candidate and a deeper lean. Two things to know before judging it:
+
+   - **Over bare lane, translucent and the opaque lean are the same picture to within about four
+     counts.** `lerp(ink, ground, w)` is exactly what alpha computes; they differ only in which
+     ground is used, and the lane's real ground sits (4,5,7) from the constant the lean uses.
+   - **What differs is everything the group cannot contain**, and the group only holds the note's
+     own ink: the lane line, the waveform, the measure grid, a chord box's fill, and a NEIGHBOUR's
+     ribbon. That last is not exotic — a sustainless member of a strum under a held shape is
+     extended to the span end, so inside a chord shape every strum after the first sits on the
+     previous strums' still-running ribbons across the whole head, which group transparency cannot
+     touch. Every one of those is brighter than a ghost's own ring.
+
+   The shape that made the ORIGINAL objection go away was **generalizing the one ink authority
+   that already existed**. `StringStyle` held the per-string chain while a dozen file-scope greys and raw
    whites held the rest, so nothing could act on ALL of a note's ink. Naming them one `Ink` set
    makes `quieted()` a loop over that set: the head backing becomes self-correcting (the ground
    leaned toward the ground is the ground), the chips close for free by carrying their own ink,
