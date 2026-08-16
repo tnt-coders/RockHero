@@ -78,6 +78,30 @@ toggle being broken, and it was. Its light is the same row the notes read, with 
 number: an extra white lift, kept because a box has no string colour and its light would otherwise
 be the frame's own teal laid on the frame's own teal, the least perceptible change available.
 
+**The silhouette constants were re-measured against `notes.png` on 2026-08-16, and four of five
+were wrong.** All the errors were sub-pixel individually (worst 0.32 px at the near end), but three
+were definition errors rather than tuning, so they are corrected rather than left:
+
+| Constant | Was | Measured | Why it was wrong |
+|---|---|---|---|
+| world per drawn texel | 0.015 | **0.48/31.5 = 0.0152381** | `HighwayAtlasLayout::cellRect` insets each cell's UV rect by half a texel per side, so the head quad's corners sample texel CENTRES 0.5 and 63.5 — **63** texels of range, not 64. Every constant built on it was 1.5625% short. |
+| corner radius | 3.7 tx | **1.8205 tx** | Fitted to the antialias TAIL where the extents were fitted to the 50% contour — the block silently mixed two definitions of "the edge". The radius is a strong function of that threshold (3.9 tx at 15% coverage, 1.82 at 50%). |
+| node half span | 15.31 tx | **15.65 tx** | Derived from the signed construction (head-height square rotated 45°) instead of measured. The art's edge line `\|x\|+\|y\| = 15.65` holds to 0.0000 tx across all 88 edge samples. |
+| art centre offset | not modelled | **(+0.5, −0.5224) tx** | The silhouettes are ODD sized (41×21 solid texels) in an even 64-texel cell, so they cannot be quad-centred by construction. Unmodelled, the ridge landed up to **1.04 tx** off the art's edge and lopsided — bright on bare texture along two edges, buried under the head along the other two. Modelled, every edge is within 0.022 tx, which also absorbs the art's own top/bottom rim asymmetry (10.7994 against 10.8442). |
+| half width / half height | 20.8 / 10.83 tx | 20.7994 / 10.8218 tx | Correct as TEXEL measurements; wrong only through the conversion above. |
+
+Constants are now stated in TEXELS and converted through `headArtTexelWorld(metrics)`, so the
+conversion can be wrong in one place instead of four, and the head's world size is read from the
+metrics rather than a literal `0.48`. The 50% threshold is named in the block, since the numbers
+are meaningless without it. `notes.png` was not touched (sha256 still `cd8c5c4d68b922a2…`).
+
+Two further facts worth keeping. The rectangular corners are **neither circular nor chamfered** —
+the art is a solid 41×21 rectangle wrapped in a one-texel fringe with the corner texel omitted, so
+there is no authored radius at all; 1.8205 is a description of the 50% contour (worst deviation
+0.026 tx), not a construction. And the rhombus branch is **exact, not approximate, for this cell**:
+with `b.x == b.y` the shader's formula reduces to the true Euclidean distance to a 45° square, and
+cell 4's two axes are equal to 0.000000 tx.
+
 - **Accent colour, RULED 2026-08-15: the light is the STRING'S colour.** The first round was 78%
   to 100% white on every candidate, which the user caught (*"Is the accent glow only using WHITE
   light? … It needs to use the string color for note heads and open strings"*). White was chosen

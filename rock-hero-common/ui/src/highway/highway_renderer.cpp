@@ -126,30 +126,73 @@ constexpr double g_bend_marker_offset_heads = 0.38;
 // chart-truth height is an annotation, dimmed so the rising head stays the subject.
 constexpr double g_prebend_outline_alpha = 0.5;
 
-// The head ART's own silhouette in world units, stated as texel counts times one texel so the
-// numbers stay traceable to the measurement that produced them. The head cell fills only the
-// middle of its quad, so a light sized against the QUAD starts far outside the note; the accent
-// glow's distance field is sized against these instead.
-//
-// Measured from the shipped atlas. When a candidate wins, this whole block should become a
-// load-time measurement over the decoded cell (the box_mute_profile pattern) so the numbers cannot
-// drift from the art they describe — which now matters more than it did, because the field also
-// needs the corner radius and a silhouette mismatch shows as light with nothing under it.
-constexpr double g_head_art_texel_world = 0.015;
-constexpr double g_head_art_half_width = 20.8 * g_head_art_texel_world;
-constexpr double g_head_art_half_height = 10.83 * g_head_art_texel_world;
+/*
+The head ART's own silhouette, in ATLAS TEXELS, measured 2026-08-16 from the shipped `notes.png`.
+The head cell fills only the middle of its quad, so a light sized against the QUAD starts far
+outside the note; the accent glow's distance field is sized against these instead.
 
-// The rectangular head bases' corner radius, fitted to the art's coverage boundary. The accent
-// glow's distance field needs it: a sharp-cornered field around a rounded head lights four corners
-// with nothing under them, which is the same defect the rhombus branch exists to avoid on node
-// heads.
-constexpr double g_head_art_corner_radius = 3.7 * g_head_art_texel_world;
+TEXELS, not world units, and converted through headArtTexelWorld() below — because the world size
+of a drawn texel is NOT the cell size, and stating these in world once meant carrying that error
+into every one of them. Every number here is a measurement of a PNG; keeping them in the units the
+PNG is measured in is what lets the conversion be wrong in one place instead of four.
 
-// The NODE head's diamond, half-span from centre to vertex — equal on both axes, unlike the
-// rectangle above. The base is the head-height square rotated 45 degrees (ruled 2026-08-15), so
-// its vertex span is that height times root two: 2 x 10.83 x 1.4142 / 2 = 15.31 texels. Handing
-// the rectangle's extents to a rhombus field would draw a light far too wide and far too short.
-constexpr double g_node_head_art_half_span = 15.31 * g_head_art_texel_world;
+Every extent is fitted to the art's 50%-COVERAGE contour (coverage is the B channel; `notes.png`
+is PNG colour type 2 with no alpha). That threshold is stated because the corner radius is a
+strong function of it — fitted to the antialias tail instead, the same art measures 3.9 texels
+against 1.82 here — and the previous block silently mixed the two, taking extents from the 50%
+line and a radius from the tail. If these are ever re-fitted, name the threshold first.
+
+When a candidate wins, the whole block should become a load-time measurement over the decoded cell
+(the box_mute_profile pattern), since every number is a pure function of the shipped PNG. That
+matters more now than it did: a silhouette mismatch shows up as light with nothing under it.
+*/
+constexpr double g_head_art_half_width_texels = 20.7994;
+constexpr double g_head_art_half_height_texels = 10.8218;
+
+// Fitted to the same 50% contour (RMS 0.019 texels, worst 0.026). Not a construction: the art is a
+// solid 41x21 rectangle wrapped in a one-texel fringe whose corner texel is omitted, so there is no
+// authored radius to read — but as a DESCRIPTION of the contour this is exact to well under a
+// texel, which is all the field needs.
+constexpr double g_head_art_corner_texels = 1.8205;
+
+// The NODE head's diamond, half-span from centre to vertex, equal on both axes unlike the
+// rectangle above. MEASURED, where this was previously derived from the signed construction (the
+// head-height square rotated 45 degrees) and came out 0.34 texels short. The art's edge line
+// |x| + |y| = 15.65 holds to 0.0000 texels across all 88 edge samples, so the rhombus branch is
+// exact here rather than approximate. Handing the rectangle's extents to that branch would draw a
+// light far too wide and far too short.
+constexpr double g_node_head_art_half_span_texels = 15.65;
+
+/*
+Where the art's silhouette sits relative to the quad's centre, in texels, +x right and +y up.
+
+NOT zero, and not an art defect: the silhouettes are ODD sized (41 x 21 solid texels) inside an
+even 64-texel cell, so they cannot be quad-centred by construction — they sit exactly half a texel
+off on both axes. The vertical figure carries a further 0.0224 because the art's own top and bottom
+rims differ by one texel of banding (top half-height 10.7994 against bottom 10.8442).
+
+Modelling this is what makes a SYMMETRIC field fit an asymmetric silhouette: without it the glow's
+ridge lands up to 1.04 texels off the art's edge, lopsided — bright on bare texture along two
+edges and buried under the head along the other two. With it, every edge is within 0.022 texels.
+*/
+constexpr double g_head_art_center_x_texels = 0.5;
+constexpr double g_head_art_center_y_texels = -0.5224;
+constexpr double g_node_head_art_center_y_texels = -0.5;
+
+/*
+World size of one drawn texel of a head cell.
+
+Divided by 63, not 64, and that is the whole point of routing this through a function. The head
+quad spans `2 * note_half_width` of world, but HighwayAtlasLayout::cellRect insets each cell's UV
+rect by half a texel on every side (to stop neighbouring cells bleeding under minification), so
+the quad's corners sample texel CENTRES 0.5 and 63.5 — 63 texels of range, not 64. A constant
+built on 64 is 1.5625% short, and being derived from the metrics rather than a literal also means
+the head's world size lives in exactly one place.
+*/
+[[nodiscard]] double headArtTexelWorld(const common::core::HighwayMetrics& metrics)
+{
+    return (2.0 * metrics.note_half_width) / 63.0;
+}
 
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
@@ -4445,23 +4488,32 @@ void HighwayRenderer::Impl::draw(
         // and a rectangular glow around a diamond leaves four lit corners with nothing under them.
         if (accents_lit && common::core::isAccented(note.emphasis))
         {
+            const bool node_head = highwayNodeHead(note);
+            const double texel = headArtTexelWorld(metrics);
+            // The art is off-centre in its cell by construction (see the constants), so the field
+            // is placed at the ART'S centre rather than the head's. The offset rides the rolling
+            // flip with everything else, which is why it is rotated here instead of being folded
+            // into the shape.
+            const double art_dx = g_head_art_center_x_texels * texel;
+            const double art_dy =
+                (node_head ? g_node_head_art_center_y_texels : g_head_art_center_y_texels) * texel;
             pushAccentGlow(
                 accent_glow_vertices,
                 accent_glow_indices,
-                x,
-                head_y,
+                x + (art_dx * cos_r) - (art_dy * sin_r),
+                head_y + (art_dx * sin_r) + (art_dy * cos_r),
                 z,
-                highwayNodeHead(note)
+                node_head
                     ? GlowShape{
-                          .half_w = g_node_head_art_half_span,
-                          .half_h = g_node_head_art_half_span,
+                          .half_w = g_node_head_art_half_span_texels * texel,
+                          .half_h = g_node_head_art_half_span_texels * texel,
                           .corner = 0.0,
                           .rhombus = true,
                       }
                     : GlowShape{
-                          .half_w = g_head_art_half_width,
-                          .half_h = g_head_art_half_height,
-                          .corner = g_head_art_corner_radius,
+                          .half_w = g_head_art_half_width_texels * texel,
+                          .half_h = g_head_art_half_height_texels * texel,
+                          .corner = g_head_art_corner_texels * texel,
                           .rhombus = false,
                       },
                 accent_light.reach,
