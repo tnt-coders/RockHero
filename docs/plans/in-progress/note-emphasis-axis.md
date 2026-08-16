@@ -4,10 +4,10 @@ Status: **PARTLY BUILT 2026-08-15**, and moved here from `todo/` because it is n
 with live remaining items. Checklist items 1, 2 and 3 are shipped: `NoteEmphasis` replaces the
 `accent` bool through the format, both projections, and both surfaces; the document writes
 `"emphasis"` and refuses the old key loudly; the Guitar Pro importer maps `AntiAccent` to `Ghost`
-and both loud tiers to `Accent`. Item 4 is shipped for the 2D lane and still being sighted on the
-highway, where the accent and ghost appearances are sampled live behind toggles (see
-`highway-note-art-state.md`). What remains is that sighting, item 5's editing verb, item 6's
-detection touchpoint, and item 7's re-import.
+and both loud tiers to `Accent`. Item 4's GHOST half is signed on both surfaces and its
+alternatives are ripped out; its ACCENT half is still being sighted on the highway (see
+`highway-note-art-state.md`). What remains is that accent sighting, item 5's editing verb, item
+6's detection touchpoint, and item 7's re-import.
 
 **Item 7 has a second producer nobody had counted.** The external converter tool under
 `custom-song-importer/tools/` writes these same chart documents and still emits `"accent": true`,
@@ -77,7 +77,8 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    suspected: it never read the element at all.
 3. ~~**Projections/views:**~~ **SHIPPED.** Both view types carry the emphasis value; the D4 scrape
    pass-through carried over unchanged.
-4. **Rendering:** **2D SHIPPED; 3D still being sighted.** Ghost draws quiet on both surfaces at
+4. **Rendering:** **GHOST SIGNED both surfaces 2026-08-15 — `half light` on the highway, the
+   opaque `lean` on the 2D lane. The ACCENT light is still being sighted.** Ghost draws quiet at
    the same weight, but each surface spends that weight the way it actually composites — the
    divergence the `StringStyle` constructor already signed for tails, now extended to the whole
    axis. The highway keeps translucency over its dark world (`GhostStyle::head_alpha`, and a
@@ -96,16 +97,19 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    drawn after every head, outside any layer, so the loudest floating ink on a ghost would have
    stayed at full strength.
 
-   **Reopened 2026-08-15 at the user's request** — *"translucent feels more CORRECT for ghost
-   notes because ghosts are spooky and kind of see through"* — with the semantics specified
-   exactly: render the whole note fully, THEN make that rendering translucent. That is group
-   transparency, and it does dissolve the self-reveal objection above by construction. It is now
-   a **toggleable 2D trial** (F10 cycles both surfaces) alongside the opaque lean, plus a hollow
-   candidate and a deeper lean. Two things to know before judging it:
+   **Reopened, sighted and SIGNED 2026-08-15.** The user asked to try genuine translucency —
+   *"translucent feels more CORRECT for ghost notes because ghosts are spooky and kind of see
+   through"* — with the semantics specified exactly: render the whole note fully, THEN make that
+   rendering translucent. That is group transparency, it was built (a per-note JUCE layer holding
+   the note's tail, marks and head together), and it was sighted beside the lean, a hollow head
+   and a deeper lean. **The opaque lean won definitively**, and the alternatives are ripped out;
+   they are recoverable from git history.
 
-   - **Over bare lane, translucent and the opaque lean are the same picture to within about four
-     counts.** `lerp(ink, ground, w)` is exactly what alpha computes; they differ only in which
-     ground is used, and the lane's real ground sits (4,5,7) from the constant the lean uses.
+   Why translucency lost, recorded because the reasoning is the surface's and will recur:
+
+   - **Over bare lane the two are the same picture to within about four counts.**
+     `lerp(ink, ground, w)` is exactly what alpha computes; they differ only in which ground is
+     used, and the lane's real ground sits (4,5,7) from the constant the lean uses.
    - **What differs is everything the group cannot contain**, and the group only holds the note's
      own ink: the lane line, the waveform, the measure grid, a chord box's fill, and a NEIGHBOUR's
      ribbon. That last is not exotic — a sustainless member of a strum under a held shape is

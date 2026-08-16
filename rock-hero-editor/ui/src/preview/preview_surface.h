@@ -83,14 +83,12 @@ public:
     void setCaretSeconds(std::optional<double> seconds);
 
     /*!
-    \brief EXPERIMENT SCAFFOLDING — cycles an emphasis appearance and logs the active pair.
+    \brief EXPERIMENT SCAFFOLDING — cycles the accent light and logs the active candidate.
 
     Does nothing while the render stack is down, so the command is harmless with the preview
-    closed. Deleted with the candidate tables once both ends of the axis are chosen.
-
-    \param accent True to advance the accent light, false to advance the ghost treatment.
+    closed. Deleted with the candidate table once the accent light is chosen.
     */
-    void cycleEmphasisStyle(bool accent);
+    void cycleAccentStyle();
 
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;

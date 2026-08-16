@@ -1396,7 +1396,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // the same reason the verbs below do: a disabled command whose chord matches makes JUCE
         // play the system alert sound.
         case EditorCommandId::CycleAccentStyle:
-        case EditorCommandId::CycleGhostStyle:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1577,23 +1576,13 @@ bool EditorView::perform(const InvocationInfo& info)
             return true;
         }
 
-        // EXPERIMENT SCAFFOLDING — sampling the two ends of the emphasis axis. The surface logs
-        // the active PAIR after each step, because the pair is what is being judged.
+        // EXPERIMENT SCAFFOLDING — sampling the accent light, which is the only end of the
+        // emphasis axis still open. The surface logs the active candidate after each step.
         case EditorCommandId::CycleAccentStyle:
-        case EditorCommandId::CycleGhostStyle:
         {
-            const bool accent =
-                static_cast<EditorCommandId>(info.commandID) == EditorCommandId::CycleAccentStyle;
             if (m_preview_window != nullptr)
             {
-                m_preview_window->cycleEmphasisStyle(accent);
-            }
-            // The ghost key moves BOTH surfaces, because what is being judged is whether the two
-            // say one thing about the same note — and the 2D lane's candidates are deliberately
-            // different mechanisms from the highway's, not the same numbers.
-            if (!accent)
-            {
-                RH_LOG_INFO("editor.view", "2D ghost: {}", m_tab_view.cycleGhostStyle());
+                m_preview_window->cycleAccentStyle();
             }
             return true;
         }

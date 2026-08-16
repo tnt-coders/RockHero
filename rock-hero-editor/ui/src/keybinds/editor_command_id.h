@@ -89,9 +89,6 @@ enum class EditorCommandId : std::uint16_t
     */
     CycleAccentStyle = 0x1304,
 
-    /*! \brief EXPERIMENT SCAFFOLDING — cycle the ghost-note candidate (`F10`). */
-    CycleGhostStyle = 0x1305,
-
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,

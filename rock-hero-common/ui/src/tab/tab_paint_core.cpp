@@ -150,156 +150,22 @@ enum class Ink : std::uint8_t
     return ink == Ink::Tail || ink == Ink::TailEdge;
 }
 
-/*!
-\brief How a ghost's quiet is spent. EXPERIMENT SCAFFOLDING, cycled in the app.
-
-The three are genuinely different mechanisms rather than three sets of numbers, which is why this
-is an enum and not another column.
-*/
-enum class GhostTreatment : std::uint8_t
-{
-    /*!
-    \brief Lean every ink toward the lane's ground, opaquely.
-
-    The lane composites by covering, so this spends the quiet the way the surface actually works:
-    the note still covers what is behind it and only its colour drops. Over bare lane this is
-    ARITHMETICALLY the translucent result — `lerp(ink, ground, w)` is what `alpha` computes — so
-    the two differ only where something other than bare lane sits behind the note.
-    */
-    Lean,
-
-    /*!
-    \brief Render the whole note opaquely into a group, then composite that group once at alpha.
-
-    Genuine translucency, and specified this way on purpose: per-element alpha would let the head
-    reveal its OWN sustain ribbon through itself, where a group composited once cannot. The inks
-    are left at full strength for this treatment — the layer does the quieting, and doing both
-    would quiet the note twice.
-
-    What it costs is the two-pass layering law: the group has to hold this note's tail AND head
-    together, so a ghost is drawn note-at-a-time in the tail pass and skipped in the head pass.
-
-    What it CANNOT do, which is worth knowing before judging it: the group only contains the
-    note's own ink. The lane line, the waveform, the measure grid, a chord box's fill and — the
-    loud case — a NEIGHBOUR's sustain ribbon are all behind the group and will show through. The
-    neighbour case is not exotic: a sustainless member of a strum under a held shape is extended
-    to the span end, so inside a chord shape every strum after the first sits on the previous
-    strums' still-running ribbons, across the whole head.
-    */
-    Translucent,
-
-    /*!
-    \brief Drop the head's fill entirely and keep its ring; lean everything else.
-
-    The see-through READING without the compositing: the lane shows through the note's middle
-    because nothing is drawn there, so only the deliberate hole is transparent and nothing can
-    punch through anywhere else. The highway's own ghost table carries the same idea, so choosing
-    it here keeps the two surfaces saying one thing.
-    */
-    Hollow
-};
-
-/*!
-\brief Opens a JUCE transparency layer and closes it when it goes out of scope.
-
-JUCE ships no RAII form of this, and hand-pairing the two calls is a trap with no diagnostic on
-any renderer. Two ways it goes wrong, both SILENT:
-
-- A `juce::Graphics::ScopedSaveState` opened INSIDE the layer and still alive when
-  `endTransparencyLayer` runs makes the software renderer composite the layer image onto itself,
-  so the whole group vanishes; on Direct2D it pops the clip and leaves the layer pushed, fading
-  everything drawn afterwards. Declaring this type first makes that unrepresentable — reverse
-  declaration order destroys every later scoped state before this one.
-- `beginTransparencyLayer` is documented to save and restore the graphics state, and Direct2D
-  does not, so a clip set inside the layer leaks out on Windows and nowhere else. The member
-  state below normalizes that: every renderer behaves like the documented one.
-
-The bounds are taken here rather than reduced by the caller for a reason worth stating: JUCE sizes
-the offscreen from the CURRENT CLIP, so the reduction has to happen after the state is saved and
-before the layer opens — a three-step order that is easy to get subtly wrong and impossible to see
-afterwards. Doing all three in one constructor makes the order not a caller's problem.
-
-Callers must still check the bounds are visible first. On an empty clip Direct2D pushes the layer
-with no narrowing clip at all and sizes the intermediate to the whole render target, so opening
-one for an off-screen note is far more expensive than skipping it.
-*/
-class ScopedTransparencyLayer
-{
-public:
-    ScopedTransparencyLayer(
-        juce::Graphics& g, const juce::Rectangle<int> group_bounds, const float opacity)
-        : m_graphics(g)
-        , m_state(g)
-    {
-        m_graphics.reduceClipRegion(group_bounds);
-        m_graphics.beginTransparencyLayer(opacity);
-    }
-
-    ScopedTransparencyLayer(const ScopedTransparencyLayer&) = delete;
-    ScopedTransparencyLayer(ScopedTransparencyLayer&&) = delete;
-    ScopedTransparencyLayer& operator=(const ScopedTransparencyLayer&) = delete;
-    ScopedTransparencyLayer& operator=(ScopedTransparencyLayer&&) = delete;
-
-    ~ScopedTransparencyLayer()
-    {
-        m_graphics.endTransparencyLayer();
-    }
-
-private:
-    juce::Graphics& m_graphics;
-    // Declared AFTER the reference so it is destroyed first, which restores the state the layer
-    // was opened under only once the layer itself has been composited.
-    juce::Graphics::ScopedSaveState m_state;
-};
-
-/*! \brief One candidate ghost look for the 2D lane. */
-struct GhostCandidate
-{
-    /*! \brief Stable short name, printed by the sampling toggle. */
-    std::string_view name;
-
-    /*! \brief Which mechanism spends the quiet. */
-    GhostTreatment treatment;
-
-    /*! \brief Quiet taken out of the note's own ink: lean fraction, or alpha removed. */
-    float head_weight;
-
-    /*!
-    \brief Quiet taken out of the sustain's two inks.
-
-    Less than the head deliberately: a ghost is an ATTACK dynamic rather than a sustain one, and a
-    ribbon dimmed as hard as the head that starts it reads as a rendering fault. Same split, same
-    reason, as the highway's head_alpha against its tail_alpha.
-    */
-    float sustain_weight;
-};
-
-/*!
-\brief The 2D ghost candidates, in stable index order.
-
-The weights are the highway's sighted half-light numbers read for this surface: its head_alpha
-0.45 and tail_alpha 0.65 leave exactly 0.55 and 0.35 of the dark world showing through.
-*/
-inline constexpr std::array<GhostCandidate, 4> g_ghost_candidates{{
-    {.name = "lean",
-     .treatment = GhostTreatment::Lean,
-     .head_weight = 0.55f,
-     .sustain_weight = 0.35f},
-    {.name = "translucent",
-     .treatment = GhostTreatment::Translucent,
-     .head_weight = 0.55f,
-     .sustain_weight = 0.35f},
-    {.name = "hollow",
-     .treatment = GhostTreatment::Hollow,
-     .head_weight = 0.25f,
-     .sustain_weight = 0.20f},
-    // Twice the quiet, to answer separately from the mechanism question whether the current
-    // weight is simply too timid.
-    {.name = "lean deep",
-     .treatment = GhostTreatment::Lean,
-     .head_weight = 0.75f,
-     .sustain_weight = 0.55f},
-}};
+// A ghost's quiet, SIGNED 2026-08-15 after sighting four candidates: the opaque LEAN wins.
+//
+// Quiet on this surface means leaning every ink toward the lane's ground, opaquely. The lane
+// composites by covering, so this spends the weight the way the surface actually works: the note
+// still covers what is behind it and only its colour drops. Genuine group translucency was built
+// and sighted beside it and lost - over bare lane the two are the same picture to within about
+// four counts, and everywhere else translucency reveals a lane line, a waveform, a measure grid
+// and a neighbour's ribbon, every one of them brighter than a ghost's own ring.
+//
+// The weights are the highway's sighted half-light numbers read for this surface: its head_alpha
+// 0.45 and tail_alpha 0.65 leave exactly this much of the dark world showing through, so the two
+// surfaces say the same thing about the same note through different mechanisms. The sustain
+// quiets LESS than the head because a ghost is an attack dynamic rather than a sustain one, and a
+// ribbon dimmed as hard as the head that starts it reads as a rendering fault.
+constexpr float g_ghost_head_ground{0.55f};
+constexpr float g_ghost_sustain_ground{0.35f};
 
 // Bridges the shared Charter-exact style derivation to JUCE colors at this module's boundary;
 // the per-string entries match common::ui::StringLaneStyle one for one.
@@ -354,48 +220,26 @@ struct StringStyle
     }
 
     /*!
-    \brief This string's ink set with a ghost's quiet taken out of it, by the given treatment.
+    \brief This string's ink set with a ghost's quiet taken out of it.
 
-    Applied to EVERY ink at once, so a mark added later is quiet by construction rather than by
-    remembering to quiet it — and that is what lets the whole treatment be one candidate row
-    rather than a branch at each drawing helper.
+    Quiet on THIS surface means leaning toward the lane's own ground, not translucency — the
+    ruling and its evidence sit with the weights below. Applied to EVERY ink at once, so a mark
+    added later is quiet by construction rather than by remembering to quiet it. \ref
+    Ink::HeadBacking is self-correcting: the ground leaned toward the ground is the ground.
 
-    \param candidate The treatment being sighted.
+    \param head_ground How far the note's own ink leans toward the lane's ground.
+    \param sustain_ground How far the sustain's two inks lean.
     \return The quieted ink set.
     */
-    [[nodiscard]] StringStyle ghosted(const GhostCandidate& candidate) const
+    [[nodiscard]] StringStyle ghosted(const float head_ground, const float sustain_ground) const
     {
         StringStyle quiet = *this;
         for (std::size_t index = 0; index < quiet.inks.size(); ++index)
         {
-            const Ink which = static_cast<Ink>(index);
             juce::Colour& ink = quiet.inks.at(index);
-            const float weight =
-                isSustainInk(which) ? candidate.sustain_weight : candidate.head_weight;
-            switch (candidate.treatment)
-            {
-                case GhostTreatment::Lean:
-                    ink = ink.interpolatedWith(g_note_background_color, weight);
-                    break;
-                case GhostTreatment::Translucent:
-                    // Left alone: the group layer composites the finished note once, and
-                    // quieting the ink as well would spend the weight twice.
-                    break;
-                case GhostTreatment::Hollow:
-                    // The interior is DROPPED rather than dimmed, so the lane itself shows
-                    // through the note's middle while its ring stays at full strength. The
-                    // see-through look with none of the compositing: nothing behind the note can
-                    // punch through anything except where the note is deliberately empty.
-                    if (which == Ink::Inner || which == Ink::LinkedInner)
-                    {
-                        ink = ink.withAlpha(0.0f);
-                    }
-                    else
-                    {
-                        ink = ink.interpolatedWith(g_note_background_color, weight);
-                    }
-                    break;
-            }
+            ink = ink.interpolatedWith(
+                g_note_background_color,
+                isSustainInk(static_cast<Ink>(index)) ? sustain_ground : head_ground);
         }
         return quiet;
     }
@@ -408,19 +252,11 @@ PlatePalette platePalette(const StringStyle& style, const Hand hand)
                : PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]};
 }
 
-// The candidate a paint is drawing ghosts with, clamped so an out-of-range index from the host
-// draws the shipped look rather than reading past the table.
-[[nodiscard]] const GhostCandidate& ghostCandidate(const TabLaneMetrics& metrics)
-{
-    return g_ghost_candidates.at(std::min(metrics.ghost_style, g_ghost_candidates.size() - 1));
-}
-
 // Every per-string style one paint can need, in both dynamics a note can be drawn at. A
 // StringStyle is a palette lookup plus Charter's whole derivation chain, and its ghost is that
-// chain put through the candidate's treatment; both depend on nothing but the string and the
-// emphasis, so the tail, bracket and head passes index this table rather than rebuilding it per
-// note. Sized by the chart-string cap, which needs no precondition on the chart's own string
-// count.
+// chain leaned toward the ground; both depend on nothing but the string and the emphasis, so the
+// tail, bracket and head passes index this table rather than rebuilding it per note. Sized by the
+// chart-string cap, which needs no precondition on the chart's own string count.
 struct LaneStyles
 {
     std::vector<StringStyle> normal;
@@ -440,14 +276,14 @@ struct LaneStyles
 
 [[nodiscard]] LaneStyles makeLaneStyles(const TabLaneMetrics& metrics)
 {
-    const GhostCandidate& candidate = ghostCandidate(metrics);
     LaneStyles styles;
     styles.normal.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
     styles.ghost.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
     for (int chart_string = 1; chart_string <= common::core::g_max_chart_strings; ++chart_string)
     {
         styles.normal.emplace_back(metrics.baseColor(chart_string));
-        styles.ghost.push_back(styles.normal.back().ghosted(candidate));
+        styles.ghost.push_back(
+            styles.normal.back().ghosted(g_ghost_head_ground, g_ghost_sustain_ground));
     }
     return styles;
 }
@@ -1777,16 +1613,6 @@ juce::Colour TabLaneMetrics::baseColor(int chart_string) const
     return tabStringColor(chart_string + extra_lanes, displayed_count);
 }
 
-std::size_t tabGhostStyleCount()
-{
-    return g_ghost_candidates.size();
-}
-
-std::string_view tabGhostStyleName(const std::size_t ghost_style)
-{
-    return g_ghost_candidates.at(std::min(ghost_style, g_ghost_candidates.size() - 1)).name;
-}
-
 TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
     int chart_string_count, TabLaneStyle style)
@@ -1962,7 +1788,6 @@ void paintTabLane(
     }
 
     const LaneStyles lane_styles = makeLaneStyles(metrics);
-    const GhostCandidate& ghost_candidate = ghostCandidate(metrics);
 
     const auto [first, last] =
         common::core::visibleEventRange(tab.notes, prefix_max_end_seconds, span_start, span_end);
@@ -1987,25 +1812,6 @@ void paintTabLane(
         const StringStyle& style = lane_styles(note.string, note.emphasis);
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
-
-        // The GROUP-translucent candidate draws this note's whole ink at once — tail, marks and
-        // head together, opaque, inside one layer composited once — because that is the only
-        // arrangement in which a translucent head does not reveal its own sustain ribbon. It
-        // therefore borrows the head from the pass below, which skips ghosts in exchange.
-        const bool grouped = note.emphasis == common::core::NoteEmphasis::Ghost &&
-                             ghost_candidate.treatment == GhostTreatment::Translucent;
-        const juce::Rectangle<int> group_bounds{
-            juce::roundToInt(onset_x - metrics.headSize()),
-            juce::roundToInt(center_y - metrics.lane_height),
-            juce::roundToInt(
-                metrics.x(tab.display_hold_ends[index]) - onset_x + (2.0f * metrics.headSize())),
-            juce::roundToInt(2.0f * metrics.lane_height)
-        };
-        std::optional<ScopedTransparencyLayer> group;
-        if (grouped && g.clipRegionIntersects(group_bounds))
-        {
-            group.emplace(g, group_bounds, 1.0f - ghost_candidate.head_weight);
-        }
 
         drawNoteTail(g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
 
@@ -2053,12 +1859,6 @@ void paintTabLane(
                 g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
             drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
             drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
-        }
-
-        if (grouped)
-        {
-            drawSlideWaypointHeads(g, metrics, style, note, center_y);
-            drawNoteHead(g, metrics, style, note, onset_x, center_y);
         }
     }
 
@@ -2163,14 +1963,6 @@ void paintTabLane(
     {
         const common::core::TabNoteView& note = tab.notes[index];
         if (tab.display_hold_ends[index] < span_start)
-        {
-            continue;
-        }
-
-        // A grouped ghost drew its head with its tail, inside its own layer; drawing it again
-        // here would composite it a second time, at full strength, over the faded one.
-        if (note.emphasis == common::core::NoteEmphasis::Ghost &&
-            ghost_candidate.treatment == GhostTreatment::Translucent)
         {
             continue;
         }

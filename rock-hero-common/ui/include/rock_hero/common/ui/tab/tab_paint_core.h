@@ -174,21 +174,4 @@ void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabViewState& tab,
     const std::vector<double>& prefix_max_end_seconds);
 
-/*!
-\brief Number of ghost-note looks available to \ref TabLaneStyle::ghost_style.
-
-EXPERIMENT SCAFFOLDING, deleted with the candidate table once a look is chosen. Exposed so the
-host can cycle without knowing what the candidates are.
-
-\return Count of candidates; always at least one.
-*/
-[[nodiscard]] std::size_t tabGhostStyleCount();
-
-/*!
-\brief Short name of one ghost-note look, for the sampling toggle's log line.
-\param ghost_style Index into the candidate table; out-of-range names the shipped look.
-\return Stable short name.
-*/
-[[nodiscard]] std::string_view tabGhostStyleName(std::size_t ghost_style);
-
 } // namespace rock_hero::common::ui

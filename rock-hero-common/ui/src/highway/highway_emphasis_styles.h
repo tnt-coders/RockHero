@@ -131,122 +131,37 @@ inline constexpr std::array<AccentLightStyle, 5> g_accent_light_styles{{
 }};
 
 /*!
-\brief One candidate ghost treatment: the quiet end of the axis, taken out of the note's mass.
+\brief The ghost look, SIGNED 2026-08-15 after sighting six candidates: `half light`.
 
-Every factor is a multiplier on something already drawn, so a ghost costs no new geometry. The
-tail dims LESS than the head deliberately: a ghost is an attack dynamic rather than a sustain
-one, and a bright tail under a dim head reads as a rendering fault rather than as quiet.
+A ghost is quieted by ALPHA on this surface, which composites over a dark 3D world - the opposite
+choice from the 2D lane, which is opaque and leans its ink toward the lane's own ground instead.
+Both surfaces spend the same weight; each spends it the way it actually composites.
+
+The rejected candidates are recoverable from git history: `dim fill` and `dim fill deep` (opaque
+darkening), `dim small` (thinning the head), and `hollow` (an outline instead of a fill).
 */
-struct GhostStyle
-{
-    /*!
-    \brief Alpha applied to the head's own art.
 
-    Below one this makes the head TRANSLUCENT, which reveals whatever sits behind it. Its own
-    sustain ribbon is only the loudest case — a chord box's fill, a lane border, and an active
-    fret line all show through too, and only the ribbon can be fixed by clipping. \ref fill_dim
-    is the same weight with none of that.
-    */
-    double head_alpha;
+/*! \brief Alpha applied to a ghost's head art, and to an open string's bar. */
+inline constexpr double g_ghost_head_alpha{0.45};
 
-    /*!
-    \brief How far the head's fill is darkened toward black, from zero (its own colour).
+/*! \brief Alpha applied to the technique markers riding a ghost's head. */
+inline constexpr double g_ghost_marker_alpha{0.45};
 
-    The OPAQUE way to read quiet: the note keeps alpha one, so nothing behind it can show
-    through, and only its brightness drops. Hue survives, so the string still identifies itself —
-    which is what separates this from leaning toward the board, measured as the WORST separation
-    of the set on the red string. The head cell's white-lift bevel is added after the tint, so a
-    darkened ghost keeps its outline for free however deep the fill goes.
-    */
-    double fill_dim;
+/*!
+\brief Alpha applied to a ghost's sustain tail.
 
-    /*! \brief Stable short name, printed by the sampling toggle. */
-    std::string_view name;
+Quieter than one but LOUDER than the head, deliberately: a ghost is an attack dynamic rather than
+a sustain one, and a ribbon dimmed as hard as the head that starts it reads as a rendering fault.
+*/
+inline constexpr double g_ghost_tail_alpha{0.65};
 
-    /*! \brief Scale applied to the head quad; below one takes mass out instead of light. */
-    double head_scale;
+/*!
+\brief Thickness multiplier for a ghosted open string's bar, which has no head to thin.
 
-    /*! \brief Alpha applied to the technique markers riding the head. */
-    double marker_alpha;
-
-    /*! \brief Alpha applied to the sustain tail. */
-    double tail_alpha;
-
-    /*! \brief Thickness multiplier for an open string's bar, which has no head to thin. */
-    double open_bar_thickness;
-
-    /*!
-    \brief Alpha of a hollow rim drawn over the dimmed fill; zero draws none.
-
-    Keeps the silhouette at full strength while the fill quiets. Largely redundant against
-    \ref fill_dim, which keeps the outline for free, and carried only for comparison.
-    */
-    double rim_alpha;
-
-    /*! \brief True to draw the hollow outline INSTEAD of the filled head. */
-    bool hollow_head;
-};
-
-/*! \brief The ghost candidates, in stable index order — index 0 draws a ghost as a normal note. */
-inline constexpr std::array<GhostStyle, 6> g_ghost_styles{{
-    {.head_alpha = 1.0,
-     .fill_dim = 0.0,
-     .name = "none",
-     .head_scale = 1.0,
-     .marker_alpha = 1.0,
-     .tail_alpha = 1.0,
-     .open_bar_thickness = 1.0,
-     .rim_alpha = 0.0,
-     .hollow_head = false},
-    // Half light's weight to within about two luma counts, measured across all six strings, and
-    // a third more distinct from the board on the red string — darkening keeps the hue where
-    // thinning dilutes it toward the board's blue.
-    {.head_alpha = 1.0,
-     .fill_dim = 0.58,
-     .name = "dim fill",
-     .head_scale = 1.0,
-     .marker_alpha = 1.0,
-     .tail_alpha = 0.65,
-     .open_bar_thickness = 0.55,
-     .rim_alpha = 0.0,
-     .hollow_head = false},
-    {.head_alpha = 1.0,
-     .fill_dim = 0.70,
-     .name = "dim fill deep",
-     .head_scale = 1.0,
-     .marker_alpha = 0.80,
-     .tail_alpha = 0.65,
-     .open_bar_thickness = 0.55,
-     .rim_alpha = 0.0,
-     .hollow_head = false},
-    {.head_alpha = 0.45,
-     .fill_dim = 0.0,
-     .name = "half light",
-     .head_scale = 1.0,
-     .marker_alpha = 0.45,
-     .tail_alpha = 0.65,
-     .open_bar_thickness = 0.45,
-     .rim_alpha = 0.0,
-     .hollow_head = false},
-    {.head_alpha = 1.0,
-     .fill_dim = 0.58,
-     .name = "dim small",
-     .head_scale = 0.86,
-     .marker_alpha = 1.0,
-     .tail_alpha = 0.70,
-     .open_bar_thickness = 0.70,
-     .rim_alpha = 0.0,
-     .hollow_head = false},
-    {.head_alpha = 1.0,
-     .fill_dim = 0.0,
-     .name = "hollow",
-     .head_scale = 1.0,
-     .marker_alpha = 1.0,
-     .tail_alpha = 0.65,
-     .open_bar_thickness = 0.55,
-     .rim_alpha = 0.0,
-     .hollow_head = true},
-}};
+An open string carries the axis on its bar because it has no head to wear it - the seam where the
+old atlas-mark design diverged, since a mark drawn on a head could never be worn by a bar.
+*/
+inline constexpr double g_ghost_open_bar_thickness{0.45};
 
 /*!
 \brief An accented chord box's light: its own frame redrawn additively, twice.

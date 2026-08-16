@@ -238,13 +238,13 @@ void PreviewSurface::setCaretSeconds(const std::optional<double> seconds)
     m_caret_seconds = seconds;
 }
 
-void PreviewSurface::cycleEmphasisStyle(const bool accent)
+void PreviewSurface::cycleAccentStyle()
 {
     if (!m_renderer.has_value())
     {
         return;
     }
-    RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleEmphasisStyle(accent));
+    RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleAccentStyle());
 }
 
 void PreviewSurface::resized()

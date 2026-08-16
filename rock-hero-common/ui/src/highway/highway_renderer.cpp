@@ -1112,16 +1112,11 @@ struct HighwayRenderer::Impl
     // Player scroll speed; a free setting later (25-Q3), the default until then.
     double scroll_speed{1.3};
 
-    // EXPERIMENT SCAFFOLDING — indices into the emphasis candidate tables, cycled from the
-    // editor while the two looks are being sighted. Deleted with the tables once each end of the
-    // axis is chosen and its numbers move inline.
-    //
-    // Each default is that table's CURRENT FRONT-RUNNER, so the app opens on the look last
-    // preferred and a sighting round starts from the thing being defended rather than from
-    // whatever happens to sit at index 1. Accent: the tight rim. Ghost: half light, the alpha
-    // treatment (index 1 is `dim fill`, the opaque alternative kept only for comparison).
+    // EXPERIMENT SCAFFOLDING — index into the accent candidate table, cycled from the editor
+    // while the look is being sighted. Deleted with the table once the light is chosen and its
+    // numbers move inline. The default is the table's CURRENT FRONT-RUNNER, so the app opens on
+    // the look last preferred rather than on whatever happens to sit at index 1.
     std::size_t accent_style{1};
-    std::size_t ghost_style{3};
 
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
@@ -1315,18 +1310,10 @@ HighwayRenderer::~HighwayRenderer() = default;
 HighwayRenderer::HighwayRenderer(HighwayRenderer&& other) noexcept = default;
 HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = default;
 
-std::string HighwayRenderer::cycleEmphasisStyle(const bool accent)
+std::string HighwayRenderer::cycleAccentStyle()
 {
-    if (accent)
-    {
-        m_impl->accent_style = (m_impl->accent_style + 1) % g_accent_light_styles.size();
-    }
-    else
-    {
-        m_impl->ghost_style = (m_impl->ghost_style + 1) % g_ghost_styles.size();
-    }
-    return "emphasis: accent=" + std::string{g_accent_light_styles.at(m_impl->accent_style).name} +
-           " | ghost=" + std::string{g_ghost_styles.at(m_impl->ghost_style).name};
+    m_impl->accent_style = (m_impl->accent_style + 1) % g_accent_light_styles.size();
+    return "accent light: " + std::string{g_accent_light_styles.at(m_impl->accent_style).name};
 }
 
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
@@ -2566,7 +2553,7 @@ void HighwayRenderer::Impl::draw(
             // NO heads, still states the axis, and a plain box states it in parity with the
             // repeat it may become.
             const bool box_ghosted = box.emphasis == common::core::NoteEmphasis::Ghost;
-            const double box_alpha = box_ghosted ? g_ghost_styles.at(ghost_style).head_alpha : 1.0;
+            const double box_alpha = box_ghosted ? g_ghost_head_alpha : 1.0;
             // An accented box emits from its FRAME: the panel redrawn additively, frame only, at
             // its own geometry and again slightly larger. Two stages, matching the two a note's
             // rim wears — a hot one exactly on the bars, which is what makes them emit, and a
@@ -3413,9 +3400,8 @@ void HighwayRenderer::Impl::draw(
             // full-strength tail under a quieted head reads as a rendering fault rather than as
             // a note played softly.
             const double duration = note.end_seconds - note.start_seconds;
-            const double ghost_tail_alpha = note.emphasis == common::core::NoteEmphasis::Ghost
-                                                ? g_ghost_styles.at(ghost_style).tail_alpha
-                                                : 1.0;
+            const double ghost_tail_alpha =
+                note.emphasis == common::core::NoteEmphasis::Ghost ? g_ghost_tail_alpha : 1.0;
             const auto tip_alpha = [&](const double seconds) {
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
@@ -4016,9 +4002,8 @@ void HighwayRenderer::Impl::draw(
             // atlas cell an open bar could never wear, so the same chart mark said two different
             // things depending on the fret.
             const bool open_ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
-            const GhostStyle& open_ghost = g_ghost_styles.at(ghost_style);
-            const double open_bar_thickness = open_ghosted ? open_ghost.open_bar_thickness : 1.0;
-            const double open_bar_alpha = open_ghosted ? open_ghost.head_alpha : 1.0;
+            const double open_bar_thickness = open_ghosted ? g_ghost_open_bar_thickness : 1.0;
+            const double open_bar_alpha = open_ghosted ? g_ghost_head_alpha : 1.0;
             pushOpenNoteBar(
                 open_vertices,
                 open_indices,
@@ -4074,7 +4059,7 @@ void HighwayRenderer::Impl::draw(
             {
                 const double center_x = (x0 + x1) / 2.0;
                 const std::uint32_t marker_tint =
-                    packAbgr(base_color, fade * (open_ghosted ? open_ghost.marker_alpha : 1.0));
+                    packAbgr(base_color, fade * (open_ghosted ? g_ghost_marker_alpha : 1.0));
                 // The connection cell, from the same authority the fretted head below asks: an open
                 // string usually carries only the pull-off, but a left-hand tap resolves to the
                 // hammer motion unconditionally and is legal on an open string with a node.
@@ -4229,25 +4214,14 @@ void HighwayRenderer::Impl::draw(
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
 
-        // The quiet end of the emphasis axis takes mass out of the note — alpha, size, or both,
-        // per the candidate being sighted. A ghost's markers quiet with it: a full-brightness
-        // mark over a dim head reads as a rendering fault rather than as dynamics.
+        // The quiet end of the emphasis axis takes light out of the note. A ghost's markers quiet
+        // with it: a full-brightness mark over a dim head reads as a rendering fault rather than
+        // as dynamics.
         const bool ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
-        const GhostStyle& ghost = g_ghost_styles.at(ghost_style);
-        const double head_alpha = ghosted ? ghost.head_alpha : 1.0;
-        const double head_scale = ghosted ? ghost.head_scale : 1.0;
-        const double head_half_w_drawn = head_half_w * head_scale;
-        const double head_half_h_drawn = head_half_h * head_scale;
-        // Darkening the FILL rather than thinning it is what keeps a quiet note opaque, so its
-        // own sustain ribbon cannot show through the head the ribbon belongs to.
-        const ArgbColor head_color =
-            ghosted ? mixArgb(base_color, 0xFF000000U, ghost.fill_dim) : base_color;
-        const std::uint32_t head_tint = packAbgr(head_color, fade * head_slide.alpha * head_alpha);
-        // The markers carry their OWN emphasis weight rather than the head's: a candidate may
-        // quiet the fill while leaving the technique marks legible, which is the difference
-        // between a note played softly and a note that failed to draw.
+        const double head_alpha = ghosted ? g_ghost_head_alpha : 1.0;
+        const std::uint32_t head_tint = packAbgr(base_color, fade * head_slide.alpha * head_alpha);
         const std::uint32_t tint =
-            packAbgr(base_color, fade * head_slide.alpha * (ghosted ? ghost.marker_alpha : 1.0));
+            packAbgr(base_color, fade * head_slide.alpha * (ghosted ? g_ghost_marker_alpha : 1.0));
 
         // Head base: the round node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
@@ -4255,15 +4229,10 @@ void HighwayRenderer::Impl::draw(
         // travel is unpitched noise, so it takes the darker base a full-muted note takes, and
         // the pick mark then sits on that base rather than on an X — else the standard head.
         // Both predicates are stated once, in highway_head_marks.h.
-        // A ghost candidate may draw the hollow outline in place of the filled art, which takes
-        // the note's mass out without touching a single alpha — the treatment that composes
-        // exactly as today with every fade already on this surface.
         const std::array<float, 4> base_cell =
-            ghosted && ghost.hollow_head
-                ? hollow_cell
-                : (highwayNodeHead(note)   ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
-                   : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
-                                           : head_cell);
+            highwayNodeHead(note)   ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
+            : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
+                                    : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
                 x + (dx * cos_r) - (dy * sin_r),
@@ -4276,10 +4245,10 @@ void HighwayRenderer::Impl::draw(
         pushQuad(
             head_vertices,
             head_indices,
-            corner(-head_half_w_drawn, -head_half_h_drawn, base_cell[0], base_cell[3]),
-            corner(head_half_w_drawn, -head_half_h_drawn, base_cell[2], base_cell[3]),
-            corner(head_half_w_drawn, head_half_h_drawn, base_cell[2], base_cell[1]),
-            corner(-head_half_w_drawn, head_half_h_drawn, base_cell[0], base_cell[1]));
+            corner(-head_half_w, -head_half_h, base_cell[0], base_cell[3]),
+            corner(head_half_w, -head_half_h, base_cell[2], base_cell[3]),
+            corner(head_half_w, head_half_h, base_cell[2], base_cell[1]),
+            corner(-head_half_w, head_half_h, base_cell[0], base_cell[1]));
 
         // The loud end is added LIGHT: this same art redrawn on slightly larger quads, a faint
         // ember and a hot core, into a batch that submits BEFORE the heads so the light sits
@@ -4310,8 +4279,8 @@ void HighwayRenderer::Impl::draw(
                 const double grow_h =
                     (g_head_art_half_height + (reach_texels * g_head_art_texel_world)) /
                     g_head_art_half_height;
-                const double half_w = head_half_w_drawn * grow_w;
-                const double half_h = head_half_h_drawn * grow_h;
+                const double half_w = head_half_w * grow_w;
+                const double half_h = head_half_h * grow_h;
                 const std::uint32_t rim_tint = packAbgr(rim_color, fade * head_slide.alpha * alpha);
                 const auto rim_corner =
                     [&](const double dx, const double dy, const float u, const float v) {
@@ -4333,31 +4302,6 @@ void HighwayRenderer::Impl::draw(
             };
             push_rim(light.ember_reach_texels, light.ember_alpha);
             push_rim(light.core_reach_texels, light.core_alpha);
-        }
-
-        // The rim a dimmed fill keeps, so a ghost's silhouette cannot degrade into a ragged core
-        // while its interior quiets — the failure that reads as a bug rather than as dynamics.
-        if (ghosted && ghost.rim_alpha > 0.0)
-        {
-            const std::uint32_t rim_tint =
-                packAbgr(base_color, fade * head_slide.alpha * ghost.rim_alpha);
-            const auto rim_corner =
-                [&](const double dx, const double dy, const float u, const float v) {
-                    return makeUvVertex(
-                        x + (dx * cos_r) - (dy * sin_r),
-                        head_y + (dx * sin_r) + (dy * cos_r),
-                        z,
-                        rim_tint,
-                        u,
-                        v);
-                };
-            pushQuad(
-                head_vertices,
-                head_indices,
-                rim_corner(-head_half_w_drawn, -head_half_h_drawn, hollow_cell[0], hollow_cell[3]),
-                rim_corner(head_half_w_drawn, -head_half_h_drawn, hollow_cell[2], hollow_cell[3]),
-                rim_corner(head_half_w_drawn, head_half_h_drawn, hollow_cell[2], hollow_cell[1]),
-                rim_corner(-head_half_w_drawn, head_half_h_drawn, hollow_cell[0], hollow_cell[1]));
         }
 
         {

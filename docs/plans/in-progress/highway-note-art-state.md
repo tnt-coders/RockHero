@@ -12,11 +12,21 @@ separate track. When resuming, read both.
 
 ## In flight right now
 
-**Sighting the emphasis axis on the highway.** Accent is now a RENDERED LIGHT and ghost a
-transparency treatment; both are sampled live from candidate tables in
-`highway_emphasis_styles.h`, cycled with **F9** (accent) and **F10** (ghost), each toggle logging
-which pair is active. Each table's DEFAULT index is its current front-runner, so the app opens on
-the look last preferred: accent `tight`, ghost `half light`.
+**Sighting the ACCENT LIGHT on the highway** — the last open end of the emphasis axis, the ghost
+end having been signed. Candidates live in `highway_emphasis_styles.h` and cycle with **F9**,
+which logs the active one. The default index is the table's current front-runner, so the app opens
+on the look last preferred.
+
+**Open and being worked 2026-08-15 by three research agents**, after the user reported that the
+light *"doesn't fade naturally like real light and looks boxy"*, that on the chord box *"the top
+bar light looks completely disconnected from the side bar glows — they clash with a hard cut"*,
+and that *"something is really off in how these light shaders are being used"*. The suspected
+cause is that every stage is FLAT-ALPHA or per-side LINEAR geometry: the head and open-bar rims
+are two flat stages (a staircase, not a falloff), and the box spill is four independent linear
+ramps that meet at the corners with no radial term — which is exactly a hard cut. The likely fix
+is a per-fragment falloff (this renderer already ships an SDF program for box mute marks and a
+per-fragment window light with soft edges) rather than more quads. Also outstanding: the chord box
+light must join the F9 cycle, which it currently does not.
 
 - **Accent colour, RULED 2026-08-15: the light is the STRING'S colour.** The first round was 78%
   to 100% white on every candidate, which the user caught (*"Is the accent glow only using WHITE
@@ -60,9 +70,10 @@ perceptual and geometric**, and no amount of fixing the outline would have saved
   (c) The accent atlas ring was still
   being drawn under the light; that draw, the `g_head_cell_accent` constant, and the art itself
   are all gone (cell 3 is now empty and byte-identical to spare cells 18 and 19).
-- **Ghost:** the user ruled alpha is the right mechanism and that a sustain must quiet with its
-  head and RISE from nothing at its onset, so the ribbon emerges from the note rather than showing
-  through it. Shipped. `dim fill` remains in the table as the opaque alternative.
+- **Ghost: SIGNED 2026-08-15 and no longer a sighting item.** `half light` won on the highway
+  (alpha 0.45 head and markers, 0.65 tail, 0.45 open-bar thickness), the opaque `lean` won on the
+  2D lane, and every alternative is ripped out of both. F10 and its command are gone with them;
+  only F9 remains, cycling the accent light.
 
 **The 2D lane's ghost is SHIPPED and is not a sighting item** — it took the opposite mechanism on
 purpose (an opaque lean toward the lane's ground); see `note-emphasis-axis.md` item 4 for why, and
