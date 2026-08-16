@@ -95,9 +95,11 @@ perceptual and geometric**, and no amount of fixing the outline would have saved
   candidates' variables, so cycling note styles leaves it alone.
   (c) The accent atlas ring was still
   being drawn under the light; that draw, the `g_head_cell_accent` constant, and the art itself
-  are all gone (cell 3 is now empty and byte-identical to spare cells 18 and 19).
+  are all gone. The slot it vacated became one of the sheet's three spares in the reorder below.
 - **Ghost: SIGNED 2026-08-15 and no longer a sighting item.** `half light` won on the highway
-  (alpha 0.45 head and markers, 0.65 tail, 0.45 open-bar thickness), the opaque `lean` won on the
+  (sighted at alpha 0.45 head and markers against 0.65 tail; **collapsed on trial to a single 0.5
+  everywhere** at the user's suggestion, plus 0.5 open-bar thickness, to test whether the
+  head/sustain split was a distinction the eye ever made), the opaque `lean` won on the
   2D lane, and every alternative is ripped out of both. F10 and its command are gone with them;
   only F9 remains, cycling the accent light.
 
@@ -140,9 +142,9 @@ change and the cell vocabulary identical in every variant. Only the winner enter
 rest are deleted. An earlier per-cell candidate seam for the icon sizes was reverted in favour of
 this — it cost atlas cells and code for a switch the file swap does for free.
 
-Working tree holds `notes.png` at the sighted v7 icon sizes with the retired accent ring cleared
-out of cell 3 (sha `b36f3da3…`). `git checkout -- rock-hero-common/ui/resources/textures/notes.png`
-restores the committed atlas at any time.
+Working tree holds `notes.png` at the sighted v7 icon sizes, reordered 2026-08-15 (sha
+`cd8c5c4d…`). `git checkout -- rock-hero-common/ui/resources/textures/notes.png` restores the
+committed atlas at any time.
 
 ## Shipped 2026-08-15 (newest first)
 
@@ -166,10 +168,18 @@ per side — the user sighted this and accepted it (*"D looks okay stacked even 
 overlap"*). The rejected candidates (halo circle, 26.4-box diamond, diagonal-height diamond) are
 recoverable in full at `21bfa768`.
 
-**Atlas layout** (256×320, 4×5, capacity 20): cell 14 the harmonic marker, 16 the diamond base,
-17 its hollow twin, and **3, 18 and 19 spare** — all three byte-identical and fully empty, so the
-next mark the vocabulary needs is a one-cell bake. Cell 3 held the accent ring until emphasis
-became a light. `g_head_cell_count` is 18.
+**Atlas layout** (256×320, 4×5, capacity 20), REORDERED 2026-08-15 — two rules, one per half of
+the sheet. Head bases take a row per SHAPE FAMILY complete with its hollow: row 0 the rectangle
+family (standard, tech, anticipation), row 1 the diamond family (base, hollow). Technique marks
+take two KEYBIND SIBLING PAIRS per row — `M`/`Shift+M` palm and full mute adjacent,
+`H`/`Shift+H` natural and pinch harmonic adjacent. That ordering is affordable because the HAND
+is carried by the art (fill polarity, measured 31..91 picking against 246..255 fretting, no
+overlap), not by position; it falls out anyway, with rows 2 and 4 hand-pure and the two
+hand-spanning pairs between them in row 3.
+
+Spares are **3, 6 and 7** — byte-identical empties, each the growth slot of the family whose row
+it sits in. `g_head_cell_count` is **20**, which is full capacity: no headroom, and a 21st named
+cell needs a sixth row (256×384).
 
 **The marker family's sizing is SETTLED at v7** — every technique symbol at 85% of its authored
 height, sighted and accepted 2026-08-15 (*"I think all these sizes look pretty good. Even pick

@@ -104,12 +104,27 @@ struct HighwayAtlases
 };
 
 // The cell vocabulary, row-major on the 4-column grid, sorted semantically rather than in the
-// Charter reference asset's order: head bases, then one row per hand — the fretting
-// hand's posture brackets, legato mark and bend, then the picking hand's marks — then damping +
-// timbre, then the fifth row's later-added bases. One art set serves every head-composite
-// consumer deliberately (absolute consistency, no dedicated variants); repeat-box mute marks
-// render through the SDF program instead of any cell, because their line weights must hold
-// across arbitrary box aspects.
+// Charter reference asset's order. Two rules, one per half of the sheet:
+//
+// HEAD BASES take a row per SHAPE FAMILY, each complete with its hollow twin. Row 0 is the
+// rectangle family (standard, tech, and the anticipation ring the two of them share); row 1 is
+// the diamond family (the node base and its hollow). A new silhouette is a new row, and a family
+// is never split across the boundary.
+//
+// TECHNIQUE MARKS take two SIBLING PAIRS per row, and the pairs are the keybind pairs a charter
+// actually types — `M`/`Shift+M` is palm and full mute, `H`/`Shift+H` is natural and pinch
+// harmonic, so those sit side by side. That ordering is available because the HAND is carried by
+// the art itself rather than by position: fill polarity is the mark family's hand signature (dark
+// interior = picking, light = fretting, measured at 31..91 against 246..255 with no overlap), the
+// same rule that lets the right-hand tap's dark T and the left tap's light T share one letter.
+// Encoding the hand in the layout as well would spend the ordering on something already legible
+// inside every cell. It falls out anyway: rows 2 and 4 are hand-pure, and the only two pairs that
+// span hands — the mutes and the harmonics — are exactly the pairs that must stay together, so
+// they sit in row 3 between them.
+//
+// One art set serves every head-composite consumer deliberately (absolute consistency, no
+// dedicated variants); repeat-box mute marks render through the SDF program instead of any cell,
+// because their line weights must hold across arbitrary box aspects.
 
 /*! \brief Cell index of the standard note head inside the head atlas. */
 inline constexpr int g_head_cell_standard = 0;
@@ -120,16 +135,22 @@ inline constexpr int g_head_cell_tech = 1;
 /*! \brief Cell index of the anticipation ring. */
 inline constexpr int g_head_cell_anticipation = 2;
 
-// Cell 3 is FREE. It held the accent ring until emphasis became a rendered light: a mark drawn on
+// Cells 3, 6 and 7 are FREE — byte-identical empties, and each one is the growth slot of the
+// family whose row it sits in: 3 completes the rectangle row, 6 and 7 the diamond row. Cell 3 is
+// the slot the accent ring vacated when emphasis became a rendered light, because a mark drawn on
 // the head could only ever say "accent", where the light says loud and quiet on one axis and says
-// it identically on an open string, which has no head to wear a mark. The slot keeps its position
-// because every other index is its grid coordinate; the next cell the vocabulary needs takes it.
+// it identically on an open string, which has no head to wear a mark.
+//
+// They cannot sit at the sheet's tail: seventeen filled cells on a four-wide grid is 4x4+1, so
+// "every group row-aligned" and "all spares last" are arithmetically incompatible. The mark rows
+// were kept intact and the spares stayed with the bases. A sixth row (256x384) would dissolve
+// that, and would also buy back the headroom noted at g_head_cell_count.
 
 /*! \brief Arpeggio bracket for a fretted posture note. */
-inline constexpr int g_head_cell_arpeggio_fret_bracket = 4;
+inline constexpr int g_head_cell_arpeggio_fret_bracket = 8;
 
 /*! \brief Arpeggio bracket end for an open posture string. */
-inline constexpr int g_head_cell_arpeggio_open_bracket = 5;
+inline constexpr int g_head_cell_arpeggio_open_bracket = 9;
 
 /*!
 \brief Legato marker: the hammer-on triangle, which the pull-off draws flipped vertically.
@@ -137,16 +158,15 @@ inline constexpr int g_head_cell_arpeggio_open_bracket = 5;
 One cell, not two. Drawn separately they disagreed — the flat edges carried different border
 thicknesses and the solid cores differed by 26 pixels, because each was authored rather than
 mirrored (measured: 377 of 4096 pixels differed from a true mirror). Flipping one cell makes the
-pair exact inverses by construction, and freed a cell at the time (the fifth row that exists now
-came later, for the harmonic base).
+pair exact inverses by construction, and freed a cell at the time.
 */
-inline constexpr int g_head_cell_legato = 6;
+inline constexpr int g_head_cell_legato = 10;
 
 /*! \brief Bend marker: the chevron announcing a bent note on its head. */
-inline constexpr int g_head_cell_bend = 7;
+inline constexpr int g_head_cell_bend = 11;
 
 /*! \brief Tap marker. */
-inline constexpr int g_head_cell_tap = 8;
+inline constexpr int g_head_cell_tap = 18;
 
 /*!
 \brief Pick-scrape marker: a plectrum split by a single 45-degree fracture.
@@ -154,10 +174,15 @@ inline constexpr int g_head_cell_tap = 8;
 Wears the picking hand's dark-interior treatment — fill tint weight 68 against a rim of 240 with
 94 of white lift, the values tap, palm mute and pinch harmonic measure. The picking hand's rims
 fall into two clusters and this cell joins the lifted one; slap and pop instead rim at 255 with no
-lift at all. Interior darkness is this atlas's picking-hand signature: every
-right-hand cell cores at or below 68 while every fretting-hand cell cores at exactly 255. That
-split holds across cells sharing a function (palm and full mute), a technique (natural and pinch
-harmonic), and a motion (tap and legato), so it tracks the hand rather than the atlas row.
+lift at all. Interior darkness is this atlas's picking-hand signature, and it is load-bearing:
+the cell ORDERING deliberately does not encode the hand, on the grounds that the art already
+does. Measured as the median interior tint over each silhouette, the picking cells run 31 to 91
+and the fretting cells 246 to 255 — 155 counts of empty band between them, six and a half times
+the largest gap within either cluster. (An earlier wording claimed "exactly 255"; the fretting
+side is a ramp rather than a plateau, so the separation is real but that number overstated it.)
+The split holds across cells sharing a function (palm and full mute), a technique (natural and
+pinch harmonic), and a motion (tap and legato), so it tracks the hand rather than the atlas row —
+which is exactly what lets the rows carry the keybind pairs instead.
 
 One zig zag at 45 degrees — two arms offset by a single perpendicular step — splits the pick, and
 the fracture carries the row's brightest white lift, 192, so the crack reads as light filling it
@@ -181,13 +206,13 @@ to recover it. Seated concentric on the head like the harmonic cell, at 0.76 of 
 head's solid width and 1.57 of its height: it covers the head's own footprint, which is why a
 scrape wears this mark alone and no X beneath it.
 */
-inline constexpr int g_head_cell_pick_slide = 9;
+inline constexpr int g_head_cell_pick_slide = 19;
 
 /*! \brief Slap (bass) marker. */
-inline constexpr int g_head_cell_slap = 10;
+inline constexpr int g_head_cell_slap = 16;
 
 /*! \brief Pop (bass) marker. */
-inline constexpr int g_head_cell_pop = 11;
+inline constexpr int g_head_cell_pop = 17;
 
 /*! \brief Palm-mute marker. */
 inline constexpr int g_head_cell_palm_mute = 12;
@@ -222,7 +247,7 @@ lands inscribed in it, clearing the flats by a measured 0.08 tx, while the four 
 4.4 tx proud of the ring. The accepted price is stacking: node heads at the lane pitch
 interpenetrate about 3.7 tx per side, the tradeoff taken for the strongest shape identity.
 */
-inline constexpr int g_head_cell_harmonic_base = 16;
+inline constexpr int g_head_cell_harmonic_base = 4;
 
 /*!
 \brief Hollow twin of \ref g_head_cell_harmonic_base, derived from its base the way the
@@ -231,15 +256,19 @@ rectangle's anticipation ring (\ref g_head_cell_anticipation) derives from the s
 The landing ring and the pre-bend outline draw this for node heads, selected by the same
 predicate as the base, so the approach can never preview a different shape than lands.
 */
-inline constexpr int g_head_cell_harmonic_anticipation = 17;
+inline constexpr int g_head_cell_harmonic_anticipation = 5;
 
 /*!
 \brief Cells the renderer requires the head atlas to carry (a 4-column grid, five rows).
 
-The shipped 256x320 asset's fifth row holds the harmonic base pair and two spare cells; the
-startup check requires only that capacity reaches this count.
+NOT a count of named cells — there are seventeen. It is one past the highest named index, which
+is what the startup check needs: capacity below this means some named index addresses no art.
+
+The shipped 256x320 asset supplies exactly this many, so there is now NO headroom: a twenty-first
+named cell needs a taller sheet (256x384 buys a sixth row). That is the price of packing the
+spares in at 5-7 rather than leaving the vocabulary's gaps where they fell.
 */
-inline constexpr int g_head_cell_count = 18;
+inline constexpr int g_head_cell_count = 20;
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.

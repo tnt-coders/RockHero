@@ -19,7 +19,7 @@ TEST_CASE("Highway atlas layout reports its grid capacity", "[ui][highway]")
     CHECK(layout.capacity() >= '~' - '!' + 1);
 
     // The head atlas holds at least the cells the renderer names — the covenant the renderer's
-    // own startup check states (the last row keeps two spare cells).
+    // own startup check states (the sheet supplies exactly the count, with no headroom).
     const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 320, .cell_size = 64};
     CHECK(heads.columns() == 4);
     CHECK(heads.rows() == 5);
@@ -58,11 +58,11 @@ TEST_CASE("Highway atlas cells tile the texture with a half-texel inset", "[ui][
     const HighwayAtlasLayout composed{
         .texture_width = 512, .texture_height = 640, .cell_size = 128
     };
-    const auto chevron = composed.cellRect(16);
-    CHECK_THAT(chevron[0], Catch::Matchers::WithinAbs(0.5F / 512.0F, 1e-7));
-    CHECK_THAT(chevron[1], Catch::Matchers::WithinAbs(0.8F + (0.5F / 640.0F), 1e-7));
-    CHECK_THAT(chevron[2], Catch::Matchers::WithinAbs(0.25F - (0.5F / 512.0F), 1e-7));
-    CHECK_THAT(chevron[3], Catch::Matchers::WithinAbs(1.0F - (0.5F / 640.0F), 1e-7));
+    const auto last_row_cell = composed.cellRect(16);
+    CHECK_THAT(last_row_cell[0], Catch::Matchers::WithinAbs(0.5F / 512.0F, 1e-7));
+    CHECK_THAT(last_row_cell[1], Catch::Matchers::WithinAbs(0.8F + (0.5F / 640.0F), 1e-7));
+    CHECK_THAT(last_row_cell[2], Catch::Matchers::WithinAbs(0.25F - (0.5F / 512.0F), 1e-7));
+    CHECK_THAT(last_row_cell[3], Catch::Matchers::WithinAbs(1.0F - (0.5F / 640.0F), 1e-7));
 }
 
 // The legato pair shares one cell, drawn upright for the hammer-on and vertically flipped for
@@ -74,11 +74,16 @@ TEST_CASE("Highway atlas legato cell mirrors within its own bounds", "[ui][highw
     const auto cell = heads.cellRect(g_head_cell_legato);
 
     // The flip is a swap of the vertical pair, so it samples the same rows in reverse and
-    // never reaches a neighbouring cell.
+    // never reaches a neighbouring cell. The expected band is derived from the cell's own index
+    // rather than written in: the claim is "the flip stays inside WHATEVER row this cell is on",
+    // and hardcoding the row makes the case fail on a vocabulary reorder that changed nothing it
+    // is testing.
     CHECK(cell[1] < cell[3]);
-    const float row_top = 64.0F / 320.0F;
-    CHECK_THAT(cell[1], Catch::Matchers::WithinAbs(row_top + (0.5F / 320.0F), 1e-7));
-    CHECK_THAT(cell[3], Catch::Matchers::WithinAbs((2.0F * row_top) - (0.5F / 320.0F), 1e-7));
+    const float row_height = 64.0F / 320.0F;
+    const auto row = static_cast<float>(g_head_cell_legato / 4);
+    CHECK_THAT(cell[1], Catch::Matchers::WithinAbs((row * row_height) + (0.5F / 320.0F), 1e-7));
+    CHECK_THAT(
+        cell[3], Catch::Matchers::WithinAbs(((row + 1.0F) * row_height) - (0.5F / 320.0F), 1e-7));
 
     // Every named cell is inside the grid the shipped asset provides.
     CHECK(g_head_cell_bend < g_head_cell_count);
