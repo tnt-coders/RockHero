@@ -21,43 +21,46 @@ namespace rock_hero::common::ui
 {
 
 /*!
-\brief One candidate accent light: a corona of added light around the note's own silhouette.
+\brief One candidate accent light: the note's own art redrawn as light around its silhouette.
 
-Reach is stated OUTSIDE the silhouette in world units, per axis, because the board's clearances
-are wildly anisotropic — about 0.0125 world to the neighbouring lane's head against 0.238 to the
-next fret's, a 19:1 budget. A light that reads at all must therefore spend most of its size
-sideways, which is why every candidate carries its own two reaches rather than one radius.
+A RIM, not a corona. A broad low-alpha field fails for a measured reason rather than a matter of
+taste: the eye takes a glow's boundary at its steepest gradient, so a wide ramp puts that
+boundary far outside the note and the light stops belonging to the note — it reads as a lit box
+the note sits inside. The atlas ring it replaces holds its steepest gradient a fifth of a texel
+from the note's own edge, which is exactly why it reads as a mark. A wide ramp also does not buy
+its size back: measured, the broad version spent 1.6x more total light than the ring and read as
+less.
+
+So the light is the HEAD'S OWN CELL, redrawn additively on slightly larger quads. That buys the
+exact silhouette, the exact rounded corners, and the authored antialiasing for two quads and no
+measured extents in code — and it cannot drift when the art changes, which a hand-copied
+silhouette would. Two stages: a hot core hugging the edge, and a faint ember reaching further.
 */
 struct AccentLightStyle
 {
     /*! \brief Stable short name, printed by the sampling toggle. */
     std::string_view name;
 
-    /*! \brief Reach beyond the silhouette along the neck, in world units. */
-    double reach_x;
+    /*! \brief How far the faint outer stage reaches past the art's edge, in texels. */
+    double ember_reach_texels;
 
-    /*! \brief Reach beyond the silhouette across the strings, in world units. */
-    double reach_y;
+    /*! \brief Alpha of the outer stage. */
+    double ember_alpha;
 
-    /*!
-    \brief Falloff exponent applied to (1 - t) across the reach.
+    /*! \brief Alpha of the hot stage hugging the art's edge. */
+    double core_alpha;
 
-    One is linear and terminates in a visible edge; two and above leave the outer derivative at
-    zero, which is what dissolves rather than ending — the difference between light and a painted
-    gradient.
-    */
-    double falloff_exponent;
-
-    /*! \brief Alpha at the silhouette's own edge, where the light is brightest. */
-    double peak_alpha;
+    /*! \brief How far the hot stage reaches past the art's edge, in texels. */
+    double core_reach_texels;
 
     /*!
     \brief How far the light's colour is mixed toward white, from zero (the string's own colour).
 
-    The palette spans 4.08x in luma from red to yellow, so a string-tinted light inherits that
-    spread exactly and an accent is four times quieter on red than on yellow. White mixing is the
-    only lever that lifts the dim strings without spending geometry: half white measures a 1.51x
-    spread. The cost is string identity, which is why both ends ship as candidates.
+    Not decoration: the ring this must beat gets most of its brightness from a white lift, and an
+    additive string-tinted light on the red string can add at most a fifth of what the ring adds.
+    Zero keeps full string identity and costs the palette's 4.08x luma spread — the accent is
+    four times quieter on red than on yellow. Half matches the ring. Higher flattens the spread
+    toward one at the cost of the string's colour.
     */
     double white_mix;
 };
@@ -68,54 +71,44 @@ struct AccentLightStyle
 Index 0 exists so the sampling can include the board without any accent light, which is the only
 honest reference for judging whether a candidate reads as emphasis or as decoration.
 */
-inline constexpr std::array<AccentLightStyle, 6> g_accent_light_styles{{
+inline constexpr std::array<AccentLightStyle, 5> g_accent_light_styles{{
     {.name = "none",
-     .reach_x = 0.0,
-     .reach_y = 0.0,
-     .falloff_exponent = 1.0,
-     .peak_alpha = 0.0,
+     .ember_reach_texels = 0.0,
+     .ember_alpha = 0.0,
+     .core_alpha = 0.0,
+     .core_reach_texels = 0.0,
      .white_mix = 0.0},
-    {.name = "slot flare",
-     .reach_x = 0.238,
-     .reach_y = 0.033,
-     .falloff_exponent = 3.0,
-     .peak_alpha = 0.72,
+    // Matched to the shipped ring's measured envelope: hot at the edge, an ember out to about
+    // six texels, gone by eight.
+    {.name = "art rim",
+     .ember_reach_texels = 6.0,
+     .ember_alpha = 0.14,
+     .core_alpha = 0.88,
+     .core_reach_texels = 2.5,
+     .white_mix = 0.78},
+    // The same rim at the ring's own white balance: more string identity, more spread between
+    // the dim and bright strings.
+    {.name = "art rim tinted",
+     .ember_reach_texels = 6.0,
+     .ember_alpha = 0.14,
+     .core_alpha = 0.88,
+     .core_reach_texels = 2.5,
+     .white_mix = 0.50},
+    // Full string identity, and the palette's whole 4x spread with it.
+    {.name = "art rim string",
+     .ember_reach_texels = 6.0,
+     .ember_alpha = 0.20,
+     .core_alpha = 1.00,
+     .core_reach_texels = 2.5,
      .white_mix = 0.0},
-    {.name = "slot flare white",
-     .reach_x = 0.238,
-     .reach_y = 0.033,
-     .falloff_exponent = 3.0,
-     .peak_alpha = 0.72,
-     .white_mix = 0.5},
-    {.name = "soft bloom",
-     .reach_x = 0.234,
-     .reach_y = 0.075,
-     .falloff_exponent = 2.0,
-     .peak_alpha = 0.55,
-     .white_mix = 0.0},
-    {.name = "white flare",
-     .reach_x = 0.172,
-     .reach_y = 0.049,
-     .falloff_exponent = 2.0,
-     .peak_alpha = 0.45,
-     .white_mix = 0.5},
-    {.name = "hard corona",
-     .reach_x = 0.125,
-     .reach_y = 0.036,
-     .falloff_exponent = 1.0,
-     .peak_alpha = 0.85,
-     .white_mix = 0.0},
+    // Tighter and hotter: no ember at all, just the edge.
+    {.name = "art rim tight",
+     .ember_reach_texels = 0.0,
+     .ember_alpha = 0.0,
+     .core_alpha = 0.95,
+     .core_reach_texels = 1.5,
+     .white_mix = 0.78},
 }};
-
-/*!
-\brief Bands the light is drawn as, nested from the outside in.
-
-The bands are FILLED and stack additively rather than being drawn as rings, so each is one quad:
-because the head is opaque and drawn over them, the stacked centre is never seen, and the visible
-profile is exactly the staircase the band alphas describe. Five bands hold the cubic falloff to a
-few counts.
-*/
-inline constexpr std::size_t g_accent_light_bands = 5;
 
 /*!
 \brief One candidate ghost treatment: the quiet end of the axis, taken out of the note's mass.
@@ -126,28 +119,29 @@ one, and a bright tail under a dim head reads as a rendering fault rather than a
 */
 struct GhostStyle
 {
-    /*! \brief Stable short name, printed by the sampling toggle. */
-    std::string_view name;
-
     /*!
     \brief Alpha applied to the head's own art.
 
-    Below one this makes the head TRANSLUCENT, which reveals whatever sits behind it — its own
-    sustain ribbon most of all, since the tail passes under the head it belongs to. Quieting a
-    note by taking its alpha down therefore trades one right reading for a wrong one; \ref
-    fill_dim is the same weight without that cost.
+    Below one this makes the head TRANSLUCENT, which reveals whatever sits behind it. Its own
+    sustain ribbon is only the loudest case — a chord box's fill, a lane border, and an active
+    fret line all show through too, and only the ribbon can be fixed by clipping. \ref fill_dim
+    is the same weight with none of that.
     */
     double head_alpha;
 
     /*!
-    \brief How far the head's fill is darkened toward the board, from zero (its own colour).
+    \brief How far the head's fill is darkened toward black, from zero (its own colour).
 
     The OPAQUE way to read quiet: the note keeps alpha one, so nothing behind it can show
-    through, and only its brightness drops. Hue survives, so the string still identifies itself
-    — which is what separates this from desaturating toward grey, the convention that reads as
-    "disabled" rather than as "played softly".
+    through, and only its brightness drops. Hue survives, so the string still identifies itself —
+    which is what separates this from leaning toward the board, measured as the WORST separation
+    of the set on the red string. The head cell's white-lift bevel is added after the tint, so a
+    darkened ghost keeps its outline for free however deep the fill goes.
     */
     double fill_dim;
+
+    /*! \brief Stable short name, printed by the sampling toggle. */
+    std::string_view name;
 
     /*! \brief Scale applied to the head quad; below one takes mass out instead of light. */
     double head_scale;
@@ -164,8 +158,8 @@ struct GhostStyle
     /*!
     \brief Alpha of a hollow rim drawn over the dimmed fill; zero draws none.
 
-    Keeps the silhouette at full strength while the fill quiets, so the note cannot degrade into a
-    ragged core — the failure that reads as a bug rather than as dynamics.
+    Keeps the silhouette at full strength while the fill quiets. Largely redundant against
+    \ref fill_dim, which keeps the outline for free, and carried only for comparison.
     */
     double rim_alpha;
 
@@ -174,72 +168,95 @@ struct GhostStyle
 };
 
 /*! \brief The ghost candidates, in stable index order — index 0 draws a ghost as a normal note. */
-inline constexpr std::array<GhostStyle, 7> g_ghost_styles{{
-    {.name = "none",
-     .head_alpha = 1.0,
+inline constexpr std::array<GhostStyle, 6> g_ghost_styles{{
+    {.head_alpha = 1.0,
      .fill_dim = 0.0,
+     .name = "none",
      .head_scale = 1.0,
      .marker_alpha = 1.0,
      .tail_alpha = 1.0,
      .open_bar_thickness = 1.0,
      .rim_alpha = 0.0,
      .hollow_head = false},
-    // Half light's weight without its transparency: the same drop in presence, reached by
-    // darkening the fill rather than thinning it, so the note's own tail cannot show through.
-    {.name = "dim fill",
-     .head_alpha = 1.0,
-     .fill_dim = 0.55,
+    // Half light's weight to within about two luma counts, measured across all six strings, and
+    // a third more distinct from the board on the red string — darkening keeps the hue where
+    // thinning dilutes it toward the board's blue.
+    {.head_alpha = 1.0,
+     .fill_dim = 0.58,
+     .name = "dim fill",
      .head_scale = 1.0,
      .marker_alpha = 1.0,
      .tail_alpha = 0.65,
      .open_bar_thickness = 0.55,
      .rim_alpha = 0.0,
      .hollow_head = false},
-    {.name = "dim fill deep",
-     .head_alpha = 1.0,
+    {.head_alpha = 1.0,
      .fill_dim = 0.70,
+     .name = "dim fill deep",
      .head_scale = 1.0,
      .marker_alpha = 0.80,
      .tail_alpha = 0.65,
      .open_bar_thickness = 0.55,
      .rim_alpha = 0.0,
      .hollow_head = false},
-    {.name = "half light",
-     .head_alpha = 0.45,
+    {.head_alpha = 0.45,
      .fill_dim = 0.0,
+     .name = "half light",
      .head_scale = 1.0,
      .marker_alpha = 0.45,
      .tail_alpha = 0.65,
      .open_bar_thickness = 0.45,
      .rim_alpha = 0.0,
      .hollow_head = false},
-    {.name = "rim keep",
-     .head_alpha = 0.40,
-     .fill_dim = 0.0,
-     .head_scale = 1.0,
-     .marker_alpha = 1.0,
-     .tail_alpha = 0.70,
-     .open_bar_thickness = 0.55,
-     .rim_alpha = 1.0,
-     .hollow_head = false},
-    {.name = "small head",
-     .head_alpha = 1.0,
-     .fill_dim = 0.0,
-     .head_scale = 0.78,
-     .marker_alpha = 1.0,
-     .tail_alpha = 1.0,
-     .open_bar_thickness = 0.55,
-     .rim_alpha = 0.0,
-     .hollow_head = false},
-    {.name = "dim small",
-     .head_alpha = 1.0,
-     .fill_dim = 0.45,
+    {.head_alpha = 1.0,
+     .fill_dim = 0.58,
+     .name = "dim small",
      .head_scale = 0.86,
      .marker_alpha = 1.0,
      .tail_alpha = 0.70,
      .open_bar_thickness = 0.70,
      .rim_alpha = 0.0,
      .hollow_head = false},
+    {.head_alpha = 1.0,
+     .fill_dim = 0.0,
+     .name = "hollow",
+     .head_scale = 1.0,
+     .marker_alpha = 1.0,
+     .tail_alpha = 0.65,
+     .open_bar_thickness = 0.55,
+     .rim_alpha = 0.0,
+     .hollow_head = true},
+}};
+
+/*!
+\brief Texels the box's frame light reaches outward and inward from the frame bar.
+
+A box is read THROUGH, so its light hugs the bar from both sides and stops well before the
+interior: lighting the bar itself is what makes the frame emit, where an outside-only halo never
+does. The innermost band still leaves the see-through region untouched.
+*/
+struct BoxLightBand
+{
+    /*! \brief Texels outward from the frame's outer boundary. */
+    double out_texels;
+
+    /*! \brief Texels inward from the frame's outer boundary. */
+    double in_texels;
+
+    /*! \brief Alpha this band adds on top of the bands outside it. */
+    double step_alpha;
+};
+
+/*!
+\brief The box frame light, outside in — the last band lands on the bar itself.
+
+Sized so an accented box's bar reaches the same absolute brightness an accented note's rim core
+does, so the two say "loud" at one volume rather than two.
+*/
+inline constexpr std::array<BoxLightBand, 3> g_box_light_bands{{
+    {.out_texels = 3.0, .in_texels = -2.0, .step_alpha = 0.07},
+    {.out_texels = 1.5, .in_texels = -1.0, .step_alpha = 0.12},
+    {.out_texels = 0.0, .in_texels = 0.0, .step_alpha = 0.19},
 }};
 
 } // namespace rock_hero::common::ui

@@ -126,6 +126,15 @@ constexpr double g_bend_marker_offset_heads = 0.38;
 // chart-truth height is an annotation, dimmed so the rising head stays the subject.
 constexpr double g_prebend_outline_alpha = 0.5;
 
+// The head ART's own half-extents in world units, and one atlas texel at the head quad's scale.
+// The head cell fills only the middle of its quad, so a light sized against the QUAD starts far
+// outside the note; the accent rim is sized against these instead. Measured from the shipped
+// atlas — when a rim candidate wins, this should become a load-time measurement over the decoded
+// cell (the box_mute_profile pattern) so the numbers cannot drift from the art they describe.
+constexpr double g_head_art_half_width = 0.3120;
+constexpr double g_head_art_half_height = 0.16245;
+constexpr double g_head_art_texel_world = 0.015;
+
 // An open string's accent halo: the open-note bar redrawn thicker and faint. An open note has no
 // head quad, so it cannot wear the accent atlas cell the fretted heads do — these two numbers are
 // the open string's whole accent, and they exist to be tuned ALONGSIDE that cell. Sized so the
@@ -254,6 +263,13 @@ constexpr double g_open_tail_margin = 0.2;
 // Sustain tails dissolve over this last fraction of the note duration (the glow posts' fade
 // toward the note, mirrored at the tip), so a sustain ends softly instead of stopping dead.
 constexpr double g_tail_tip_fade_fraction = 0.35;
+
+// Seconds of tail over which a sustain rises from nothing at its onset. A FIXED span rather
+// than a fraction, for the reason the tremolo ramp is counted in teeth: the rise then occupies
+// the same stretch of board on every note instead of a dozen frames on a long sustain and none
+// on a short one. Two beats of a ribbon at 120 BPM is a second, so this is a few percent of a
+// typical tail — long enough to read as emerging, short enough that no sustain looks late.
+constexpr double g_tail_onset_fade_seconds = 0.05;
 
 // Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
 // the tail width; this is the edge alpha where the post meets the floor, kept low enough that
@@ -2057,12 +2073,19 @@ void HighwayRenderer::Impl::draw(
     std::vector<std::uint16_t> rail_indices;
     std::vector<PosColorVertex> open_vertices;
     std::vector<std::uint16_t> open_indices;
-    // The accent light: added light around an accented note, submitted between the open bars and
-    // the heads so it sits UNDER the note it belongs to. Drawn over, it repaints the note's own
-    // pixels (measured at dE76 22-47, which is the shipped ring's whole problem); drawn under an
-    // opaque head it leaves them at dE76 1-4 and shows only where the note is not.
+    // The accent light, in two batches because its two subjects have different shapes. Both
+    // submit between the open bars and the heads, so the light sits UNDER the note it belongs
+    // to: drawn over, it repaints the note's own pixels, which is the shipped ring's whole
+    // problem; drawn under, it shows only where the note is not.
+    //
+    // A BOX's light is plain geometry hugging its frame. A NOTE's light is the note's own art
+    // redrawn larger, so it needs the head texture — which buys the exact silhouette, corners
+    // and antialiasing without a single measured extent in this file, and cannot drift when the
+    // art changes.
     std::vector<PosColorVertex> accent_vertices;
     std::vector<std::uint16_t> accent_indices;
+    std::vector<PosColorUvVertex> accent_head_vertices;
+    std::vector<std::uint16_t> accent_head_indices;
     std::vector<PosColorUvVertex> head_vertices;
     std::vector<std::uint16_t> head_indices;
 
@@ -2500,32 +2523,22 @@ void HighwayRenderer::Impl::draw(
                 {
                     return;
                 }
-                const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
                 const double box_top = box.box_only ? full_height_y1 / 2.0 : full_height_y1;
-                double previous = 0.0;
-                for (std::size_t band = 0; band < g_accent_light_bands; ++band)
+                for (const BoxLightBand& band : g_box_light_bands)
                 {
-                    const double t = 1.0 - (static_cast<double>(band) /
-                                            static_cast<double>(g_accent_light_bands));
-                    const double profile =
-                        light.peak_alpha * std::pow(1.0 - t, light.falloff_exponent);
-                    const double step = profile - previous;
-                    previous = profile;
-                    if (!(step > 0.0))
-                    {
-                        continue;
-                    }
                     // A box spans several strings, so it has no single string colour to take:
                     // its light is the box's own teal, which also sidesteps the palette's 4x
                     // luma spread that forces the per-note candidates to choose between string
                     // identity and even brightness.
-                    const std::uint32_t light_tint = packAbgr(g_chord_box_color, step);
-                    // Only the EDGES light. A box is a frame the player reads THROUGH, so
-                    // filling its interior with light — however faint — adds opacity exactly
-                    // where the notes behind it have to stay legible. The light therefore hugs
-                    // the box's outer boundary as four bands and never crosses the middle.
-                    const double out_x = light.reach_x * t;
-                    const double out_y = light.reach_y * t;
+                    const std::uint32_t light_tint = packAbgr(g_chord_box_color, band.step_alpha);
+                    // The light HUGS THE FRAME from both sides and stops well short of the
+                    // middle. Lighting the bar itself is what makes a frame emit — an
+                    // outside-only halo never does — while the interior stays exactly as
+                    // see-through as it was, because a box is a thing the player reads through
+                    // and any light there is opacity where the notes behind it must stay
+                    // legible.
+                    const double out = band.out_texels * g_head_art_texel_world;
+                    const double in = band.in_texels * g_head_art_texel_world;
                     const auto push_edge = [&](const double ex0,
                                                const double ey0,
                                                const double ex1,
@@ -2538,10 +2551,10 @@ void HighwayRenderer::Impl::draw(
                             makeVertex(ex1, ey1, z, light_tint),
                             makeVertex(ex0, ey1, z, light_tint));
                     };
-                    push_edge(light_x0 - out_x, -out_y, light_x1 + out_x, 0.0);
-                    push_edge(light_x0 - out_x, 0.0, light_x0, box_top);
-                    push_edge(light_x1, 0.0, light_x1 + out_x, box_top);
-                    push_edge(light_x0 - out_x, box_top, light_x1 + out_x, box_top + out_y);
+                    push_edge(light_x0 - out, -out, light_x1 + out, in);
+                    push_edge(light_x0 - out, in, light_x0 + in, box_top);
+                    push_edge(light_x1 - in, in, light_x1 + out, box_top);
+                    push_edge(light_x0 - out, box_top - in, light_x1 + out, box_top + out);
                 }
             };
             if (box.tap != nullptr)
@@ -2721,6 +2734,14 @@ void HighwayRenderer::Impl::draw(
             g_board_view,
             g_additive_state);
         submitBatch(
+            accent_head_vertices,
+            accent_head_indices,
+            posColorUvLayout(),
+            texture_tint_program.get(),
+            &heads_texture,
+            g_board_view,
+            g_additive_state);
+        submitBatch(
             head_vertices,
             head_indices,
             posColorUvLayout(),
@@ -2734,6 +2755,8 @@ void HighwayRenderer::Impl::draw(
         open_indices.clear();
         accent_vertices.clear();
         accent_indices.clear();
+        accent_head_vertices.clear();
+        accent_head_indices.clear();
         head_vertices.clear();
         head_indices.clear();
     };
@@ -3253,13 +3276,32 @@ void HighwayRenderer::Impl::draw(
             const double tail_from = std::max(note.start_seconds, now_seconds);
             const double tail_to = std::min(note.end_seconds, span_end_seconds);
 
-            // Tip fade: alpha dissolves over the sustain's last fraction (the glow posts' fade,
+            // The tail's alpha envelope, ramped at both ends for different reasons.
+            //
+            // Tip: alpha dissolves over the sustain's last fraction (the glow posts' fade,
             // mirrored), anchored to the full note duration so the fading tip stays put while
             // the hit line consumes the body.
+            //
+            // Onset: the tail rises from nothing over a FIXED span of its own time, the way the
+            // tremolo teeth ramp in over a fixed count rather than a fraction — so the ramp
+            // occupies the same stretch of board whether the note rings for a beat or for a bar.
+            // It exists because a tail is brightest exactly where its own head covers it: the
+            // ribbon emerges FROM the note rather than passing under it, which is both what the
+            // gesture means and what stops a quieted head from showing its own tail through
+            // itself.
+            //
+            // A ghosted note's ribbon quiets with its head, by the candidate's own factor: a
+            // full-strength tail under a quieted head reads as a rendering fault rather than as
+            // a note played softly.
             const double duration = note.end_seconds - note.start_seconds;
+            const double ghost_tail_alpha = note.emphasis == common::core::NoteEmphasis::Ghost
+                                                ? g_ghost_styles.at(ghost_style).tail_alpha
+                                                : 1.0;
             const auto tip_alpha = [&](const double seconds) {
-                return std::clamp(
-                    (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction), 0.0, 1.0);
+                const double tip =
+                    (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
+                const double onset = (seconds - note.start_seconds) / g_tail_onset_fade_seconds;
+                return ghost_tail_alpha * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
             // Band X stations: fretted tails straddle the note center, open tails span the hand
@@ -3329,35 +3371,33 @@ void HighwayRenderer::Impl::draw(
                             common::core::openString(note) ? packAbgr(style.tail, 0.0) : edge,
                     };
                 };
-                // Split where the tip fade begins: alpha is linear on each side of the split,
-                // so two segments render the envelope exactly.
+                // Split at each corner of the envelope — where the onset ramp finishes and where
+                // the tip fade begins — because alpha is linear only BETWEEN them. Interpolating
+                // across a corner would draw a straight ramp over the whole tail instead of a
+                // short rise, which is exactly the bug a two-segment split hid once the onset
+                // ramp existed.
+                const double body_begin =
+                    std::clamp(note.start_seconds + g_tail_onset_fade_seconds, tail_from, tail_to);
                 const double fade_begin_seconds =
                     note.end_seconds - (duration * g_tail_tip_fade_fraction);
-                const double body_end = std::clamp(fade_begin_seconds, tail_from, tail_to);
-                if (body_end > tail_from)
-                {
-                    pushRibbonSegment(
-                        rail_vertices,
-                        rail_indices,
-                        band[0],
-                        band[1],
-                        band[2],
-                        band[3],
-                        ribbon_end(tail_from),
-                        ribbon_end(body_end));
-                }
-                if (tail_to > body_end)
-                {
-                    pushRibbonSegment(
-                        rail_vertices,
-                        rail_indices,
-                        band[0],
-                        band[1],
-                        band[2],
-                        band[3],
-                        ribbon_end(body_end),
-                        ribbon_end(tail_to));
-                }
+                const double body_end = std::clamp(fade_begin_seconds, body_begin, tail_to);
+                const auto push_span = [&](const double from_seconds, const double to_seconds) {
+                    if (to_seconds > from_seconds)
+                    {
+                        pushRibbonSegment(
+                            rail_vertices,
+                            rail_indices,
+                            band[0],
+                            band[1],
+                            band[2],
+                            band[3],
+                            ribbon_end(from_seconds),
+                            ribbon_end(to_seconds));
+                    }
+                };
+                push_span(tail_from, body_begin);
+                push_span(body_begin, body_end);
+                push_span(body_end, tail_to);
             }
             else if (band_valid)
             {
@@ -3461,6 +3501,11 @@ void HighwayRenderer::Impl::draw(
                         }
                     }
                 }
+                // The onset ramp's own corner, handed to the sampler for the reason the wobble
+                // turning points are: the alpha envelope bends there, and a uniform grid that
+                // steps over a 0.05 s corner rounds the rise into whatever its spacing happens
+                // to be.
+                wobble_times.push_back(note.start_seconds + g_tail_onset_fade_seconds);
                 std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
                     note, tail_from, tail_to, uniform_count, wobble_times);
                 if (open_band_moves)
@@ -3867,35 +3912,31 @@ void HighwayRenderer::Impl::draw(
                 open_bar_thickness);
             if (common::core::isAccented(note.emphasis))
             {
-                // The same nested-band light the fretted head wears, laid along the bar: its
-                // reach is the candidate's own, so both silhouettes gain the accent at one
-                // weight instead of each carrying its own idea of loud.
+                // The same two-stage rim the fretted head wears, laid along the bar. An open
+                // note has no art to redraw, so its light is plain geometry — but the reaches
+                // and alphas are the candidate's own, measured from the BAR's real thickness,
+                // so both silhouettes gain the accent at one weight rather than each carrying
+                // its own idea of loud.
                 const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
-                const double bar_half_h = g_open_note_middle_half_thickness;
-                double previous = 0.0;
-                for (std::size_t band = 0; band < g_accent_light_bands; ++band)
-                {
-                    const double t = 1.0 - (static_cast<double>(band) /
-                                            static_cast<double>(g_accent_light_bands));
-                    const double profile =
-                        light.peak_alpha * std::pow(1.0 - t, light.falloff_exponent);
-                    const double step = profile - previous;
-                    previous = profile;
-                    if (!(step > 0.0))
+                const ArgbColor rim_color = mixArgb(base_color, 0xFFFFFFFFU, light.white_mix);
+                const auto push_bar_rim = [&](const double reach_texels, const double alpha) {
+                    if (!(alpha > 0.0) || !(reach_texels > 0.0))
                     {
-                        continue;
+                        return;
                     }
-                    const double half_h = bar_half_h + (light.reach_y * t);
-                    const std::uint32_t light_tint =
-                        packAbgr(mixArgb(base_color, 0xFFFFFFFFU, light.white_mix), fade * step);
+                    const double half_h =
+                        g_open_note_middle_half_thickness + (reach_texels * g_head_art_texel_world);
+                    const std::uint32_t rim_tint = packAbgr(rim_color, fade * alpha);
                     pushQuad(
                         accent_vertices,
                         accent_indices,
-                        makeVertex(x0, head_y - half_h, z, light_tint),
-                        makeVertex(x1, head_y - half_h, z, light_tint),
-                        makeVertex(x1, head_y + half_h, z, light_tint),
-                        makeVertex(x0, head_y + half_h, z, light_tint));
-                }
+                        makeVertex(x0, head_y - half_h, z, rim_tint),
+                        makeVertex(x1, head_y - half_h, z, rim_tint),
+                        makeVertex(x1, head_y + half_h, z, rim_tint),
+                        makeVertex(x0, head_y + half_h, z, rim_tint));
+                };
+                push_bar_rim(light.ember_reach_texels, light.ember_alpha);
+                push_bar_rim(light.core_reach_texels, light.core_alpha);
             }
             // Technique markers at the window center (Charter's open-note overlay set).
             {
@@ -4076,42 +4117,6 @@ void HighwayRenderer::Impl::draw(
         const std::uint32_t tint =
             packAbgr(base_color, fade * head_slide.alpha * (ghosted ? ghost.marker_alpha : 1.0));
 
-        // The loud end is added LIGHT rather than art: nested filled quads, brightest at the
-        // note's own edge and dissolving outward, stacked additively so the visible profile is
-        // the falloff the candidate names. They nest rather than ring because the opaque head
-        // covers the stack's centre, which turns a ring of eight quads per band into one.
-        if (common::core::isAccented(note.emphasis))
-        {
-            const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
-            const double light_alpha = fade * head_slide.alpha;
-            double previous = 0.0;
-            for (std::size_t band = 0; band < g_accent_light_bands; ++band)
-            {
-                // Bands walk outside in, so each adds only what the profile gains over the band
-                // outside it and the sum lands on the falloff exactly at every step.
-                const double t =
-                    1.0 - (static_cast<double>(band) / static_cast<double>(g_accent_light_bands));
-                const double profile = light.peak_alpha * std::pow(1.0 - t, light.falloff_exponent);
-                const double step = profile - previous;
-                previous = profile;
-                if (!(step > 0.0))
-                {
-                    continue;
-                }
-                const double half_w = head_half_w_drawn + (light.reach_x * t);
-                const double half_h = head_half_h_drawn + (light.reach_y * t);
-                const std::uint32_t light_tint =
-                    packAbgr(mixArgb(base_color, 0xFFFFFFFFU, light.white_mix), light_alpha * step);
-                pushQuad(
-                    accent_vertices,
-                    accent_indices,
-                    makeVertex(x - half_w, head_y - half_h, z, light_tint),
-                    makeVertex(x + half_w, head_y - half_h, z, light_tint),
-                    makeVertex(x + half_w, head_y + half_h, z, light_tint),
-                    makeVertex(x - half_w, head_y + half_h, z, light_tint));
-            }
-        }
-
         // Head base: the round node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
         // else the technique variant under left-hand technique markers and under a scrape — its
@@ -4143,6 +4148,60 @@ void HighwayRenderer::Impl::draw(
             corner(head_half_w_drawn, -head_half_h_drawn, base_cell[2], base_cell[3]),
             corner(head_half_w_drawn, head_half_h_drawn, base_cell[2], base_cell[1]),
             corner(-head_half_w_drawn, head_half_h_drawn, base_cell[0], base_cell[1]));
+
+        // The loud end is added LIGHT: this same art redrawn on slightly larger quads, a faint
+        // ember and a hot core, into a batch that submits BEFORE the heads so the light sits
+        // under the note. Redrawing the ART rather than laying plain geometry is what makes it a
+        // rim: it inherits the silhouette, the rounded corners and the authored antialiasing
+        // exactly, so the light's edge and the note's edge coincide — and the eye takes a glow's
+        // boundary at its steepest gradient, which is what decides whether the light BELONGS to
+        // the note or merely surrounds it.
+        //
+        // Reach is measured against the ART's extents, never the quad's. The quad is nearly
+        // three times the art's height, so a reach added to the quad started three head-heights
+        // out and read as a lit box the note sat inside — the whole reason the first attempt
+        // looked wrong.
+        if (common::core::isAccented(note.emphasis))
+        {
+            const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
+            const ArgbColor rim_color = mixArgb(base_color, 0xFFFFFFFFU, light.white_mix);
+            const auto push_rim = [&](const double reach_texels, const double alpha) {
+                if (!(alpha > 0.0) || !(reach_texels > 0.0))
+                {
+                    return;
+                }
+                // Per axis: a uniform reach in texels around a rectangle three times wider than
+                // it is tall is not a uniform scale of the quad.
+                const double grow_w =
+                    (g_head_art_half_width + (reach_texels * g_head_art_texel_world)) /
+                    g_head_art_half_width;
+                const double grow_h =
+                    (g_head_art_half_height + (reach_texels * g_head_art_texel_world)) /
+                    g_head_art_half_height;
+                const double half_w = head_half_w_drawn * grow_w;
+                const double half_h = head_half_h_drawn * grow_h;
+                const std::uint32_t rim_tint = packAbgr(rim_color, fade * head_slide.alpha * alpha);
+                const auto rim_corner =
+                    [&](const double dx, const double dy, const float u, const float v) {
+                        return makeUvVertex(
+                            x + (dx * cos_r) - (dy * sin_r),
+                            head_y + (dx * sin_r) + (dy * cos_r),
+                            z,
+                            rim_tint,
+                            u,
+                            v);
+                    };
+                pushQuad(
+                    accent_head_vertices,
+                    accent_head_indices,
+                    rim_corner(-half_w, -half_h, base_cell[0], base_cell[3]),
+                    rim_corner(half_w, -half_h, base_cell[2], base_cell[3]),
+                    rim_corner(half_w, half_h, base_cell[2], base_cell[1]),
+                    rim_corner(-half_w, half_h, base_cell[0], base_cell[1]));
+            };
+            push_rim(light.ember_reach_texels, light.ember_alpha);
+            push_rim(light.core_reach_texels, light.core_alpha);
+        }
 
         // The rim a dimmed fill keeps, so a ghost's silhouette cannot degrade into a ragged core
         // while its interior quiets — the failure that reads as a bug rather than as dynamics.
