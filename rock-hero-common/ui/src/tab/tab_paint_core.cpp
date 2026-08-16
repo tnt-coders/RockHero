@@ -29,14 +29,9 @@ const juce::Colour g_note_background_color{0xff101010};     // NOTE_BACKGROUND
 const juce::Colour g_hand_shape_color{0xff3157a7};          // HAND_SHAPE
 const juce::Colour g_hand_shape_arpeggio_color{0xff8559b7}; // HAND_SHAPE_ARPEGGIO
 const juce::Colour g_vibrato_sine_color{0xffb6b6b6};        // java Color.GRAY.brighter()
-// The arpeggio posture digit's ink: the same Charter grey the vibrato sine uses, chosen here for
-// its own reason. A posture digit must read on every string, and the per-string inks do not: the
-// bracket's own fill measures barely 18 peak dL* against the lane band on the red string (and a
-// couple of dL* against a note's ring), where this neutral holds 67 on all six. It is also NOT
-// white, which is what keeps the posture from reading as a struck fret number.
-const juce::Colour g_mute_border_color{0xff808080};     // java Color.GRAY
-const juce::Colour g_full_mute_text_border{0xffc0c0c0}; // java Color.LIGHT_GRAY
-const juce::Colour g_palm_mute_inner_color{0xff050505}; // palm-mute X fill
+const juce::Colour g_mute_border_color{0xff808080};         // java Color.GRAY
+const juce::Colour g_full_mute_text_border{0xffc0c0c0};     // java Color.LIGHT_GRAY
+const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
 
 // The lane's hand axis (55-Q1): a mark's hand signature is its FILL POLARITY, not its shape —
 // dark ink marks the picking hand, light ink the fretting hand, exactly as the legato triangles
@@ -71,12 +66,9 @@ struct PlatePalette
 // sides are 47.7 dark and 47.6 light, against 48.9 / 46.4 for the mid-grey that preceded it.
 const juce::Colour g_plate_rim{0xff7d7d7d};
 
-[[nodiscard]] PlatePalette platePalette(const Hand hand)
-{
-    return hand == Hand::Picking
-               ? PlatePalette{.fill = juce::Colours::black, .ink = juce::Colours::white}
-               : PlatePalette{.fill = juce::Colours::white, .ink = juce::Colours::black};
-}
+// Defined below the ink set it reads from; see \ref StringStyle.
+struct StringStyle;
+[[nodiscard]] PlatePalette platePalette(const StringStyle& style, Hand hand);
 
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
@@ -118,17 +110,56 @@ constexpr int g_arpeggio_posture_gap{1};
     return juce::Colour{multiplyColor(color.getARGB(), multiplier)};
 }
 
+/*!
+\brief Every ink one note can be drawn with, per-string and neutral alike.
+
+ONE authority. The per-string half of this list is the Charter derivation chain; the neutral half
+is the greys and whites the technique marks were reaching for directly, from the constants above.
+Both halves were always a note's ink — they were simply held in two places, so anything that had
+to act on ALL of a note's ink (the emphasis axis is the first, and it will not be the last) had no
+single place to act. Naming them one set is what makes \ref StringStyle::quieted possible without
+a factor threaded through every drawing helper.
+*/
+enum class Ink : std::uint8_t
+{
+    Lane,        // string line: base x0.8
+    BorderInner, // note ring: lane brightened
+    Inner,       // note fill: ring darkened twice
+    LinkedInner, // linked-note fill: the fill darkened twice more
+    Tail,        // sustain fill: the linked-note fill (see the constructor)
+    TailEdge,    // sustain border: the authority's bright x0.66 tail, brightened
+    Accent,      // accent glow: ring brightened, hue-preserving
+
+    HeadBacking,    // the head's outermost layer, which melts into the dark lane
+    Digit,          // fret numbers, on the head and on the floating chips
+    TechniqueLine,  // slide diagonals and the bend polyline
+    VibratoSine,    // the sine riding a tail
+    MuteBorder,     // the mute X's outline, and a palm mute's number plate
+    MuteTextBorder, // a full mute's number-plate outline
+    PalmMuteInner,  // the palm mute X's fill
+    PlateRim,       // every letter plate's rim, both hands
+    PlateDark,      // the picking hand's plate fill and the fretting hand's letter ink
+    PlateLight,     // the fretting hand's plate fill and the picking hand's letter ink
+
+    Count
+};
+
+// The two tail inks, which quiet LESS than the rest of the note (see \ref StringStyle::quieted).
+[[nodiscard]] constexpr bool isSustainInk(const Ink ink)
+{
+    return ink == Ink::Tail || ink == Ink::TailEdge;
+}
+
 // Bridges the shared Charter-exact style derivation to JUCE colors at this module's boundary;
-// field meanings match common::ui::StringLaneStyle one for one.
+// the per-string entries match common::ui::StringLaneStyle one for one.
 struct StringStyle
 {
-    juce::Colour lane;         // string line: base x0.8
-    juce::Colour border_inner; // note ring: lane brightened
-    juce::Colour inner;        // note fill: ring darkened twice
-    juce::Colour linked_inner; // linked-note fill: the fill darkened twice more
-    juce::Colour tail;         // sustain fill: the linked-note fill (see the constructor)
-    juce::Colour tail_edge;    // sustain border: the authority's bright x0.66 tail, brightened
-    juce::Colour accent;       // accent glow: ring brightened, hue-preserving
+    std::array<juce::Colour, static_cast<std::size_t>(Ink::Count)> inks;
+
+    [[nodiscard]] juce::Colour operator[](const Ink ink) const
+    {
+        return inks.at(static_cast<std::size_t>(ink));
+    }
 
     explicit StringStyle(juce::Colour base)
         : StringStyle(StringLaneStyle{base.getARGB()})
@@ -143,27 +174,114 @@ struct StringStyle
     // it). The edge keeps the authority's derivation untouched: it carries string identity and
     // says the note rings, and keeping it bright is what lets the fill go this dark.
     explicit StringStyle(const StringLaneStyle& style)
-        : lane(style.lane)
-        , border_inner(style.border_inner)
-        , inner(style.inner)
-        , linked_inner(style.linked_inner)
-        , tail(style.linked_inner)
-        , tail_edge(style.tail_edge)
-        , accent(style.accent)
-    {}
+        : inks{
+              juce::Colour{style.lane},
+              juce::Colour{style.border_inner},
+              juce::Colour{style.inner},
+              juce::Colour{style.linked_inner},
+              juce::Colour{style.linked_inner},
+              juce::Colour{style.tail_edge},
+              juce::Colour{style.accent},
+              g_note_background_color,
+              juce::Colours::white,
+              juce::Colours::white,
+              g_vibrato_sine_color,
+              g_mute_border_color,
+              g_full_mute_text_border,
+              g_palm_mute_inner_color,
+              g_plate_rim,
+              juce::Colours::black,
+              juce::Colours::white,
+          }
+    {
+        // An ink the list forgot would be default-constructed — fully transparent — and would
+        // then draw NOTHING, silently, wherever it was used. No real ink is transparent, so
+        // transparency is a sound sentinel for "never filled in", and this turns the one hazard
+        // of an array-shaped palette into a debug failure instead of a mark that vanishes.
+        assert(
+            std::ranges::none_of(inks, [](const juce::Colour ink) { return ink.isTransparent(); }));
+    }
+
+    /*!
+    \brief This string's ink set with a ghost's quiet taken out of it.
+
+    Quiet on THIS surface means leaning toward the lane's own ground, not translucency. The lane
+    is opaque and composites by covering — a translucent note would show its own sustain ribbon,
+    the lane line and a chord box's fill through itself — and the same divergence is already
+    signed for tails in the constructor above. Leaning is the identical weight spent the way this
+    surface actually composites, which is why nothing here needs a knockout, a fade-in or an
+    offscreen layer to stay correct.
+
+    Applied to EVERY ink at once, so a mark added later is quiet by construction rather than by
+    remembering to quiet it. \ref Ink::HeadBacking is self-correcting: the ground leaned toward
+    the ground is the ground.
+
+    \param head_ground How far the note's own ink leans toward the lane's ground.
+    \param sustain_ground How far the sustain's two inks lean; a ghost is an ATTACK dynamic rather
+    than a sustain one, so the ribbon keeps more of itself than the head that starts it. Same
+    split, same reason, as the highway's head_alpha against its tail_alpha.
+    \return The quieted ink set.
+    */
+    [[nodiscard]] StringStyle quieted(const float head_ground, const float sustain_ground) const
+    {
+        StringStyle quiet = *this;
+        for (std::size_t index = 0; index < quiet.inks.size(); ++index)
+        {
+            juce::Colour& ink = quiet.inks.at(index);
+            ink = ink.interpolatedWith(
+                g_note_background_color,
+                isSustainInk(static_cast<Ink>(index)) ? sustain_ground : head_ground);
+        }
+        return quiet;
+    }
 };
 
-// Every per-string style one paint can need, indexed by chart string minus one. A StringStyle is a
-// palette lookup plus Charter's whole derivation chain and depends on nothing but the string, so
-// the tail, bracket and head passes index this table rather than rebuilding it per note. Sized by
-// the chart-string cap, which needs no precondition on the chart's own string count.
-[[nodiscard]] std::vector<StringStyle> makeLaneStyles(const TabLaneMetrics& metrics)
+PlatePalette platePalette(const StringStyle& style, const Hand hand)
 {
-    std::vector<StringStyle> styles;
-    styles.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
+    return hand == Hand::Picking
+               ? PlatePalette{.fill = style[Ink::PlateDark], .ink = style[Ink::PlateLight]}
+               : PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]};
+}
+
+// A ghost's quiet, as the fraction of the lane's ground mixed into the note's ink. These are the
+// highway's sighted half-light weights read as ground rather than as alpha (its head_alpha 0.45
+// and tail_alpha 0.65 leave exactly this much of the dark world showing through), so the two
+// surfaces say the same thing about the same note.
+constexpr float g_ghost_head_ground{0.55f};
+constexpr float g_ghost_sustain_ground{0.35f};
+
+// Every per-string style one paint can need, in both dynamics a note can be drawn at. A
+// StringStyle is a palette lookup plus Charter's whole derivation chain, and its ghost is that
+// chain leaned toward the ground; both depend on nothing but the string and the emphasis, so the
+// tail, bracket and head passes index this table rather than rebuilding it per note. Sized by the
+// chart-string cap, which needs no precondition on the chart's own string count.
+struct LaneStyles
+{
+    std::vector<StringStyle> normal;
+    std::vector<StringStyle> ghost;
+
+    // Clamped like the palette itself, which cycles defensively past its tiers: a string outside
+    // the chart's range is already drawn off the lane band by laneY, so it wants a color here, not
+    // a branch.
+    [[nodiscard]] const StringStyle& operator()(
+        const int chart_string, const common::core::NoteEmphasis emphasis) const
+    {
+        const auto index = static_cast<std::size_t>(
+            std::clamp(chart_string, 1, common::core::g_max_chart_strings) - 1);
+        return emphasis == common::core::NoteEmphasis::Ghost ? ghost[index] : normal[index];
+    }
+};
+
+[[nodiscard]] LaneStyles makeLaneStyles(const TabLaneMetrics& metrics)
+{
+    LaneStyles styles;
+    styles.normal.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
+    styles.ghost.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
     for (int chart_string = 1; chart_string <= common::core::g_max_chart_strings; ++chart_string)
     {
-        styles.emplace_back(metrics.baseColor(chart_string));
+        styles.normal.emplace_back(metrics.baseColor(chart_string));
+        styles.ghost.push_back(
+            styles.normal.back().quieted(g_ghost_head_ground, g_ghost_sustain_ground));
     }
     return styles;
 }
@@ -175,6 +293,13 @@ struct LabelChip
     juce::String text;
     juce::Colour background;
     juce::Colour border;
+
+    // The chip carries its own text ink rather than reaching for white at draw time. Chips are
+    // collected during the tail pass and drawn LAST, above every head, so by then the note they
+    // belong to is long out of scope — and a chip whose ink is decided at draw time is a chip
+    // that cannot be quieted with its note. Filling it here from the note's own ink set is what
+    // makes a ghost's slide fret and bend amount fade with the ghost.
+    juce::Colour ink;
 };
 
 // The note head sounding on this string exactly at the span start, or nullptr when the string is
@@ -408,12 +533,12 @@ void drawTremoloTail(
 
     juce::Path edge_band;
     add_band(edge_band, 0.0f);
-    g.setColour(style.tail_edge);
+    g.setColour(style[Ink::TailEdge]);
     g.fillPath(edge_band);
 
     juce::Path inner_band;
     add_band(inner_band, metrics.tail_edge_size);
-    g.setColour(style.tail);
+    g.setColour(style[Ink::Tail]);
     g.fillPath(inner_band);
 }
 
@@ -452,7 +577,7 @@ void drawNoteTail(
         // The fill covers the whole envelope and the rails lay over its top and bottom — every
         // color here is opaque, so painting the rails over the fill is the same pixels as
         // abutting them, without the two rectangles having to agree on a seam.
-        g.setColour(style.tail);
+        g.setColour(style[Ink::Tail]);
         g.fillRect(
             juce::Rectangle<float>{
                 onset_x - 1.0f, span.top, length + 1.0f, span.bottom - span.top
@@ -460,7 +585,7 @@ void drawNoteTail(
         // Top and bottom rails only — no end cap. A tail that simply stops has nothing to cap, and
         // the 3D highway draws none, so capping it is a 2D-only flourish that also boxes in
         // whatever mark sits at the tail's end. The left edge is omitted too: the head covers it.
-        g.setColour(style.tail_edge);
+        g.setColour(style[Ink::TailEdge]);
         const float thickness = metrics.tail_edge_size;
         g.fillRect(juce::Rectangle<float>{onset_x, span.top, length, thickness});
         g.fillRect(juce::Rectangle<float>{onset_x, span.bottom - thickness, length, thickness});
@@ -491,8 +616,8 @@ struct TailInterior
 // mark RIDING the tail rather than the tail's own body, and the caller clips the technique marks
 // against the arpeggio brackets while the ribbon shows through them untouched.
 void drawVibratoSine(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView& note,
-    double hold_end_seconds, float onset_x, float center_y)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::TabNoteView& note, double hold_end_seconds, float onset_x, float center_y)
 {
     const float length = metrics.x(hold_end_seconds) - onset_x;
     if (!note.vibrato || length <= 0.0f)
@@ -536,7 +661,7 @@ void drawVibratoSine(
             wave.lineTo(point);
         }
     }
-    g.setColour(g_vibrato_sine_color);
+    g.setColour(style[Ink::VibratoSine]);
     g.strokePath(wave, juce::PathStrokeType{stroke});
 }
 
@@ -671,8 +796,8 @@ constexpr std::array<juce::Point<float>, 16> g_plectrum_half_outline{
 // shipping beside it. The plectrum's rings are therefore the family's middle case, 1.0222x the
 // diamond's — 1.2529 px against 1.2257 px at a 25 px note height.
 void fillHeadShape(
-    juce::Graphics& g, juce::Colour border_inner, juce::Colour inner, float center_x,
-    float center_y, float size, HeadShape shape)
+    juce::Graphics& g, const StringStyle& style, juce::Colour border_inner, juce::Colour inner,
+    float center_x, float center_y, float size, HeadShape shape)
 {
     const float border = std::max(1.0f, size / 15.0f);
 
@@ -705,7 +830,7 @@ void fillHeadShape(
         }
     };
 
-    layer(0.0f, g_note_background_color);
+    layer(0.0f, style[Ink::HeadBacking]);
     layer(border, border_inner);
     layer(border * 2.0f, inner);
 }
@@ -753,7 +878,7 @@ void drawSlideLines(
         const float to_y =
             upward ? interior.top + line_thickness / 2.0f : interior.bottom - line_thickness / 2.0f;
 
-        g.setColour(juce::Colours::white);
+        g.setColour(style[Ink::TechniqueLine]);
         g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
 
         // A junction that carries a continuation head shows its fret ON the head, so the chip
@@ -770,8 +895,9 @@ void drawSlideLines(
                     // NODES everywhere else on the gesture, and one gesture must not state two
                     // different quantities. (A scrape is unaffected — the writer strips its node.)
                     .text = tabNoteHeadText(note, waypoint.fret),
-                    .background = charterDarker(charterDarker(charterDarker(style.tail))),
-                    .border = style.tail,
+                    .background = charterDarker(charterDarker(charterDarker(style[Ink::Tail]))),
+                    .border = style[Ink::Tail],
+                    .ink = style[Ink::Digit],
                 });
         }
 
@@ -806,7 +932,8 @@ void drawSlideWaypointHeads(
 
         const float x = metrics.x(waypoint.seconds);
         const float size = metrics.headSize();
-        fillHeadShape(g, style.border_inner, style.linked_inner, x, center_y, size, shape);
+        fillHeadShape(
+            g, style, style[Ink::BorderInner], style[Ink::LinkedInner], x, center_y, size, shape);
         if (metrics.draw_text)
         {
             // A junction labels its own stop through the SAME rule the onset head uses, so one
@@ -817,7 +944,7 @@ void drawSlideWaypointHeads(
             // plectrum numbers on one gesture cannot sit at different heights.
             const float digit_raise =
                 shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
-            g.setColour(juce::Colours::white);
+            g.setColour(style[Ink::Digit]);
             g.setFont(metrics.fret_font);
             g.drawText(
                 text,
@@ -855,10 +982,10 @@ void drawBendLines(
         return rest_y - static_cast<float>(steps / 3.0) * (rest_y - full_y);
     };
 
-    const juce::Colour chip_background = charterDarker(charterDarker(style.lane));
+    const juce::Colour chip_background = charterDarker(charterDarker(style[Ink::Lane]));
     const float end_x = metrics.x(note.end_seconds);
     juce::Point<float> last{onset_x, bend_y(0.0)};
-    g.setColour(juce::Colours::white);
+    g.setColour(style[Ink::TechniqueLine]);
     for (const common::core::TabBendPointView& point : note.bend)
     {
         const juce::Point<float> to{metrics.x(point.seconds), bend_y(point.semitones)};
@@ -877,6 +1004,7 @@ void drawBendLines(
                             charterBendText(point.semitones),
                     .background = chip_background,
                     .border = chip_background,
+                    .ink = style[Ink::Digit],
                 });
         }
         last = {to.x + 1.0f, to.y};
@@ -908,23 +1036,23 @@ void drawAccentGlow(
             outline.lineTo(center_x, center_y + extent / 2.0f);
             outline.lineTo(center_x - extent / 2.0f, center_y);
             outline.closeSubPath();
-            g.setColour(style.accent.withAlpha(1.0f - 0.25f * static_cast<float>(ring)));
+            g.setColour(style[Ink::Accent].withAlpha(1.0f - 0.25f * static_cast<float>(ring)));
             g.strokePath(outline, juce::PathStrokeType{glow_size * 0.05f});
         }
         return;
     }
 
     juce::ColourGradient gradient{
-        style.accent,
+        style[Ink::Accent],
         center_x,
         center_y,
-        style.accent.withAlpha(0.0f),
+        style[Ink::Accent].withAlpha(0.0f),
         center_x,
         center_y + glow_size / 2.0f,
         true
     };
-    gradient.addColour(0.8, style.accent);
-    gradient.addColour(0.95, style.accent.withAlpha(0.0f));
+    gradient.addColour(0.8, style[Ink::Accent]);
+    gradient.addColour(0.95, style[Ink::Accent].withAlpha(0.0f));
     g.setGradientFill(gradient);
     g.fillEllipse(center_x - glow_size / 2.0f, center_y - glow_size / 2.0f, glow_size, glow_size);
 }
@@ -932,8 +1060,8 @@ void drawAccentGlow(
 // Draws Charter's fat X mute icon over the head: near-black for palm mutes, white for full
 // mutes, both with a gray border.
 void drawMuteIcon(
-    juce::Graphics& g, const TabLaneMetrics& metrics, common::core::NoteMute mute, float center_x,
-    float center_y)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    common::core::NoteMute mute, float center_x, float center_y)
 {
     if (mute == common::core::NoteMute::None)
     {
@@ -965,10 +1093,10 @@ void drawMuteIcon(
     x_shape.closeSubPath();
 
     const juce::Colour inner =
-        mute == common::core::NoteMute::Full ? juce::Colours::white : g_palm_mute_inner_color;
+        mute == common::core::NoteMute::Full ? style[Ink::PlateLight] : style[Ink::PalmMuteInner];
     g.setColour(inner);
     g.fillPath(x_shape);
-    g.setColour(g_mute_border_color);
+    g.setColour(style[Ink::MuteBorder]);
     g.strokePath(x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
 }
 
@@ -1046,16 +1174,16 @@ void drawTriangleIcon(
 // only about half the number the font was asked for, and a plate smaller than that ink would
 // spill the letter over its edges the way the triangles did.
 void drawLetterPlate(
-    juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<float> plate, const Hand hand,
-    const juce::String& letters)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    juce::Rectangle<float> plate, const Hand hand, const juce::String& letters)
 {
     const float border = std::max(1.0f, plate.getHeight() / 9.0f);
     const float radius = plate.getHeight() * 0.22f;
-    const PlatePalette palette = platePalette(hand);
+    const PlatePalette palette = platePalette(style, hand);
 
     g.setColour(palette.fill);
     g.fillRoundedRectangle(plate, radius);
-    g.setColour(g_plate_rim);
+    g.setColour(style[Ink::PlateRim]);
     g.drawRoundedRectangle(plate, radius, border);
 
     const float ink = metrics.fret_font.getHeight() * g_capital_ink_fraction;
@@ -1069,13 +1197,14 @@ void drawLetterPlate(
 
 // The square single-capital case the three picking-hand attacks share.
 void drawLetterBadge(
-    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
-    const Hand hand, const juce::String& letter)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float center_x,
+    float center_y, const Hand hand, const juce::String& letter)
 {
     const float side = metrics.note_height * g_letter_badge_fraction;
     drawLetterPlate(
         g,
         metrics,
+        style,
         juce::Rectangle<float>{center_x - side / 2.0f, center_y - side / 2.0f, side, side},
         hand,
         letter);
@@ -1131,8 +1260,8 @@ constexpr float g_chip_letter_clearance = 1.0f;
 // with all three boxes level, it READS as further from the head than the other two. Only the
 // hammer-on needs the correction below, because only its lowest ink stops short of its box.
 void drawAttackIcon(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView& note,
-    float center_x, float center_y)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::TabNoteView& note, float center_x, float center_y)
 {
     // The apex sits at (corner_x - width/2, corner_y) and the corner is tuck from the head's
     // center on both axes, so putting the apex on the rim is solving
@@ -1183,8 +1312,8 @@ void drawAttackIcon(
                     triangle.x + (apex_inset * g_optical_inset_correction),
                     triangle.y,
                     true,
-                    juce::Colours::white,
-                    juce::Colours::black);
+                    style[Ink::PlateLight],
+                    style[Ink::PlateDark]);
             }
             else if (note.legato == common::core::LegatoMotion::Pull)
             {
@@ -1194,8 +1323,8 @@ void drawAttackIcon(
                     triangle.x,
                     triangle.y,
                     false,
-                    juce::Colours::white,
-                    juce::Colours::black);
+                    style[Ink::PlateLight],
+                    style[Ink::PlateDark]);
             }
             break;
         }
@@ -1207,22 +1336,22 @@ void drawAttackIcon(
             // deliberate statements is information a charter reads constantly, so the lane says
             // it always. The light plate shares the T because it is the same gesture; the
             // polarity names the hand, per the axis above.
-            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Fretting, "T");
+            drawLetterBadge(g, metrics, style, badge.x, badge.y, Hand::Fretting, "T");
             break;
         }
         case common::core::NoteAttack::Tap:
         {
-            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Picking, "T");
+            drawLetterBadge(g, metrics, style, badge.x, badge.y, Hand::Picking, "T");
             break;
         }
         case common::core::NoteAttack::Slap:
         {
-            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Picking, "S");
+            drawLetterBadge(g, metrics, style, badge.x, badge.y, Hand::Picking, "S");
             break;
         }
         case common::core::NoteAttack::Pop:
         {
-            drawLetterBadge(g, metrics, badge.x, badge.y, Hand::Picking, "P");
+            drawLetterBadge(g, metrics, style, badge.x, badge.y, Hand::Picking, "P");
             break;
         }
         case common::core::NoteAttack::PickSlide:
@@ -1238,6 +1367,7 @@ void drawAttackIcon(
             drawLetterPlate(
                 g,
                 metrics,
+                style,
                 juce::Rectangle<float>{
                     chip.x - (width / 2.0f), chip.y - (badge_side / 2.0f), width, badge_side
                 },
@@ -1269,12 +1399,13 @@ void drawNoteHead(
         drawAccentGlow(g, style, onset_x, center_y, size, shape);
     }
 
-    fillHeadShape(g, style.border_inner, style.inner, onset_x, center_y, size, shape);
+    fillHeadShape(
+        g, style, style[Ink::BorderInner], style[Ink::Inner], onset_x, center_y, size, shape);
 
     if (note.attack == common::core::NoteAttack::Pinch)
     {
         const float line_x = onset_x - metrics.note_height / 2.0f;
-        g.setColour(style.border_inner);
+        g.setColour(style[Ink::BorderInner]);
         g.fillRect(
             juce::Rectangle<float>{
                 line_x - 1.5f, center_y - metrics.note_height / 2.0f, 3.0f, metrics.note_height
@@ -1285,7 +1416,7 @@ void drawNoteHead(
     // one note and another elsewhere is a mark the reader has to disambiguate; the plectrum
     // silhouette already says what a scrape is. The chart rules reject a mute on a pick-slide
     // note outright, so a scrape passes None here and draws no X at all.
-    drawMuteIcon(g, metrics, note.mute, onset_x, center_y);
+    drawMuteIcon(g, metrics, style, note.mute, onset_x, center_y);
 
     if (metrics.draw_text)
     {
@@ -1303,16 +1434,16 @@ void drawNoteHead(
                 text_width + 4.0f,
                 metrics.fret_font.getHeight() + 2.0f
             };
-            g.setColour(full_mute ? g_mute_border_color : g_palm_mute_inner_color);
+            g.setColour(full_mute ? style[Ink::MuteBorder] : style[Ink::PalmMuteInner]);
             g.fillRect(box);
-            g.setColour(full_mute ? g_full_mute_text_border : g_mute_border_color);
+            g.setColour(full_mute ? style[Ink::MuteTextBorder] : style[Ink::MuteBorder]);
             g.drawRect(box, 1.0f);
         }
         // Only the plectrum moves its digit: the disc and the diamond are widest on the string
         // line, so their numbers stay centered on it.
         const float digit_raise =
             shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
-        g.setColour(juce::Colours::white);
+        g.setColour(style[Ink::Digit]);
         g.setFont(metrics.fret_font);
         g.drawText(
             head_text,
@@ -1322,7 +1453,7 @@ void drawNoteHead(
             juce::Justification::centred);
     }
 
-    drawAttackIcon(g, metrics, note, onset_x, center_y);
+    drawAttackIcon(g, metrics, style, note, onset_x, center_y);
 }
 
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
@@ -1654,14 +1785,7 @@ void paintTabLane(
         }
     }
 
-    const std::vector<StringStyle> lane_styles = makeLaneStyles(metrics);
-    // Clamped like the palette itself, which cycles defensively past its tiers: a string outside
-    // the chart's range is already drawn off the lane band by laneY, so it wants a color here, not
-    // a branch.
-    const auto lane_style = [&lane_styles](const int chart_string) -> const StringStyle& {
-        return lane_styles[static_cast<std::size_t>(
-            std::clamp(chart_string, 1, common::core::g_max_chart_strings) - 1)];
-    };
+    const LaneStyles lane_styles = makeLaneStyles(metrics);
 
     const auto [first, last] =
         common::core::visibleEventRange(tab.notes, prefix_max_end_seconds, span_start, span_end);
@@ -1679,7 +1803,11 @@ void paintTabLane(
             continue;
         }
 
-        const StringStyle& style = lane_style(note.string);
+        // A ghost's quiet arrives HERE, as the note's whole ink set rather than as a factor
+        // each drawing helper has to remember. Everything the passes below draw for this note —
+        // ribbon, rails, diagonals, bend curve, sine, head, digits, plates, the deferred chips —
+        // reads its colour from this one object.
+        const StringStyle& style = lane_styles(note.string, note.emphasis);
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
         drawNoteTail(g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
@@ -1719,7 +1847,7 @@ void paintTabLane(
                     });
             }
         }
-        drawVibratoSine(g, metrics, note, tab.display_hold_ends[index], onset_x, center_y);
+        drawVibratoSine(g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
         drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
         drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
     }
@@ -1759,7 +1887,11 @@ void paintTabLane(
     const int bracket_serif = juce::roundToInt(bracket_size / 8.0f) + bracket_bar;
     for (const ArpeggioBracket& bracket : brackets)
     {
-        const StringStyle& style = lane_style(bracket.note.string);
+        // Posture brackets are SHAPE furniture, not a note's ink: they state where the hand is
+        // posted, which is as true under a ghosted strum as under any other. They take the plain
+        // style whatever the notes inside them are struck at.
+        const StringStyle& style =
+            lane_styles(bracket.note.string, common::core::NoteEmphasis::Normal);
         const float center_y = metrics.laneY(bracket.note.string);
         const int top = juce::roundToInt(center_y - bracket_half_height);
         const int bottom = juce::roundToInt(center_y + bracket_half_height);
@@ -1768,7 +1900,7 @@ void paintTabLane(
         // that reasoning inverts and the marks go dark-on-dark. The edge is the one value in the
         // string's palette already chosen to read against a tail, and it is left at full
         // brightness by the fill change, so it stays legible by construction.
-        const juce::Colour bracket_ink = style.tail_edge;
+        const juce::Colour bracket_ink = style[Ink::TailEdge];
 
         g.setColour(bracket_ink);
         g.fillRect(bracket.bar_left, top, bracket_bar, bottom - top);
@@ -1793,12 +1925,18 @@ void paintTabLane(
             // technique mark crosses its columns. Only the SIDE slot needs one — it sits outside
             // the bracket bars, past the clip that already keeps technique marks out of the
             // bracket's own columns, which is all the ground a centred digit requires.
+            //
+            // The ground is also what lets the digit below be plain white. A posture digit has to
+            // read on every string, and the per-string inks do not carry that on their own — the
+            // bracket's own fill measures barely 18 peak dL* against the lane band on the red
+            // string. Giving the digit a known ground answers that once, for all six strings,
+            // instead of hunting a neutral ink that clears every one of them.
             if (bracket.side_slot)
             {
                 const TailInterior interior = tailInterior(metrics, center_y);
                 const int patch_top = juce::roundToInt(interior.top);
                 const int patch_bottom = juce::roundToInt(interior.bottom);
-                g.setColour(style.tail);
+                g.setColour(style[Ink::Tail]);
                 g.fillRect(
                     bracket.bar_right,
                     patch_top,
@@ -1819,7 +1957,7 @@ void paintTabLane(
             continue;
         }
 
-        const StringStyle& style = lane_style(note.string);
+        const StringStyle& style = lane_styles(note.string, note.emphasis);
         const float center_y = metrics.laneY(note.string);
         drawSlideWaypointHeads(g, metrics, style, note, center_y);
         drawNoteHead(g, metrics, style, note, metrics.x(note.start_seconds), center_y);
@@ -1846,7 +1984,7 @@ void paintTabLane(
                     g.setColour(chip.border);
                     g.drawRect(box, 1.0f);
                 }
-                g.setColour(juce::Colours::white);
+                g.setColour(chip.ink);
                 g.drawText(chip.text, box, juce::Justification::centred);
             }
         };

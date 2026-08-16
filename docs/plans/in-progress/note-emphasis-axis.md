@@ -4,9 +4,10 @@ Status: **PARTLY BUILT 2026-08-15**, and moved here from `todo/` because it is n
 with live remaining items. Checklist items 1, 2 and 3 are shipped: `NoteEmphasis` replaces the
 `accent` bool through the format, both projections, and both surfaces; the document writes
 `"emphasis"` and refuses the old key loudly; the Guitar Pro importer maps `AntiAccent` to `Ghost`
-and both loud tiers to `Accent`. What remains is item 4's ghost RENDERING (accent and ghost
-appearances are being sampled live behind toggles — see `highway-note-art-state.md`), item 5's
-editing verb, item 6's detection touchpoint, and item 7's re-import.
+and both loud tiers to `Accent`. Item 4 is shipped for the 2D lane and still being sighted on the
+highway, where the accent and ghost appearances are sampled live behind toggles (see
+`highway-note-art-state.md`). What remains is that sighting, item 5's editing verb, item 6's
+detection touchpoint, and item 7's re-import.
 
 **Item 7 has a second producer nobody had counted.** The external converter tool under
 `custom-song-importer/tools/` writes these same chart documents and still emits `"accent": true`,
@@ -76,9 +77,35 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    suspected: it never read the element at all.
 3. ~~**Projections/views:**~~ **SHIPPED.** Both view types carry the emphasis value; the D4 scrape
    pass-through carried over unchanged.
-4. **Rendering:** ghost draws as a **partly transparent note head** (user's design) on both
-   surfaces; accent rendering unchanged (2D glow, 3D treatment). The 3D ghost treatment should
-   reuse the same transparency idea unless the highway pass finds it illegible.
+4. **Rendering:** **2D SHIPPED; 3D still being sighted.** Ghost draws quiet on both surfaces at
+   the same weight, but each surface spends that weight the way it actually composites — the
+   divergence the `StringStyle` constructor already signed for tails, now extended to the whole
+   axis. The highway keeps translucency over its dark world (`GhostStyle::head_alpha`, and a
+   sustain that rises from nothing over a fixed span at its onset so a ghost's ribbon emerges FROM
+   the head instead of showing through it). The 2D lane instead **leans every ink toward the
+   lane's own ground**, opaquely, which lands on the same numbers a translucent draw over that
+   ground would produce and costs none of what translucency costs on an opaque surface.
+
+   That 2D choice was reached by rejecting a JUCE transparency layer, and the reasons are worth
+   keeping because they are properties of this lane rather than of that API: a translucent head
+   reveals its own sustain ribbon, the lane line and a chord box's fill through itself (15–95
+   luma counts on the strings, measured); un-revealing it needs a knockout, which is a fourth
+   restatement of "a head covers its silhouette" and so condemns the design; the layer is sized to
+   the CLIP rather than to the note, and the tail body is deliberately drawn outside the technique
+   clip, so a tight layer is structurally impossible; and the deferred slide/bend label chips are
+   drawn after every head, outside any layer, so the loudest floating ink on a ghost would have
+   stayed at full strength.
+
+   The shape that made all of that go away was **generalizing the one ink authority that already
+   existed**. `StringStyle` held the per-string chain while a dozen file-scope greys and raw
+   whites held the rest, so nothing could act on ALL of a note's ink. Naming them one `Ink` set
+   makes `quieted()` a loop over that set: the head backing becomes self-correcting (the ground
+   leaned toward the ground is the ground), the chips close for free by carrying their own ink,
+   and a mark added later is quiet by construction. Authority count in that file went 2 → 1.
+
+   Accent rendering: the 2D glow is unchanged; 3D became a **rendered light** and the atlas ring
+   it replaces is retired (cell 3 of the head atlas is now empty), because a mark drawn on a head
+   could only ever say "accent" and could not be worn by an open string at all.
 5. **Editing verb:** the accent toggle (`A`) becomes a three-state concern — decide the grammar in
    the keymap doc when this executes (likely: `A` toggles Accent, a second key or modifier for
    Ghost; do NOT guess here).
