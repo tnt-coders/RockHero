@@ -1396,6 +1396,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // the same reason the verbs below do: a disabled command whose chord matches makes JUCE
         // play the system alert sound.
         case EditorCommandId::CycleAccentStyle:
+        case EditorCommandId::CycleTailEndStyle:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1584,6 +1585,14 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 m_preview_window->cycleAccentStyle();
             }
+            return true;
+        }
+
+        // EXPERIMENT SCAFFOLDING — sampling how a 2D sustain tail ends. Lives on the lane rather
+        // than the preview: this one is a 2D-only question.
+        case EditorCommandId::CycleTailEndStyle:
+        {
+            RH_LOG_INFO("editor.view", "2D tail end: {}", m_tab_view.cycleTailEndStyle());
             return true;
         }
 

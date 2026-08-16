@@ -90,6 +90,17 @@ enum class EditorCommandId : std::uint16_t
     */
     CycleAccentStyle = 0x1304,
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycle the 2D sustain tail's END treatment (`F10`).
+
+    Removing the tail's end cap left the slide and bend marks stopping a stroke short of the
+    ribbon, because that inset existed to meet the cap. Deleted with the candidate table once one
+    of the three ways out is chosen. Note the value reuses the id the retired ghost sampler held;
+    the keymap contract locks values against RE-USE for a different meaning, so this is a new
+    value rather than a revival.
+    */
+    CycleTailEndStyle = 0x1306,
+
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,

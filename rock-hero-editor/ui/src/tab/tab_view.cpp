@@ -70,6 +70,13 @@ void TabView::setContextMenuCallback(ContextMenuCallback callback)
 }
 
 // Applies the chart-editing overlay state; skipped repaints keep unrelated pushes cheap.
+std::string_view TabView::cycleTailEndStyle()
+{
+    m_tail_end_style = (m_tail_end_style + 1) % common::ui::tabTailEndStyleCount();
+    repaint();
+    return common::ui::tabTailEndStyleName(m_tail_end_style);
+}
+
 void TabView::setEditState(core::ChartEditViewState edit)
 {
     if (edit == m_edit)
@@ -253,7 +260,11 @@ void TabView::paint(juce::Graphics& g)
     const int displayed_count =
         common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
     const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
-        bounds, m_visible_timeline, displayed_count, m_tab->string_count);
+        bounds,
+        m_visible_timeline,
+        displayed_count,
+        m_tab->string_count,
+        common::ui::TabLaneStyle{.tail_end_style = m_tail_end_style});
     common::ui::paintTabLane(g, metrics, *m_tab, m_prefix_max_end_seconds);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:

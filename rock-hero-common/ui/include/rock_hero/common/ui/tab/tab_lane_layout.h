@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 
@@ -27,6 +28,17 @@ struct TabLaneStyle
     and smaller lanes shrink notes proportionally (laneHeight = 1.5 x noteHeight).
     */
     float max_note_height{25.0f};
+
+    /*!
+    \brief EXPERIMENT SCAFFOLDING: how a sustain tail ENDS, while one of three looks is chosen.
+
+    Index into the paint core's candidate table. Removing the end cap left the slide and bend
+    marks stopping short of the ribbon, because their endpoint inset existed to clear that cap;
+    the three candidates are the three honest ways out. The host cycles this with a keybind and
+    logs the result; when the user picks, the winner moves inline and this field, the table and
+    the command are deleted together.
+    */
+    std::size_t tail_end_style{0};
 };
 
 /*!
@@ -109,6 +121,9 @@ struct TabLaneGeometry
 
     /*! \brief Style ceiling the note height was derived under (visibility slack derives here). */
     float max_note_height{};
+
+    /*! \brief EXPERIMENT SCAFFOLDING: the tail-end look being sighted; see \ref TabLaneStyle. */
+    std::size_t tail_end_style{};
 
     /*! \brief True when notes are large enough to carry readable fret numbers. */
     bool draw_text{};

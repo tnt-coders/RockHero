@@ -69,6 +69,7 @@ TabLaneGeometry makeTabLaneGeometry(
     geometry.tail_edge_size = std::max(1.0f, geometry.tail_height / 8.0f);
     geometry.tremolo_size = std::max(2.0f, geometry.tail_height / 6.0f);
     geometry.max_note_height = style.max_note_height;
+    geometry.tail_end_style = style.tail_end_style;
     geometry.draw_text = geometry.note_height >= g_min_note_height_for_text;
     return geometry;
 }

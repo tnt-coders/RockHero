@@ -60,6 +60,12 @@ enum class HighwayShaderProgram : std::uint8_t
     weights hold exactly on boxes of any width.
     */
     BoxMute,
+
+    /*!
+    \brief The accent light: one continuous falloff around a subject silhouette, evaluated per
+    fragment from a signed distance field so corners wrap as arcs and nothing bands.
+    */
+    AccentGlow,
 };
 
 /*!
@@ -107,6 +113,7 @@ inline constexpr std::array g_highway_shader_programs{
     HighwayShaderProgram::Texture,
     HighwayShaderProgram::WindowLight,
     HighwayShaderProgram::BoxMute,
+    HighwayShaderProgram::AccentGlow,
 };
 
 // A loader walks the array while the renderer indexes handle slots by enumerator value, so a
@@ -123,7 +130,7 @@ static_assert(
             }
         }
         return g_highway_shader_programs.size() ==
-               static_cast<std::size_t>(HighwayShaderProgram::BoxMute) + 1;
+               static_cast<std::size_t>(HighwayShaderProgram::AccentGlow) + 1;
     }(),
     "g_highway_shader_programs must list every program in enumeration order");
 
@@ -207,6 +214,10 @@ static_assert(
         case HighwayShaderProgram::BoxMute:
         {
             return "box_mute";
+        }
+        case HighwayShaderProgram::AccentGlow:
+        {
+            return "accent_glow";
         }
     }
 
