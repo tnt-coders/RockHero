@@ -39,20 +39,44 @@ MEASURED, not suspected:
    the side ramps have already decayed to zero — a step of up to the halo's full 0.55 alpha across
    ZERO width. That is the "hard cut", exactly located.
 
-The fix under design is one per-fragment falloff program evaluating a rounded-box / rhombus /
-capsule signed distance — the intersection of two precedents this renderer already ships (the
-box-mute SDF program and the window light's soft edges) rather than a third mechanism. It deletes
-`BoxPanelParts`, the second panel redraw, the spill quads, both rim lambdas, the open bar's `/2`
-prism compensation, and two fields of the style table.
+**BUILT 2026-08-16 and awaiting sighting.** One per-fragment falloff program, `accent_glow`,
+evaluating a rounded-box / rhombus signed distance (a capsule is the rounded box at corner radius
+== half thickness) — the intersection of two precedents this renderer already shipped, the
+box-mute SDF program and the window light's soft edges, rather than a third mechanism. What it
+removed, rather than tuned:
 
-**Blend mode becomes a sighting axis too** (user, 2026-08-15): additive clips per channel in this
-8-bit buffer with no HDR, and clipping desaturates toward white — an independent second cause of
-"too white". `BGFX_STATE_BLEND_SCREEN` (`FUNC(ONE, INV_SRC_COLOR)`, verified present in the
-vendored bgfx) is bounded by the source colour, so it converges on the STRING'S colour instead of
-white and lets overlapping glows merge without blowing out; `BGFX_STATE_BLEND_LIGHTEN` (max) never
-blows out at all. A/B them against additive rather than picking one.
+- `BoxPanelParts` and the `parts` parameter, the second frame-only panel redraw, and all six spill
+  quads on the box side
+- both rim lambdas on the note side, and with them the open bar's `/2` prism compensation — a flat
+  quad crosses once where a closed unculled prism crossed twice, so the one-weight promise between
+  a head and an open string now holds by construction instead of by a hand-applied correction
+- the two-batch split for note accents: a head's light was head ART and a bar's was bar GEOMETRY,
+  so each had to slot in just above its own subject; one quad and one program for both collapses
+  that to a single batch under the notes
+- four fields of the style table (two reaches, two alphas), replaced by one reach and an exponent
+- the four `g_box_light_*` constants, replaced by the candidate plus one box-only white lift
 
-Also outstanding: the chord box light must join the F9 cycle, which it currently does not.
+The SHAPE parameters ride the vertex rather than a uniform, which is what lets three unrelated
+silhouettes at three different sizes still batch into one draw.
+
+**Blend mode became a sighting axis** (user, 2026-08-15): additive clips per channel in this 8-bit
+buffer with no HDR, and clipping desaturates toward white — an independent second cause of "too
+white". `Screen` (`FUNC(ONE, INV_SRC_COLOR)`) is bounded by the source colour, so it converges on
+the STRING'S colour instead of white and lets overlapping glows merge without blowing out;
+`Lighten` (max) never blows out at all but also never accumulates. All three are rows in the table,
+sharing a base with the additive `medium` row so the comparison isolates the operator. Every
+operator consumes PREMULTIPLIED source, which the shader emits, for the same reason.
+
+**Reach is now ONE absolute world number for every subject**, which is a design ruling rather than
+a convenience: reach is a property of the emitter's BRIGHTNESS, not its size — a short neon tube
+and a long one wear the same halo. The asymmetry that falls out is the point. Around a head 0.325
+world tall it is a rim; around a frame bar 0.075 world thick it is several times the bar's own
+width, which is exactly what makes a hairline read as glowing instead of merely brighter.
+
+**The chord box now rides the F9 cycle**, which it did not before — the user reported that as the
+toggle being broken, and it was. Its light is the same row the notes read, with one box-only
+number: an extra white lift, kept because a box has no string colour and its light would otherwise
+be the frame's own teal laid on the frame's own teal, the least perceptible change available.
 
 - **Accent colour, RULED 2026-08-15: the light is the STRING'S colour.** The first round was 78%
   to 100% white on every candidate, which the user caught (*"Is the accent glow only using WHITE
@@ -62,37 +86,39 @@ Also outstanding: the chord box light must join the F9 cycle, which it currently
 
   The cost is paid in reach rather than in white: full string identity carries the palette's
   4.08x luma spread (the same alpha reads four times quieter on red than on yellow), and the only
-  knob that closes that without whitening is AREA, since the core is already at full alpha. So
-  the candidates now run tight → wide instead of tinted → white: `string tight` (the sighted
-  1.5-texel width, as a control), `string wide`, `string bloom` (the widest that still belongs to
-  one string — a head's glow ends 0.89 of a lane pitch from its centre, just short of the
-  neighbour), and `string lifted` (wide, keeping a quarter of a white lift as the compromise).
+  knob that closes that without whitening is AREA, since the peak is already at full alpha. So
+  the candidates run tight → wide instead of tinted → white: `tight` (0.06 world, four texels),
+  `medium` (0.12, the reference row the blend and colour rows vary against), `wide` (0.18 — the
+  widest that still belongs to one string, since a head's art reaches 0.16245 from its centre and
+  the lane pitch is 0.35), `wide linear`, `medium screen`, `medium lighten`, `medium lifted`.
   **Open question: how far may a string-coloured glow reach before it stops belonging to the
   note?** The first round's answer was measured against a WHITE field, which competes with the
   note in a way its own colour does not, so it is genuinely re-opened.
 - **The three defects the same sighting reported are fixed and await re-sighting.** (a) Open
   strings looked like *"a box of light with sharp corners over the string"* — the light was a
-  plain quad in a batch that submits AFTER the bars. It is now the BAR'S OWN GEOMETRY redrawn at a
-  thicker cross-section, in its own batch submitted before the bars, so it inherits the rounded
-  profile and the tapered fading ends; its alpha is HALVED because a closed unculled prism
-  accumulates an additive pass twice where a head's flat art accumulates once. (b) No glow on
-  chord-box edges — reported TWICE, and the band-outline approach was wrong three ways. The
-  outline was hand-rolled, so it drew a top bar where a two-note chord has none and full-height
-  columns beside ones that fade out at the midpoint; its inward reaches were negative, so no band
-  landed on the bar at all; and it was queued into a NOTE batch that only reaches the screen when
-  notes happen to be visible. **But the reason it read as nothing even where it landed is
-perceptual and geometric**, and no amount of fixing the outline would have saved it. **The
-  frame bar is 0.075 world thick, which projects to 0.7 px at the far end of the visible window
-  and 2.3 px a third of a second out — halve that again in the editor preview.** Every "light the
-  bar" design is therefore confined to a hairline and adds no screen AREA at any distance; and
-  what little it added was the box's own teal on a frame already painted that exact teal, the
-  least perceptible change available. The light is now two stages: the PANEL redrawn additively
-  frame-only (so it follows every variant of the shape by construction), plus a gradient SPILL
-  reaching 0.30 world outward onto the dark board, white-lifted. Outward is the only direction
-  with room — the interior must stay see-through and below the box is the floor. Each accented
-  box flushes its own batch so a far box's spill cannot wash over a nearer box's panel. Note the
-  box light is deliberately NOT on the F9 cycle: a box has no string colour and shares none of the
-  candidates' variables, so cycling note styles leaves it alone.
+  plain quad in a batch that submits AFTER the bars. It is now a CAPSULE distance field (half
+  extents of the bar's middle cross-section, corner radius equal to its half thickness), under the
+  bars, and its silhouette stops one fade length inside each tip rather than at the geometric end:
+  the bar's own ends ramp to fully transparent over that length, so a light drawn to the end would
+  glow around string that is not there. (b) No glow on chord-box edges — reported TWICE, and the
+  band-outline approach was wrong three ways. The outline was hand-rolled, so it drew a top bar
+  where a two-note chord has none and full-height columns beside ones that fade out at the
+  midpoint; its inward reaches were negative, so no band landed on the bar at all; and it was
+  queued into a NOTE batch that only reaches the screen when notes happen to be visible. **But the
+  reason it read as nothing even where it landed is perceptual and geometric**, and no amount of
+  fixing the outline would have saved it. **The frame bar is 0.075 world thick, which projects to
+  0.7 px at the far end of the visible window and 2.3 px a third of a second out — halve that
+  again in the editor preview.** Every "light the bar" design is therefore confined to a hairline
+  and adds no screen AREA at any distance. The light is now ONE field around the frame's outer
+  rectangle, spending the reach outward onto the dark board and inward across the bars themselves;
+  it draws OVER the panel (a bar has to emit, and light under it is covered by the bar's own
+  paint) where a note's light goes under its opaque head. Each accented box still flushes its own
+  batch so a far box's glow cannot wash over a nearer box's panel. Where a two-note chord has no
+  top bar, the field's rectangle is sized so its top boundary lands one reach above the drawn quad
+  — the top edge never registers — and the vertical fade rides vertex alpha over the same span the
+  columns fade across, read from the same `chordBoxFrame` derivation the panel reads. That shared
+  derivation is deliberate: the panel and its light disagreeing about where the columns end is
+  exactly the "one rule stated twice" defect, and it is now structurally impossible.
   (c) The accent atlas ring was still
   being drawn under the light; that draw, the `g_head_cell_accent` constant, and the art itself
   are all gone. The slot it vacated became one of the sheet's three spares in the reorder below.

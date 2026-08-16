@@ -126,14 +126,30 @@ constexpr double g_bend_marker_offset_heads = 0.38;
 // chart-truth height is an annotation, dimmed so the rising head stays the subject.
 constexpr double g_prebend_outline_alpha = 0.5;
 
-// The head ART's own half-extents in world units, and one atlas texel at the head quad's scale.
-// The head cell fills only the middle of its quad, so a light sized against the QUAD starts far
-// outside the note; the accent rim is sized against these instead. Measured from the shipped
-// atlas — when a rim candidate wins, this should become a load-time measurement over the decoded
-// cell (the box_mute_profile pattern) so the numbers cannot drift from the art they describe.
-constexpr double g_head_art_half_width = 0.3120;
-constexpr double g_head_art_half_height = 0.16245;
+// The head ART's own silhouette in world units, stated as texel counts times one texel so the
+// numbers stay traceable to the measurement that produced them. The head cell fills only the
+// middle of its quad, so a light sized against the QUAD starts far outside the note; the accent
+// glow's distance field is sized against these instead.
+//
+// Measured from the shipped atlas. When a candidate wins, this whole block should become a
+// load-time measurement over the decoded cell (the box_mute_profile pattern) so the numbers cannot
+// drift from the art they describe — which now matters more than it did, because the field also
+// needs the corner radius and a silhouette mismatch shows as light with nothing under it.
 constexpr double g_head_art_texel_world = 0.015;
+constexpr double g_head_art_half_width = 20.8 * g_head_art_texel_world;
+constexpr double g_head_art_half_height = 10.83 * g_head_art_texel_world;
+
+// The rectangular head bases' corner radius, fitted to the art's coverage boundary. The accent
+// glow's distance field needs it: a sharp-cornered field around a rounded head lights four corners
+// with nothing under them, which is the same defect the rhombus branch exists to avoid on node
+// heads.
+constexpr double g_head_art_corner_radius = 3.7 * g_head_art_texel_world;
+
+// The NODE head's diamond, half-span from centre to vertex — equal on both axes, unlike the
+// rectangle above. The base is the head-height square rotated 45 degrees (ruled 2026-08-15), so
+// its vertex span is that height times root two: 2 x 10.83 x 1.4142 / 2 = 15.31 texels. Handing
+// the rectangle's extents to a rhombus field would draw a light far too wide and far too short.
+constexpr double g_node_head_art_half_span = 15.31 * g_head_art_texel_world;
 
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
@@ -200,6 +216,36 @@ constexpr std::uint64_t g_blended_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRIT
 constexpr std::uint64_t g_additive_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_ONE) | BGFX_STATE_MSAA;
+
+// The accent glow's three blend operators, one per AccentBlend. All three consume PREMULTIPLIED
+// source, which is why the additive one is ONE -> ONE rather than the SRC_ALPHA -> ONE above: the
+// glow shader has already scaled its colour by its own alpha, and letting the blender scale it
+// again would apply the falloff twice and square the light. Sharing the premultiplied convention
+// across all three is what makes the A/B compare the operators and nothing else.
+constexpr std::uint64_t g_glow_common_state =
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA;
+constexpr std::uint64_t g_glow_add_state =
+    g_glow_common_state | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE);
+constexpr std::uint64_t g_glow_screen_state =
+    g_glow_common_state |
+    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_COLOR);
+constexpr std::uint64_t g_glow_lighten_state =
+    g_glow_common_state | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE) |
+    BGFX_STATE_BLEND_EQUATION(BGFX_STATE_BLEND_EQUATION_MAX);
+
+[[nodiscard]] constexpr std::uint64_t accentGlowState(const AccentBlend blend)
+{
+    switch (blend)
+    {
+        case AccentBlend::Screen:
+            return g_glow_screen_state;
+        case AccentBlend::Lighten:
+            return g_glow_lighten_state;
+        case AccentBlend::Add:
+            break;
+    }
+    return g_glow_add_state;
+}
 
 // Overlay content is screen-space and never depth-tested.
 constexpr std::uint64_t g_overlay_state =
@@ -338,6 +384,28 @@ struct PosColorUvVertex
     float v;
 };
 
+// Vertex for the accent glow: the same position and color, plus the fragment's offset from its
+// subject's center and the subject's own shape. The SHAPE rides the vertex rather than a uniform
+// so every accented head, open bar and box still batches into one draw despite each having its
+// own extents — which is what makes a per-fragment field cost no more draw calls than the stacked
+// quads it replaces.
+struct PosColorGlowVertex
+{
+    float x;
+    float y;
+    float z;
+    std::uint32_t abgr;
+    // Offset from the subject's center, in world units, pre-rotation for a head that flips.
+    float local_x;
+    float local_y;
+    // Half extents of the silhouette this light surrounds.
+    float half_w;
+    float half_h;
+    // Corner radius, and which distance field to evaluate (0 = rounded box, 1 = rhombus).
+    float corner;
+    float shape;
+};
+
 // Where a STOPPED note sounds on the fretboard axis, and the one authority for that anchor; a
 // fret-0 note never asks it — the open-string bar across the hand window is its own treatment.
 //
@@ -407,6 +475,21 @@ struct PosColorUvVertex
     return g_layout;
 }
 
+[[nodiscard]] const bgfx::VertexLayout& posColorGlowLayout()
+{
+    static const bgfx::VertexLayout g_layout = [] {
+        bgfx::VertexLayout layout;
+        layout.begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+            .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::TexCoord1, 4, bgfx::AttribType::Float)
+            .end();
+        return layout;
+    }();
+    return g_layout;
+}
+
 // Vertex makers keep designated initialization (and the double->float narrowing) in one place,
 // so the drawers below stay readable per corner.
 [[nodiscard]] PosColorVertex makeVertex(
@@ -431,6 +514,43 @@ struct PosColorUvVertex
         .abgr = abgr,
         .u = u,
         .v = v,
+    };
+}
+
+/*!
+\brief The silhouette an accent glow surrounds, in the subject's own local frame.
+
+The ONE description the glow shader understands, so a fretted head, an open string's bar and a
+chord box frame all reach the same program with the same three numbers rather than each carrying
+its own light. Extents are half sizes in world units from the subject's centre.
+*/
+struct GlowShape
+{
+    double half_w{};
+    double half_h{};
+
+    /*! \brief Corner radius; equal to the smaller half extent makes a capsule. */
+    double corner{};
+
+    /*! \brief True selects the rhombus distance field (node heads) over the rounded box. */
+    bool rhombus{};
+};
+
+[[nodiscard]] PosColorGlowVertex makeGlowVertex(
+    const double x, const double y, const double z, const std::uint32_t abgr, const double local_x,
+    const double local_y, const GlowShape& shape)
+{
+    return PosColorGlowVertex{
+        .x = static_cast<float>(x),
+        .y = static_cast<float>(y),
+        .z = static_cast<float>(z),
+        .abgr = abgr,
+        .local_x = static_cast<float>(local_x),
+        .local_y = static_cast<float>(local_y),
+        .half_w = static_cast<float>(shape.half_w),
+        .half_h = static_cast<float>(shape.half_h),
+        .corner = static_cast<float>(shape.corner),
+        .shape = shape.rhombus ? 1.0F : 0.0F,
     };
 }
 
@@ -585,6 +705,54 @@ void pushQuad(
     }
 }
 
+/*!
+\brief Lays the one quad an accent glow needs around a silhouette.
+
+The single authority for accent-glow geometry: the quad is the silhouette grown by the reach on
+every side, and each corner carries its own pre-rotation offset from the centre so the fragment
+stage can evaluate an exact distance. Callers differ only in the shape they hand in and in where
+they place the result, which is what keeps one light across three unrelated subjects from being
+three lights that would have to be kept in agreement by hand.
+
+\param cos_r,sin_r Rotation of the subject in the board plane (a head's rolling flip). The offsets
+       handed to the shader stay UNROTATED, so the field turns with the subject rather than the
+       subject sliding through a fixed field.
+\param low_y Floor for the quad's lower edge in world Y, in the subject's local frame. A chord box
+       stands ON the board, so growing its glow downward would tuck light under the floor; every
+       other subject passes the default and gets a symmetric quad.
+*/
+void pushAccentGlow(
+    std::vector<PosColorGlowVertex>& vertices, std::vector<std::uint16_t>& indices,
+    const double center_x, const double center_y, const double z, const GlowShape& shape,
+    const double reach, const std::uint32_t abgr, const double cos_r = 1.0,
+    const double sin_r = 0.0, const double low_y = -std::numeric_limits<double>::infinity())
+{
+    const double out_w = shape.half_w + reach;
+    const double out_h = shape.half_h + reach;
+    const double low = std::max(-out_h, low_y);
+    if (!(out_w > 0.0) || !(out_h > low))
+    {
+        return;
+    }
+    const auto corner = [&](const double dx, const double dy) {
+        return makeGlowVertex(
+            center_x + (dx * cos_r) - (dy * sin_r),
+            center_y + (dx * sin_r) + (dy * cos_r),
+            z,
+            abgr,
+            dx,
+            dy,
+            shape);
+    };
+    pushQuad(
+        vertices,
+        indices,
+        corner(-out_w, low),
+        corner(out_w, low),
+        corner(out_w, out_h),
+        corner(-out_w, out_h));
+}
+
 // The chord-box frame's signature horizontal fade, stated once: a quad pair split at the
 // horizontal middle, colored `end_abgr` at the outer ends and `middle_abgr` at the split.
 // The frame bars draw it directly and the palm mute mark rides it as a vertex modulation,
@@ -612,11 +780,33 @@ void pushMiddleFadedQuads(
         make_vertex(middle_x, y1, middle_abgr));
 }
 
-// Which parts of a chord box panel to lay down; see \ref pushChordBoxPanel.
-enum class BoxPanelParts : std::uint8_t
+/*!
+\brief A chord box frame's vertical shape, derived once from the three flags that decide it.
+
+The frame is not one rectangle: a repeat box is half height, and a box with fewer than three notes
+has NO top bar — its side columns simply fade out from the midpoint instead. Both the panel and the
+accent light around it need those facts, and they must agree exactly or the light draws a top edge
+where the shape has none. Deriving them in one place is what makes that agreement structural
+rather than a rule restated in two files' worth of arithmetic.
+*/
+struct ChordBoxFrame
 {
-    FrameAndFill,
-    FrameOnly
+    /*! \brief Top of the side columns (and of the interior fill). */
+    double side_y1{};
+
+    /*! \brief Outermost lit Y: above the top bar when there is one, else the columns' own top. */
+    double outer_top{};
+
+    /*!
+    \brief Where the columns begin fading out.
+
+    Equal to \ref outer_top when a top bar closes the shape (nothing fades), else the columns'
+    midpoint.
+    */
+    double fade_start_y{};
+
+    /*! \brief Whether a top bar closes the frame. False means the light must draw no top edge. */
+    bool closed_top{};
 };
 
 // Axis-aligned quad on the floor plane (y constant, spanning x and z).
@@ -856,21 +1046,31 @@ void pushFaceQuad(
 // \param full_height_y1 The box top for a full-height box (a repeat box is half this).
 // \param box_only Half-height repeat box.
 // \param with_top Full sides plus a top bar (3+ note chords); ignored under box_only.
-// \param parts Whether to lay the see-through interior fill as well as the frame. The accent
-//        light draws FrameOnly: a box is a thing the player reads notes THROUGH, so lighting its
-//        interior trades legibility for glow, and the frame is where the emphasis belongs anyway.
 // \param alpha_scale Multiplies every part's alpha — the quiet end of the emphasis axis, which
 //        takes the box's presence down the way a ghost takes a head's.
 // \param frame_thickness Bar/column width of the frame; callers pass the string grid's base
 //        height so the bottom bar fills the gap under the grid exactly.
+ChordBoxFrame chordBoxFrame(
+    const double full_height_y1, const bool box_only, const bool with_top,
+    const double frame_thickness)
+{
+    const double y1 = box_only ? full_height_y1 / 2.0 : full_height_y1;
+    return ChordBoxFrame{
+        .side_y1 = y1,
+        .outer_top = with_top ? y1 + frame_thickness : y1,
+        .fade_start_y = with_top ? y1 + frame_thickness : y1 / 2.0,
+        .closed_top = with_top,
+    };
+}
+
 void pushChordBoxPanel(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double z, const double full_height_y1, const bool box_only,
-    const bool with_top, const BoxPanelParts parts, const double alpha_scale,
-    const double frame_thickness)
+    const bool with_top, const double alpha_scale, const double frame_thickness)
 {
     const double y0 = 0.0;
-    const double y1 = box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
+    const ChordBoxFrame frame = chordBoxFrame(full_height_y1, box_only, with_top, frame_thickness);
+    const double y1 = frame.side_y1;
     // Sets every frame dimension, not only the bottom bar: the top bar and the side columns below
     // scale from it too, which is why it comes in as one value rather than being read per-part.
     const double thickness = frame_thickness;
@@ -970,7 +1170,7 @@ void pushChordBoxPanel(
     }
     else
     {
-        const double fade_start_y = (y0 + y1) / 2.0;
+        const double fade_start_y = frame.fade_start_y;
         for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
         {
             const double column_x1 = origin_x + (x_sign * thickness);
@@ -986,21 +1186,18 @@ void pushChordBoxPanel(
     }
 
     // Filling: the faint panel, carrying the frame's end-to-middle fade.
-    if (parts == BoxPanelParts::FrameAndFill)
-    {
-        pushMiddleFadedQuads(
-            vertices,
-            indices,
-            x0,
-            x1,
-            y0,
-            y1,
-            box_faint,
-            dark_faint,
-            [&](const double vx, const double vy, const std::uint32_t abgr) {
-                return makeVertex(vx, vy, z, abgr);
-            });
-    }
+    pushMiddleFadedQuads(
+        vertices,
+        indices,
+        x0,
+        x1,
+        y0,
+        y1,
+        box_faint,
+        dark_faint,
+        [&](const double vx, const double vy, const std::uint32_t abgr) {
+            return makeVertex(vx, vy, z, abgr);
+        });
 }
 
 // Links one program from its compiled pair; the typed error names the failing program.
@@ -1054,11 +1251,13 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> texture_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> window_light_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> box_mute_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> accent_glow_program;
 
     // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
     UniqueBgfxHandle<bgfx::UniformHandle> fade_params;
     UniqueBgfxHandle<bgfx::UniformHandle> atlas_sampler;
     UniqueBgfxHandle<bgfx::UniformHandle> window_light_params;
+    UniqueBgfxHandle<bgfx::UniformHandle> accent_glow_params;
     UniqueBgfxHandle<bgfx::UniformHandle> box_mute_params;
     UniqueBgfxHandle<bgfx::UniformHandle> box_mute_arms;
 
@@ -1209,6 +1408,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->texture_program = std::move(linked.at(indexOf(Program::Texture)));
     impl->window_light_program = std::move(linked.at(indexOf(Program::WindowLight)));
     impl->box_mute_program = std::move(linked.at(indexOf(Program::BoxMute)));
+    impl->accent_glow_program = std::move(linked.at(indexOf(Program::AccentGlow)));
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
@@ -1220,6 +1420,8 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         "u_box_mute_params", bgfx::UniformType::Vec4)};
     impl->box_mute_arms = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_box_mute_arms", bgfx::UniformType::Vec4)};
+    impl->accent_glow_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "u_accent_glow_params", bgfx::UniformType::Vec4)};
 
     impl->atlases = makeHighwayAtlases(textures.at(indexOf(TextureAsset::Notes)));
     UploadedTexture inlay = uploadPngTexture(textures.at(indexOf(TextureAsset::Inlays)));
@@ -1439,6 +1641,20 @@ void HighwayRenderer::Impl::draw(
         0.0F,
         0.0F
     };
+
+    // The accent candidate, read ONCE per frame and shared by every lit subject: fretted heads,
+    // open strings, and chord box frames. That sharing is the point — the box light used to be
+    // wired to constants of its own and did not move when the toggle did, which read as the
+    // toggle being broken.
+    const AccentLightStyle& accent_light = g_accent_light_styles.at(accent_style);
+    const std::array<float, 4> glow_uniform{
+        static_cast<float>(accent_light.reach),
+        static_cast<float>(accent_light.exponent),
+        0.0F,
+        0.0F
+    };
+    const std::uint64_t glow_state = accentGlowState(accent_light.blend);
+    const bool accents_lit = accent_light.reach > 0.0 && accent_light.alpha > 0.0;
 
     // Settled hand windows visible this frame: each placement owns the time range from its
     // arrival up to the next placement's ramp start (the transition itself is drawn as a
@@ -2078,17 +2294,15 @@ void HighwayRenderer::Impl::draw(
     std::vector<std::uint16_t> rail_indices;
     std::vector<PosColorVertex> open_vertices;
     std::vector<std::uint16_t> open_indices;
-    // A note's accent light submits between the open bars and the heads, so it sits UNDER the
-    // note it belongs to: drawn over, it repaints the note's own pixels, which was the retired
-    // atlas ring's whole problem; drawn under, it shows only where the note is not.
-    std::vector<PosColorUvVertex> accent_head_vertices;
-    std::vector<std::uint16_t> accent_head_indices;
-    // An open string's light needs a batch of its own because of where it must sit in the
-    // group's layering: a light belongs UNDER the silhouette it surrounds, and open bars draw
-    // one layer below heads, so the head's light slot is already too late for a bar. Sharing it
-    // would draw the light on top of the string instead of around it.
-    std::vector<PosColorVertex> accent_open_vertices;
-    std::vector<std::uint16_t> accent_open_indices;
+    // ONE accent-light batch for fretted heads and open strings alike, submitted before both so
+    // the light sits UNDER whatever it surrounds: drawn over, it repaints the note's own pixels,
+    // which was the retired atlas ring's whole problem. The two used to need separate batches
+    // because a head's light was head ART and a bar's was bar GEOMETRY, so each had to slot in
+    // just above its own subject. A distance field is neither — it is the same quad and the same
+    // program for both — so the layering constraint collapses to "under the notes" and the second
+    // batch with it.
+    std::vector<PosColorGlowVertex> accent_glow_vertices;
+    std::vector<std::uint16_t> accent_glow_indices;
     std::vector<PosColorUvVertex> head_vertices;
     std::vector<std::uint16_t> head_indices;
 
@@ -2200,25 +2414,31 @@ void HighwayRenderer::Impl::draw(
         // extra flush at each accented box, because boxes otherwise batch across the whole loop.
         // The extra draw calls are bounded by the accented boxes on screen, which is the same
         // bound the muted repeat boxes already pay for the same reason.
-        std::vector<PosColorVertex> box_light_vertices;
-        std::vector<std::uint16_t> box_light_indices;
+        std::vector<PosColorGlowVertex> box_glow_vertices;
+        std::vector<std::uint16_t> box_glow_indices;
         const auto flush_box_panels = [&] {
             submitBatch(box_vertices, box_indices, posColorLayout(), color_program.get(), nullptr);
             box_vertices.clear();
             box_indices.clear();
-            // Additively, like every other emphasis light: alpha over the lit board subtracts
-            // where the light is warm, and a light that darkens part of what it covers reads as
-            // a decal.
+            // The same program, uniform and blend operator a note's accent uses, from the same
+            // candidate row — a box and a note are one look, not two that happen to be on at once.
+            //
+            // OVER the panel, where a note's light goes under its head. The two are not
+            // inconsistent: a head is opaque, so light beneath it is the only light that shows,
+            // while a frame bar is the thing that has to EMIT — put the light under it and the
+            // bar's own paint covers exactly the pixels the light was for. Boxes draw behind the
+            // notes either way, so this never puts box light on top of a head.
+            bgfx::setUniform(accent_glow_params.get(), glow_uniform.data());
             submitBatch(
-                box_light_vertices,
-                box_light_indices,
-                posColorLayout(),
-                color_program.get(),
+                box_glow_vertices,
+                box_glow_indices,
+                posColorGlowLayout(),
+                accent_glow_program.get(),
                 nullptr,
                 g_board_view,
-                g_additive_state);
-            box_light_vertices.clear();
-            box_light_indices.clear();
+                glow_state);
+            box_glow_vertices.clear();
+            box_glow_indices.clear();
         };
         // Boxes rise exactly to the fret-line top: any higher and the panel visibly pokes past
         // the fret grid (the old top added half a string distance).
@@ -2538,94 +2758,98 @@ void HighwayRenderer::Impl::draw(
             // repeat it may become.
             const bool box_ghosted = box.emphasis == common::core::NoteEmphasis::Ghost;
             const double box_alpha = box_ghosted ? g_ghost_alpha : 1.0;
-            // An accented box emits from its FRAME: the panel redrawn additively, frame only, at
-            // its own geometry and again slightly larger. Two stages, matching the two a note's
-            // rim wears — a hot one exactly on the bars, which is what makes them emit, and a
-            // fainter one hugging their outside, which is what makes it read as light rather
-            // than as a brighter bar.
+            // An accented box takes the SAME light a note takes, from the same candidate row: one
+            // glow around the frame's outer rectangle, spending the candidate's reach outward onto
+            // the dark board and inward across the bars themselves. Nothing here is the box's own
+            // number except the extra white lift, so cycling the toggle now moves boxes with notes
+            // — it did not before, which read as the toggle being broken.
             //
-            // Grown outward only: the panel stands ON the floor, so pushing its base below y=0
-            // would tuck the light under the board. Left, right and top grow; the bottom bar
-            // gains its glow from the hot stage alone.
+            // Why ONE field rather than a piece per side, which is what this replaces: four
+            // independent ramps have no radial term, so out past a corner the top cap carried its
+            // full alpha where the sides had already decayed to zero. That was the reported hard
+            // cut, and it is not a tuning error — it is what per-side ramps DO. A distance field
+            // has one boundary and one falloff, so there is no corner for two pieces to disagree
+            // at.
+            //
+            // The measurement that still governs the size: the frame bar is 0.075 world thick,
+            // which projects to 0.7 px at the horizon and 2.3 px a third of a second out (half
+            // that again in the editor preview). Lighting the bar can only make a hairline
+            // brighter, so the light has to have somewhere to go — which is why the reach is
+            // absolute world units shared with the notes rather than a fraction of the box.
             const auto push_box_accent_light = [&](const double light_x0, const double light_x1) {
-                if (!common::core::isAccented(box.emphasis))
+                if (!accents_lit || !common::core::isAccented(box.emphasis))
                 {
                     return;
                 }
-                // Stage one: the frame emits. The panel redrawn on its own geometry, frame only,
-                // so it follows every variant of the shape and cannot drift from it.
-                pushChordBoxPanel(
-                    box_light_vertices,
-                    box_light_indices,
-                    light_x0,
-                    light_x1,
-                    z,
-                    full_height_y1,
-                    box.box_only,
-                    box.with_top,
-                    BoxPanelParts::FrameOnly,
-                    g_box_light_core_alpha,
-                    metrics.string_grid_base_y);
+                const ChordBoxFrame frame = chordBoxFrame(
+                    full_height_y1, box.box_only, box.with_top, metrics.string_grid_base_y);
+                const std::uint32_t lit = packAbgr(
+                    mixArgb(
+                        g_chord_box_color,
+                        0xFFFFFFFFU,
+                        std::min(1.0, accent_light.white_mix + g_box_light_extra_white_mix)),
+                    accent_light.alpha);
+                const double half_w = (light_x1 - light_x0) / 2.0;
+                const double center_x = (light_x0 + light_x1) / 2.0;
 
-                // Stage two, and the one that is actually SEEN: a gradient spilling outward from
-                // the box onto the dark board.
-                //
-                // Measured, and it is the whole reason the first two attempts read as nothing: the
-                // frame bar is 0.075 world thick, which is 0.7 px at the horizon and 2.3 px a
-                // third of a second out — and half that again in the editor preview. Lighting the
-                // bar can only make a hairline brighter; it adds no AREA at any distance. Outward
-                // is the only direction with room, because the interior has to stay see-through
-                // and below the box is the floor. The colour carries a white lift for the same
-                // reason a note's rim does: the frame is already this exact teal, and adding a
-                // colour on top of itself is the least perceptible change available.
-                const ArgbColor halo_color =
-                    mixArgb(g_chord_box_color, 0xFFFFFFFFU, g_box_light_white_mix);
-                const std::uint32_t lit = packAbgr(halo_color, g_box_light_halo_alpha);
-                const std::uint32_t clear = packAbgr(halo_color, 0.0);
-                const double reach = g_box_light_halo_reach;
-                const double box_top = box.box_only ? full_height_y1 / 2.0 : full_height_y1;
-                // A quad fading from the frame's edge out to nothing. Per-vertex alpha, so the
-                // falloff is one interpolated quad rather than the stack of bands that cannot
-                // read as light (each band boundary is a step, and a step is an edge).
-                const auto push_spill = [&](const double x_frame,
-                                            const double x_out,
-                                            const double y_low,
-                                            const double y_high,
-                                            const std::uint32_t a_low,
-                                            const std::uint32_t a_high) {
-                    pushQuad(
-                        box_light_vertices,
-                        box_light_indices,
-                        makeVertex(x_frame, y_low, z, a_low),
-                        makeVertex(x_out, y_low, z, clear),
-                        makeVertex(x_out, y_high, z, clear),
-                        makeVertex(x_frame, y_high, z, a_high));
+                if (frame.closed_top)
+                {
+                    // Closed rectangle: one quad, one field, bottom edge on the floor.
+                    pushAccentGlow(
+                        box_glow_vertices,
+                        box_glow_indices,
+                        center_x,
+                        frame.outer_top / 2.0,
+                        z,
+                        GlowShape{
+                            .half_w = half_w,
+                            .half_h = frame.outer_top / 2.0,
+                            .corner = 0.0,
+                            .rhombus = false,
+                        },
+                        accent_light.reach,
+                        lit,
+                        1.0,
+                        0.0,
+                        -frame.outer_top / 2.0);
+                    return;
+                }
+
+                // No top bar: the columns fade out from their midpoint, so the light must have no
+                // top edge either. The rectangle is sized so its BOTTOM edge sits on the floor —
+                // the bottom bar is real and has to glow — while its TOP edge lands exactly one
+                // reach above the drawn quad, which puts that boundary's influence at zero
+                // everywhere the quad can show. Left, right and bottom register; the top never
+                // does. The vertical fade is then carried in VERTEX alpha across the same span
+                // the columns fade over, read from the same derivation they read it from.
+                const double open_half_h = (frame.side_y1 + accent_light.reach) / 2.0;
+                const GlowShape open_shape{
+                    .half_w = half_w,
+                    .half_h = open_half_h,
+                    .corner = 0.0,
+                    .rhombus = false,
                 };
-                // The frame's outer top, which is NOT the box top: a top bar sits ABOVE it, and a
-                // two-note chord has no top bar at all — its side columns simply fade out from the
-                // midpoint. The spill follows both cases rather than drawing a bright line across
-                // empty air where a top bar was assumed.
-                if (box.with_top)
-                {
-                    const double outer_top = box_top + metrics.string_grid_base_y;
-                    push_spill(light_x0, light_x0 - reach, 0.0, outer_top, lit, lit);
-                    push_spill(light_x1, light_x1 + reach, 0.0, outer_top, lit, lit);
+                const std::uint32_t clear = packAbgr(g_chord_box_color, 0.0);
+                const double out_w = half_w + accent_light.reach;
+                const auto push_span = [&](const double y_low,
+                                           const double y_high,
+                                           const std::uint32_t a_low,
+                                           const std::uint32_t a_high) {
+                    const auto at =
+                        [&](const double side_x, const double y, const std::uint32_t abgr) {
+                            return makeGlowVertex(
+                                center_x + side_x, y, z, abgr, side_x, y - open_half_h, open_shape);
+                        };
                     pushQuad(
-                        box_light_vertices,
-                        box_light_indices,
-                        makeVertex(light_x0 - reach, outer_top, z, lit),
-                        makeVertex(light_x1 + reach, outer_top, z, lit),
-                        makeVertex(light_x1 + reach, outer_top + reach, z, clear),
-                        makeVertex(light_x0 - reach, outer_top + reach, z, clear));
-                }
-                else
-                {
-                    const double fade_start_y = box_top / 2.0;
-                    push_spill(light_x0, light_x0 - reach, 0.0, fade_start_y, lit, lit);
-                    push_spill(light_x1, light_x1 + reach, 0.0, fade_start_y, lit, lit);
-                    push_spill(light_x0, light_x0 - reach, fade_start_y, box_top, lit, clear);
-                    push_spill(light_x1, light_x1 + reach, fade_start_y, box_top, lit, clear);
-                }
+                        box_glow_vertices,
+                        box_glow_indices,
+                        at(-out_w, y_low, a_low),
+                        at(out_w, y_low, a_low),
+                        at(out_w, y_high, a_high),
+                        at(-out_w, y_high, a_high));
+                };
+                push_span(0.0, frame.fade_start_y, lit, lit);
+                push_span(frame.fade_start_y, frame.side_y1, lit, clear);
             };
             if (box.tap != nullptr)
             {
@@ -2645,7 +2869,6 @@ void HighwayRenderer::Impl::draw(
                     full_height_y1,
                     box.box_only,
                     box.with_top,
-                    BoxPanelParts::FrameAndFill,
                     box_alpha,
                     metrics.string_grid_base_y);
                 if (common::core::isAccented(box.emphasis))
@@ -2672,7 +2895,6 @@ void HighwayRenderer::Impl::draw(
                 full_height_y1,
                 box.box_only,
                 box.with_top,
-                BoxPanelParts::FrameAndFill,
                 box_alpha,
                 metrics.string_grid_base_y);
             if (common::core::isAccented(box.emphasis))
@@ -2801,26 +3023,18 @@ void HighwayRenderer::Impl::draw(
         submitBatch(
             shadow_vertices, shadow_indices, posColorLayout(), color_fade_program.get(), nullptr);
         submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
+        // The accent light, under every note of the group. Its blend operator is part of the
+        // candidate being sighted, so the state comes from the table rather than being fixed here.
+        bgfx::setUniform(accent_glow_params.get(), glow_uniform.data());
         submitBatch(
-            accent_open_vertices,
-            accent_open_indices,
-            posColorLayout(),
-            color_program.get(),
+            accent_glow_vertices,
+            accent_glow_indices,
+            posColorGlowLayout(),
+            accent_glow_program.get(),
             nullptr,
             g_board_view,
-            g_additive_state);
+            glow_state);
         submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
-        // Additively: a light can only ADD. Alpha blending over the lit lane subtracts up to 29
-        // counts of blue where the light is warm, and a mark that darkens part of what it covers
-        // reads as a decal rather than as light.
-        submitBatch(
-            accent_head_vertices,
-            accent_head_indices,
-            posColorUvLayout(),
-            texture_tint_program.get(),
-            &heads_texture,
-            g_board_view,
-            g_additive_state);
         submitBatch(
             head_vertices,
             head_indices,
@@ -2833,10 +3047,8 @@ void HighwayRenderer::Impl::draw(
         rail_indices.clear();
         open_vertices.clear();
         open_indices.clear();
-        accent_head_vertices.clear();
-        accent_head_indices.clear();
-        accent_open_vertices.clear();
-        accent_open_indices.clear();
+        accent_glow_vertices.clear();
+        accent_glow_indices.clear();
         head_vertices.clear();
         head_indices.clear();
     };
@@ -3991,46 +4203,41 @@ void HighwayRenderer::Impl::draw(
                 base_color,
                 fade * open_bar_alpha,
                 open_bar_thickness);
-            if (common::core::isAccented(note.emphasis))
+            if (accents_lit && common::core::isAccented(note.emphasis))
             {
-                // The same two-stage rim the fretted head wears, and by the same means: the
-                // silhouette's OWN geometry redrawn larger. Where the head redraws its atlas
-                // cell, the bar redraws itself at a thicker cross-section, which is the only
-                // shape that inherits the bar's rounded profile and its two tapered, fading
-                // ends. A plain quad kept neither, so the light read as a hard-cornered box of
-                // light laid over the string instead of a glow around it.
-                const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
-                const ArgbColor rim_color = mixArgb(base_color, 0xFFFFFFFFU, light.white_mix);
-                const auto push_bar_rim = [&](const double reach_texels, const double alpha) {
-                    if (!(alpha > 0.0) || !(reach_texels > 0.0))
-                    {
-                        return;
-                    }
-                    // Reach is measured at the bar's thickest station, so the scale it implies
-                    // carries the taper outward proportionally rather than inflating the thin
-                    // ends past the fat middle.
-                    const double thickness_scale = (g_open_note_middle_half_thickness +
-                                                    (reach_texels * g_head_art_texel_world)) /
-                                                   g_open_note_middle_half_thickness;
-                    // HALVED because the bar is a closed prism drawn with no culling (the lefty
-                    // mirror inverts winding, so the board cannot cull), which means every ray
-                    // crosses its surface twice and an ADDITIVE pass accumulates the light twice.
-                    // A head's rim is flat art and accumulates once. Without this the same
-                    // candidate would be twice as loud on an open string as on a fretted head,
-                    // which is exactly the one-weight promise this shares with the head.
-                    pushOpenNoteBar(
-                        accent_open_vertices,
-                        accent_open_indices,
-                        x0,
-                        x1,
-                        head_y,
-                        z,
-                        rim_color,
-                        fade * alpha / 2.0,
-                        thickness_scale);
-                };
-                push_bar_rim(light.ember_reach_texels, light.ember_alpha);
-                push_bar_rim(light.core_reach_texels, light.core_alpha);
+                // The same light the fretted head wears, from the same candidate, around a
+                // capsule: half extents of the bar's own middle cross-section, corner radius
+                // equal to its half thickness. That is what the bar's rounded profile IS.
+                //
+                // The silhouette ends where the bar's OPAQUE run ends, one fade length inside
+                // each tip, rather than at the tips themselves. The bar's ends ramp to fully
+                // transparent over that length, so a light drawn out to the geometric end would
+                // glow around a stretch of string that is not there — and the capsule's own
+                // rounding plus the reach then carry the falloff back out across the ramp, which
+                // is a better match to the visible taper than restating the ramp would be.
+                //
+                // Note there is no halving here any more. The previous light redrew the bar's
+                // PRISM, which is closed and unculled (the lefty mirror inverts winding), so
+                // every ray crossed it twice and additive light accumulated twice; the correction
+                // had to be applied by hand. A flat quad crosses once, like the head's, so the
+                // one-weight promise now holds by construction instead of by compensation.
+                const double open_fade = std::min(g_open_note_end_fade_length, (x1 - x0) / 4.0);
+                pushAccentGlow(
+                    accent_glow_vertices,
+                    accent_glow_indices,
+                    (x0 + x1) / 2.0,
+                    head_y,
+                    z,
+                    GlowShape{
+                        .half_w = std::max(0.0, ((x1 - x0) / 2.0) - open_fade),
+                        .half_h = g_open_note_middle_half_thickness,
+                        .corner = g_open_note_middle_half_thickness,
+                        .rhombus = false,
+                    },
+                    accent_light.reach,
+                    packAbgr(
+                        mixArgb(base_color, 0xFFFFFFFFU, accent_light.white_mix),
+                        fade * accent_light.alpha));
             }
             // Technique markers at the window center (Charter's open-note overlay set).
             {
@@ -4228,58 +4435,41 @@ void HighwayRenderer::Impl::draw(
             corner(head_half_w, head_half_h, base_cell[2], base_cell[1]),
             corner(-head_half_w, head_half_h, base_cell[0], base_cell[1]));
 
-        // The loud end is added LIGHT: this same art redrawn on slightly larger quads, a faint
-        // ember and a hot core, into a batch that submits BEFORE the heads so the light sits
-        // under the note. Redrawing the ART rather than laying plain geometry is what makes it a
-        // rim: it inherits the silhouette, the rounded corners and the authored antialiasing
-        // exactly, so the light's edge and the note's edge coincide — and the eye takes a glow's
-        // boundary at its steepest gradient, which is what decides whether the light BELONGS to
-        // the note or merely surrounds it.
+        // The loud end is added LIGHT, around the head's own silhouette, into a batch that submits
+        // BEFORE the heads so it sits under the note rather than repainting it.
         //
-        // Reach is measured against the ART's extents, never the quad's. The quad is nearly
-        // three times the art's height, so a reach added to the quad started three head-heights
-        // out and read as a lit box the note sat inside — the whole reason the first attempt
-        // looked wrong.
-        if (common::core::isAccented(note.emphasis))
+        // The silhouette handed to the field is the head ART's extents, never the QUAD's. The quad
+        // is nearly three times the art's height, so a light sized against it starts three
+        // head-heights out and reads as a lit box the note sits inside — which is what the first
+        // attempt at this did. A node head takes the RHOMBUS field instead: its base is a diamond,
+        // and a rectangular glow around a diamond leaves four lit corners with nothing under them.
+        if (accents_lit && common::core::isAccented(note.emphasis))
         {
-            const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
-            const ArgbColor rim_color = mixArgb(base_color, 0xFFFFFFFFU, light.white_mix);
-            const auto push_rim = [&](const double reach_texels, const double alpha) {
-                if (!(alpha > 0.0) || !(reach_texels > 0.0))
-                {
-                    return;
-                }
-                // Per axis: a uniform reach in texels around a rectangle three times wider than
-                // it is tall is not a uniform scale of the quad.
-                const double grow_w =
-                    (g_head_art_half_width + (reach_texels * g_head_art_texel_world)) /
-                    g_head_art_half_width;
-                const double grow_h =
-                    (g_head_art_half_height + (reach_texels * g_head_art_texel_world)) /
-                    g_head_art_half_height;
-                const double half_w = head_half_w * grow_w;
-                const double half_h = head_half_h * grow_h;
-                const std::uint32_t rim_tint = packAbgr(rim_color, fade * head_slide.alpha * alpha);
-                const auto rim_corner =
-                    [&](const double dx, const double dy, const float u, const float v) {
-                        return makeUvVertex(
-                            x + (dx * cos_r) - (dy * sin_r),
-                            head_y + (dx * sin_r) + (dy * cos_r),
-                            z,
-                            rim_tint,
-                            u,
-                            v);
-                    };
-                pushQuad(
-                    accent_head_vertices,
-                    accent_head_indices,
-                    rim_corner(-half_w, -half_h, base_cell[0], base_cell[3]),
-                    rim_corner(half_w, -half_h, base_cell[2], base_cell[3]),
-                    rim_corner(half_w, half_h, base_cell[2], base_cell[1]),
-                    rim_corner(-half_w, half_h, base_cell[0], base_cell[1]));
-            };
-            push_rim(light.ember_reach_texels, light.ember_alpha);
-            push_rim(light.core_reach_texels, light.core_alpha);
+            pushAccentGlow(
+                accent_glow_vertices,
+                accent_glow_indices,
+                x,
+                head_y,
+                z,
+                highwayNodeHead(note)
+                    ? GlowShape{
+                          .half_w = g_node_head_art_half_span,
+                          .half_h = g_node_head_art_half_span,
+                          .corner = 0.0,
+                          .rhombus = true,
+                      }
+                    : GlowShape{
+                          .half_w = g_head_art_half_width,
+                          .half_h = g_head_art_half_height,
+                          .corner = g_head_art_corner_radius,
+                          .rhombus = false,
+                      },
+                accent_light.reach,
+                packAbgr(
+                    mixArgb(base_color, 0xFFFFFFFFU, accent_light.white_mix),
+                    fade * head_slide.alpha * accent_light.alpha),
+                cos_r,
+                sin_r);
         }
 
         {

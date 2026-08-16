@@ -1,7 +1,7 @@
 /*!
 \file highway_emphasis_styles.h
-\brief Appearance numbers for the note-emphasis axis: a signed ghost, a signed box light, and the
-       accent light's candidate table while that one look is still being chosen.
+\brief Appearance numbers for the note-emphasis axis: a signed ghost, and the accent light's
+       candidate table while that one look is still being chosen.
 
 EXPERIMENT SCAFFOLDING, but only the accent table. Accents became a rendered light and ghosts a
 transparency treatment; the ghost end is signed and its numbers are inline below, while the
@@ -11,66 +11,120 @@ move inline beside the rest and the table and its cycling command are deleted; t
 stays, because the signed constants live here too.
 
 The table is DATA rather than branches on purpose — every candidate differs only in numbers, so a
-new one costs a row and no code, and the renderer holds one code path whichever is selected.
+new one costs a row and no code, and the renderer holds one code path whichever is selected. Every
+lit subject — fretted head, open string, chord box — reads the SAME row, so the toggle moves the
+whole board's accents together and a candidate is judged as one look.
 */
 
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <string_view>
 
 namespace rock_hero::common::ui
 {
 
 /*!
-\brief One candidate accent light: the note's own art redrawn as light around its silhouette.
+\brief How an accent glow combines with what is already on the board.
 
-A RIM, not a corona. A broad low-alpha field fails for a measured reason rather than a matter of
-taste: the eye takes a glow's boundary at its steepest gradient, so a wide ramp puts that
-boundary far outside the note and the light stops belonging to the note — it reads as a lit box
-the note sits inside. The atlas ring it replaces holds its steepest gradient a fifth of a texel
-from the note's own edge, which is exactly why it reads as a mark. A wide ramp also does not buy
-its size back: measured, the broad version spent 1.6x more total light than the ring and read as
-less.
+An axis of the sighting rather than a settled choice, because the three operators genuinely
+differ on THIS board and the difference is not predictable from the maths alone. The backbuffer
+is 8-bit LDR with no tonemap, so `Add` is the only one that can drive a lit pixel past its
+current value and the only one that can clip; `Screen` approaches white asymptotically and never
+clips, at the cost of losing contrast where the destination is already bright; `Lighten` cannot
+darken or blow out but also cannot accumulate, so two overlapping lights read as one.
 
-So the light is the HEAD'S OWN CELL, redrawn additively on slightly larger quads. That buys the
-exact silhouette, the exact rounded corners, and the authored antialiasing for two quads and no
-measured extents in code — and it cannot drift when the art changes, which a hand-copied
-silhouette would. Two stages: a hot core hugging the edge, and a faint ember reaching further.
+Every operator here consumes PREMULTIPLIED source, which the glow shader emits, so switching rows
+compares the operators and nothing else.
+*/
+enum class AccentBlend : std::uint8_t
+{
+    /*! \brief `ONE, ONE` — light adds. Accumulates across overlaps; can clip to white. */
+    Add,
+
+    /*! \brief `ONE, INV_SRC_COLOR` — filmic; approaches white without ever clipping. */
+    Screen,
+
+    /*! \brief `MAX` — takes the brighter of the two. Never blows out, never accumulates. */
+    Lighten
+};
+
+/*!
+\brief One candidate accent light: a per-fragment glow around the lit object's own silhouette.
+
+The light is a SIGNED DISTANCE FIELD evaluated in the fragment shader, not geometry. The design
+before it stacked flat-alpha quads — the head's own atlas cell redrawn on slightly larger quads,
+and for a chord box four independent linear ramps — and it failed for three measured reasons, all
+of which this shape removes rather than tunes:
+
+1. Redrawing the ART as light sampled the cell INWARD while drawing OUTWARD, so past about four
+   texels of reach the band landed on the art's bevel (`R=255, G=107` against an interior of
+   `R≈170, G≈33`) and the light got BRIGHTER toward its outer edge — the inverse of a falloff.
+2. `fs_texture_tint` adds the atlas's G channel unconditionally, and G is the achromatic white
+   lift. So that bevel contributed pure white no `white_mix` could suppress, which is why the
+   light still read as white after its colour was ruled to be the string's.
+3. Flat stages can only STEP, and the eye reads a step as an edge. On a chord box the four ramps
+   had no radial term, so out past a corner the top cap carried its full alpha where the sides had
+   already decayed to zero — a hard cut across zero width, exactly the one the user reported.
+
+A distance field has none of these failure modes available to it: it never samples art, so it
+cannot pick up a bevel or a white lift, and it is one continuous function of position, so its
+falloff is identical in every direction and has no seams to disagree at.
 */
 struct AccentLightStyle
 {
     /*! \brief Stable short name, printed by the sampling toggle. */
     std::string_view name;
 
-    /*! \brief How far the faint outer stage reaches past the art's edge, in texels. */
-    double ember_reach_texels;
+    /*!
+    \brief How far the light reaches from the silhouette's edge, in WORLD units.
 
-    /*! \brief Alpha of the outer stage. */
-    double ember_alpha;
+    One number for every subject — a fretted head, an open string's bar, a chord box frame —
+    because reach is a property of the EMITTER'S BRIGHTNESS, not of its size: a short neon tube
+    and a long one wear the same halo. That asymmetry is the point rather than a defect. Around a
+    head 0.325 world tall it is a rim; around a frame bar 0.075 world thick it is several times
+    the bar's own width, which is what makes a hairline read as GLOWING instead of merely brighter.
 
-    /*! \brief Alpha of the hot stage hugging the art's edge. */
-    double core_alpha;
+    Spent in both directions from the edge (see the shader): outward it is the halo, inward it is
+    what lights a frame's bars. Whatever falls under opaque art is simply occluded.
 
-    /*! \brief How far the hot stage reaches past the art's edge, in texels. */
-    double core_reach_texels;
+    The ceiling that matters is the lane pitch, 0.35 world. A head's art reaches 0.16245 world
+    from its centre, so a reach past about 0.18 puts one string's glow onto the next string's line
+    and two adjacent accents merge into a single field.
+    */
+    double reach;
+
+    /*! \brief Peak alpha, reached exactly ON the silhouette's edge. */
+    double alpha;
 
     /*!
-    \brief How far the light's colour is mixed toward white, from zero (the string's own colour).
+    \brief Falloff shape: the exponent the 0..1 ramp is raised to.
+
+    At 1.0 the ramp is linear, which reads as a gradient rather than as light — a linear ramp
+    spends as much of its width at half brightness as a real falloff spends at a tenth. Above 1.0
+    the core tightens and the toe lengthens, which is how light actually distributes its energy
+    and is the knob that answers "doesn't fade naturally".
+    */
+    double exponent;
+
+    /*!
+    \brief How far the light's colour is mixed toward white, from zero (the subject's own colour).
 
     Ruled 2026-08-15: the light is the STRING'S colour, so this sits at or near zero. A white glow
     was tried first, on the reasoning that the atlas ring it replaced got most of its brightness
     from a white lift — but a white light says the same thing on every string, and the whole point
     of a light on a coloured note is that it belongs to that note.
 
-    The cost is real and is paid elsewhere. Full string identity carries the palette's 4.08x luma
-    spread, so the same alpha reads four times quieter on the red string than on the yellow. The
-    knob that closes that WITHOUT touching the colour is \ref core_reach_texels and
-    \ref ember_reach_texels — more area, not more white — which is why the candidates below run
-    from tight to wide rather than from tinted to white. One row keeps a quarter of a white lift
-    as the compromise, for comparison against the pure ones.
+    The cost is real: the palette's 4.08x luma spread means the same alpha reads four times
+    quieter on the red string than on the yellow. \ref reach is the knob that closes that without
+    touching the colour — more area, not more white — which is why the rows below sweep size
+    first. One row keeps a quarter lift as the compromise, for comparison against the pure ones.
     */
     double white_mix;
+
+    /*! \brief Which operator combines this light with the board. */
+    AccentBlend blend;
 };
 
 /*!
@@ -79,57 +133,69 @@ struct AccentLightStyle
 Index 0 exists so the sampling can include the board without any accent light, which is the only
 honest reference for judging whether a candidate reads as emphasis or as decoration.
 
-Every row is the STRING'S OWN COLOUR now (see \ref AccentLightStyle::white_mix), so what the rows
-vary is SIZE: the tight rim that was sighted first, then progressively more reach. Width is the
-right axis to open once the colour is fixed, because width is what buys back the brightness the
-white lift used to supply — and it is the only knob that can, since the hot core is already at
-full alpha and a string colour cannot be made brighter without becoming white again.
-
-The wide rows are deliberately allowed past the boundary the first round enforced. That round's
-rule — keep the light's steepest gradient at the note's own edge, or it reads as a lit box the
-note sits inside — was measured against a WHITE field, which competes with the note. A light in
-the note's own colour does not compete with it the same way, so how far it may reach before it
-stops belonging to the note is genuinely re-opened rather than settled.
+The rows are a designed sweep rather than a pile: rows 1-3 vary SIZE alone off a common falloff,
+row 4 varies the falloff SHAPE at the widest size, rows 5-6 vary the BLEND OPERATOR against row 2
+so that comparison isolates the operator, and row 7 varies the COLOUR against the same row. Every
+row lights notes and chord boxes together from these same numbers, so a candidate is judged as one
+look across the whole board rather than as a note treatment with a box treatment beside it.
 */
-inline constexpr std::array<AccentLightStyle, 5> g_accent_light_styles{{
+inline constexpr std::array<AccentLightStyle, 8> g_accent_light_styles{{
     {.name = "none",
-     .ember_reach_texels = 0.0,
-     .ember_alpha = 0.0,
-     .core_alpha = 0.0,
-     .core_reach_texels = 0.0,
-     .white_mix = 0.0},
-    // The width sighted in the white round, now in the string's colour: the control that isolates
-    // the colour change from every other variable.
-    {.name = "string tight",
-     .ember_reach_texels = 0.0,
-     .ember_alpha = 0.0,
-     .core_alpha = 1.00,
-     .core_reach_texels = 1.5,
-     .white_mix = 0.0},
-    // A thicker core with a real ember behind it — about a head's own half-height of reach.
-    {.name = "string wide",
-     .ember_reach_texels = 6.0,
-     .ember_alpha = 0.25,
-     .core_alpha = 1.00,
-     .core_reach_texels = 2.5,
-     .white_mix = 0.0},
-    // The widest that still belongs to one string. Ten texels is 0.15 world past the art, so a
-    // head's glow ends 0.89 of the 0.35 lane pitch from its own centre — just short of the
-    // neighbouring string's line. Wider than this and two adjacent accents merge into one field.
-    {.name = "string bloom",
-     .ember_reach_texels = 10.0,
-     .ember_alpha = 0.35,
-     .core_alpha = 1.00,
-     .core_reach_texels = 2.0,
-     .white_mix = 0.0},
-    // Wide, with a quarter of a white lift kept: closes most of the red-to-yellow spread while
-    // the string is still plainly the source of the light. The compromise row.
-    {.name = "string lifted",
-     .ember_reach_texels = 6.0,
-     .ember_alpha = 0.28,
-     .core_alpha = 1.00,
-     .core_reach_texels = 2.0,
-     .white_mix = 0.25},
+     .reach = 0.0,
+     .alpha = 0.0,
+     .exponent = 1.0,
+     .white_mix = 0.0,
+     .blend = AccentBlend::Add},
+    // Four texels of reach: a rim that stops well inside the lane, the tightest thing that still
+    // reads as a light rather than as a thicker outline.
+    {.name = "tight",
+     .reach = 0.06,
+     .alpha = 1.00,
+     .exponent = 2.0,
+     .white_mix = 0.0,
+     .blend = AccentBlend::Add},
+    // Eight texels — about half the head art's own half-height. The reference row: rows 5-7 vary
+    // one thing each against exactly this.
+    {.name = "medium",
+     .reach = 0.12,
+     .alpha = 1.00,
+     .exponent = 2.0,
+     .white_mix = 0.0,
+     .blend = AccentBlend::Add},
+    // Twelve texels, which lands a head's glow within a hair of the neighbouring string's line.
+    // The widest a per-string light can be before two adjacent accents stop being two.
+    {.name = "wide",
+     .reach = 0.18,
+     .alpha = 1.00,
+     .exponent = 2.0,
+     .white_mix = 0.0,
+     .blend = AccentBlend::Add},
+    // The same width with a LINEAR falloff, to sight the exponent's contribution on its own: this
+    // is what the previous design's ramps were, at a size that makes the difference visible.
+    {.name = "wide linear",
+     .reach = 0.18,
+     .alpha = 0.85,
+     .exponent = 1.0,
+     .white_mix = 0.0,
+     .blend = AccentBlend::Add},
+    {.name = "medium screen",
+     .reach = 0.12,
+     .alpha = 1.00,
+     .exponent = 2.0,
+     .white_mix = 0.0,
+     .blend = AccentBlend::Screen},
+    {.name = "medium lighten",
+     .reach = 0.12,
+     .alpha = 1.00,
+     .exponent = 2.0,
+     .white_mix = 0.0,
+     .blend = AccentBlend::Lighten},
+    {.name = "medium lifted",
+     .reach = 0.12,
+     .alpha = 1.00,
+     .exponent = 2.0,
+     .white_mix = 0.25,
+     .blend = AccentBlend::Add},
 }};
 
 /*!
@@ -164,68 +230,24 @@ old atlas-mark design diverged, since a mark drawn on a head could never be worn
 inline constexpr double g_ghost_open_bar_thickness{0.5};
 
 /*!
-\brief An accented chord box's light: its own frame redrawn additively, twice.
+\brief Extra white lift a chord box's light takes on top of its candidate's \ref
+       AccentLightStyle::white_mix.
 
-A box spans several strings, so unlike a note it has no string colour to take — its light is the
-box's own teal, which is also why it cannot be matched to a note's rim by alpha and is instead
-tuned by eye in the same sighting pass.
+The ONE number a box does not share with a note, and it exists for a measured reason rather than
+for taste. A note's light is its STRING'S colour, which is the colour of nothing else near it. A
+box has no string, so its light can only be the box's own teal — and adding a colour on top of
+itself is the least perceptible change available. Two rounds of this light were reported as no
+effect at all for exactly that. The lift is what makes it read as light falling ON the box rather
+than as more of the box's own paint.
 
-Both stages redraw the PANEL rather than laying an outline beside it, so the light follows every
-variant of the shape (half-height repeat boxes, the top bar that only appears on three-note
-chords, the columns that fade out at the midpoint when it does not, the corner holders) and cannot
-drift from it. The interior fill is suppressed in both: a box is read THROUGH, and light in the
-middle is opacity where the notes behind it have to stay legible.
+It is additive with the candidate's own mix and the sum is clamped, so a candidate that already
+lifts toward white does not double-lift a box past white.
 
-**Why the HALO carries this, where a note's rim is carried by its core.** Adding a colour on top
-of itself is the least perceptible change available: the first version of this light put nearly
-all of its alpha on the frame bar, which is already painted this exact teal, so it only made teal
-slightly more teal and the user reported seeing no effect at all — twice. The stage that actually
-reads is the one OUTSIDE the frame, where the same teal lands on the near-black board and the
-contrast is enormous. So the halo reaches further and carries more weight than its counterpart on
-a note, and the on-bar stage is there to keep the frame from looking like it is merely wearing a
-ring that does not belong to it.
-
-The alphas are the panel's own `alpha_scale`, so they land on the frame at about half these
-numbers (its bars draw at 128/255 of the scale) and on the corner holders at the full value.
-
-These are NOT part of the F9 accent cycle. A box has no string colour, so it shares none of the
-candidates' variables, and cycling the note styles deliberately leaves boxes untouched.
+Everything else about a box's light — reach, alpha, falloff, blend operator — comes from the
+selected candidate, so cycling the toggle moves notes and boxes together and the pair is judged as
+one look. That is a correction: the previous box light was wired to its own fixed constants and
+did not respond to the cycle at all.
 */
-
-/*!
-\brief How far the spill reaches outward from the box, in world units (twenty texels).
-
-Sized from the measurement, not by eye. The frame bar is 0.075 world, which projects to 0.7 px at
-the far end of the visible window and 2.3 px a third of a second out (and half that again in the
-editor's preview pane), so every on-frame stage is confined to a hairline. This reach reads about
-nine pixels wide a third of a second out and stays visible to the horizon, which is what gives the
-accent any screen area at all.
-*/
-inline constexpr double g_box_light_halo_reach{0.30};
-
-/*!
-\brief Alpha of the spill where it meets the frame, falling to nothing across the reach above.
-*/
-inline constexpr double g_box_light_halo_alpha{0.55};
-
-/*!
-\brief How far the spill's colour is lifted toward white, from zero (the box's own teal).
-
-The frame is already painted this exact teal, so a pure-teal light adds a hue the eye has no
-reference for — measured as the least perceptible change available, and the reason two rounds of
-this light were reported as no effect at all. The lift is what makes it read as light falling on
-the box rather than as more of the box's own paint. A note's rim needs no equivalent because it
-now takes its STRING'S colour, which is not the colour of anything else around it.
-*/
-inline constexpr double g_box_light_white_mix{0.55};
-
-/*!
-\brief Alpha of the hot stage, laid exactly on the frame.
-
-Near one on purpose: additively at this scale the bars land at roughly double their unlit value.
-Against a same-coloured frame even that is a modest read, which is exactly why it is not asked to
-carry the effect alone.
-*/
-inline constexpr double g_box_light_core_alpha{0.85};
+inline constexpr double g_box_light_extra_white_mix{0.55};
 
 } // namespace rock_hero::common::ui
