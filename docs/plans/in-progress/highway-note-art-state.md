@@ -17,16 +17,42 @@ end having been signed. Candidates live in `highway_emphasis_styles.h` and cycle
 which logs the active one. The default index is the table's current front-runner, so the app opens
 on the look last preferred.
 
-**Open and being worked 2026-08-15 by three research agents**, after the user reported that the
-light *"doesn't fade naturally like real light and looks boxy"*, that on the chord box *"the top
-bar light looks completely disconnected from the side bar glows — they clash with a hard cut"*,
-and that *"something is really off in how these light shaders are being used"*. The suspected
-cause is that every stage is FLAT-ALPHA or per-side LINEAR geometry: the head and open-bar rims
-are two flat stages (a staircase, not a falloff), and the box spill is four independent linear
-ramps that meet at the corners with no radial term — which is exactly a hard cut. The likely fix
-is a per-fragment falloff (this renderer already ships an SDF program for box mute marks and a
-per-fragment window light with soft edges) rather than more quads. Also outstanding: the chord box
-light must join the F9 cycle, which it currently does not.
+**Open and being worked 2026-08-15**, after the user reported that the light *"doesn't fade
+naturally like real light and looks boxy"*, that on the chord box *"the top bar light looks
+completely disconnected from the side bar glows — they clash with a hard cut"*, and that
+*"something is really off in how these light shaders are being used"*. Three causes are now
+MEASURED, not suspected:
+
+1. **The head's rim samples the art INWARD as it draws OUTWARD, so it brightens toward its outer
+   edge — the inverse of a falloff.** The rim redraws the head's own cell on a larger quad, so a
+   point further out in the drawn quad maps to a point further IN in the art. Measured on cell 0:
+   the visible ring covers art rows `10.83/grow .. 10.83`, and at a reach of 4 texels or more that
+   band reaches the art's BEVEL, where `R=255, G=107` against an interior of `R≈170, G≈33`. The
+   wider the candidate, the more bevel it lands on.
+2. **`fs_texture_tint` adds `texel.g` unconditionally** — `rgb = texel.r * tint + texel.g` — and G
+   is the atlas's achromatic white-lift channel. So the bevel above contributes 107/255 of PURE
+   WHITE that no `white_mix` setting can suppress: the mix only scales the tint that multiplies R.
+   **This is why the light still read as white after the colour was ruled to be the string's.**
+3. **Every stage is flat-alpha or per-side linear.** The head and open-bar rims are two flat
+   stages (a staircase). The box spill is four independent linear ramps with no radial term: the
+   top cap carries full alpha along its entire bottom edge, including out past the corners where
+   the side ramps have already decayed to zero — a step of up to the halo's full 0.55 alpha across
+   ZERO width. That is the "hard cut", exactly located.
+
+The fix under design is one per-fragment falloff program evaluating a rounded-box / rhombus /
+capsule signed distance — the intersection of two precedents this renderer already ships (the
+box-mute SDF program and the window light's soft edges) rather than a third mechanism. It deletes
+`BoxPanelParts`, the second panel redraw, the spill quads, both rim lambdas, the open bar's `/2`
+prism compensation, and two fields of the style table.
+
+**Blend mode becomes a sighting axis too** (user, 2026-08-15): additive clips per channel in this
+8-bit buffer with no HDR, and clipping desaturates toward white — an independent second cause of
+"too white". `BGFX_STATE_BLEND_SCREEN` (`FUNC(ONE, INV_SRC_COLOR)`, verified present in the
+vendored bgfx) is bounded by the source colour, so it converges on the STRING'S colour instead of
+white and lets overlapping glows merge without blowing out; `BGFX_STATE_BLEND_LIGHTEN` (max) never
+blows out at all. A/B them against additive rather than picking one.
+
+Also outstanding: the chord box light must join the F9 cycle, which it currently does not.
 
 - **Accent colour, RULED 2026-08-15: the light is the STRING'S colour.** The first round was 78%
   to 100% white on every candidate, which the user caught (*"Is the accent glow only using WHITE
