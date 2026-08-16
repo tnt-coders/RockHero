@@ -141,27 +141,25 @@ The rejected candidates are recoverable from git history: `dim fill` and `dim fi
 darkening), `dim small` (thinning the head), and `hollow` (an outline instead of a fill).
 */
 
-/*! \brief Alpha applied to a ghost's head art, and to an open string's bar. */
-inline constexpr double g_ghost_head_alpha{0.45};
-
-/*! \brief Alpha applied to the technique markers riding a ghost's head. */
-inline constexpr double g_ghost_marker_alpha{0.45};
-
 /*!
-\brief Alpha applied to a ghost's sustain tail.
+\brief Alpha a ghost keeps, everywhere: head art, technique markers, and sustain tail alike.
 
-Quieter than one but LOUDER than the head, deliberately: a ghost is an attack dynamic rather than
-a sustain one, and a ribbon dimmed as hard as the head that starts it reads as a rendering fault.
+ONE number on purpose. The sighted look split it — 0.45 on the head and markers against 0.65 on
+the tail — on the reasoning that a ghost is an attack dynamic rather than a sustain one, so a
+ribbon dimmed as hard as its head would read as a rendering fault. Collapsing both to a half is
+being tried against exactly that: if the note still reads as one quiet gesture, the split was a
+distinction the eye never made, and the axis is simpler by a whole variable.
 */
-inline constexpr double g_ghost_tail_alpha{0.65};
+inline constexpr double g_ghost_alpha{0.5};
 
 /*!
 \brief Thickness multiplier for a ghosted open string's bar, which has no head to thin.
 
-An open string carries the axis on its bar because it has no head to wear it - the seam where the
+Stays its own number even while the alphas collapse: it is a THICKNESS, not a light level. An
+open string carries the axis on its bar because it has no head to wear it - the seam where the
 old atlas-mark design diverged, since a mark drawn on a head could never be worn by a bar.
 */
-inline constexpr double g_ghost_open_bar_thickness{0.45};
+inline constexpr double g_ghost_open_bar_thickness{0.5};
 
 /*!
 \brief An accented chord box's light: its own frame redrawn additively, twice.

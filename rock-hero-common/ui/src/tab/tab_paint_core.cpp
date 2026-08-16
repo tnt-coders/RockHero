@@ -144,12 +144,6 @@ enum class Ink : std::uint8_t
     Count
 };
 
-// The two tail inks, which quiet LESS than the rest of the note (see \ref StringStyle::ghosted).
-[[nodiscard]] constexpr bool isSustainInk(const Ink ink)
-{
-    return ink == Ink::Tail || ink == Ink::TailEdge;
-}
-
 // A ghost's quiet, SIGNED 2026-08-15 after sighting four candidates: the opaque LEAN wins.
 //
 // Quiet on this surface means leaning every ink toward the lane's ground, opaquely. The lane
@@ -159,13 +153,16 @@ enum class Ink : std::uint8_t
 // four counts, and everywhere else translucency reveals a lane line, a waveform, a measure grid
 // and a neighbour's ribbon, every one of them brighter than a ghost's own ring.
 //
-// The weights are the highway's sighted half-light numbers read for this surface: its head_alpha
-// 0.45 and tail_alpha 0.65 leave exactly this much of the dark world showing through, so the two
-// surfaces say the same thing about the same note through different mechanisms. The sustain
-// quiets LESS than the head because a ghost is an attack dynamic rather than a sustain one, and a
-// ribbon dimmed as hard as the head that starts it reads as a rendering fault.
-constexpr float g_ghost_head_ground{0.55f};
-constexpr float g_ghost_sustain_ground{0.35f};
+// ONE weight, and it is the highway's own number read for this surface: a ghost there keeps alpha
+// 0.5 over a dark world, which leaves exactly half the ground showing through, so half is what
+// this surface leans. The two say the same thing about the same note through different mechanisms
+// — and because the arithmetic matches exactly, they stay in step by construction rather than by
+// two numbers being maintained in agreement.
+//
+// The head and the sustain used to differ (0.55 against 0.35), on the reasoning that a ghost is an
+// attack dynamic rather than a sustain one so a ribbon dimmed as hard as its head would read as a
+// rendering fault. Collapsing them is being tried against exactly that claim.
+constexpr float g_ghost_ground{0.5f};
 
 // Bridges the shared Charter-exact style derivation to JUCE colors at this module's boundary;
 // the per-string entries match common::ui::StringLaneStyle one for one.
@@ -223,23 +220,20 @@ struct StringStyle
     \brief This string's ink set with a ghost's quiet taken out of it.
 
     Quiet on THIS surface means leaning toward the lane's own ground, not translucency — the
-    ruling and its evidence sit with the weights below. Applied to EVERY ink at once, so a mark
-    added later is quiet by construction rather than by remembering to quiet it. \ref
-    Ink::HeadBacking is self-correcting: the ground leaned toward the ground is the ground.
+    ruling and its evidence sit with the weight above. Applied to EVERY ink at one weight, so a
+    mark added later is quiet by construction rather than by remembering to quiet it, and no ink
+    can drift out of step with its neighbours. \ref Ink::HeadBacking is self-correcting: the
+    ground leaned toward the ground is the ground.
 
-    \param head_ground How far the note's own ink leans toward the lane's ground.
-    \param sustain_ground How far the sustain's two inks lean.
+    \param ground How far every ink leans toward the lane's ground.
     \return The quieted ink set.
     */
-    [[nodiscard]] StringStyle ghosted(const float head_ground, const float sustain_ground) const
+    [[nodiscard]] StringStyle ghosted(const float ground) const
     {
         StringStyle quiet = *this;
-        for (std::size_t index = 0; index < quiet.inks.size(); ++index)
+        for (juce::Colour& ink : quiet.inks)
         {
-            juce::Colour& ink = quiet.inks.at(index);
-            ink = ink.interpolatedWith(
-                g_note_background_color,
-                isSustainInk(static_cast<Ink>(index)) ? sustain_ground : head_ground);
+            ink = ink.interpolatedWith(g_note_background_color, ground);
         }
         return quiet;
     }
@@ -282,8 +276,7 @@ struct LaneStyles
     for (int chart_string = 1; chart_string <= common::core::g_max_chart_strings; ++chart_string)
     {
         styles.normal.emplace_back(metrics.baseColor(chart_string));
-        styles.ghost.push_back(
-            styles.normal.back().ghosted(g_ghost_head_ground, g_ghost_sustain_ground));
+        styles.ghost.push_back(styles.normal.back().ghosted(g_ghost_ground));
     }
     return styles;
 }

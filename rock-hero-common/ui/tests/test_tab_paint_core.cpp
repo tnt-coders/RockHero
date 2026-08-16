@@ -1253,10 +1253,12 @@ TEST_CASE("Tab paint core quiets a ghost note by color, not by opacity", "[ui][t
     CHECK(topDigitInkRow(normal, onset_x, center_y) > 0);
     CHECK(topDigitInkRow(ghost, onset_x, center_y) == 0);
 
-    // And the sustain quiets LESS than the head that starts it: a ghost is an attack dynamic, not
-    // a sustain one, and a ribbon dimmed as hard as its head reads as a rendering fault. Measured
-    // as the share of each sample's distance above the lane's ground that survives — the head's
-    // fill against the tail's bright rail, well past the head.
+    // And the whole note quiets at ONE weight — head and sustain alike. That is the claim the
+    // single ghost constant makes, and it is worth pinning as an equality rather than as two
+    // numbers: the earlier design leaned the head and the ribbon differently, and the way that
+    // regresses is for one of them to drift while the other stays put. Measured as the share of
+    // each sample's distance above the lane's ground that survives — the head's fill against the
+    // tail's bright rail, well past the head.
     constexpr double ground = 16.0; // the lane's own near-black, which every ink leans toward
     const auto retained = [&](const int x, const int y) {
         const juce::Colour was = normal.getPixelAt(x, y);
@@ -1274,9 +1276,10 @@ TEST_CASE("Tab paint core quiets a ghost note by color, not by opacity", "[ui][t
         static_cast<float>(center_y) - (metrics.tail_height / 3.0f) - 1.0f +
         (metrics.tail_edge_size / 2.0f));
     const double tail_retained = retained(onset_x + 60, rail_y);
-    CHECK(tail_retained > head_retained);
-    CHECK_THAT(head_retained, Catch::Matchers::WithinAbs(0.45, 0.02));
-    CHECK_THAT(tail_retained, Catch::Matchers::WithinAbs(0.65, 0.02));
+    CAPTURE(head_retained, tail_retained);
+    CHECK_THAT(head_retained, Catch::Matchers::WithinAbs(0.5, 0.02));
+    CHECK_THAT(tail_retained, Catch::Matchers::WithinAbs(0.5, 0.02));
+    CHECK_THAT(tail_retained, Catch::Matchers::WithinAbs(head_retained, 0.02));
 }
 
 } // namespace rock_hero::common::ui

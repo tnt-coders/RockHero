@@ -135,14 +135,6 @@ constexpr double g_head_art_half_width = 0.3120;
 constexpr double g_head_art_half_height = 0.16245;
 constexpr double g_head_art_texel_world = 0.015;
 
-// An open string's accent halo: the open-note bar redrawn thicker and faint. An open note has no
-// head quad, so it cannot wear the accent atlas cell the fretted heads do — these two numbers are
-// the open string's whole accent, and they exist to be tuned ALONGSIDE that cell. Sized so the
-// halo adds roughly the light the cell's own glow adds (the marker's added light was measured at
-// about half again the bar's), because an accent that reads loud on a fretted note and quiet on
-// an open one is the same chart mark saying two different things.
-constexpr double g_open_accent_halo_thickness = 4.0;
-constexpr double g_open_accent_halo_alpha = 128.0 / 255.0;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -2086,17 +2078,9 @@ void HighwayRenderer::Impl::draw(
     std::vector<std::uint16_t> rail_indices;
     std::vector<PosColorVertex> open_vertices;
     std::vector<std::uint16_t> open_indices;
-    // The accent light, in two batches because its two subjects have different shapes. Both
-    // submit between the open bars and the heads, so the light sits UNDER the note it belongs
-    // to: drawn over, it repaints the note's own pixels, which is the shipped ring's whole
-    // problem; drawn under, it shows only where the note is not.
-    //
-    // A BOX's light is plain geometry hugging its frame. A NOTE's light is the note's own art
-    // redrawn larger, so it needs the head texture — which buys the exact silhouette, corners
-    // and antialiasing without a single measured extent in this file, and cannot drift when the
-    // art changes.
-    std::vector<PosColorVertex> accent_vertices;
-    std::vector<std::uint16_t> accent_indices;
+    // A note's accent light submits between the open bars and the heads, so it sits UNDER the
+    // note it belongs to: drawn over, it repaints the note's own pixels, which is the shipped
+    // ring's whole problem; drawn under, it shows only where the note is not.
     std::vector<PosColorUvVertex> accent_head_vertices;
     std::vector<std::uint16_t> accent_head_indices;
     // An open string's light needs a batch of its own because of where it must sit in the
@@ -2553,7 +2537,7 @@ void HighwayRenderer::Impl::draw(
             // NO heads, still states the axis, and a plain box states it in parity with the
             // repeat it may become.
             const bool box_ghosted = box.emphasis == common::core::NoteEmphasis::Ghost;
-            const double box_alpha = box_ghosted ? g_ghost_head_alpha : 1.0;
+            const double box_alpha = box_ghosted ? g_ghost_alpha : 1.0;
             // An accented box emits from its FRAME: the panel redrawn additively, frame only, at
             // its own geometry and again slightly larger. Two stages, matching the two a note's
             // rim wears — a hot one exactly on the bars, which is what makes them emit, and a
@@ -2830,14 +2814,6 @@ void HighwayRenderer::Impl::draw(
         // counts of blue where the light is warm, and a mark that darkens part of what it covers
         // reads as a decal rather than as light.
         submitBatch(
-            accent_vertices,
-            accent_indices,
-            posColorLayout(),
-            color_program.get(),
-            nullptr,
-            g_board_view,
-            g_additive_state);
-        submitBatch(
             accent_head_vertices,
             accent_head_indices,
             posColorUvLayout(),
@@ -2857,8 +2833,6 @@ void HighwayRenderer::Impl::draw(
         rail_indices.clear();
         open_vertices.clear();
         open_indices.clear();
-        accent_vertices.clear();
-        accent_indices.clear();
         accent_head_vertices.clear();
         accent_head_indices.clear();
         accent_open_vertices.clear();
@@ -3401,7 +3375,7 @@ void HighwayRenderer::Impl::draw(
             // a note played softly.
             const double duration = note.end_seconds - note.start_seconds;
             const double ghost_tail_alpha =
-                note.emphasis == common::core::NoteEmphasis::Ghost ? g_ghost_tail_alpha : 1.0;
+                note.emphasis == common::core::NoteEmphasis::Ghost ? g_ghost_alpha : 1.0;
             const auto tip_alpha = [&](const double seconds) {
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
@@ -4003,7 +3977,7 @@ void HighwayRenderer::Impl::draw(
             // things depending on the fret.
             const bool open_ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
             const double open_bar_thickness = open_ghosted ? g_ghost_open_bar_thickness : 1.0;
-            const double open_bar_alpha = open_ghosted ? g_ghost_head_alpha : 1.0;
+            const double open_bar_alpha = open_ghosted ? g_ghost_alpha : 1.0;
             pushOpenNoteBar(
                 open_vertices,
                 open_indices,
@@ -4059,7 +4033,7 @@ void HighwayRenderer::Impl::draw(
             {
                 const double center_x = (x0 + x1) / 2.0;
                 const std::uint32_t marker_tint =
-                    packAbgr(base_color, fade * (open_ghosted ? g_ghost_marker_alpha : 1.0));
+                    packAbgr(base_color, fade * (open_ghosted ? g_ghost_alpha : 1.0));
                 // The connection cell, from the same authority the fretted head below asks: an open
                 // string usually carries only the pull-off, but a left-hand tap resolves to the
                 // hammer motion unconditionally and is legal on an open string with a node.
@@ -4218,10 +4192,10 @@ void HighwayRenderer::Impl::draw(
         // with it: a full-brightness mark over a dim head reads as a rendering fault rather than
         // as dynamics.
         const bool ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
-        const double head_alpha = ghosted ? g_ghost_head_alpha : 1.0;
+        const double head_alpha = ghosted ? g_ghost_alpha : 1.0;
         const std::uint32_t head_tint = packAbgr(base_color, fade * head_slide.alpha * head_alpha);
         const std::uint32_t tint =
-            packAbgr(base_color, fade * head_slide.alpha * (ghosted ? g_ghost_marker_alpha : 1.0));
+            packAbgr(base_color, fade * head_slide.alpha * (ghosted ? g_ghost_alpha : 1.0));
 
         // Head base: the round node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
