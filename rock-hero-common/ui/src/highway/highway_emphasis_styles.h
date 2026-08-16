@@ -129,8 +129,25 @@ struct GhostStyle
     /*! \brief Stable short name, printed by the sampling toggle. */
     std::string_view name;
 
-    /*! \brief Alpha applied to the head's own art. */
+    /*!
+    \brief Alpha applied to the head's own art.
+
+    Below one this makes the head TRANSLUCENT, which reveals whatever sits behind it — its own
+    sustain ribbon most of all, since the tail passes under the head it belongs to. Quieting a
+    note by taking its alpha down therefore trades one right reading for a wrong one; \ref
+    fill_dim is the same weight without that cost.
+    */
     double head_alpha;
+
+    /*!
+    \brief How far the head's fill is darkened toward the board, from zero (its own colour).
+
+    The OPAQUE way to read quiet: the note keeps alpha one, so nothing behind it can show
+    through, and only its brightness drops. Hue survives, so the string still identifies itself
+    — which is what separates this from desaturating toward grey, the convention that reads as
+    "disabled" rather than as "played softly".
+    */
+    double fill_dim;
 
     /*! \brief Scale applied to the head quad; below one takes mass out instead of light. */
     double head_scale;
@@ -157,51 +174,68 @@ struct GhostStyle
 };
 
 /*! \brief The ghost candidates, in stable index order — index 0 draws a ghost as a normal note. */
-inline constexpr std::array<GhostStyle, 6> g_ghost_styles{{
+inline constexpr std::array<GhostStyle, 7> g_ghost_styles{{
     {.name = "none",
      .head_alpha = 1.0,
+     .fill_dim = 0.0,
      .head_scale = 1.0,
      .marker_alpha = 1.0,
      .tail_alpha = 1.0,
      .open_bar_thickness = 1.0,
      .rim_alpha = 0.0,
      .hollow_head = false},
-    {.name = "rim keep",
-     .head_alpha = 0.40,
+    // Half light's weight without its transparency: the same drop in presence, reached by
+    // darkening the fill rather than thinning it, so the note's own tail cannot show through.
+    {.name = "dim fill",
+     .head_alpha = 1.0,
+     .fill_dim = 0.55,
      .head_scale = 1.0,
      .marker_alpha = 1.0,
-     .tail_alpha = 0.70,
+     .tail_alpha = 0.65,
      .open_bar_thickness = 0.55,
-     .rim_alpha = 1.0,
+     .rim_alpha = 0.0,
+     .hollow_head = false},
+    {.name = "dim fill deep",
+     .head_alpha = 1.0,
+     .fill_dim = 0.70,
+     .head_scale = 1.0,
+     .marker_alpha = 0.80,
+     .tail_alpha = 0.65,
+     .open_bar_thickness = 0.55,
+     .rim_alpha = 0.0,
      .hollow_head = false},
     {.name = "half light",
      .head_alpha = 0.45,
+     .fill_dim = 0.0,
      .head_scale = 1.0,
      .marker_alpha = 0.45,
      .tail_alpha = 0.65,
      .open_bar_thickness = 0.45,
      .rim_alpha = 0.0,
      .hollow_head = false},
+    {.name = "rim keep",
+     .head_alpha = 0.40,
+     .fill_dim = 0.0,
+     .head_scale = 1.0,
+     .marker_alpha = 1.0,
+     .tail_alpha = 0.70,
+     .open_bar_thickness = 0.55,
+     .rim_alpha = 1.0,
+     .hollow_head = false},
     {.name = "small head",
      .head_alpha = 1.0,
+     .fill_dim = 0.0,
      .head_scale = 0.78,
      .marker_alpha = 1.0,
      .tail_alpha = 1.0,
      .open_bar_thickness = 0.55,
      .rim_alpha = 0.0,
      .hollow_head = false},
-    {.name = "hollow",
+    {.name = "dim small",
      .head_alpha = 1.0,
-     .head_scale = 1.0,
-     .marker_alpha = 1.0,
-     .tail_alpha = 0.65,
-     .open_bar_thickness = 0.55,
-     .rim_alpha = 0.0,
-     .hollow_head = true},
-    {.name = "quiet small",
-     .head_alpha = 0.70,
+     .fill_dim = 0.45,
      .head_scale = 0.86,
-     .marker_alpha = 0.70,
+     .marker_alpha = 1.0,
      .tail_alpha = 0.70,
      .open_bar_thickness = 0.70,
      .rim_alpha = 0.0,

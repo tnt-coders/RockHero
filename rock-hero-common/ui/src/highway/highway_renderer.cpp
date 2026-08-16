@@ -2520,21 +2520,28 @@ void HighwayRenderer::Impl::draw(
                     // luma spread that forces the per-note candidates to choose between string
                     // identity and even brightness.
                     const std::uint32_t light_tint = packAbgr(g_chord_box_color, step);
-                    pushQuad(
-                        accent_vertices,
-                        accent_indices,
-                        makeVertex(light_x0 - (light.reach_x * t), 0.0, z, light_tint),
-                        makeVertex(light_x1 + (light.reach_x * t), 0.0, z, light_tint),
-                        makeVertex(
-                            light_x1 + (light.reach_x * t),
-                            box_top + (light.reach_y * t),
-                            z,
-                            light_tint),
-                        makeVertex(
-                            light_x0 - (light.reach_x * t),
-                            box_top + (light.reach_y * t),
-                            z,
-                            light_tint));
+                    // Only the EDGES light. A box is a frame the player reads THROUGH, so
+                    // filling its interior with light — however faint — adds opacity exactly
+                    // where the notes behind it have to stay legible. The light therefore hugs
+                    // the box's outer boundary as four bands and never crosses the middle.
+                    const double out_x = light.reach_x * t;
+                    const double out_y = light.reach_y * t;
+                    const auto push_edge = [&](const double ex0,
+                                               const double ey0,
+                                               const double ex1,
+                                               const double ey1) {
+                        pushQuad(
+                            accent_vertices,
+                            accent_indices,
+                            makeVertex(ex0, ey0, z, light_tint),
+                            makeVertex(ex1, ey0, z, light_tint),
+                            makeVertex(ex1, ey1, z, light_tint),
+                            makeVertex(ex0, ey1, z, light_tint));
+                    };
+                    push_edge(light_x0 - out_x, -out_y, light_x1 + out_x, 0.0);
+                    push_edge(light_x0 - out_x, 0.0, light_x0, box_top);
+                    push_edge(light_x1, 0.0, light_x1 + out_x, box_top);
+                    push_edge(light_x0 - out_x, box_top, light_x1 + out_x, box_top + out_y);
                 }
             };
             if (box.tap != nullptr)
@@ -4058,7 +4065,11 @@ void HighwayRenderer::Impl::draw(
         const double head_scale = ghosted ? ghost.head_scale : 1.0;
         const double head_half_w_drawn = head_half_w * head_scale;
         const double head_half_h_drawn = head_half_h * head_scale;
-        const std::uint32_t head_tint = packAbgr(base_color, fade * head_slide.alpha * head_alpha);
+        // Darkening the FILL rather than thinning it is what keeps a quiet note opaque, so its
+        // own sustain ribbon cannot show through the head the ribbon belongs to.
+        const ArgbColor head_color =
+            ghosted ? mixArgb(base_color, 0xFF000000U, ghost.fill_dim) : base_color;
+        const std::uint32_t head_tint = packAbgr(head_color, fade * head_slide.alpha * head_alpha);
         // The markers carry their OWN emphasis weight rather than the head's: a candidate may
         // quiet the fill while leaving the technique marks legible, which is the difference
         // between a note played softly and a note that failed to draw.
