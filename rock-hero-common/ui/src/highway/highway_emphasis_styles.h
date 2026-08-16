@@ -278,15 +278,31 @@ candidates' variables, and cycling the note styles deliberately leaves boxes unt
 */
 
 /*!
-\brief How far the outer stage grows past the frame, in world units (six texels).
+\brief How far the spill reaches outward from the box, in world units (twenty texels).
 
-Reaches well past the frame on purpose — this is the stage that lands on the dark board, so it is
-where the accent is actually seen.
+Sized from the measurement, not by eye. The frame bar is 0.075 world, which projects to 0.7 px at
+the far end of the visible window and 2.3 px a third of a second out (and half that again in the
+editor's preview pane), so every on-frame stage is confined to a hairline. This reach reads about
+nine pixels wide a third of a second out and stays visible to the horizon, which is what gives the
+accent any screen area at all.
 */
-inline constexpr double g_box_light_halo_reach{0.09};
+inline constexpr double g_box_light_halo_reach{0.30};
 
-/*! \brief Alpha of the outer stage — the one that reads, per the note above. */
-inline constexpr double g_box_light_halo_alpha{0.50};
+/*!
+\brief Alpha of the spill where it meets the frame, falling to nothing across the reach above.
+*/
+inline constexpr double g_box_light_halo_alpha{0.55};
+
+/*!
+\brief How far the spill's colour is lifted toward white, from zero (the box's own teal).
+
+The frame is already painted this exact teal, so a pure-teal light adds a hue the eye has no
+reference for — measured as the least perceptible change available, and the reason two rounds of
+this light were reported as no effect at all. The lift is what makes it read as light falling on
+the box rather than as more of the box's own paint. A note's rim needs no equivalent because it
+now takes its STRING'S colour, which is not the colour of anything else around it.
+*/
+inline constexpr double g_box_light_white_mix{0.55};
 
 /*!
 \brief Alpha of the hot stage, laid exactly on the frame.

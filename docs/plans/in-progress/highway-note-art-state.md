@@ -45,12 +45,18 @@ the look last preferred: accent `tight`, ghost `half light`.
   columns beside ones that fade out at the midpoint; its inward reaches were negative, so no band
   landed on the bar at all; and it was queued into a NOTE batch that only reaches the screen when
   notes happen to be visible. **But the reason it read as nothing even where it landed is
-  perceptual**: it added the box's own teal on top of a frame already painted that exact teal,
-  which is the least perceptible change available. The light is now the PANEL ITSELF redrawn
-  additively, frame-only, twice — so it follows every variant of the shape by construction — and
-  the stage that carries the read is the HALO outside the frame, where the same teal lands on the
-  near-black board. Note the box light is deliberately NOT on the F9 cycle: a box has no string
-  colour and shares none of the candidates' variables, so cycling note styles leaves it alone.
+perceptual and geometric**, and no amount of fixing the outline would have saved it. **The
+  frame bar is 0.075 world thick, which projects to 0.7 px at the far end of the visible window
+  and 2.3 px a third of a second out — halve that again in the editor preview.** Every "light the
+  bar" design is therefore confined to a hairline and adds no screen AREA at any distance; and
+  what little it added was the box's own teal on a frame already painted that exact teal, the
+  least perceptible change available. The light is now two stages: the PANEL redrawn additively
+  frame-only (so it follows every variant of the shape by construction), plus a gradient SPILL
+  reaching 0.30 world outward onto the dark board, white-lifted. Outward is the only direction
+  with room — the interior must stay see-through and below the box is the floor. Each accented
+  box flushes its own batch so a far box's spill cannot wash over a nearer box's panel. Note the
+  box light is deliberately NOT on the F9 cycle: a box has no string colour and shares none of the
+  candidates' variables, so cycling note styles leaves it alone.
   (c) The accent atlas ring was still
   being drawn under the light; that draw, the `g_head_cell_accent` constant, and the art itself
   are all gone (cell 3 is now empty and byte-identical to spare cells 18 and 19).

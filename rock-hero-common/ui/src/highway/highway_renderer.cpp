@@ -2223,10 +2223,12 @@ void HighwayRenderer::Impl::draw(
         // bounded by the visible marked repeat boxes: tens at worst, noise for bgfx.
         std::vector<PosColorUvVertex> box_marker_vertices;
         std::vector<std::uint16_t> box_marker_indices;
-        // An accented box's light rides the SAME flush as the panel it lights, for both halves of
-        // painter order: after its own panel, so it lands on the frame bar and makes it emit
-        // rather than sitting behind it, and before the next box's panel, so a far box's light
-        // can never wash over a nearer box in a dense chug chain.
+        // An accented box's light rides the SAME flush as the panel it lights, which puts it
+        // after its own panel (so it lands ON the frame rather than behind it). Getting the other
+        // half of painter order — a far box's light never washing over a NEARER box — takes an
+        // extra flush at each accented box, because boxes otherwise batch across the whole loop.
+        // The extra draw calls are bounded by the accented boxes on screen, which is the same
+        // bound the muted repeat boxes already pay for the same reason.
         std::vector<PosColorVertex> box_light_vertices;
         std::vector<std::uint16_t> box_light_indices;
         const auto flush_box_panels = [&] {
@@ -2579,22 +2581,80 @@ void HighwayRenderer::Impl::draw(
                 {
                     return;
                 }
-                const auto push_stage = [&](const double grow, const double alpha) {
-                    pushChordBoxPanel(
+                // Stage one: the frame emits. The panel redrawn on its own geometry, frame only,
+                // so it follows every variant of the shape and cannot drift from it.
+                pushChordBoxPanel(
+                    box_light_vertices,
+                    box_light_indices,
+                    light_x0,
+                    light_x1,
+                    z,
+                    full_height_y1,
+                    box.box_only,
+                    box.with_top,
+                    BoxPanelParts::FrameOnly,
+                    g_box_light_core_alpha,
+                    metrics.string_grid_base_y);
+
+                // Stage two, and the one that is actually SEEN: a gradient spilling outward from
+                // the box onto the dark board.
+                //
+                // Measured, and it is the whole reason the first two attempts read as nothing: the
+                // frame bar is 0.075 world thick, which is 0.7 px at the horizon and 2.3 px a
+                // third of a second out — and half that again in the editor preview. Lighting the
+                // bar can only make a hairline brighter; it adds no AREA at any distance. Outward
+                // is the only direction with room, because the interior has to stay see-through
+                // and below the box is the floor. The colour carries a white lift for the same
+                // reason a note's rim does: the frame is already this exact teal, and adding a
+                // colour on top of itself is the least perceptible change available.
+                const ArgbColor halo_color =
+                    mixArgb(g_chord_box_color, 0xFFFFFFFFU, g_box_light_white_mix);
+                const std::uint32_t lit = packAbgr(halo_color, g_box_light_halo_alpha);
+                const std::uint32_t clear = packAbgr(halo_color, 0.0);
+                const double reach = g_box_light_halo_reach;
+                const double box_top = box.box_only ? full_height_y1 / 2.0 : full_height_y1;
+                // A quad fading from the frame's edge out to nothing. Per-vertex alpha, so the
+                // falloff is one interpolated quad rather than the stack of bands that cannot
+                // read as light (each band boundary is a step, and a step is an edge).
+                const auto push_spill = [&](const double x_frame,
+                                            const double x_out,
+                                            const double y_low,
+                                            const double y_high,
+                                            const std::uint32_t a_low,
+                                            const std::uint32_t a_high) {
+                    pushQuad(
                         box_light_vertices,
                         box_light_indices,
-                        light_x0 - grow,
-                        light_x1 + grow,
-                        z,
-                        full_height_y1 + grow,
-                        box.box_only,
-                        box.with_top,
-                        BoxPanelParts::FrameOnly,
-                        alpha,
-                        metrics.string_grid_base_y);
+                        makeVertex(x_frame, y_low, z, a_low),
+                        makeVertex(x_out, y_low, z, clear),
+                        makeVertex(x_out, y_high, z, clear),
+                        makeVertex(x_frame, y_high, z, a_high));
                 };
-                push_stage(g_box_light_halo_reach, g_box_light_halo_alpha);
-                push_stage(0.0, g_box_light_core_alpha);
+                // The frame's outer top, which is NOT the box top: a top bar sits ABOVE it, and a
+                // two-note chord has no top bar at all — its side columns simply fade out from the
+                // midpoint. The spill follows both cases rather than drawing a bright line across
+                // empty air where a top bar was assumed.
+                if (box.with_top)
+                {
+                    const double outer_top = box_top + metrics.string_grid_base_y;
+                    push_spill(light_x0, light_x0 - reach, 0.0, outer_top, lit, lit);
+                    push_spill(light_x1, light_x1 + reach, 0.0, outer_top, lit, lit);
+                    pushQuad(
+                        box_light_vertices,
+                        box_light_indices,
+                        makeVertex(light_x0 - reach, outer_top, z, lit),
+                        makeVertex(light_x1 + reach, outer_top, z, lit),
+                        makeVertex(light_x1 + reach, outer_top + reach, z, clear),
+                        makeVertex(light_x0 - reach, outer_top + reach, z, clear));
+                }
+                else
+                {
+                    const double fade_start_y = box_top / 2.0;
+                    push_spill(light_x0, light_x0 - reach, 0.0, fade_start_y, lit, lit);
+                    push_spill(light_x1, light_x1 + reach, 0.0, fade_start_y, lit, lit);
+                    push_spill(light_x0, light_x0 - reach, fade_start_y, box_top, lit, clear);
+                    push_spill(light_x1, light_x1 + reach, fade_start_y, box_top, lit, clear);
+                }
             };
             if (box.tap != nullptr)
             {
@@ -2617,6 +2677,10 @@ void HighwayRenderer::Impl::draw(
                     BoxPanelParts::FrameAndFill,
                     box_alpha,
                     metrics.string_grid_base_y);
+                if (common::core::isAccented(box.emphasis))
+                {
+                    flush_box_panels();
+                }
                 continue;
             }
             // Display-time window: an approaching box takes the window at its own onset instant,
@@ -2640,6 +2704,10 @@ void HighwayRenderer::Impl::draw(
                 BoxPanelParts::FrameAndFill,
                 box_alpha,
                 metrics.string_grid_base_y);
+            if (common::core::isAccented(box.emphasis))
+            {
+                flush_box_panels();
+            }
             if (box.box_only && box.mute != common::core::NoteMute::None)
             {
                 flush_box_panels();
