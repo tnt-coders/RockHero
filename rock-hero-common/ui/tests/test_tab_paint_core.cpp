@@ -90,7 +90,7 @@ constexpr int g_digit_window = 4;
 
 // The 400x240 six-lane band every case in this file paints into: 20 px/s across 20 seconds, so a
 // second is twenty columns and 2.0s lands at x = 40.
-[[nodiscard]] TabLaneMetrics referenceMetrics(int string_count, std::size_t tail_end_style = 0)
+[[nodiscard]] TabLaneMetrics referenceMetrics(int string_count)
 {
     return makeTabLaneMetrics(
         juce::Rectangle<int>{0, 0, 400, 240},
@@ -100,23 +100,7 @@ constexpr int g_digit_window = 4;
         },
         common::core::displayedStringCount(string_count, 0),
         string_count,
-        TabLaneStyle{.tail_end_style = tail_end_style});
-}
-
-// The index of a named tail-end candidate, so a case names the look it means rather than pinning
-// an ordering the table is free to change.
-[[nodiscard]] std::size_t tailEndStyleNamed(const std::string_view name)
-{
-    std::size_t found = tabTailEndStyleCount();
-    for (std::size_t index = 0; index < tabTailEndStyleCount(); ++index)
-    {
-        if (tabTailEndStyleName(index) == name)
-        {
-            found = index;
-        }
-    }
-    REQUIRE(found < tabTailEndStyleCount());
-    return found;
+        TabLaneStyle{});
 }
 
 // The largest per-channel difference anywhere between two renders: zero means the two are the same
@@ -1299,29 +1283,20 @@ TEST_CASE("Tab paint core quiets a ghost note by color, not by opacity", "[ui][t
     CHECK_THAT(tail_retained, Catch::Matchers::WithinAbs(head_retained, 0.02));
 }
 
-// The defect the tail-end sighting exists to fix: a glide whose last waypoint sits at the sustain
-// end used to stop one stroke short of the ribbon, because that inset was placed to meet an end
-// cap the tail no longer draws. Pinned as "the mark's ink reaches the ribbon's last column",
-// which is the user-visible claim, rather than as an arithmetic check on the inset.
-TEST_CASE("Tab paint core runs a glide's mark to the end of its ribbon", "[ui][tab-paint]")
+// A tail that ends bare — no cap — is only correct if every mark riding it runs the whole ribbon.
+// Both marks used to inset their final endpoint by one stroke to meet a cap that no longer exists,
+// which showed as a stub of bare ribbon past the mark's tip. Pinned as "the mark's ink reaches the
+// ribbon's last column", the user-visible claim, rather than as arithmetic on the inset — and
+// pinned for the slide AND the bend, because the inset was two separate lines and dropping one
+// would leave the other's stub in place.
+TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const auto painted = [](const std::size_t tail_end_style) {
-        const TabLaneMetrics metrics = referenceMetrics(6, tail_end_style);
+    const TabLaneMetrics metrics = referenceMetrics(6);
+    const auto painted = [&metrics](const common::core::TabNoteView& note) {
         common::core::TabViewState state;
         state.string_count = 6;
-        // A glide whose single waypoint lands exactly on the sustain end — the shape the
-        // evaluation package uses, and the case that shows the stub.
-        state.notes = {
-            common::core::TabNoteView{
-                .start_seconds = 5.0,
-                .end_seconds = 9.0,
-                .string = 3,
-                .fret = 5,
-                .bend = {},
-                .slides = {common::core::TabSlideView{.seconds = 9.0, .fret = 9, .linked = false}},
-            },
-        };
+        state.notes = {note};
         const std::vector<double> prefix_max = resolveHoldEnds(state);
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 400, 240, true)};
@@ -1330,10 +1305,10 @@ TEST_CASE("Tab paint core runs a glide's mark to the end of its ribbon", "[ui][t
         return image;
     };
 
-    const TabLaneMetrics metrics = referenceMetrics(6);
+    // The mark's bright ink anywhere in the tail's band at one column. Scanned across the band
+    // rather than at a computed height because a climbing diagonal and a held bend run leave their
+    // ink at different heights, and what is being pinned is that the ink is THERE.
     const int end_x = juce::roundToInt(metrics.x(9.0));
-    // The diagonal climbs, so its tip is at the interior's TOP edge. Scan the last few columns of
-    // the ribbon for the technique line's bright ink.
     const auto mark_reaches = [&](const juce::Image& image, const int column) {
         const int center_y = juce::roundToInt(metrics.laneY(3));
         for (int y = center_y - 12; y <= center_y + 12; ++y)
@@ -1346,14 +1321,36 @@ TEST_CASE("Tab paint core runs a glide's mark to the end of its ribbon", "[ui][t
         return false;
     };
 
-    // Candidate 1 drops the inset: the mark's ink is present in the ribbon's final column.
-    const juce::Image to_end = painted(tailEndStyleNamed("mark to end"));
-    CHECK(mark_reaches(to_end, end_x - 1));
+    SECTION("a glide whose last waypoint lands on the sustain end")
+    {
+        CHECK(mark_reaches(
+            painted(
+                common::core::TabNoteView{
+                    .start_seconds = 5.0,
+                    .end_seconds = 9.0,
+                    .string = 3,
+                    .fret = 5,
+                    .bend = {},
+                    .slides =
+                        {common::core::TabSlideView{.seconds = 9.0, .fret = 9, .linked = false}},
+                }),
+            end_x - 1));
+    }
 
-    // Candidate 2 keeps the inset BECAUSE it restores the cap for the mark to meet — so the two
-    // are not independent knobs, and the cap must actually be there.
-    const juce::Image capped = painted(tailEndStyleNamed("end cap"));
-    CHECK(worstPixelDelta(to_end, capped) > 0);
+    SECTION("a bend's held run after its last bend point")
+    {
+        CHECK(mark_reaches(
+            painted(
+                common::core::TabNoteView{
+                    .start_seconds = 5.0,
+                    .end_seconds = 9.0,
+                    .string = 3,
+                    .fret = 5,
+                    .bend = {common::core::TabBendPointView{.seconds = 7.0, .semitones = 2.0}},
+                    .slides = {},
+                }),
+            end_x - 1));
+    }
 }
 
 } // namespace rock_hero::common::ui

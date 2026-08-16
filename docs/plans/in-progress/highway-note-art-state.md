@@ -160,6 +160,32 @@ committed atlas at any time.
 
 ## Decided, with the numbers the decisions rest on
 
+**The 2D sustain tail ends BARE — no cap, no dissolve — and every mark riding it runs the full
+ribbon.** SIGNED 2026-08-16 from three candidates sighted on `F10`, which is free again now that
+the sampler, its candidate table and its command are deleted:
+
+| Candidate | What it drew | Outcome |
+|---|---|---|
+| `mark to end` | bare ends; slide diagonals and the bend's held run take no final inset | **WON** |
+| `end cap` | the cap restored, marks inset one stroke to meet its inner face | close second |
+| `fade out` | bare ends, last stretch of ribbon and every mark on it dissolving together | rejected |
+
+The ruling turns on this being the EDITOR, in the user's words: *"in 2D because it is the editor
+the precision of seeing the exact end point feels like it is needed."* A dissolve trades that
+endpoint away for softness, which is the wrong trade on a charting surface. That reasoning does
+NOT transfer to the game's highway, so the two surfaces legitimately end a tail differently and
+the highway's dissolve is not a divergence waiting to be reconciled. **If the bare end ever reads
+as unfinished, restore the CAP rather than reaching for the dissolve** — and note the cap and the
+marks' final inset are one decision, not two knobs: restoring the cap means restoring the inset
+with it. Both losers are recoverable from git history (`0d511335` added the sighting).
+
+The defect that opened the question: removing the cap earlier left the inset behind, so a glide
+whose last waypoint sat on the sustain end stopped one stroke short of its own ribbon. The inset
+was never overhang protection — JUCE strokes with butt caps, whose ink ends exactly at the
+endpoint — so dropping it costs nothing. Only the FINAL leg loses its inset; the insets between a
+multi-waypoint glide's legs open the hairline that makes them read as separate legs, a different
+job entirely.
+
 **The harmonic base is D: a diamond whose EDGE equals the regular head's height** (the
 head-height square rotated 45°, vertex span ≈ 30.6 tx), chosen 2026-08-15 from four measured
 candidates. The marker's ring lands inscribed in it (clears the flats by 0.08 tx) with the points

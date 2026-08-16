@@ -536,106 +536,6 @@ void drawTremoloTail(
     g.fillPath(inner_band);
 }
 
-/*!
-\brief How a sustain tail ENDS. EXPERIMENT SCAFFOLDING, cycled in the app.
-
-The tail used to wear an end cap, and the slide diagonals and bend polyline inset their last
-endpoint by one stroke width to meet its inner face. Removing the cap left that inset behind as a
-visible stub of bare ribbon past the mark's tip — the mark stops before the sustain does. (The
-inset was never overhang protection: JUCE strokes with butt caps, whose ink ends exactly at the
-endpoint.) These are the three honest ways out, to be judged side by side.
-*/
-enum class TailEndStyle : std::uint8_t
-{
-    /*! \brief No cap; the marks simply run to the ribbon's end. The minimal correction. */
-    MarkToEnd,
-
-    /*! \brief The cap returns, and the inset reads as meeting it — the original design restored. */
-    EndCap,
-
-    /*!
-    \brief No cap; the marks run to the end, and the tail's last stretch dissolves.
-
-    What the highway does at a sustain's tip. On this lane fading to transparent is the right
-    reveal: the lane line continues underneath, so the ribbon stops without an edge and the string
-    is still plainly there.
-    */
-    FadeOut
-};
-
-/*! \brief The tail-end candidates, in stable index order — index 0 is the shipped behaviour. */
-inline constexpr std::array<std::pair<std::string_view, TailEndStyle>, 3> g_tail_end_styles{{
-    {"mark to end", TailEndStyle::MarkToEnd},
-    {"end cap", TailEndStyle::EndCap},
-    {"fade out", TailEndStyle::FadeOut},
-}};
-
-[[nodiscard]] TailEndStyle tailEndStyle(const TabLaneMetrics& metrics)
-{
-    return g_tail_end_styles.at(std::min(metrics.tail_end_style, g_tail_end_styles.size() - 1))
-        .second;
-}
-
-/*!
-\brief How far a dissolving tail fades, in pixels — a head's width, capped at a third of the tail.
-
-Fixed in PIXELS rather than as a fraction of duration (the highway's rule) because this lane
-zooms: a fraction would make the dissolve grow and shrink as the user scrolls, where a fixed run
-reads the same at every zoom. The cap keeps a short tail from being all dissolve.
-*/
-[[nodiscard]] float tailFadeLength(const TabLaneMetrics& metrics, const float length)
-{
-    return std::min(metrics.headSize(), length / 3.0f);
-}
-
-/*!
-\brief The horizontal run over which a dissolving tail and everything riding it goes to nothing.
-
-Carried to the technique drawers rather than recomputed by each, so the ribbon, its rails, the
-sine, the diagonals and the bend curve all vanish over exactly the same columns. A mark that
-outlived its own ribbon would read as a rendering fault — which is the failure this candidate is
-supposed to avoid, not create.
-
-`start_x == end_x` means no dissolve, which is what the other two candidates pass.
-*/
-struct TailFade
-{
-    /*! \brief Column where the dissolve begins; ink is at full strength up to here. */
-    float start_x{};
-
-    /*! \brief Column where the dissolve completes. */
-    float end_x{};
-};
-
-[[nodiscard]] TailFade tailFadeFor(
-    const TabLaneMetrics& metrics, const float onset_x, const float end_x)
-{
-    if (tailEndStyle(metrics) != TailEndStyle::FadeOut)
-    {
-        return TailFade{.start_x = end_x, .end_x = end_x};
-    }
-    const float fade = tailFadeLength(metrics, end_x - onset_x);
-    return TailFade{.start_x = end_x - fade, .end_x = end_x};
-}
-
-// Sets one ink, dissolving across the fade run when there is one. Strokes take the fill type too,
-// so a gradient set here carries through drawLine and strokePath, not just fillRect.
-void setTailInk(juce::Graphics& g, const juce::Colour colour, const TailFade& fade)
-{
-    if (fade.end_x <= fade.start_x)
-    {
-        g.setColour(colour);
-        return;
-    }
-    juce::ColourGradient gradient{
-        colour, fade.start_x, 0.0f, colour.withAlpha(0.0f), fade.end_x, 0.0f, false
-    };
-    // Held flat before the run rather than ramping from the tail's start: the dissolve is the
-    // sustain ending, not the whole sustain dimming.
-    gradient.addColour(0.0, colour);
-    g.setGradientFill(gradient);
-}
-
 // Draws the sustain tail's BODY: Charter's filled bar with its brighter rails, or the tremolo gem
 // strip variant. The vibrato sine is drawn separately (drawVibratoSine) because it is a technique
 // mark riding the tail, clipped against arpeggio brackets where the body is not.
@@ -668,48 +568,32 @@ void drawNoteTail(
     }
     else
     {
-        const TailEndStyle tail_end = tailEndStyle(metrics);
         const float thickness = metrics.tail_edge_size;
-
-        // A dissolving tail paints its last stretch with a horizontal gradient to transparent, so
-        // every part of the ribbon ends together rather than the fill and its rails each stopping
-        // on their own edge. Everything before that run is opaque and drawn flat, which is why
-        // this is a fill helper rather than a gradient over the whole tail.
-        const float fade =
-            tail_end == TailEndStyle::FadeOut ? tailFadeLength(metrics, length) : 0.0f;
-        const auto fill_run = [&](const juce::Colour colour, const float top, const float height) {
-            const float solid_x1 = end_x - fade;
+        const auto fill = [&](const juce::Colour colour, const float top, const float height) {
             g.setColour(colour);
-            g.fillRect(
-                juce::Rectangle<float>{onset_x - 1.0f, top, solid_x1 - onset_x + 1.0f, height});
-            if (fade > 0.0f)
-            {
-                g.setGradientFill(
-                    juce::ColourGradient{
-                        colour, solid_x1, top, colour.withAlpha(0.0f), end_x, top, false
-                    });
-                g.fillRect(juce::Rectangle<float>{solid_x1, top, fade, height});
-            }
+            g.fillRect(juce::Rectangle<float>{onset_x - 1.0f, top, end_x - onset_x + 1.0f, height});
         };
 
         // The fill covers the whole envelope and the rails lay over its top and bottom — every
         // color here is opaque, so painting the rails over the fill is the same pixels as
         // abutting them, without the two rectangles having to agree on a seam.
-        fill_run(style[Ink::Tail], span.top, span.bottom - span.top);
-        // Top and bottom rails only. The left edge is omitted because the head covers it; whether
-        // the RIGHT edge gets a cap is exactly what this sighting is deciding. A cap boxes in
-        // whatever mark sits at the tail's end and the 3D highway draws none — but without it the
-        // marks' endpoint inset, which existed to meet that cap, shows as a stub of bare ribbon.
-        fill_run(style[Ink::TailEdge], span.top, thickness);
-        fill_run(style[Ink::TailEdge], span.bottom - thickness, thickness);
-        if (tail_end == TailEndStyle::EndCap)
-        {
-            g.setColour(style[Ink::TailEdge]);
-            g.fillRect(
-                juce::Rectangle<float>{
-                    end_x - thickness, span.top, thickness, span.bottom - span.top
-                });
-        }
+        fill(style[Ink::Tail], span.top, span.bottom - span.top);
+        // TOP AND BOTTOM RAILS ONLY — no cap on either end. The left edge is omitted because the
+        // head covers it; the right edge is omitted because a cap boxes in whatever technique mark
+        // reaches the tail's end, and the highway draws none.
+        //
+        // SIGNED 2026-08-16, from three candidates sighted side by side on a toggle:
+        //   mark to end (this) - bare ends, every mark running the full ribbon
+        //   end cap            - the cap restored, marks inset by a stroke to meet its inner face
+        //   fade out           - bare ends with the last stretch dissolving, as the highway does
+        // The ruling turns on this being the EDITOR: a charter needs to see exactly where a
+        // sustain stops, and a dissolve trades that endpoint away for softness. That reasoning
+        // does not transfer to the game's highway, which is why the two surfaces legitimately end
+        // a tail differently — the highway's dissolve is not a divergence to be reconciled. The
+        // cap was the close second, so if the bare end ever reads as unfinished, restore the cap
+        // rather than reaching for the dissolve; both losers are recoverable from git history.
+        fill(style[Ink::TailEdge], span.top, thickness);
+        fill(style[Ink::TailEdge], span.bottom - thickness, thickness);
     }
 }
 
@@ -738,8 +622,7 @@ struct TailInterior
 // against the arpeggio brackets while the ribbon shows through them untouched.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, double hold_end_seconds, float onset_x, float center_y,
-    const TailFade& fade)
+    const common::core::TabNoteView& note, double hold_end_seconds, float onset_x, float center_y)
 {
     const float length = metrics.x(hold_end_seconds) - onset_x;
     if (!note.vibrato || length <= 0.0f)
@@ -783,7 +666,7 @@ void drawVibratoSine(
             wave.lineTo(point);
         }
     }
-    setTailInk(g, style[Ink::VibratoSine], fade);
+    g.setColour(style[Ink::VibratoSine]);
     g.strokePath(wave, juce::PathStrokeType{stroke});
 }
 
@@ -969,7 +852,7 @@ constexpr float g_technique_line_thickness = 2.0f;
 void drawSlideLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::TabNoteView& note, float onset_x, float center_y,
-    std::vector<LabelChip>& slide_labels, const TailFade& fade)
+    std::vector<LabelChip>& slide_labels)
 {
     if (note.slides.empty())
     {
@@ -982,19 +865,18 @@ void drawSlideLines(
     // inside the rails' inner boundaries, so the line meets the tail's edge without ever riding
     // onto the rail — a mark reaching the outer edge reads as leaking out of the sustain.
     const TailInterior interior = tailInterior(metrics, center_y);
-    // Every junction insets its endpoint by one stroke width, which opens a hairline gap between
-    // consecutive diagonals so a multi-waypoint glide reads as separate legs. The LAST one is
-    // different: its inset existed to meet the tail's end cap, so without a cap it is a stub of
-    // bare ribbon past the mark's tip rather than a separator between anything.
-    const bool inset_final_leg = tailEndStyle(metrics) == TailEndStyle::EndCap;
     float from_x = onset_x + metrics.note_height / 4.0f;
     int previous_fret = note.fret;
     std::size_t leg = 0;
     for (const common::core::TabSlideView& waypoint : note.slides)
     {
+        // Every junction insets its endpoint by one stroke width, which opens a hairline gap
+        // between consecutive diagonals so a multi-waypoint glide reads as separate legs. The LAST
+        // one takes no inset: its inset existed only to meet the tail's end cap, and with the cap
+        // gone (see drawNoteTail) it would leave a stub of bare ribbon past the mark's tip rather
+        // than separate anything.
         const bool final_leg = ++leg == note.slides.size();
-        const float to_x =
-            metrics.x(waypoint.seconds) - (final_leg && !inset_final_leg ? 0.0f : line_thickness);
+        const float to_x = metrics.x(waypoint.seconds) - (final_leg ? 0.0f : line_thickness);
         // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
         // the waypoint renders the continuation, and the next segment's line leaves from here.
         if (waypoint.fret == previous_fret)
@@ -1008,7 +890,7 @@ void drawSlideLines(
         const float to_y =
             upward ? interior.top + line_thickness / 2.0f : interior.bottom - line_thickness / 2.0f;
 
-        setTailInk(g, style[Ink::TechniqueLine], fade);
+        g.setColour(style[Ink::TechniqueLine]);
         g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
 
         // A junction that carries a continuation head shows its fret ON the head, so the chip
@@ -1092,7 +974,7 @@ void drawSlideWaypointHeads(
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::TabNoteView& note, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips, const TailFade& fade)
+    std::vector<LabelChip>& bend_chips)
 {
     if (note.bend.empty())
     {
@@ -1115,7 +997,7 @@ void drawBendLines(
     const juce::Colour chip_background = charterDarker(charterDarker(style[Ink::Lane]));
     const float end_x = metrics.x(note.end_seconds);
     juce::Point<float> last{onset_x, bend_y(0.0)};
-    setTailInk(g, style[Ink::TechniqueLine], fade);
+    g.setColour(style[Ink::TechniqueLine]);
     for (const common::core::TabBendPointView& point : note.bend)
     {
         const juce::Point<float> to{metrics.x(point.seconds), bend_y(point.semitones)};
@@ -1139,11 +1021,9 @@ void drawBendLines(
         }
         last = {to.x + 1.0f, to.y};
     }
-    // The held stretch after the last bend point runs to the sustain's end, inset only when a cap
-    // is there to meet — see the same rule on a slide's final leg.
-    const float bend_end_x =
-        end_x - (tailEndStyle(metrics) == TailEndStyle::EndCap ? line_thickness : 0.0f);
-    g.drawLine(last.x, last.y, bend_end_x, last.y, line_thickness);
+    // The held stretch after the last bend point runs all the way to the sustain's end — no inset,
+    // for the same reason a slide's final leg takes none: there is no end cap to meet.
+    g.drawLine(last.x, last.y, end_x, last.y, line_thickness);
 }
 
 // Draws Charter's accent glow behind the head: a soft ring fading out just past the head edge.
@@ -1745,16 +1625,6 @@ juce::Colour TabLaneMetrics::baseColor(int chart_string) const
     return tabStringColor(chart_string + extra_lanes, displayed_count);
 }
 
-std::size_t tabTailEndStyleCount()
-{
-    return g_tail_end_styles.size();
-}
-
-std::string_view tabTailEndStyleName(const std::size_t tail_end_style)
-{
-    return g_tail_end_styles.at(std::min(tail_end_style, g_tail_end_styles.size() - 1)).first;
-}
-
 TabLaneMetrics makeTabLaneMetrics(
     juce::Rectangle<int> bounds, common::core::TimeRange visible_timeline, int displayed_count,
     int chart_string_count, TabLaneStyle style)
@@ -1997,14 +1867,10 @@ void paintTabLane(
                         });
                 }
             }
-            // One dissolve span for the ribbon and everything riding it, derived from the same
-            // hold end the tail was drawn to, so a mark can never outlive its own sustain.
-            const TailFade fade =
-                tailFadeFor(metrics, onset_x, metrics.x(tab.display_hold_ends[index]));
             drawVibratoSine(
-                g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y, fade);
-            drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels, fade);
-            drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips, fade);
+                g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
+            drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
+            drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
         }
     }
 
