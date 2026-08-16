@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <cstddef>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>

@@ -84,8 +84,9 @@ enum class EditorCommandId : std::uint16_t
     /*!
     \brief EXPERIMENT SCAFFOLDING — cycle the accent light candidate (`F9`).
 
-    The emphasis axis's two looks are being sighted in the app rather than argued. Deleted with
-    the candidate tables once each end is chosen.
+    The loud end of the emphasis axis is being sighted in the app rather than argued. Deleted with
+    the candidate table once that look is chosen; the quiet end is already signed, and the ghost
+    sampler that sat beside this one on `F10` is gone with it.
     */
     CycleAccentStyle = 0x1304,
 

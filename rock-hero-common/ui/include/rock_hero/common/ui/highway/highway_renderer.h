@@ -149,11 +149,11 @@ public:
     void setViewState(common::core::HighwayViewState state);
 
     /*!
-    \brief EXPERIMENT SCAFFOLDING — advances the accent or ghost appearance to the next candidate.
+    \brief EXPERIMENT SCAFFOLDING — advances the accent light to the next candidate.
 
-    The two ends of the emphasis axis are being sighted in the app rather than argued, so every
-    candidate ships at once and the editor cycles them from a keybind. Deleted along with the
-    candidate table once the light is chosen and its numbers move inline.
+    The accent light is being sighted in the app rather than argued, so every candidate ships at
+    once and the editor cycles them from a keybind. Deleted along with the candidate table once
+    the light is chosen and its numbers move inline.
 
     The GHOST end of the axis carries no candidates: it was sighted and settled, so only the
     accent is still being judged.

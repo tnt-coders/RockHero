@@ -10,12 +10,10 @@ each host supplies only bounds, timeline mapping, and state.
 
 #pragma once
 
-#include <cstddef>
 #include <juce_graphics/juce_graphics.h>
 #include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
-#include <string_view>
 #include <vector>
 
 namespace rock_hero::common::ui

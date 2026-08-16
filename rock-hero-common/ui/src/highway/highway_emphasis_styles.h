@@ -1,20 +1,22 @@
 /*!
 \file highway_emphasis_styles.h
-\brief Candidate appearances for the note-emphasis axis, while the two ends are being chosen.
+\brief Appearance numbers for the note-emphasis axis: a signed ghost, a signed box light, and the
+       accent light's candidate table while that one look is still being chosen.
 
-EXPERIMENT SCAFFOLDING. Accents became a rendered light and ghosts a transparency treatment, and
-the exact look of each is being sighted in the app rather than argued: the editor cycles these
-tables with a keybind and logs which pair is active. When the user picks, the winner's numbers
-move inline, the tables and the cycling commands are deleted, and this file goes with them.
+EXPERIMENT SCAFFOLDING, but only the accent table. Accents became a rendered light and ghosts a
+transparency treatment; the ghost end is signed and its numbers are inline below, while the
+accent's exact look is still being sighted in the app rather than argued — the editor cycles that
+table with a keybind and logs which candidate is active. When the user picks, the winner's numbers
+move inline beside the rest and the table and its cycling command are deleted; the file itself
+stays, because the signed constants live here too.
 
-The tables are DATA rather than branches on purpose — every candidate differs only in numbers, so
-a new one costs a row and no code, and the renderer holds one code path whichever is selected.
+The table is DATA rather than branches on purpose — every candidate differs only in numbers, so a
+new one costs a row and no code, and the renderer holds one code path whichever is selected.
 */
 
 #pragma once
 
 #include <array>
-#include <cstddef>
 #include <string_view>
 
 namespace rock_hero::common::ui

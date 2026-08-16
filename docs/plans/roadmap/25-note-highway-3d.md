@@ -663,12 +663,13 @@ drawers (session Charter clone).
   hammer / pull; rotating markers for harmonics, palm mute, tap, slap, pop, accent riding the
   rolling flip exactly like Charter's CPU-composited textures — alpha "over" is
   associative, so overlay quads replace the compositing wart; upright overlays for full mute and
-  hammer/pull), open-note technique overlays and Charter's triple-thickness accent halo,
+  hammer/pull), open-note technique overlays (the triple-thickness accent halo they once carried
+  is retired — emphasis is a rendered light now, still being sighted),
   harmonic heads at the chart's fractional `harmonic_node` (a pinch keeps its fret
   anchor — its node is the picking hand's, deferred to a dedicated cue, 25-Q5;
   wrong-fret pinch display fixed 2026-07-31), modulated three-band tails (bends,
   vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
-  chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full
+  chord boxes at multi-note onsets (corner holders, gradient frame, short/full
   sides by chord size, repeat-box mute marks rendered by the dedicated SDF program
   (fs_box_mute, the seventh shader) whose look is owned entirely by the NEW chords.png asset
   (SETTLED 2026-08-01 as the architecture-gate outcome, two research agents concurring):

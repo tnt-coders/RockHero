@@ -8,7 +8,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/shared/visible_events.h>
@@ -117,7 +116,7 @@ ONE authority. The per-string half of this list is the Charter derivation chain;
 is the greys and whites the technique marks were reaching for directly, from the constants above.
 Both halves were always a note's ink — they were simply held in two places, so anything that had
 to act on ALL of a note's ink (the emphasis axis is the first, and it will not be the last) had no
-single place to act. Naming them one set is what makes \ref StringStyle::quieted possible without
+single place to act. Naming them one set is what makes \ref StringStyle::ghosted possible without
 a factor threaded through every drawing helper.
 */
 enum class Ink : std::uint8_t
@@ -702,7 +701,7 @@ enum class HeadShape : std::uint8_t
 constexpr float g_plectrum_digit_raise = 0.1154f;
 
 // Half of the plectrum silhouette, measured off the pick-slide cell of the shipped note atlas
-// (cell 9, g_head_cell_pick_slide) at its 0.5-coverage line — the same level the atlas's own
+// (g_head_cell_pick_slide) at its 0.5-coverage line — the same level the atlas's own
 // fracture is pinned to — in units of the head's extent, with the silhouette's box center at the
 // origin.
 //

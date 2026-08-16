@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <cstddef>
 #include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 

@@ -81,7 +81,7 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    opaque `lean` on the 2D lane. The ACCENT light is still being sighted.** Ghost draws quiet at
    the same weight, but each surface spends that weight the way it actually composites — the
    divergence the `StringStyle` constructor already signed for tails, now extended to the whole
-   axis. The highway keeps translucency over its dark world (`GhostStyle::head_alpha`, and a
+   axis. The highway keeps translucency over its dark world (`g_ghost_alpha`, and a
    sustain that rises from nothing over a fixed span at its onset so a ghost's ribbon emerges FROM
    the head instead of showing through it). The 2D lane instead **leans every ink toward the
    lane's own ground**, opaquely, which lands on the same numbers a translucent draw over that
@@ -120,7 +120,7 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    The shape that made the ORIGINAL objection go away was **generalizing the one ink authority
    that already existed**. `StringStyle` held the per-string chain while a dozen file-scope greys and raw
    whites held the rest, so nothing could act on ALL of a note's ink. Naming them one `Ink` set
-   makes `quieted()` a loop over that set: the head backing becomes self-correcting (the ground
+   makes `ghosted()` a loop over that set: the head backing becomes self-correcting (the ground
    leaned toward the ground is the ground), the chips close for free by carrying their own ink,
    and a mark added later is quiet by construction. Authority count in that file went 2 → 1.
 

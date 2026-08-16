@@ -706,8 +706,9 @@ void pushFloorQuadGradient(
 // and unlit, its silhouette reads as Charter's thin rounded bar from every board-view
 // angle. The end stations are fully transparent, fading in over g_open_note_end_fade_length, so
 // the bar tapers visually to a point at each end (which also makes end caps pointless — the
-// silhouette dissolves before it could show a flat end). The thickness scale draws the
-// Charter's accent halo (the same bar at triple cross-section).
+// silhouette dissolves before it could show a flat end). The thickness scale carries the emphasis
+// axis on a bar that has no head to wear it: below one it thins a ghost, above one it redraws the
+// bar as the accent's rim.
 void pushOpenNoteBar(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double lane_y, const double z, const ArgbColor argb, const double alpha,
@@ -870,9 +871,8 @@ void pushChordBoxPanel(
 {
     const double y0 = 0.0;
     const double y1 = box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
-    // Sets every frame dimension, not only the bottom bar: the accent chevrons and the side
-    // columns below scale from it too, which is why it comes in as one value rather than being
-    // read per-part.
+    // Sets every frame dimension, not only the bottom bar: the top bar and the side columns below
+    // scale from it too, which is why it comes in as one value rather than being read per-part.
     const double thickness = frame_thickness;
 
     // Every part scales by the one emphasis alpha, so a quiet box keeps its whole construction
@@ -2079,8 +2079,8 @@ void HighwayRenderer::Impl::draw(
     std::vector<PosColorVertex> open_vertices;
     std::vector<std::uint16_t> open_indices;
     // A note's accent light submits between the open bars and the heads, so it sits UNDER the
-    // note it belongs to: drawn over, it repaints the note's own pixels, which is the shipped
-    // ring's whole problem; drawn under, it shows only where the note is not.
+    // note it belongs to: drawn over, it repaints the note's own pixels, which was the retired
+    // atlas ring's whole problem; drawn under, it shows only where the note is not.
     std::vector<PosColorUvVertex> accent_head_vertices;
     std::vector<std::uint16_t> accent_head_indices;
     // An open string's light needs a batch of its own because of where it must sit in the
@@ -2787,7 +2787,7 @@ void HighwayRenderer::Impl::draw(
         };
     };
 
-    // The four per-note batches flush per onset group, far-to-near: the board view is
+    // The six per-note batches flush per onset group, far-to-near: the board view is
     // painter-ordered with no depth writes, so one global submit per category would let a
     // distant head or open bar composite over a nearer note's sustain tail (the depth-order
     // bug this replaces). Within a group the categories keep Charter's layering: shadows
@@ -3370,7 +3370,7 @@ void HighwayRenderer::Impl::draw(
             // gesture means and what stops a quieted head from showing its own tail through
             // itself.
             //
-            // A ghosted note's ribbon quiets with its head, by the candidate's own factor: a
+            // A ghosted note's ribbon quiets with its head, at the one ghost alpha: a
             // full-strength tail under a quieted head reads as a rendering fault rather than as
             // a note played softly.
             const double duration = note.end_seconds - note.start_seconds;
@@ -3970,11 +3970,14 @@ void HighwayRenderer::Impl::draw(
                     }
                 }
             }
-            // An open string has no head to thin, so the emphasis axis rides its BAR: one
-            // thickness knob carries the whole axis here, quiet below one and the accent's light
-            // above it. That is the seam where the old design diverged — the fretted head wore an
-            // atlas cell an open bar could never wear, so the same chart mark said two different
-            // things depending on the fret.
+            // An open string has no head, so the emphasis axis rides its BAR: a ghost thins it and
+            // takes light out of it, an accent lights it. That is the seam where the old design
+            // diverged — the fretted head wore an atlas cell an open bar could never wear, so the
+            // same chart mark said two different things depending on the fret.
+            //
+            // The bar and the markers riding it share ONE alpha, for the same reason the fretted
+            // head shares one with its markers: a mark left brighter than the thing it sits on
+            // reads as a rendering fault rather than as dynamics.
             const bool open_ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
             const double open_bar_thickness = open_ghosted ? g_ghost_open_bar_thickness : 1.0;
             const double open_bar_alpha = open_ghosted ? g_ghost_alpha : 1.0;
@@ -4032,8 +4035,7 @@ void HighwayRenderer::Impl::draw(
             // Technique markers at the window center (Charter's open-note overlay set).
             {
                 const double center_x = (x0 + x1) / 2.0;
-                const std::uint32_t marker_tint =
-                    packAbgr(base_color, fade * (open_ghosted ? g_ghost_alpha : 1.0));
+                const std::uint32_t marker_tint = packAbgr(base_color, fade * open_bar_alpha);
                 // The connection cell, from the same authority the fretted head below asks: an open
                 // string usually carries only the pull-off, but a left-hand tap resolves to the
                 // hammer motion unconditionally and is legal on an open string with a node.
@@ -4192,8 +4194,10 @@ void HighwayRenderer::Impl::draw(
         // with it: a full-brightness mark over a dim head reads as a rendering fault rather than
         // as dynamics.
         const bool ghosted = note.emphasis == common::core::NoteEmphasis::Ghost;
-        const double head_alpha = ghosted ? g_ghost_alpha : 1.0;
-        const std::uint32_t head_tint = packAbgr(base_color, fade * head_slide.alpha * head_alpha);
+        // ONE tint for the head art and for every marker riding it. They were two variables
+        // while a ghost quieted its head and its markers by different factors; once the axis
+        // collapsed to a single alpha they became the same expression written twice, which is a
+        // rule waiting to drift rather than a distinction.
         const std::uint32_t tint =
             packAbgr(base_color, fade * head_slide.alpha * (ghosted ? g_ghost_alpha : 1.0));
 
@@ -4212,7 +4216,7 @@ void HighwayRenderer::Impl::draw(
                 x + (dx * cos_r) - (dy * sin_r),
                 head_y + (dx * sin_r) + (dy * cos_r),
                 z,
-                head_tint,
+                tint,
                 u,
                 v);
         };
