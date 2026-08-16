@@ -12,12 +12,38 @@ separate track. When resuming, read both.
 
 ## In flight right now
 
-**A deep dive into the atlas's SIZE SYSTEM, with whole-atlas variants to judge as a whole.**
-The texture agent is measuring every marker cell (mutes, pick slide, slap, pop, tap, hammer-on,
-accent, harmonic, pinch, bend) against the head bases and reporting whether one size system
-exists or has drifted, which sizes are load-bearing signals, and which structural constraints a
-family-wide shrink could break — then delivering 3–5 complete atlas variants implementing
-coherent schemes.
+**Sighting the emphasis axis on the highway.** Accent is now a RENDERED LIGHT and ghost a
+transparency treatment; both are sampled live from candidate tables in
+`highway_emphasis_styles.h`, cycled with **F9** (accent) and **F10** (ghost), each toggle logging
+which pair is active. Each table's DEFAULT index is its current front-runner, so the app opens on
+the look last preferred: accent `tight`, ghost `half light`.
+
+- **Accent, sighted 2026-08-15:** the user chose `art rim tight` over the broad rims (*"the accent
+  light looks hideous… it should just be a narrow rim around the note"*). The width is therefore
+  SETTLED at 1.5 texels; the four remaining rows hold that width and vary only the intensity —
+  `tight` (the reference), `tight soft` (two thirds the light), `tight hot` (full alpha, pure
+  white edge, no string identity in the light), `tight bloom` (the same rim plus a faint falloff).
+  **That is the open question: how loud should the settled rim be?**
+- **The three defects the same sighting reported are fixed and await re-sighting.** (a) Open
+  strings looked like *"a box of light with sharp corners over the string"* — the light was a
+  plain quad in a batch that submits AFTER the bars. It is now the BAR'S OWN GEOMETRY redrawn at a
+  thicker cross-section, in its own batch submitted before the bars, so it inherits the rounded
+  profile and the tapered fading ends; its alpha is HALVED because a closed unculled prism
+  accumulates an additive pass twice where a head's flat art accumulates once. (b) No glow on
+  chord-box edges — the band table's inward reaches were negative, so no band landed on the frame
+  bar, and the light was queued into a NOTE batch that only reaches the screen when notes happen
+  to be visible. Bands now straddle the bar (the last one covers it exactly, five texels = the
+  frame's own thickness) and flush with the panel they light. (c) The accent atlas ring was still
+  being drawn under the light; that draw, the `g_head_cell_accent` constant, and the art itself
+  are all gone (cell 3 is now empty and byte-identical to spare cells 18 and 19).
+- **Ghost:** the user ruled alpha is the right mechanism and that a sustain must quiet with its
+  head and RISE from nothing at its onset, so the ribbon emerges from the note rather than showing
+  through it. Shipped. `dim fill` remains in the table as the opaque alternative.
+
+**The 2D lane's ghost is SHIPPED and is not a sighting item** — it took the opposite mechanism on
+purpose (an opaque lean toward the lane's ground); see `note-emphasis-axis.md` item 4 for why, and
+for the ink-authority refactor that made it a loop instead of a parameter threaded through every
+drawing helper.
 
 **The evaluation vehicle.** A hand-authored project package exercising every technique —
 each one alone, stacked in a chord, and on sliding notes where that is legal — lives outside the
@@ -47,9 +73,9 @@ change and the cell vocabulary identical in every variant. Only the winner enter
 rest are deleted. An earlier per-cell candidate seam for the icon sizes was reverted in favour of
 this — it cost atlas cells and code for a switch the file swap does for free.
 
-Working tree holds only `notes.png` (currently the full-size-icon experiment, sha `1c563476…`).
-`git checkout -- rock-hero-common/ui/resources/textures/notes.png` restores the committed D
-atlas at any time.
+Working tree holds `notes.png` at the sighted v7 icon sizes with the retired accent ring cleared
+out of cell 3 (sha `b36f3da3…`). `git checkout -- rock-hero-common/ui/resources/textures/notes.png`
+restores the committed atlas at any time.
 
 ## Shipped 2026-08-15 (newest first)
 
@@ -74,7 +100,16 @@ overlap"*). The rejected candidates (halo circle, 26.4-box diamond, diagonal-hei
 recoverable in full at `21bfa768`.
 
 **Atlas layout** (256×320, 4×5, capacity 20): cell 14 the harmonic marker, 16 the diamond base,
-17 its hollow twin, 18/19 spare. `g_head_cell_count` is 18.
+17 its hollow twin, and **3, 18 and 19 spare** — all three byte-identical and fully empty, so the
+next mark the vocabulary needs is a one-cell bake. Cell 3 held the accent ring until emphasis
+became a light. `g_head_cell_count` is 18.
+
+**The marker family's sizing is SETTLED at v7** — every technique symbol at 85% of its authored
+height, sighted and accepted 2026-08-15 (*"I think all these sizes look pretty good. Even pick
+slide"*). The harmonic marker tracks the full mute's height per the rule above rather than
+carrying its own. The one cost the shrink took is recorded and monitored rather than accepted
+silently: the pick slide lost its deliberate over-coverage of the head, which is in
+`docs/tracking/watch-items.md` with the measurement and the remedy that reverses it.
 
 **One shape law.** The filled base, the landing ring, and the pre-bend outline all select their
 silhouette from `highwayNodeHead` (`highway_head_marks.h`), which asks the board's own placement
@@ -86,18 +121,7 @@ depth 0.125 semitones, wave anchored to the note's own extremes so it stays rigi
 
 ## Open decisions
 
-1. **The marker family's sizing — one system or drift, and should it shrink?** The user's standing
-   preference on the harmonic marker is the SEAT scale (0.6767, 22.0 tx) over the mute-matched
-   full size; that question folded into this larger one rather than being settled alone.
-   Measured so far: the mutes and the icon's own authored size are the same height (32.75 vs
-   32.70 tx) — so *"as tall as the mutes"* and *"as authored"* are one size, and at it the marker
-   bounds the head outright (D's diamond points recessed 1.0 tx, flats covered by 4.7, stacking
-   ≈ 4.8 tx per side). **The calibrated knob**: the marker binds the union only above ≈ 0.94 of
-   authored size (30.8 tx); at or below, the diamond bounds it again and stacking returns to D's
-   ≈ 3.7 tx per side, with scale 0.881 putting the points 1.0 tx proud. Awaiting the deep dive's
-   analysis and variants before ruling.
-
-2. **The bend display anchor** — is *half step = exactly one string gap, every string* right?
+1. **The bend display anchor** — is *half step = exactly one string gap, every string* right?
 
    **The user's proposal (2026-08-15), now the leading candidate:** anchor it so a THREE-WHOLE-STEP
    bend travels exactly **two string spacings** — a full bend on one lane reaches the lane two

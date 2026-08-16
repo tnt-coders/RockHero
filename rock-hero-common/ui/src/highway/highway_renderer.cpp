@@ -1094,8 +1094,13 @@ struct HighwayRenderer::Impl
     // EXPERIMENT SCAFFOLDING — indices into the emphasis candidate tables, cycled from the
     // editor while the two looks are being sighted. Deleted with the tables once each end of the
     // axis is chosen and its numbers move inline.
+    //
+    // Each default is that table's CURRENT FRONT-RUNNER, so the app opens on the look last
+    // preferred and a sighting round starts from the thing being defended rather than from
+    // whatever happens to sit at index 1. Accent: the tight rim. Ghost: half light, the alpha
+    // treatment (index 1 is `dim fill`, the opaque alternative kept only for comparison).
     std::size_t accent_style{1};
-    std::size_t ghost_style{1};
+    std::size_t ghost_style{3};
 
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
@@ -2086,6 +2091,12 @@ void HighwayRenderer::Impl::draw(
     std::vector<std::uint16_t> accent_indices;
     std::vector<PosColorUvVertex> accent_head_vertices;
     std::vector<std::uint16_t> accent_head_indices;
+    // An open string's light needs a batch of its own because of where it must sit in the
+    // group's layering: a light belongs UNDER the silhouette it surrounds, and open bars draw
+    // one layer below heads, so the head's light slot is already too late for a bar. Sharing it
+    // would draw the light on top of the string instead of around it.
+    std::vector<PosColorVertex> accent_open_vertices;
+    std::vector<std::uint16_t> accent_open_indices;
     std::vector<PosColorUvVertex> head_vertices;
     std::vector<std::uint16_t> head_indices;
 
@@ -2191,14 +2202,29 @@ void HighwayRenderer::Impl::draw(
         // bounded by the visible marked repeat boxes: tens at worst, noise for bgfx.
         std::vector<PosColorUvVertex> box_marker_vertices;
         std::vector<std::uint16_t> box_marker_indices;
+        // An accented box's light rides the SAME flush as the panel it lights, for both halves of
+        // painter order: after its own panel, so it lands on the frame bar and makes it emit
+        // rather than sitting behind it, and before the next box's panel, so a far box's light
+        // can never wash over a nearer box in a dense chug chain.
+        std::vector<PosColorVertex> box_light_vertices;
+        std::vector<std::uint16_t> box_light_indices;
         const auto flush_box_panels = [&] {
-            if (box_vertices.empty())
-            {
-                return;
-            }
             submitBatch(box_vertices, box_indices, posColorLayout(), color_program.get(), nullptr);
             box_vertices.clear();
             box_indices.clear();
+            // Additively, like every other emphasis light: alpha over the lit board subtracts
+            // where the light is warm, and a light that darkens part of what it covers reads as
+            // a decal.
+            submitBatch(
+                box_light_vertices,
+                box_light_indices,
+                posColorLayout(),
+                color_program.get(),
+                nullptr,
+                g_board_view,
+                g_additive_state);
+            box_light_vertices.clear();
+            box_light_indices.clear();
         };
         // Boxes rise exactly to the fret-line top: any higher and the panel visibly pokes past
         // the fret grid (the old top added half a string distance).
@@ -2537,6 +2563,10 @@ void HighwayRenderer::Impl::draw(
                     // see-through as it was, because a box is a thing the player reads through
                     // and any light there is opacity where the notes behind it must stay
                     // legible.
+                    // `out` reaches past the box's boundary, `in` reaches INWARD from it — so a
+                    // band whose `in` equals the frame thickness lands on the bar itself, which
+                    // is what makes the frame emit rather than merely wear a halo. Nothing
+                    // reaches past the bar, so the see-through interior is untouched.
                     const double out = band.out_texels * g_head_art_texel_world;
                     const double in = band.in_texels * g_head_art_texel_world;
                     const auto push_edge = [&](const double ex0,
@@ -2544,16 +2574,16 @@ void HighwayRenderer::Impl::draw(
                                                const double ex1,
                                                const double ey1) {
                         pushQuad(
-                            accent_vertices,
-                            accent_indices,
+                            box_light_vertices,
+                            box_light_indices,
                             makeVertex(ex0, ey0, z, light_tint),
                             makeVertex(ex1, ey0, z, light_tint),
                             makeVertex(ex1, ey1, z, light_tint),
                             makeVertex(ex0, ey1, z, light_tint));
                     };
                     push_edge(light_x0 - out, -out, light_x1 + out, in);
-                    push_edge(light_x0 - out, in, light_x0 + in, box_top);
-                    push_edge(light_x1 - in, in, light_x1 + out, box_top);
+                    push_edge(light_x0 - out, in, light_x0 + in, box_top - in);
+                    push_edge(light_x1 - in, in, light_x1 + out, box_top - in);
                     push_edge(light_x0 - out, box_top - in, light_x1 + out, box_top + out);
                 }
             };
@@ -2721,6 +2751,14 @@ void HighwayRenderer::Impl::draw(
         submitBatch(
             shadow_vertices, shadow_indices, posColorLayout(), color_fade_program.get(), nullptr);
         submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
+        submitBatch(
+            accent_open_vertices,
+            accent_open_indices,
+            posColorLayout(),
+            color_program.get(),
+            nullptr,
+            g_board_view,
+            g_additive_state);
         submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
         // Additively: a light can only ADD. Alpha blending over the lit lane subtracts up to 29
         // counts of blue where the light is warm, and a mark that darkens part of what it covers
@@ -2757,6 +2795,8 @@ void HighwayRenderer::Impl::draw(
         accent_indices.clear();
         accent_head_vertices.clear();
         accent_head_indices.clear();
+        accent_open_vertices.clear();
+        accent_open_indices.clear();
         head_vertices.clear();
         head_indices.clear();
     };
@@ -3912,11 +3952,12 @@ void HighwayRenderer::Impl::draw(
                 open_bar_thickness);
             if (common::core::isAccented(note.emphasis))
             {
-                // The same two-stage rim the fretted head wears, laid along the bar. An open
-                // note has no art to redraw, so its light is plain geometry — but the reaches
-                // and alphas are the candidate's own, measured from the BAR's real thickness,
-                // so both silhouettes gain the accent at one weight rather than each carrying
-                // its own idea of loud.
+                // The same two-stage rim the fretted head wears, and by the same means: the
+                // silhouette's OWN geometry redrawn larger. Where the head redraws its atlas
+                // cell, the bar redraws itself at a thicker cross-section, which is the only
+                // shape that inherits the bar's rounded profile and its two tapered, fading
+                // ends. A plain quad kept neither, so the light read as a hard-cornered box of
+                // light laid over the string instead of a glow around it.
                 const AccentLightStyle& light = g_accent_light_styles.at(accent_style);
                 const ArgbColor rim_color = mixArgb(base_color, 0xFFFFFFFFU, light.white_mix);
                 const auto push_bar_rim = [&](const double reach_texels, const double alpha) {
@@ -3924,16 +3965,28 @@ void HighwayRenderer::Impl::draw(
                     {
                         return;
                     }
-                    const double half_h =
-                        g_open_note_middle_half_thickness + (reach_texels * g_head_art_texel_world);
-                    const std::uint32_t rim_tint = packAbgr(rim_color, fade * alpha);
-                    pushQuad(
-                        accent_vertices,
-                        accent_indices,
-                        makeVertex(x0, head_y - half_h, z, rim_tint),
-                        makeVertex(x1, head_y - half_h, z, rim_tint),
-                        makeVertex(x1, head_y + half_h, z, rim_tint),
-                        makeVertex(x0, head_y + half_h, z, rim_tint));
+                    // Reach is measured at the bar's thickest station, so the scale it implies
+                    // carries the taper outward proportionally rather than inflating the thin
+                    // ends past the fat middle.
+                    const double thickness_scale = (g_open_note_middle_half_thickness +
+                                                    (reach_texels * g_head_art_texel_world)) /
+                                                   g_open_note_middle_half_thickness;
+                    // HALVED because the bar is a closed prism drawn with no culling (the lefty
+                    // mirror inverts winding, so the board cannot cull), which means every ray
+                    // crosses its surface twice and an ADDITIVE pass accumulates the light twice.
+                    // A head's rim is flat art and accumulates once. Without this the same
+                    // candidate would be twice as loud on an open string as on a fretted head,
+                    // which is exactly the one-weight promise this shares with the head.
+                    pushOpenNoteBar(
+                        accent_open_vertices,
+                        accent_open_indices,
+                        x0,
+                        x1,
+                        head_y,
+                        z,
+                        rim_color,
+                        fade * alpha / 2.0,
+                        thickness_scale);
                 };
                 push_bar_rim(light.ember_reach_texels, light.ember_alpha);
                 push_bar_rim(light.core_reach_texels, light.core_alpha);
@@ -4255,10 +4308,8 @@ void HighwayRenderer::Impl::draw(
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pop, tint);
             }
-            if (common::core::isAccented(note.emphasis))
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_accent, tint);
-            }
+            // No accent MARK: emphasis is a rendered light now, and the atlas ring it replaces
+            // is retired rather than drawn beneath it.
             // Upright markers stay flat through the flip (Charter overlays these after
             // the rotated head).
             if (note.mute == common::core::NoteMute::Full)

@@ -104,7 +104,7 @@ struct HighwayAtlases
 };
 
 // The cell vocabulary, row-major on the 4-column grid, sorted semantically rather than in the
-// Charter reference asset's order: head bases + emphasis, then one row per hand — the fretting
+// Charter reference asset's order: head bases, then one row per hand — the fretting
 // hand's posture brackets, legato mark and bend, then the picking hand's marks — then damping +
 // timbre, then the fifth row's later-added bases. One art set serves every head-composite
 // consumer deliberately (absolute consistency, no dedicated variants); repeat-box mute marks
@@ -120,8 +120,10 @@ inline constexpr int g_head_cell_tech = 1;
 /*! \brief Cell index of the anticipation ring. */
 inline constexpr int g_head_cell_anticipation = 2;
 
-/*! \brief Accent marker. */
-inline constexpr int g_head_cell_accent = 3;
+// Cell 3 is FREE. It held the accent ring until emphasis became a rendered light: a mark drawn on
+// the head could only ever say "accent", where the light says loud and quiet on one axis and says
+// it identically on an open string, which has no head to wear a mark. The slot keeps its position
+// because every other index is its grid coordinate; the next cell the vocabulary needs takes it.
 
 /*! \brief Arpeggio bracket for a fretted posture note. */
 inline constexpr int g_head_cell_arpeggio_fret_bracket = 4;

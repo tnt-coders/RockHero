@@ -70,6 +70,11 @@ struct AccentLightStyle
 
 Index 0 exists so the sampling can include the board without any accent light, which is the only
 honest reference for judging whether a candidate reads as emphasis or as decoration.
+
+The RIM WIDTH is settled at a texel and a half and is the same in every row: the wider rims were
+sighted and lost. What is still open is how loud that rim should be, so each remaining row moves
+exactly one thing about its intensity — brightness, colour, or a soft bloom outside it — and
+nothing about its size. Comparing rows therefore answers one question at a time.
 */
 inline constexpr std::array<AccentLightStyle, 5> g_accent_light_styles{{
     {.name = "none",
@@ -78,33 +83,34 @@ inline constexpr std::array<AccentLightStyle, 5> g_accent_light_styles{{
      .core_alpha = 0.0,
      .core_reach_texels = 0.0,
      .white_mix = 0.0},
-    // Matched to the shipped ring's measured envelope: hot at the edge, an ember out to about
-    // six texels, gone by eight.
-    {.name = "art rim",
-     .ember_reach_texels = 6.0,
-     .ember_alpha = 0.14,
-     .core_alpha = 0.88,
-     .core_reach_texels = 2.5,
-     .white_mix = 0.78},
-    // The same rim at the ring's own white balance: more string identity, more spread between
-    // the dim and bright strings.
-    {.name = "art rim tinted",
-     .ember_reach_texels = 6.0,
-     .ember_alpha = 0.14,
-     .core_alpha = 0.88,
-     .core_reach_texels = 2.5,
-     .white_mix = 0.50},
-    // Full string identity, and the palette's whole 4x spread with it.
-    {.name = "art rim string",
-     .ember_reach_texels = 6.0,
-     .ember_alpha = 0.20,
-     .core_alpha = 1.00,
-     .core_reach_texels = 2.5,
-     .white_mix = 0.0},
-    // Tighter and hotter: no ember at all, just the edge.
-    {.name = "art rim tight",
+    // The sighted rim, unchanged — the reference the other rows are judged against.
+    {.name = "tight",
      .ember_reach_texels = 0.0,
      .ember_alpha = 0.0,
+     .core_alpha = 0.95,
+     .core_reach_texels = 1.5,
+     .white_mix = 0.78},
+    // Same rim, two thirds the light: is the accent still unmistakable when it stops shouting?
+    {.name = "tight soft",
+     .ember_reach_texels = 0.0,
+     .ember_alpha = 0.0,
+     .core_alpha = 0.60,
+     .core_reach_texels = 1.5,
+     .white_mix = 0.78},
+    // The brightest this width can be: full alpha and a pure white edge. Costs the string's
+    // identity in the light itself, which is the trade to judge here.
+    {.name = "tight hot",
+     .ember_reach_texels = 0.0,
+     .ember_alpha = 0.0,
+     .core_alpha = 1.00,
+     .core_reach_texels = 1.5,
+     .white_mix = 1.00},
+    // The same rim with a faint falloff outside it. The bloom stays inside half the head's own
+    // half-height, so the light's steepest gradient is still the rim's edge — which is what keeps
+    // it reading as the note's glow rather than as a field the note sits in.
+    {.name = "tight bloom",
+     .ember_reach_texels = 4.0,
+     .ember_alpha = 0.12,
      .core_alpha = 0.95,
      .core_reach_texels = 1.5,
      .white_mix = 0.78},
@@ -250,13 +256,22 @@ struct BoxLightBand
 /*!
 \brief The box frame light, outside in — the last band lands on the bar itself.
 
-Sized so an accented box's bar reaches the same absolute brightness an accented note's rim core
-does, so the two say "loud" at one volume rather than two.
+The three bands are a halo outside the boundary, a band straddling it, and the bar itself; their
+alphas accumulate to about half the box colour added on the bar. A box takes its own teal rather
+than a string colour, so its light cannot be matched to a note's rim by alpha anyway — the two are
+tuned to read as one volume of "loud" by eye, in the same sighting pass that picks the note rim.
+
+The inward reaches are stated in the same texels the note rim uses, and the last band's five texels
+are exactly the frame's bar thickness — the panel takes `HighwayMetrics::string_grid_base_y` for
+that, 0.075 world, which is five of these texels on the nose. Nothing reaches past the bar, so the
+see-through interior a player reads notes through is untouched.
 */
 inline constexpr std::array<BoxLightBand, 3> g_box_light_bands{{
-    {.out_texels = 3.0, .in_texels = -2.0, .step_alpha = 0.07},
-    {.out_texels = 1.5, .in_texels = -1.0, .step_alpha = 0.12},
-    {.out_texels = 0.0, .in_texels = 0.0, .step_alpha = 0.19},
+    {.out_texels = 3.0, .in_texels = 0.0, .step_alpha = 0.07},
+    {.out_texels = 1.5, .in_texels = 2.0, .step_alpha = 0.12},
+    // The bar itself, inward by its own thickness: this is the band that makes the frame emit
+    // rather than merely wear a halo.
+    {.out_texels = 0.0, .in_texels = 5.0, .step_alpha = 0.30},
 }};
 
 } // namespace rock_hero::common::ui
