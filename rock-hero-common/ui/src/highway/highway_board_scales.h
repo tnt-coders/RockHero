@@ -36,7 +36,10 @@ threefold — so there is one camera to compare against rather than a moving tar
 
 What no scale can fix, stated so it is not mistaken for a tuning problem: the reference's head
 art is about 6% taller for its width than ours (screen aspect 1.79–1.83 against our 1.923).
-Scaling preserves aspect, so closing that gap needs the ART redrawn, not a metric moved.
+Scaling preserves aspect, so closing that gap needs the ART redrawn, not a metric moved. That
+said, the terminal census reads the reference's aspect anywhere from 1.72 to 2.33 — its mark is
+a 3-D box whose side face rides the silhouette by camera position — so our 1.923 sits inside
+that spread and the redraw claim is weaker than the two clean samples first made it look.
 */
 
 #pragma once
@@ -62,7 +65,8 @@ struct BoardScaleCandidate
 
     Carries the resulting ratio in its own text rather than in a second field: the ratio exists
     only to be read in the log, and a number that is only ever printed belongs in the string it
-    is printed from.
+    is printed from. Every printed ratio assumes the OTHER axis at 1.000, so rows stay
+    comparable within their own table.
     */
     std::string_view name;
 
@@ -96,9 +100,11 @@ first fits inside the lane pitch. The rest bracket the answer so it can be judge
 neighbours rather than alone: 0.89 is the smallest change anyone proposed, 0.76 sits just under
 the measured value, and 0.72 is where stacked node-head diamonds stop overlapping at all.
 
-The band on the measurement is ±3.8%, and the reference's own two cameras disagree by 5.8% on
-this proportion — so "exactly" is undefined below about 6%, and any row from 0.76 to 0.82 is
-inside the evidence. The eye picks; the measurement only says where to look.
+The band: nine terminal-size marks across five captures spread 6.8% (one sigma) between marks,
+putting 0.772-0.808 around the answer on the standard error of the mean — and the reference's
+own two cameras disagree by 5.8% on this proportion, so "exactly" is undefined below about 6%
+and any row from 0.76 to 0.82 is inside the evidence. The eye picks; the measurement only says
+where to look.
 */
 inline constexpr std::array<BoardScaleCandidate, 6> g_family_scale_candidates{{
     {.name = "today, ratio 0.471", .scale = 1.00},
@@ -108,7 +114,11 @@ inline constexpr std::array<BoardScaleCandidate, 6> g_family_scale_candidates{{
     // THE MEASURED ANSWER. Both reference cameras, through the fret yardstick: head half-width
     // over fret slot and head half-height over string pitch, each measured against the axis it
     // spans. The two cameras agree to 2.7% on width, and this reproduces both their means.
-    {.name = "0.79x, ratio 0.386 - MEASURED against both reference cameras", .scale = 0.79},
+    // Terminal-size verified: the reference grows its approach heads exactly as ours does, but
+    // the ramp completes before the note's own time, and the heads this factor was measured on
+    // sit bracketed by certainly-at-play marks — a nine-mark terminal census across five
+    // captures moves the factor by x1.0003, i.e. nothing.
+    {.name = "0.79x, ratio 0.372 - MEASURED, terminal-size verified", .scale = 0.79},
     {.name = "0.76x, ratio 0.358 - just under the measured value", .scale = 0.76},
     {.name = "0.72x, ratio 0.339 - 1080p-weighted; stacked diamonds clear", .scale = 0.72},
 }};
@@ -145,7 +155,7 @@ inline constexpr std::array<BoardScaleCandidate, 6> g_spacing_scale_candidates{{
     // The measured factor, and it is a NARROWING so slight it sits inside its own band around
     // 1.000. The row exists because every other row on this axis widens, which would have made
     // the range itself an unstated claim that widening was the direction.
-    {.name = "0.966x, ratio 0.386 - MEASURED; spacing needs no widening at all", .scale = 0.966},
+    {.name = "0.966x, ratio 0.488 - MEASURED; spacing needs no widening at all", .scale = 0.966},
     {.name = "1.124x wider, ratio 0.420 - reaches the ratio, wrong for the slot", .scale = 1.124},
     {.name = "1.250x wider, ratio 0.377 - reaches the ratio, head still 26.5% too wide",
      .scale = 1.250},
