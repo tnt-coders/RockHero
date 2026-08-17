@@ -4252,19 +4252,20 @@ void HighwayRenderer::Impl::draw(
                 // capsule: half extents of the bar's own middle cross-section, corner radius
                 // equal to its half thickness. That is what the bar's rounded profile IS.
                 //
-                // The silhouette ends where the bar's OPAQUE run ends, one fade length inside
-                // each tip, rather than at the tips themselves. The bar's ends ramp to fully
-                // transparent over that length, so a light drawn out to the geometric end would
-                // glow around a stretch of string that is not there — and the capsule's own
-                // rounding plus the reach then carry the falloff back out across the ramp, which
-                // is a better match to the visible taper than restating the ramp would be.
+                // The silhouette is the bar's FULL span, x0 to x1. An earlier attempt pulled it
+                // in by one `g_open_note_end_fade_length` at each end, reasoning that the bar
+                // ramps to transparent there so a light drawn to the tip would surround string
+                // that is not there. That was wrong twice over. The bar's GEOMETRY runs the whole
+                // span — only its alpha ramps — and that ramp is 0.5 world, an eighth of a hand
+                // window, not an antialias tail. Against a reach of at most 0.18 the light ended
+                // up stopping a third of a world unit short of each tip, which is exactly what it
+                // looked like.
                 //
                 // Note there is no halving here any more. The previous light redrew the bar's
                 // PRISM, which is closed and unculled (the lefty mirror inverts winding), so
                 // every ray crossed it twice and additive light accumulated twice; the correction
                 // had to be applied by hand. A flat quad crosses once, like the head's, so the
                 // one-weight promise now holds by construction instead of by compensation.
-                const double open_fade = std::min(g_open_note_end_fade_length, (x1 - x0) / 4.0);
                 pushAccentGlow(
                     accent_glow_vertices,
                     accent_glow_indices,
@@ -4272,7 +4273,7 @@ void HighwayRenderer::Impl::draw(
                     head_y,
                     z,
                     GlowShape{
-                        .half_w = std::max(0.0, ((x1 - x0) / 2.0) - open_fade),
+                        .half_w = (x1 - x0) / 2.0,
                         .half_h = g_open_note_middle_half_thickness,
                         .corner = g_open_note_middle_half_thickness,
                         .rhombus = false,
