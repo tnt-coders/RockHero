@@ -389,35 +389,48 @@ code. Two residues survive it:
   Bold's true capital footprint; raise it toward 0.75 so the letter is suppressed before it
   merges, or give letters the chip's ink-to-rim clearance.
 
-### Highway world units: make one fret the unit of the fret axis
+### Highway world units: express the board in its own two units
 
-`HighwayMetrics::first_fret_distance` is 1.1, which carries no information — the world unit is
-arbitrary and 1.1 is a residue of narrowing Charter's 1.2. Setting it to **1.0** would make the
-fret the ground truth for the fret axis, so every X-axis quantity reads directly as a fraction of
-a fret. That is exactly the yardstick the reference-proportion measurements use (fret spacing is
-the one quantity neither the family-size nor the string-spacing knob moves), so the conversion
-would stop being done by hand every time that question is asked.
+Every world length in `HighwayMetrics` is an absolute — `first_fret_distance` 1.1,
+`string_distance` 0.35, `note_half_width` 0.48, the camera's 5.0 and -2.5 — so nothing in the code
+says which numbers are the LOOK and which are merely the units. The look lives in the ratios
+between them, and today every one of those ratios is computed by hand each time it is needed.
 
-Purely a change of units: divide every WORLD-space length by 1.1 — `string_distance`,
-`note_half_width`, `string_grid_base_y`, both camera distances, and every world literal in the
-renderer (glow reach, tail margin, open-bar thicknesses and fade lengths, post feet, and the
-rest) — and the picture is unchanged, because a perspective projection depends on size-over-
-distance and both scale together.
+**The absolute scale is not arbitrary, and this entry is not a renormalization.** Those values are
+Charter's, at Charter's scale; 1.1 is the fret's size in that inherited coordinate system (its 1.2
+narrowed so heads fill more of their slot). Rescaling everything so a fret reads 1.0 would sever
+each constant from the source it can still be compared against, and would buy nothing the change
+below does not buy better.
 
-Two traps, which are the whole reason this is not a five-minute edit:
+The change is to state the PROPORTIONS in the code and let the anchors carry the scale:
 
-- **Not everything in the file is a world length.** NDC heights (`board_anchor_ndc_height`),
-  pixel quantities (`g_tail_pixels_per_sample`), seconds, and dimensionless fractions must NOT
-  scale. Every constant has to be classified, and a misclassified one does not fail to compile —
-  it silently shifts the look by ~10%.
-- Texel-space constants are already relative (`headArtTexelWorld` derives from
-  `note_half_width`), so they follow automatically and must not be touched by hand.
+    note_half_width = first_fret_distance * 0.436     // instead of a bare 0.48
 
-Acceptance test that makes this safe: a pure unit change must render **pixel-identical**. Capture
-a frame before and after and compare framebuffers; any difference beyond float rounding means a
-constant was misclassified.
+Then an anchor's value becomes genuinely inert — 1.0 or 1.1, it no longer matters, because moving
+it rescales its axis coherently — where today an anchor is arbitrary *and* load-bearing by hand.
 
-Do it when the fret axis is otherwise quiet — and note that roadmap 25-Q1 (a realistic neck that
-compresses toward the body) would make "a fret" stop being a single distance. The normalization
-still works there, reading as first-fret units, but it is less compelling, so 25-Q1 is the natural
-moment to decide both together.
+**Two anchors, not one, and this is the part to get right.** The fret governs X; string spacing
+governs Y. On a real instrument they are independent (fret spacing follows scale length, string
+spacing follows nut and bridge width), so expressing a Y quantity in frets asserts a coupling that
+does not exist — and it breaks outright under roadmap 25-Q1's variable fret width, where "0.318
+frets" stops naming one distance. The measurements already work this way: the head art is **0.288
+frets wide** and **0.471 string-spacings tall**, and that second number is exactly the ratio the
+reference-proportion work measures. Each length belongs to the axis it actually spans; the
+fret-to-string ratio is then the one explicit board-aspect parameter rather than an accident.
+
+Two traps:
+
+- **Not everything is a world length.** NDC heights (`board_anchor_ndc_height`), pixel quantities
+  (`g_tail_pixels_per_sample`), seconds, and dimensionless fractions have no anchor and must stay
+  absolute. A misclassified one does not fail to compile — it silently shifts the look.
+- Texel-space constants are already relative (`headArtTexelWorld` derives from `note_half_width`),
+  so they follow automatically and must not be converted by hand.
+
+Acceptance test that makes this safe: expressing a value as its own anchor times its own ratio
+changes nothing, so the frame must render **pixel-identical**. Capture before and after and
+compare framebuffers; any difference beyond float rounding means a constant was misclassified or a
+ratio was rounded too hard.
+
+Do it when the fret axis is otherwise quiet. Roadmap 25-Q1 (a neck that compresses toward the
+body) is the natural moment to decide it, since a variable fret width is exactly what makes the
+two-anchor split matter rather than being a stylistic preference.
