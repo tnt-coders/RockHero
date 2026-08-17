@@ -218,6 +218,18 @@ cell 4's two axes are equal to 0.000000 tx.
   (c) The accent atlas ring was still
   being drawn under the light; that draw, the `g_head_cell_accent` constant, and the art itself
   are all gone. The slot it vacated became one of the sheet's three spares in the reorder below.
+- **The sustain tail's light is CLIPPED at the ribbon's last fully-opaque station** (`3c20eab4`,
+  2026-08-17, from a measured audit of the user's "translucency is being ignored / it makes the
+  middle bold" report). The glow composites BEHIND the ribbon, whose edge strips are opaque and
+  whose core is 37.65% alpha, so a quad across the whole band lit the ribbon only through the part
+  authored to stay quiet — inverting a fretted ribbon's contrast, washing an open core 15x with a
+  bright rim where the ribbon's own alpha is zero, and brightening every tail 89% mid tip-fade.
+  The rule: the emitter is the fully opaque cross-section; light draws outward from the last
+  full-alpha station, never inward, its strength following the authored ramp through
+  `openBarEmission` (third call site, corner-clustered columns like the bar strip), the case
+  read off each end's packed colors (outer == edge = hard silhouette) with no note-kind branch.
+  A fretted tail's own pixels are identical lit or unlit; awaiting the user's 1x sighting for
+  whether the pure halo reads loud enough at far z (the knob is the F9 row's alpha/gain).
 - **Ghost: SIGNED 2026-08-15 and no longer a sighting item.** `half light` won on the highway
   (sighted at alpha 0.45 head and markers against 0.65 tail; **collapsed on trial to a single 0.5
   everywhere** at the user's suggestion, plus 0.5 open-bar thickness, to test whether the
@@ -323,11 +335,23 @@ job entirely.
 
 **The harmonic base is D: a diamond whose EDGE equals the regular head's height** (the
 head-height square rotated 45°, vertex span ≈ 30.6 tx), chosen 2026-08-15 from four measured
-candidates. The marker's ring lands inscribed in it (clears the flats by 0.08 tx) with the points
-4.4 tx proud. Accepted price: node heads stacked at the 23.33 lane pitch interpenetrate ≈ 3.7 tx
-per side — the user sighted this and accepted it (*"D looks okay stacked even with a bit of
-overlap"*). The rejected candidates (halo circle, 26.4-box diamond, diagonal-height diamond) are
-recoverable in full at `21bfa768`.
+candidates. The user sighted the stacked overlap and accepted it (*"D looks okay stacked even
+with a bit of overlap"*). The rejected candidates (halo circle, 26.4-box diamond, diagonal-height
+diamond) are recoverable in full at `21bfa768`.
+
+**Two measurements that ruling was signed on were WRONG** (re-measured 2026-08-17, whole-family
+audit round): the marker's ring does NOT land inscribed — it crosses the diamond's flats by
+2.0 tx, containing span 19.72 tx against a 15.65 tx half-span (the "clears the flats by 0.08 tx"
+figure measured the wrong contour); and the lane pitch is **22.9688 tx** (0.35 world over
+`headArtTexelWorld`'s 63-texel span), not 23.33. The same round found the overflow is
+scale-invariant — mark and base scale together, so NO uniform family rescale changes the 26%
+overflow — and that the pinch harmonic NEVER rides the diamond (`nodeIsOnNeck` excludes
+`Pinch`, chart.h), so cell 15 never constrains the diamond's size. The re-opened decision, its
+nine baked candidates (`rockhero-atlas-variants`, swappable via `.agents/atlas-variant.ps1`),
+and the containment/tangency/mark-size trilemma live in the sighting round in progress; the
+reference-ratio family baseline (user ruling 2026-08-16: match the third-party reference's
+height-over-pitch as the default) is being measured pixel-by-pixel from five screenshots in
+`__scratch__/reference/`.
 
 **Atlas layout** (256×320, 4×5, capacity 20), REORDERED 2026-08-15 — two rules, one per half of
 the sheet. Head bases take a row per SHAPE FAMILY complete with its hollow: row 0 the rectangle

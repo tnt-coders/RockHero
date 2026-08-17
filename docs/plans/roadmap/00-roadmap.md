@@ -527,6 +527,16 @@ silent defaults. Full option analysis in the plan.
 
 ### Roadmap-level items
 
+- **RM-6** (OPEN, added 2026-08-17) **Bass highway spacing.** The third-party reference the marker
+  family's height-over-pitch ratio is being calibrated against uses a definitively wider string
+  pitch on its four-string bass highway than on its six-string guitar highway; RockHero currently
+  draws one lane pitch (0.35 world) regardless of string count. User directive: do not treat bass
+  spacing separately yet, but make bass look as natural as possible when this activates. The
+  measured bass-reference numbers (pitch and head ratio, kept separate from the guitar
+  calibration by design) live with the guitar measurement records; the deciding question is
+  whether a four-string chart widens the pitch, rescales the art, or both — and whether the
+  highway metrics gain a per-instrument term or stay one constant. Touches plans 25 (highway) and
+  the marker-family atlas.
 - **RM-1** Licensing audit thread: AGPLv3 network-source obligations (29-Q3), SoundTouch licensing-table row (28-Q1), CC0 fixture tree (23-Q1) — treat as one licensing pass when 28/29 activate.
 - **RM-2** Reserved sub-plan names per 40-Q4: docs/plans/roadmap/40a-chord-template-and-shape-editor.md, docs/plans/roadmap/40b-curve-payload-editors.md — create only if a phase exceeds a session.
 - **RM-3** Design-doc updates queued behind user confirmation: 10-D1 (bump policy + juce_cryptography permission), 20's architecture.md render-stack update at gate close, 28's licensing-table row, 29's Licensing section amendment.
