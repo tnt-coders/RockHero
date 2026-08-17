@@ -112,19 +112,28 @@ struct AccentLightStyle
     double exponent;
 
     /*!
-    \brief How far the light's colour is mixed toward white, from zero (the subject's own colour).
+    \brief Radiance multiplier, allowed above one and then clipped per channel by the shader.
 
-    Ruled 2026-08-15: the light is the STRING'S colour, so this sits at or near zero. A white glow
-    was tried first, on the reasoning that the atlas ring it replaced got most of its brightness
-    from a white lift — but a white light says the same thing on every string, and the whole point
-    of a light on a coloured note is that it belongs to that note.
+    This is where BRIGHTNESS comes from, and it replaced a mix-toward-white that could not supply
+    any. Mixing a colour toward white at a fixed weight trades saturation for lightness and stops
+    there — it can never exceed the emitter's own brightness, and it desaturates the far halo just
+    as hard as the core, which is precisely how the light managed to read as washed out and dim at
+    the same time.
 
-    The cost is real: the palette's 4.08x luma spread means the same alpha reads four times
-    quieter on the red string than on the yellow. \ref reach is the knob that closes that without
-    touching the colour — more area, not more white — which is why the rows below sweep size
-    first. One row keeps a quarter lift as the compromise, for comparison against the pure ones.
+    A gain does both jobs at once, because the CLIPPING is the effect rather than a defect. Past
+    one the brightest channel saturates and stops while the others keep climbing, so the colour
+    walks toward white exactly where the light is strongest and keeps its hue everywhere it is
+    not. That is the white-hot core inside a coloured halo that every bright light actually has.
+
+    It also closes the palette's 4.08x luma spread on its own: the red string, being dark, has the
+    most headroom before its remaining channels clip, so the same gain lifts it furthest. No
+    per-string compensation is needed and none is present.
+
+    Gain 1.0 is the un-gained light, kept as a control row. The pedestal that lets a pure hue reach
+    white at all is a separate constant applied where the colour is packed — see the renderer's
+    `emitterSpectrum`.
     */
-    double white_mix;
+    double gain;
 
     /*! \brief Which operator combines this light with the board. */
     AccentBlend blend;
@@ -136,18 +145,28 @@ struct AccentLightStyle
 Index 0 exists so the sampling can include the board without any accent light, which is the only
 honest reference for judging whether a candidate reads as emphasis or as decoration.
 
-The rows are a designed sweep rather than a pile: rows 1-3 vary SIZE alone off a common falloff,
-row 4 varies the falloff SHAPE at the widest size, rows 5-6 vary the BLEND OPERATOR against row 2
-so that comparison isolates the operator, and row 7 varies the COLOUR against the same row. Every
-row lights notes and chord boxes together from these same numbers, so a candidate is judged as one
-look across the whole board rather than as a note treatment with a box treatment beside it.
+The rows are a designed sweep rather than a pile, each varying ONE thing against the `medium`
+reference at row 3: rows 2-4 vary SIZE, row 5 varies the falloff SHAPE, rows 6-7 vary the BLEND
+OPERATOR, and rows 1 and 8 bracket the GAIN — row 1 at gain 1.0 is the un-gained light the earlier
+rounds shipped, kept as the control that shows what the gain is actually buying. Every row lights
+notes and chord boxes together from these same numbers, so a candidate is judged as one look
+across the whole board rather than as a note treatment with a box treatment beside it.
 */
-inline constexpr std::array<AccentLightStyle, 8> g_accent_light_styles{{
+inline constexpr std::array<AccentLightStyle, 9> g_accent_light_styles{{
     {.name = "none",
      .reach = 0.0,
      .alpha = 0.0,
      .exponent = 1.0,
-     .white_mix = 0.0,
+     .gain = 0.0,
+     .blend = AccentBlend::Add},
+    // The control: the reference size and falloff with NO gain, which is exactly what shipped
+    // before brightness became a knob. Every other row should beat this one or the gain is not
+    // earning its place.
+    {.name = "medium flat",
+     .reach = 0.12,
+     .alpha = 1.00,
+     .exponent = 2.0,
+     .gain = 1.0,
      .blend = AccentBlend::Add},
     // Four texels of reach: a rim that stops well inside the lane, the tightest thing that still
     // reads as a light rather than as a thicker outline.
@@ -155,15 +174,15 @@ inline constexpr std::array<AccentLightStyle, 8> g_accent_light_styles{{
      .reach = 0.06,
      .alpha = 1.00,
      .exponent = 2.0,
-     .white_mix = 0.0,
+     .gain = 3.0,
      .blend = AccentBlend::Add},
-    // Eight texels — about half the head art's own half-height. The reference row: rows 5-7 vary
-    // one thing each against exactly this.
+    // Eight texels — about half the head art's own half-height. THE REFERENCE ROW: every row
+    // above and below varies exactly one field against this one.
     {.name = "medium",
      .reach = 0.12,
      .alpha = 1.00,
      .exponent = 2.0,
-     .white_mix = 0.0,
+     .gain = 3.0,
      .blend = AccentBlend::Add},
     // Twelve texels, which lands a head's glow within a hair of the neighbouring string's line.
     // The widest a per-string light can be before two adjacent accents stop being two.
@@ -171,7 +190,7 @@ inline constexpr std::array<AccentLightStyle, 8> g_accent_light_styles{{
      .reach = 0.18,
      .alpha = 1.00,
      .exponent = 2.0,
-     .white_mix = 0.0,
+     .gain = 3.0,
      .blend = AccentBlend::Add},
     // The same width with a LINEAR falloff, to sight the exponent's contribution on its own: this
     // is what the previous design's ramps were, at a size that makes the difference visible.
@@ -179,25 +198,27 @@ inline constexpr std::array<AccentLightStyle, 8> g_accent_light_styles{{
      .reach = 0.18,
      .alpha = 0.85,
      .exponent = 1.0,
-     .white_mix = 0.0,
+     .gain = 3.0,
      .blend = AccentBlend::Add},
     {.name = "medium screen",
      .reach = 0.12,
      .alpha = 1.00,
      .exponent = 2.0,
-     .white_mix = 0.0,
+     .gain = 3.0,
      .blend = AccentBlend::Screen},
     {.name = "medium lighten",
      .reach = 0.12,
      .alpha = 1.00,
      .exponent = 2.0,
-     .white_mix = 0.0,
+     .gain = 3.0,
      .blend = AccentBlend::Lighten},
-    {.name = "medium lifted",
+    // Hot enough that even the palette's darkest string clips its remaining channels near the
+    // core, so the white-hot centre is unmistakable. The upper bracket of the gain sweep.
+    {.name = "medium hot",
      .reach = 0.12,
      .alpha = 1.00,
      .exponent = 2.0,
-     .white_mix = 0.25,
+     .gain = 7.0,
      .blend = AccentBlend::Add},
 }};
 
@@ -231,26 +252,5 @@ open string carries the axis on its bar because it has no head to wear it - the 
 old atlas-mark design diverged, since a mark drawn on a head could never be worn by a bar.
 */
 inline constexpr double g_ghost_open_bar_thickness{0.5};
-
-/*!
-\brief Extra white lift a chord box's light takes on top of its candidate's \ref
-       AccentLightStyle::white_mix.
-
-The ONE number a box does not share with a note, and it exists for a measured reason rather than
-for taste. A note's light is its STRING'S colour, which is the colour of nothing else near it. A
-box has no string, so its light can only be the box's own teal — and adding a colour on top of
-itself is the least perceptible change available. Two rounds of this light were reported as no
-effect at all for exactly that. The lift is what makes it read as light falling ON the box rather
-than as more of the box's own paint.
-
-It is additive with the candidate's own mix and the sum is clamped, so a candidate that already
-lifts toward white does not double-lift a box past white.
-
-Everything else about a box's light — reach, alpha, falloff, blend operator — comes from the
-selected candidate, so cycling the toggle moves notes and boxes together and the pair is judged as
-one look. That is a correction: the previous box light was wired to its own fixed constants and
-did not respond to the cycle at all.
-*/
-inline constexpr double g_box_light_extra_white_mix{0.55};
 
 } // namespace rock_hero::common::ui

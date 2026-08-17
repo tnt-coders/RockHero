@@ -644,6 +644,30 @@ struct GlowShape
     return result;
 }
 
+/*!
+\brief Gives an accent light's colour the broadband pedestal every real emitter has.
+
+Mixes a string colour toward the achromatic grey AT ITS OWN PEAK, so the hue and the brightest
+channel are untouched and only the darker channels lift. Without it a pure hue can never whiten:
+the palette's red is literally `(237, 0, 0)` and its teal `(0, 181, 160)`, so multiplying by a gain
+clips the one live channel and simply stops — brighter is impossible and desaturation never
+happens, which is the "it is the string's colour but it does not read as light" complaint exactly.
+
+The physical warrant is not stylistic. No emitter is spectrally pure, and more to the point the
+scatter that produces a glow AT ALL — in a lens, in the atmosphere, in the eye's own optics — is
+broadband. That is why every photograph of a red taillight or a neon sign has a white centre inside
+a coloured halo. This constant is how wide that pedestal is; the gain then decides how far up it
+the core climbs, and the falloff decides where each fragment sits along the ramp.
+*/
+constexpr double g_glow_spectral_floor = 0.18;
+
+[[nodiscard]] ArgbColor emitterSpectrum(const ArgbColor argb)
+{
+    const ArgbColor peak = std::max({(argb >> 16U) & 0xFFU, (argb >> 8U) & 0xFFU, argb & 0xFFU});
+    const ArgbColor achromatic = (argb & 0xFF000000U) | (peak << 16U) | (peak << 8U) | peak;
+    return mixArgb(argb, achromatic, g_glow_spectral_floor);
+}
+
 // Inlay-dot pattern: fret % 12 in {0, 3, 5, 7, 9} carries a marker.
 [[nodiscard]] bool isDottedFret(const int fret)
 {
@@ -1705,7 +1729,7 @@ void HighwayRenderer::Impl::draw(
             static_cast<float>(accent_light.reach),
             static_cast<float>(accent_light.exponent),
             static_cast<float>(emitter_depth),
-            0.0F,
+            static_cast<float>(accent_light.gain),
         };
     };
     const std::array<float, 4> note_glow_uniform = glow_uniform_at(g_glow_solid_emitter_depth);
@@ -2840,12 +2864,13 @@ void HighwayRenderer::Impl::draw(
                 }
                 const ChordBoxFrame frame = chordBoxFrame(
                     full_height_y1, box.box_only, box.with_top, metrics.string_grid_base_y);
-                const std::uint32_t lit = packAbgr(
-                    mixArgb(
-                        g_chord_box_color,
-                        0xFFFFFFFFU,
-                        std::min(1.0, accent_light.white_mix + g_box_light_extra_white_mix)),
-                    accent_light.alpha);
+                // The box's own teal, given the same broadband pedestal a string's light gets. It
+                // needed a hand-tuned white lift of its own before the gain existed, because teal
+                // light laid on a teal frame is the least perceptible change available; the gain
+                // now whitens the core by the same mechanism it uses on every note, so the box
+                // shares the candidate outright and carries no number of its own.
+                const std::uint32_t lit =
+                    packAbgr(emitterSpectrum(g_chord_box_color), accent_light.alpha);
                 const double half_w = (light_x1 - light_x0) / 2.0;
                 const double center_x = (light_x0 + light_x1) / 2.0;
 
@@ -4293,9 +4318,7 @@ void HighwayRenderer::Impl::draw(
                         .rhombus = false,
                     },
                     accent_light.reach,
-                    packAbgr(
-                        mixArgb(base_color, 0xFFFFFFFFU, accent_light.white_mix),
-                        fade * accent_light.alpha));
+                    packAbgr(emitterSpectrum(base_color), fade * accent_light.alpha));
             }
             // Technique markers at the window center (Charter's open-note overlay set).
             {
@@ -4533,8 +4556,7 @@ void HighwayRenderer::Impl::draw(
                       },
                 accent_light.reach,
                 packAbgr(
-                    mixArgb(base_color, 0xFFFFFFFFU, accent_light.white_mix),
-                    fade * head_slide.alpha * accent_light.alpha),
+                    emitterSpectrum(base_color), fade * head_slide.alpha * accent_light.alpha),
                 cos_r,
                 sin_r);
         }

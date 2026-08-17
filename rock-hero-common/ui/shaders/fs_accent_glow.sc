@@ -20,7 +20,7 @@ $input v_color0, v_texcoord0, v_texcoord1
 //
 // The shape rides the VERTEX rather than a uniform so heads, open bars and chord boxes - three
 // different silhouettes at three different sizes - still batch into a single draw.
-// x = reach (world), y = falloff exponent, z = emitter depth (world), w unused
+// x = reach (world), y = falloff exponent, z = emitter depth (world), w = radiance gain
 uniform vec4 u_accent_glow_params;
 
 void main()
@@ -68,9 +68,31 @@ void main()
     float intensity =
         pow(saturate(1.0 - (from_emitter / reach)), max(u_accent_glow_params.y, 1.0e-4));
 
-    // PREMULTIPLIED on purpose. The candidate table cycles the blend operator (add / screen /
-    // lighten) and all three read premultiplied source the same way, so switching operators
-    // compares the operators and nothing else.
     float weight = v_color0.a * intensity;
-    gl_FragColor = vec4(v_color0.rgb * weight, weight);
+
+    // The emitter's radiance is allowed OVER one and then clipped per channel. Those two lines
+    // are where "it looks bright" comes from, and the mechanism is worth stating because the
+    // obvious alternative is wrong in a way that is hard to see.
+    //
+    // A bright coloured light has a WHITE-HOT CORE inside a coloured halo - every photograph of a
+    // neon sign or a taillight at night shows it. That is not a stylisation: it is what happens
+    // when radiance exceeds what the display (or the eye) can represent. The brightest channel
+    // clips first and stops rising, while the others keep climbing, so the colour walks toward
+    // white exactly where the light is strongest and keeps its hue everywhere it is not.
+    //
+    // Blending the colour toward white by a constant - the previous design - cannot produce that.
+    // It desaturates the FAR halo as hard as the core, which is what made the light read as
+    // washed out rather than bright, and it adds no radiance at all: mixing toward white at a
+    // fixed weight can only trade saturation for lightness, never exceed the emitter's own
+    // brightness. A gain does both, with the falloff deciding where along the ramp each fragment
+    // sits. Gain 1.0 reproduces the un-gained light exactly.
+    //
+    // The pedestal that lets a pure hue reach white at all is applied on the CPU, where the
+    // colour is packed - see g_glow_spectral_floor. Without it a string like the red one, whose
+    // green and blue are literally zero, would clip its red channel and simply stop, getting no
+    // brighter and never desaturating.
+    //
+    // The result is PREMULTIPLIED, which is what all three blend operators expect.
+    vec3 lit = min(v_color0.rgb * (u_accent_glow_params.w * weight), vec3_splat(1.0));
+    gl_FragColor = vec4(lit, weight);
 }
