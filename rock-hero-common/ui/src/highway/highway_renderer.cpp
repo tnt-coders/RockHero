@@ -1048,6 +1048,44 @@ void pushRibbonSegment(
     push_band(2, 3, a.edge_abgr, outer_a, b.edge_abgr, outer_b);
 }
 
+/*!
+\brief Alpha error budget for one ribbon quad, in the units alpha is authored in.
+
+A ribbon band's alpha is a PRODUCT — the envelope along the tail's length times the taper across
+its width — and a quad drawn as two triangles cannot carry a product. Each triangle interpolates
+linearly, so the one on the far side of the split diagonal holds the span's STARTING envelope
+across its whole share of the taper, and the deviation lands unevenly on the two sides.
+
+Measured on an open tail before this bound existed: the two edges drew with taper widths
+differing by more than four times (0.031 against 0.130 world at one instant, against an authored
+0.100), the narrow side stopped up to 0.11 world inside its authored width, and which side was
+which SWAPPED between the onset ramp and the tip fade, because the envelope's slope flips sign.
+The art authors a symmetric taper; the renderer was drawing an asymmetric one.
+
+The peak deviation is a quarter of the envelope's change WITHIN ONE QUAD, so bounding that change
+bounds the error — four counts of 255 here, which is below the step the 8-bit vertex colors can
+represent anyway once it is spread across a strip's width.
+*/
+constexpr double g_ribbon_span_alpha_tolerance = 4.0 / 255.0;
+
+/*!
+\brief Sub-segments a ribbon span needs to hold its product error inside the budget above.
+
+\param alpha_from Envelope at the span's near end.
+\param alpha_to Envelope at the span's far end.
+\return At least one; more only where the envelope actually moves.
+
+A span whose envelope holds still carries no product at all — the taper is then the same at both
+ends and two triangles reproduce it exactly — so the whole plateau of every sustain still draws
+as a single quad and pays nothing.
+*/
+[[nodiscard]] int ribbonSpanSteps(const double alpha_from, const double alpha_to)
+{
+    const double change = std::abs(alpha_to - alpha_from);
+    const double steps = std::ceil(change / (4.0 * g_ribbon_span_alpha_tolerance));
+    return std::max(1, static_cast<int>(steps));
+}
+
 // Constant-cross-section overload for runs whose band never changes width.
 void pushRibbonSegment(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
@@ -4034,8 +4072,27 @@ void HighwayRenderer::Impl::draw(
                     note.end_seconds - (duration * g_tail_tip_fade_fraction);
                 const double body_end = std::clamp(fade_begin_seconds, body_begin, tail_to);
                 const auto push_span = [&](const double from_seconds, const double to_seconds) {
-                    if (to_seconds > from_seconds)
+                    if (!(to_seconds > from_seconds))
                     {
+                        return;
+                    }
+                    // Only a band that tapers ACROSS its width carries the product the split
+                    // guards against — an open tail's dissolving outer stations, or a glow whose
+                    // emission varies across its columns. A plain fretted ribbon holds one color
+                    // across each band, so two triangles reproduce it exactly and it keeps paying
+                    // one quad per span.
+                    const bool carries_product = common::core::openString(note) || tail_lit;
+                    const int steps =
+                        carries_product
+                            ? ribbonSpanSteps(tip_alpha(from_seconds), tip_alpha(to_seconds))
+                            : 1;
+                    const double span = to_seconds - from_seconds;
+                    for (int step = 0; step < steps; ++step)
+                    {
+                        const double a_seconds =
+                            from_seconds + (span * static_cast<double>(step) / steps);
+                        const double b_seconds =
+                            from_seconds + (span * static_cast<double>(step + 1) / steps);
                         pushRibbonSegment(
                             rail_vertices,
                             rail_indices,
@@ -4043,8 +4100,8 @@ void HighwayRenderer::Impl::draw(
                             band[1],
                             band[2],
                             band[3],
-                            ribbon_end(from_seconds),
-                            ribbon_end(to_seconds));
+                            ribbon_end(a_seconds),
+                            ribbon_end(b_seconds));
                         if (tail_lit)
                         {
                             pushTailGlowSegment(
@@ -4052,13 +4109,13 @@ void HighwayRenderer::Impl::draw(
                                 accent_glow_indices,
                                 band,
                                 band,
-                                ribbon_end(from_seconds),
-                                ribbon_end(to_seconds),
+                                ribbon_end(a_seconds),
+                                ribbon_end(b_seconds),
                                 emitterSpectrum(style.tail),
                                 accent_light.reach,
                                 accent_light.exponent,
-                                accent_light.alpha * tip_alpha(from_seconds),
-                                accent_light.alpha * tip_alpha(to_seconds));
+                                accent_light.alpha * tip_alpha(a_seconds),
+                                accent_light.alpha * tip_alpha(b_seconds));
                         }
                     }
                 };
@@ -4173,6 +4230,35 @@ void HighwayRenderer::Impl::draw(
                 // steps over a 0.05 s corner rounds the rise into whatever its spacing happens
                 // to be.
                 wobble_times.push_back(note.start_seconds + g_tail_onset_fade_seconds);
+                // ...and enough times INSIDE each envelope ramp to hold the same product-error
+                // bound the straight path's spans hold. This path's density follows projected
+                // pixels, which is blind to how fast the envelope is moving, so a ramp seen at a
+                // steep angle — or any ramp on a tail long enough to hit the sample cap — can
+                // still land a large slice of the rise inside one quad and draw the asymmetric
+                // taper `ribbonSpanSteps` exists to prevent.
+                if (common::core::openString(note) || tail_lit)
+                {
+                    const double modulated_fade_begin =
+                        note.end_seconds - (duration * g_tail_tip_fade_fraction);
+                    const auto push_ramp_times = [&](const double from_seconds,
+                                                     const double to_seconds) {
+                        const int steps =
+                            ribbonSpanSteps(tip_alpha(from_seconds), tip_alpha(to_seconds));
+                        const double span = to_seconds - from_seconds;
+                        for (int step = 1; step < steps; ++step)
+                        {
+                            const double seconds =
+                                from_seconds + (span * static_cast<double>(step) / steps);
+                            if (seconds > tail_from && seconds < tail_to)
+                            {
+                                wobble_times.push_back(seconds);
+                            }
+                        }
+                    };
+                    push_ramp_times(
+                        note.start_seconds, note.start_seconds + g_tail_onset_fade_seconds);
+                    push_ramp_times(modulated_fade_begin, note.end_seconds);
+                }
                 std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
                     note, tail_from, tail_to, uniform_count, wobble_times);
                 if (open_band_moves)
