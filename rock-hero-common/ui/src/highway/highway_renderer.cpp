@@ -1044,6 +1044,23 @@ without restating any of it. The alpha comes in from the ribbon's envelope for t
 light has to fade in at the onset and dissolve at the tip exactly where the ribbon does, or it
 would glow around a stretch of ribbon that has already gone.
 
+The emitter is the ribbon's FULLY OPAQUE cross-section, so the light is drawn outward from the
+last station at which the authored alpha is still full — never inward of it. The glow composites
+BEHIND the ribbon: light emitted behind the opaque edge strips is invisible, and light emitted
+behind the translucent core shows through it, so a quad across the whole band lit the ribbon
+ONLY through the part authored to stay quiet — the core brightened past its own edges while the
+strips hid the light entirely, and the defect grew as the tip fade thinned the ribbon. Clipping
+at the last fully-opaque station deletes that whole failure mode: a fretted tail's own pixels
+are identical lit or unlit, and its accent is purely the halo.
+
+Past that station the strength follows the authored alpha's ramp to zero, spread by the light's
+own falloff kernel — openBarEmission, the same authority the open bar's glow strip slices into
+corner-clustered columns, reused verbatim here on the width axis. A fretted end has no ramp (its
+outer station color IS its edge color), so its emission is flat and each side is a single quad;
+an open end's outer strip ramps to transparent across the tail margin, and the columns carry
+that taper so the light dissolves at the hand-window rails exactly where the ribbon does. Which
+case applies is read off the end's own packed colors, never off the note's kind.
+
 A BAND, not a box. Every vertex pins its local Y to zero, so only the X boundary is ever evaluated
 and the rounded-box field reduces exactly to `|local_x| - half_w`. `half_h` is set equal to
 `half_w` for that reason: any value at least `half_w` yields the identical field, and matching them
@@ -1053,31 +1070,84 @@ void pushTailGlowSegment(
     std::vector<PosColorGlowVertex>& vertices, std::vector<std::uint16_t>& indices,
     const std::array<double, 4>& stations_a, const std::array<double, 4>& stations_b,
     const RibbonEnd& a, const RibbonEnd& b, const ArgbColor color, const double reach,
-    const double alpha_a, const double alpha_b)
+    const double exponent, const double alpha_a, const double alpha_b)
 {
-    const auto edge = [&](const std::array<double, 4>& stations,
-                          const RibbonEnd& end,
-                          const double alpha,
-                          const double side) {
-        const double half = (stations[3] - stations[0]) / 2.0;
-        const double center = ((stations[0] + stations[3]) / 2.0) + end.x_offset;
-        const double local_x = side * (half + reach);
+    struct TailGlowEnd
+    {
+        double half;
+        double center;
+        double fade;
+        double y;
+        double z;
+        double alpha;
+    };
+    const auto make_end =
+        [](const std::array<double, 4>& stations, const RibbonEnd& end, const double alpha) {
+            return TailGlowEnd{
+                .half = (stations[3] - stations[0]) / 2.0,
+                .center = ((stations[0] + stations[3]) / 2.0) + end.x_offset,
+                .fade = end.outer_abgr == end.edge_abgr ? 0.0 : stations[3] - stations[2],
+                .y = end.y,
+                .z = end.z,
+                .alpha = alpha,
+            };
+        };
+    const TailGlowEnd end_a = make_end(stations_a, a, alpha_a);
+    const TailGlowEnd end_b = make_end(stations_b, b, alpha_b);
+
+    // Column parameter: signed distance inboard from the outer silhouette, zero on it,
+    // positive toward the core, negative into the halo. A hard-edged segment carries a flat
+    // emission, so one column pair spans silhouette to halo edge; a ramped segment gets the
+    // bar strip's corner-clustered set.
+    std::vector<double> columns;
+    if (end_a.fade > 0.0 || end_b.fade > 0.0)
+    {
+        columns.reserve(15);
+        const double inner_limit = std::max(end_a.fade, end_b.fade);
+        for (const double corner_s : {0.0, end_a.fade, end_b.fade})
+        {
+            for (const double offset : {-1.0, -0.5, 0.0, 0.5, 1.0})
+            {
+                columns.push_back(std::clamp(corner_s + (offset * reach), -reach, inner_limit));
+            }
+        }
+        std::ranges::sort(columns);
+        const auto duplicates = std::ranges::unique(columns);
+        columns.erase(duplicates.begin(), duplicates.end());
+    }
+    else
+    {
+        columns = {-reach, 0.0};
+    }
+
+    const auto vertex_at = [&](const TailGlowEnd& end, const double s, const double side) {
+        // Never inward of this end's own last fully-opaque station: columns past a shorter
+        // fade collapse onto its clip line, and the zero-width quads draw nothing.
+        const double s_end = std::min(s, end.fade);
+        const double local_x = side * (end.half - s_end);
+        const double weight = openBarEmission(s_end, end.fade, reach, exponent);
         return makeGlowVertex(
-            center + local_x,
+            end.center + local_x,
             end.y,
             end.z,
-            packAbgr(color, alpha),
+            packAbgr(color, end.alpha * weight),
             local_x,
             0.0,
-            GlowShape{.half_w = half, .half_h = half, .corner = 0.0, .rhombus = false});
+            GlowShape{.half_w = end.half, .half_h = end.half, .corner = 0.0, .rhombus = false});
     };
-    pushQuad(
-        vertices,
-        indices,
-        edge(stations_a, a, alpha_a, -1.0),
-        edge(stations_a, a, alpha_a, 1.0),
-        edge(stations_b, b, alpha_b, 1.0),
-        edge(stations_b, b, alpha_b, -1.0));
+    for (const double side : {-1.0, 1.0})
+    {
+        for (std::size_t column = 0; column + 1 < columns.size(); ++column)
+        {
+            pushQuad(
+                vertices,
+                indices,
+                vertex_at(end_a, columns[column], side),
+                vertex_at(end_a, columns[column + 1], side),
+                vertex_at(end_b, columns[column + 1], side),
+                vertex_at(end_b, columns[column], side));
+        }
+    }
 }
 
 // Floor quad with per-end colors: Charter's beat-bar gradient wings.
@@ -3914,6 +3984,7 @@ void HighwayRenderer::Impl::draw(
                                 ribbon_end(to_seconds),
                                 emitterSpectrum(style.tail),
                                 accent_light.reach,
+                                accent_light.exponent,
                                 accent_light.alpha * tip_alpha(from_seconds),
                                 accent_light.alpha * tip_alpha(to_seconds));
                         }
@@ -4195,6 +4266,7 @@ void HighwayRenderer::Impl::draw(
                             end_b,
                             emitterSpectrum(tail_a),
                             accent_light.reach,
+                            accent_light.exponent,
                             accent_light.alpha * a.alpha,
                             accent_light.alpha * b.alpha);
                     }
