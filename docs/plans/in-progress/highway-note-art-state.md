@@ -91,6 +91,29 @@ and a long one wear the same halo. The asymmetry that falls out is the point. Ar
 world tall it is a rim; around a frame bar 0.075 world thick it is several times the bar's own
 width, which is exactly what makes a hairline read as glowing instead of merely brighter.
 
+**Corrected 2026-08-16 after sighting: the light is a BACK LIGHT, not a rim.** The user reported
+that an accented open string looked like *"drawing a border around the open string with light
+rather than a light emanating from behind the open string itself"*, and that heads were probably
+doing the same but got away with it because no part of a head is transparent. Both readings were
+right, and the cause was in the field: it peaked ON the boundary and fell off both ways from it,
+which is a rim by construction. A head hides its own inner half and so still read as light; an
+open bar is 0.1 world thick with ends that fade to transparent, so its inner half leaked out and
+showed as two bright lines tracing the outline.
+
+The field now measures distance from the EMITTER REGION rather than from the boundary, with one
+new parameter — the emitter's DEPTH — carrying the whole difference:
+
+- **solid** (note head, open bar): depth past the shape's own inradius, so the entire interior
+  emits and the only falloff is outward. That is literally a lamp behind the object.
+- **frame** (chord box): depth equal to the frame thickness, so only the band from the outer edge
+  one thickness in emits, spilling both ways. The interior stays dark, which is what keeps a box
+  readable THROUGH — the property the user said already looked right.
+
+One field, two values; a frame is the general case and a solid is the case where the depth exceeds
+the shape. The depth is a UNIFORM rather than a vertex attribute because notes and boxes are
+already separate batches with separate submits, so it costs nothing per vertex. Deleting the
+inward half of the old ramp also made the shader shorter.
+
 **The chord box now rides the F9 cycle**, which it did not before — the user reported that as the
 toggle being broken, and it was. Its light is the same row the notes read, with one box-only
 number: an extra white lift, kept because a box has no string colour and its light would otherwise

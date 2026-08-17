@@ -20,7 +20,8 @@ $input v_color0, v_texcoord0, v_texcoord1
 //
 // The shape rides the VERTEX rather than a uniform so heads, open bars and chord boxes - three
 // different silhouettes at three different sizes - still batch into a single draw.
-uniform vec4 u_accent_glow_params; // x = reach (world), y = falloff exponent, zw unused
+// x = reach (world), y = falloff exponent, z = emitter depth (world), w unused
+uniform vec4 u_accent_glow_params;
 
 void main()
 {
@@ -38,18 +39,34 @@ void main()
 
     float d = mix(d_box, d_rhombus, step(0.5, v_texcoord1.w));
 
-    // One reach, spent in BOTH directions from the boundary: light does not know which side of an
-    // emitter it is on. Outside it is the halo; inside it is what makes a thin frame bar read as
-    // emitting rather than merely being brighter. Whatever falls under opaque art is occluded, and
-    // that is fine - it costs nothing and needs no second number to agree with the first.
+    // A BACK LIGHT, not a rim. The distinction is the whole look and it lives in these four lines.
+    //
+    // The emitter is a REGION, and the light falls off with distance from that region - not from
+    // the silhouette's boundary. `depth` says how far into the subject the emitter reaches, which
+    // is the one number that separates a solid object from a frame:
+    //
+    //   solid (a note head, an open string's bar) - depth past the shape's own inradius, so the
+    //       WHOLE interior emits and the only falloff is outward. What you see is a lamp behind
+    //       the object, because that is literally the field being described.
+    //   frame (a chord box) - depth equal to the frame's thickness, so only the band between the
+    //       outer edge and one thickness in emits, and the light spills both ways from it. The
+    //       interior stays dark, which is what keeps a box readable THROUGH.
+    //
+    // The previous field peaked on the boundary and fell off both ways from it, which is a rim by
+    // construction. A note head hid its own inner half and so still read as light; a bar 0.1 world
+    // thick did not, and showed as two bright lines tracing its outline - a border drawn around
+    // the string rather than a light behind it. Both are the same field; only the depth differs.
     float reach = max(u_accent_glow_params.x, 1.0e-4);
-    float ridge = saturate(1.0 - (abs(d) / reach));
+    float outward = max(d, 0.0);
+    float inward = max(-d - u_accent_glow_params.z, 0.0);
+    float from_emitter = max(outward, inward);
 
     // The exponent is the falloff SHAPE. At 1.0 the ramp is linear, which reads as a gradient
     // rather than as light; above it the core tightens and the toe lengthens, which is how a real
     // falloff distributes its energy. Applied to the ramp rather than to distance so the light
-    // still peaks exactly on the silhouette's edge.
-    float intensity = pow(ridge, max(u_accent_glow_params.y, 1.0e-4));
+    // still holds full strength across the emitter itself.
+    float intensity =
+        pow(saturate(1.0 - (from_emitter / reach)), max(u_accent_glow_params.y, 1.0e-4));
 
     // PREMULTIPLIED on purpose. The candidate table cycles the blend operator (add / screen /
     // lighten) and all three read premultiplied source the same way, so switching operators

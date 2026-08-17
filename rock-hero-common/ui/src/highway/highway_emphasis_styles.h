@@ -86,8 +86,11 @@ struct AccentLightStyle
     head 0.325 world tall it is a rim; around a frame bar 0.075 world thick it is several times
     the bar's own width, which is what makes a hairline read as GLOWING instead of merely brighter.
 
-    Spent in both directions from the edge (see the shader): outward it is the halo, inward it is
-    what lights a frame's bars. Whatever falls under opaque art is simply occluded.
+    Measured from the EMITTER, not from the silhouette's edge — see the shader. A solid subject
+    emits across its whole interior, so this is purely the outward halo of a light sitting behind
+    it; a chord box emits only across its frame band, so the same number spills both outward and
+    inward from that band. One number, two shapes, because "how far the light carries" is a
+    property of the light rather than of what it is behind.
 
     The ceiling that matters is the lane pitch, 0.35 world. A head's art reaches 0.16245 world
     from its centre, so a reach past about 0.18 puts one string's glow onto the next string's line

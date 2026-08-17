@@ -276,6 +276,12 @@ constexpr std::uint64_t g_glow_lighten_state =
     g_glow_common_state | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE) |
     BGFX_STATE_BLEND_EQUATION(BGFX_STATE_BLEND_EQUATION_MAX);
 
+// Emitter depth for a SOLID subject — a note head, an open string's bar — as opposed to a frame.
+// Any value past the shape's own inradius makes the WHOLE interior emit, which is exactly what
+// turns the field from a rim into a back light. One world unit is several times the deepest note
+// silhouette on the board (a node head's is 0.17), so nothing in the note batch approaches it.
+constexpr double g_glow_solid_emitter_depth = 1.0;
+
 [[nodiscard]] constexpr std::uint64_t accentGlowState(const AccentBlend blend)
 {
     switch (blend)
@@ -1690,12 +1696,20 @@ void HighwayRenderer::Impl::draw(
     // wired to constants of its own and did not move when the toggle did, which read as the
     // toggle being broken.
     const AccentLightStyle& accent_light = g_accent_light_styles.at(accent_style);
-    const std::array<float, 4> glow_uniform{
-        static_cast<float>(accent_light.reach),
-        static_cast<float>(accent_light.exponent),
-        0.0F,
-        0.0F
+    // The candidate is shared by every lit subject; only the EMITTER DEPTH differs, and it is the
+    // one number separating a solid object from a frame. A note is lit from behind, so its whole
+    // interior emits; a chord box is a frame the player reads notes THROUGH, so only the band one
+    // frame-thickness deep emits and the interior stays dark. Two uniform values, one field.
+    const auto glow_uniform_at = [&accent_light](const double emitter_depth) {
+        return std::array<float, 4>{
+            static_cast<float>(accent_light.reach),
+            static_cast<float>(accent_light.exponent),
+            static_cast<float>(emitter_depth),
+            0.0F,
+        };
     };
+    const std::array<float, 4> note_glow_uniform = glow_uniform_at(g_glow_solid_emitter_depth);
+    const std::array<float, 4> box_glow_uniform = glow_uniform_at(metrics.string_grid_base_y);
     const std::uint64_t glow_state = accentGlowState(accent_light.blend);
     const bool accents_lit = accent_light.reach > 0.0 && accent_light.alpha > 0.0;
 
@@ -2471,7 +2485,7 @@ void HighwayRenderer::Impl::draw(
             // while a frame bar is the thing that has to EMIT — put the light under it and the
             // bar's own paint covers exactly the pixels the light was for. Boxes draw behind the
             // notes either way, so this never puts box light on top of a head.
-            bgfx::setUniform(accent_glow_params.get(), glow_uniform.data());
+            bgfx::setUniform(accent_glow_params.get(), box_glow_uniform.data());
             submitBatch(
                 box_glow_vertices,
                 box_glow_indices,
@@ -3068,7 +3082,7 @@ void HighwayRenderer::Impl::draw(
         submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
         // The accent light, under every note of the group. Its blend operator is part of the
         // candidate being sighted, so the state comes from the table rather than being fixed here.
-        bgfx::setUniform(accent_glow_params.get(), glow_uniform.data());
+        bgfx::setUniform(accent_glow_params.get(), note_glow_uniform.data());
         submitBatch(
             accent_glow_vertices,
             accent_glow_indices,
