@@ -8,18 +8,35 @@ Deleted whole once the user signs a ratio: the winner's numbers move inline into
 with it. Nothing else in the renderer knows these tables exist — both axes reach the board by
 scaling a metric the renderer already reads, so no drawing code branches on them.
 
-WHAT IS BEING JUDGED. A note head's half-height as a fraction of the string spacing. Ours is
-0.471 — the head art's 10.8218 texels over the 22.9688-texel lane pitch. Five screenshots of a
-third-party reference were measured pixel by pixel and every clean sample landed BELOW ours, so
-the family reads too tall for its spacing; the amount is a judgement, because that reference's
-own ratio varies by camera (never by note role — the one sample that suggested otherwise proved
-to be a mid-approach render state, not a plain head).
+WHAT IS BEING JUDGED, and it is now MEASURED rather than open. A third-party reference was taken
+apart by single-view metrology — its fret lines and strings are two orthogonal families of
+parallel lines on one plane, so its camera is recoverable and its board can be un-projected and
+measured in its own units. Against it, our note family is about 26% too large for its fret slot,
+and the answer is a family scale of **0.790** with the string spacing left alone (0.966, a
+narrowing so slight it sits inside its own band around 1.000).
 
-TWO AXES TO THE SAME RATIO, which is exactly why both are tables here rather than one. The
-proportion can be corrected by shrinking the note family against a fixed spacing, or by widening
-the spacing around a fixed family. They reach the same number and look nothing alike: the first
-keeps the neck's size and makes its furniture smaller, the second keeps the furniture and grows
-the neck. Only sighting them side by side settles which one the eye wanted.
+THE YARDSTICK IS THE FRET, because it is the one quantity NEITHER axis moves. That is what makes
+the two knobs separately solvable instead of jointly ambiguous: head half-width over fret slot
+pins the family alone, head half-height over string pitch pins the spacing alone. Each length is
+measured against the axis it spans — comparing a length to a PERPENDICULAR one is biased by
+camera pitch (+10.5% at 8 degrees, and the reference's camera is pitched 7.35), which is the trap
+that made the earlier head-height-over-pitch numbers look like they varied by camera when the
+art does not vary at all.
+
+TWO AXES, BUT NOT TWO ANSWERS. Both reach the same head-height-over-spacing ratio — that much is
+arithmetic — but the fret separates them by 26.5% and only the family axis moves toward the
+reference. The spacing table is kept so that ruling can be SEEN rather than taken on trust; see
+its own comment.
+
+Two blockers were expected and both are cleared. The reference's fret axis is equal-width like
+ours, fitted through a free compression rate against its inlay markers (q = 1.000, rms 0.60 px,
+with a real neck's 0.9439 excluded). And its camera dollies at fixed FOV rather than zooming —
+focal length over image width holds at 0.772–0.783 across four frames whose framing differs
+threefold — so there is one camera to compare against rather than a moving target.
+
+What no scale can fix, stated so it is not mistaken for a tuning problem: the reference's head
+art is about 6% taller for its width than ours (screen aspect 1.79–1.83 against our 1.923).
+Scaling preserves aspect, so closing that gap needs the ART redrawn, not a metric moved.
 */
 
 #pragma once
@@ -72,26 +89,45 @@ family scale it is strictly the more complicated path to a worse result.
 No sharpness is lost. At 1920x1080 the head quad draws about 123 px wide from 41 texels of art —
 already a 3x magnification — so a smaller quad merely magnifies less.
 
-The rows are the measured ladder: 0.89 is the smallest defensible ratio change, 0.80 matches the
-single best-verified reference camera and is the point at which every technique mark first fits
-inside the lane pitch, 0.72 is the target weighted across the reference's 1080p cameras and the
-point at which stacked node-head diamonds stop overlapping at all, and 0.76 sits between the two
-serious candidates because the gap between them is where the eye is most likely to land.
+THE ROW TO PRESS IS 0.79 — the measured answer, reproducing both reference cameras' means through
+the fret yardstick. 0.80 is kept beside it because it lands within 1.2% on width and 2.2% on
+height while needing no new number, and because it is the point at which every technique mark
+first fits inside the lane pitch. The rest bracket the answer so it can be judged against its
+neighbours rather than alone: 0.89 is the smallest change anyone proposed, 0.76 sits just under
+the measured value, and 0.72 is where stacked node-head diamonds stop overlapping at all.
+
+The band on the measurement is ±3.8%, and the reference's own two cameras disagree by 5.8% on
+this proportion — so "exactly" is undefined below about 6%, and any row from 0.76 to 0.82 is
+inside the evidence. The eye picks; the measurement only says where to look.
 */
-inline constexpr std::array<BoardScaleCandidate, 5> g_family_scale_candidates{{
+inline constexpr std::array<BoardScaleCandidate, 6> g_family_scale_candidates{{
     {.name = "today, ratio 0.471", .scale = 1.00},
     {.name = "0.89x, ratio 0.420 - smallest defensible change", .scale = 0.89},
-    {.name = "0.80x, ratio 0.377 - best-verified camera; every mark fits the lane", .scale = 0.80},
-    {.name = "0.76x, ratio 0.358 - between the two serious candidates", .scale = 0.76},
+    {.name = "0.80x, ratio 0.377 - within 1.2% of measured; every mark fits the lane",
+     .scale = 0.80},
+    // THE MEASURED ANSWER. Both reference cameras, through the fret yardstick: head half-width
+    // over fret slot and head half-height over string pitch, each measured against the axis it
+    // spans. The two cameras agree to 2.7% on width, and this reproduces both their means.
+    {.name = "0.79x, ratio 0.386 - MEASURED against both reference cameras", .scale = 0.79},
+    {.name = "0.76x, ratio 0.358 - just under the measured value", .scale = 0.76},
     {.name = "0.72x, ratio 0.339 - 1080p-weighted; stacked diamonds clear", .scale = 0.72},
 }};
 
 /*!
 \brief Spacing candidates: scale `HighwayMetrics::string_distance`, family held fixed.
 
-The same ratios approached from the other side, so each row here is the reciprocal of the family
-row that targets the same number: widening the spacing by 1/k lands the same head-height-over-
-spacing figure that shrinking the family by k does.
+**MEASUREMENT HAS SINCE RULED AGAINST THIS AXIS, and the rows are kept only so that ruling can be
+seen rather than taken on trust.** Each widening row reaches the same head-height-over-spacing
+figure that the matching family row reaches — that much is arithmetic and still true — but the two
+are not interchangeable, because that one ratio cannot separate them. Measured against the FRET,
+which neither axis moves, the reference wants a head 0.2277 of a fret slot wide where ours is
+0.2881. Shrinking the family reaches that; widening the spacing leaves the head 26.5% too wide for
+its slot and only moves the strings apart around it. The reference's own spacing needs no widening
+at all — the measured factor is 0.966, slightly NARROWER than today and inside the measurement's
+own band around 1.0.
+
+So the honest summary is: this axis was a hypothesis built on the one ratio available before the
+fret yardstick existed, and the yardstick killed it. Sight it to see that, then leave it at 1.000.
 
 This axis is the more invasive of the two and its side effects are the point of sighting it. The
 string grid's height is `string_count * string_distance`, so the whole neck grows: the fret lines
@@ -104,12 +140,17 @@ Kept as its own table rather than folded into the family's rows because the two 
 independent: a sighting may well want a little of each, and a single combined row could not say
 so.
 */
-inline constexpr std::array<BoardScaleCandidate, 5> g_spacing_scale_candidates{{
+inline constexpr std::array<BoardScaleCandidate, 6> g_spacing_scale_candidates{{
     {.name = "today, ratio 0.471", .scale = 1.000},
-    {.name = "1.124x wider, ratio 0.420 - smallest defensible change", .scale = 1.124},
-    {.name = "1.250x wider, ratio 0.377 - best-verified camera", .scale = 1.250},
-    {.name = "1.316x wider, ratio 0.358 - between", .scale = 1.316},
-    {.name = "1.389x wider, ratio 0.339 - 1080p-weighted", .scale = 1.389},
+    // The measured factor, and it is a NARROWING so slight it sits inside its own band around
+    // 1.000. The row exists because every other row on this axis widens, which would have made
+    // the range itself an unstated claim that widening was the direction.
+    {.name = "0.966x, ratio 0.386 - MEASURED; spacing needs no widening at all", .scale = 0.966},
+    {.name = "1.124x wider, ratio 0.420 - reaches the ratio, wrong for the slot", .scale = 1.124},
+    {.name = "1.250x wider, ratio 0.377 - reaches the ratio, head still 26.5% too wide",
+     .scale = 1.250},
+    {.name = "1.316x wider, ratio 0.358 - further from the reference, not closer", .scale = 1.316},
+    {.name = "1.389x wider, ratio 0.339 - the far end of a ruled-out direction", .scale = 1.389},
 }};
 
 /*!
