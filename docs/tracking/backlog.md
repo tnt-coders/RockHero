@@ -388,3 +388,36 @@ code. Two residues survive it:
   rim and both plate polarities read "II". `g_capital_ink_fraction` (0.55) under-measures Verdana
   Bold's true capital footprint; raise it toward 0.75 so the letter is suppressed before it
   merges, or give letters the chip's ink-to-rim clearance.
+
+### Highway world units: make one fret the unit of the fret axis
+
+`HighwayMetrics::first_fret_distance` is 1.1, which carries no information — the world unit is
+arbitrary and 1.1 is a residue of narrowing Charter's 1.2. Setting it to **1.0** would make the
+fret the ground truth for the fret axis, so every X-axis quantity reads directly as a fraction of
+a fret. That is exactly the yardstick the reference-proportion measurements use (fret spacing is
+the one quantity neither the family-size nor the string-spacing knob moves), so the conversion
+would stop being done by hand every time that question is asked.
+
+Purely a change of units: divide every WORLD-space length by 1.1 — `string_distance`,
+`note_half_width`, `string_grid_base_y`, both camera distances, and every world literal in the
+renderer (glow reach, tail margin, open-bar thicknesses and fade lengths, post feet, and the
+rest) — and the picture is unchanged, because a perspective projection depends on size-over-
+distance and both scale together.
+
+Two traps, which are the whole reason this is not a five-minute edit:
+
+- **Not everything in the file is a world length.** NDC heights (`board_anchor_ndc_height`),
+  pixel quantities (`g_tail_pixels_per_sample`), seconds, and dimensionless fractions must NOT
+  scale. Every constant has to be classified, and a misclassified one does not fail to compile —
+  it silently shifts the look by ~10%.
+- Texel-space constants are already relative (`headArtTexelWorld` derives from
+  `note_half_width`), so they follow automatically and must not be touched by hand.
+
+Acceptance test that makes this safe: a pure unit change must render **pixel-identical**. Capture
+a frame before and after and compare framebuffers; any difference beyond float rounding means a
+constant was misclassified.
+
+Do it when the fret axis is otherwise quiet — and note that roadmap 25-Q1 (a realistic neck that
+compresses toward the body) would make "a fret" stop being a single distance. The normalization
+still works there, reading as first-fret units, but it is less compelling, so 25-Q1 is the natural
+moment to decide both together.
