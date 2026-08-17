@@ -163,6 +163,37 @@ public:
     [[nodiscard]] std::string cycleAccentStyle();
 
     /*!
+    \brief EXPERIMENT SCAFFOLDING — advances the note family's size to the next candidate.
+
+    One of two axes onto the same proportion — a note head's half-height as a fraction of the
+    string spacing, measured at 0.471 today and below that in every sample of the reference it is
+    being judged against. This axis shrinks the family against fixed spacing; \ref
+    cycleStringSpacing widens the spacing around a fixed family. They reach the same numbers and
+    look nothing alike, which is why both ship until one is chosen.
+
+    Scales `HighwayMetrics::note_half_width`, which the head quad, the arpeggio brackets, the
+    sustain tail's width and every art-silhouette constant already derive from, so the whole
+    family and its accent light move together.
+
+    \return Text naming the active candidate and the ratio it produces.
+    */
+    [[nodiscard]] std::string cycleFamilyScale();
+
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — advances the string spacing to the next candidate.
+
+    The second axis onto the proportion \ref cycleFamilyScale describes. Scales
+    `HighwayMetrics::string_distance`, so the string grid, the fret lines spanning it, and every
+    element sized from the lanes grow with it — a taller neck rather than smaller furniture.
+
+    Note it also moves a decision still open: a bend's drawn travel is expressed in string gaps,
+    so widening the gaps changes what a given bend looks like.
+
+    \return Text naming the active candidate and the ratio it produces.
+    */
+    [[nodiscard]] std::string cycleStringSpacing();
+
+    /*!
     \brief Encodes one frame of the highway into the render views.
 
     \param now_seconds Playback song time for this frame (from the consumer's clock port).

@@ -141,6 +141,23 @@ namespace
             .category = "View",
             .default_keypresses = {chord(juce::KeyPress::F9Key)},
         });
+    // EXPERIMENT SCAFFOLDING — the two board-proportion samplers, deleted with their tables once
+    // the ratio is signed. Two commands rather than one because the axes are independent: a
+    // sighting may want some of each, and one combined command could not say so.
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::CycleFamilyScale,
+            .name = "Cycle Note Family Size (experiment)",
+            .category = "View",
+            .default_keypresses = {chord(juce::KeyPress::F6Key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
+            .id = EditorCommandId::CycleStringSpacing,
+            .name = "Cycle String Spacing (experiment)",
+            .category = "View",
+            .default_keypresses = {chord(juce::KeyPress::F7Key)},
+        });
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,

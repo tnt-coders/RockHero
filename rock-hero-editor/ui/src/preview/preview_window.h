@@ -75,6 +75,12 @@ public:
     /*! \brief EXPERIMENT SCAFFOLDING — cycles the accent light on the surface and logs it. */
     void cycleAccentStyle();
 
+    /*! \brief EXPERIMENT SCAFFOLDING — cycles the note family's size and logs it. */
+    void cycleFamilyScale();
+
+    /*! \brief EXPERIMENT SCAFFOLDING — cycles the string spacing and logs it. */
+    void cycleStringSpacing();
+
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 

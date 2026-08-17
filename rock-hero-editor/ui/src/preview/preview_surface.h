@@ -90,6 +90,21 @@ public:
     */
     void cycleAccentStyle();
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycles the note family's size and logs the active candidate.
+
+    Harmless with the preview closed, like the accent sampler beside it. Deleted with its table
+    once the family-to-spacing proportion is signed.
+    */
+    void cycleFamilyScale();
+
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycles the string spacing and logs the active candidate.
+
+    The second axis onto the proportion \ref cycleFamilyScale moves.
+    */
+    void cycleStringSpacing();
+
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
 

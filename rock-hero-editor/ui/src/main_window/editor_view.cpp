@@ -1396,6 +1396,8 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // the same reason the verbs below do: a disabled command whose chord matches makes JUCE
         // play the system alert sound.
         case EditorCommandId::CycleAccentStyle:
+        case EditorCommandId::CycleFamilyScale:
+        case EditorCommandId::CycleStringSpacing:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1583,6 +1585,26 @@ bool EditorView::perform(const InvocationInfo& info)
             if (m_preview_window != nullptr)
             {
                 m_preview_window->cycleAccentStyle();
+            }
+            return true;
+        }
+
+        // EXPERIMENT SCAFFOLDING — the two axes onto the note-family-to-string-spacing
+        // proportion, sighted together because they reach the same ratio and look nothing alike.
+        case EditorCommandId::CycleFamilyScale:
+        {
+            if (m_preview_window != nullptr)
+            {
+                m_preview_window->cycleFamilyScale();
+            }
+            return true;
+        }
+
+        case EditorCommandId::CycleStringSpacing:
+        {
+            if (m_preview_window != nullptr)
+            {
+                m_preview_window->cycleStringSpacing();
             }
             return true;
         }

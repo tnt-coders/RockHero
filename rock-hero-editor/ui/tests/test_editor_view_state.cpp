@@ -283,13 +283,19 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::TogglePreview3D,
          .value = 0x1303,
          .chords = {chord(juce::KeyPress::F3Key)}},
-        // EXPERIMENT SCAFFOLDING — the one live appearance sampler, removed from this table when
-        // its candidate table goes. The ghost and tail-end samplers that sat beside it on F10 are
-        // both gone, their looks signed; F10 is free, and neither retired id may be revived for a
-        // different meaning.
+        // EXPERIMENT SCAFFOLDING — the live appearance samplers, removed from this table when
+        // their candidate tables go. The ghost and tail-end samplers that sat beside the accent
+        // one on F10 are both gone, their looks signed; F10 is free, and no retired id may be
+        // revived for a different meaning.
         {.id = EditorCommandId::CycleAccentStyle,
          .value = 0x1304,
          .chords = {chord(juce::KeyPress::F9Key)}},
+        {.id = EditorCommandId::CycleFamilyScale,
+         .value = 0x1305,
+         .chords = {chord(juce::KeyPress::F6Key)}},
+        {.id = EditorCommandId::CycleStringSpacing,
+         .value = 0x1306,
+         .chords = {chord(juce::KeyPress::F7Key)}},
         {.id = EditorCommandId::InsertToneChange, .value = 0x1401, .chords = {chord('t', command)}},
         {.id = EditorCommandId::CaretStepLeft,
          .value = 0x1501,

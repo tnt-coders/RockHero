@@ -90,6 +90,22 @@ enum class EditorCommandId : std::uint16_t
     */
     CycleAccentStyle = 0x1304,
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycle the note family's size against the strings (`F6`).
+
+    One of two axes onto the same proportion, sighted together: this one shrinks the note family
+    while the string spacing holds. Deleted with its table once a ratio is signed.
+    */
+    CycleFamilyScale = 0x1305,
+
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycle the string spacing against the note family (`F7`).
+
+    The other axis onto the proportion \ref CycleFamilyScale moves: this one widens the spacing
+    while the family holds, growing the whole neck instead of shrinking its furniture.
+    */
+    CycleStringSpacing = 0x1306,
+
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,
