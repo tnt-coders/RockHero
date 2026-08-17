@@ -826,6 +826,87 @@ void pushAccentGlow(
         corner(-out_w, out_h));
 }
 
+/*!
+\brief The unit ramp `max(0, s)` convolved with the glow's own falloff kernel, in kernel radii.
+
+The closed form of "spread a straight ramp by the light". Exact for the two falloff exponents the
+candidate table uses; the profile below is built from differences of it, which is what turns the
+bar's hard-cornered alpha ramp into the rounded one a light actually casts.
+*/
+[[nodiscard]] double glowRampIntegral(const double sigma, const double exponent)
+{
+    if (sigma <= -1.0)
+    {
+        return 0.0;
+    }
+    if (sigma >= 1.0)
+    {
+        return sigma;
+    }
+    // Quadratic falloff: the kernel is (1-|s|)^2, so its ramp integral is quartic.
+    if (exponent > 1.5)
+    {
+        if (sigma <= 0.0)
+        {
+            const double t = 1.0 + sigma;
+            return (t * t * t * t) / 8.0;
+        }
+        return 0.125 + (sigma / 2.0) + (0.75 * sigma * sigma) - (0.5 * sigma * sigma * sigma) +
+               ((sigma * sigma * sigma * sigma) / 8.0);
+    }
+    // Linear falloff: kernel (1-|s|), ramp integral cubic.
+    if (sigma <= 0.0)
+    {
+        const double t = 1.0 + sigma;
+        return (t * t * t) / 6.0;
+    }
+    return (1.0 / 6.0) + (sigma / 2.0) + (sigma * sigma / 2.0) - ((sigma * sigma * sigma) / 6.0);
+}
+
+/*!
+\brief How strongly an open string's bar EMITS at one point along its length, from 0 to 1.
+
+The bar is not a uniform emitter: its own alpha ramps from nothing to full over
+\ref g_open_note_end_fade_length at each end, so it tapers to a point rather than stopping flat.
+A light behind it has to follow that or it lights the two stretches where the bar is not there —
+which is precisely what the user saw ("adding the light seems to undo the effect of the faded
+edges").
+
+But it must not merely COPY the ramp either. A back light's brightness at a point is the
+contribution of the emitter NEAR that point, not only the emitter directly behind it, so the light
+carries a little past where the bar itself has vanished. Copying the bar would kill it exactly at
+the tip, and the round before this one already showed what falling short looks like.
+
+So the profile is the bar's alpha ramp CONVOLVED with the light's own falloff kernel — derived
+rather than fitted. Measured against the alternatives (2026-08-16), it is the only candidate that
+scores near ideal on both failure axes at once: the light's visible edge lands 0.98 px past the
+bar's own at the near end where a flat profile overshot by 3.17 px, and the mark's brightness at
+the dead tip drops from 1.40x the plateau (a flat glow's brightest point is the tip, which for the
+blue string went nearly white) to 1.00x.
+
+Note what this is NOT: shortening the silhouette. Pulling the capsule in by a quarter of the fade
+lands the overshoot at zero too, but still measures 0.21x on taper, because a uniform-alpha field
+ends in a hard cap wherever you put it — the cap only moves, and it reads as a bulb on a stick.
+
+\param s_from_end Distance from the nearer end of the bar; negative outside it.
+\param fade Length of the bar's own alpha ramp.
+\param reach The light's reach, which is also the convolution radius.
+\param exponent The falloff exponent, so the kernel matches the light being drawn.
+\return Emission weight in [0, 1]; exactly 1 across the bar's whole middle.
+*/
+[[nodiscard]] double openBarEmission(
+    const double s_from_end, const double fade, const double reach, const double exponent)
+{
+    if (!(fade > 0.0) || !(reach > 0.0))
+    {
+        return 1.0;
+    }
+    const double spread =
+        (reach / fade) * (glowRampIntegral(s_from_end / reach, exponent) -
+                          glowRampIntegral((s_from_end - fade) / reach, exponent));
+    return std::clamp(spread, 0.0, 1.0);
+}
+
 // The chord-box frame's signature horizontal fade, stated once: a quad pair split at the
 // horizontal middle, colored `end_abgr` at the outer ends and `middle_abgr` at the split.
 // The frame bars draw it directly and the palm mute mark rides it as a vertex modulation,
@@ -4291,34 +4372,88 @@ void HighwayRenderer::Impl::draw(
                 // capsule: half extents of the bar's own middle cross-section, corner radius
                 // equal to its half thickness. That is what the bar's rounded profile IS.
                 //
-                // The silhouette is the bar's FULL span, x0 to x1. An earlier attempt pulled it
-                // in by one `g_open_note_end_fade_length` at each end, reasoning that the bar
-                // ramps to transparent there so a light drawn to the tip would surround string
-                // that is not there. That was wrong twice over. The bar's GEOMETRY runs the whole
-                // span — only its alpha ramps — and that ramp is 0.5 world, an eighth of a hand
-                // window, not an antialias tail. Against a reach of at most 0.18 the light ended
-                // up stopping a third of a world unit short of each tip, which is exactly what it
-                // looked like.
+                // The silhouette is the bar's FULL span, x0 to x1 — its GEOMETRY runs the whole
+                // window and only its alpha ramps, so pulling the capsule in by a fade length
+                // (the round before last) left the light stopping a third of a world unit short
+                // of each tip.
+                //
+                // The bar's taper is then carried in the light's own strength along the axis,
+                // through openBarEmission. A uniform strip was the round after that, and it
+                // erased the taper by lighting the two stretches where the bar has faded out.
+                //
+                // Drawn as a STRIP rather than one quad because that axial profile has to live
+                // somewhere: columns clustered at the two rounded corners of each end (one reach
+                // either side of the tip and of the fade's end), which tracks the derived curve
+                // to under 0.007 in alpha — three or four counts out of 255, and continuous
+                // rather than stepped. The alternative was a fifth vertex attribute carried by
+                // every head and chord box that will never use it.
                 //
                 // Note there is no halving here any more. The previous light redrew the bar's
                 // PRISM, which is closed and unculled (the lefty mirror inverts winding), so
                 // every ray crossed it twice and additive light accumulated twice; the correction
                 // had to be applied by hand. A flat quad crosses once, like the head's, so the
                 // one-weight promise now holds by construction instead of by compensation.
-                pushAccentGlow(
-                    accent_glow_vertices,
-                    accent_glow_indices,
-                    (x0 + x1) / 2.0,
-                    head_y,
-                    z,
-                    GlowShape{
-                        .half_w = (x1 - x0) / 2.0,
-                        .half_h = g_open_note_middle_half_thickness,
-                        .corner = g_open_note_middle_half_thickness,
-                        .rhombus = false,
-                    },
-                    accent_light.reach,
-                    packAbgr(emitterSpectrum(base_color), fade * accent_light.alpha));
+                const double bar_fade = std::min(g_open_note_end_fade_length, (x1 - x0) / 4.0);
+                const double bar_center = (x0 + x1) / 2.0;
+                const double bar_half = (x1 - x0) / 2.0;
+                const GlowShape bar_shape{
+                    .half_w = bar_half,
+                    .half_h = g_open_note_middle_half_thickness,
+                    .corner = g_open_note_middle_half_thickness,
+                    .rhombus = false,
+                };
+                const double glow_half_h = g_open_note_middle_half_thickness + accent_light.reach;
+
+                std::vector<double> columns;
+                columns.reserve(24);
+                for (const double corner_s : {0.0, bar_fade})
+                {
+                    for (const double offset : {-1.0, -0.5, 0.0, 0.5, 1.0})
+                    {
+                        const double s = corner_s + (offset * accent_light.reach);
+                        columns.push_back(s);
+                        columns.push_back((x1 - x0) - s);
+                    }
+                }
+                std::ranges::sort(columns);
+                const auto duplicates = std::ranges::unique(columns);
+                columns.erase(duplicates.begin(), duplicates.end());
+
+                const auto column_at = [&](const double s) {
+                    const double local_x = s - bar_half;
+                    const double weight = openBarEmission(
+                        std::min(s, (x1 - x0) - s),
+                        bar_fade,
+                        accent_light.reach,
+                        accent_light.exponent);
+                    return std::pair{
+                        local_x,
+                        packAbgr(emitterSpectrum(base_color), fade * accent_light.alpha * weight)
+                    };
+                };
+                for (std::size_t column = 0; column + 1 < columns.size(); ++column)
+                {
+                    const auto [left_x, left_abgr] = column_at(columns[column]);
+                    const auto [right_x, right_abgr] = column_at(columns[column + 1]);
+                    const auto at =
+                        [&](const double local_x, const double local_y, const std::uint32_t abgr) {
+                            return makeGlowVertex(
+                                bar_center + local_x,
+                                head_y + local_y,
+                                z,
+                                abgr,
+                                local_x,
+                                local_y,
+                                bar_shape);
+                        };
+                    pushQuad(
+                        accent_glow_vertices,
+                        accent_glow_indices,
+                        at(left_x, -glow_half_h, left_abgr),
+                        at(right_x, -glow_half_h, right_abgr),
+                        at(right_x, glow_half_h, right_abgr),
+                        at(left_x, glow_half_h, left_abgr));
+                }
             }
             // Technique markers at the window center (Charter's open-note overlay set).
             {
