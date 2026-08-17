@@ -4869,10 +4869,17 @@ void HighwayRenderer::Impl::draw(
         const double base_half_w = head_half_w * base_scale;
         const double base_half_h = head_half_h * base_scale;
 
-        // Anticipation ring: scales down onto the landing spot over the last half second
-        // (reference atlas cell; chart-driven, so the editor preview shows it too — 44-Q1).
-        // The landing spot is the chart-truth station: a pre-bend's ring shrinks onto the
-        // target outline, not onto the still-rising head.
+        // Anticipation ring: a hollow copy of the head parked AT THE HIT LINE (z = 0, not the
+        // note's own z) that GROWS into full head size as the note arrives — 0.5625 of it when it
+        // appears half a second out, reaching full size a quarter second out and holding there.
+        // The scale is squared, so it stays small for most of the window and opens up over the
+        // last stretch rather than creeping linearly. It announces where the note will land, not
+        // where the note currently is (reference atlas cell; chart-driven, so the editor preview
+        // shows it too — 44-Q1).
+        //
+        // The landing spot is the chart-truth station: a pre-bend's ring sits on the TARGET
+        // outline, not on the still-rising head, so the ring names the destination while the head
+        // is still on its way to it.
         const double seconds_out = note.start_seconds - now_seconds;
         if (seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
         {
