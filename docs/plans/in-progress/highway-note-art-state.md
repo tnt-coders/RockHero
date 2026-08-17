@@ -54,7 +54,8 @@ removed, rather than tuned:
   so each had to slot in just above its own subject; one quad and one program for both collapses
   that to a single batch under the notes
 - four fields of the style table (two reaches, two alphas), replaced by one reach and an exponent
-- the four `g_box_light_*` constants, replaced by the candidate plus one box-only white lift
+- all four `g_box_light_*` constants; a box reads the shared candidate and carries no number of
+  its own at all, once the gain below replaced the last box-only white lift
 
 The SHAPE parameters ride the vertex rather than a uniform, which is what lets three unrelated
 silhouettes at three different sizes still batch into one draw.
@@ -115,9 +116,9 @@ already separate batches with separate submits, so it costs nothing per vertex. 
 inward half of the old ramp also made the shader shorter.
 
 **The chord box now rides the F9 cycle**, which it did not before — the user reported that as the
-toggle being broken, and it was. Its light is the same row the notes read, with one box-only
-number: an extra white lift, kept because a box has no string colour and its light would otherwise
-be the frame's own teal laid on the frame's own teal, the least perceptible change available.
+toggle being broken, and it was. Its light is the same row the notes read, and after the gain
+ruling below it carries NO number of its own: the hand-tuned white lift it needed (teal light on a
+teal frame being the least perceptible change available) is supplied by the gain's own clipping.
 
 **The silhouette constants were re-measured against `notes.png` on 2026-08-16, and four of five
 were wrong.** All the errors were sub-pixel individually (worst 0.32 px at the near end), but three
@@ -149,16 +150,46 @@ cell 4's two axes are equal to 0.000000 tx.
   because the atlas ring it replaced got most of its brightness from a white lift; the ruling is
   that a light which says the same thing on every string does not belong to the note it marks.
 
-  The cost is paid in reach rather than in white: full string identity carries the palette's
-  4.08x luma spread (the same alpha reads four times quieter on red than on yellow), and the only
-  knob that closes that without whitening is AREA, since the peak is already at full alpha. So
-  the candidates run tight → wide instead of tinted → white: `tight` (0.06 world, four texels),
-  `medium` (0.12, the reference row the blend and colour rows vary against), `wide` (0.18 — the
-  widest that still belongs to one string, since a head's art reaches 0.16245 from its centre and
-  the lane pitch is 0.35), `wide linear`, `medium screen`, `medium lighten`, `medium lifted`.
+  The candidates run tight → wide: `tight` (0.06 world, four texels), `medium` (0.12, the
+  reference row every other row varies one field against), `wide` (0.18 — the widest that still
+  belongs to one string, since a head's art reaches 0.16245 from its centre and the lane pitch is
+  0.35), plus `wide linear`, `medium screen`, `medium lighten`, and the gain bracket below.
   **Open question: how far may a string-coloured glow reach before it stops belonging to the
   note?** The first round's answer was measured against a WHITE field, which competes with the
   note in a way its own colour does not, so it is genuinely re-opened.
+
+- **Brightness, RULED 2026-08-16: a RADIANCE GAIN, not a blend toward white.** The user asked
+  whether the light needed "a bit of white light blended in" to read as bright. It does not, and
+  the mix-toward-white it replaces was wrong in both directions at once: it desaturated the far
+  halo as hard as the core (so the light read washed out) while adding no radiance whatever, since
+  a fixed lerp can only trade saturation for lightness and never exceed the emitter's own
+  brightness. Washed out and dim, from one wrong model.
+
+  What a bright coloured light actually does is clip. The brightest channel saturates and stops
+  while the others keep climbing, so the colour walks toward white exactly where the light is
+  strongest and keeps its hue everywhere it is not — the white-hot core inside a coloured halo
+  that every photograph of a neon sign shows. So `white_mix` became `gain`, a multiplier allowed
+  above one and clipped per channel in the shader, and the desaturation falls out of the clip
+  rather than being authored. It closes the 4.08x luma spread on its own, too: the red string,
+  being dark, has the most headroom before its remaining channels clip, so the same gain lifts it
+  furthest, and no per-string compensation exists.
+
+  Clipping alone is not enough and the PALETTE is why — our red is literally `(237, 0, 0)` and our
+  teal `(0, 181, 160)`. With a dead channel a gain clips the one live channel and simply stops:
+  never brighter, never desaturating. So `emitterSpectrum()` gives every light a broadband pedestal
+  first, mixing the colour 18% toward the achromatic grey AT ITS OWN PEAK so hue and peak channel
+  are untouched and only the dark channels lift. The warrant is physical rather than aesthetic: no
+  emitter is spectrally pure, and the scatter that produces a glow at all — in a lens, in air, in
+  the eye's own optics — is broadband. That is why the centre of a coloured light is white.
+  (Reference: <https://64.github.io/tonemapping/> on per-channel clamping versus luminance-
+  preserving operators and the hue/saturation shift each produces.)
+
+  The table is nine rows now, each varying ONE field against `medium`: `medium flat` (gain 1.0) is
+  the un-gained control that shows what the gain buys, and `medium hot` (gain 7.0) is the upper
+  bracket, hot enough that even the palette's darkest string clips its remaining channels near the
+  core. The chord box lost its hand-tuned white lift entirely — the gain whitens its core by the
+  same mechanism it uses on every note, so a box now shares the candidate outright and carries no
+  number of its own.
 - **The three defects the same sighting reported are fixed and await re-sighting.** (a) Open
   strings looked like *"a box of light with sharp corners over the string"* — the light was a
   plain quad in a batch that submits AFTER the bars. It is now a CAPSULE distance field (half
