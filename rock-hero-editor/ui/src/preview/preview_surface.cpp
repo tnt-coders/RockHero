@@ -265,6 +265,15 @@ void PreviewSurface::cycleStringSpacing()
     RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleStringSpacing());
 }
 
+void PreviewSurface::cycleHarmonicSize()
+{
+    if (!m_renderer.has_value())
+    {
+        return;
+    }
+    RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleHarmonicSize());
+}
+
 void PreviewSurface::resized()
 {
     updateChildBounds();

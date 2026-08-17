@@ -81,6 +81,9 @@ public:
     /*! \brief EXPERIMENT SCAFFOLDING — cycles the string spacing and logs it. */
     void cycleStringSpacing();
 
+    /*! \brief EXPERIMENT SCAFFOLDING — cycles the harmonic head's size and logs it. */
+    void cycleHarmonicSize();
+
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 

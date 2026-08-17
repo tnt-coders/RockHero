@@ -1655,6 +1655,12 @@ struct HighwayRenderer::Impl
     std::size_t family_scale{0};
     std::size_t spacing_scale{0};
 
+    // EXPERIMENT SCAFFOLDING — index into the harmonic-head candidate table. Its own axis rather
+    // than a row of the two above, because the overflow it decides is scale-invariant: symbol and
+    // base scale together, so no board scale moves it. Needs no board rebuild, so unlike the two
+    // above it does not go through applyBoardScales().
+    std::size_t harmonic_style{0};
+
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
@@ -1895,6 +1901,13 @@ std::string HighwayRenderer::cycleStringSpacing()
            std::string{g_spacing_scale_candidates.at(m_impl->spacing_scale).name};
 }
 
+std::string HighwayRenderer::cycleHarmonicSize()
+{
+    m_impl->harmonic_style = (m_impl->harmonic_style + 1) % g_harmonic_size_candidates.size();
+    return "harmonic head: " +
+           std::string{g_harmonic_size_candidates.at(m_impl->harmonic_style).name};
+}
+
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
 {
     m_impl->state = std::move(state);
@@ -2032,6 +2045,9 @@ void HighwayRenderer::Impl::draw(
     // wired to constants of its own and did not move when the toggle did, which read as the
     // toggle being broken.
     const AccentLightStyle& accent_light = g_accent_light_styles.at(accent_style);
+    // EXPERIMENT SCAFFOLDING — the harmonic-head candidate, read once per frame beside the accent
+    // one. Deleted with its table once the diamond and its symbol are sized.
+    const HarmonicSizeCandidate& harmonic_size = g_harmonic_size_candidates.at(harmonic_style);
     // The candidate is shared by every lit subject; only the EMITTER DEPTH differs, and it is the
     // one number separating a solid object from a frame. A note is lit from behind, so its whole
     // interior emits; a chord box is a frame the player reads notes THROUGH, so only the band one
@@ -4448,7 +4464,13 @@ void HighwayRenderer::Impl::draw(
                                      const double sin_r,
                                      const int cell,
                                      const std::uint32_t marker_tint,
-                                     const bool flip_v = false) {
+                                     const bool flip_v = false,
+                                     // EXPERIMENT SCAFFOLDING — one mark is being sized against
+                                     // the base it rides, so the size arrives per call rather than
+                                     // being read from the candidate here: every OTHER mark must
+                                     // hold still while the harmonic is judged, and a default of
+                                     // one is what says so at each of the call sites.
+                                     const double mark_scale = 1.0) {
             // Deferred to the group boundary rather than written inline; see PendingMarker.
             pending_markers.push_back(
                 PendingMarker{
@@ -4457,8 +4479,8 @@ void HighwayRenderer::Impl::draw(
                     .z = marker_z,
                     .cos_r = cos_r,
                     .sin_r = sin_r,
-                    .half_w = head_half_w,
-                    .half_h = head_half_h,
+                    .half_w = head_half_w * mark_scale,
+                    .half_h = head_half_h * mark_scale,
                     .cell = cell,
                     .tint = marker_tint,
                     .flip_v = flip_v,
@@ -4839,6 +4861,14 @@ void HighwayRenderer::Impl::draw(
         const std::array<float, 4> hollow_cell = atlases.head_layout.cellRect(
             highwayNodeHead(note) ? g_head_cell_harmonic_anticipation : g_head_cell_anticipation);
 
+        // EXPERIMENT SCAFFOLDING — a node head's base draws at the harmonic candidate's size while
+        // every other head keeps the shared quad. The hollow twin and the pre-bend outline take
+        // the same extents on purpose: they are previews OF this shape, so a diamond that lands
+        // larger than the ring that announced it would make the approach lie about the landing.
+        const double base_scale = highwayNodeHead(note) ? harmonic_size.diamond_scale : 1.0;
+        const double base_half_w = head_half_w * base_scale;
+        const double base_half_h = head_half_h * base_scale;
+
         // Anticipation ring: scales down onto the landing spot over the last half second
         // (reference atlas cell; chart-driven, so the editor preview shows it too — 44-Q1).
         // The landing spot is the chart-truth station: a pre-bend's ring shrinks onto the
@@ -4852,7 +4882,7 @@ void HighwayRenderer::Impl::draw(
             const double ring_alpha =
                 std::min(1.0, (g_anticipation_seconds - seconds_out) * (1000.0 / 255.0));
             const std::uint32_t ring_tint = packAbgr(base_color, ring_alpha);
-            const double half = head_half_w * ring_scale;
+            const double half = base_half_w * ring_scale;
             pushQuad(
                 head_vertices,
                 head_indices,
@@ -4883,29 +4913,29 @@ void HighwayRenderer::Impl::draw(
                 head_vertices,
                 head_indices,
                 makeUvVertex(
-                    x - head_half_w,
-                    chart_head_y - head_half_h,
+                    x - base_half_w,
+                    chart_head_y - base_half_h,
                     z,
                     outline_tint,
                     hollow_cell[0],
                     hollow_cell[3]),
                 makeUvVertex(
-                    x + head_half_w,
-                    chart_head_y - head_half_h,
+                    x + base_half_w,
+                    chart_head_y - base_half_h,
                     z,
                     outline_tint,
                     hollow_cell[2],
                     hollow_cell[3]),
                 makeUvVertex(
-                    x + head_half_w,
-                    chart_head_y + head_half_h,
+                    x + base_half_w,
+                    chart_head_y + base_half_h,
                     z,
                     outline_tint,
                     hollow_cell[2],
                     hollow_cell[1]),
                 makeUvVertex(
-                    x - head_half_w,
-                    chart_head_y + head_half_h,
+                    x - base_half_w,
+                    chart_head_y + base_half_h,
                     z,
                     outline_tint,
                     hollow_cell[0],
@@ -4958,10 +4988,10 @@ void HighwayRenderer::Impl::draw(
         pushQuad(
             head_vertices,
             head_indices,
-            corner(-head_half_w, -head_half_h, base_cell[0], base_cell[3]),
-            corner(head_half_w, -head_half_h, base_cell[2], base_cell[3]),
-            corner(head_half_w, head_half_h, base_cell[2], base_cell[1]),
-            corner(-head_half_w, head_half_h, base_cell[0], base_cell[1]));
+            corner(-base_half_w, -base_half_h, base_cell[0], base_cell[3]),
+            corner(base_half_w, -base_half_h, base_cell[2], base_cell[3]),
+            corner(base_half_w, base_half_h, base_cell[2], base_cell[1]),
+            corner(-base_half_w, base_half_h, base_cell[0], base_cell[1]));
 
         // The loud end is added LIGHT, around the head's own silhouette, into a batch that submits
         // BEFORE the heads so it sits under the note rather than repainting it.
@@ -4990,8 +5020,13 @@ void HighwayRenderer::Impl::draw(
                 z,
                 node_head
                     ? GlowShape{
-                          .half_w = g_node_head_art_half_span_texels * texel,
-                          .half_h = g_node_head_art_half_span_texels * texel,
+                          // Scaled with the base it traces: a light sized to the unscaled
+                          // silhouette would sit inside a grown diamond, or spill past a
+                          // shrunken one.
+                          .half_w =
+                              g_node_head_art_half_span_texels * texel * harmonic_size.diamond_scale,
+                          .half_h =
+                              g_node_head_art_half_span_texels * texel * harmonic_size.diamond_scale,
                           .corner = 0.0,
                           .rhombus = true,
                       }
@@ -5017,7 +5052,16 @@ void HighwayRenderer::Impl::draw(
             }
             else if (note.harmonic_node.has_value())
             {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
+                push_marker(
+                    x,
+                    head_y,
+                    z,
+                    cos_r,
+                    sin_r,
+                    g_head_cell_harmonic,
+                    tint,
+                    false,
+                    harmonic_size.mark_scale);
             }
             if (note.mute == common::core::NoteMute::Palm)
             {

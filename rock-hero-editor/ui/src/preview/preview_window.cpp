@@ -92,6 +92,11 @@ void PreviewWindow::cycleStringSpacing()
     m_surface->cycleStringSpacing();
 }
 
+void PreviewWindow::cycleHarmonicSize()
+{
+    m_surface->cycleHarmonicSize();
+}
+
 void PreviewWindow::closeButtonPressed()
 {
     close();

@@ -106,6 +106,14 @@ enum class EditorCommandId : std::uint16_t
     */
     CycleStringSpacing = 0x1306,
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycle the harmonic head's diamond and symbol (`F4`).
+
+    Separate from the two scale cycles because the overflow it settles is scale-invariant: no
+    board scale moves the symbol relative to the diamond it rides.
+    */
+    CycleHarmonicSize = 0x1307,
+
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,

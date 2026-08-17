@@ -105,6 +105,14 @@ public:
     */
     void cycleStringSpacing();
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycles the harmonic head's size and logs the candidate.
+
+    A third axis beside the two scale samplers, because no board scale moves the symbol relative
+    to the diamond it rides.
+    */
+    void cycleHarmonicSize();
+
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
 

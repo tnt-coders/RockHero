@@ -112,4 +112,68 @@ inline constexpr std::array<BoardScaleCandidate, 5> g_spacing_scale_candidates{{
     {.name = "1.389x wider, ratio 0.339 - 1080p-weighted", .scale = 1.389},
 }};
 
+/*!
+\brief One candidate for the harmonic head: its diamond base and its symbol, sized separately.
+
+A SEPARATE axis from the two above, and deliberately so — the overflow this decides is
+SCALE-INVARIANT. The symbol and the base scale together under either board scale, so the symbol
+overhangs its diamond by the same 26% of the diamond's half-span at every family size and every
+string spacing. No row of `g_family_scale_candidates` moves it, which is exactly why it needs its
+own knob rather than riding one of theirs.
+
+The measured fact this exists to settle: the symbol does not merely touch its diamond, it CROSSES
+it by 4.07 texels — a containing span of 19.72 against a 15.65 half-span. Only three things can
+give, and the rows below are those three: the symbol shrinks, the diamond grows, or the crossing
+is declared deliberate. Shrinking the whole mark FAMILY is not among them; that was sighted and
+rejected, and the two laws that would do it land within 2-4% of the rejected sizing.
+
+External evidence for the third option, which is why "today" is a serious candidate rather than
+just the control: the third-party reference draws its own circular modifier marks at about 1.07x
+its string pitch, so marks overhanging their bases — and even their lane — is that product's
+normal grammar rather than a defect.
+*/
+struct HarmonicSizeCandidate
+{
+    /*! \brief Stable name, printed by the cycling command. */
+    std::string_view name;
+
+    /*! \brief Multiplier on the diamond base's drawn size, and on the glow that traces it. */
+    double diamond_scale;
+
+    /*! \brief Multiplier on the harmonic symbol riding that base. */
+    double mark_scale;
+};
+
+/*!
+\brief The harmonic candidates, in stable order — index 0 is today's shipped art.
+
+Rows 1 and 3 are the two live answers; 2 and 4 bracket row 3 so the sighting can see the size
+either side of the smallest containing diamond rather than judging it alone.
+
+Only the diamond and its own symbol move. Every other technique mark holds still, which is the
+constraint that keeps this axis honest: the family stays consistent while one shape is judged.
+*/
+inline constexpr std::array<HarmonicSizeCandidate, 5> g_harmonic_size_candidates{{
+    {.name = "today - the symbol crosses its diamond by 4.07 texels",
+     .diamond_scale = 1.000,
+     .mark_scale = 1.000},
+    // Changes the symbol alone, so stacked node heads are untouched. Re-opens the 2026-08-15
+    // ruling that pairs the harmonic's height to the full mute's — with in-family precedent,
+    // since the pinch was already split out of that rule for sitting on a different base.
+    {.name = "fit the symbol - it shrinks to sit inside; diamond and stacking untouched",
+     .diamond_scale = 1.000,
+     .mark_scale = 0.742},
+    {.name = "grow 1.165x - the bracket's midpoint; still does not contain the symbol",
+     .diamond_scale = 1.165,
+     .mark_scale = 1.000},
+    // Point-to-point then equals a rectangle head's full width; two independent rationales for
+    // this size land 0.12 texels apart. Costs about 10 screen px per side of stacked overlap.
+    {.name = "grow 1.332x - the smallest diamond that contains the symbol",
+     .diamond_scale = 1.332,
+     .mark_scale = 1.000},
+    {.name = "grow 1.504x - past the answer, so the sighting can see its far side",
+     .diamond_scale = 1.504,
+     .mark_scale = 1.000},
+}};
+
 } // namespace rock_hero::common::ui

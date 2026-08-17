@@ -194,6 +194,19 @@ public:
     [[nodiscard]] std::string cycleStringSpacing();
 
     /*!
+    \brief EXPERIMENT SCAFFOLDING — advances the harmonic head to the next candidate.
+
+    Its own axis rather than a row of the two scale cycles, because the question it settles is
+    scale-invariant: the harmonic symbol and the diamond it rides scale together, so the symbol
+    overhangs its base by the same fraction at every family size and string spacing. Sizes the
+    diamond base (and the glow that traces it) and the symbol independently, leaving every other
+    technique mark untouched so the family stays consistent while one shape is judged.
+
+    \return Text naming the active candidate.
+    */
+    [[nodiscard]] std::string cycleHarmonicSize();
+
+    /*!
     \brief Encodes one frame of the highway into the render views.
 
     \param now_seconds Playback song time for this frame (from the consumer's clock port).

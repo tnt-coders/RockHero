@@ -1398,6 +1398,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CycleAccentStyle:
         case EditorCommandId::CycleFamilyScale:
         case EditorCommandId::CycleStringSpacing:
+        case EditorCommandId::CycleHarmonicSize:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1605,6 +1606,17 @@ bool EditorView::perform(const InvocationInfo& info)
             if (m_preview_window != nullptr)
             {
                 m_preview_window->cycleStringSpacing();
+            }
+            return true;
+        }
+
+        // EXPERIMENT SCAFFOLDING — the harmonic head's own axis, independent of the two scales
+        // because no board scale moves the symbol relative to the diamond it rides.
+        case EditorCommandId::CycleHarmonicSize:
+        {
+            if (m_preview_window != nullptr)
+            {
+                m_preview_window->cycleHarmonicSize();
             }
             return true;
         }
