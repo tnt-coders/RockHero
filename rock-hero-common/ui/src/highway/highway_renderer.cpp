@@ -1030,6 +1030,56 @@ void pushRibbonSegment(
     pushRibbonSegment(vertices, indices, stations, stations, a, b);
 }
 
+/*!
+\brief Lights one segment of a sustain ribbon, to the same accent candidate its head wears.
+
+The loud end of the emphasis axis has to reach the tail because the quiet end already does — a
+ghost dims head, markers, open bar AND ribbon, so an accent that stopped at the head left the axis
+saying different things at its two ends. Both are statements about how hard the string was struck,
+and a sustain rings on from that strike either way.
+
+Takes the ribbon's OWN stations and ends, so the light follows every modulation the tail follows —
+a bend's lift, a slide's travel, vibrato's wobble, an open band tracking a moving hand window —
+without restating any of it. The alpha comes in from the ribbon's envelope for the same reason: the
+light has to fade in at the onset and dissolve at the tip exactly where the ribbon does, or it
+would glow around a stretch of ribbon that has already gone.
+
+A BAND, not a box. Every vertex pins its local Y to zero, so only the X boundary is ever evaluated
+and the rounded-box field reduces exactly to `|local_x| - half_w`. `half_h` is set equal to
+`half_w` for that reason: any value at least `half_w` yields the identical field, and matching them
+is the one choice that needs no constant of its own.
+*/
+void pushTailGlowSegment(
+    std::vector<PosColorGlowVertex>& vertices, std::vector<std::uint16_t>& indices,
+    const std::array<double, 4>& stations_a, const std::array<double, 4>& stations_b,
+    const RibbonEnd& a, const RibbonEnd& b, const ArgbColor color, const double reach,
+    const double alpha_a, const double alpha_b)
+{
+    const auto edge = [&](const std::array<double, 4>& stations,
+                          const RibbonEnd& end,
+                          const double alpha,
+                          const double side) {
+        const double half = (stations[3] - stations[0]) / 2.0;
+        const double center = ((stations[0] + stations[3]) / 2.0) + end.x_offset;
+        const double local_x = side * (half + reach);
+        return makeGlowVertex(
+            center + local_x,
+            end.y,
+            end.z,
+            packAbgr(color, alpha),
+            local_x,
+            0.0,
+            GlowShape{.half_w = half, .half_h = half, .corner = 0.0, .rhombus = false});
+    };
+    pushQuad(
+        vertices,
+        indices,
+        edge(stations_a, a, alpha_a, -1.0),
+        edge(stations_a, a, alpha_a, 1.0),
+        edge(stations_b, b, alpha_b, 1.0),
+        edge(stations_b, b, alpha_b, -1.0));
+}
+
 // Floor quad with per-end colors: Charter's beat-bar gradient wings.
 void pushFloorQuadGradient(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
@@ -3185,9 +3235,11 @@ void HighwayRenderer::Impl::draw(
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
         submitBatch(
             shadow_vertices, shadow_indices, posColorLayout(), color_fade_program.get(), nullptr);
-        submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
-        // The accent light, under every note of the group. Its blend operator is part of the
-        // candidate being sighted, so the state comes from the table rather than being fixed here.
+        // The accent light, under every note of the group — and now under the RAILS too, which is
+        // why it submits before them: once the light reaches a sustain ribbon it has to sit behind
+        // the ribbon like it sits behind a head, or it washes out the very thing it is lighting.
+        // Its blend operator is part of the candidate being sighted, so the state comes from the
+        // table rather than being fixed here.
         bgfx::setUniform(accent_glow_params.get(), note_glow_uniform.data());
         submitBatch(
             accent_glow_vertices,
@@ -3197,6 +3249,7 @@ void HighwayRenderer::Impl::draw(
             nullptr,
             g_board_view,
             glow_state);
+        submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
         submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
         submitBatch(
             head_vertices,
@@ -3751,6 +3804,9 @@ void HighwayRenderer::Impl::draw(
             const double duration = note.end_seconds - note.start_seconds;
             const double ghost_tail_alpha =
                 note.emphasis == common::core::NoteEmphasis::Ghost ? g_ghost_alpha : 1.0;
+            // ...and the loud end lights it, for the same reason and on the same surface. An
+            // accent that stopped at the head made the axis say different things at its two ends.
+            const bool tail_lit = accents_lit && common::core::isAccented(note.emphasis);
             const auto tip_alpha = [&](const double seconds) {
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
@@ -3847,6 +3903,20 @@ void HighwayRenderer::Impl::draw(
                             band[3],
                             ribbon_end(from_seconds),
                             ribbon_end(to_seconds));
+                        if (tail_lit)
+                        {
+                            pushTailGlowSegment(
+                                accent_glow_vertices,
+                                accent_glow_indices,
+                                band,
+                                band,
+                                ribbon_end(from_seconds),
+                                ribbon_end(to_seconds),
+                                emitterSpectrum(style.tail),
+                                accent_light.reach,
+                                accent_light.alpha * tip_alpha(from_seconds),
+                                accent_light.alpha * tip_alpha(to_seconds));
+                        }
                     }
                 };
                 push_span(tail_from, body_begin);
@@ -4091,29 +4161,43 @@ void HighwayRenderer::Impl::draw(
                     const TailSample& b = samples[sample];
                     const ArgbColor tail_a = shaded[sample - 1];
                     const ArgbColor tail_b = shaded[sample];
+                    const RibbonEnd end_a{
+                        .x_offset = a.x_offset,
+                        .y = a.y,
+                        .z = a.z,
+                        .edge_abgr = packAbgr(tail_a, a.alpha),
+                        .inner_abgr = packAbgr(tail_a, g_tail_inner_alpha * a.alpha),
+                        .outer_abgr =
+                            packAbgr(tail_a, common::core::openString(note) ? 0.0 : a.alpha),
+                    };
+                    const RibbonEnd end_b{
+                        .x_offset = b.x_offset,
+                        .y = b.y,
+                        .z = b.z,
+                        .edge_abgr = packAbgr(tail_b, b.alpha),
+                        .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
+                        .outer_abgr =
+                            packAbgr(tail_b, common::core::openString(note) ? 0.0 : b.alpha),
+                    };
                     pushRibbonSegment(
-                        rail_vertices,
-                        rail_indices,
-                        a.stations,
-                        b.stations,
-                        RibbonEnd{
-                            .x_offset = a.x_offset,
-                            .y = a.y,
-                            .z = a.z,
-                            .edge_abgr = packAbgr(tail_a, a.alpha),
-                            .inner_abgr = packAbgr(tail_a, g_tail_inner_alpha * a.alpha),
-                            .outer_abgr =
-                                packAbgr(tail_a, common::core::openString(note) ? 0.0 : a.alpha),
-                        },
-                        RibbonEnd{
-                            .x_offset = b.x_offset,
-                            .y = b.y,
-                            .z = b.z,
-                            .edge_abgr = packAbgr(tail_b, b.alpha),
-                            .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
-                            .outer_abgr =
-                                packAbgr(tail_b, common::core::openString(note) ? 0.0 : b.alpha),
-                        });
+                        rail_vertices, rail_indices, a.stations, b.stations, end_a, end_b);
+                    if (tail_lit)
+                    {
+                        // The MODULATED path, so the light picks up the bend, slide, vibrato or
+                        // moving hand window from the ribbon's own samples rather than deriving
+                        // any of it a second time.
+                        pushTailGlowSegment(
+                            accent_glow_vertices,
+                            accent_glow_indices,
+                            a.stations,
+                            b.stations,
+                            end_a,
+                            end_b,
+                            emitterSpectrum(tail_a),
+                            accent_light.reach,
+                            accent_light.alpha * a.alpha,
+                            accent_light.alpha * b.alpha);
+                    }
                 }
             }
         }
