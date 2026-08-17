@@ -989,8 +989,32 @@ struct RibbonEnd
     double z;
     std::uint32_t edge_abgr;
     std::uint32_t inner_abgr;
-    std::uint32_t outer_abgr;
+
+    /*!
+    \brief True when the outer stations dissolve to transparent instead of ending on the edge
+           color — an open tail's band tapering into the hand-window rails, against a fretted
+           tail's hard edge.
+
+    A SHAPE fact, and it is stored rather than derived because the alternative was derived from
+    the wrong thing. This used to be an `outer_abgr` color that callers built as "the edge color,
+    or the same color at zero alpha", and the accent glow recovered the shape by asking whether
+    the two colors differed. The tail's own envelope destroys that: at the onset and at the end of
+    the tip fade every alpha reaches zero, so the transparent outer and the faded edge pack to the
+    SAME value and an open tail read as hard-edged exactly where it dissolves — the glow's inboard
+    clip collapsing onto the silhouette across the whole tip fade.
+
+    Stating the shape once also deletes the field it replaces: a transparent outer is exactly the
+    edge color with its alpha cleared, so the color was never independent information.
+    */
+    bool outer_transparent;
 };
+
+// The outer stations' color, derived from the shape rather than stored beside it: dissolving
+// means the edge color at zero alpha, so a band fades out without shifting hue.
+[[nodiscard]] std::uint32_t ribbonOuterAbgr(const RibbonEnd& end)
+{
+    return end.outer_transparent ? (end.edge_abgr & 0x00FFFFFFU) : end.edge_abgr;
+}
 
 // One three-band ribbon segment between two endpoints: edge strips [x0,x1] and [x2,x3] around a
 // translucent core [x1,x2] (Charter's tail cross-section), with per-end stations, offsets,
@@ -1017,9 +1041,11 @@ void pushRibbonSegment(
             makeVertex(stations_b.at(to) + b.x_offset, b.y, b.z, to_b),
             makeVertex(stations_b.at(from) + b.x_offset, b.y, b.z, from_b));
     };
-    push_band(0, 1, a.outer_abgr, a.edge_abgr, b.outer_abgr, b.edge_abgr);
+    const std::uint32_t outer_a = ribbonOuterAbgr(a);
+    const std::uint32_t outer_b = ribbonOuterAbgr(b);
+    push_band(0, 1, outer_a, a.edge_abgr, outer_b, b.edge_abgr);
     push_band(1, 2, a.inner_abgr, a.inner_abgr, b.inner_abgr, b.inner_abgr);
-    push_band(2, 3, a.edge_abgr, a.outer_abgr, b.edge_abgr, b.outer_abgr);
+    push_band(2, 3, a.edge_abgr, outer_a, b.edge_abgr, outer_b);
 }
 
 // Constant-cross-section overload for runs whose band never changes width.
@@ -1087,7 +1113,7 @@ void pushTailGlowSegment(
             return TailGlowEnd{
                 .half = (stations[3] - stations[0]) / 2.0,
                 .center = ((stations[0] + stations[3]) / 2.0) + end.x_offset,
-                .fade = end.outer_abgr == end.edge_abgr ? 0.0 : stations[3] - stations[2],
+                .fade = end.outer_transparent ? stations[3] - stations[2] : 0.0,
                 .y = end.y,
                 .z = end.z,
                 .alpha = alpha,
@@ -3994,8 +4020,7 @@ void HighwayRenderer::Impl::draw(
                         .z = time_to_z(seconds),
                         .edge_abgr = edge,
                         .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * alpha),
-                        .outer_abgr =
-                            common::core::openString(note) ? packAbgr(style.tail, 0.0) : edge,
+                        .outer_transparent = common::core::openString(note),
                     };
                 };
                 // Split at each corner of the envelope — where the onset ramp finishes and where
@@ -4285,8 +4310,7 @@ void HighwayRenderer::Impl::draw(
                         .z = a.z,
                         .edge_abgr = packAbgr(tail_a, a.alpha),
                         .inner_abgr = packAbgr(tail_a, g_tail_inner_alpha * a.alpha),
-                        .outer_abgr =
-                            packAbgr(tail_a, common::core::openString(note) ? 0.0 : a.alpha),
+                        .outer_transparent = common::core::openString(note),
                     };
                     const RibbonEnd end_b{
                         .x_offset = b.x_offset,
@@ -4294,8 +4318,7 @@ void HighwayRenderer::Impl::draw(
                         .z = b.z,
                         .edge_abgr = packAbgr(tail_b, b.alpha),
                         .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
-                        .outer_abgr =
-                            packAbgr(tail_b, common::core::openString(note) ? 0.0 : b.alpha),
+                        .outer_transparent = common::core::openString(note),
                     };
                     pushRibbonSegment(
                         rail_vertices, rail_indices, a.stations, b.stations, end_a, end_b);
@@ -4380,7 +4403,7 @@ void HighwayRenderer::Impl::draw(
                     .z = post_z,
                     .edge_abgr = floor_edge,
                     .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * floor_alpha),
-                    .outer_abgr = floor_edge,
+                    .outer_transparent = false,
                 };
                 const RibbonEnd head_end{
                     .x_offset = 0.0,
@@ -4388,7 +4411,7 @@ void HighwayRenderer::Impl::draw(
                     .z = post_z,
                     .edge_abgr = clear,
                     .inner_abgr = clear,
-                    .outer_abgr = clear,
+                    .outer_transparent = false,
                 };
                 pushRibbonSegment(
                     shadow_vertices,
