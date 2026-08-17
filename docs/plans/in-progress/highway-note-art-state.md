@@ -67,6 +67,24 @@ the STRING'S colour instead of white and lets overlapping glows merge without bl
 sharing a base with the additive `medium` row so the comparison isolates the operator. Every
 operator consumes PREMULTIPLIED source, which the shader emits, for the same reason.
 
+**Sighted 2026-08-16: `medium` and `medium screen` look almost identical, and that is structural
+rather than a coincidence.** Additive is `dst + src`; screen is `dst + src − src·dst`. They differ
+by exactly `src·dst`, and the glow lands almost entirely on a near-black board where `dst ≈ 0`, so
+the difference is ≈ 0 everywhere it can be seen. They can only diverge where the destination is
+already bright: overlapping glows from adjacent accents, the lit fret window, a chord box frame.
+
+**Recommendation: sign ADDITIVE and delete the axis.** Not a coin flip, on three grounds. (1) It is
+the physically correct operator — light adds, and `screen` is a compositing convention borrowed
+from film double-exposure that exists as the LDR stand-in for "add, then tonemap"; with an HDR
+buffer you would always add. (2) It is already the operator every other light on this board uses
+(`g_additive_state`: the strike glow and the window light), so keeping `screen` would make the
+board carry two light conventions for no gain. (3) `screen`'s only real advantage — it cannot clip
+— is unreachable where `dst ≈ 0`, and where clipping does occur the honest fixes are lower alpha or
+a tonemap; `screen` would mask the symptom instead. Signing it deletes the `AccentBlend` enum, two
+blend states, `accentGlowState()`, one struct field and two table rows. **Held open only until
+`lighten` is sighted**, since that one genuinely differs — it takes a maximum, so overlapping glows
+stop accumulating altogether.
+
 **Reach is now ONE absolute world number for every subject**, which is a design ruling rather than
 a convenience: reach is a property of the emitter's BRIGHTNESS, not its size — a short neon tube
 and a long one wear the same halo. The asymmetry that falls out is the point. Around a head 0.325
@@ -165,11 +183,24 @@ generator that produced it. Load it to judge any art change against the full voc
 rather than hunting a real song for an example. Its silent backing track carries precomputed
 normalization metadata, because the loudness analyzer refuses silence outright.
 
-Currently 52 measures, 343 notes, 26 sections, 34 FHPs, with 32 accents and 32 ghosts. It covers
+Currently 71 measures, 403 notes, 45 sections, 45 FHPs, with 51 accents and 51 ghosts. It covers
 emphasis on fretted heads, on open strings (a different code path entirely), composed with mutes
 and slides, on full six-string strums, and — added 2026-08-15 after an audit found the gap — on
 REPEAT boxes, the one case where the box draws no heads and is therefore the only surface left to
 state the dynamic.
+
+**Added 2026-08-16 at the user's request: an emphasis trio for EVERY technique**, one measure each,
+ghost on beat one, plain on beat two, accent on beat three — nineteen sections covering plain, palm
+mute, full mute, vibrato, tremolo, left-hand tap, tap, slap, pop, legato, all four harmonic
+families, bend, slide, slide-out, pick scrape and open string. Not redundant with the blocks above,
+for a mechanical reason: emphasis is drawn from the note's SILHOUETTE, so a technique that changes
+the head changes which code path the emphasis takes. Every harmonic puts a node head on the board,
+and a node head is a diamond the accent light traces with the RHOMBUS distance field rather than the
+rounded box; a scrape wears the plectrum; an open string has no head at all. Three tiers in one bar
+rather than three bars because this axis is a comparison — a ghost only reads as quiet against the
+note beside it. (The generator's output paths were absolute into a coding session's own scratch
+directory, so it wrote correctly once and then to a path that no longer existed; they are now
+resolved beside the script.)
 
 **Ruled 2026-08-15: the harmonic marker's height EQUALS the full mute's, in every scheme.** It
 tracks that mark rather than carrying a size of its own, so whatever a sizing scheme sets the
