@@ -285,8 +285,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
          .chords = {chord(juce::KeyPress::F3Key)}},
         // EXPERIMENT SCAFFOLDING — the live appearance samplers, removed from this table when
         // their candidate tables go. The ghost and tail-end samplers that sat beside the accent
-        // one on F10 are both gone, their looks signed; F10 is free, and no retired id may be
-        // revived for a different meaning.
+        // one on F10 are both gone, their looks signed; the head-width sampler now holds F10
+        // under a fresh id, honoring the rule that no retired id may be revived for a different
+        // meaning.
         {.id = EditorCommandId::CycleAccentStyle,
          .value = 0x1304,
          .chords = {chord(juce::KeyPress::F9Key)}},
@@ -299,6 +300,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::CycleHarmonicSize,
          .value = 0x1307,
          .chords = {chord(juce::KeyPress::F4Key)}},
+        {.id = EditorCommandId::CycleHeadWidth,
+         .value = 0x1308,
+         .chords = {chord(juce::KeyPress::F10Key)}},
         {.id = EditorCommandId::InsertToneChange, .value = 0x1401, .chords = {chord('t', command)}},
         {.id = EditorCommandId::CaretStepLeft,
          .value = 0x1501,

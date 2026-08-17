@@ -114,6 +114,14 @@ enum class EditorCommandId : std::uint16_t
     */
     CycleHarmonicSize = 0x1307,
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycle the note head's width against its fret slot (`F10`).
+
+    Split from \ref CycleFamilyScale by measurement: the reference's head is narrower in the
+    slot at our height, so width moves alone and the sustain tail follows it.
+    */
+    CycleHeadWidth = 0x1308,
+
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,

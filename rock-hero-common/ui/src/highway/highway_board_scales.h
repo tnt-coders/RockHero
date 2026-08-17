@@ -77,11 +77,13 @@ struct BoardScaleCandidate
 /*!
 \brief Family-size candidates: scale `HighwayMetrics::note_half_width`, spacing held fixed.
 
-ONE metric carries the whole family because the renderer already derives everything from it: the
-head quad is `note_half_width` square, the arpeggio brackets share it, the sustain tail is a third
-of it, and — the part that matters most here — `headArtTexelWorld()` converts every art-silhouette
-constant through it, so the accent glow's distance field follows the art automatically. Scaling
-this one number moves art, glow, brackets and tail together by construction.
+The two head metrics carry the whole family because the renderer already derives everything from
+them: the head quad spans them, the technique marks and arpeggio brackets share the height, the
+sustain tail is a third of the width, and — the part that matters most here — the
+`headArtTexelWidth()`/`headArtTexelHeight()` pair converts every art-silhouette constant through
+them, so the accent glow's distance field follows the art automatically. This axis multiplies
+both metrics, moving art, glow, marks, brackets and tail together by construction; the
+head-width table below divides width from height on top of it.
 
 That last property is why this axis is a metric rather than a set of rebaked atlases. Rescaling
 the ART inside the atlas cells reaches the same head size, but it leaves the silhouette constants
@@ -161,6 +163,33 @@ inline constexpr std::array<BoardScaleCandidate, 6> g_spacing_scale_candidates{{
      .scale = 1.250},
     {.name = "1.316x wider, ratio 0.358 - further from the reference, not closer", .scale = 1.316},
     {.name = "1.389x wider, ratio 0.339 - the far end of a ruled-out direction", .scale = 1.389},
+}};
+
+/*!
+\brief Head-width candidates: scale `HighwayMetrics::note_half_width` alone, height held fixed.
+
+The axis the measurement actually asked for. Two independent witnesses put the reference's head
+at 45.5% of its fret slot against our 57.6%, while its on-screen chord stacks fill 0.78-0.98 of
+the string pitch — which our HEIGHT already does (0.94). A uniform family scale can only reach
+one of those at a time; this knob narrows the width and leaves the vertical presence alone.
+
+What follows the knob and what holds, stated because the split is the point: the sustain tail
+follows (it is a third of the width metric by derivation), and the accent glow's x-extents
+follow the squashed art. Technique marks, arpeggio brackets and the node-head diamond are square
+art sized from `note_half_height`, so they hold still — the reference behaves the same way; its
+own marks exceed its narrow gem.
+
+The art itself stretches anisotropically at runtime (13-21% across the rows), thinning vertical
+strokes slightly and rounding corners into ellipses. That is accepted for sighting and never
+ships: the winner's width gets baked into the art (the head-w079 atlas variants already bake the
+far row undistorted, as the cross-check). Composes with the family axis, which multiplies both
+head metrics, so the family rows keep meaning "the whole family" while this knob divides width
+from height on top.
+*/
+inline constexpr std::array<BoardScaleCandidate, 3> g_head_width_candidates{{
+    {.name = "today - the head fills 57.6% of its fret slot", .scale = 1.000},
+    {.name = "0.87x - 50.0% of the slot, the round number between", .scale = 0.868},
+    {.name = "0.79x - 45.5%, the reference's measured slot fill", .scale = 0.790},
 }};
 
 /*!

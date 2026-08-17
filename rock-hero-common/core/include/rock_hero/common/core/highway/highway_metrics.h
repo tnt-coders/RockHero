@@ -81,6 +81,18 @@ struct HighwayMetrics
     */
     double note_half_width{0.48};
 
+    /*!
+    \brief Note head half-height, split from \ref note_half_width because measurement showed the
+    two are independent quantities.
+
+    The third-party reference's head is narrower for its fret slot than ours while matching our
+    height against the string pitch, so matching it moves width alone. Width-derived geometry
+    (the sustain tail) follows \ref note_half_width; square-art elements (technique markers,
+    arpeggio brackets, node-head diamonds) size from this field so a narrowed head never
+    distorts them.
+    */
+    double note_half_height{0.48};
+
     /*! \brief Camera height above the board at the reference fret span. */
     double camera_y_base{5.0};
 

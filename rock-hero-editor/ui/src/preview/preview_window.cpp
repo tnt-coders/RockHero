@@ -97,6 +97,11 @@ void PreviewWindow::cycleHarmonicSize()
     m_surface->cycleHarmonicSize();
 }
 
+void PreviewWindow::cycleHeadWidth()
+{
+    m_surface->cycleHeadWidth();
+}
+
 void PreviewWindow::closeButtonPressed()
 {
     close();

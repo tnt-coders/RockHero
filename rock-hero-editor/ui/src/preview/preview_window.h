@@ -84,6 +84,9 @@ public:
     /*! \brief EXPERIMENT SCAFFOLDING — cycles the harmonic head's size and logs it. */
     void cycleHarmonicSize();
 
+    /*! \brief EXPERIMENT SCAFFOLDING — cycles the note head's width and logs it. */
+    void cycleHeadWidth();
+
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 

@@ -274,6 +274,15 @@ void PreviewSurface::cycleHarmonicSize()
     RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleHarmonicSize());
 }
 
+void PreviewSurface::cycleHeadWidth()
+{
+    if (!m_renderer.has_value())
+    {
+        return;
+    }
+    RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleHeadWidth());
+}
+
 void PreviewSurface::resized()
 {
     updateChildBounds();

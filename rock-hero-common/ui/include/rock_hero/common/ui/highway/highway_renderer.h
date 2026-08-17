@@ -171,9 +171,10 @@ public:
     cycleStringSpacing widens the spacing around a fixed family. They reach the same numbers and
     look nothing alike, which is why both ship until one is chosen.
 
-    Scales `HighwayMetrics::note_half_width`, which the head quad, the arpeggio brackets, the
-    sustain tail's width and every art-silhouette constant already derive from, so the whole
-    family and its accent light move together.
+    Scales both head metrics (`HighwayMetrics::note_half_width` and `note_half_height`), which
+    the head quad, the technique marks, the arpeggio brackets, the sustain tail's width and every
+    art-silhouette constant already derive from, so the whole family and its accent light move
+    together.
 
     \return Text naming the active candidate and the ratio it produces.
     */
@@ -192,6 +193,20 @@ public:
     \return Text naming the active candidate and the ratio it produces.
     */
     [[nodiscard]] std::string cycleStringSpacing();
+
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — advances the head's width to the next candidate.
+
+    A third board axis, split from \ref cycleFamilyScale by measurement: the reference's head is
+    narrower for its fret slot than ours (45.5% against 57.6%) while matching our height against
+    the string pitch, so width moves alone. The sustain tail follows, deriving from the width
+    metric; technique marks, arpeggio brackets and node-head diamonds are square art at the
+    family size and hold still. The head art stretches anisotropically under this knob — a
+    labelled preview; the baked head-w079 atlas variants are the undistorted cross-check.
+
+    \return Text naming the active candidate and the slot fill it produces.
+    */
+    [[nodiscard]] std::string cycleHeadWidth();
 
     /*!
     \brief EXPERIMENT SCAFFOLDING — advances the harmonic head to the next candidate.

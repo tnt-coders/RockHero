@@ -132,7 +132,8 @@ The head ART's own silhouette, in ATLAS TEXELS, measured 2026-08-16 from the shi
 The head cell fills only the middle of its quad, so a light sized against the QUAD starts far
 outside the note; the accent glow's distance field is sized against these instead.
 
-TEXELS, not world units, and converted through headArtTexelWorld() below — because the world size
+TEXELS, not world units, and converted through headArtTexelWidth()/headArtTexelHeight() below —
+because the world size
 of a drawn texel is NOT the cell size, and stating these in world once meant carrying that error
 into every one of them. Every number here is a measurement of a PNG; keeping them in the units the
 PNG is measured in is what lets the conversion be wrong in one place instead of four.
@@ -181,7 +182,7 @@ constexpr double g_head_art_center_y_texels = -0.5224;
 constexpr double g_node_head_art_center_y_texels = -0.5;
 
 /*
-World size of one drawn texel of a head cell.
+World size of one drawn texel of a head cell, per axis.
 
 Divided by 63, not 64, and that is the whole point of routing this through a function. The head
 quad spans `2 * note_half_width` of world, but HighwayAtlasLayout::cellRect insets each cell's UV
@@ -189,10 +190,20 @@ rect by half a texel on every side (to stop neighbouring cells bleeding under mi
 the quad's corners sample texel CENTRES 0.5 and 63.5 — 63 texels of range, not 64. A constant
 built on 64 is 1.5625% short, and being derived from the metrics rather than a literal also means
 the head's world size lives in exactly one place.
+
+Two functions because the axes can differ: the head-width experiment narrows `note_half_width`
+alone, which squashes the rectangle head's drawn texels horizontally while their height holds.
+Every x-extent converts through the width texel and every y-extent through the height texel, so
+the accent light keeps tracing the art the quad actually draws.
 */
-[[nodiscard]] double headArtTexelWorld(const common::core::HighwayMetrics& metrics)
+[[nodiscard]] double headArtTexelWidth(const common::core::HighwayMetrics& metrics)
 {
     return (2.0 * metrics.note_half_width) / 63.0;
+}
+
+[[nodiscard]] double headArtTexelHeight(const common::core::HighwayMetrics& metrics)
+{
+    return (2.0 * metrics.note_half_height) / 63.0;
 }
 
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
@@ -1655,6 +1666,11 @@ struct HighwayRenderer::Impl
     std::size_t family_scale{0};
     std::size_t spacing_scale{0};
 
+    // EXPERIMENT SCAFFOLDING — index into the head-width candidate table, the axis measurement
+    // split off the family scale: the reference's head is narrower in its fret slot at our
+    // height, so width narrows alone and the tail follows it. Row 0 is today's shipped board.
+    std::size_t head_width{0};
+
     // EXPERIMENT SCAFFOLDING — index into the harmonic-head candidate table. Its own axis rather
     // than a row of the two above, because the overflow it decides is scale-invariant: symbol and
     // base scale together, so no board scale moves it. Needs no board rebuild, so unlike the two
@@ -1665,16 +1681,17 @@ struct HighwayRenderer::Impl
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
 
-    // EXPERIMENT SCAFFOLDING — rebuilds `metrics` from its shipped defaults under the two
+    // EXPERIMENT SCAFFOLDING — rebuilds `metrics` from its shipped defaults under the three
     // sighting scales, then rebuilds the cached board face because the string grid, the fret
     // lines and the board's own extent are all derived from the spacing.
     //
     // The scales reach the board through the METRICS and nowhere else, which is what keeps the
-    // drawing code free of them: the head quad, the arpeggio brackets, the sustain tail's width
-    // and — through headArtTexelWorld() — every art-silhouette constant the accent glow's
-    // distance field is built from all derive from note_half_width already, so scaling that one
-    // number moves art, glow, brackets and tail together and cannot leave the light tracing a
-    // silhouette the art no longer has.
+    // drawing code free of them. The family factor multiplies both head metrics, so art, glow,
+    // marks, brackets and tail all move together; the head-width factor multiplies
+    // note_half_width alone — which the head quad's x, the sustain tail and (through
+    // headArtTexelWidth()) every art-silhouette x-extent derive from — while square art (marks,
+    // brackets, diamonds) rides note_half_height and holds its shape. Neither can leave the
+    // light tracing a silhouette the art no longer has.
     void applyBoardScales();
 
     void rebuildBoardFace();
@@ -1880,7 +1897,9 @@ void HighwayRenderer::Impl::applyBoardScales()
     // idempotent and reversible: scaling the live value would compound every press and row 0
     // would no longer restore the shipped board.
     metrics = common::core::HighwayMetrics{};
-    metrics.note_half_width *= g_family_scale_candidates.at(family_scale).scale;
+    const double family = g_family_scale_candidates.at(family_scale).scale;
+    metrics.note_half_width *= family * g_head_width_candidates.at(head_width).scale;
+    metrics.note_half_height *= family;
     metrics.string_distance *= g_spacing_scale_candidates.at(spacing_scale).scale;
     rebuildBoardFace();
 }
@@ -1899,6 +1918,13 @@ std::string HighwayRenderer::cycleStringSpacing()
     m_impl->applyBoardScales();
     return "string spacing: " +
            std::string{g_spacing_scale_candidates.at(m_impl->spacing_scale).name};
+}
+
+std::string HighwayRenderer::cycleHeadWidth()
+{
+    m_impl->head_width = (m_impl->head_width + 1) % g_head_width_candidates.size();
+    m_impl->applyBoardScales();
+    return "head width: " + std::string{g_head_width_candidates.at(m_impl->head_width).name};
 }
 
 std::string HighwayRenderer::cycleHarmonicSize()
@@ -2861,7 +2887,9 @@ void HighwayRenderer::Impl::draw(
                                                 const double z,
                                                 const double low_line,
                                                 const double high_line) {
-            const double half = metrics.note_half_width;
+            // Square glyph art at the family size: brackets hold their shape under the
+            // head-width knob rather than squashing with the rectangle head.
+            const double half = metrics.note_half_height;
             const auto push_bracket = [&](const int cell,
                                           const double center_x,
                                           const double center_y,
@@ -3335,7 +3363,7 @@ void HighwayRenderer::Impl::draw(
     const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
     // Charter's head is a square quad (0.96 x 0.96 world units), not a lane-squashed one.
     const double head_half_w = metrics.note_half_width;
-    const double head_half_h = metrics.note_half_width;
+    const double head_half_h = metrics.note_half_height;
 
     // Projected on-screen length between two world points, for adaptive tail sampling.
     const auto projected_pixels = [&](const double x0,
@@ -4472,6 +4500,10 @@ void HighwayRenderer::Impl::draw(
                                      // one is what says so at each of the call sites.
                                      const double mark_scale = 1.0) {
             // Deferred to the group boundary rather than written inline; see PendingMarker.
+            // Both extents from the HEIGHT metric: markers are square art at the family size and
+            // deliberately do not take the head-width knob, so a narrowed head changes nothing
+            // about the mark riding it (the reference behaves the same way — its own marks
+            // exceed its narrow gem).
             pending_markers.push_back(
                 PendingMarker{
                     .x = center_x,
@@ -4479,7 +4511,7 @@ void HighwayRenderer::Impl::draw(
                     .z = marker_z,
                     .cos_r = cos_r,
                     .sin_r = sin_r,
-                    .half_w = head_half_w * mark_scale,
+                    .half_w = head_half_h * mark_scale,
                     .half_h = head_half_h * mark_scale,
                     .cell = cell,
                     .tint = marker_tint,
@@ -4854,19 +4886,23 @@ void HighwayRenderer::Impl::draw(
             push_glow_post(x, z, post_floor_alpha);
         }
 
+        const bool node_head = highwayNodeHead(note);
+
         // The hollow silhouette is the head's own outline: a node head's landing ring and
         // pre-bend outline are its base's shape (the harmonic hollow) while every other head
         // keeps the rectangle — one shape law for the filled head and everything that previews
         // it, asked from the same predicate the base cell asks.
         const std::array<float, 4> hollow_cell = atlases.head_layout.cellRect(
-            highwayNodeHead(note) ? g_head_cell_harmonic_anticipation : g_head_cell_anticipation);
+            node_head ? g_head_cell_harmonic_anticipation : g_head_cell_anticipation);
 
         // EXPERIMENT SCAFFOLDING — a node head's base draws at the harmonic candidate's size while
         // every other head keeps the shared quad. The hollow twin and the pre-bend outline take
         // the same extents on purpose: they are previews OF this shape, so a diamond that lands
         // larger than the ring that announced it would make the approach lie about the landing.
-        const double base_scale = highwayNodeHead(note) ? harmonic_size.diamond_scale : 1.0;
-        const double base_half_w = head_half_w * base_scale;
+        // The diamond is square art and holds the family size on both axes; only the rectangle
+        // head takes the width metric on x.
+        const double base_scale = node_head ? harmonic_size.diamond_scale : 1.0;
+        const double base_half_w = (node_head ? head_half_h : head_half_w) * base_scale;
         const double base_half_h = head_half_h * base_scale;
 
         // Anticipation ring: a hollow copy of the head parked AT THE HIT LINE (z = 0, not the
@@ -4889,18 +4925,39 @@ void HighwayRenderer::Impl::draw(
             const double ring_alpha =
                 std::min(1.0, (g_anticipation_seconds - seconds_out) * (1000.0 / 255.0));
             const std::uint32_t ring_tint = packAbgr(base_color, ring_alpha);
-            const double half = base_half_w * ring_scale;
+            const double ring_half_w = base_half_w * ring_scale;
+            const double ring_half_h = base_half_h * ring_scale;
             pushQuad(
                 head_vertices,
                 head_indices,
                 makeUvVertex(
-                    x - half, chart_head_y - half, 0.0, ring_tint, hollow_cell[0], hollow_cell[3]),
+                    x - ring_half_w,
+                    chart_head_y - ring_half_h,
+                    0.0,
+                    ring_tint,
+                    hollow_cell[0],
+                    hollow_cell[3]),
                 makeUvVertex(
-                    x + half, chart_head_y - half, 0.0, ring_tint, hollow_cell[2], hollow_cell[3]),
+                    x + ring_half_w,
+                    chart_head_y - ring_half_h,
+                    0.0,
+                    ring_tint,
+                    hollow_cell[2],
+                    hollow_cell[3]),
                 makeUvVertex(
-                    x + half, chart_head_y + half, 0.0, ring_tint, hollow_cell[2], hollow_cell[1]),
+                    x + ring_half_w,
+                    chart_head_y + ring_half_h,
+                    0.0,
+                    ring_tint,
+                    hollow_cell[2],
+                    hollow_cell[1]),
                 makeUvVertex(
-                    x - half, chart_head_y + half, 0.0, ring_tint, hollow_cell[0], hollow_cell[1]));
+                    x - ring_half_w,
+                    chart_head_y + ring_half_h,
+                    0.0,
+                    ring_tint,
+                    hollow_cell[0],
+                    hollow_cell[1]));
         }
 
         // Pre-bend target outline: the anticipation cell — already a hollow copy of the head's
@@ -4958,7 +5015,7 @@ void HighwayRenderer::Impl::draw(
         // (flip_remaining) is computed beside the head station, where the pre-bend reveal
         // shares it, so a node head still RISES onto a pre-bent station; it just never spins.
         const double rotation =
-            in_chord || highwayNodeHead(note) ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
+            in_chord || node_head ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
 
@@ -4980,7 +5037,7 @@ void HighwayRenderer::Impl::draw(
         // the pick mark then sits on that base rather than on an X — else the standard head.
         // Both predicates are stated once, in highway_head_marks.h.
         const std::array<float, 4> base_cell =
-            highwayNodeHead(note)   ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
+            node_head               ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
             : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
                                     : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
@@ -5010,15 +5067,20 @@ void HighwayRenderer::Impl::draw(
         // and a rectangular glow around a diamond leaves four lit corners with nothing under them.
         if (accents_lit && common::core::isAccented(note.emphasis))
         {
-            const bool node_head = highwayNodeHead(note);
-            const double texel = headArtTexelWorld(metrics);
+            // World-per-texel per drawn axis. The rectangle head's quad takes the width metric
+            // on x, so its texels are anisotropic under the head-width knob; a node head's quad
+            // holds the family size on both axes, so its texels stay square.
+            const double texel_x =
+                node_head ? headArtTexelHeight(metrics) : headArtTexelWidth(metrics);
+            const double texel_y = headArtTexelHeight(metrics);
             // The art is off-centre in its cell by construction (see the constants), so the field
             // is placed at the ART'S centre rather than the head's. The offset rides the rolling
             // flip with everything else, which is why it is rotated here instead of being folded
             // into the shape.
-            const double art_dx = g_head_art_center_x_texels * texel;
+            const double art_dx = g_head_art_center_x_texels * texel_x;
             const double art_dy =
-                (node_head ? g_node_head_art_center_y_texels : g_head_art_center_y_texels) * texel;
+                (node_head ? g_node_head_art_center_y_texels : g_head_art_center_y_texels) *
+                texel_y;
             pushAccentGlow(
                 accent_glow_vertices,
                 accent_glow_indices,
@@ -5030,17 +5092,21 @@ void HighwayRenderer::Impl::draw(
                           // Scaled with the base it traces: a light sized to the unscaled
                           // silhouette would sit inside a grown diamond, or spill past a
                           // shrunken one.
-                          .half_w =
-                              g_node_head_art_half_span_texels * texel * harmonic_size.diamond_scale,
-                          .half_h =
-                              g_node_head_art_half_span_texels * texel * harmonic_size.diamond_scale,
+                          .half_w = g_node_head_art_half_span_texels * texel_y *
+                                    harmonic_size.diamond_scale,
+                          .half_h = g_node_head_art_half_span_texels * texel_y *
+                                    harmonic_size.diamond_scale,
                           .corner = 0.0,
                           .rhombus = true,
                       }
                     : GlowShape{
-                          .half_w = g_head_art_half_width_texels * texel,
-                          .half_h = g_head_art_half_height_texels * texel,
-                          .corner = g_head_art_corner_texels * texel,
+                          .half_w = g_head_art_half_width_texels * texel_x,
+                          .half_h = g_head_art_half_height_texels * texel_y,
+                          // Via the y texel: under the width knob the art's corner is elliptical
+                          // while the field takes one radius, and the height axis is the
+                          // unsquashed one. The mismatch is bounded by the squash — sub-texel at
+                          // every candidate.
+                          .corner = g_head_art_corner_texels * texel_y,
                           .rhombus = false,
                       },
                 accent_light.reach,

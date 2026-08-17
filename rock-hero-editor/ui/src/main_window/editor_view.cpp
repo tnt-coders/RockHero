@@ -1035,6 +1035,16 @@ void EditorView::togglePreviewWindow()
                     EditorCommandId::CaretJumpNextSection,
                     EditorCommandId::GridFiner,
                     EditorCommandId::GridCoarser,
+                    // EXPERIMENT SCAFFOLDING — the appearance samplers forward too: their whole
+                    // purpose is watching the preview change, so the keys must work where the
+                    // eyes are. Before this they died silently whenever the preview had focus,
+                    // and every sighting ran through a click back to the main window. Removed
+                    // with the samplers when their tables go.
+                    EditorCommandId::CycleAccentStyle,
+                    EditorCommandId::CycleFamilyScale,
+                    EditorCommandId::CycleStringSpacing,
+                    EditorCommandId::CycleHarmonicSize,
+                    EditorCommandId::CycleHeadWidth,
                 };
                 const juce::CommandID command =
                     m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
@@ -1399,6 +1409,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CycleFamilyScale:
         case EditorCommandId::CycleStringSpacing:
         case EditorCommandId::CycleHarmonicSize:
+        case EditorCommandId::CycleHeadWidth:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1617,6 +1628,17 @@ bool EditorView::perform(const InvocationInfo& info)
             if (m_preview_window != nullptr)
             {
                 m_preview_window->cycleHarmonicSize();
+            }
+            return true;
+        }
+
+        // EXPERIMENT SCAFFOLDING — the head-width axis measurement split off the family scale:
+        // width narrows alone against a held height, and the sustain tail follows it.
+        case EditorCommandId::CycleHeadWidth:
+        {
+            if (m_preview_window != nullptr)
+            {
+                m_preview_window->cycleHeadWidth();
             }
             return true;
         }

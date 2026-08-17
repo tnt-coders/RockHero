@@ -167,6 +167,13 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::CycleHeadWidth,
+            .name = "Cycle Note Head Width (experiment)",
+            .category = "View",
+            .default_keypresses = {chord(juce::KeyPress::F10Key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
             // "at Cursor" = the marker rule (E2): the armed caret when one exists, else the
             // transport position — the same "one position concept" play follows, so the insert

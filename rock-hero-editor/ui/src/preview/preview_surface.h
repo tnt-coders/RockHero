@@ -113,6 +113,13 @@ public:
     */
     void cycleHarmonicSize();
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycles the note head's width and logs the candidate.
+
+    The axis measurement split off the family scale: width narrows alone, the tail follows.
+    */
+    void cycleHeadWidth();
+
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
 
