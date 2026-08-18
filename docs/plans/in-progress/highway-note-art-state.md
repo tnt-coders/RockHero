@@ -372,6 +372,49 @@ thing that writes the deployed copies.
 
 ## Decided, with the numbers the decisions rest on
 
+**Vibrato runs at ONE FIXED RATE, 5.0 Hz (period 0.2 s), independent of tempo and meter.
+Built 2026-08-18; AWAITING SIGHTING.** The user: *"Vibrato looks WAY too slow on some songs and
+WAY too fast on others"*, proposing a fixed rate. The diagnosis confirmed it: the wobble had been
+locked to the grid's eighth note, making its frequency literally BPM/30 Hz.
+
+Measured against the user's own 102-song corpus, that ran **2.0 Hz** (Animals As Leaders, 59.5
+BPM) to **7.1 Hz** (Lamb Of God, 213 BPM) — a 3.6x spread with nothing musical behind it.
+Against the 4—7 Hz real-vibrato band this project already researched for detection
+(`docs/plans/roadmap/22-note-detection.md`), **27% of the library drew vibrato slower than any
+hand produces**, and the drawn rate was physically plausible only between 120 and 210 BPM. The
+underlying error is a category one: vibrato rate is a property of the player's WRIST, not of the
+song's grid, so deriving it from tempo was never right at any value.
+
+**The rate was chosen so the songs that already read correctly barely move**: the library's
+median song (145 BPM) drew 4.83 Hz, and 5.0 Hz is the round value beside it. It sits deliberately
+BELOW the physical band's middle, because two faster settings were already built and rejected on
+sight — a fixed 160 ms sine (6.25 Hz) read *"frantic"* (`597ebd04`), and a sixteenth-note lock
+(8 Hz at 120 BPM) *"still read too fast"* (`41af229e`). That is worth stating plainly rather than
+treating as a mistake: a DRAWN wobble reads busier than the pitch waver it depicts, because the
+eye tracks the whole screen excursion, so the drawn rate belongs under the physical one. This is a
+legibility choice, the same category as the bend anchor. **The user's own proposal in this round
+was the sixteenth at 120 BPM — numerically identical to the setting `41af229e` had already
+rejected** — so the rejection history was surfaced before building, and the round number nearest
+the median was shipped instead.
+
+The fix DELETED rather than added: `highwayVibratoPeriodSeconds` and its beat-interval search are
+gone, and with them the signature-denominator conversion into the quarter-note frame plus the
+whole "a beat of 12/8 is an eighth, so the raw interval runs vibrato at double speed" bug class
+that conversion existed to patch. `HighwayBeatView::signature_denominator` lost its only consumer
+and went too (recover it from git if the grid ever needs re-reading). `g_highway_vibrato_period_seconds`
+stopped being a fallback and became the one authority.
+
+**Ruled at the same time: no roadmap plan for grid-derived vibrato.** The user asked whether to
+plan making the rate configurable from the song's grid later. That would re-introduce exactly the
+defect removed here, so it is deliberately NOT planned. The musically real axis, if vibrato ever
+earns more expression, is per-note CHARACTER — wide-and-slow against narrow-and-fast, which is a
+performance choice notation already distinguishes and which the chart cannot say today (it
+carries a bare `bool vibrato`, and the importer sets it from the element's presence alone).
+
+Untouched by this: the 2D lane's vibrato squiggle runs on a SPATIAL period (a multiple of the
+tail height in pixels), because there it is a notation mark rather than a real-time oscillation.
+The two surfaces model different things on purpose; this is not a divergence to reconcile.
+
 **The complete mark-sizing law, SIGNED 2026-08-18 and shipped in the marks-final atlas.**
 Every head-riding technique mark is 1.07 x the string pitch tall (24.5766 tx). Width by group:
 palm mute, pinch harmonic, slap, pop and tap at **44.52 tx** wide — equal overhang past the head

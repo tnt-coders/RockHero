@@ -312,32 +312,22 @@ TEST_CASE("Highway tremolo envelope ramps in teeth, not duration", "[core][highw
     CHECK(highwayTremoloEnvelope(5.0, 1.0) == Catch::Approx(0.0));
 }
 
-// The vibrato period locks to the song grid: one full wobble per EIGHTH NOTE — a
-// quarter-note-referenced duration, converted through the measure's denominator, never a raw
-// fraction of the signature-beat interval — plus the nearest interval outside the grid and the
-// fallback without one.
-TEST_CASE("Highway vibrato period follows the grid's eighth note", "[core][highway][tail]")
+// The wobble rate is FIXED: the same period whatever the song's tempo or meter, because a
+// vibrato's speed is the player's hand rather than the grid. Pins the rate inside the real
+// 4-7 Hz vibrato band, and pins that a whole period elapses in exactly that time.
+TEST_CASE("Highway vibrato runs at one fixed rate", "[core][highway][tail]")
 {
-    const std::vector<HighwayBeatView> beats{
-        {.seconds = 0.0, .measure_downbeat = true},
-        {.seconds = 0.5, .measure_downbeat = false},
-        {.seconds = 1.1, .measure_downbeat = false},
-    };
-    CHECK(highwayVibratoPeriodSeconds(beats, 0.25) == Catch::Approx(0.25));
-    CHECK(highwayVibratoPeriodSeconds(beats, 0.8) == Catch::Approx(0.3));
-    CHECK(highwayVibratoPeriodSeconds(beats, -1.0) == Catch::Approx(0.25));
-    CHECK(highwayVibratoPeriodSeconds(beats, 5.0) == Catch::Approx(0.3));
-    CHECK(highwayVibratoPeriodSeconds({}, 1.0) == Catch::Approx(g_highway_vibrato_period_seconds));
+    const double frequency = 1.0 / g_highway_vibrato_period_seconds;
+    CHECK(frequency >= 4.0);
+    CHECK(frequency <= 7.0);
 
-    // A beat of 12/8 is an EIGHTH note. At the same tempo where a 4/4 beat lasts 0.5s, the
-    // eighth-note beat lasts 0.25s — and the wobble must come out at the same 0.25s eighth,
-    // not half of it (the raw-interval bug that ran vibrato at double speed in x/8 meters).
-    const std::vector<HighwayBeatView> compound{
-        {.seconds = 0.0, .measure_downbeat = true, .signature_denominator = 8},
-        {.seconds = 0.25, .measure_downbeat = false, .signature_denominator = 8},
-        {.seconds = 0.5, .measure_downbeat = false, .signature_denominator = 8},
-    };
-    CHECK(highwayVibratoPeriodSeconds(compound, 0.1) == Catch::Approx(0.25));
+    // Onset-phased: zero at the onset, back to zero after exactly one period, and at its
+    // extremes a quarter and three quarters of the way through.
+    const double period = g_highway_vibrato_period_seconds;
+    CHECK(highwayVibratoWobble(0.0, period) == Catch::Approx(0.0).margin(1.0e-12));
+    CHECK(highwayVibratoWobble(period / 4.0, period) == Catch::Approx(1.0));
+    CHECK(highwayVibratoWobble(period * 3.0 / 4.0, period) == Catch::Approx(-1.0));
+    CHECK(highwayVibratoWobble(period, period) == Catch::Approx(0.0).margin(1.0e-12));
 }
 
 // Sample times cover the span, include every technique control point inside it exactly, and

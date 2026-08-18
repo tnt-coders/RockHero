@@ -3953,12 +3953,9 @@ void HighwayRenderer::Impl::draw(
         const int displayed_lane = invert ? (state.string_count + 1 - note.string) : note.string;
         const double bend_direction =
             common::core::highwayBendInverted(displayed_lane, state.string_count) ? -1.0 : 1.0;
-        // The wobble completes one full period per eighth note of the song grid at the
-        // note's onset, so vibrato breathes with the song's tempo.
-        const double vibrato_period_seconds =
-            note.vibrato
-                ? common::core::highwayVibratoPeriodSeconds(state.beats, note.start_seconds)
-                : common::core::g_highway_vibrato_period_seconds;
+        // One fixed wobble rate for every song and tempo: a vibrato's speed is the player's
+        // hand, not the song's grid (see g_highway_vibrato_period_seconds).
+        constexpr double vibrato_period_seconds = common::core::g_highway_vibrato_period_seconds;
         const auto note_y_at = [&](const double seconds, const double taper) {
             double semitones =
                 common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds);

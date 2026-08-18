@@ -587,15 +587,6 @@ struct HighwayBeatView
     bool measure_downbeat{false};
 
     /*!
-    \brief The measure's signature denominator: the note value one grid beat spans.
-
-    What lets a consumer convert a beat interval into the QUARTER-NOTE frame musical durations
-    are referenced in: a beat of 12/8 is an eighth note, so anything derived from the raw
-    interval alone runs double speed there (the vibrato period was — user, 2026-08-15).
-    */
-    int signature_denominator{4};
-
-    /*!
     \brief Compares two beat views by their stored fields.
     \param lhs Left-hand beat view.
     \param rhs Right-hand beat view.
@@ -605,8 +596,7 @@ struct HighwayBeatView
         const HighwayBeatView& lhs, const HighwayBeatView& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               lhs.measure_downbeat == rhs.measure_downbeat &&
-               lhs.signature_denominator == rhs.signature_denominator;
+               lhs.measure_downbeat == rhs.measure_downbeat;
     }
 };
 

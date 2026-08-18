@@ -126,37 +126,6 @@ double highwaySlideEaseWeight(const double progress, const bool unpitched) noexc
     return eased * eased * eased;
 }
 
-// One full wobble per EIGHTH NOTE — a quarter-note-referenced duration, never a
-// signature-beat one (user rule 2026-08-15): a beat of 12/8 is an eighth, so dividing the raw
-// beat interval ran the wobble at double speed there. The interval converts into the
-// quarter-note frame through the measure's own denominator before the division; in x/4 the two
-// frames coincide. Fixed fallback for grids that yield no interval.
-double highwayVibratoPeriodSeconds(
-    const std::span<const HighwayBeatView> beats, const double onset_seconds) noexcept
-{
-    if (beats.size() < 2)
-    {
-        return g_highway_vibrato_period_seconds;
-    }
-    // The beat interval containing the onset, clamped to the grid's first or last interval
-    // when the onset falls outside it.
-    const auto after =
-        std::ranges::upper_bound(beats, onset_seconds, {}, &HighwayBeatView::seconds);
-    const auto index = std::clamp<std::ptrdiff_t>(
-        after - beats.begin(), 1, static_cast<std::ptrdiff_t>(beats.size()) - 1);
-    const HighwayBeatView& from = beats[static_cast<std::size_t>(index - 1)];
-    const double interval = beats[static_cast<std::size_t>(index)].seconds - from.seconds;
-    if (!(interval > 0.0) || from.signature_denominator <= 0)
-    {
-        return g_highway_vibrato_period_seconds;
-    }
-    // The interval spans one 1/denominator note, so a quarter note spans denominator/4 of it,
-    // and the eighth-note wobble is half of that.
-    const double quarter_note_seconds =
-        interval * static_cast<double>(from.signature_denominator) / 4.0;
-    return quarter_note_seconds / 2.0;
-}
-
 // Onset-phased sine at the caller-derived period.
 double highwayVibratoWobble(const double seconds_from_onset, const double period_seconds) noexcept
 {

@@ -14,15 +14,25 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Fallback vibrato wobble period in seconds — the eighth note at 120 BPM.
+\brief Vibrato wobble period in seconds, FIXED for every song and tempo (5.0 Hz).
 
-The drawn vibrato completes one full wobble per eighth note of the song grid
-(highwayVibratoPeriodSeconds), so the wobble breathes with the song's tempo instead of a
-fixed wall-clock rate (the prior 160 ms sine read too frantic, as did the sixteenth-note
-lock this replaced). This constant only covers grids that yield no beat interval around the
-onset.
+A vibrato's rate is a property of the player's hand, not of the song: the wrist oscillates at
+its own frequency whether the piece is a ballad or a thrash number, which is why the detection
+plan bands real guitar vibrato at 4—7 Hz without reference to tempo
+(docs/plans/roadmap/22-note-detection.md). The drawn wobble had been locked to the grid's
+eighth note, so it ran at BPM/30 Hz — 2.0 Hz at 60 BPM and 7.1 Hz at 213, the two ends of
+the user's own library, which is both slower and faster than any hand produces (user
+2026-08-18: *"vibrato looks WAY too slow on some songs and WAY too fast on others"*).
+
+The value sits where the library's MEDIAN song already drew (145 BPM gave 4.83 Hz), so the
+songs that read correctly are the ones that barely move. It is deliberately below the physical
+band's middle: two faster settings were built and rejected on sight — a fixed 160 ms sine
+(6.25 Hz) read "frantic" (`597ebd04`), and a sixteenth-note lock (8 Hz at 120 BPM) "still read
+too fast" (`41af229e`). A drawn wobble reads busier than the real thing it depicts, because the
+eye tracks the whole screen excursion rather than hearing a pitch waver, so the drawn rate
+belongs below the physical one. This is a legibility choice, stated as such.
 */
-inline constexpr double g_highway_vibrato_period_seconds = 0.25;
+inline constexpr double g_highway_vibrato_period_seconds = 0.2;
 
 /*!
 \brief Vibrato wobble depth in semitones of bend lift — a sixteenth of a step each way.
@@ -203,28 +213,13 @@ release early (1 - sin((1 - progress) * pi / 2)).
 [[nodiscard]] double highwaySlideEaseWeight(double progress, bool unpitched) noexcept;
 
 /*!
-\brief Returns the vibrato wobble period at an onset: one full wobble per eighth note.
-
-Half the quarter-note duration around the onset, derived from the song-grid beat interval
-containing it (the nearest interval when the onset falls outside the grid), so the wobble
-tracks the song's tempo; falls back to g_highway_vibrato_period_seconds when the grid
-yields no positive interval.
-
-\param beats The song grid beats in ascending order.
-\param onset_seconds The note onset.
-\return Period in seconds, always positive.
-*/
-[[nodiscard]] double highwayVibratoPeriodSeconds(
-    std::span<const HighwayBeatView> beats, double onset_seconds) noexcept;
-
-/*!
 \brief Returns the vibrato wobble at a time from the note onset, as a signed unit factor.
 
 Onset-phased on purpose (absolute-time phasing desynchronizes repeated notes); callers scale
 by the bend lift distance and the taper envelope.
 
 \param seconds_from_onset Time since the note onset.
-\param period_seconds Wobble period, from highwayVibratoPeriodSeconds.
+\param period_seconds Wobble period; callers pass g_highway_vibrato_period_seconds.
 \return Wobble factor in [-1, 1].
 */
 [[nodiscard]] double highwayVibratoWobble(

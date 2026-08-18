@@ -319,7 +319,6 @@ HighwayViewState makeHighwayViewState(
             HighwayBeatView{
                 .seconds = beat_cursor.secondsAt(static_cast<double>(index)),
                 .measure_downbeat = beat_in_measure == 1,
-                .signature_denominator = tempo_map.timeSignatureAt(measure).denominator,
             });
     }
 
