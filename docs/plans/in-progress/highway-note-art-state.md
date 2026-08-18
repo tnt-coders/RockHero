@@ -12,10 +12,19 @@ separate track. When resuming, read both.
 
 ## In flight right now
 
-**Queued experiment (user, 2026-08-18): remove the rectangular note head under pick slides.**
-*"Pick slides are somewhat a special case and the rectangle feels like it doesn't really fit"* —
-try the scrape wearing the plectrum alone, with no head base beneath it. Queued for "after the
-rest of this settles"; the toggle cleanup below has settled, so this is next.
+**BUILT and awaiting sighting — the BARE SCRAPE (user, 2026-08-18): no rectangular head under
+a pick slide.** *"Pick slides are somewhat a special case and the rectangle feels like it
+doesn't really fit"* — the scrape now wears the plectrum alone. Three coupled surfaces moved
+together, each stated at its site in the renderer: the base quad is skipped; the anticipation
+ring is skipped (the ring is the head's hollow twin, and announcing a rectangle that never lands
+is the approach-lie the one-shape law forbids); and an accented scrape takes NO head light — a
+lamp behind a head that is not there would show its whole solid field, the deleted rectangle
+back in light form — so its accent rides the tail light alone. `highwayTechHead` lost its scrape
+clause with the base. Open follow-ups if the bare look signs: whether the plectrum wants a light
+of its own (its silhouette is not measured in `head_art_profile`, and the distance field has no
+plectrum shape), and whether a scrape needs a landing cue back in the approach. Signed or
+reverted from git once sighted; the pre-bend outline is untouched, since its gate cannot fire
+for unpitched travel.
 
 **The ACCENT LIGHT is SIGNED 2026-08-18: `medium flat`** — reach 0.12 world, alpha 1.0, exponent
 2.0, gain 1.0, additive blend. The user: *"'accent light: medium flat' looks best"*, signed with

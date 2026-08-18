@@ -4800,8 +4800,12 @@ void HighwayRenderer::Impl::draw(
         // The landing spot is the chart-truth station: a pre-bend's ring sits on the TARGET
         // outline, not on the still-rising head, so the ring names the destination while the head
         // is still on its way to it.
+        // A scrape gets no ring: the ring is the head's hollow twin, and a scrape lands no head
+        // (see the base draw below), so a rectangle here would announce a shape that never
+        // arrives — exactly the approach-lies-about-the-landing defect the one-shape law exists
+        // to prevent. Part of the same sighting experiment as the base skip.
         const double seconds_out = note.start_seconds - now_seconds;
-        if (seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
+        if (!scrape && seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
         {
             double ring_scale =
                 std::min(1.0, 1.0 - (0.5 * ((seconds_out - 0.25) / g_anticipation_seconds)));
@@ -4916,30 +4920,38 @@ void HighwayRenderer::Impl::draw(
 
         // Head base: the round node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
-        // else the technique variant under left-hand technique markers and under a scrape — its
-        // travel is unpitched noise, so it takes the darker base a full-muted note takes, and
-        // the pick mark then sits on that base rather than on an X — else the standard head.
-        // Both predicates are stated once, in highway_head_marks.h.
-        const std::array<float, 4> base_cell =
-            node_head               ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
-            : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
-                                    : head_cell;
-        const auto corner = [&](const double dx, const double dy, const float u, const float v) {
-            return makeUvVertex(
-                x + (dx * cos_r) - (dy * sin_r),
-                head_y + (dx * sin_r) + (dy * cos_r),
-                z,
-                tint,
-                u,
-                v);
-        };
-        pushQuad(
-            head_vertices,
-            head_indices,
-            corner(-base_half_w, -base_half_h, base_cell[0], base_cell[3]),
-            corner(base_half_w, -base_half_h, base_cell[2], base_cell[3]),
-            corner(base_half_w, base_half_h, base_cell[2], base_cell[1]),
-            corner(-base_half_w, base_half_h, base_cell[0], base_cell[1]));
+        // else the technique variant under left-hand technique markers — else the standard
+        // head. Both predicates are stated once, in highway_head_marks.h.
+        //
+        // A scrape draws NO base at all — the plectrum mark stands alone. EXPERIMENT being
+        // sighted (user 2026-08-18: the rectangle "feels like it doesn't really fit" under a
+        // pick slide); signed or reverted from git once judged. Its travel is unpitched noise
+        // with no fret to state, so there is no pitch for a head to claim — the mark, the travel
+        // ribbon and the floor cues carry the note.
+        if (!scrape)
+        {
+            const std::array<float, 4> base_cell =
+                node_head               ? atlases.head_layout.cellRect(g_head_cell_harmonic_base)
+                : highwayTechHead(note) ? atlases.head_layout.cellRect(g_head_cell_tech)
+                                        : head_cell;
+            const auto corner =
+                [&](const double dx, const double dy, const float u, const float v) {
+                    return makeUvVertex(
+                        x + (dx * cos_r) - (dy * sin_r),
+                        head_y + (dx * sin_r) + (dy * cos_r),
+                        z,
+                        tint,
+                        u,
+                        v);
+                };
+            pushQuad(
+                head_vertices,
+                head_indices,
+                corner(-base_half_w, -base_half_h, base_cell[0], base_cell[3]),
+                corner(base_half_w, -base_half_h, base_cell[2], base_cell[3]),
+                corner(base_half_w, base_half_h, base_cell[2], base_cell[1]),
+                corner(-base_half_w, base_half_h, base_cell[0], base_cell[1]));
+        }
 
         // The loud end is added LIGHT, around the head's own silhouette, into a batch that submits
         // BEFORE the heads so it sits under the note rather than repainting it.
@@ -4949,7 +4961,14 @@ void HighwayRenderer::Impl::draw(
         // head-heights out and reads as a lit box the note sits inside — which is what the first
         // attempt at this did. A node head takes the RHOMBUS field instead: its base is a diamond,
         // and a rectangular glow around a diamond leaves four lit corners with nothing under them.
-        if (common::core::isAccented(note.emphasis))
+        //
+        // A scrape takes no head light while the bare-scrape experiment stands: this is a lamp
+        // BEHIND THE HEAD, and with no head over it the solid field would show its whole
+        // interior — the deleted rectangle returning in light form, contaminating the very look
+        // being judged. An accented scrape states its accent on the tail light; whether the
+        // plectrum should wear a light of its own (its silhouette is not in head_art_profile,
+        // and the field has no plectrum shape) is a decision for after the bare look is judged.
+        if (!scrape && common::core::isAccented(note.emphasis))
         {
             // World-per-texel per drawn axis. The rectangle head's quad takes the width metric
             // on x, so its texels are anisotropic under the head-width knob; a node head's quad
