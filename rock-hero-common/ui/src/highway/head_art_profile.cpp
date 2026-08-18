@@ -146,7 +146,7 @@ radius minimizes the arc's squared error by golden-section search. Per candidate
 points inside the arc's own quadrant count — points on the straight edges describe the sides, not
 the corner.
 */
-[[nodiscard]] double fitCornerRadius(
+[[nodiscard]] std::optional<double> fitCornerRadius(
     const CellView& cell, const double threshold, const double center_x, const double center_y,
     const double half_w, const double half_h)
 {
@@ -222,7 +222,15 @@ the corner.
             cost_b = cost(b);
         }
     }
-    return (lo + hi) / 2.0;
+    const double radius = (lo + hi) / 2.0;
+    // If even the converged radius captures too few points, the search only ever walked the
+    // flat ruled-out plateau: art with no corner arc to read. Fail loudly rather than return
+    // the capsule bound the plateau converges to as though it were a fit.
+    if (cost(radius) >= std::numeric_limits<double>::max())
+    {
+        return std::nullopt;
+    }
+    return radius;
 }
 
 } // namespace
@@ -312,7 +320,8 @@ std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(const ju
     // |x - cx| + |y - cy| = span on the art's straight edges, so the span is the mean over rows
     // clear of the vertices (where a degenerate sliver would swamp the interpolation).
     double span_sum = 0.0;
-    int span_count = 0;
+    std::vector<double> row_spans;
+    row_spans.reserve(static_cast<std::size_t>(node.size));
     for (int y = 0; y < node.size; ++y)
     {
         const std::optional<Crossings> line = lineCrossings(node, y, true, node_threshold);
@@ -320,24 +329,43 @@ std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(const ju
         {
             continue;
         }
-        span_sum += ((line->hi - line->lo) / 2.0) + std::abs(static_cast<double>(y) - node_cy);
-        ++span_count;
+        const double row_span =
+            ((line->hi - line->lo) / 2.0) + std::abs(static_cast<double>(y) - node_cy);
+        span_sum += row_span;
+        row_spans.push_back(row_span);
     }
-    if (span_count < 4)
+    if (row_spans.size() < 4)
     {
         return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
-    const double node_half_span = span_sum / span_count;
+    const double node_half_span = span_sum / static_cast<double>(row_spans.size());
+    // The edge law is the measurement MODEL, so it is also the guard: every row of a true
+    // diamond agrees on the span (the shipped art deviates by under 0.12 texels), while a
+    // non-diamond here would land a plausible mean inside the sanity band below and get a
+    // rhombus field fitted to a silhouette that is not there. A full texel of disagreement is
+    // far outside any authored diamond.
+    for (const double row_span : row_spans)
+    {
+        if (std::abs(row_span - node_half_span) > 1.0)
+        {
+            return std::unexpected(StructuralArtError::UnanalyzableArt);
+        }
+    }
     if (node_half_span < 4.0 || node_half_span > quad_center)
     {
         return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
 
+    const std::optional<double> corner = fitCornerRadius(
+        standard, standard_threshold, standard_cx, standard_cy, half_width, half_height);
+    if (!corner.has_value())
+    {
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
+    }
     return HeadArtProfile{
         .half_width_texels = half_width,
         .half_height_texels = half_height,
-        .corner_texels = fitCornerRadius(
-            standard, standard_threshold, standard_cx, standard_cy, half_width, half_height),
+        .corner_texels = *corner,
         .center_x_texels = standard_cx - quad_center,
         .center_y_texels = -(standard_cy - quad_center),
         .node_half_span_texels = node_half_span,

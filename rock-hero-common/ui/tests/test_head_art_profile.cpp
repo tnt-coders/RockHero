@@ -297,6 +297,27 @@ TEST_CASE("Head art profile rejects a diverged tech head", "[ui][highway]")
     CHECK(profile.error() == StructuralArtError::UnanalyzableArt);
 }
 
+// The node cell's measurement assumes the diamond edge law; a shape whose rows disagree about
+// the span (a rectangle here) must fail as unanalyzable instead of getting a rhombus field
+// fitted to a silhouette that is not there.
+TEST_CASE("Head art profile rejects a non-diamond node cell", "[ui][highway]")
+{
+    juce::Image atlas = blankAtlas();
+    paintRectangle(atlas, 12, 52, 22, 42, 255);
+    mirrorStandardToTech(atlas);
+    // A 31 x 21 solid rectangle in the node cell: every row spans the same half width, so the
+    // edge-law estimate 15.5 + |dy| disagrees across rows by ~10 texels.
+    paintRectangle(atlas, 17, 47, g_cell + 22, g_cell + 42, 255);
+
+    const std::expected<HeadArtProfile, StructuralArtError> profile = measureHeadArtProfile(atlas);
+    REQUIRE_FALSE(profile.has_value());
+    if (profile.has_value())
+    {
+        return;
+    }
+    CHECK(profile.error() == StructuralArtError::UnanalyzableArt);
+}
+
 // The shipped asset has to satisfy its own contract. Everything above measures synthetic art,
 // so this is the only check that covers the real file: a re-bake shipping an alpha channel, a
 // diverged tech cell, or art the measurement cannot read fails here instead of at application

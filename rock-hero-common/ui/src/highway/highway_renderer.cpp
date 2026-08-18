@@ -687,15 +687,29 @@ constexpr int g_window_slice_cap = 160;
 // Ascending sample times covering [from, to] for window-following geometry: the endpoints, plus
 // every overlapping ramp's clamped bounds and interior slices. Settled stretches contribute no
 // interior samples — the window is constant there, so segments between samples stay straight.
-[[nodiscard]] std::vector<double> windowSampleTimes(
-    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds)
+// Fills the caller's buffer rather than allocating (draw() calls this per shape rail and per
+// moving open tail), and visits only the placements that can overlap the span: arrivals ascend,
+// so the walk starts past `from`, and once an arrival sits `max_ramp_seconds` past `to` neither
+// it nor anything later can reach back into the window.
+void windowSampleTimes(
+    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds,
+    const double max_ramp_seconds, std::vector<double>& times)
 {
-    std::vector<double> times{from_seconds};
-    for (std::size_t index = 0; index < state.fret_hand_positions.size(); ++index)
+    times.clear();
+    times.push_back(from_seconds);
+    const std::vector<common::core::HighwayFhpView>& fhps = state.fret_hand_positions;
+    const auto start = static_cast<std::size_t>(
+        std::ranges::upper_bound(
+            fhps, from_seconds, std::ranges::less{}, &common::core::HighwayFhpView::seconds) -
+        fhps.begin());
+    for (std::size_t index = start; index < fhps.size(); ++index)
     {
-        const common::core::HighwayFhpView& fhp = state.fret_hand_positions[index];
-        if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= from_seconds ||
-            fhp.seconds - fhp.ramp_seconds >= to_seconds)
+        const common::core::HighwayFhpView& fhp = fhps[index];
+        if (fhp.seconds - max_ramp_seconds >= to_seconds)
+        {
+            break;
+        }
+        if (fhp.ramp_seconds <= 0.0 || fhp.seconds - fhp.ramp_seconds >= to_seconds)
         {
             continue;
         }
@@ -727,7 +741,6 @@ constexpr int g_window_slice_cap = 160;
     std::ranges::sort(times);
     const auto duplicates = std::ranges::unique(times);
     times.erase(duplicates.begin(), duplicates.end());
-    return times;
 }
 
 // Appends one quad (two triangles) to a CPU-side batch.
@@ -1555,6 +1568,96 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
 All bgfx-facing state and drawing lives here, behind the public header's opaque pointer, so the
 framework never leaks into common/ui's interface (the Tracktion isolation treatment).
 */
+// One deferred technique-marker quad; the marker-deferral rationale (why markers collect per
+// onset group instead of drawing inline) lives at the pending_markers site in draw().
+struct PendingMarker
+{
+    double x{0.0};
+    double y{0.0};
+    double z{0.0};
+    double cos_r{1.0};
+    double sin_r{0.0};
+    double half_w{0.0};
+    double half_h{0.0};
+    int cell{0};
+    std::uint32_t tint{0};
+    bool flip_v{false};
+};
+
+// One scrolling floor label (fret number or node decimal); the ordering and draining rules live
+// at the floor-number banner in draw().
+struct FloorNumber
+{
+    double seconds{0.0};
+    double z{0.0};
+    int fret{0};
+    // A natural harmonic's node: the label prints the DECIMAL position and centers on the
+    // node's exact spot rather than the fret slot's middle, because the decimal is the
+    // information — nothing else on the board states where between the wires the touch lands.
+    std::optional<double> node{};
+    ArgbColor base{0};
+    bool fade{false};
+    double alpha{1.0};
+};
+
+// Geometry and label scratch reused across frames, so a steady scene stops allocating on the
+// per-frame deadline path; within a frame the batches are still cleared per onset group exactly
+// as before. INVARIANT: every member is cleared in clearForFrame() at the top of draw() — a
+// missed clear draws last frame's content into this one.
+struct FrameScratch
+{
+    std::vector<PosColorVertex> shadow_vertices;
+    std::vector<std::uint16_t> shadow_indices;
+    std::vector<PosColorVertex> rail_vertices;
+    std::vector<std::uint16_t> rail_indices;
+    std::vector<PosColorVertex> open_vertices;
+    std::vector<std::uint16_t> open_indices;
+    std::vector<PosColorGlowVertex> accent_glow_vertices;
+    std::vector<std::uint16_t> accent_glow_indices;
+    std::vector<PosColorUvVertex> head_vertices;
+    std::vector<std::uint16_t> head_indices;
+    std::vector<PosColorVertex> box_vertices;
+    std::vector<std::uint16_t> box_indices;
+    std::vector<PosColorUvVertex> box_marker_vertices;
+    std::vector<std::uint16_t> box_marker_indices;
+    std::vector<PosColorGlowVertex> box_glow_vertices;
+    std::vector<std::uint16_t> box_glow_indices;
+    std::vector<PosColorUvVertex> number_vertices;
+    std::vector<std::uint16_t> number_indices;
+    std::vector<std::size_t> visible;
+    std::vector<double> lane_key;
+    std::vector<double> window_times;
+    std::vector<PendingMarker> pending_markers;
+    std::vector<FloorNumber> floor_numbers;
+
+    void clearForFrame()
+    {
+        shadow_vertices.clear();
+        shadow_indices.clear();
+        rail_vertices.clear();
+        rail_indices.clear();
+        open_vertices.clear();
+        open_indices.clear();
+        accent_glow_vertices.clear();
+        accent_glow_indices.clear();
+        head_vertices.clear();
+        head_indices.clear();
+        box_vertices.clear();
+        box_indices.clear();
+        box_marker_vertices.clear();
+        box_marker_indices.clear();
+        box_glow_vertices.clear();
+        box_glow_indices.clear();
+        number_vertices.clear();
+        number_indices.clear();
+        visible.clear();
+        lane_key.clear();
+        window_times.clear();
+        pending_markers.clear();
+        floor_numbers.clear();
+    }
+};
+
 struct HighwayRenderer::Impl
 {
     // Shader programs, one per HighwayShaderSet member.
@@ -1615,6 +1718,13 @@ struct HighwayRenderer::Impl
 
     common::core::HighwayViewState state;
     std::vector<double> sustain_prefix_max;
+    // Natural-harmonic node series, derived once per chart revision like sustain_prefix_max:
+    // the draw path labels and suppresses from this table instead of re-walking every note.
+    std::vector<common::core::HighwayNodeSeries> node_series;
+    // Longest FHP approach ramp, for windowSampleTimes' exact early-out: an arrival this far
+    // past a window's end cannot reach back into it, and neither can any later arrival.
+    double max_fhp_ramp_seconds{0.0};
+    FrameScratch scratch;
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
 
@@ -1841,6 +1951,12 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     assert(m_impl->state.note_group.size() == m_impl->state.notes.size());
     m_impl->sustain_prefix_max =
         common::core::makeSustainPrefixMax(m_impl->state.display_hold_ends);
+    m_impl->node_series = common::core::makeHighwayNodeSeries(m_impl->state.notes);
+    m_impl->max_fhp_ramp_seconds = 0.0;
+    for (const common::core::HighwayFhpView& fhp : m_impl->state.fret_hand_positions)
+    {
+        m_impl->max_fhp_ramp_seconds = std::max(m_impl->max_fhp_ramp_seconds, fhp.ramp_seconds);
+    }
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
 }
@@ -1939,6 +2055,7 @@ void HighwayRenderer::Impl::draw(
     bgfx::touch(g_background_view);
     bgfx::touch(g_board_view);
 
+    scratch.clearForFrame();
     const double scroll = scroll_speed;
     const bool mirrored = state.options.mirrored;
     const bool invert = state.options.invert_string_order;
@@ -2185,8 +2302,8 @@ void HighwayRenderer::Impl::draw(
         bgfx::setUniform(window_light_params.get(), light_params.data());
         std::vector<PosColorUvVertex> vertices;
         std::vector<std::uint16_t> indices;
-        const std::vector<double> times =
-            windowSampleTimes(state, span_start_seconds, span_end_seconds);
+        std::vector<double>& times = scratch.window_times;
+        windowSampleTimes(state, span_start_seconds, span_end_seconds, max_fhp_ramp_seconds, times);
         std::vector<double> zs(times.size());
         std::vector<double> lows(times.size());
         std::vector<double> highs(times.size());
@@ -2549,7 +2666,8 @@ void HighwayRenderer::Impl::draw(
             // stretches consecutive samples share one extent and the trapezoids stay straight.
             const double rail_from = std::max(now_seconds, shape.start_seconds);
             const double rail_to = std::min(shape.end_seconds, span_end_seconds);
-            const std::vector<double> times = windowSampleTimes(state, rail_from, rail_to);
+            std::vector<double>& times = scratch.window_times;
+            windowSampleTimes(state, rail_from, rail_to, max_fhp_ramp_seconds, times);
             for (std::size_t sample = 1; sample < times.size(); ++sample)
             {
                 const auto [a_x0, a_x1] =
@@ -2606,12 +2724,12 @@ void HighwayRenderer::Impl::draw(
     const auto [first_note, last_note] = common::core::visibleEventRange(
         state.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
 
-    std::vector<PosColorVertex> shadow_vertices;
-    std::vector<std::uint16_t> shadow_indices;
-    std::vector<PosColorVertex> rail_vertices;
-    std::vector<std::uint16_t> rail_indices;
-    std::vector<PosColorVertex> open_vertices;
-    std::vector<std::uint16_t> open_indices;
+    std::vector<PosColorVertex>& shadow_vertices = scratch.shadow_vertices;
+    std::vector<std::uint16_t>& shadow_indices = scratch.shadow_indices;
+    std::vector<PosColorVertex>& rail_vertices = scratch.rail_vertices;
+    std::vector<std::uint16_t>& rail_indices = scratch.rail_indices;
+    std::vector<PosColorVertex>& open_vertices = scratch.open_vertices;
+    std::vector<std::uint16_t>& open_indices = scratch.open_indices;
     // ONE accent-light batch for fretted heads and open strings alike, submitted before both so
     // the light sits UNDER whatever it surrounds: drawn over, it repaints the note's own pixels,
     // which was the retired atlas ring's whole problem. The two used to need separate batches
@@ -2619,12 +2737,12 @@ void HighwayRenderer::Impl::draw(
     // just above its own subject. A distance field is neither — it is the same quad and the same
     // program for both — so the layering constraint collapses to "under the notes" and the second
     // batch with it.
-    std::vector<PosColorGlowVertex> accent_glow_vertices;
-    std::vector<std::uint16_t> accent_glow_indices;
-    std::vector<PosColorUvVertex> head_vertices;
-    std::vector<std::uint16_t> head_indices;
+    std::vector<PosColorGlowVertex>& accent_glow_vertices = scratch.accent_glow_vertices;
+    std::vector<std::uint16_t>& accent_glow_indices = scratch.accent_glow_indices;
+    std::vector<PosColorUvVertex>& head_vertices = scratch.head_vertices;
+    std::vector<std::uint16_t>& head_indices = scratch.head_indices;
 
-    std::vector<std::size_t> visible;
+    std::vector<std::size_t>& visible = scratch.visible;
     visible.reserve(last_note - first_note);
     for (std::size_t index = first_note; index < last_note; ++index)
     {
@@ -2646,7 +2764,8 @@ void HighwayRenderer::Impl::draw(
     //   2. base string-lane Y ascending, so a higher-on-screen note paints over a lower one at
     //      the same onset (the static lane Y, never the bend-animated head Y);
     //   3. note index, a unique tiebreak that makes the order total (and thus stable).
-    std::vector<double> lane_key(last_note - first_note, 0.0);
+    std::vector<double>& lane_key = scratch.lane_key;
+    lane_key.assign(last_note - first_note, 0.0);
     for (const std::size_t index : visible)
     {
         const common::core::HighwayNoteView& note = state.notes[index];
@@ -2716,24 +2835,24 @@ void HighwayRenderer::Impl::draw(
     // second plain box — and note heads are never suppressed. Repeated/dead strums render the
     // half-height repeat box with its mute mark. ---
     {
-        std::vector<PosColorVertex> box_vertices;
-        std::vector<std::uint16_t> box_indices;
+        std::vector<PosColorVertex>& box_vertices = scratch.box_vertices;
+        std::vector<std::uint16_t>& box_indices = scratch.box_indices;
         // Repeat-box mute marks render through the SDF program (see box_mute_profile.h for
         // the measured-art model). They ride a different program than the panels, and painter
         // order must hold ACROSS boxes — dense chug chains overlap heavily on screen, and
         // a far box's mark must never composite over a nearer box's panel — so the panel
         // batch flushes before each mark and the mark submits immediately. Draw-call cost is
         // bounded by the visible marked repeat boxes: tens at worst, noise for bgfx.
-        std::vector<PosColorUvVertex> box_marker_vertices;
-        std::vector<std::uint16_t> box_marker_indices;
+        std::vector<PosColorUvVertex>& box_marker_vertices = scratch.box_marker_vertices;
+        std::vector<std::uint16_t>& box_marker_indices = scratch.box_marker_indices;
         // An accented box's light rides the SAME flush as the panel it lights, which puts it
         // after its own panel (so it lands ON the frame rather than behind it). Getting the other
         // half of painter order — a far box's light never washing over a NEARER box — takes an
         // extra flush at each accented box, because boxes otherwise batch across the whole loop.
         // The extra draw calls are bounded by the accented boxes on screen, which is the same
         // bound the muted repeat boxes already pay for the same reason.
-        std::vector<PosColorGlowVertex> box_glow_vertices;
-        std::vector<std::uint16_t> box_glow_indices;
+        std::vector<PosColorGlowVertex>& box_glow_vertices = scratch.box_glow_vertices;
+        std::vector<std::uint16_t>& box_glow_indices = scratch.box_glow_indices;
         const auto flush_box_panels = [&] {
             submitBatch(box_vertices, box_indices, posColorLayout(), color_program.get(), nullptr);
             box_vertices.clear();
@@ -2870,8 +2989,21 @@ void HighwayRenderer::Impl::draw(
             // test below skips the chord), so it must say what the box it replaced would have
             // said. A single accented note inside the arpeggio is not a strum and does not glow
             // the box — its own head already states it.
+            // Groups ascend by onset: binary-search the epsilon neighbourhood and keep the
+            // strict test as the authority inside it.
+            const auto group_candidates = std::ranges::subrange(
+                std::ranges::lower_bound(
+                    state.chord_groups,
+                    shape.start_seconds - g_onset_match_epsilon,
+                    std::ranges::less{},
+                    &common::core::HighwayChordGroupView::start_seconds),
+                std::ranges::upper_bound(
+                    state.chord_groups,
+                    shape.start_seconds + g_onset_match_epsilon,
+                    std::ranges::less{},
+                    &common::core::HighwayChordGroupView::start_seconds));
             const auto struck_group = std::ranges::find_if(
-                state.chord_groups, [&](const common::core::HighwayChordGroupView& group) {
+                group_candidates, [&](const common::core::HighwayChordGroupView& group) {
                     return group.fretting_hand_count >= 2 &&
                            std::abs(group.start_seconds - shape.start_seconds) <
                                g_onset_match_epsilon;
@@ -2883,7 +3015,7 @@ void HighwayRenderer::Impl::draw(
                     // Charter's chord-box rule (3+ sounding strings get the top bar),
                     // counted from the arpeggio's posture strings.
                     .with_top = shape.strings.size() > 2,
-                    .emphasis = struck_group != state.chord_groups.end()
+                    .emphasis = struck_group != group_candidates.end()
                                     ? struck_group->emphasis
                                     : common::core::NoteEmphasis::Normal,
                     .mute = common::core::NoteMute::None,
@@ -2913,8 +3045,21 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            const bool coincides_with_arpeggio =
-                std::ranges::any_of(state.shapes, [&](const common::core::HighwayShapeView& shape) {
+            // Shapes ascend by start: the same epsilon-neighbourhood search as the arpeggio
+            // box's group lookup above, inverted.
+            const bool coincides_with_arpeggio = std::ranges::any_of(
+                std::ranges::subrange(
+                    std::ranges::lower_bound(
+                        state.shapes,
+                        group.start_seconds - g_onset_match_epsilon,
+                        std::ranges::less{},
+                        &common::core::HighwayShapeView::start_seconds),
+                    std::ranges::upper_bound(
+                        state.shapes,
+                        group.start_seconds + g_onset_match_epsilon,
+                        std::ranges::less{},
+                        &common::core::HighwayShapeView::start_seconds)),
+                [&](const common::core::HighwayShapeView& shape) {
                     return shape.arpeggio && std::abs(shape.start_seconds - group.start_seconds) <
                                                  g_onset_match_epsilon;
                 });
@@ -3387,20 +3532,7 @@ void HighwayRenderer::Impl::draw(
     // onset, while marker-over-marker still follows lane order, and the group's markers still sit
     // under nearer groups' flushes so depth ordering across onsets is untouched — deferring
     // globally instead would let a distant note's marker paint over a near note's head.
-    struct PendingMarker
-    {
-        double x{0.0};
-        double y{0.0};
-        double z{0.0};
-        double cos_r{1.0};
-        double sin_r{0.0};
-        double half_w{0.0};
-        double half_h{0.0};
-        int cell{0};
-        std::uint32_t tint{0};
-        bool flip_v{false};
-    };
-    std::vector<PendingMarker> pending_markers;
+    std::vector<PendingMarker>& pending_markers = scratch.pending_markers;
     const auto emit_pending_markers = [&] {
         for (const PendingMarker& marker : pending_markers)
         {
@@ -3474,20 +3606,7 @@ void HighwayRenderer::Impl::draw(
     // number-over-note on ties). Numbers still draw before the board face, whose fret lines and
     // skin keep occluding numbers scrolling in behind it (numbers popping through the fretboard
     // would read as a depth violation). ---
-    struct FloorNumber
-    {
-        double seconds{0.0};
-        double z{0.0};
-        int fret{0};
-        // A natural harmonic's node: the label prints the DECIMAL position and centers on the
-        // node's exact spot rather than the fret slot's middle, because the decimal is the
-        // information — nothing else on the board states where between the wires the touch lands.
-        std::optional<double> node{};
-        ArgbColor base{0};
-        bool fade{false};
-        double alpha{1.0};
-    };
-    std::vector<FloorNumber> floor_numbers;
+    std::vector<FloorNumber>& floor_numbers = scratch.floor_numbers;
     {
         // How deeply a fret's whole lane sits inside a window: the min of its two lines'
         // coverages — the shared signal the number fades and color blends follow.
@@ -3501,67 +3620,51 @@ void HighwayRenderer::Impl::draw(
         // A natural harmonic states its NODE — the first of a repeated series only (user rule
         // 2026-08-15). The fretting finger STANDS on the node, so a new node is a hand position
         // being established under the same one-rule model, and the decimal is the information:
-        // position alone does not tell the player 2.3 from 2.4. A repeat of the same node in an
-        // unbroken run of naturals is already established and stays unlabeled (a chord of
-        // naturals at one node is one statement); any fretting-hand note that is NOT a natural
-        // breaks the run, because the hand left the node. Picking-hand onsets are invisible to
-        // the series, exactly as they are to posture derivation. Runs first because the series'
-        // spans also SUPPRESS the dotted-fret downbeat numbers on the node's own fret — two
-        // numbers in one slot muddy each other, and the node's is the one with information.
-        struct NodeSeries
+        // position alone does not tell the player 2.3 from 2.4. The series themselves are chart
+        // truth, derived once per revision (makeHighwayNodeSeries, stored beside
+        // sustain_prefix_max), so this site only emits the labels for series establishing inside
+        // the window; the spans also SUPPRESS the dotted-fret downbeat numbers on the node's own
+        // fret below — two numbers in one slot muddy each other, and the node's is the one with
+        // the information.
+        for (const common::core::HighwayNodeSeries& series : std::ranges::subrange(
+                 std::ranges::upper_bound(
+                     node_series,
+                     now_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayNodeSeries::begin_seconds),
+                 std::ranges::upper_bound(
+                     node_series,
+                     span_end_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayNodeSeries::begin_seconds)))
         {
-            int fret{0};
-            double begin_seconds{0.0};
-            double end_seconds{0.0};
-        };
-        std::vector<NodeSeries> node_series;
-        {
-            std::optional<double> established_node;
-            for (const common::core::HighwayNoteView& note : state.notes)
-            {
-                if (common::core::rightHandOnset(note.attack))
-                {
-                    continue;
-                }
-                if (!common::core::frettingFingerOnNode(
-                        note.fret, note.harmonic_node, note.attack) ||
-                    !note.harmonic_node.has_value())
-                {
-                    established_node.reset();
-                    continue;
-                }
-                if (established_node == note.harmonic_node)
-                {
-                    node_series.back().end_seconds = note.start_seconds;
-                    continue;
-                }
-                established_node = note.harmonic_node;
-                node_series.push_back(
-                    NodeSeries{
-                        .fret = common::core::fretFor(note),
-                        .begin_seconds = note.start_seconds,
-                        .end_seconds = note.start_seconds,
-                    });
-                if (note.start_seconds > now_seconds && note.start_seconds <= span_end_seconds)
-                {
-                    floor_numbers.push_back(
-                        FloorNumber{
-                            .seconds = note.start_seconds,
-                            .z = time_to_z(note.start_seconds),
-                            .fret = node_series.back().fret,
-                            .node = note.harmonic_node,
-                            .base = g_fret_number_fhp_color,
-                            .fade = true,
-                            .alpha = 1.0,
-                        });
-                }
-            }
+            floor_numbers.push_back(
+                FloorNumber{
+                    .seconds = series.begin_seconds,
+                    .z = time_to_z(series.begin_seconds),
+                    .fret = series.fret,
+                    .node = series.node,
+                    .base = g_fret_number_fhp_color,
+                    .fade = true,
+                    .alpha = 1.0,
+                });
         }
-        const auto node_suppresses = [&node_series](const int fret, const double seconds) {
-            for (const NodeSeries& series : node_series)
+        const auto node_suppresses = [&](const int fret, const double seconds) {
+            // Series ascend by begin and their ends are likewise non-decreasing, so every span
+            // containing `seconds` sits contiguously just before the first later-starting one.
+            auto it = std::ranges::upper_bound(
+                node_series,
+                seconds,
+                std::ranges::less{},
+                &common::core::HighwayNodeSeries::begin_seconds);
+            while (it != node_series.begin())
             {
-                if (series.fret == fret && seconds >= series.begin_seconds &&
-                    seconds <= series.end_seconds)
+                --it;
+                if (it->end_seconds < seconds)
+                {
+                    return false;
+                }
+                if (it->fret == fret)
                 {
                     return true;
                 }
@@ -3572,10 +3675,19 @@ void HighwayRenderer::Impl::draw(
         // Dotted-fret numbers on each visible measure downbeat, lit within the hand range (a
         // downbeat mid-transition blends the dim and active colors by its coverage). A downbeat
         // inside a harmonic series' span yields its number on the node's own fret.
-        for (const common::core::HighwayBeatView& beat : state.beats)
+        for (const common::core::HighwayBeatView& beat : std::ranges::subrange(
+                 std::ranges::lower_bound(
+                     state.beats,
+                     now_seconds - 0.2,
+                     std::ranges::less{},
+                     &common::core::HighwayBeatView::seconds),
+                 std::ranges::upper_bound(
+                     state.beats,
+                     span_end_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayBeatView::seconds)))
         {
-            if (!beat.measure_downbeat || beat.seconds < now_seconds - 0.2 ||
-                beat.seconds > span_end_seconds)
+            if (!beat.measure_downbeat)
             {
                 continue;
             }
@@ -3625,7 +3737,17 @@ void HighwayRenderer::Impl::draw(
         // Upcoming hand-position arrivals, in the FHP orange. An arrival on a harmonic series'
         // own fret yields to the node number — the placement exists BECAUSE the hand goes to the
         // node, so the decimal label already states everything the integer would, and more.
-        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
+        for (const common::core::HighwayFhpView& fhp : std::ranges::subrange(
+                 std::ranges::upper_bound(
+                     state.fret_hand_positions,
+                     now_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayFhpView::seconds),
+                 std::ranges::upper_bound(
+                     state.fret_hand_positions,
+                     span_end_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayFhpView::seconds)))
         {
             if (!node_suppresses(fhp.fret, fhp.seconds))
             {
@@ -3703,8 +3825,8 @@ void HighwayRenderer::Impl::draw(
         return lhs.seconds > rhs.seconds;
     });
 
-    std::vector<PosColorUvVertex> number_vertices;
-    std::vector<std::uint16_t> number_indices;
+    std::vector<PosColorUvVertex>& number_vertices = scratch.number_vertices;
+    std::vector<std::uint16_t>& number_indices = scratch.number_indices;
     std::size_t next_floor_number = 0;
     const double number_z_faded = common::core::highwayTimeToZ(0.05, scroll, metrics);
     const double number_z_close = common::core::highwayTimeToZ(0.25, scroll, metrics);
@@ -4189,10 +4311,12 @@ void HighwayRenderer::Impl::draw(
                 {
                     // Fold in the window's own ramp samples so the band tracks the eased border
                     // exactly instead of aliasing across it.
-                    const std::vector<double> window_times =
-                        windowSampleTimes(state, tail_from, tail_to);
+                    windowSampleTimes(
+                        state, tail_from, tail_to, max_fhp_ramp_seconds, scratch.window_times);
                     sample_times.insert(
-                        sample_times.end(), window_times.begin(), window_times.end());
+                        sample_times.end(),
+                        scratch.window_times.begin(),
+                        scratch.window_times.end());
                     std::ranges::sort(sample_times);
                     const auto duplicates = std::ranges::unique(sample_times);
                     sample_times.erase(duplicates.begin(), duplicates.end());

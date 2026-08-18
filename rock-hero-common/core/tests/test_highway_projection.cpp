@@ -869,6 +869,40 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
     CHECK(late.second == 4);
 }
 
+// Node-series rules: a repeat of the same node extends the run, a fretting-hand non-natural
+// breaks it, a picking-hand onset is invisible to it, and a re-established node starts a new
+// series. The maker moved here from the renderer's per-frame path, so this pins the behavior
+// the floor labels and the dotted-fret suppression read.
+TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
+{
+    std::vector<HighwayNoteView> notes;
+    const auto add_note =
+        [&notes](double start, std::optional<double> node, NoteAttack attack, int fret) {
+            HighwayNoteView note;
+            note.start_seconds = start;
+            note.end_seconds = start + 0.1;
+            note.harmonic_node = node;
+            note.attack = attack;
+            note.fret = fret;
+            notes.push_back(std::move(note));
+        };
+    add_note(1.0, 12.0, NoteAttack::Pick, 0); // Establishes node 12.
+    add_note(2.0, 12.0, NoteAttack::Pick, 0); // Repeat: extends the run, states nothing new.
+    add_note(2.5, 7.0, NoteAttack::Tap, 0);   // Picking-hand onset: invisible, run unbroken.
+    add_note(3.0, 12.0, NoteAttack::Pick, 0); // Still the established node: extends again.
+    add_note(4.0, std::nullopt, NoteAttack::Pick, 5); // Fretted non-natural: the hand leaves.
+    add_note(5.0, 12.0, NoteAttack::Pick, 0);         // Same node after a break: a NEW statement.
+
+    const std::vector<HighwayNodeSeries> series = makeHighwayNodeSeries(notes);
+    REQUIRE(series.size() == 2);
+    CHECK(series[0].fret == 12); // The fret CONTAINING the node (the ceil law).
+    CHECK(series[0].node == Catch::Approx(12.0));
+    CHECK(series[0].begin_seconds == Catch::Approx(1.0));
+    CHECK(series[0].end_seconds == Catch::Approx(3.0));
+    CHECK(series[1].begin_seconds == Catch::Approx(5.0));
+    CHECK(series[1].end_seconds == Catch::Approx(5.0));
+}
+
 // The projection RESOLVES the span-hold rule into seconds rather than restating it: the rule's own
 // case matrix is pinned in beats beside chartEffectiveSustains, and what matters here is that the
 // resolution lands on the right second and that the result feeds the visible range. Both used to be

@@ -1213,4 +1213,77 @@ whatever window a renderer happens to be drawing.
     return grouping;
 }
 
+/*!
+\brief One unbroken run of natural-harmonic notes at a single node: the span where the fretting
+finger stands on that node.
+
+Derived once per chart revision by \ref makeHighwayNodeSeries. The first note of a series is the
+one that STATES the node (user rule 2026-08-15: repeats inside an unbroken run stay unlabeled,
+and a chord of naturals at one node is one statement), and the span also suppresses the
+dotted-fret downbeat numbers on the node's own fret — two numbers in one slot muddy each other,
+and the node's is the one with information.
+*/
+struct HighwayNodeSeries
+{
+    /*! \brief Integer fret slot the series claims (\ref fretFor of the establishing note). */
+    int fret{0};
+
+    /*! \brief The node the run stands on, in fractional-fret units. */
+    double node{0.0};
+
+    /*! \brief Onset of the establishing note. */
+    double begin_seconds{0.0};
+
+    /*! \brief Onset of the run's last repeat; equals \ref begin_seconds for a lone natural. */
+    double end_seconds{0.0};
+};
+
+/*!
+\brief Derives the natural-harmonic node series from the note stream.
+
+A new node under the fretting finger establishes a series; a repeat of the same node in an
+unbroken run of naturals extends it; any fretting-hand note that is NOT a natural breaks the
+run, because the hand left the node. Picking-hand onsets are invisible to the series, exactly
+as they are to posture derivation.
+
+\param notes Seconds-resolved notes sorted by start time.
+
+\return Series in ascending begin order. Series never overlap (one established node at a time)
+        and their end times are likewise non-decreasing, so consumers can binary-search them by
+        time.
+*/
+[[nodiscard]] inline std::vector<HighwayNodeSeries> makeHighwayNodeSeries(
+    const std::vector<HighwayNoteView>& notes)
+{
+    std::vector<HighwayNodeSeries> series;
+    std::optional<double> established_node;
+    for (const HighwayNoteView& note : notes)
+    {
+        if (rightHandOnset(note.attack))
+        {
+            continue;
+        }
+        if (!frettingFingerOnNode(note.fret, note.harmonic_node, note.attack) ||
+            !note.harmonic_node.has_value())
+        {
+            established_node.reset();
+            continue;
+        }
+        if (established_node == note.harmonic_node)
+        {
+            series.back().end_seconds = note.start_seconds;
+            continue;
+        }
+        established_node = note.harmonic_node;
+        series.push_back(
+            HighwayNodeSeries{
+                .fret = fretFor(note),
+                .node = *note.harmonic_node,
+                .begin_seconds = note.start_seconds,
+                .end_seconds = note.start_seconds,
+            });
+    }
+    return series;
+}
+
 } // namespace rock_hero::common::core
