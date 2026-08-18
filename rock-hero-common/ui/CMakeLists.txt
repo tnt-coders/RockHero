@@ -13,6 +13,7 @@ target_sources(
     rock_hero_common_ui
     PRIVATE src/highway/bgfx_program.cpp
             src/highway/box_mute_profile.cpp
+            src/highway/head_art_profile.cpp
             src/highway/highway_atlas.cpp
             src/highway/highway_renderer.cpp
             src/render/render_device.cpp

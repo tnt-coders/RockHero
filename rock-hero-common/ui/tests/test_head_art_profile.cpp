@@ -1,0 +1,250 @@
+#include "highway/head_art_profile.h"
+
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <cmath>
+#include <cstddef>
+#include <expected>
+#include <juce_graphics/juce_graphics.h>
+#include <span>
+#include <vector>
+
+namespace rock_hero::common::ui
+{
+
+namespace
+{
+
+// The synthetic atlas mirrors the shipped grid: four 64-texel columns, the standard head in cell
+// 0 and the node-head base in cell 4 directly below it. Coverage is the B channel; the images
+// carry no alpha, matching the structural-art contract.
+constexpr int g_atlas_width = 256;
+constexpr int g_atlas_height = 320;
+constexpr int g_cell = 64;
+
+[[nodiscard]] juce::Image blankAtlas()
+{
+    return juce::Image{
+        juce::Image::RGB, g_atlas_width, g_atlas_height, true, juce::SoftwareImageType{}
+    };
+}
+
+void setCoverage(juce::Image& image, const int x, const int y, const int coverage)
+{
+    image.setPixelAt(x, y, juce::Colour::fromRGB(0, 0, static_cast<juce::uint8>(coverage)));
+}
+
+// A hard-edged solid rectangle in cell 0: columns [x0, x1] by rows [y0, y1], all in cell-local
+// indices. Hard edges make every expected value exact: the 50% crossing of a 0-to-255 step sits
+// half a texel outside the last solid pixel.
+void paintRectangle(
+    juce::Image& image, const int x0, const int x1, const int y0, const int y1, const int coverage)
+{
+    for (int y = y0; y <= y1; ++y)
+    {
+        for (int x = x0; x <= x1; ++x)
+        {
+            setCoverage(image, x, y, coverage);
+        }
+    }
+}
+
+// A hard-edged solid diamond |dx| + |dy| <= span in cell 4, centred on cell-local integer index
+// (32, 32) — image row 64 + 32.
+void paintDiamond(juce::Image& image, const int span)
+{
+    for (int y = 0; y < g_cell; ++y)
+    {
+        for (int x = 0; x < g_cell; ++x)
+        {
+            if (std::abs(x - 32) + std::abs(y - 32) <= span)
+            {
+                setCoverage(image, x, g_cell + y, 255);
+            }
+        }
+    }
+}
+
+// A supersampled rounded rectangle in cell 0, centred at index (31.5, 31.5) — the drawn quad's
+// exact centre, a half-texel boundary: coverage is the sub-pixel area fraction, so the 50%
+// contour lands on the true analytic outline, the corner fit has a known-radius arc to recover,
+// and the measured centre offsets should read zero.
+void paintRoundedRectangle(
+    juce::Image& image, const double half_w, const double half_h, const double radius)
+{
+    constexpr int subsamples = 4;
+    for (int y = 0; y < g_cell; ++y)
+    {
+        for (int x = 0; x < g_cell; ++x)
+        {
+            int inside = 0;
+            for (int sy = 0; sy < subsamples; ++sy)
+            {
+                for (int sx = 0; sx < subsamples; ++sx)
+                {
+                    const double px = x + ((sx + 0.5) / subsamples) - 0.5 - 31.5;
+                    const double py = y + ((sy + 0.5) / subsamples) - 0.5 - 31.5;
+                    const double qx = std::abs(px) - (half_w - radius);
+                    const double qy = std::abs(py) - (half_h - radius);
+                    const bool in_body = std::abs(px) <= half_w && std::abs(py) <= half_h &&
+                                         (qx <= 0.0 || qy <= 0.0);
+                    const bool in_corner =
+                        qx > 0.0 && qy > 0.0 && ((qx * qx) + (qy * qy)) <= radius * radius;
+                    if (in_body || in_corner)
+                    {
+                        ++inside;
+                    }
+                }
+            }
+            const int total = subsamples * subsamples;
+            setCoverage(image, x, y, (inside * 255 + (total / 2)) / total);
+        }
+    }
+}
+
+[[nodiscard]] std::vector<std::byte> encodePng(const juce::Image& image)
+{
+    juce::MemoryOutputStream bytes;
+    juce::PNGImageFormat{}.writeImageToStream(image, bytes);
+    const auto* data = static_cast<const std::byte*>(bytes.getData());
+    return {data, data + bytes.getDataSize()};
+}
+
+} // namespace
+
+TEST_CASE("head art profile measures a hard-edged atlas exactly", "[head_art_profile]")
+{
+    juce::Image atlas = blankAtlas();
+    // 41 x 21 solid rectangle, centred like the shipped art: half a texel off the quad centre.
+    paintRectangle(atlas, 12, 52, 22, 42, 255);
+    paintDiamond(atlas, 15);
+
+    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    REQUIRE(profile.has_value());
+    if (!profile.has_value())
+    {
+        return;
+    }
+    CHECK(profile->half_width_texels == Catch::Approx(20.5).margin(0.001));
+    CHECK(profile->half_height_texels == Catch::Approx(10.5).margin(0.001));
+    CHECK(profile->center_x_texels == Catch::Approx(0.5).margin(0.001));
+    CHECK(profile->center_y_texels == Catch::Approx(-0.5).margin(0.001));
+    // Hard corners: the fit's radius collapses toward its floor rather than inventing rounding.
+    CHECK(profile->corner_texels < 1.0);
+    // The hard-edged diamond's 50% contour sits half a texel outside the solid span on every
+    // edge, so the edge-law span is the authored 15 plus that half texel.
+    CHECK(profile->node_half_span_texels == Catch::Approx(15.5).margin(0.01));
+    CHECK(profile->node_center_x_texels == Catch::Approx(0.5).margin(0.001));
+    CHECK(profile->node_center_y_texels == Catch::Approx(-0.5).margin(0.001));
+}
+
+TEST_CASE("head art profile interpolates a fringed edge", "[head_art_profile]")
+{
+    juce::Image atlas = blankAtlas();
+    // The shipped art's construction: a solid rectangle wrapped in a one-texel fringe. The 50%
+    // crossing then sits inside the fringe texel, between its value and the solid's.
+    paintRectangle(atlas, 11, 53, 21, 43, 64);
+    paintRectangle(atlas, 12, 52, 22, 42, 255);
+    paintDiamond(atlas, 15);
+
+    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    REQUIRE(profile.has_value());
+    if (!profile.has_value())
+    {
+        return;
+    }
+    // Fringe 64/255 = 0.25098, solid 1.0: the crossing sits (0.5 - 0.25098) / (1 - 0.25098) =
+    // 0.33246 past the fringe texel, symmetric on both sides.
+    CHECK(profile->half_width_texels == Catch::Approx(20.66754).margin(0.001));
+    CHECK(profile->half_height_texels == Catch::Approx(10.66754).margin(0.001));
+    CHECK(profile->center_x_texels == Catch::Approx(0.5).margin(0.001));
+    CHECK(profile->center_y_texels == Catch::Approx(-0.5).margin(0.001));
+}
+
+TEST_CASE("head art profile recovers a known corner radius", "[head_art_profile]")
+{
+    juce::Image atlas = blankAtlas();
+    paintRoundedRectangle(atlas, 20.0, 10.0, 3.0);
+    paintDiamond(atlas, 15);
+
+    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    REQUIRE(profile.has_value());
+    if (!profile.has_value())
+    {
+        return;
+    }
+    CHECK(profile->half_width_texels == Catch::Approx(20.0).margin(0.06));
+    CHECK(profile->half_height_texels == Catch::Approx(10.0).margin(0.06));
+    CHECK(profile->center_x_texels == Catch::Approx(0.0).margin(0.02));
+    CHECK(profile->center_y_texels == Catch::Approx(0.0).margin(0.02));
+    CHECK(profile->corner_texels == Catch::Approx(3.0).margin(0.2));
+}
+
+TEST_CASE("head art profile byte overload round-trips an encoded atlas", "[head_art_profile]")
+{
+    juce::Image atlas = blankAtlas();
+    paintRectangle(atlas, 12, 52, 22, 42, 255);
+    paintDiamond(atlas, 15);
+    const std::vector<std::byte> png = encodePng(atlas);
+
+    const std::expected<HeadArtProfile, HeadArtProfileError> profile =
+        measureHeadArtProfile(std::span<const std::byte>{png});
+    REQUIRE(profile.has_value());
+    if (!profile.has_value())
+    {
+        return;
+    }
+    CHECK(profile->half_width_texels == Catch::Approx(20.5).margin(0.001));
+    CHECK(profile->node_half_span_texels == Catch::Approx(15.5).margin(0.01));
+}
+
+TEST_CASE("head art profile rejects an alpha-bearing file", "[head_art_profile]")
+{
+    // Same art painted into an ARGB image: the encoded PNG then carries a real alpha channel,
+    // which the contract rejects at the byte boundary — decode-time premultiplication would
+    // silently scale the structural channels.
+    juce::Image atlas{
+        juce::Image::ARGB, g_atlas_width, g_atlas_height, true, juce::SoftwareImageType{}
+    };
+    for (int y = 22; y <= 42; ++y)
+    {
+        for (int x = 12; x <= 52; ++x)
+        {
+            atlas.setPixelAt(x, y, juce::Colour::fromRGBA(0, 0, 255, 255));
+        }
+    }
+    const std::vector<std::byte> png = encodePng(atlas);
+
+    const std::expected<HeadArtProfile, HeadArtProfileError> profile =
+        measureHeadArtProfile(std::span<const std::byte>{png});
+    REQUIRE_FALSE(profile.has_value());
+    if (profile.has_value())
+    {
+        return;
+    }
+    CHECK(profile.error() == HeadArtProfileError::AlphaBearingImage);
+}
+
+TEST_CASE("head art profile rejects empty bytes and empty cells", "[head_art_profile]")
+{
+    const std::expected<HeadArtProfile, HeadArtProfileError> empty_bytes =
+        measureHeadArtProfile(std::span<const std::byte>{});
+    REQUIRE_FALSE(empty_bytes.has_value());
+    if (empty_bytes.has_value())
+    {
+        return;
+    }
+    CHECK(empty_bytes.error() == HeadArtProfileError::UndecodableImage);
+
+    // A decodable atlas whose head cell is blank is unanalyzable, not silently zero-sized.
+    const juce::Image blank = blankAtlas();
+    const std::expected<HeadArtProfile, HeadArtProfileError> no_art = measureHeadArtProfile(blank);
+    REQUIRE_FALSE(no_art.has_value());
+    if (no_art.has_value())
+    {
+        return;
+    }
+    CHECK(no_art.error() == HeadArtProfileError::UnanalyzableArt);
+}
+
+} // namespace rock_hero::common::ui

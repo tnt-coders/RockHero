@@ -8,6 +8,7 @@ include(Catch)
 add_executable(
     rock_hero_common_ui_tests
     test_box_mute_profile.cpp
+    test_head_art_profile.cpp
     test_highway_atlas.cpp
     test_highway_head_marks.cpp
     test_render_device.cpp

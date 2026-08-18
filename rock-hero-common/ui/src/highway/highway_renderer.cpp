@@ -1,5 +1,6 @@
 #include "highway/bgfx_program.h"
 #include "highway/box_mute_profile.h"
+#include "highway/head_art_profile.h"
 #include "highway/highway_atlas.h"
 #include "highway/highway_board_scales.h"
 #include "highway/highway_emphasis_styles.h"
@@ -128,58 +129,18 @@ constexpr double g_bend_marker_offset_heads = 0.38;
 constexpr double g_prebend_outline_alpha = 0.5;
 
 /*
-The head ART's own silhouette, in ATLAS TEXELS, measured 2026-08-16 from the shipped `notes.png`.
-The head cell fills only the middle of its quad, so a light sized against the QUAD starts far
-outside the note; the accent glow's distance field is sized against these instead.
+The head ART's own silhouette is MEASURED FROM THE PNG AT LOAD — head_art_profile.h, the
+box_mute_profile pattern — and lives in Impl::head_art, in atlas texels of the drawn quad's
+index space. The head cell fills only the middle of its quad, so a light sized against the QUAD
+starts far outside the note; the accent glow's distance field is sized against the measured
+silhouette instead. Measuring at load is what makes a rebaked atlas unable to leave the light
+tracing a shape the art no longer has — exactly how the hand-kept constants this replaced would
+have failed, silently, on the next rebake that forgot to refit them.
 
-TEXELS, not world units, and converted through headArtTexelWidth()/headArtTexelHeight() below —
-because the world size
-of a drawn texel is NOT the cell size, and stating these in world once meant carrying that error
-into every one of them. Every number here is a measurement of a PNG; keeping them in the units the
-PNG is measured in is what lets the conversion be wrong in one place instead of four.
-
-Every extent is fitted to the art's 50%-COVERAGE contour (coverage is the B channel; `notes.png`
-is PNG colour type 2 with no alpha). That threshold is stated because the corner radius is a
-strong function of it — fitted to the antialias tail instead, the same art measures 3.9 texels
-against 1.82 here — and the previous block silently mixed the two, taking extents from the 50%
-line and a radius from the tail. If these are ever re-fitted, name the threshold first.
-
-When a candidate wins, the whole block should become a load-time measurement over the decoded cell
-(the box_mute_profile pattern), since every number is a pure function of the shipped PNG. That
-matters more now than it did: a silhouette mismatch shows up as light with nothing under it.
+TEXELS, not world units, converted through headArtTexelWidth()/headArtTexelHeight() below —
+because the world size of a drawn texel is NOT the cell size, and stating silhouettes in world
+once meant carrying that error into every consumer.
 */
-constexpr double g_head_art_half_width_texels = 20.7994;
-constexpr double g_head_art_half_height_texels = 10.8218;
-
-// Fitted to the same 50% contour (RMS 0.019 texels, worst 0.026). Not a construction: the art is a
-// solid 41x21 rectangle wrapped in a one-texel fringe whose corner texel is omitted, so there is no
-// authored radius to read — but as a DESCRIPTION of the contour this is exact to well under a
-// texel, which is all the field needs.
-constexpr double g_head_art_corner_texels = 1.8205;
-
-// The NODE head's diamond, half-span from centre to vertex, equal on both axes unlike the
-// rectangle above. MEASURED, where this was previously derived from the signed construction (the
-// head-height square rotated 45 degrees) and came out 0.34 texels short. The art's edge line
-// |x| + |y| = 15.65 holds to 0.0000 texels across all 88 edge samples, so the rhombus branch is
-// exact here rather than approximate. Handing the rectangle's extents to that branch would draw a
-// light far too wide and far too short.
-constexpr double g_node_head_art_half_span_texels = 15.65;
-
-/*
-Where the art's silhouette sits relative to the quad's centre, in texels, +x right and +y up.
-
-NOT zero, and not an art defect: the silhouettes are ODD sized (41 x 21 solid texels) inside an
-even 64-texel cell, so they cannot be quad-centred by construction — they sit exactly half a texel
-off on both axes. The vertical figure carries a further 0.0224 because the art's own top and bottom
-rims differ by one texel of banding (top half-height 10.7994 against bottom 10.8442).
-
-Modelling this is what makes a SYMMETRIC field fit an asymmetric silhouette: without it the glow's
-ridge lands up to 1.04 texels off the art's edge, lopsided — bright on bare texture along two
-edges and buried under the head along the other two. With it, every edge is within 0.022 texels.
-*/
-constexpr double g_head_art_center_x_texels = 0.5;
-constexpr double g_head_art_center_y_texels = -0.5224;
-constexpr double g_node_head_art_center_y_texels = -0.5;
 
 /*
 World size of one drawn texel of a head cell, per axis.
@@ -1585,6 +1546,23 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
     return "unrecognized";
 }
 
+// Names why the head silhouette measurement failed, for the same asset-invalid diagnostic —
+// switched without a default for the same reason as its box-mute sibling above.
+[[nodiscard]] constexpr std::string_view describeHeadArtError(const HeadArtProfileError error)
+{
+    switch (error)
+    {
+        case HeadArtProfileError::UndecodableImage:
+            return "undecodable";
+        case HeadArtProfileError::UnanalyzableArt:
+            return "unanalyzable";
+        case HeadArtProfileError::AlphaBearingImage:
+            return "alpha-bearing (the art must have no alpha channel — coverage lives in its blue "
+                   "channel and opacity is applied per draw)";
+    }
+    return "unrecognized";
+}
+
 } // namespace
 
 /*
@@ -1626,6 +1604,10 @@ struct HighwayRenderer::Impl
     };
     BoxMuteLayouts box_mute_layouts{};
     UniqueBgfxHandle<bgfx::TextureHandle> box_mute_ramp;
+
+    // The head art's silhouette, measured from notes.png at create (see the block above the
+    // texel-conversion functions); the accent glow sizes its distance field from this.
+    HeadArtProfile head_art{};
 
     HighwayAtlases atlases;
 
@@ -1849,28 +1831,42 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
             memory)};
     }
 
+    // The head art's silhouette, measured from the same notes.png bytes the atlas uploads: the
+    // accent glow sizes its distance field from these numbers, so they must describe the pixels
+    // actually shipped rather than the pixels some earlier fit remembered.
+    const std::expected<HeadArtProfile, HeadArtProfileError> measured_head_art =
+        measureHeadArtProfile(textures.at(indexOf(TextureAsset::Notes)));
+    if (measured_head_art.has_value())
+    {
+        impl->head_art = *measured_head_art;
+    }
+
     // Texture assets are required product content: a missing, undecodable, or wrong-shape
     // asset is a broken install, not a degradable state (the procedural fallbacks this check
     // replaces silently masked exactly such failures).
     if (!impl->atlases.heads.isValid() ||
         impl->atlases.head_layout.capacity() < g_head_cell_count ||
         !impl->inlay_texture.isValid() || !impl->fingering_texture.isValid() ||
-        !impl->box_mute_ramp.isValid())
+        !impl->box_mute_ramp.isValid() || !measured_head_art.has_value())
     {
         const std::string_view chord_marks_state =
             profiles.has_value() ? "measured" : describeChordMarksError(profiles.error());
+        const std::string_view head_art_state =
+            measured_head_art.has_value() ? "measured"
+                                          : describeHeadArtError(measured_head_art.error());
         return std::unexpected{HighwayRendererError{
             .code = HighwayRendererErrorCode::TextureAssetInvalid,
             .message = std::format(
                 "highway texture assets missing or invalid (note atlas loaded={} with {} of "
                 "{} required cells, inlays loaded={}, fingering loaded={}, chord mute marks "
-                "{}); the install or resource deployment is broken",
+                "{}, head silhouette {}); the install or resource deployment is broken",
                 impl->atlases.heads.isValid(),
                 impl->atlases.head_layout.capacity(),
                 g_head_cell_count,
                 impl->inlay_texture.isValid(),
                 impl->fingering_texture.isValid(),
-                chord_marks_state)
+                chord_marks_state,
+                head_art_state)
         }};
     }
 
@@ -5077,10 +5073,10 @@ void HighwayRenderer::Impl::draw(
             // is placed at the ART'S centre rather than the head's. The offset rides the rolling
             // flip with everything else, which is why it is rotated here instead of being folded
             // into the shape.
-            const double art_dx = g_head_art_center_x_texels * texel_x;
+            const double art_dx =
+                (node_head ? head_art.node_center_x_texels : head_art.center_x_texels) * texel_x;
             const double art_dy =
-                (node_head ? g_node_head_art_center_y_texels : g_head_art_center_y_texels) *
-                texel_y;
+                (node_head ? head_art.node_center_y_texels : head_art.center_y_texels) * texel_y;
             pushAccentGlow(
                 accent_glow_vertices,
                 accent_glow_indices,
@@ -5092,21 +5088,21 @@ void HighwayRenderer::Impl::draw(
                           // Scaled with the base it traces: a light sized to the unscaled
                           // silhouette would sit inside a grown diamond, or spill past a
                           // shrunken one.
-                          .half_w = g_node_head_art_half_span_texels * texel_y *
+                          .half_w = head_art.node_half_span_texels * texel_y *
                                     harmonic_size.diamond_scale,
-                          .half_h = g_node_head_art_half_span_texels * texel_y *
+                          .half_h = head_art.node_half_span_texels * texel_y *
                                     harmonic_size.diamond_scale,
                           .corner = 0.0,
                           .rhombus = true,
                       }
                     : GlowShape{
-                          .half_w = g_head_art_half_width_texels * texel_x,
-                          .half_h = g_head_art_half_height_texels * texel_y,
+                          .half_w = head_art.half_width_texels * texel_x,
+                          .half_h = head_art.half_height_texels * texel_y,
                           // Via the y texel: under the width knob the art's corner is elliptical
                           // while the field takes one radius, and the height axis is the
                           // unsquashed one. The mismatch is bounded by the squash — sub-texel at
                           // every candidate.
-                          .corner = g_head_art_corner_texels * texel_y,
+                          .corner = head_art.corner_texels * texel_y,
                           .rhombus = false,
                       },
                 accent_light.reach,
