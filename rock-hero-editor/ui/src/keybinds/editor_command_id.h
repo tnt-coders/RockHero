@@ -109,6 +109,15 @@ enum class EditorCommandId : std::uint16_t
     */
     CycleHeadWidth = 0x1308,
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycle the preview's note atlas across staged variants (`F6`).
+
+    Row 0 is the shipped atlas; the other rows are whatever `.agents/atlas-variant.ps1 -Stage`
+    staged beside it, so baked candidate texture families swap on a key instead of a script
+    round trip per look.
+    */
+    CycleNoteAtlas = 0x1309,
+
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,

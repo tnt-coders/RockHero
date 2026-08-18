@@ -81,6 +81,9 @@ public:
     /*! \brief EXPERIMENT SCAFFOLDING — cycles the note head's width and logs it. */
     void cycleHeadWidth();
 
+    /*! \brief EXPERIMENT SCAFFOLDING — cycles the staged note-atlas variant and logs it. */
+    void cycleNoteAtlas();
+
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 

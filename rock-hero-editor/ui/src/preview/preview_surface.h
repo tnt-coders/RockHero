@@ -105,6 +105,18 @@ public:
     */
     void cycleHeadWidth();
 
+    /*!
+    \brief EXPERIMENT SCAFFOLDING — cycles the preview onto the next staged note-atlas variant.
+
+    Rebuilds the renderer against the live device with the selected atlas, so candidate texture
+    families swap on a key instead of a swapper-script round trip per look. Row 0 is the shipped
+    atlas; the other rows are whatever `.agents/atlas-variant.ps1 -Stage` staged. Does nothing
+    while the render stack is down, so the logged row always matches the screen — and because
+    the rebuild recreates the renderer, the other appearance samplers reset to their boot rows,
+    which the log line says out loud.
+    */
+    void cycleNoteAtlas();
+
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
 
@@ -145,6 +157,11 @@ private:
 
     std::optional<common::ui::RenderDevice> m_device;
     std::optional<common::ui::HighwayRenderer> m_renderer;
+
+    // EXPERIMENT SCAFFOLDING — the active note-atlas row: 0 is the shipped atlas, 1..N the
+    // staged variants in name order. Revalidated against the staged files at every renderer
+    // bring-up, so an index left over from an unstaged session falls back to the shipped art.
+    std::size_t m_note_atlas{0};
 
     std::shared_ptr<const common::core::HighwayViewState> m_state;
 

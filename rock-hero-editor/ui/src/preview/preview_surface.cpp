@@ -6,7 +6,9 @@
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <string>
 #include <utility>
+#include <vector>
 
 #if JUCE_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -186,8 +188,19 @@ bool PreviewSurface::bringUpRenderer()
         RH_LOG_ERROR("editor.preview", "preview shaders unavailable; preview disabled");
         return false;
     }
+    // EXPERIMENT SCAFFOLDING — the staged-variant sampler substitutes the note atlas; row 0 is
+    // the shipped file. Revalidated here so an index outliving its staged files (unstaged since
+    // the last press) falls back to the shipped atlas instead of reading a missing file.
+    const std::vector<juce::File> atlas_variants = listPreviewNoteAtlasVariants();
+    if (m_note_atlas > atlas_variants.size())
+    {
+        m_note_atlas = 0;
+    }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
-        common::ui::HighwayRenderer::create(*shaders, loadPreviewHighwayTextures());
+        common::ui::HighwayRenderer::create(
+            *shaders,
+            m_note_atlas == 0 ? loadPreviewHighwayTextures()
+                              : loadPreviewHighwayTextures(atlas_variants[m_note_atlas - 1]));
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);
@@ -263,6 +276,36 @@ void PreviewSurface::cycleHeadWidth()
         return;
     }
     RH_LOG_INFO("editor.preview", "{}", m_renderer->cycleHeadWidth());
+}
+
+void PreviewSurface::cycleNoteAtlas()
+{
+    if (!m_renderer.has_value())
+    {
+        return;
+    }
+    const std::vector<juce::File> variants = listPreviewNoteAtlasVariants();
+    m_note_atlas = (m_note_atlas + 1) % (variants.size() + 1);
+    // The atlas uploads once at renderer create, so swapping it means recreating the renderer
+    // against the live device — the same path a preview reopen takes, minus the device teardown.
+    m_renderer.reset();
+    if (!bringUpRenderer())
+    {
+        RH_LOG_ERROR(
+            "editor.preview", "note atlas swap failed to rebuild the renderer; reopen the preview");
+        return;
+    }
+    const std::string name = m_note_atlas == 0
+                                 ? std::string{"today (the committed atlas)"}
+                                 : variants[m_note_atlas - 1]
+                                       .getFileNameWithoutExtension()
+                                       .fromFirstOccurrenceOf("notes-variant-", false, false)
+                                       .toStdString();
+    RH_LOG_INFO(
+        "editor.preview",
+        "note atlas: {} ({} staged; appearance samplers reset to their boot rows)",
+        name,
+        variants.size());
 }
 
 void PreviewSurface::resized()

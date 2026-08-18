@@ -157,6 +157,13 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::CycleNoteAtlas,
+            .name = "Cycle Note Atlas Variant (experiment)",
+            .category = "View",
+            .default_keypresses = {chord(juce::KeyPress::F6Key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
             // "at Cursor" = the marker rule (E2): the armed caret when one exists, else the
             // transport position — the same "one position concept" play follows, so the insert

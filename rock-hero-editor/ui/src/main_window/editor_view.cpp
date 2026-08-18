@@ -1043,6 +1043,7 @@ void EditorView::togglePreviewWindow()
                     EditorCommandId::CycleAccentStyle,
                     EditorCommandId::CycleHarmonicSize,
                     EditorCommandId::CycleHeadWidth,
+                    EditorCommandId::CycleNoteAtlas,
                 };
                 const juce::CommandID command =
                     m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
@@ -1406,6 +1407,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::CycleAccentStyle:
         case EditorCommandId::CycleHarmonicSize:
         case EditorCommandId::CycleHeadWidth:
+        case EditorCommandId::CycleNoteAtlas:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1615,6 +1617,17 @@ bool EditorView::perform(const InvocationInfo& info)
             if (m_preview_window != nullptr)
             {
                 m_preview_window->cycleHeadWidth();
+            }
+            return true;
+        }
+
+        // EXPERIMENT SCAFFOLDING — the staged-variant atlas sampler, so baked candidate texture
+        // families swap on a key instead of a swapper-script round trip per look.
+        case EditorCommandId::CycleNoteAtlas:
+        {
+            if (m_preview_window != nullptr)
+            {
+                m_preview_window->cycleNoteAtlas();
             }
             return true;
         }

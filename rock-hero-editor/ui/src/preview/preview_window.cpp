@@ -92,6 +92,11 @@ void PreviewWindow::cycleHeadWidth()
     m_surface->cycleHeadWidth();
 }
 
+void PreviewWindow::cycleNoteAtlas()
+{
+    m_surface->cycleNoteAtlas();
+}
+
 void PreviewWindow::closeButtonPressed()
 {
     close();

@@ -17,6 +17,12 @@
 #   .agents\atlas-variant.ps1 -Name diamond-a1
 #   .agents\atlas-variant.ps1 -Path C:\somewhere\notes-experiment.png
 #   .agents\atlas-variant.ps1 -Restore
+#   .agents\atlas-variant.ps1 -Stage marks-pitch-tangent,marks-pitch-107,marks-pitch-110
+#   .agents\atlas-variant.ps1 -Unstage
+#
+# -Stage copies the named variants BESIDE notes.png as notes-variant-<name>.png in both deployed
+# trees; the editor's F6 sampler (Cycle Note Atlas Variant) then swaps between the shipped atlas
+# and the staged files on a key, with no script round trip per look. -Unstage removes them all.
 #
 # Windows PowerShell 5.1 compatible.
 
@@ -30,6 +36,12 @@ param(
 
     [Parameter(ParameterSetName = "Restore", Mandatory = $true)]
     [switch]$Restore,
+
+    [Parameter(ParameterSetName = "Stage", Mandatory = $true)]
+    [string[]]$Stage,
+
+    [Parameter(ParameterSetName = "Unstage", Mandatory = $true)]
+    [switch]$Unstage,
 
     [Parameter(ParameterSetName = "List")]
     [switch]$List,
@@ -146,6 +158,50 @@ switch ($PSCmdlet.ParameterSetName)
         # The committed atlas, taken from the source tree rather than from git, so a working-tree
         # rebake in progress is what gets restored rather than being silently reverted.
         Deploy $source_atlas "source tree"
+    }
+    "Stage"
+    {
+        foreach ($t in $targets)
+        {
+            $dir = Split-Path -Parent $t
+            if (-not (Test-Path $dir))
+            {
+                throw "deployed resource tree missing: $dir (build the $Preset preset once first)"
+            }
+            foreach ($n in $Stage)
+            {
+                $candidate = Join-Path $variants_dir "$n.png"
+                if (-not (Test-Path $candidate))
+                {
+                    throw "no such variant: $candidate"
+                }
+                $dest = Join-Path $dir "notes-variant-$n.png"
+                Copy-Item -Path $candidate -Destination $dest -Force
+                (Get-Item $dest).LastWriteTime = Get-Date
+            }
+        }
+        Write-Host ""
+        Write-Host ("staged {0} variant(s) beside both products' notes.png." -f $Stage.Count)
+        Write-Host "cycle them in the editor with F6 while the 3D preview is open; row 0 is the shipped atlas."
+        Write-Host ""
+    }
+    "Unstage"
+    {
+        $removed = 0
+        foreach ($t in $targets)
+        {
+            $dir = Split-Path -Parent $t
+            if (-not (Test-Path $dir)) { continue }
+            $staged = Get-ChildItem -Path $dir -Filter "notes-variant-*.png" -ErrorAction SilentlyContinue
+            foreach ($s in $staged)
+            {
+                Remove-Item -Force $s.FullName
+                $removed++
+            }
+        }
+        Write-Host ""
+        Write-Host "removed $removed staged variant file(s) from the deployed trees."
+        Write-Host ""
     }
     default
     {
