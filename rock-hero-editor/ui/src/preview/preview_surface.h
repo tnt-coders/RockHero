@@ -91,32 +91,17 @@ public:
     void cycleAccentStyle();
 
     /*!
-    \brief EXPERIMENT SCAFFOLDING — cycles the note family's size and logs the active candidate.
-
-    Harmless with the preview closed, like the accent sampler beside it. Deleted with its table
-    once the family-to-spacing proportion is signed.
-    */
-    void cycleFamilyScale();
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — cycles the string spacing and logs the active candidate.
-
-    The second axis onto the proportion \ref cycleFamilyScale moves.
-    */
-    void cycleStringSpacing();
-
-    /*!
     \brief EXPERIMENT SCAFFOLDING — cycles the harmonic head's size and logs the candidate.
 
-    A third axis beside the two scale samplers, because no board scale moves the symbol relative
-    to the diamond it rides.
+    Its own axis beside the width sampler, because no board scale moves the symbol relative to
+    the diamond it rides.
     */
     void cycleHarmonicSize();
 
     /*!
     \brief EXPERIMENT SCAFFOLDING — cycles the note head's width and logs the candidate.
 
-    The axis measurement split off the family scale: width narrows alone, the tail follows.
+    Width narrows alone against a held height, and the sustain tail follows it.
     */
     void cycleHeadWidth();
 

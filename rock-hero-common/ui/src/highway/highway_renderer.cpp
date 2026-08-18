@@ -1641,16 +1641,10 @@ struct HighwayRenderer::Impl
     // the look last preferred rather than on whatever happens to sit at index 1.
     std::size_t accent_style{1};
 
-    // EXPERIMENT SCAFFOLDING — indices into the two board-scale candidate tables, cycled from the
-    // editor while the note-family-to-string-spacing proportion is being sighted. Both default to
-    // row 0, which is today's shipped board, so the app opens unchanged. Deleted with the tables
-    // once a ratio is signed and the winner's numbers move into HighwayMetrics' own defaults.
-    std::size_t family_scale{0};
-    std::size_t spacing_scale{0};
-
-    // EXPERIMENT SCAFFOLDING — index into the head-width candidate table, the axis measurement
-    // split off the family scale: the reference's head is narrower in its fret slot at our
-    // height, so width narrows alone and the tail follows it. Row 0 is today's shipped board.
+    // EXPERIMENT SCAFFOLDING — index into the head-width candidate table: the reference's head
+    // is narrower in its fret slot at our height, so width narrows alone and the tail follows
+    // it. Row 0 is today's shipped board, so the app opens unchanged. The uniform family and
+    // string-spacing samplers that sat beside this one are signed at 1.000 and deleted.
     std::size_t head_width{0};
 
     // EXPERIMENT SCAFFOLDING — index into the harmonic-head candidate table. Its own axis rather
@@ -1663,17 +1657,14 @@ struct HighwayRenderer::Impl
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
 
-    // EXPERIMENT SCAFFOLDING — rebuilds `metrics` from its shipped defaults under the three
-    // sighting scales, then rebuilds the cached board face because the string grid, the fret
-    // lines and the board's own extent are all derived from the spacing.
-    //
-    // The scales reach the board through the METRICS and nowhere else, which is what keeps the
-    // drawing code free of them. The family factor multiplies both head metrics, so art, glow,
-    // marks, brackets and tail all move together; the head-width factor multiplies
-    // note_half_width alone — which the head quad's x, the sustain tail and (through
-    // headArtTexelWidth()) every art-silhouette x-extent derive from — while square art (marks,
-    // brackets, diamonds) rides note_half_height and holds its shape. Neither can leave the
-    // light tracing a silhouette the art no longer has.
+    // EXPERIMENT SCAFFOLDING — rebuilds `metrics` from its shipped defaults under the head-width
+    // sighting scale. The scale reaches the board through the METRICS and nowhere else, which is
+    // what keeps the drawing code free of it: the factor multiplies note_half_width alone —
+    // which the head quad's x, the sustain tail and (through headArtTexelWidth()) every
+    // art-silhouette x-extent derive from — while square art (marks, brackets, diamonds) rides
+    // note_half_height and holds its shape, so the light can never trace a silhouette the art
+    // no longer has. The cached board face is untouched on purpose: it derives from the string
+    // spacing, which no surviving scale moves.
     void applyBoardScales();
 
     void rebuildBoardFace();
@@ -1893,27 +1884,7 @@ void HighwayRenderer::Impl::applyBoardScales()
     // idempotent and reversible: scaling the live value would compound every press and row 0
     // would no longer restore the shipped board.
     metrics = common::core::HighwayMetrics{};
-    const double family = g_family_scale_candidates.at(family_scale).scale;
-    metrics.note_half_width *= family * g_head_width_candidates.at(head_width).scale;
-    metrics.note_half_height *= family;
-    metrics.string_distance *= g_spacing_scale_candidates.at(spacing_scale).scale;
-    rebuildBoardFace();
-}
-
-std::string HighwayRenderer::cycleFamilyScale()
-{
-    m_impl->family_scale = (m_impl->family_scale + 1) % g_family_scale_candidates.size();
-    m_impl->applyBoardScales();
-    return "note family size: " +
-           std::string{g_family_scale_candidates.at(m_impl->family_scale).name};
-}
-
-std::string HighwayRenderer::cycleStringSpacing()
-{
-    m_impl->spacing_scale = (m_impl->spacing_scale + 1) % g_spacing_scale_candidates.size();
-    m_impl->applyBoardScales();
-    return "string spacing: " +
-           std::string{g_spacing_scale_candidates.at(m_impl->spacing_scale).name};
+    metrics.note_half_width *= g_head_width_candidates.at(head_width).scale;
 }
 
 std::string HighwayRenderer::cycleHeadWidth()

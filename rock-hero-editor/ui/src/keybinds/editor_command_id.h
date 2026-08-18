@@ -90,21 +90,8 @@ enum class EditorCommandId : std::uint16_t
     */
     CycleAccentStyle = 0x1304,
 
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — cycle the note family's size against the strings (`F6`).
-
-    One of two axes onto the same proportion, sighted together: this one shrinks the note family
-    while the string spacing holds. Deleted with its table once a ratio is signed.
-    */
-    CycleFamilyScale = 0x1305,
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — cycle the string spacing against the note family (`F7`).
-
-    The other axis onto the proportion \ref CycleFamilyScale moves: this one widens the spacing
-    while the family holds, growing the whole neck instead of shrinking its furniture.
-    */
-    CycleStringSpacing = 0x1306,
+    // 0x1305 and 0x1306 were the uniform family-scale and string-spacing samplers, signed at
+    // 1.000 and deleted 2026-08-17; retired ids are never revived.
 
     /*!
     \brief EXPERIMENT SCAFFOLDING — cycle the harmonic head's diamond and symbol (`F4`).
@@ -117,8 +104,8 @@ enum class EditorCommandId : std::uint16_t
     /*!
     \brief EXPERIMENT SCAFFOLDING — cycle the note head's width against its fret slot (`F10`).
 
-    Split from \ref CycleFamilyScale by measurement: the reference's head is narrower in the
-    slot at our height, so width moves alone and the sustain tail follows it.
+    The reference's head is narrower in the slot at our height, so width moves alone and the
+    sustain tail follows it.
     */
     CycleHeadWidth = 0x1308,
 

@@ -82,16 +82,6 @@ void PreviewWindow::cycleAccentStyle()
     m_surface->cycleAccentStyle();
 }
 
-void PreviewWindow::cycleFamilyScale()
-{
-    m_surface->cycleFamilyScale();
-}
-
-void PreviewWindow::cycleStringSpacing()
-{
-    m_surface->cycleStringSpacing();
-}
-
 void PreviewWindow::cycleHarmonicSize()
 {
     m_surface->cycleHarmonicSize();

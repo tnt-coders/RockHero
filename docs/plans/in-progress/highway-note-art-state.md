@@ -307,6 +307,23 @@ committed atlas at any time.
 
 ## Decided, with the numbers the decisions rest on
 
+**The uniform family scale and the string spacing are SIGNED at 1.000 and their samplers
+deleted.** SIGNED 2026-08-17. The family axis died twice: the eye ruled today's head size "by
+far the closest" to the reference, and the pitch-frame analysis proved no uniform value can be
+right — the reference's slot-to-pitch ratio varies per fret (q ≈ 0.971–0.979, ~3.94 at the nut
+to ~2.62 at fret 13) while ours is a constant 3.143, so a uniform shrink that fixes the
+mid-neck slot fill opens the chord stacks to a gap the reference never shows. The spacing axis
+measured 0.966, inside its own band around 1.000 — the board's spacing was never the mismatch.
+The current direction instead: heads hold today's dimensions and the technique MARKS rescale to
+the pitch standard (the marks-pitch-* atlas variants). F6 and F7 are unbound again; ids 0x1305
+and 0x1306 are retired forever.
+
+**The harmonic diamond stays at today's span, deliberately past the pitch standard.** SIGNED
+2026-08-17: the tips standing proud of the ring are what make the mark read. Accepted pending
+evaluation, with the measured costs: stacked diamonds on adjacent strings interpenetrate ~4.2
+texels per side, and on the outer strings the tip extends ~4.2 texels (0.6–1.9 screen px) past
+the string grid's edge line — the user has asked to evaluate both in the app.
+
 **The arpeggio brackets and the bend chevron are SETTLED at their current size.** SIGNED
 2026-08-17, stated while scoping the technique-mark tangency bake: no mark-sizing round may
 rescale either. Both were already excluded from that bake's cell list; this records the

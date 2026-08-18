@@ -1041,8 +1041,6 @@ void EditorView::togglePreviewWindow()
                     // and every sighting ran through a click back to the main window. Removed
                     // with the samplers when their tables go.
                     EditorCommandId::CycleAccentStyle,
-                    EditorCommandId::CycleFamilyScale,
-                    EditorCommandId::CycleStringSpacing,
                     EditorCommandId::CycleHarmonicSize,
                     EditorCommandId::CycleHeadWidth,
                 };
@@ -1406,8 +1404,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // the same reason the verbs below do: a disabled command whose chord matches makes JUCE
         // play the system alert sound.
         case EditorCommandId::CycleAccentStyle:
-        case EditorCommandId::CycleFamilyScale:
-        case EditorCommandId::CycleStringSpacing:
         case EditorCommandId::CycleHarmonicSize:
         case EditorCommandId::CycleHeadWidth:
         case EditorCommandId::InsertToneChange:
@@ -1601,27 +1597,7 @@ bool EditorView::perform(const InvocationInfo& info)
             return true;
         }
 
-        // EXPERIMENT SCAFFOLDING — the two axes onto the note-family-to-string-spacing
-        // proportion, sighted together because they reach the same ratio and look nothing alike.
-        case EditorCommandId::CycleFamilyScale:
-        {
-            if (m_preview_window != nullptr)
-            {
-                m_preview_window->cycleFamilyScale();
-            }
-            return true;
-        }
-
-        case EditorCommandId::CycleStringSpacing:
-        {
-            if (m_preview_window != nullptr)
-            {
-                m_preview_window->cycleStringSpacing();
-            }
-            return true;
-        }
-
-        // EXPERIMENT SCAFFOLDING — the harmonic head's own axis, independent of the two scales
+        // EXPERIMENT SCAFFOLDING — the harmonic head's own axis, independent of the width scale
         // because no board scale moves the symbol relative to the diamond it rides.
         case EditorCommandId::CycleHarmonicSize:
         {

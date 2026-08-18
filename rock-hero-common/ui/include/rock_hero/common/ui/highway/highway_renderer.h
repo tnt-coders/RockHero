@@ -163,46 +163,15 @@ public:
     [[nodiscard]] std::string cycleAccentStyle();
 
     /*!
-    \brief EXPERIMENT SCAFFOLDING — advances the note family's size to the next candidate.
-
-    One of two axes onto the same proportion — a note head's half-height as a fraction of the
-    string spacing, measured at 0.471 today and below that in every sample of the reference it is
-    being judged against. This axis shrinks the family against fixed spacing; \ref
-    cycleStringSpacing widens the spacing around a fixed family. They reach the same numbers and
-    look nothing alike, which is why both ship until one is chosen.
-
-    Scales both head metrics (`HighwayMetrics::note_half_width` and `note_half_height`), which
-    the head quad, the technique marks, the arpeggio brackets, the sustain tail's width and every
-    art-silhouette constant already derive from, so the whole family and its accent light move
-    together.
-
-    \return Text naming the active candidate and the ratio it produces.
-    */
-    [[nodiscard]] std::string cycleFamilyScale();
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — advances the string spacing to the next candidate.
-
-    The second axis onto the proportion \ref cycleFamilyScale describes. Scales
-    `HighwayMetrics::string_distance`, so the string grid, the fret lines spanning it, and every
-    element sized from the lanes grow with it — a taller neck rather than smaller furniture.
-
-    Note it also moves a decision still open: a bend's drawn travel is expressed in string gaps,
-    so widening the gaps changes what a given bend looks like.
-
-    \return Text naming the active candidate and the ratio it produces.
-    */
-    [[nodiscard]] std::string cycleStringSpacing();
-
-    /*!
     \brief EXPERIMENT SCAFFOLDING — advances the head's width to the next candidate.
 
-    A third board axis, split from \ref cycleFamilyScale by measurement: the reference's head is
-    narrower for its fret slot than ours (45.5% against 57.6%) while matching our height against
-    the string pitch, so width moves alone. The sustain tail follows, deriving from the width
-    metric; technique marks, arpeggio brackets and node-head diamonds are square art at the
-    family size and hold still. The head art stretches anisotropically under this knob — a
-    labelled preview; the baked head-w079 atlas variants are the undistorted cross-check.
+    The one board-scale axis still open: the reference's head is narrower for its fret slot than
+    ours (45.5% against 57.6%) while matching our height against the string pitch, so width moves
+    alone. The sustain tail follows, deriving from the width metric; technique marks, arpeggio
+    brackets and node-head diamonds are square art at the family size and hold still. The head
+    art stretches anisotropically under this knob — a labelled preview; the baked head-w079
+    atlas variants are the undistorted cross-check. The uniform family and string-spacing
+    samplers that preceded this one are signed at 1.000 and deleted.
 
     \return Text naming the active candidate and the slot fill it produces.
     */
