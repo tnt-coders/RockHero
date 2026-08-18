@@ -309,6 +309,29 @@ are (the accent because it derives from the head plus a halo band, the bend beca
 offset satellite). Its cell is the only one that changes, and `highway_atlas.h` documents the
 1.57x figure the remedy restores.
 
+Update 2026-08-18: the mark-sizing law rescaled every other technique mark to 1.07x the string
+pitch and carries the pick slide as its ONE explicit exception, kept at its current size — its
+design law is covering the head's footprint, not lane adjacency — and the user re-sighted and
+accepted it (*"pick slide might look right"*). `highway_atlas.h` now documents the shipped
+1.293x coverage; the 1.57x original this remedy would restore survives in git history before
+`c463230f` (the atlas has been reordered since, so cell indices differ there).
+
+### The signed accent light is deliberately subtle — trigger: accents don't stand out enough in practice
+
+The accent light signed 2026-08-18 is `medium flat`: reach 0.12 world, alpha 1.0, exponent 2.0,
+gain 1.0, additive — the un-gained control row of a nine-row sweep built to show what a radiance
+gain buys. The user signed it with the reservation recorded verbatim: *"it is a bit subtle but
+looks good"*, asking that the options tried be kept so the choice can be revisited *"if this
+turns out it doesn't stand out enough in practice."*
+
+**Trigger**: accents fail to register in real play or charting — the light reads as decoration
+rather than emphasis. **Remedy**: raise `g_accent_gain` (inline beside `g_accent_reach` and
+`g_accent_exponent` in `highway_renderer.cpp`). The shader still clips per channel, so gain
+above 1.0 buys the white-hot core and the per-string brightness equalization with no code
+change; the sighted ladder ran 3.0 (`medium`) to 7.0 (`medium hot`), and the full nine-row
+table is recorded with the 2026-08-18 signing in
+`docs/plans/in-progress/highway-note-art-state.md`.
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer

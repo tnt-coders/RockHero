@@ -1,6 +1,5 @@
 #include "preview/preview_resources.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <juce_core/juce_core.h>
@@ -89,27 +88,6 @@ common::ui::HighwayTextureSet loadPreviewHighwayTextures()
         set.at(common::core::indexOf(texture)) =
             readFileBytes(textures.getChildFile(juce::String{file_name}));
     }
-    return set;
-}
-
-std::vector<juce::File> listPreviewNoteAtlasVariants()
-{
-    const juce::Array<juce::File> found =
-        resourcesRoot()
-            .getChildFile("textures")
-            .findChildFiles(juce::File::findFiles, false, "notes-variant-*.png");
-    std::vector<juce::File> variants{found.begin(), found.end()};
-    // findChildFiles order is filesystem-dependent; sort by name so the cycling order is stable
-    // across presses and sessions.
-    std::ranges::sort(variants, {}, [](const juce::File& file) { return file.getFileName(); });
-    return variants;
-}
-
-common::ui::HighwayTextureSet loadPreviewHighwayTextures(const juce::File& notes_variant)
-{
-    common::ui::HighwayTextureSet set = loadPreviewHighwayTextures();
-    set.at(common::core::indexOf(common::core::HighwayTexture::Notes)) =
-        readFileBytes(notes_variant);
     return set;
 }
 

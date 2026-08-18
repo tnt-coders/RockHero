@@ -149,48 +149,6 @@ public:
     void setViewState(common::core::HighwayViewState state);
 
     /*!
-    \brief EXPERIMENT SCAFFOLDING — advances the accent light to the next candidate.
-
-    The accent light is being sighted in the app rather than argued, so every candidate ships at
-    once and the editor cycles them from a keybind. Deleted along with the candidate table once
-    the light is chosen and its numbers move inline.
-
-    The GHOST end of the axis carries no candidates: it was sighted and settled, so only the
-    accent is still being judged.
-
-    \return Text naming the active accent candidate.
-    */
-    [[nodiscard]] std::string cycleAccentStyle();
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — advances the head's width to the next candidate.
-
-    The one board-scale axis still open: the reference's head is narrower for its fret slot than
-    ours (45.5% against 57.6%) while matching our height against the string pitch, so width moves
-    alone. The sustain tail follows, deriving from the width metric; technique marks, arpeggio
-    brackets and node-head diamonds are square art at the family size and hold still. The head
-    art stretches anisotropically under this knob — a labelled preview; the baked head-w079
-    atlas variants are the undistorted cross-check. The uniform family and string-spacing
-    samplers that preceded this one are signed at 1.000 and deleted.
-
-    \return Text naming the active candidate and the slot fill it produces.
-    */
-    [[nodiscard]] std::string cycleHeadWidth();
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — advances the harmonic head to the next candidate.
-
-    Its own axis rather than a row of the two scale cycles, because the question it settles is
-    scale-invariant: the harmonic symbol and the diamond it rides scale together, so the symbol
-    overhangs its base by the same fraction at every family size and string spacing. Sizes the
-    diamond base (and the glow that traces it) and the symbol independently, leaving every other
-    technique mark untouched so the family stays consistent while one shape is judged.
-
-    \return Text naming the active candidate.
-    */
-    [[nodiscard]] std::string cycleHarmonicSize();
-
-    /*!
     \brief Encodes one frame of the highway into the render views.
 
     \param now_seconds Playback song time for this frame (from the consumer's clock port).

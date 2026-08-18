@@ -72,18 +72,6 @@ public:
     */
     void setCaretSeconds(std::optional<double> seconds);
 
-    /*! \brief EXPERIMENT SCAFFOLDING — cycles the accent light on the surface and logs it. */
-    void cycleAccentStyle();
-
-    /*! \brief EXPERIMENT SCAFFOLDING — cycles the harmonic head's size and logs it. */
-    void cycleHarmonicSize();
-
-    /*! \brief EXPERIMENT SCAFFOLDING — cycles the note head's width and logs it. */
-    void cycleHeadWidth();
-
-    /*! \brief EXPERIMENT SCAFFOLDING — cycles the staged note-atlas variant and logs it. */
-    void cycleNoteAtlas();
-
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 

@@ -12,12 +12,44 @@ separate track. When resuming, read both.
 
 ## In flight right now
 
-**Sighting the ACCENT LIGHT on the highway** — the last open end of the emphasis axis, the ghost
-end having been signed. Candidates live in `highway_emphasis_styles.h` and cycle with **F9**,
-which logs the active one. The default index is the table's current front-runner, so the app opens
-on the look last preferred.
+**Queued experiment (user, 2026-08-18): remove the rectangular note head under pick slides.**
+*"Pick slides are somewhat a special case and the rectangle feels like it doesn't really fit"* —
+try the scrape wearing the plectrum alone, with no head base beneath it. Queued for "after the
+rest of this settles"; the toggle cleanup below has settled, so this is next.
 
-**Open and being worked 2026-08-15**, after the user reported that the light *"doesn't fade
+**The ACCENT LIGHT is SIGNED 2026-08-18: `medium flat`** — reach 0.12 world, alpha 1.0, exponent
+2.0, gain 1.0, additive blend. The user: *"'accent light: medium flat' looks best"*, signed with
+the reservation *"it is a bit subtle but looks good"* — recorded as a watch item
+(`docs/tracking/watch-items.md`) whose trigger is accents not standing out enough in practice
+and whose knob is `g_accent_gain`. The winning numbers live inline in `highway_renderer.cpp`
+(`g_accent_reach` / `g_accent_exponent` / `g_accent_gain`); the candidate table, its
+`AccentBlend` enum, the F9 sampler, the F4/F10 size samplers and the F6 atlas-variant cycler
+are all deleted with their plumbing (`highway_board_scales.h` gone, `highway_emphasis_styles.h`
+reduced to the ghost constants), and the variant swapper kept only its deploy/restore/list
+verbs. The blend axis closed with the same signing — additive, exactly as the recommendation
+below argued.
+
+The nine rows tried, each varying one field against `medium` (all premultiplied source):
+
+| Row | Reach (world) | Alpha | Exponent | Gain | Blend | Role |
+|---|---|---|---|---|---|---|
+| `none` | 0 | 0 | — | 0 | Add | the no-light reference |
+| **`medium flat`** | 0.12 | 1.0 | 2.0 | 1.0 | Add | the un-gained control — **SIGNED** |
+| `tight` | 0.06 | 1.0 | 2.0 | 3.0 | Add | four texels; the tightest that reads as light |
+| `medium` | 0.12 | 1.0 | 2.0 | 3.0 | Add | the reference row the others varied against |
+| `wide` | 0.18 | 1.0 | 2.0 | 3.0 | Add | widest reach that still belongs to one string |
+| `wide linear` | 0.18 | 0.85 | 1.0 | 3.0 | Add | the old design's linear ramp, isolated |
+| `medium screen` | 0.12 | 1.0 | 2.0 | 3.0 | Screen | near-identical to `medium` on a dark board |
+| `medium lighten` | 0.12 | 1.0 | 2.0 | 3.0 | Lighten | overlapping glows stop accumulating |
+| `medium hot` | 0.12 | 1.0 | 2.0 | 7.0 | Add | upper gain bracket; even red clips at the core |
+
+What the eye rejected is the gain itself: the sweep was built to show what radiance gain buys,
+and the signed row is the gain-1.0 control. The clipping model stays in the shader — raising
+`g_accent_gain` needs no code change and is the recorded remedy if the subtlety reservation
+fires — but at 1.0 the light holds its string's hue end to end. The narrative below records how
+the shader got its shape; those measurements still govern it.
+
+**Opened 2026-08-15**, after the user reported that the light *"doesn't fade
 naturally like real light and looks boxy"*, that on the chord box *"the top bar light looks
 completely disconnected from the side bar glows — they clash with a hard cut"*, and that
 *"something is really off in how these light shaders are being used"*. Three causes are now
@@ -84,7 +116,7 @@ board carry two light conventions for no gain. (3) `screen`'s only real advantag
 a tonemap; `screen` would mask the symptom instead. Signing it deletes the `AccentBlend` enum, two
 blend states, `accentGlowState()`, one struct field and two table rows. **Held open only until
 `lighten` is sighted**, since that one genuinely differs — it takes a maximum, so overlapping glows
-stop accumulating altogether.
+stop accumulating altogether. Sighted, and it lost; the axis closed with the 2026-08-18 signing.
 
 **Reach is now ONE absolute world number for every subject**, which is a design ruling rather than
 a convenience: reach is a property of the emitter's BRIGHTNESS, not its size — a short neon tube
@@ -115,10 +147,12 @@ the shape. The depth is a UNIFORM rather than a vertex attribute because notes a
 already separate batches with separate submits, so it costs nothing per vertex. Deleting the
 inward half of the old ramp also made the shader shorter.
 
-**The chord box now rides the F9 cycle**, which it did not before — the user reported that as the
-toggle being broken, and it was. Its light is the same row the notes read, and after the gain
-ruling below it carries NO number of its own: the hand-tuned white lift it needed (teal light on a
-teal frame being the least perceptible change available) is supplied by the gain's own clipping.
+**The chord box reads the same accent light the notes read**, which it did not before — the user
+reported that (via the then-live sampler) as the toggle being broken, and it was. After the gain
+ruling below it carries NO number of its own: the hand-tuned white lift it once needed (teal
+light on a teal frame being the least perceptible change available) came from the gain's own
+clipping — moot at the signed gain of 1.0, where the box simply wears the shared light
+unmodified.
 
 **The silhouette constants were re-measured against `notes.png` on 2026-08-16, and four of five
 were wrong.** All the errors were sub-pixel individually (worst 0.32 px at the near end), but three
@@ -156,7 +190,8 @@ cell 4's two axes are equal to 0.000000 tx.
   0.35), plus `wide linear`, `medium screen`, `medium lighten`, and the gain bracket below.
   **Open question: how far may a string-coloured glow reach before it stops belonging to the
   note?** The first round's answer was measured against a WHITE field, which competes with the
-  note in a way its own colour does not, so it is genuinely re-opened.
+  note in a way its own colour does not, so it was genuinely re-opened. Closed by the 2026-08-18
+  signing: the `medium` reach, 0.12 world, held in the string's own colour.
 
 - **Brightness, RULED 2026-08-16: a RADIANCE GAIN, not a blend toward white.** The user asked
   whether the light needed "a bit of white light blended in" to read as bright. It does not, and
@@ -184,7 +219,7 @@ cell 4's two axes are equal to 0.000000 tx.
   (Reference: <https://64.github.io/tonemapping/> on per-channel clamping versus luminance-
   preserving operators and the hue/saturation shift each produces.)
 
-  The table is nine rows now, each varying ONE field against `medium`: `medium flat` (gain 1.0) is
+  The table grew to nine rows, each varying ONE field against `medium`: `medium flat` (gain 1.0) is
   the un-gained control that shows what the gain buys, and `medium hot` (gain 7.0) is the upper
   bracket, hot enough that even the palette's darkest string clips its remaining channels near the
   core. The chord box lost its hand-tuned white lift entirely — the gain whitens its core by the
@@ -229,13 +264,13 @@ cell 4's two axes are equal to 0.000000 tx.
   `openBarEmission` (third call site, corner-clustered columns like the bar strip), the case
   read off each end's packed colors (outer == edge = hard silhouette) with no note-kind branch.
   A fretted tail's own pixels are identical lit or unlit; awaiting the user's 1x sighting for
-  whether the pure halo reads loud enough at far z (the knob is the F9 row's alpha/gain).
+  whether the pure halo reads loud enough at far z (the knob is `g_accent_gain`).
 - **Ghost: SIGNED 2026-08-15 and no longer a sighting item.** `half light` won on the highway
   (sighted at alpha 0.45 head and markers against 0.65 tail; **collapsed on trial to a single 0.5
   everywhere** at the user's suggestion, plus 0.5 open-bar thickness, to test whether the
   head/sustain split was a distinction the eye ever made), the opaque `lean` won on the
-  2D lane, and every alternative is ripped out of both. F10 and its command are gone with them;
-  only F9 remains, cycling the accent light.
+  2D lane, and every alternative is ripped out of both. F10 and its command are gone with them,
+  and F9 followed when the accent light signed (2026-08-18); no sighting sampler remains.
 
 **The 2D lane's ghost is SHIPPED and is not a sighting item** — it took the opposite mechanism on
 purpose (an opaque lean toward the lane's ground); see `note-emphasis-axis.md` item 4 for why, and
@@ -289,9 +324,9 @@ change and the cell vocabulary identical in every variant. Only the winner enter
 rest are deleted. An earlier per-cell candidate seam for the icon sizes was reverted in favour of
 this — it cost atlas cells and code for a switch the file swap does for free.
 
-Working tree holds `notes.png` at the sighted v7 icon sizes, reordered 2026-08-15 (sha
-`cd8c5c4d…`). `git checkout -- rock-hero-common/ui/resources/textures/notes.png` restores the
-committed atlas at any time.
+The committed atlas is `marks-final` (sha256 `fefe8015…`, shipped in `5cf148b4`) and the
+working tree matches it; the rejected sighting variants live outside the repo in
+`rockhero-atlas-variants`.
 
 ## Shipped 2026-08-15 (newest first)
 
@@ -415,12 +450,14 @@ figure measured the wrong contour); and the lane pitch is **22.9688 tx** (0.35 w
 `headArtTexelWorld`'s 63-texel span), not 23.33. The same round found the overflow is
 scale-invariant — mark and base scale together, so NO uniform family rescale changes the 26%
 overflow — and that the pinch harmonic NEVER rides the diamond (`nodeIsOnNeck` excludes
-`Pinch`, chart.h), so cell 15 never constrains the diamond's size. The re-opened decision, its
-nine baked candidates (`rockhero-atlas-variants`, swappable via `.agents/atlas-variant.ps1`),
-and the containment/tangency/mark-size trilemma live in the sighting round in progress; the
-reference-ratio family baseline (user ruling 2026-08-16: match the third-party reference's
-height-over-pitch as the default) is being measured pixel-by-pixel from five screenshots in
-`__scratch__/reference/`.
+`Pinch`, chart.h), so cell 15 never constrains the diamond's size. The re-opened decision CLOSED with the
+2026-08-17 span ruling above and the 2026-08-18 mark law: the symbol dropped to 1.07 x pitch,
+halving the ring's crossing of the flats (+2.4 -> +1.2 tx, tips more proud — the direction this
+ruling favours), and the diamond kept its span. The reference-ratio family baseline (user ruling
+2026-08-16: match the third-party reference's height-over-pitch as the default) was measured
+pixel-by-pixel from the five screenshots in `__scratch__/reference/` and produced the 1.07
+standard; the baked candidates remain in `rockhero-atlas-variants`, swappable via
+`.agents/atlas-variant.ps1`.
 
 **Atlas layout** (256×320, 4×5, capacity 20), REORDERED 2026-08-15 — two rules, one per half of
 the sheet. Head bases take a row per SHAPE FAMILY complete with its hollow: row 0 the rectangle

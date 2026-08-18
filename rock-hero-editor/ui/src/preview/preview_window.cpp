@@ -77,26 +77,6 @@ void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
     m_surface->setCaretSeconds(seconds);
 }
 
-void PreviewWindow::cycleAccentStyle()
-{
-    m_surface->cycleAccentStyle();
-}
-
-void PreviewWindow::cycleHarmonicSize()
-{
-    m_surface->cycleHarmonicSize();
-}
-
-void PreviewWindow::cycleHeadWidth()
-{
-    m_surface->cycleHeadWidth();
-}
-
-void PreviewWindow::cycleNoteAtlas()
-{
-    m_surface->cycleNoteAtlas();
-}
-
 void PreviewWindow::closeButtonPressed()
 {
     close();

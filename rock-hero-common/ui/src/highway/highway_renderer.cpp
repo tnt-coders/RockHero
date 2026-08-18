@@ -2,7 +2,6 @@
 #include "highway/box_mute_profile.h"
 #include "highway/head_art_profile.h"
 #include "highway/highway_atlas.h"
-#include "highway/highway_board_scales.h"
 #include "highway/highway_emphasis_styles.h"
 #include "highway/highway_head_marks.h"
 
@@ -235,21 +234,14 @@ constexpr std::uint64_t g_additive_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_ONE) | BGFX_STATE_MSAA;
 
-// The accent glow's three blend operators, one per AccentBlend. All three consume PREMULTIPLIED
-// source, which is why the additive one is ONE -> ONE rather than the SRC_ALPHA -> ONE above: the
-// glow shader has already scaled its colour by its own alpha, and letting the blender scale it
-// again would apply the falloff twice and square the light. Sharing the premultiplied convention
-// across all three is what makes the A/B compare the operators and nothing else.
-constexpr std::uint64_t g_glow_common_state =
-    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA;
+// The accent glow's blend, SIGNED additive 2026-08-18 from the sighted operator ladder (screen
+// and lighten measured structurally identical over this near-black board and were deleted with
+// the sampler). It consumes PREMULTIPLIED source, which is why it is ONE -> ONE rather than the
+// SRC_ALPHA -> ONE above: the glow shader has already scaled its colour by its own alpha, and
+// letting the blender scale it again would apply the falloff twice and square the light.
 constexpr std::uint64_t g_glow_add_state =
-    g_glow_common_state | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE);
-constexpr std::uint64_t g_glow_screen_state =
-    g_glow_common_state |
-    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_COLOR);
-constexpr std::uint64_t g_glow_lighten_state =
-    g_glow_common_state | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE) |
-    BGFX_STATE_BLEND_EQUATION(BGFX_STATE_BLEND_EQUATION_MAX);
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA |
+    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_ONE);
 
 // Emitter depth for a SOLID subject — a note head, an open string's bar — as opposed to a frame.
 // Any value past the shape's own inradius makes the WHOLE interior emit, which is exactly what
@@ -257,19 +249,14 @@ constexpr std::uint64_t g_glow_lighten_state =
 // silhouette on the board (a node head's is 0.17), so nothing in the note batch approaches it.
 constexpr double g_glow_solid_emitter_depth = 1.0;
 
-[[nodiscard]] constexpr std::uint64_t accentGlowState(const AccentBlend blend)
-{
-    switch (blend)
-    {
-        case AccentBlend::Screen:
-            return g_glow_screen_state;
-        case AccentBlend::Lighten:
-            return g_glow_lighten_state;
-        case AccentBlend::Add:
-            break;
-    }
-    return g_glow_add_state;
-}
+// The accent light, SIGNED 2026-08-18 as the sighted "medium flat" candidate: reach 0.12 world
+// (about eight texels), falloff exponent 2.0, NEUTRAL radiance gain. The user chose the subtle
+// end of the ladder with eyes open ("a bit subtle but looks good"); the tried alternatives are
+// recorded in docs/plans/in-progress/highway-note-art-state.md, and the gain is the named knob
+// if accents fail to read in real play (docs/tracking/watch-items.md carries the trigger).
+constexpr double g_accent_reach = 0.12;
+constexpr double g_accent_exponent = 2.0;
+constexpr double g_accent_gain = 1.0;
 
 // Overlay content is screen-space and never depth-tested.
 constexpr std::uint64_t g_overlay_state =
@@ -1642,37 +1629,9 @@ struct HighwayRenderer::Impl
     // Player scroll speed; a free setting later (25-Q3), the default until then.
     double scroll_speed{1.3};
 
-    // EXPERIMENT SCAFFOLDING — index into the accent candidate table, cycled from the editor
-    // while the look is being sighted. Deleted with the table once the light is chosen and its
-    // numbers move inline. The default is the table's CURRENT FRONT-RUNNER, so the app opens on
-    // the look last preferred rather than on whatever happens to sit at index 1.
-    std::size_t accent_style{1};
-
-    // EXPERIMENT SCAFFOLDING — index into the head-width candidate table: the reference's head
-    // is narrower in its fret slot at our height, so width narrows alone and the tail follows
-    // it. Row 0 is today's shipped board, so the app opens unchanged. The uniform family and
-    // string-spacing samplers that sat beside this one are signed at 1.000 and deleted.
-    std::size_t head_width{0};
-
-    // EXPERIMENT SCAFFOLDING — index into the harmonic-head candidate table. Its own axis rather
-    // than a row of the two above, because the overflow it decides is scale-invariant: symbol and
-    // base scale together, so no board scale moves it. Needs no board rebuild, so unlike the two
-    // above it does not go through applyBoardScales().
-    std::size_t harmonic_style{0};
-
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
-
-    // EXPERIMENT SCAFFOLDING — rebuilds `metrics` from its shipped defaults under the head-width
-    // sighting scale. The scale reaches the board through the METRICS and nowhere else, which is
-    // what keeps the drawing code free of it: the factor multiplies note_half_width alone —
-    // which the head quad's x, the sustain tail and (through headArtTexelWidth()) every
-    // art-silhouette x-extent derive from — while square art (marks, brackets, diamonds) rides
-    // note_half_height and holds its shape, so the light can never trace a silhouette the art
-    // no longer has. The cached board face is untouched on purpose: it derives from the string
-    // spacing, which no surviving scale moves.
-    void applyBoardScales();
 
     void rebuildBoardFace();
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
@@ -1879,35 +1838,6 @@ HighwayRenderer::~HighwayRenderer() = default;
 HighwayRenderer::HighwayRenderer(HighwayRenderer&& other) noexcept = default;
 HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = default;
 
-std::string HighwayRenderer::cycleAccentStyle()
-{
-    m_impl->accent_style = (m_impl->accent_style + 1) % g_accent_light_styles.size();
-    return "accent light: " + std::string{g_accent_light_styles.at(m_impl->accent_style).name};
-}
-
-void HighwayRenderer::Impl::applyBoardScales()
-{
-    // Rebuilt from a DEFAULT-CONSTRUCTED metrics rather than scaled in place, so cycling is
-    // idempotent and reversible: scaling the live value would compound every press and row 0
-    // would no longer restore the shipped board.
-    metrics = common::core::HighwayMetrics{};
-    metrics.note_half_width *= g_head_width_candidates.at(head_width).scale;
-}
-
-std::string HighwayRenderer::cycleHeadWidth()
-{
-    m_impl->head_width = (m_impl->head_width + 1) % g_head_width_candidates.size();
-    m_impl->applyBoardScales();
-    return "head width: " + std::string{g_head_width_candidates.at(m_impl->head_width).name};
-}
-
-std::string HighwayRenderer::cycleHarmonicSize()
-{
-    m_impl->harmonic_style = (m_impl->harmonic_style + 1) % g_harmonic_size_candidates.size();
-    return "harmonic head: " +
-           std::string{g_harmonic_size_candidates.at(m_impl->harmonic_style).name};
-}
-
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
 {
     m_impl->state = std::move(state);
@@ -2044,26 +1974,22 @@ void HighwayRenderer::Impl::draw(
     // open strings, and chord box frames. That sharing is the point — the box light used to be
     // wired to constants of its own and did not move when the toggle did, which read as the
     // toggle being broken.
-    const AccentLightStyle& accent_light = g_accent_light_styles.at(accent_style);
-    // EXPERIMENT SCAFFOLDING — the harmonic-head candidate, read once per frame beside the accent
-    // one. Deleted with its table once the diamond and its symbol are sized.
-    const HarmonicSizeCandidate& harmonic_size = g_harmonic_size_candidates.at(harmonic_style);
+
     // The candidate is shared by every lit subject; only the EMITTER DEPTH differs, and it is the
     // one number separating a solid object from a frame. A note is lit from behind, so its whole
     // interior emits; a chord box is a frame the player reads notes THROUGH, so only the band one
     // frame-thickness deep emits and the interior stays dark. Two uniform values, one field.
-    const auto glow_uniform_at = [&accent_light](const double emitter_depth) {
+    const auto glow_uniform_at = [](const double emitter_depth) {
         return std::array<float, 4>{
-            static_cast<float>(accent_light.reach),
-            static_cast<float>(accent_light.exponent),
+            static_cast<float>(g_accent_reach),
+            static_cast<float>(g_accent_exponent),
             static_cast<float>(emitter_depth),
-            static_cast<float>(accent_light.gain),
+            static_cast<float>(g_accent_gain),
         };
     };
     const std::array<float, 4> note_glow_uniform = glow_uniform_at(g_glow_solid_emitter_depth);
     const std::array<float, 4> box_glow_uniform = glow_uniform_at(metrics.string_grid_base_y);
-    const std::uint64_t glow_state = accentGlowState(accent_light.blend);
-    const bool accents_lit = accent_light.reach > 0.0 && accent_light.alpha > 0.0;
+    const std::uint64_t glow_state = g_glow_add_state;
 
     // Settled hand windows visible this frame: each placement owns the time range from its
     // arrival up to the next placement's ramp start (the transition itself is drawn as a
@@ -3188,7 +3114,7 @@ void HighwayRenderer::Impl::draw(
             // brighter, so the light has to have somewhere to go — which is why the reach is
             // absolute world units shared with the notes rather than a fraction of the box.
             const auto push_box_accent_light = [&](const double light_x0, const double light_x1) {
-                if (!accents_lit || !common::core::isAccented(box.emphasis))
+                if (!common::core::isAccented(box.emphasis))
                 {
                     return;
                 }
@@ -3199,8 +3125,7 @@ void HighwayRenderer::Impl::draw(
                 // light laid on a teal frame is the least perceptible change available; the gain
                 // now whitens the core by the same mechanism it uses on every note, so the box
                 // shares the candidate outright and carries no number of its own.
-                const std::uint32_t lit =
-                    packAbgr(emitterSpectrum(g_chord_box_color), accent_light.alpha);
+                const std::uint32_t lit = packAbgr(emitterSpectrum(g_chord_box_color), 1.0);
                 const double half_w = (light_x1 - light_x0) / 2.0;
                 const double center_x = (light_x0 + light_x1) / 2.0;
 
@@ -3219,7 +3144,7 @@ void HighwayRenderer::Impl::draw(
                             .corner = 0.0,
                             .rhombus = false,
                         },
-                        accent_light.reach,
+                        g_accent_reach,
                         lit,
                         1.0,
                         0.0,
@@ -3234,7 +3159,7 @@ void HighwayRenderer::Impl::draw(
                 // everywhere the quad can show. Left, right and bottom register; the top never
                 // does. The vertical fade is then carried in VERTEX alpha across the same span
                 // the columns fade over, read from the same derivation they read it from.
-                const double open_half_h = (frame.side_y1 + accent_light.reach) / 2.0;
+                const double open_half_h = (frame.side_y1 + g_accent_reach) / 2.0;
                 const GlowShape open_shape{
                     .half_w = half_w,
                     .half_h = open_half_h,
@@ -3242,7 +3167,7 @@ void HighwayRenderer::Impl::draw(
                     .rhombus = false,
                 };
                 const std::uint32_t clear = packAbgr(g_chord_box_color, 0.0);
-                const double out_w = half_w + accent_light.reach;
+                const double out_w = half_w + g_accent_reach;
                 const auto push_span = [&](const double y_low,
                                            const double y_high,
                                            const std::uint32_t a_low,
@@ -4005,7 +3930,7 @@ void HighwayRenderer::Impl::draw(
                 note.emphasis == common::core::NoteEmphasis::Ghost ? g_ghost_alpha : 1.0;
             // ...and the loud end lights it, for the same reason and on the same surface. An
             // accent that stopped at the head made the axis say different things at its two ends.
-            const bool tail_lit = accents_lit && common::core::isAccented(note.emphasis);
+            const bool tail_lit = common::core::isAccented(note.emphasis);
             const auto tip_alpha = [&](const double seconds) {
                 const double tip =
                     (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction);
@@ -4130,10 +4055,10 @@ void HighwayRenderer::Impl::draw(
                                 ribbon_end(a_seconds),
                                 ribbon_end(b_seconds),
                                 emitterSpectrum(style.tail),
-                                accent_light.reach,
-                                accent_light.exponent,
-                                accent_light.alpha * tip_alpha(a_seconds),
-                                accent_light.alpha * tip_alpha(b_seconds));
+                                g_accent_reach,
+                                g_accent_exponent,
+                                tip_alpha(a_seconds),
+                                tip_alpha(b_seconds));
                         }
                     }
                 };
@@ -4439,10 +4364,10 @@ void HighwayRenderer::Impl::draw(
                             end_a,
                             end_b,
                             emitterSpectrum(tail_a),
-                            accent_light.reach,
-                            accent_light.exponent,
-                            accent_light.alpha * a.alpha,
-                            accent_light.alpha * b.alpha);
+                            g_accent_reach,
+                            g_accent_exponent,
+                            a.alpha,
+                            b.alpha);
                     }
                 }
             }
@@ -4466,13 +4391,7 @@ void HighwayRenderer::Impl::draw(
                                      const double sin_r,
                                      const int cell,
                                      const std::uint32_t marker_tint,
-                                     const bool flip_v = false,
-                                     // EXPERIMENT SCAFFOLDING — one mark is being sized against
-                                     // the base it rides, so the size arrives per call rather than
-                                     // being read from the candidate here: every OTHER mark must
-                                     // hold still while the harmonic is judged, and a default of
-                                     // one is what says so at each of the call sites.
-                                     const double mark_scale = 1.0) {
+                                     const bool flip_v = false) {
             // Deferred to the group boundary rather than written inline; see PendingMarker.
             // Both extents from the HEIGHT metric: markers are square art at the family size and
             // deliberately do not take the head-width knob, so a narrowed head changes nothing
@@ -4485,8 +4404,8 @@ void HighwayRenderer::Impl::draw(
                     .z = marker_z,
                     .cos_r = cos_r,
                     .sin_r = sin_r,
-                    .half_w = head_half_h * mark_scale,
-                    .half_h = head_half_h * mark_scale,
+                    .half_w = head_half_h,
+                    .half_h = head_half_h,
                     .cell = cell,
                     .tint = marker_tint,
                     .flip_v = flip_v,
@@ -4706,7 +4625,7 @@ void HighwayRenderer::Impl::draw(
                 base_color,
                 fade * open_bar_alpha,
                 open_bar_thickness);
-            if (accents_lit && common::core::isAccented(note.emphasis))
+            if (common::core::isAccented(note.emphasis))
             {
                 // The same light the fretted head wears, from the same candidate, around a
                 // capsule: half extents of the bar's own middle cross-section, corner radius
@@ -4742,7 +4661,7 @@ void HighwayRenderer::Impl::draw(
                     .corner = g_open_note_middle_half_thickness,
                     .rhombus = false,
                 };
-                const double glow_half_h = g_open_note_middle_half_thickness + accent_light.reach;
+                const double glow_half_h = g_open_note_middle_half_thickness + g_accent_reach;
 
                 std::vector<double> columns;
                 columns.reserve(24);
@@ -4750,7 +4669,7 @@ void HighwayRenderer::Impl::draw(
                 {
                     for (const double offset : {-1.0, -0.5, 0.0, 0.5, 1.0})
                     {
-                        const double s = corner_s + (offset * accent_light.reach);
+                        const double s = corner_s + (offset * g_accent_reach);
                         columns.push_back(s);
                         columns.push_back((x1 - x0) - s);
                     }
@@ -4762,14 +4681,8 @@ void HighwayRenderer::Impl::draw(
                 const auto column_at = [&](const double s) {
                     const double local_x = s - bar_half;
                     const double weight = openBarEmission(
-                        std::min(s, (x1 - x0) - s),
-                        bar_fade,
-                        accent_light.reach,
-                        accent_light.exponent);
-                    return std::pair{
-                        local_x,
-                        packAbgr(emitterSpectrum(base_color), fade * accent_light.alpha * weight)
-                    };
+                        std::min(s, (x1 - x0) - s), bar_fade, g_accent_reach, g_accent_exponent);
+                    return std::pair{local_x, packAbgr(emitterSpectrum(base_color), fade * weight)};
                 };
                 for (std::size_t column = 0; column + 1 < columns.size(); ++column)
                 {
@@ -4869,15 +4782,12 @@ void HighwayRenderer::Impl::draw(
         const std::array<float, 4> hollow_cell = atlases.head_layout.cellRect(
             node_head ? g_head_cell_harmonic_anticipation : g_head_cell_anticipation);
 
-        // EXPERIMENT SCAFFOLDING — a node head's base draws at the harmonic candidate's size while
-        // every other head keeps the shared quad. The hollow twin and the pre-bend outline take
-        // the same extents on purpose: they are previews OF this shape, so a diamond that lands
-        // larger than the ring that announced it would make the approach lie about the landing.
-        // The diamond is square art and holds the family size on both axes; only the rectangle
-        // head takes the width metric on x.
-        const double base_scale = node_head ? harmonic_size.diamond_scale : 1.0;
-        const double base_half_w = (node_head ? head_half_h : head_half_w) * base_scale;
-        const double base_half_h = head_half_h * base_scale;
+        // A node head's diamond is square art and holds the family size on both axes; only the
+        // rectangle head takes the width metric on x. The hollow twin and the pre-bend outline
+        // take the same extents on purpose: they are previews OF this shape, so a preview that
+        // lands differently than the head it announced would make the approach lie.
+        const double base_half_w = node_head ? head_half_h : head_half_w;
+        const double base_half_h = head_half_h;
 
         // Anticipation ring: a hollow copy of the head parked AT THE HIT LINE (z = 0, not the
         // note's own z) that GROWS into full head size as the note arrives — 0.5625 of it when it
@@ -5039,7 +4949,7 @@ void HighwayRenderer::Impl::draw(
         // head-heights out and reads as a lit box the note sits inside — which is what the first
         // attempt at this did. A node head takes the RHOMBUS field instead: its base is a diamond,
         // and a rectangular glow around a diamond leaves four lit corners with nothing under them.
-        if (accents_lit && common::core::isAccented(note.emphasis))
+        if (common::core::isAccented(note.emphasis))
         {
             // World-per-texel per drawn axis. The rectangle head's quad takes the width metric
             // on x, so its texels are anisotropic under the head-width knob; a node head's quad
@@ -5051,15 +4961,10 @@ void HighwayRenderer::Impl::draw(
             // is placed at the ART'S centre rather than the head's. The offset rides the rolling
             // flip with everything else, which is why it is rotated here instead of being folded
             // into the shape.
-            // A node head's offset scales with the same diamond factor as its extents below —
-            // two adjacent expressions that must agree, stated once here so they cannot drift.
-            const double node_scale = node_head ? harmonic_size.diamond_scale : 1.0;
             const double art_dx =
-                (node_head ? head_art.node_center_x_texels : head_art.center_x_texels) *
-                node_scale * texel_x;
+                (node_head ? head_art.node_center_x_texels : head_art.center_x_texels) * texel_x;
             const double art_dy =
-                (node_head ? head_art.node_center_y_texels : head_art.center_y_texels) *
-                node_scale * texel_y;
+                (node_head ? head_art.node_center_y_texels : head_art.center_y_texels) * texel_y;
             pushAccentGlow(
                 accent_glow_vertices,
                 accent_glow_indices,
@@ -5068,13 +4973,8 @@ void HighwayRenderer::Impl::draw(
                 z,
                 node_head
                     ? GlowShape{
-                          // Scaled with the base it traces: a light sized to the unscaled
-                          // silhouette would sit inside a grown diamond, or spill past a
-                          // shrunken one.
-                          .half_w = head_art.node_half_span_texels * texel_y *
-                                    harmonic_size.diamond_scale,
-                          .half_h = head_art.node_half_span_texels * texel_y *
-                                    harmonic_size.diamond_scale,
+                          .half_w = head_art.node_half_span_texels * texel_y,
+                          .half_h = head_art.node_half_span_texels * texel_y,
                           .corner = 0.0,
                           .rhombus = true,
                       }
@@ -5088,9 +4988,9 @@ void HighwayRenderer::Impl::draw(
                           .corner = head_art.corner_texels * texel_y,
                           .rhombus = false,
                       },
-                accent_light.reach,
+                g_accent_reach,
                 packAbgr(
-                    emitterSpectrum(base_color), fade * head_slide.alpha * accent_light.alpha),
+                    emitterSpectrum(base_color), fade * head_slide.alpha),
                 cos_r,
                 sin_r);
         }
@@ -5104,16 +5004,7 @@ void HighwayRenderer::Impl::draw(
             }
             else if (note.harmonic_node.has_value())
             {
-                push_marker(
-                    x,
-                    head_y,
-                    z,
-                    cos_r,
-                    sin_r,
-                    g_head_cell_harmonic,
-                    tint,
-                    false,
-                    harmonic_size.mark_scale);
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
             }
             if (note.mute == common::core::NoteMute::Palm)
             {

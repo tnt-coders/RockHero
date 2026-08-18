@@ -130,38 +130,6 @@ namespace
             .category = "View",
             .default_keypresses = {chord(juce::KeyPress::F3Key)},
         });
-    // EXPERIMENT SCAFFOLDING — the accent-appearance sampler, deleted with the candidate table
-    // once the light is chosen. Registered as a real command rather than raw key handling so it
-    // appears in the actions list and can be rebound like anything else. The ghost sampler that
-    // sat beside it on F10 is gone: that end of the axis is settled.
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::CycleAccentStyle,
-            .name = "Cycle Accent Appearance (experiment)",
-            .category = "View",
-            .default_keypresses = {chord(juce::KeyPress::F9Key)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::CycleHarmonicSize,
-            .name = "Cycle Harmonic Head Size (experiment)",
-            .category = "View",
-            .default_keypresses = {chord(juce::KeyPress::F4Key)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::CycleHeadWidth,
-            .name = "Cycle Note Head Width (experiment)",
-            .category = "View",
-            .default_keypresses = {chord(juce::KeyPress::F10Key)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::CycleNoteAtlas,
-            .name = "Cycle Note Atlas Variant (experiment)",
-            .category = "View",
-            .default_keypresses = {chord(juce::KeyPress::F6Key)},
-        });
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,

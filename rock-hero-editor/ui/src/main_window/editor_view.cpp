@@ -1035,15 +1035,6 @@ void EditorView::togglePreviewWindow()
                     EditorCommandId::CaretJumpNextSection,
                     EditorCommandId::GridFiner,
                     EditorCommandId::GridCoarser,
-                    // EXPERIMENT SCAFFOLDING — the appearance samplers forward too: their whole
-                    // purpose is watching the preview change, so the keys must work where the
-                    // eyes are. Before this they died silently whenever the preview had focus,
-                    // and every sighting ran through a click back to the main window. Removed
-                    // with the samplers when their tables go.
-                    EditorCommandId::CycleAccentStyle,
-                    EditorCommandId::CycleHarmonicSize,
-                    EditorCommandId::CycleHeadWidth,
-                    EditorCommandId::CycleNoteAtlas,
                 };
                 const juce::CommandID command =
                     m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
@@ -1401,13 +1392,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         // purpose: their old decoder branches declined silently, and a disabled command whose
         // chord matches makes JUCE play the system alert sound (KeyPressMappingSet::keyPressed)
         // — so perform self-gates instead, and the core self-gates its intents anyway.
-        // EXPERIMENT SCAFFOLDING — always active, self-gating on whether a preview is live, for
-        // the same reason the verbs below do: a disabled command whose chord matches makes JUCE
-        // play the system alert sound.
-        case EditorCommandId::CycleAccentStyle:
-        case EditorCommandId::CycleHarmonicSize:
-        case EditorCommandId::CycleHeadWidth:
-        case EditorCommandId::CycleNoteAtlas:
         case EditorCommandId::InsertToneChange:
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
@@ -1585,50 +1569,6 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::InsertToneChange:
         {
             createToneMarkerAtCursor();
-            return true;
-        }
-
-        // EXPERIMENT SCAFFOLDING — sampling the accent light, which is the only end of the
-        // emphasis axis still open. The surface logs the active candidate after each step.
-        case EditorCommandId::CycleAccentStyle:
-        {
-            if (m_preview_window != nullptr)
-            {
-                m_preview_window->cycleAccentStyle();
-            }
-            return true;
-        }
-
-        // EXPERIMENT SCAFFOLDING — the harmonic head's own axis, independent of the width scale
-        // because no board scale moves the symbol relative to the diamond it rides.
-        case EditorCommandId::CycleHarmonicSize:
-        {
-            if (m_preview_window != nullptr)
-            {
-                m_preview_window->cycleHarmonicSize();
-            }
-            return true;
-        }
-
-        // EXPERIMENT SCAFFOLDING — the head-width axis measurement split off the family scale:
-        // width narrows alone against a held height, and the sustain tail follows it.
-        case EditorCommandId::CycleHeadWidth:
-        {
-            if (m_preview_window != nullptr)
-            {
-                m_preview_window->cycleHeadWidth();
-            }
-            return true;
-        }
-
-        // EXPERIMENT SCAFFOLDING — the staged-variant atlas sampler, so baked candidate texture
-        // families swap on a key instead of a swapper-script round trip per look.
-        case EditorCommandId::CycleNoteAtlas:
-        {
-            if (m_preview_window != nullptr)
-            {
-                m_preview_window->cycleNoteAtlas();
-            }
             return true;
         }
 

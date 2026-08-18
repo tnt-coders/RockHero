@@ -81,42 +81,9 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief View > 3D Preview (`F3`). */
     TogglePreview3D = 0x1303,
 
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — cycle the accent light candidate (`F9`).
-
-    The loud end of the emphasis axis is being sighted in the app rather than argued. Deleted with
-    the candidate table once that look is chosen; the quiet end is already signed, and the ghost
-    sampler that sat beside this one on `F10` is gone with it.
-    */
-    CycleAccentStyle = 0x1304,
-
-    // 0x1305 and 0x1306 were the uniform family-scale and string-spacing samplers, signed at
-    // 1.000 and deleted 2026-08-17; retired ids are never revived.
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — cycle the harmonic head's diamond and symbol (`F4`).
-
-    Separate from the two scale cycles because the overflow it settles is scale-invariant: no
-    board scale moves the symbol relative to the diamond it rides.
-    */
-    CycleHarmonicSize = 0x1307,
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — cycle the note head's width against its fret slot (`F10`).
-
-    The reference's head is narrower in the slot at our height, so width moves alone and the
-    sustain tail follows it.
-    */
-    CycleHeadWidth = 0x1308,
-
-    /*!
-    \brief EXPERIMENT SCAFFOLDING — cycle the preview's note atlas across staged variants (`F6`).
-
-    Row 0 is the shipped atlas; the other rows are whatever `.agents/atlas-variant.ps1 -Stage`
-    staged beside it, so baked candidate texture families swap on a key instead of a script
-    round trip per look.
-    */
-    CycleNoteAtlas = 0x1309,
+    // 0x1304 through 0x1309 were the highway appearance samplers (accent light, family scale,
+    // string spacing, harmonic size, head width, staged-atlas cycling), each deleted when its
+    // decision signed (2026-08-17/18); retired ids are never revived.
 
     /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
         when one exists, else the transport position (`Ctrl+T`). */
