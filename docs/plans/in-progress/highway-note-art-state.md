@@ -372,8 +372,8 @@ thing that writes the deployed copies.
 
 ## Decided, with the numbers the decisions rest on
 
-**Vibrato runs at ONE FIXED RATE, 5.0 Hz (period 0.2 s), independent of tempo and meter.
-Built 2026-08-18; AWAITING SIGHTING.** The user: *"Vibrato looks WAY too slow on some songs and
+**Vibrato runs at ONE FIXED RATE, 6.0 Hz (period 1/6 s), independent of tempo and meter.
+SIGNED 2026-08-18.** The user: *"Vibrato looks WAY too slow on some songs and
 WAY too fast on others"*, proposing a fixed rate. The diagnosis confirmed it: the wobble had been
 locked to the grid's eighth note, making its frequency literally BPM/30 Hz.
 
@@ -414,16 +414,20 @@ SMuFL bakes vibrato speed into fixed-wavelength glyphs tiled along the note, nev
 tempo — which is also why the 2D lane's spatial-period squiggle is the correct model there and
 not a divergence from this surface.
 
-The centre is ~6 Hz rather than our 5.0: production means cluster 5.2—6.6 Hz and every
-perception study peaks at 6.0—6.5. We sit below that deliberately (a drawn wobble reads busier
-than the pitch waver it depicts), but the gap deserves ONE more sighting, because the rejection
-that set our ceiling may no longer bind: **6.25 Hz was called "frantic" at 0.25 semitones of
-depth, and the depth has since HALVED to 0.125** — and the literature is explicit that rate and
-extent interact perceptually (listeners judge how fast a vibrato is partly by how wide it is;
-production couples them inversely at r = -0.62). So 6 Hz at today's narrower swing is a
-genuinely different stimulus from the one that was rejected. Caveat kept in view: no
-electric-guitar vibrato rate has ever been published, so every number here is transferred from
-voice and bowed strings.
+The centre is ~6 Hz: production means cluster 5.2—6.6 Hz and every perception study peaks at
+6.0—6.5. **The sighting it asked for ran the same day and moved the rate there.** First build
+shipped 5.0 Hz, chosen to sit where the library's median song already drew (4.83 Hz at 145 BPM);
+the user read it back as *"a bit slow"* and signed 6.0.
+
+**A prediction that held, and the reason to keep the two numbers coupled.** 6.25 Hz had been
+rejected as *"frantic"* (`597ebd04`), which is why 5.0 was the conservative first pick. The
+literature said that ceiling might not bind, because **the depth has HALVED since** (0.25
+semitones then, 0.125 now) and rate and extent are judged TOGETHER — listeners read a wobble's
+speed partly from its width, and production couples them inversely at r = -0.62. The sighting
+confirmed it: 6 Hz at the narrow swing reads calm where 6.25 Hz at twice the depth read frantic.
+So the pair moves together from here: widening the depth without slowing the rate walks back
+toward the setting that already failed. Caveat kept in view: no electric-guitar vibrato rate has
+ever been published, so every number here is transferred from voice and bowed strings.
 
 **Two better axes than tempo, if vibrato ever earns time-variation.** (1) Rate rises ~15% toward
 the END of a sustained note (Prame 1994, replicated by Desain et al. for all five instruments) —

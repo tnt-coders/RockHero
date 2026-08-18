@@ -14,7 +14,7 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Vibrato wobble period in seconds, FIXED for every song and tempo (5.0 Hz).
+\brief Vibrato wobble period in seconds, FIXED for every song and tempo (6.0 Hz).
 
 A vibrato's rate is a property of the player's hand, not of the song: the wrist oscillates at
 its own frequency whether the piece is a ballad or a thrash number. The detection plan bands it
@@ -31,15 +31,22 @@ eighth note, so it ran at BPM/30 Hz — 2.0 Hz at 60 BPM and 7.1 Hz at 213, the 
 the user's own library, which is both slower and faster than any hand produces (user
 2026-08-18: *"vibrato looks WAY too slow on some songs and WAY too fast on others"*).
 
-The value sits where the library's MEDIAN song already drew (145 BPM gave 4.83 Hz), so the
-songs that read correctly are the ones that barely move. It is deliberately below the physical
-band's middle: two faster settings were built and rejected on sight — a fixed 160 ms sine
-(6.25 Hz) read "frantic" (`597ebd04`), and a sixteenth-note lock (8 Hz at 120 BPM) "still read
-too fast" (`41af229e`). A drawn wobble reads busier than the real thing it depicts, because the
-eye tracks the whole screen excursion rather than hearing a pitch waver, so the drawn rate
-belongs below the physical one. This is a legibility choice, stated as such.
+SIGNED at 6.0 Hz 2026-08-18, on the second sighting of the day: 5.0 Hz shipped first (chosen to
+sit where the library's median song already drew, 4.83 Hz at 145 BPM) and the user read it back
+as *"a bit slow"*, so the rate moved onto the literature's own centre where it has stayed.
+
+That 6.0 is reachable at all is the interesting part, because a NEARBY RATE WAS ONCE REJECTED:
+a fixed 160 ms sine (6.25 Hz) read *"frantic"* (`597ebd04`), and a sixteenth-note lock (8 Hz at
+120 BPM) *"still read too fast"* (`41af229e`). The ceiling those set did not bind here, and the
+literature predicted exactly why before the sighting ran: **the depth has HALVED since**
+(0.25 semitones then, 0.125 now — see g_highway_vibrato_depth_semitones), and rate and extent
+are judged TOGETHER, not independently. Listeners read a wobble's speed partly from its width;
+production couples the two inversely at r = -0.62. So 6 Hz at today's narrow swing is a
+different stimulus from 6.25 Hz at twice the depth, and it reads calm where that one read
+frantic. Keep the pairing in mind before moving either number alone: widening the depth without
+slowing the rate walks back toward the setting that failed.
 */
-inline constexpr double g_highway_vibrato_period_seconds = 0.2;
+inline constexpr double g_highway_vibrato_period_seconds = 1.0 / 6.0;
 
 /*!
 \brief Vibrato wobble depth in semitones of bend lift — a sixteenth of a step each way.
