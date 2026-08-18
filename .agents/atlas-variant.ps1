@@ -58,8 +58,30 @@ $variants_dir = "C:\__MAIN__\Coding\__scratch__\rockhero-atlas-variants"
 
 # Every deployed copy the two products read at startup. Both must move together or the editor's
 # preview and the game would show different art from the same working tree.
+#
+# The editor's path is DISCOVERED rather than spelled out: JUCE names its artefacts subfolder
+# after the build CONFIG (Debug, Release, RelWithDebInfo), which is not the preset name, so a
+# hardcoded folder silently targeted the wrong tree for every non-debug preset -- the swap
+# reported success against a debug build while the running RelWithDebInfo editor never changed.
+# Globbing asks the filesystem instead of maintaining a preset-to-config table that must agree
+# with CMake by hand.
+$editor_artefacts = Join-Path $repo "build\$Preset\rock-hero-editor\app\rock_hero_editor_exe_artefacts"
+$editor_target = $null
+if (Test-Path $editor_artefacts)
+{
+    $editor_target = Get-ChildItem -Path $editor_artefacts -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { Join-Path $_.FullName "resources\textures\notes.png" } |
+        Where-Object { Test-Path $_ } |
+        Select-Object -First 1
+}
+if ($null -eq $editor_target)
+{
+    # Keep a concrete path for the error messages below rather than a null.
+    $editor_target = Join-Path $editor_artefacts "<config>\resources\textures\notes.png"
+}
+
 $targets = @(
-    (Join-Path $repo "build\$Preset\rock-hero-editor\app\rock_hero_editor_exe_artefacts\Debug\resources\textures\notes.png"),
+    $editor_target,
     (Join-Path $repo "build\$Preset\rock-hero-game\app\resources\textures\notes.png")
 )
 
@@ -72,6 +94,7 @@ function Get-Sha256([string]$file)
 function Show-State
 {
     Write-Host ""
+    Write-Host "preset: $Preset   (pass -Preset to target another build tree)"
     Write-Host "deployed atlases (sha256 prefix):"
     Write-Host ("  {0,-10} {1}" -f "source", (Get-Sha256 $source_atlas))
     $i = 0
@@ -82,6 +105,25 @@ function Show-State
         $mark = if ($null -eq $hash) { "  (MISSING - build once to create it)" } else { "" }
         Write-Host ("  {0,-10} {1}{2}" -f $label, $hash, $mark)
         $i++
+    }
+
+    $staged_dir = Split-Path -Parent $targets[0]
+    if (Test-Path $staged_dir)
+    {
+        $staged = Get-ChildItem -Path $staged_dir -Filter "notes-variant-*.png" -ErrorAction SilentlyContinue
+        Write-Host ""
+        if ($null -eq $staged -or $staged.Count -eq 0)
+        {
+            Write-Host "staged for the editor's F6 sampler: (none - use -Stage <names>)"
+        }
+        else
+        {
+            Write-Host "staged for the editor's F6 sampler (cycled in name order):"
+            foreach ($s in $staged)
+            {
+                Write-Host ("  {0,-40} {1}" -f $s.Name, (Get-Sha256 $s.FullName))
+            }
+        }
     }
 
     if (Test-Path $variants_dir)
