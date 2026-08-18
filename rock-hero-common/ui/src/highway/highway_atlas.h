@@ -202,11 +202,21 @@ on the cell's vertical center line. The offset is equal along the arms and acros
 construction that buys the balance without moving the kink off that line. Its across-the-arms half
 is why the upper point cuts a shallower notch through the rim than the lower one: recovering that
 notch means giving the balance back, and pushing the point further past the outline was measured not
-to recover it. Seated concentric on the head like the harmonic cell, at its AUTHORED size — the
-mark family's 1.07 sizing law explicitly excepts it (user ruling 2026-08-18: its design law is
-covering the head's footprint, not lane adjacency) — measuring 0.635 of the head art's width and
-1.293 of its height by the 50%-contour extents: it covers the head's own footprint, which is why
-a scrape wears this mark alone and no X beneath it.
+to recover it. Seated concentric on the head like the harmonic cell, at 1.5 x THE HEAD'S OWN
+SOLID HEIGHT — the mark family's 1.07-of-pitch sizing law explicitly excepts it (user ruling
+2026-08-18: its design law is covering the head's footprint, not lane adjacency) — measuring
+31.149 x 32.966 texels,
+which is 0.745 of the head art's width and 1.500 of its height by the 50%-contour extents: it
+covers the head's own footprint, which is why a scrape wears this mark alone and no X beneath it.
+
+The ratio is stated against the head's MEASURED extents (41.830 x 21.976 tx), never a literal:
+the marks-final recentring moved the head's own 50% height 21.66 -> 21.976 tx at scale 1.0 (pure
+sub-texel phase), which silently aged an earlier 1.293 figure here to a true 1.274. Sizing this
+mark restored the 1.524x it carried from 2026-08-06 until the 85% family shrink took it to
+1.274x; 1.5 lands within 0.034 tx of that historical height, so the number is a restore rather
+than a new size. Its half-height reaches 71.8% of the way to the next string's centre — the
+measured cost of the exception, and the reason a larger proposal (matching the head's WIDTH,
+1.90x, 91.1% of the way) was rejected on sight.
 */
 inline constexpr int g_head_cell_pick_slide = 19;
 

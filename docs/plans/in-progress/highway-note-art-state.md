@@ -12,6 +12,14 @@ separate track. When resuming, read both.
 
 ## In flight right now
 
+**The sizing pass is SETTLED as of 2026-08-18** and this file is becoming a record rather than a
+work queue. Every size question that opened it is signed: the mark-sizing law, the head family's
+centring and interior concentricity, the accent light, the pick slide's head and its restored
+size. The sighting rig is gone with them — no appearance sampler, no atlas swapper, no candidate
+table anywhere in the tree — so the committed `notes.png` (sha256 `337927b3…`) is the single
+authority for every drawn size and a rebuild is the only thing that writes the deployed copies.
+What remains open is listed under *Open decisions* and *Watching* below, and neither is a size.
+
 **RULED 2026-08-18: the pick slide KEEPS its rectangular head.** The bare-scrape experiment
 (the plectrum alone, no base, no anticipation ring, accent on the tail only — built at
 `15576f52` from the user's *"the rectangle feels like it doesn't really fit"*) was sighted the
@@ -28,8 +36,8 @@ and whose knob is `g_accent_gain`. The winning numbers live inline in `highway_r
 (`g_accent_reach` / `g_accent_exponent` / `g_accent_gain`); the candidate table, its
 `AccentBlend` enum, the F9 sampler, the F4/F10 size samplers and the F6 atlas-variant cycler
 are all deleted with their plumbing (`highway_board_scales.h` gone, `highway_emphasis_styles.h`
-reduced to the ghost constants), and the variant swapper kept only its deploy/restore/list
-verbs. The blend axis closed with the same signing — additive, exactly as the recommendation
+reduced to the ghost constants); the variant swapper was trimmed to deploy/restore/list and
+then deleted outright when the last size signed. The blend axis closed with the same signing — additive, exactly as the recommendation
 below argued.
 
 The nine rows tried, each varying one field against `medium` (all premultiplied source):
@@ -320,16 +328,22 @@ The bend chevron is borderline ("seems to look good too, but can be considered")
 head bases are fixed, they are the yardstick: sizes and scheme rules are expressed as ratios to
 the settled head rather than as absolute texels.
 
-**The toggle mechanism, and why it is files rather than cells.** The engine loads the head atlas
-as a whole file by name, so a sizing scheme is a complete atlas variant: switching is copying a
-variant over `rock-hero-common/ui/resources/textures/notes.png` and rebuilding, with NO code
-change and the cell vocabulary identical in every variant. Only the winner enters the repo; the
-rest are deleted. An earlier per-cell candidate seam for the icon sizes was reverted in favour of
-this — it cost atlas cells and code for a switch the file swap does for free.
+**The toggle mechanism that ran this pass, and why it was files rather than cells — RETIRED
+2026-08-18 with the last size question.** The engine loads the head atlas as a whole file by
+name, so a sizing scheme was a complete atlas variant: switching meant deploying a variant beside
+the executables and reopening the preview, with NO code change and the cell vocabulary identical
+in every variant. Only the winner entered the repo. An earlier per-cell candidate seam for the
+icon sizes was reverted in favour of this — it cost atlas cells and code for a switch the file
+swap did for free. `.agents/atlas-variant.ps1` drove it and is DELETED now that every size is
+signed; if a future round needs sighting again, recover it from git history rather than writing a
+new one (it carried two non-obvious properties worth keeping: it stamped the write time, because
+a plain copy preserves the source's mtime and is then silently ignored by staging, and it
+verified every deployed copy by hash so a swap either provably happened or failed loudly).
 
-The committed atlas is `marks-final` (sha256 `fefe8015…`, shipped in `5cf148b4`) and the
-working tree matches it; the rejected sighting variants live outside the repo in
-`rockhero-atlas-variants`.
+The committed atlas carries every signed size (sha256 `337927b3…`): the 1.07-of-pitch mark law
+from `marks-final`, and the pick slide restored to 1.5x the head's solid height. The rejected
+sighting variants live outside the repo in `rockhero-atlas-variants`; a rebuild is now the only
+thing that writes the deployed copies.
 
 ## Shipped 2026-08-15 (newest first)
 
@@ -347,12 +361,20 @@ working tree matches it; the rejected sighting variants live outside the repo in
 
 **The complete mark-sizing law, SIGNED 2026-08-18 and shipped in the marks-final atlas.**
 Every head-riding technique mark is 1.07 x the string pitch tall (24.5766 tx). Width by group:
-palm mute, pinch harmonic, slap, pop and tap at 1.07 x the head art's width (44.52 tx — equal
-overhang past the head on all four sides); legato, full mute and natural harmonic SQUARE at the
+palm mute, pinch harmonic, slap, pop and tap at **44.52 tx** wide — equal overhang past the head
+on all four sides, and 1.07 x the head's width AS MEASURED WHEN THE TARGET WAS CUT (41.60 tx at
+`8b818d49`). Against the shipped head the same art reads 1.064x, because the marks-final
+recentring shifted the head's ext50 width estimator by +0.23 tx at scale 1.0 while phase-free
+estimators moved +0.007 — the identical ageing the pick-slide ratio took (1.293 -> 1.274). The
+TEXEL number is the law and 1.07 is its provenance, not a live formula: rebaking these five to
+1.07 x today's reading (44.76 tx, +0.47 px) would satisfy the ratio by breaking the equal-overhang
+half of the same sentence, taking overhang asymmetry from 0.087 px to 0.319 px. Audited
+2026-08-18 and left as shipped; legato, full mute and natural harmonic SQUARE at the
 same height (the full mute widened 3.6% to get there, arm angles +/-1.06 degrees; the harmonic
 is concentric circles, so its squareness is exact by construction); the pick slide is the one
-EXPLICIT EXCEPTION, kept at its authored size (user 2026-08-18: too small under the family
-law) because its design law is covering the head's footprint, not lane adjacency. Every mark
+EXPLICIT EXCEPTION, sized at 1.5 x the head's own solid height — 31.149 x 32.966 tx — because
+its design law is covering the head's footprint, not lane adjacency (user 2026-08-18: too small
+under the family law; see the restore below). Every mark
 and all five head-family cells are centred at their cell centres — the half-texel authoring
 offsets that drew heads ~1 px low-right of the string, and the mutes' authored low seats
 (up to 1.24 tx), are gone; the slap-vs-pop sibling split fell 1.51 -> 0.01 tx and the
@@ -459,8 +481,8 @@ halving the ring's crossing of the flats (+2.4 -> +1.2 tx, tips more proud — t
 ruling favours), and the diamond kept its span. The reference-ratio family baseline (user ruling
 2026-08-16: match the third-party reference's height-over-pitch as the default) was measured
 pixel-by-pixel from the five screenshots in `__scratch__/reference/` and produced the 1.07
-standard; the baked candidates remain in `rockhero-atlas-variants`, swappable via
-`.agents/atlas-variant.ps1`.
+standard; the baked candidates remain in `rockhero-atlas-variants`, though the swapper that
+deployed them is retired — a rebuild is the only path to the board now.
 
 **Atlas layout** (256×320, 4×5, capacity 20), REORDERED 2026-08-15 — two rules, one per half of
 the sheet. Head bases take a row per SHAPE FAMILY complete with its hollow: row 0 the rectangle
@@ -478,9 +500,38 @@ cell needs a sixth row (256×384).
 **The marker family's sizing is SETTLED at v7** — every technique symbol at 85% of its authored
 height, sighted and accepted 2026-08-15 (*"I think all these sizes look pretty good. Even pick
 slide"*). The harmonic marker tracks the full mute's height per the rule above rather than
-carrying its own. The one cost the shrink took is recorded and monitored rather than accepted
-silently: the pick slide lost its deliberate over-coverage of the head, which is in
-`docs/tracking/watch-items.md` with the measurement and the remedy that reverses it.
+carrying its own. The one cost that shrink took has since been PAID BACK: it cost the pick slide
+its deliberate over-coverage of the head, the watch item opened for it fired, and the mark is
+restored below.
+
+**The pick slide is RESTORED to 1.5 x the head's solid height. SIGNED 2026-08-18** (user, after
+sighting the baked variant in the app: *"The new size looks good"*). The full history, measured
+cell by cell from every committed atlas: it entered at 33.96 x 23.89 tx as a wide V (`04cbb147`,
+08-04), was reshaped to 20.55 x 20.09 the same day, then took its present form at **31.000 x
+32.997 tx — 1.524 x the head's solid height** (`f33757d1`, 08-06), its largest ever. It held that
+for nine days until the 85% family shrink (`c463230f`) cut it to 26.43 x 28.05, and it shipped at
+26.42 x 27.99 (1.274x) after the marks-final recentring. The restored mark measures **31.149 x
+32.966 tx, 1.5001x** — within **0.034 tx (0.067 px at 1080p)** of the 08-06 height, so the round
+number the user chose is the historical size rather than a new one, and the variant baked at the
+literal historical size was never worth sighting separately.
+
+The rejected alternative is on record with its measurement: matching the head's WIDTH (the user's
+first proposal) would have been 41.830 tx tall — 1.90x the head, 81.6 px at 1080p, its half-height
+reaching **91.1%** of the way to the next string's centre. The user called it before it was baked
+(*"1.9x will likely look terrible"*), so it was measured and dropped rather than rendered. At 1.5x
+that reach is 71.8%, and half the height stays 6.5 tx clear of the lane pitch.
+
+Two accepted costs, measured rather than assumed. Ink overlap with a neighbouring string's HEAD
+roughly triples (34 -> 112 texels of 50%-coverage ink), asymmetric because the tapered lower tip
+intrudes less than the shoulder — but same-onset notes paint in ascending lane order
+(`highway_renderer.cpp`), so within a chord the string above paints over ~84 of those texels.
+Overlap with a neighbouring family MARK goes 0 -> 4 texels. Nothing clips: the art stays wholly
+inside its cell and the drawn quad is unchanged.
+
+The mark was REDRAWN analytically at the new extents, never resampled, through the marks-final
+pipeline's recovered outline; the control that proves the pipeline is faithful is that the same
+construction at scale 1.0 reproduces the shipped cell byte for byte (0 of 4096 texels differ).
+The bake touched cell 19 alone — 826 texels changed, the other nineteen cells byte-identical.
 
 **One shape law.** The filled base, the landing ring, and the pre-bend outline all select their
 silhouette from `highwayNodeHead` (`highway_head_marks.h`), which asks the board's own placement

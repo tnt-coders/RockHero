@@ -292,30 +292,6 @@ entry and is visible and reversible as one edit — never as a silent conversion
 
 ## Highway note art
 
-### The pick slide lost its deliberate over-coverage in the family shrink — trigger: scrapes read hard in practice
-
-The 2026-08-15 sizing pass (`c463230f`) took every technique symbol to 85% of its authored
-height, the pick slide included, so it now stands at **1.30x the head's solid height** rather
-than the **1.57x** its own documentation calls out. That over-coverage is not decoration: it is
-why a scrape wears the plectrum alone with **no X beneath it** — the mark covers the head's own
-footprint, so an X would show only through the plectrum's fracture and read as a second mark
-inside the crack. The user sighted the shrunk mark and approved it, with this reservation
-recorded deliberately.
-
-**Trigger**: pick slides read as hard to make out when actually used in real material — the mark
-sitting *inside* the head rather than covering it. **Remedy**: ramp the pick slide back toward
-its authored size, exempting it from the family percentage the way the accent and bend already
-are (the accent because it derives from the head plus a halo band, the bend because it is an
-offset satellite). Its cell is the only one that changes, and `highway_atlas.h` documents the
-1.57x figure the remedy restores.
-
-Update 2026-08-18: the mark-sizing law rescaled every other technique mark to 1.07x the string
-pitch and carries the pick slide as its ONE explicit exception, kept at its current size — its
-design law is covering the head's footprint, not lane adjacency — and the user re-sighted and
-accepted it (*"pick slide might look right"*). `highway_atlas.h` now documents the shipped
-1.293x coverage; the 1.57x original this remedy would restore survives in git history before
-`c463230f` (the atlas has been reordered since, so cell indices differ there).
-
 ### The signed accent light is deliberately subtle — trigger: accents don't stand out enough in practice
 
 The accent light signed 2026-08-18 is `medium flat`: reach 0.12 world, alpha 1.0, exponent 2.0,
@@ -501,6 +477,25 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ---
 
 ## Retired
+
+### ~~The pick slide lost its deliberate over-coverage in the family shrink~~ — RETIRED 2026-08-18
+
+**Trigger FIRED and the remedy applied the same week it was opened.** The 2026-08-15 family
+shrink (`c463230f`) took every technique symbol to 85% of its authored height, costing the pick
+slide the over-coverage that is its whole design law — the mark covers the head's own footprint,
+which is why a scrape wears the plectrum alone with no X beneath it. The user accepted it on
+sight with the reservation recorded here, then read the atlas again on 2026-08-18 and reopened
+it (*"Pick slide used to be larger... I may want to go back to what it was when it was even
+bigger"*).
+
+Resolved by restoring the size rather than ramping toward it. Measured history: the mark carried
+**31.000 x 32.997 tx (1.524 x the head's solid height)** from 2026-08-06 (`f33757d1`) until the
+shrink cut it to 26.43 x 28.05, shipping at 1.274x after the marks-final recentring. It is now
+baked at **1.5 x the head's solid height, 31.149 x 32.966 tx**, which lands within 0.034 tx of
+that historical height — the restore the remedy called for. The 1.57x figure this item quoted
+was the pre-recentring basis; against the head's current measured extents the same art is
+1.524x. Details, the rejected 1.90x proposal and the measured overlap costs are in
+`docs/plans/in-progress/highway-note-art-state.md`.
 
 ### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
 
