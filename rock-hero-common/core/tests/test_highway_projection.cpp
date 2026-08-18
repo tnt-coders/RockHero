@@ -188,7 +188,7 @@ namespace
             .string = 4,
             .fret = 7,
             .sustain = Fraction{1, 2},
-            .mute = NoteMute::Palm,
+            .palm_mute = true,
             .bend = {},
             .slides = {},
         },
@@ -229,6 +229,18 @@ namespace
             .emphasis = NoteEmphasis::Ghost,
             .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
             .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+        },
+        // Both mutes on one note: the palm is down AND this string is deadened. Two independent
+        // flags, so a projection that collapsed them back onto one axis would drop one of them on
+        // one surface and the comparison below would catch it.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 3},
+            .string = 6,
+            .fret = 5,
+            .palm_mute = true,
+            .dead = true,
+            .bend = {},
+            .slides = {},
         },
         // Fret 0 is the CAPO'd open string, so this node clears the capo rather than the nut: the
         // harmonic's legality depends on the tuning both surfaces also carry.
@@ -413,7 +425,11 @@ TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core
     const auto any_note = [&flat](const auto& carries) {
         return std::ranges::any_of(flat.notes, carries);
     };
-    CHECK(any_note([](const TabNoteView& note) { return note.mute == NoteMute::Palm; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.palm_mute; }));
+    CHECK(any_note([](const TabNoteView& note) { return note.dead; }));
+    // And the combination, which is the state neither surface could be handed before: a collapse
+    // back onto one mute axis would still satisfy the two checks above.
+    CHECK(any_note([](const TabNoteView& note) { return note.palm_mute && note.dead; }));
     CHECK(any_note([](const TabNoteView& note) { return note.tremolo; }));
     CHECK(any_note([](const TabNoteView& note) { return note.vibrato; }));
     CHECK(any_note([](const TabNoteView& note) { return note.emphasis == NoteEmphasis::Accent; }));
@@ -450,7 +466,8 @@ TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core
         // hammer-on on the board is a hammer-on in the lane, or the two surfaces would draw
         // different music from one file.
         CHECK(flat_note.legato == board_note.legato);
-        CHECK(flat_note.mute == board_note.mute);
+        CHECK(flat_note.palm_mute == board_note.palm_mute);
+        CHECK(flat_note.dead == board_note.dead);
         // The span-implied hold, resolved from the same authority on both sides (W9-A).
         CHECK_THAT(
             flat.display_hold_ends[index],
@@ -1185,7 +1202,8 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
         .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3}},
         .slide_out = SlideOut{.offset = Fraction{1}, .fret = 9},
     };
-    scrape.mute = NoteMute::Full;
+    scrape.palm_mute = true;
+    scrape.dead = true;
     scrape.tremolo = true;
     scrape.vibrato = true;
     chart.notes = {scrape};
@@ -1202,7 +1220,8 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     REQUIRE(state.notes.size() == 1);
     const HighwayNoteView& view = state.notes.front();
     CHECK(view.attack == NoteAttack::PickSlide);
-    CHECK(view.mute == NoteMute::None);
+    CHECK_FALSE(view.palm_mute);
+    CHECK_FALSE(view.dead);
     CHECK_FALSE(view.tremolo);
     CHECK_FALSE(view.vibrato);
     CHECK(view.bend.empty());
@@ -1235,7 +1254,7 @@ namespace
 
 // A sustainless note for chord-group cases; onset equals end so nothing reads as held.
 [[nodiscard]] HighwayNoteView chordNote(
-    const double onset, const int string, const int fret, const NoteMute mute = NoteMute::None,
+    const double onset, const int string, const int fret,
     const NoteAttack attack = NoteAttack::Pick)
 {
     HighwayNoteView note;
@@ -1244,7 +1263,21 @@ namespace
     note.string = string;
     note.fret = fret;
     note.attack = attack;
-    note.mute = mute;
+    return note;
+}
+
+// The two mutes as composable marks rather than parameters, so a row of chord members reads as the
+// music it describes instead of as a row of bare booleans — and the both-muted member, which is
+// the whole point of two independent flags, is just the two marks applied together.
+[[nodiscard]] HighwayNoteView palmMuted(HighwayNoteView note)
+{
+    note.palm_mute = true;
+    return note;
+}
+
+[[nodiscard]] HighwayNoteView deadened(HighwayNoteView note)
+{
+    note.dead = true;
     return note;
 }
 
@@ -1289,14 +1322,14 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
 }
 
 // Membership and the per-group facts: contiguous same-onset notes form one group, right-hand
-// onsets stay out of the fretting-hand count, disagreeing mutes collapse to None, and each note
-// indexes its own group.
+// onsets stay out of the fretting-hand count, a mute only part of the strum carries reaches no
+// commonality, and each note indexes its own group.
 TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]")
 {
     std::vector<HighwayNoteView> notes{
         chordNote(1.0, 1, 3),
-        chordNote(1.0, 2, 5, NoteMute::Palm),
-        chordNote(1.0, 3, 5, NoteMute::None, NoteAttack::Tap),
+        palmMuted(chordNote(1.0, 2, 5)),
+        chordNote(1.0, 3, 5, NoteAttack::Tap),
         chordNote(2.0, 1, 3),
     };
     notes[0].emphasis = NoteEmphasis::Accent;
@@ -1311,11 +1344,49 @@ TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]
     CHECK(strum.fretting_hand_count == 2);
     // One accented member makes the strum accented; the other two are normal.
     CHECK(strum.emphasis == NoteEmphasis::Accent);
-    CHECK(strum.common_mute == NoteMute::None);
-    CHECK_FALSE(strum.all_full_muted);
+    CHECK_FALSE(strum.all_palm_muted);
+    CHECK_FALSE(strum.all_dead);
     CHECK_FALSE(strum.box_only);
     CHECK(grouping.note_group == std::vector<std::size_t>({0, 0, 0, 1}));
     CHECK(grouping.groups[1].count == 1);
+}
+
+// Two independent flags fold into two independent unanimities, and the group can be unanimous in
+// one while split in the other. Each commonality means "every member carries this flag", so one
+// dead string inside a palm-muted chord leaves the dead unanimity FALSE and the box goes on
+// reading as the palm mute it is; a strum unanimous in both is unanimous in both, and the box
+// wears both marks stacked rather than picking one.
+TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highway]")
+{
+    const auto mutesOf = [](std::vector<HighwayNoteView> notes) {
+        const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
+        REQUIRE(grouping.groups.size() == 1);
+        const HighwayChordGroupView& group = grouping.groups.front();
+        return std::pair{group.all_palm_muted, group.all_dead};
+    };
+
+    // Unanimously palm muted, unanimously dead, and unanimously both.
+    CHECK(
+        mutesOf({palmMuted(chordNote(1.0, 1, 3)), palmMuted(chordNote(1.0, 2, 5))}) ==
+        std::pair{true, false});
+    CHECK(
+        mutesOf({deadened(chordNote(1.0, 1, 3)), deadened(chordNote(1.0, 2, 5))}) ==
+        std::pair{false, true});
+    CHECK(
+        mutesOf(
+            {palmMuted(deadened(chordNote(1.0, 1, 3))),
+             palmMuted(deadened(chordNote(1.0, 2, 5)))}) == std::pair{true, true});
+
+    // A dead string inside a palm-muted chord: every member is palmed, only one is dead. The palm
+    // unanimity survives the split the old single mute axis would have collapsed to nothing.
+    CHECK(
+        mutesOf({palmMuted(chordNote(1.0, 1, 3)), palmMuted(deadened(chordNote(1.0, 2, 5)))}) ==
+        std::pair{true, false});
+
+    // And a strum every member of which is dead while only one is palmed stays a dead strum.
+    CHECK(
+        mutesOf({deadened(chordNote(1.0, 1, 3)), palmMuted(deadened(chordNote(1.0, 2, 5)))}) ==
+        std::pair{false, true});
 }
 
 // The group's emphasis is what a box STANDING IN for the heads states, so the two folds differ on
@@ -1406,7 +1477,7 @@ TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[co
     CHECK_FALSE(resolved.groups[1].box_only);
 }
 
-// A dead chug (every member fully muted) earns the X repeat box only when it restates the nearest
+// A dead chug (every member dead) earns the X repeat box only when it restates the nearest
 // preceding chord's posture; with fresh frets it shows its notes and their mute crosses — the
 // third recorded regression (Charter blanks every dead chug; this board does not).
 TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core][highway]")
@@ -1414,24 +1485,38 @@ TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core
     std::vector<HighwayNoteView> restating{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
-        chordNote(2.0, 1, 3, NoteMute::Full),
-        chordNote(2.0, 2, 5, NoteMute::Full),
+        deadened(chordNote(2.0, 1, 3)),
+        deadened(chordNote(2.0, 2, 5)),
     };
     const HighwayChordGrouping restated = makeHighwayChordGroups(restating, {});
     REQUIRE(restated.groups.size() == 2);
-    CHECK(restated.groups[1].all_full_muted);
+    CHECK(restated.groups[1].all_dead);
     CHECK(restated.groups[1].box_only);
 
     std::vector<HighwayNoteView> fresh{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
-        chordNote(2.0, 1, 7, NoteMute::Full),
-        chordNote(2.0, 2, 9, NoteMute::Full),
+        deadened(chordNote(2.0, 1, 7)),
+        deadened(chordNote(2.0, 2, 9)),
     };
     const HighwayChordGrouping shown = makeHighwayChordGroups(fresh, {});
     REQUIRE(shown.groups.size() == 2);
-    CHECK(shown.groups[1].all_full_muted);
+    CHECK(shown.groups[1].all_dead);
     CHECK_FALSE(shown.groups[1].box_only);
+
+    // The palm resting on the strings does not stop a dead chug being one: the chug rule reads the
+    // dead flag alone, so a both-muted restatement blanks exactly as the plain dead one does.
+    std::vector<HighwayNoteView> palmed{
+        chordNote(1.0, 1, 3),
+        chordNote(1.0, 2, 5),
+        palmMuted(deadened(chordNote(2.0, 1, 3))),
+        palmMuted(deadened(chordNote(2.0, 2, 5))),
+    };
+    const HighwayChordGrouping palmed_chug = makeHighwayChordGroups(palmed, {});
+    REQUIRE(palmed_chug.groups.size() == 2);
+    CHECK(palmed_chug.groups[1].all_dead);
+    CHECK(palmed_chug.groups[1].all_palm_muted);
+    CHECK(palmed_chug.groups[1].box_only);
 }
 
 // The span-hold take-over cap resolves over the WHOLE song: each group's cap is the next

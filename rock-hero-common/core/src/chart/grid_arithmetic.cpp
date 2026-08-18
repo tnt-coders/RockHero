@@ -138,10 +138,10 @@ std::vector<Fraction> chartEffectiveSustains(
     {
         const GridPosition onset = notes[index].position;
         std::size_t group_end = index + 1;
-        bool all_full_muted = notes[index].mute == NoteMute::Full;
+        bool all_dead = notes[index].dead;
         while (group_end < notes.size() && notes[group_end].position == onset)
         {
-            all_full_muted = all_full_muted && notes[group_end].mute == NoteMute::Full;
+            all_dead = all_dead && notes[group_end].dead;
             ++group_end;
         }
         while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
@@ -154,7 +154,7 @@ std::vector<Fraction> chartEffectiveSustains(
             }
             ++next_shape;
         }
-        if (group_end - index >= 2 && !all_full_muted && covering_end.has_value() &&
+        if (group_end - index >= 2 && !all_dead && covering_end.has_value() &&
             !(*covering_end < onset))
         {
             const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);

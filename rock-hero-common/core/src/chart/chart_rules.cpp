@@ -238,14 +238,15 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
 
 ChartNote executableChartNote(ChartNote note)
 {
-    // A harmonic outranks the mute: the node names the pitch, the mute only says how the string was
-    // articulated. Every other pitch payload loses to it instead, because a dead note has no pitch
-    // for a bend or a vibrato to act on.
-    if (note.mute == NoteMute::Full)
+    // A harmonic outranks the deadening: the node names the pitch, the mute only says how the
+    // string was articulated. Every other pitch payload loses to it instead, because a dead note
+    // has no pitch for a bend or a vibrato to act on. The palm flag is untouched either way — a
+    // palm-muted harmonic is ordinary, and nothing here is deciding what the note sounds like.
+    if (note.dead)
     {
         if (note.harmonic_node.has_value())
         {
-            note.mute = NoteMute::None;
+            note.dead = false;
         }
         else
         {
@@ -360,15 +361,15 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "tapped note needs a place to strike at " + positionText(note.position),
         }};
     }
-    // A full mute sounds no pitch, so it excludes every pitch-valued payload: a harmonic IS
+    // A dead note sounds no pitch, so it excludes every pitch-valued payload: a harmonic IS
     // a pitch, and bend or vibrato modulate a pitch the dead note does not have. Positions
-    // (slides, slide-out) stay legal.
-    if (note.mute == NoteMute::Full &&
-        (note.harmonic_node.has_value() || !note.bend.empty() || note.vibrato))
+    // (slides, slide-out) stay legal. Asked of the dead flag alone, never of the pair: a note
+    // that is also palm muted sounds exactly as dead, and a palm mute on its own sounds pitched.
+    if (note.dead && (note.harmonic_node.has_value() || !note.bend.empty() || note.vibrato))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "a full mute sounds no pitch, so it cannot carry a harmonic, bend, or "
+            .message = "a dead note sounds no pitch, so it cannot carry a harmonic, bend, or "
                        "vibrato at " +
                        positionText(note.position),
         }};

@@ -148,8 +148,11 @@ struct HighwayNoteView
     */
     LegatoMotion legato{LegatoMotion::Unjustified};
 
-    /*! \brief Muting applied to the note. */
-    NoteMute mute{NoteMute::None};
+    /*! \brief True when the picking hand's palm damps the string (`ChartNote::palm_mute`). */
+    bool palm_mute{false};
+
+    /*! \brief True when the string is deadened into an unpitched click (`ChartNote::dead`). */
+    bool dead{false};
 
     /*!
     \brief Harmonic node in fret units, and the assertion that this note is a harmonic.
@@ -188,9 +191,10 @@ struct HighwayNoteView
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
                lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
-               lhs.mute == rhs.mute && lhs.harmonic_node == rhs.harmonic_node &&
-               lhs.vibrato == rhs.vibrato && lhs.tremolo == rhs.tremolo &&
-               lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides;
+               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
+               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
+               lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend &&
+               lhs.slides == rhs.slides;
     }
 };
 
@@ -463,16 +467,27 @@ struct HighwayChordGroupView
     */
     NoteEmphasis emphasis{NoteEmphasis::Normal};
 
-    /*! \brief The mute every member shares, or None when the members disagree. */
-    NoteMute common_mute{NoteMute::None};
+    /*!
+    \brief True when EVERY member is palm muted.
+
+    One commonality per mute flag rather than one shared mute value, because the flags are
+    independent on the note and a group can be unanimous in one and split in the other. Unanimity
+    is the only answer a box can use: a box speaks for its whole strum, so a mute only part of the
+    strum carries says nothing the box could draw — one dead string inside a palm-muted chord
+    leaves \ref all_dead false and the box still reads as the palm mute it is.
+
+    Independent of \ref all_dead the whole way down: a strum unanimous in both wears BOTH box
+    marks, stacked the way the note heads stack theirs, so nothing here picks between them.
+    */
+    bool all_palm_muted{false};
 
     /*!
-    \brief True when every member is fully muted.
+    \brief True when EVERY member is dead.
 
-    A dead chug restating the preceding chord hides behind the repeat box, and muted runs never
-    break another chord's repeat chain.
+    A dead chug restating the preceding chord hides behind the repeat box, and dead runs never
+    break another chord's repeat chain. Unanimous like \ref all_palm_muted and independent of it.
     */
-    bool all_full_muted{false};
+    bool all_dead{false};
 
     /*!
     \brief Repeat-chord treatment (Charter's visibility rules): the strum renders as a
@@ -504,8 +519,8 @@ struct HighwayChordGroupView
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) && lhs.first == rhs.first &&
                lhs.count == rhs.count && lhs.fretting_hand_count == rhs.fretting_hand_count &&
-               lhs.emphasis == rhs.emphasis && lhs.common_mute == rhs.common_mute &&
-               lhs.all_full_muted == rhs.all_full_muted && lhs.box_only == rhs.box_only &&
+               lhs.emphasis == rhs.emphasis && lhs.all_palm_muted == rhs.all_palm_muted &&
+               lhs.all_dead == rhs.all_dead && lhs.box_only == rhs.box_only &&
                std::is_eq(lhs.hold_cap_seconds <=> rhs.hold_cap_seconds);
     }
 };
@@ -963,7 +978,7 @@ chain, the dead-chug restatement, the span-hold take-over — live where tests c
 instead of inside the GPU path. The classification (Charter's chord visibility rules): a strum
 shows only the half-height repeat box when it repeats the covering hand shape's own posture
 within the shape span — single notes and dead chugs between strums do not break the chain, a
-fully-muted strum never shows notes, and a sustained or technique-bearing strum always does. The
+fully dead strum never shows notes, and a sustained or technique-bearing strum always does. The
 take-over cap is resolved over the whole song, which is what makes it stable: each group's
 span-hold display ends at the next note-showing strum wherever that strum is, not merely within
 whatever window a renderer happens to be drawing.
@@ -998,15 +1013,16 @@ whatever window a renderer happens to be drawing.
             .count = group_end - index,
             .fretting_hand_count = 0,
             .emphasis = NoteEmphasis::Normal,
-            .common_mute = notes[index].mute,
-            .all_full_muted = true,
+            .all_palm_muted = true,
+            .all_dead = true,
             .box_only = false,
             .hold_cap_seconds = std::numeric_limits<double>::infinity(),
         };
         std::vector<std::pair<int, int>> frets;
         frets.reserve(group.count);
         // Quiet is the unanimous claim, so it starts true and any non-ghost member clears it;
-        // loud is the existential one and starts false. Both fold in the same pass below.
+        // loud is the existential one and starts false. Both fold in the same pass below, as do
+        // the two mute unanimities, which are unanimous claims of the same shape.
         bool all_ghosted = true;
         for (std::size_t member = index; member < group_end; ++member)
         {
@@ -1020,11 +1036,8 @@ whatever window a renderer happens to be drawing.
                 group.emphasis = NoteEmphasis::Accent;
             }
             all_ghosted = all_ghosted && isGhosted(note.emphasis);
-            if (note.mute != group.common_mute)
-            {
-                group.common_mute = NoteMute::None;
-            }
-            group.all_full_muted = group.all_full_muted && note.mute == NoteMute::Full;
+            group.all_palm_muted = group.all_palm_muted && note.palm_mute;
+            group.all_dead = group.all_dead && note.dead;
             frets.emplace_back(note.string, note.fret);
             grouping.note_group[member] = grouping.groups.size();
         }
@@ -1065,14 +1078,12 @@ whatever window a renderer happens to be drawing.
             continue;
         }
         bool has_tails = false;
-        bool all_palm_muted = true;
         bool any_marks = false;
         for (std::size_t member = group.first; member < group.first + group.count; ++member)
         {
             const HighwayNoteView& note = notes[member];
             has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
                         note.tremolo || !note.bend.empty() || !note.slides.empty();
-            all_palm_muted = all_palm_muted && note.mute == NoteMute::Palm;
             // What is DRAWN, not what is stored: inside the connection family the mark is the
             // note's RESOLVED motion, so a claim nothing justifies carries no mark and must not
             // hold the repeat box off — it is pixel-identical to the plain pick beside it. Every
@@ -1080,13 +1091,13 @@ whatever window a renderer happens to be drawing.
             const bool attack_marks =
                 !legatoClaimable(note.attack) || note.legato != LegatoMotion::Unjustified;
             any_marks = any_marks || note.harmonic_node.has_value() || attack_marks ||
-                        note.mute != NoteMute::None;
+                        isMuted(note.palm_mute, note.dead);
         }
         if (has_tails)
         {
             continue;
         }
-        if (group.all_full_muted)
+        if (group.all_dead)
         {
             // A dead chug earns the X repeat box only when it restates the nearest preceding
             // chord's posture (muted or not); with fresh frets it displays its notes and their
@@ -1120,7 +1131,7 @@ whatever window a renderer happens to be drawing.
         }
         // Marked chords always show their notes — unless every note is palm muted, where
         // Charter's mute short-circuit applies the repeat rule anyway.
-        if (any_marks && !all_palm_muted)
+        if (any_marks && !group.all_palm_muted)
         {
             continue;
         }
@@ -1166,15 +1177,15 @@ whatever window a renderer happens to be drawing.
             const std::size_t run_count = cursor - run_begin;
             if (run_count >= 2)
             {
-                bool run_all_full_muted = true;
+                bool run_all_dead = true;
                 std::vector<std::pair<int, int>> run_frets;
                 run_frets.reserve(run_count);
                 for (std::size_t member = run_begin; member < cursor; ++member)
                 {
-                    run_all_full_muted = run_all_full_muted && notes[member].mute == NoteMute::Full;
+                    run_all_dead = run_all_dead && notes[member].dead;
                     run_frets.emplace_back(notes[member].string, notes[member].fret);
                 }
-                if (!run_all_full_muted)
+                if (!run_all_dead)
                 {
                     std::ranges::sort(run_frets);
                     group.box_only = posture_matches(*shape, run_frets);
@@ -1194,7 +1205,7 @@ whatever window a renderer happens to be drawing.
     for (HighwayChordGroupView& group : grouping.groups | std::views::reverse)
     {
         group.hold_cap_seconds = next_shown_onset;
-        if (group.count >= 2 && !group.box_only && !group.all_full_muted)
+        if (group.count >= 2 && !group.box_only && !group.all_dead)
         {
             next_shown_onset = group.start_seconds;
         }

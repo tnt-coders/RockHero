@@ -282,16 +282,23 @@ generator, posture derivation, chord grouping, and camera framing all share this
     return attack == NoteAttack::Tap || attack == NoteAttack::PickSlide;
 }
 
-/*! \brief Muting applied to a note. */
-enum class NoteMute : std::uint8_t
+/*!
+\brief Reports whether a note wears a mute mark at all, either hand's.
+
+Two independent flags, so "muted" is a question rather than a field: every surface that decides
+whether to draw a mute mark, box a fret number, or hold a repeat box off asks this, and none of
+them re-spells the disjunction. Which mark it then draws is the separate question \ref
+ChartNote::dead answers alone.
+
+\param palm_mute True when the picking hand's palm damps the string.
+\param dead True when the string is deadened into an unpitched click.
+
+\return True when either mute applies.
+*/
+[[nodiscard]] constexpr bool isMuted(const bool palm_mute, const bool dead) noexcept
 {
-    /*! \brief No muting. */
-    None,
-    /*! \brief Palm mute: pitched but damped. */
-    Palm,
-    /*! \brief Full fret-hand mute: percussive, unpitched. */
-    Full
-};
+    return palm_mute || dead;
+}
 
 /*! \brief One point of a bend curve, positioned relative to the note onset. */
 struct BendPoint
@@ -396,8 +403,33 @@ struct ChartNote
     /*! \brief How the onset is produced. */
     NoteAttack attack{NoteAttack::Pick};
 
-    /*! \brief Muting applied to the note. */
-    NoteMute mute{NoteMute::None};
+    /*!
+    \brief True when the picking hand's palm rests on the strings: still pitched, but damped.
+
+    Independent of \ref dead rather than exclusive with it, because the two hands are doing two
+    different things and can do them at once — a dead string inside a palm-muted chord is
+    ordinary charting, and one mute axis could not write it down.
+    */
+    bool palm_mute{false};
+
+    /*!
+    \brief True when the string is deadened into an unpitched click.
+
+    Named for the technique rather than for a hand: standard tab writes a dead note as an X, both
+    surfaces draw that X, and either hand (or both) can be the one deadening the string — which is
+    also why this is not "fret-hand mute".
+
+    A note carrying both mutes SOUNDS and SCORES exactly as a dead note: the palm flag on it is
+    charting truth about where the hand is, not a third sounding state. So anything asking what
+    the string sounds like — the sounding rules here, the 2D X fill, the 3D head base — reads THIS
+    flag alone and never both, while anything asking only whether a mark appears at all asks \ref
+    isMuted.
+
+    Nothing DRAWS a choice between the two: each mark comes from its own flag, so a both-muted note
+    simply wears both (the palm mark and the dead X stack on one head, and the 2D lane pairs a
+    white X with the palm hand's dark plate). No surface has, or needs, a "both" branch.
+    */
+    bool dead{false};
 
     /*!
     \brief String position of the harmonic node, in fret units — and the assertion that this

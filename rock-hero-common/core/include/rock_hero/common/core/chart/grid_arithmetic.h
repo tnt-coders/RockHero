@@ -82,7 +82,7 @@ The chart convention the hold test must judge against, and the musical twin of t
 restating it: a strum under a hand-shape span is held for the whole span even when
 its notes carry no sustain, because the span is what tells the player how long to keep the shape
 fretted. Each SUSTAINLESS note in a same-onset group of two or more covered by a span therefore
-holds to the span's end. Groups whose notes are all fully muted stay unextended (a dead chug is
+holds to the span's end. Groups whose notes are all dead stay unextended (a dead chug is
 choked, not held), as do single notes and notes carrying an explicit sustain, whose tails already
 state their hold. Coverage is positional only, with no posture matching.
 

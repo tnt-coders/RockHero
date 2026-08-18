@@ -114,8 +114,11 @@ struct TabNoteView
     */
     LegatoMotion legato{LegatoMotion::Unjustified};
 
-    /*! \brief Muting applied to the note. */
-    NoteMute mute{NoteMute::None};
+    /*! \brief True when the picking hand's palm damps the string (`ChartNote::palm_mute`). */
+    bool palm_mute{false};
+
+    /*! \brief True when the string is deadened into an unpitched click (`ChartNote::dead`). */
+    bool dead{false};
 
     /*!
     \brief Harmonic node in fret units, and the assertion that this note is a harmonic.
@@ -152,9 +155,10 @@ struct TabNoteView
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
                lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
-               lhs.mute == rhs.mute && lhs.harmonic_node == rhs.harmonic_node &&
-               lhs.vibrato == rhs.vibrato && lhs.tremolo == rhs.tremolo &&
-               lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides;
+               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
+               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
+               lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend &&
+               lhs.slides == rhs.slides;
     }
 };
 

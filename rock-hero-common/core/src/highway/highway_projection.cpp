@@ -87,7 +87,7 @@ HighwayViewState makeHighwayViewState(
     // stream it draws, the effective holds the span convention implies, and each note's resolved
     // connection motion. The saved form matters because a pick slide overrides its other techniques
     // in memory (chart.h) and the display must show the scrape without them, and because the hold
-    // rule states saved form as its precondition — fed the in-memory stream, a latent full mute
+    // rule states saved form as its precondition — fed the in-memory stream, a latent dead flag
     // chokes an onset group the saved chart holds. What stays local is how a scrape RENDERS:
     // through the unpitched machinery (dimmed glide, no waypoint furniture, no hand-window
     // contribution) and never feeding the slide-locked ramps.
@@ -110,7 +110,8 @@ HighwayViewState makeHighwayViewState(
         view.fret = note.fret;
         view.attack = note.attack;
         view.legato = resolutions.legato[note_index];
-        view.mute = note.mute;
+        view.palm_mute = note.palm_mute;
+        view.dead = note.dead;
         view.harmonic_node = note.harmonic_node;
         view.vibrato = note.vibrato;
         view.tremolo = note.tremolo;

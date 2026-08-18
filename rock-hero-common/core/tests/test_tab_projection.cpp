@@ -253,7 +253,8 @@ TEST_CASE("Tab projection suppresses pick-slide latents", "[core][tab]")
         .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3}},
         .slide_out = SlideOut{.offset = Fraction{1}, .fret = 9},
     };
-    scrape.mute = NoteMute::Full;
+    scrape.palm_mute = true;
+    scrape.dead = true;
     scrape.tremolo = true;
     scrape.vibrato = true;
     chart.notes = {scrape};
@@ -264,7 +265,8 @@ TEST_CASE("Tab projection suppresses pick-slide latents", "[core][tab]")
     REQUIRE(state.notes.size() == 1);
     const TabNoteView& view = state.notes.front();
     CHECK(view.attack == NoteAttack::PickSlide);
-    CHECK(view.mute == NoteMute::None);
+    CHECK_FALSE(view.palm_mute);
+    CHECK_FALSE(view.dead);
     CHECK_FALSE(view.tremolo);
     CHECK_FALSE(view.vibrato);
     CHECK(view.bend.empty());

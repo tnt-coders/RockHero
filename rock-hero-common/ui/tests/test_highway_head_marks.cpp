@@ -59,12 +59,24 @@ TEST_CASE("Highway tech head follows the drawn marks", "[ui][highway]")
     CHECK(highwayTechHead(
         noteWith(common::core::NoteAttack::Legato, common::core::LegatoMotion::Pull)));
 
-    // The other two clauses, so the connection one cannot be masking them: a full mute and a
+    // The other two clauses, so the connection one cannot be masking them: a dead note and a
     // scrape's unpitched travel.
-    common::core::HighwayNoteView muted =
+    common::core::HighwayNoteView dead =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
-    muted.mute = common::core::NoteMute::Full;
-    CHECK(highwayTechHead(muted));
+    dead.dead = true;
+    CHECK(highwayTechHead(dead));
+
+    // Keyed on the dead flag ALONE. A palm mute is still a pitched note, so it leaves the head
+    // standard; a note carrying both sounds dead, so it takes the dead base and its palm marker
+    // stacks over that.
+    common::core::HighwayNoteView palm =
+        noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
+    palm.palm_mute = true;
+    CHECK_FALSE(highwayTechHead(palm));
+
+    common::core::HighwayNoteView both = dead;
+    both.palm_mute = true;
+    CHECK(highwayTechHead(both));
 
     CHECK(highwayTechHead(
         noteWith(common::core::NoteAttack::PickSlide, common::core::LegatoMotion::Unjustified)));

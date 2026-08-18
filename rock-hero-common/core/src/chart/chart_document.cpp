@@ -97,7 +97,8 @@ namespace
         {"fret", [](const juce::var& v) { return v.isInt(); }},
         {"sustain", [](const juce::var& v) { return v.isString(); }},
         {"attack", [](const juce::var& v) { return v.isString(); }},
-        {"mute", [](const juce::var& v) { return v.isString(); }},
+        {"palmMute", [](const juce::var& v) { return v.isBool(); }},
+        {"dead", [](const juce::var& v) { return v.isBool(); }},
         {"harmonicNode", [](const juce::var& v) { return v.isDouble() || v.isInt(); }},
         {"vibrato", [](const juce::var& v) { return v.isBool(); }},
         {"tremolo", [](const juce::var& v) { return v.isBool(); }},
@@ -161,19 +162,20 @@ namespace
         return std::unexpected{malformed("chart note attack is unknown: " + attack)};
     }
 
-    const std::string mute = Json::readOptionalString(note_json, "mute", "");
-    if (mute == "palm")
+    // The one mute axis became two independent flags: a hand can palm the strings and deaden a
+    // string at the same time, which one enum could not say. A document still carrying the old key
+    // predates that and would otherwise load with every mute silently dropped, so refuse it and
+    // name the fix — the same tripwire the harmonic/touch removal got, and deleted on the same
+    // schedule.
+    if (!Json::value(note_json, "mute").isVoid())
     {
-        note.mute = NoteMute::Palm;
+        return std::unexpected{malformed(
+            "chart note uses the removed \"mute\" field; re-import the package to get "
+            "\"palmMute\" and \"dead\"")};
     }
-    else if (mute == "full")
-    {
-        note.mute = NoteMute::Full;
-    }
-    else if (!mute.empty())
-    {
-        return std::unexpected{malformed("chart note mute is unknown: " + mute)};
-    }
+
+    note.palm_mute = Json::readOptionalBool(note_json, "palmMute", false);
+    note.dead = Json::readOptionalBool(note_json, "dead", false);
 
     // The harmonic field is gone: a node asserts the harmonic and `attack` says which hand damps
     // it. A document still carrying either old key predates that and would otherwise load with its
@@ -379,13 +381,13 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
             break;
         }
     }
-    if (note.mute == NoteMute::Palm)
+    if (note.palm_mute)
     {
-        line += R"(, "mute": "palm")";
+        line += R"(, "palmMute": true)";
     }
-    else if (note.mute == NoteMute::Full)
+    if (note.dead)
     {
-        line += R"(, "mute": "full")";
+        line += R"(, "dead": true)";
     }
     if (note.harmonic_node.has_value())
     {

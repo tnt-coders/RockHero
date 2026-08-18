@@ -179,11 +179,12 @@ string with no node has nowhere to strike — so it belongs to the one-note half
 a shed here.
 
 Which side loses is settled by how much of the note each fact determines: the pitch identity (a
-harmonic's node) outranks how the string is articulated (the mute), which outranks modulation of a
-pitch over time (bend, vibrato). A dead note's own mute therefore survives against a bend, and
-falls against a harmonic. Dropping the lower-ranked side is always the smaller lie: keeping the
-mute over a harmonic would silence a note the score named precisely, and keeping a bend over the
-mute would give a dead note a pitch to bend.
+harmonic's node) outranks how the string is articulated (the deadening), which outranks modulation
+of a pitch over time (bend, vibrato). A note's own `dead` flag therefore survives against a bend,
+and falls against a harmonic. Dropping the lower-ranked side is always the smaller lie: keeping the
+deadening over a harmonic would silence a note the score named precisely, and keeping a bend over
+it would give a dead note a pitch to bend. The palm flag never enters the ranking: it says where
+the hand is rather than what the string sounds, so nothing it can be paired with contradicts it.
 
 \param note Note as a source described it.
 
@@ -250,7 +251,7 @@ range; non-negative sustains; slide offsets strictly positive, ascending, and wi
 bend offsets non-negative, ascending, and within the sustain; shape spans positive, sorted, and
 referencing existing templates; sorted fret-hand positions whose window fits the neck; capo
 floors; harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node;
-full-mute exclusions; the tap landing rule (both tapping attacks); tap-harmonic tremolo; the
+dead-note exclusions; the tap landing rule (both tapping attacks); tap-harmonic tremolo; the
 fret-hand-harmonic slide, bend, and vibrato exclusions; the cent-offset bound;
 and, on pick-slide notes, no pitched techniques (a saved scrape carries none — the writer omits
 the in-memory overrides; emphasis is a scrape's own dynamics) plus the required unpitched slide-out

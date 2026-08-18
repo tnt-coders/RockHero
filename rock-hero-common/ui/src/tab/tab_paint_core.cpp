@@ -264,9 +264,6 @@ PlatePalette platePalette(const StringStyle& style, const Hand hand)
 // and score identically (user ruling 2026-08-18) - the design parks its one ambiguity where it
 // costs nothing, which is why reinforcing it with a dark rim measured WORSE (it drags "both" back
 // toward "palm only", the pair that differs in pitch).
-//
-// Under today's exclusive NoteMute enum palm is exactly !full, so this is behaviour-identical to
-// keying on the full mute; the difference appears the moment both can be set at once.
 PlatePalette mutePlatePalette(const StringStyle& style, const bool palm_mute)
 {
     return palm_mute ? PlatePalette{.fill = style[Ink::PalmMuteInner], .ink = style[Ink::Digit]}
@@ -1099,13 +1096,16 @@ void drawAccentGlow(
     g.fillEllipse(center_x - glow_size / 2.0f, center_y - glow_size / 2.0f, glow_size, glow_size);
 }
 
-// Draws Charter's fat X mute icon over the head: near-black for palm mutes, white for full
-// mutes, both with a gray border.
+// Draws Charter's fat X mute icon over the head, gray-bordered. One X for both mutes: it appears
+// whenever either flag is set, and its FILL is keyed on the dead flag alone — white when the note
+// sounds dead, near-black when the palm is the only thing damping it. A both-muted note is
+// therefore drawn by two elements each reading one flag (the plate below reads the palm hand), and
+// no branch anywhere has to know about "both".
 void drawMuteIcon(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    common::core::NoteMute mute, float center_x, float center_y)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, bool palm_mute,
+    bool dead, float center_x, float center_y)
 {
-    if (mute == common::core::NoteMute::None)
+    if (!common::core::isMuted(palm_mute, dead))
     {
         return;
     }
@@ -1134,8 +1134,7 @@ void drawMuteIcon(
     x_shape.lineTo(left + space, top);
     x_shape.closeSubPath();
 
-    const juce::Colour inner =
-        mute == common::core::NoteMute::Full ? style[Ink::PlateLight] : style[Ink::PalmMuteInner];
+    const juce::Colour inner = dead ? style[Ink::PlateLight] : style[Ink::PalmMuteInner];
     g.setColour(inner);
     g.fillPath(x_shape);
     g.setColour(style[Ink::MuteBorder]);
@@ -1457,15 +1456,14 @@ void drawNoteHead(
     // The X reports this note's OWN mute state and nothing else — a mark that means one thing on
     // one note and another elsewhere is a mark the reader has to disambiguate; the plectrum
     // silhouette already says what a scrape is. The chart rules reject a mute on a pick-slide
-    // note outright, so a scrape passes None here and draws no X at all.
-    drawMuteIcon(g, metrics, style, note.mute, onset_x, center_y);
+    // note outright, so a scrape passes two clear flags here and draws no X at all.
+    drawMuteIcon(g, metrics, style, note.palm_mute, note.dead, onset_x, center_y);
 
     if (metrics.draw_text)
     {
         const juce::String head_text = tabNoteHeadText(note, note.fret);
-        const bool muted = note.mute != common::core::NoteMute::None;
-        const PlatePalette mute_plate =
-            mutePlatePalette(style, note.mute == common::core::NoteMute::Palm);
+        const bool muted = common::core::isMuted(note.palm_mute, note.dead);
+        const PlatePalette mute_plate = mutePlatePalette(style, note.palm_mute);
         if (muted)
         {
             // Both mutes box the fret number so it stays readable where the X's crossing strokes

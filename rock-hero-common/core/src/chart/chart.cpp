@@ -40,7 +40,8 @@ ChartNote savedChartNote(const ChartNote& note)
     ChartNote saved = note;
     if (saved.attack == NoteAttack::PickSlide)
     {
-        saved.mute = NoteMute::None;
+        saved.palm_mute = false;
+        saved.dead = false;
         saved.harmonic_node.reset();
         saved.vibrato = false;
         saved.tremolo = false;

@@ -331,7 +331,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             // the projection's answer is what the paint core has to be handed.
             .attack = common::core::NoteAttack::Legato,
             .legato = common::core::LegatoMotion::Hammer,
-            .mute = common::core::NoteMute::Palm,
+            .palm_mute = true,
             .vibrato = true,
             .emphasis = common::core::NoteEmphasis::Accent,
             .bend = {common::core::TabBendPointView{.seconds = 4.0, .semitones = 2.0}},
@@ -355,7 +355,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             // A pinch carries its node like every harmonic, but 24.0 sits past the neck where the
             // thumb grazes, so the head still labels the fret (7) rather than the node.
             .attack = common::core::NoteAttack::Pinch,
-            .mute = common::core::NoteMute::Full,
+            .dead = true,
             .harmonic_node = 24.0,
             .bend = {},
             .slides = {},
@@ -675,7 +675,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .end_seconds = 12.0,
             .string = 3,
             .fret = 5,
-            .mute = common::core::NoteMute::Full,
+            .dead = true,
             .bend = {},
             .slides = {},
         },

@@ -247,7 +247,8 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[0].string == 1);
     CHECK(chart.notes[0].fret == 5);
-    CHECK(chart.notes[0].mute == common::core::NoteMute::Palm);
+    CHECK(chart.notes[0].palm_mute);
+    CHECK_FALSE(chart.notes[0].dead);
     CHECK(chart.notes[0].sustain == Fraction{3, 4});
 
     // Legato destination that shift-slides into the next note: an ordinary pitched waypoint
@@ -1301,6 +1302,41 @@ namespace
 // — while a ring notated strictly past the next onset is a deliberate hold and stays whole.
 // Repeated chords keep their held reading through the merged shape span, which derives from
 // notated pre-trim durations, so the box continues while the tails keep the gap.
+// Guitar Pro states the two mutes as independent note properties, and so does the chart now: a
+// dead string inside a palm-muted chord carries BOTH marks and must import with both flags. The
+// single mute axis this replaced had to pick one, and it dropped the palm.
+TEST_CASE("Guitar Pro import carries both mutes independently", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    // One strum: a palm-muted string, a dead one, a both-muted one, and a plain one.
+    GpScore score = makeLinearScore(1, syncs);
+    GpBeat beat;
+    beat.duration_whole = Fraction{1, 4};
+    beat.notes = {
+        GpNote{.string = 0, .fret = 5, .palm_mute = true, .harmonic_type = ""},
+        GpNote{.string = 1, .fret = 5, .full_mute = true, .harmonic_type = ""},
+        GpNote{.string = 2, .fret = 5, .palm_mute = true, .full_mute = true, .harmonic_type = ""},
+        GpNote{.string = 3, .fret = 5, .harmonic_type = ""},
+    };
+    score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 4);
+    CHECK(chart.notes[0].palm_mute);
+    CHECK_FALSE(chart.notes[0].dead);
+    CHECK_FALSE(chart.notes[1].palm_mute);
+    CHECK(chart.notes[1].dead);
+    CHECK(chart.notes[2].palm_mute);
+    CHECK(chart.notes[2].dead);
+    CHECK_FALSE(chart.notes[3].palm_mute);
+    CHECK_FALSE(chart.notes[3].dead);
+}
+
 TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -2238,7 +2274,8 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         CHECK(scrape.position.beat == 2);
         CHECK(scrape.string == 1);
         CHECK(scrape.fret == 17);
-        CHECK(scrape.mute == common::core::NoteMute::None);
+        CHECK_FALSE(scrape.palm_mute);
+        CHECK_FALSE(scrape.dead);
         // The terminal sits at the sustain, which keeps the ordinary quarter-beat margin
         // before the fret-8 onset one beat later.
         const auto* const terminal = common::core::slideOutOrNull(scrape);
@@ -2458,7 +2495,7 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].attack != common::core::NoteAttack::PickSlide);
-        CHECK(chart.notes[0].mute == common::core::NoteMute::Full);
+        CHECK(chart.notes[0].dead);
         CHECK(chart.notes[0].slide_out.has_value());
     }
 

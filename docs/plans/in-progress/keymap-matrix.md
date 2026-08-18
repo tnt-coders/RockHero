@@ -216,12 +216,21 @@ contested between wide vibrato and the whammy bar), so this is precedent, not a 
 | `A` | **accent** | settled, conditional on `A` not being wanted elsewhere. Checked 2026-08-07: plain `A` and `;` are both unassigned everywhere in this matrix, the interaction model and the registry; "select all" would be `Ctrl+A`, which is a different chord, and the arpeggio reading is derived rather than authored so it needs no key |
 | `H` | **natural harmonic** — freed by legato's move; the strongest first-letter mnemonic in the map (GP's `Y` is legacy). A GP `H` habit now authors a loud, visible, undoable wrong mark instead of the silent off-by-one link it authored before — an improvement even for the habit it breaks | reserved 2026-08-12 (verb unbuilt) |
 | `Shift+H` | **pinch harmonic** — the natural harmonic's sibling | reserved 2026-08-12 (verb unbuilt) |
-| `M` | **palm mute** | reserved 2026-08-12 (verb unbuilt) |
-| `Shift+M` | **full mute** — the fuller mute as the sibling; moving the mutes to `M` is what keeps `P` free for pop | reserved 2026-08-12 (verb unbuilt) |
+| `M` | **palm mute** — the picking hand damping at the bridge; pitched but damped. Moving the mutes to `M` is what keeps `P` free for pop | reserved 2026-08-12 (verb unbuilt) |
+| `X` | **dead note** — the fretting hand's full mute: unpitched, percussive. AMENDED 2026-08-18, off `Shift+M`: the two mutes stopped being siblings when the user ruled they may be set INDEPENDENTLY on one note (a dead string inside a palm-muted chord), and `Shift` means "the related sibling technique" throughout this map. Two independent properties need two plain letters, and `X` is the strongest mnemonic available — standard tab writes a dead note as an X, which is also the glyph our own lane draws. The field is named `dead` in the format for the same reason | reserved 2026-08-18 (verb unbuilt) |
 | `S` | **slap** — the S plate's letter (GP's `S` is its legato slide; slides live on `Shift+L` here, so no collision) | reserved 2026-08-12 (verb unbuilt) |
 | `P` | **pop** — the P plate's letter | reserved 2026-08-12 (verb unbuilt) |
 
 **Open — do not bind before discussing:**
+
+- **The mutes take two plain letters, not a sibling pair.** AMENDED 2026-08-18: `M` palm, `X` dead
+  (was `M` / `Shift+M`). The user's ruling that a note may carry both mutes at once makes them
+  independent properties rather than two values of one, and this map's `Shift` plane means
+  "sibling", which two independently-settable flags are not. Neither verb is built yet, so this
+  records the intent the format change is being made against; the bindings land with the verbs.
+  `Shift+X` (the pick slide, below) is unaffected — it rides the X FAMILY rather than being the
+  dead note's sibling, which is exactly the collision-resolution reading the `Shift` plane already
+  carries for `Shift+V`.
 
 - ~~**A chord for the pick-slide toggle.**~~ **CLOSED 2026-08-18 at `Shift+X`** (the row above
   carries the reasoning). The letter map's `Shift` plane is hereby read as resolving letter

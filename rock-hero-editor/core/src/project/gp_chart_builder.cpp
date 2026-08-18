@@ -34,7 +34,6 @@ using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::NoteAttack;
 using common::core::NoteEmphasis;
-using common::core::NoteMute;
 using common::core::SlideWaypoint;
 
 // One note event on the global rational beat axis, before tie merging.
@@ -2143,14 +2142,11 @@ void resolveSlideOutExits(
             note.attack = NoteAttack::Legato;
         }
 
-        if (source.full_mute)
-        {
-            note.mute = NoteMute::Full;
-        }
-        else if (source.palm_mute)
-        {
-            note.mute = NoteMute::Palm;
-        }
+        // Both marks carried through independently, because the score states them independently:
+        // a dead string inside a palm-muted chord wears "Muted" and "PalmMuted" at once, and the
+        // old single mute axis had to drop one of them (the palm one) to fit.
+        note.palm_mute = source.palm_mute;
+        note.dead = source.full_mute;
 
         if (!source.harmonic_type.empty())
         {

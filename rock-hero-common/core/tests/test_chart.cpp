@@ -8,6 +8,8 @@
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -49,7 +51,7 @@ namespace
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 0,
-            .mute = NoteMute::Palm,
+            .palm_mute = true,
             .bend = {},
             .slides = {},
         },
@@ -122,7 +124,11 @@ namespace
             .string = 6,
             .fret = 5,
             .attack = NoteAttack::Pop,
-            .mute = NoteMute::Full,
+            // Both mutes at once, the state one exclusive mute axis could not write down: the
+            // palm is on the strings AND this string is deadened. It rides the full-chart fixture
+            // so every round-trip, validation, and resolution case sees the combination.
+            .palm_mute = true,
+            .dead = true,
             .bend = {},
             .slides = {},
         },
@@ -568,8 +574,8 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // A property of the WRONG TYPE is malformed, not absent. Each of these used to load: the
     // fallback silently changed the music and the note then validated clean, so nothing downstream
     // could notice. A numeric sustain read as no tail, a numeric attack as a plain pick, a numeric
-    // mute as unmuted, a string fret as fret -1 (which validation does catch, unlike the rest), and
-    // a string bend height as a flat zero-semitone bend.
+    // mute flag as unmuted, a string fret as fret -1 (which validation does catch, unlike the
+    // rest), and a string bend height as a flat zero-semitone bend.
     const auto parseNote = [](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
@@ -578,7 +584,9 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     CHECK_FALSE(
         parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": 2)").has_value());
     CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "attack": 7)").has_value());
-    CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "mute": 1)").has_value());
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 0, "palmMute": 1)").has_value());
+    CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "dead": 1)").has_value());
     CHECK_FALSE(parseNote(R"("position": "1:1", "string": 1, "fret": "3")").has_value());
     CHECK_FALSE(
         parseNote(
@@ -588,7 +596,8 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // than fields.
     CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "2")").has_value());
     CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "attack": "tap")").has_value());
-    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "mute": "palm")").has_value());
+    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "palmMute": true)").has_value());
+    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "dead": true)").has_value());
 }
 
 // Emphasis is one axis with a never-written default, so three things have to hold together: both
@@ -679,6 +688,106 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
         CHECK(reparsed->notes[1].emphasis == NoteEmphasis::Ghost);
         CHECK(reparsed->notes[2].emphasis == NoteEmphasis::Normal);
     }
+}
+
+// Two mutes, two independent flags: the hands are doing two different things and can do them at
+// once, so all four combinations must be writable and readable — the both-muted note especially,
+// which is the state one exclusive mute axis could not express at all.
+TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
+{
+    const auto parseNote = [](const std::string& note_body) {
+        return parseChartDocument(
+            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
+            R"( } ] })");
+    };
+    const auto mutesOf = [&](const std::string& note_body) {
+        const auto parsed = parseNote(note_body);
+        REQUIRE(parsed.has_value());
+        REQUIRE(parsed->notes.size() == 1);
+        const ChartNote& note = parsed->notes.front();
+        return std::pair{note.palm_mute, note.dead};
+    };
+
+    CHECK(mutesOf(R"("position": "1:1", "string": 1, "fret": 5)") == std::pair{false, false});
+    CHECK(
+        mutesOf(R"("position": "1:1", "string": 1, "fret": 5, "palmMute": true)") ==
+        std::pair{true, false});
+    CHECK(
+        mutesOf(R"("position": "1:1", "string": 1, "fret": 5, "dead": true)") ==
+        std::pair{false, true});
+    CHECK(
+        mutesOf(R"("position": "1:1", "string": 1, "fret": 5, "palmMute": true, "dead": true)") ==
+        std::pair{true, true});
+
+    // The tripwire: the single "mute" key this pair replaced fails the load and names the fix,
+    // exactly as the removed accent and harmonic/touch keys do. A silently ignored key would load
+    // every muted note in the corpus as unmuted. Delete this once the corpus is re-imported.
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "mute": "palm")").has_value());
+    CHECK_FALSE(
+        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "mute": "full")").has_value());
+
+    // Round trip: every combination survives a write and read, and each flag is written only when
+    // TRUE — the same absence-is-the-default rule the sibling "vibrato" and "tremolo" flags follow.
+    Chart chart;
+    chart.tuning.strings = {"E2"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .palm_mute = true,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 2},
+            .string = 1,
+            .fret = 7,
+            .dead = true,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 3},
+            .string = 1,
+            .fret = 9,
+            .palm_mute = true,
+            .dead = true,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 4},
+            .string = 1,
+            .fret = 11,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const std::string text = chartDocumentText(chart, makeTempoMap());
+    const auto occurrences = [&text](const std::string_view key) {
+        std::size_t count = 0;
+        for (std::size_t at = text.find(key); at != std::string::npos;
+             at = text.find(key, at + key.size()))
+        {
+            ++count;
+        }
+        return count;
+    };
+    // Two notes carry each flag (one alone, one paired), and the plain note carries neither.
+    CHECK(occurrences(R"("palmMute": true)") == 2);
+    CHECK(occurrences(R"("dead": true)") == 2);
+    CHECK(occurrences(R"("palmMute")") == 2);
+    CHECK(occurrences(R"("dead")") == 2);
+
+    const auto reparsed = parseChartDocument(text);
+    REQUIRE(reparsed.has_value());
+    if (reparsed.has_value())
+    {
+        CHECK(*reparsed == chart);
+    }
+    CHECK(validateChartRules(chart, makeTempoMap()).has_value());
 }
 
 // The WHOLE hand window must fit on the neck: bounding only the index finger let a wide hand run
@@ -829,12 +938,28 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK(validate({open_claim}).has_value());
     }
 
-    SECTION("a full mute excludes the pitch-valued payloads and keeps the positions")
+    SECTION("a dead note excludes the pitch-valued payloads and keeps the positions")
     {
         ChartNote dead = make_note(1, 1, 5);
-        dead.mute = NoteMute::Full;
+        dead.dead = true;
         dead.sustain = Fraction{1};
         CHECK(validate({dead}).has_value());
+
+        // A palm mute alone excludes nothing — it is still a pitched note — and adding it to a
+        // dead note changes no verdict either, because the rule reads the dead flag alone.
+        ChartNote palm_bend = make_note(1, 1, 5);
+        palm_bend.palm_mute = true;
+        palm_bend.sustain = Fraction{1};
+        palm_bend.bend = {BendPoint{.offset = Fraction{0}, .semitones = 1.0}};
+        CHECK(validate({palm_bend}).has_value());
+
+        ChartNote both = dead;
+        both.palm_mute = true;
+        CHECK(validate({both}).has_value());
+
+        ChartNote both_bend = both;
+        both_bend.bend = {BendPoint{.offset = Fraction{0}, .semitones = 1.0}};
+        CHECK_FALSE(validate({both_bend}).has_value());
 
         ChartNote muted_harmonic = dead;
         muted_harmonic.harmonic_node = 17.0;
@@ -1078,8 +1203,8 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         // A dead chug is choked, not held: an all-muted group stays unextended.
         ChartNote muted_low = low;
         ChartNote muted_high = high;
-        muted_low.mute = NoteMute::Full;
-        muted_high.mute = NoteMute::Full;
+        muted_low.dead = true;
+        muted_high.dead = true;
         CHECK(resolve_claim({muted_low, muted_high, claim}, covering) == LegatoMotion::Unjustified);
     }
 
@@ -1266,9 +1391,14 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     carried_technique.notes[scrape].tremolo = true;
     expect_invalid(carried_technique);
 
-    Chart carried_mute = makeFullChart();
-    carried_mute.notes[scrape].mute = NoteMute::Full;
-    expect_invalid(carried_mute);
+    // Both mute flags are refused, not just the deadening: a scrape carries neither.
+    Chart carried_dead = makeFullChart();
+    carried_dead.notes[scrape].dead = true;
+    expect_invalid(carried_dead);
+
+    Chart carried_palm = makeFullChart();
+    carried_palm.notes[scrape].palm_mute = true;
+    expect_invalid(carried_palm);
 
     // An accented scrape is legal — an aggressively played pick slide, the scrape's own
     // technique rather than an override.
@@ -1351,7 +1481,8 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
     scrape.tremolo = true;
     scrape.vibrato = true;
-    scrape.mute = NoteMute::Full;
+    scrape.palm_mute = true;
+    scrape.dead = true;
     scrape.emphasis = NoteEmphasis::Accent;
 
     const auto parsed = parseChartDocument(chartDocumentText(chart, makeTempoMap()));
@@ -1360,7 +1491,8 @@ TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core
     CHECK(saved.attack == NoteAttack::PickSlide);
     CHECK_FALSE(saved.tremolo);
     CHECK_FALSE(saved.vibrato);
-    CHECK(saved.mute == NoteMute::None);
+    CHECK_FALSE(saved.palm_mute);
+    CHECK_FALSE(saved.dead);
     CHECK(saved.emphasis == NoteEmphasis::Accent);
     REQUIRE(saved.slide_out.has_value());
     if (saved.slide_out.has_value())

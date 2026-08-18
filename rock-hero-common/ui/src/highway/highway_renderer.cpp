@@ -2965,7 +2965,12 @@ void HighwayRenderer::Impl::draw(
             // POSTURE — the hand holding a shape, not a strike — so emphasis belongs to the
             // notes inside it, which state their own.
             common::core::NoteEmphasis emphasis;
-            common::core::NoteMute mute;
+            // The strum's two mute unanimities, straight off the group: a box speaks for the
+            // whole strum, so only a mute every member shares reaches it — one dead string in a
+            // palm-muted chord leaves this box palm muted. Each flag draws its own mark below,
+            // and a box unanimous in both wears both.
+            bool palm_mute;
+            bool dead;
             const common::core::HighwayShapeView* arpeggio_shape;
             // A tapped chord box spans the taps' own fret extent instead of the fretting
             // hand's window (right-hand-tap-lighting plan); null for left-hand boxes.
@@ -3018,7 +3023,8 @@ void HighwayRenderer::Impl::draw(
                     .emphasis = struck_group != group_candidates.end()
                                     ? struck_group->emphasis
                                     : common::core::NoteEmphasis::Normal,
-                    .mute = common::core::NoteMute::None,
+                    .palm_mute = false,
+                    .dead = false,
                     .arpeggio_shape = &shape,
                     .tap = nullptr,
                     .build_index = boxes.size(),
@@ -3073,7 +3079,8 @@ void HighwayRenderer::Impl::draw(
                     .box_only = group.box_only,
                     .with_top = group.fretting_hand_count > 2,
                     .emphasis = group.emphasis,
-                    .mute = group.common_mute,
+                    .palm_mute = group.all_palm_muted,
+                    .dead = group.all_dead,
                     .arpeggio_shape = nullptr,
                     .tap = nullptr,
                     .build_index = boxes.size(),
@@ -3096,7 +3103,8 @@ void HighwayRenderer::Impl::draw(
                     // A tapped box has no strummed group behind it to read an emphasis from; the
                     // taps state their own on their heads.
                     .emphasis = common::core::NoteEmphasis::Normal,
-                    .mute = common::core::NoteMute::None,
+                    .palm_mute = false,
+                    .dead = false,
                     .arpeggio_shape = nullptr,
                     .tap = &tap,
                     .build_index = boxes.size(),
@@ -3115,25 +3123,28 @@ void HighwayRenderer::Impl::draw(
             return lhs.build_index < rhs.build_index;
         });
 
-        // One SDF-rendered mute mark over its repeat panel's interior — the rect between the
-        // frame's inner edges, so the mark stops exactly at the borders instead of covering
-        // them. The quad covers that interior exactly, texcoord carries interior-local
-        // world-unit offsets, and the fragment shader samples chords.png's measured
-        // cross-section by exact distance from the arm centerlines — the texture defines the
-        // structure, the shader lays the arms out, and the vertex color supplies hue and opacity.
-        // Submits immediately so painter order holds across boxes — see the batch comment above.
+        // ONE of the two SDF-rendered mute marks over its repeat panel's interior — the rect
+        // between the frame's inner edges, so the mark stops exactly at the borders instead of
+        // covering them. `dead_mark` selects WHICH mark this call lays down, not what the strum
+        // is: the caller draws one per flag its strum is unanimous in, so a box that is both
+        // wears both, stacked exactly as the note heads stack theirs. The quad covers that
+        // interior exactly, texcoord carries interior-local world-unit offsets, and the fragment
+        // shader samples chords.png's measured cross-section by exact distance from the arm
+        // centerlines — the texture defines the structure, the shader lays the arms out, and the
+        // vertex color supplies hue and opacity. Submits immediately so painter order holds
+        // across boxes AND across a stacked pair — see the batch comment above.
         const auto push_box_mute_marker = [&](const double x0,
                                               const double x1,
                                               const double y0,
                                               const double y1,
                                               const double z,
-                                              const common::core::NoteMute mute) {
+                                              const bool dead_mark) {
             const double half_x = (x1 - x0) / 2.0;
             const double half_y = (y1 - y0) / 2.0;
             const double middle_x = (x0 + x1) / 2.0;
             const double middle_y = (y0 + y1) / 2.0;
-            const bool full = mute == common::core::NoteMute::Full;
-            const BoxMuteLayout& profile = full ? box_mute_layouts.full : box_mute_layouts.palm;
+            const BoxMuteLayout& profile =
+                dead_mark ? box_mute_layouts.full : box_mute_layouts.palm;
             // Both marks span the full interior height. The palm X runs border-less edge to
             // edge: arms corner-to-corner of the interior, with the clip rect pushed past the
             // quad by the ramp extent so the quad slices the arms mid-stroke at the frame's
@@ -3142,8 +3153,8 @@ void HighwayRenderer::Impl::draw(
             // meeting the frame exactly (the sub-pixel antialiasing tail past them is cut by
             // the quad).
             const double glyph_height = 2.0 * half_y;
-            const double arm_half_x = full ? half_y : half_x;
-            const double overshoot = full ? 0.0 : profile.extent_fraction * glyph_height;
+            const double arm_half_x = dead_mark ? half_y : half_x;
+            const double overshoot = dead_mark ? 0.0 : profile.extent_fraction * glyph_height;
             const double arm_length = std::sqrt((arm_half_x * arm_half_x) + (half_y * half_y));
             const auto params = std::array<float, 4>{
                 static_cast<float>(arm_half_x + overshoot),
@@ -3158,7 +3169,7 @@ void HighwayRenderer::Impl::draw(
                 static_cast<float>(arm_half_x / arm_length),
                 static_cast<float>(half_y / arm_length),
                 0.0F,
-                full ? 0.75F : 0.25F,
+                dead_mark ? 0.75F : 0.25F,
             };
             bgfx::setUniform(box_mute_params.get(), params.data());
             bgfx::setUniform(box_mute_arms.get(), arms.data());
@@ -3179,7 +3190,7 @@ void HighwayRenderer::Impl::draw(
                         static_cast<float>(vx - middle_x),
                         static_cast<float>(vy - middle_y));
                 };
-            if (full)
+            if (dead_mark)
             {
                 const std::uint32_t tint = packAbgr(g_full_mute_mark_color);
                 pushQuad(
@@ -3367,7 +3378,7 @@ void HighwayRenderer::Impl::draw(
             {
                 flush_box_panels();
             }
-            if (box.box_only && box.mute != common::core::NoteMute::None)
+            if (box.box_only && common::core::isMuted(box.palm_mute, box.dead))
             {
                 flush_box_panels();
                 // The frame's inner edges bound the mark (pushChordBoxPanel geometry): the
@@ -3377,8 +3388,22 @@ void HighwayRenderer::Impl::draw(
                 const double thickness = metrics.string_grid_base_y;
                 const ChordBoxFrame mark_frame =
                     chordBoxFrame(full_height_y1, box.box_only, box.with_top, thickness);
-                push_box_mute_marker(
-                    x0 + thickness, x1 - thickness, thickness, mark_frame.side_y1, z, box.mute);
+                // Two flags, two marks, each drawn from its own flag with no precedence between
+                // them: a strum unanimous in both wears the palm mark with the dead mark over it,
+                // the same stack and the same order the note heads draw (palm rotating with the
+                // head, the dead X upright over it). Each marker submits its own batch, so the
+                // order here IS the paint order; the board writes no depth, so the second mark is
+                // not depth-rejected at the first one's z.
+                if (box.palm_mute)
+                {
+                    push_box_mute_marker(
+                        x0 + thickness, x1 - thickness, thickness, mark_frame.side_y1, z, false);
+                }
+                if (box.dead)
+                {
+                    push_box_mute_marker(
+                        x0 + thickness, x1 - thickness, thickness, mark_frame.side_y1, z, true);
+                }
             }
             if (box.arpeggio_shape != nullptr)
             {
@@ -4827,11 +4852,14 @@ void HighwayRenderer::Impl::draw(
                         marker_tint,
                         legato_cell == HighwayLegatoCell::Flipped);
                 }
-                if (note.mute == common::core::NoteMute::Palm)
+                // Two independent flags, so two independent marks: a both-muted open string wears
+                // the palm mark AND the dead X, exactly as the fretted head below does. Chained
+                // as an if/else this drew only the palm mark and silently lost the deadening.
+                if (note.palm_mute)
                 {
                     push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_palm_mute, marker_tint);
                 }
-                else if (note.mute == common::core::NoteMute::Full)
+                if (note.dead)
                 {
                     push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, marker_tint);
                 }
@@ -5016,7 +5044,7 @@ void HighwayRenderer::Impl::draw(
         // Head base: the round node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
         // else the technique variant under left-hand technique markers and under a scrape — its
-        // travel is unpitched noise, so it takes the darker base a full-muted note takes, and
+        // travel is unpitched noise, so it takes the darker base a dead note takes, and
         // the pick mark then sits on that base rather than on an X — else the standard head.
         // Both predicates are stated once, in highway_head_marks.h.
         const std::array<float, 4> base_cell =
@@ -5104,7 +5132,7 @@ void HighwayRenderer::Impl::draw(
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
             }
-            if (note.mute == common::core::NoteMute::Palm)
+            if (note.palm_mute)
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_palm_mute, tint);
             }
@@ -5124,7 +5152,7 @@ void HighwayRenderer::Impl::draw(
             // is retired rather than drawn beneath it.
             // Upright markers stay flat through the flip (Charter overlays these after
             // the rotated head).
-            if (note.mute == common::core::NoteMute::Full)
+            if (note.dead)
             {
                 push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, tint);
             }
@@ -5504,8 +5532,7 @@ void HighwayRenderer::Impl::draw(
             }
             if (current_group != nullptr &&
                 current_group->start_seconds >= active_shape->start_seconds &&
-                current_group->count >= 2 &&
-                current_group->common_mute == common::core::NoteMute::Full)
+                current_group->count >= 2 && current_group->all_dead)
             {
                 active_shape = nullptr;
             }

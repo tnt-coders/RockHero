@@ -1,6 +1,7 @@
 #include "chart/chart_edits.h"
 #include "chart/pick_slide_defaults.h"
 
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -9,6 +10,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -127,10 +129,12 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
     {
         for (const int fret : {0, 5})
         {
-            for (const common::core::NoteMute mute :
-                 {common::core::NoteMute::None,
-                  common::core::NoteMute::Palm,
-                  common::core::NoteMute::Full})
+            // The two mutes are independent flags, so the sweep covers all FOUR combinations —
+            // the both-muted note included, which no single mute axis could hand the shed.
+            // Spelled as pairs rather than two nested loops to keep the nesting (and the column
+            // budget) of the block below unchanged.
+            for (const auto [palm_mute, dead] : std::to_array<std::pair<bool, bool>>(
+                     {{false, false}, {true, false}, {false, true}, {true, true}}))
             {
                 for (const bool node : {false, true})
                 {
@@ -154,7 +158,8 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                         fret,
                                         common::core::Fraction{1});
                                     subject.attack = attack;
-                                    subject.mute = mute;
+                                    subject.palm_mute = palm_mute;
+                                    subject.dead = dead;
                                     // A pinch must carry a node, and every node must lie beyond the
                                     // stop it speaks from.
                                     if (node || attack == common::core::NoteAttack::Pinch)
@@ -208,7 +213,8 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                     CAPTURE(
                                         static_cast<int>(attack),
                                         fret,
-                                        static_cast<int>(mute),
+                                        palm_mute,
+                                        dead,
                                         node,
                                         vibrato,
                                         tremolo,
@@ -230,7 +236,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
     // attacks run (a fret-0 pop or slap with a node is a fret-hand harmonic, so their shed
     // clauses are as live as a pick's); only PickSlide sits out, whose payload
     // test_pick_slide_defaults owns.
-    CHECK(combinations == 1344);
+    CHECK(combinations == 1792);
     CHECK(shed_or_repaired > 100);
 }
 
@@ -683,7 +689,7 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
     common::core::Chart chart = makeChart();
     common::core::ChartNote& note = chart.notes[2]; // measure 3 / string 1, fret 7, sustain 2
     note.tremolo = true;
-    note.mute = common::core::NoteMute::Palm;
+    note.palm_mute = true;
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
@@ -707,7 +713,7 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         }
         // The overridden techniques stay in memory, untouched.
         CHECK(scrape->tremolo);
-        CHECK(scrape->mute == common::core::NoteMute::Palm);
+        CHECK(scrape->palm_mute);
         CHECK(plan->label == "Pick Slide");
         // The latents are legal in memory but the rules gate binds documents, so the oracle
         // is the SAVED form: the writer omits the overrides and the reparse passes clean.
@@ -722,12 +728,12 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
 // The eligible-subset skip covers EVERY per-note rule, not a hand-picked pair of them. It used to
 // copy two of the validator's predicates, so a note the target attack broke some other rule on was
 // not skipped — and the whole-stream gate then refused the plan for every note in the selection,
-// not just that one. Here a fully muted note cannot become a pinch (a dead note sounds no pitch, so
+// not just that one. Here a dead note cannot become a pinch (a dead note sounds no pitch, so
 // it carries no harmonic, and a pinch must carry a node), which neither copied predicate named.
 TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]")
 {
     common::core::Chart chart = makeChart();
-    chart.notes[0].mute = common::core::NoteMute::Full; // measure 2 / string 1, fret 3
+    chart.notes[0].dead = true; // measure 2 / string 1, fret 3
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1),

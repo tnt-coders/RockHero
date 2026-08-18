@@ -56,7 +56,8 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         view.fret = note.fret;
         view.attack = note.attack;
         view.legato = resolutions.legato[note_index];
-        view.mute = note.mute;
+        view.palm_mute = note.palm_mute;
+        view.dead = note.dead;
         view.harmonic_node = note.harmonic_node;
         view.vibrato = note.vibrato;
         view.tremolo = note.tremolo;

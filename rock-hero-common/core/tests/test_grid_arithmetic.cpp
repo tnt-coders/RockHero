@@ -238,13 +238,13 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
 TEST_CASE("Only a sustainless live strum inherits its span's hold", "[core][chart]")
 {
     const TempoMap map = TempoMap::defaultMap(TimeDuration{32.0});
-    const auto note = [](int measure, int beat, int string, Fraction sustain, NoteMute mute) {
+    const auto note = [](int measure, int beat, int string, Fraction sustain, bool dead = false) {
         return ChartNote{
             .position = GridPosition{.measure = measure, .beat = beat},
             .string = string,
             .fret = 5,
             .sustain = sustain,
-            .mute = mute,
+            .dead = dead,
             .bend = {},
             .slides = {},
         };
@@ -256,24 +256,24 @@ TEST_CASE("Only a sustainless live strum inherits its span's hold", "[core][char
     };
     const std::vector<ChartNote> notes = {
         // A sustainless chord exactly ON span A's start is held for the whole span.
-        note(1, 1, 1, Fraction{}, NoteMute::None),
-        note(1, 1, 2, Fraction{}, NoteMute::None),
+        note(1, 1, 1, Fraction{}),
+        note(1, 1, 2, Fraction{}),
         // A LONE note under the span is not a strum, so nothing holds it.
-        note(1, 3, 1, Fraction{}, NoteMute::None),
+        note(1, 3, 1, Fraction{}),
         // A mixed chord: the member with a real sustain keeps its own, and only its sustainless
         // partner inherits the span — the rule never shortens or overrides an authored sustain.
-        note(2, 1, 1, Fraction{1}, NoteMute::None),
-        note(2, 1, 2, Fraction{}, NoteMute::None),
+        note(2, 1, 1, Fraction{1}),
+        note(2, 1, 2, Fraction{}),
         // A fully dead chug is choked rather than held, so the span does not reach it.
-        note(2, 3, 1, Fraction{}, NoteMute::Full),
-        note(2, 3, 2, Fraction{}, NoteMute::Full),
+        note(2, 3, 1, Fraction{}, true),
+        note(2, 3, 2, Fraction{}, true),
         // The second span holds its own strum, which proves the cursor advances rather than
         // remembering only the first span it ever saw.
-        note(4, 1, 1, Fraction{}, NoteMute::None),
-        note(4, 1, 2, Fraction{}, NoteMute::None),
+        note(4, 1, 1, Fraction{}),
+        note(4, 1, 2, Fraction{}),
         // Past every span: no cover, no hold.
-        note(5, 1, 1, Fraction{}, NoteMute::None),
-        note(5, 1, 2, Fraction{}, NoteMute::None),
+        note(5, 1, 1, Fraction{}),
+        note(5, 1, 2, Fraction{}),
     };
 
     const std::vector<Fraction> held = chartEffectiveSustains(notes, shapes, map);

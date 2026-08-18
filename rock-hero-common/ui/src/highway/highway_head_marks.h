@@ -94,20 +94,23 @@ the head sits, and the technique markers still stack over it.
 \brief True when a head takes the darker technique base cell instead of the standard one.
 
 Charter's base-cell selection: a head wearing a left-hand technique marker, and a scrape — whose
-travel is unpitched noise, so it takes the base a full-muted note takes and lets its pick mark sit
+travel is unpitched noise, so it takes the base a dead note takes and lets its pick mark sit
 on that rather than on an X. A node head is no longer among them: it wears its own round base
 (\ref highwayNodeHead), which outranks this darkening.
 
 Asks \ref highwayLegatoCell rather than testing the motion again, so the base can never darken for
 a claim that draws no mark (or stay light under one that does).
 
+Keyed on the dead flag ALONE, never on the pair: the base says what the note sounds like, and a
+note that is also palm muted sounds dead (`ChartNote::dead`), so it takes the dead base and its
+palm marker stacks over that. A palm mute on its own leaves the head light — it is still pitched.
+
 \param note Projected note whose head is being drawn.
 \return True when the technique base cell applies.
 */
 [[nodiscard]] constexpr bool highwayTechHead(const common::core::HighwayNoteView& note) noexcept
 {
-    return note.mute == common::core::NoteMute::Full ||
-           highwayLegatoCell(note.legato) != HighwayLegatoCell::None ||
+    return note.dead || highwayLegatoCell(note.legato) != HighwayLegatoCell::None ||
            note.attack == common::core::NoteAttack::PickSlide;
 }
 
