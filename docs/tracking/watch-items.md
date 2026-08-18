@@ -20,7 +20,23 @@ item retired as resolved — see *Retired*).
 
 ## Render stack (game loop + bgfx)
 
-### NSIS and the empty resource directories — trigger: next installer inspection
+### Note-atlas density vs display resolution — trigger: highway art reads fuzzy at the hit line, especially at 4K
+
+The note atlas stores 64-texel cells while the head quad draws about 123 px wide at 1080p near
+the hit line — every note at the moment of judgment renders at ~2x magnification, ~4x at 4K,
+and that magnification is the hard ceiling on crispness no in-cell bake can break. Accepted for
+now (2026-08-17): at current sizes nothing has read as fuzzy, and the atlas uploads without
+mips (`highway_atlas.cpp` `createTexture2D`, no mip chain) precisely because the art is almost
+always magnified, never minified.
+
+Remedy, pre-scoped and cheap since the art became analytic: ONE full rebake at 256-texel cells
+(4K-true; atlas 1024x1280, ~5 MB) through the recovered-construction pipeline — same geometry,
+higher density, provable by the same 1:1 controls — paired with two contained code changes:
+generate a mip chain at atlas upload (a true-size atlas gets minified on approach and would
+shimmer without one; sampler is already bilinear+clamp) and derive the texel conversion's
+`/63` from the measured cell size (`cell - 1`) instead of the hardcoded constant. The
+load-time silhouette measurement (`head_art_profile`) adapts by itself. Skip any
+1080p-only intermediate density so the question never returns.
 
 `install(DIRECTORY DESTINATION ...)` creates empty `resources/{fonts,sfx,textures}` under
 `cmake --install`, but whether the NSIS-packaged artifact preserves empty directories is
