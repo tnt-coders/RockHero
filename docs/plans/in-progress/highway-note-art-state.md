@@ -307,6 +307,11 @@ committed atlas at any time.
 
 ## Decided, with the numbers the decisions rest on
 
+**The arpeggio brackets and the bend chevron are SETTLED at their current size.** SIGNED
+2026-08-17, stated while scoping the technique-mark tangency bake: no mark-sizing round may
+rescale either. Both were already excluded from that bake's cell list; this records the
+exclusion as a ruling rather than a round-local choice.
+
 **The 2D sustain tail ends BARE — no cap, no dissolve — and every mark riding it runs the full
 ribbon.** SIGNED 2026-08-16 from three candidates sighted on `F10`, which is free again now that
 the sampler, its candidate table and its command are deleted:
