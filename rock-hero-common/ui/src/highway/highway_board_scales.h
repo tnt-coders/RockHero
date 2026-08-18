@@ -28,11 +28,15 @@ arithmetic — but the fret separates them by 26.5% and only the family axis mov
 reference. The spacing table is kept so that ruling can be SEEN rather than taken on trust; see
 its own comment.
 
-Two blockers were expected and both are cleared. The reference's fret axis is equal-width like
-ours, fitted through a free compression rate against its inlay markers (q = 1.000, rms 0.60 px,
-with a real neck's 0.9439 excluded). And its camera dollies at fixed FOV rather than zooming —
-focal length over image width holds at 0.772–0.783 across four frames whose framing differs
-threefold — so there is one camera to compare against rather than a moving target.
+Two blockers were expected and both are handled. The reference's fret axis is NOT equal-width:
+seven independent grids put its compression at q ≈ 0.971–0.979 per fret (an early low-power fit
+read q = 1.000, but its own band contained 0.975; a real neck's 0.9439 stays excluded), so its
+slot-to-pitch ratio declines from ~3.94 at the nut to ~2.62 at fret 13 while ours holds a
+constant 3.143 — crossing the reference's curve at about fret 6–7. The yardstick survives this
+because every head was measured against the LOCAL slot at its own fret; it is also why the band
+is as wide as it is. And its camera dollies at fixed FOV rather than zooming — focal length over
+image width holds at 0.772–0.783 across four frames whose framing differs threefold — so there
+is one camera to compare against rather than a moving target.
 
 What no scale can fix, stated so it is not mistaken for a tuning problem: the reference's head
 art is about 6% taller for its width than ours (screen aspect 1.79–1.83 against our 1.923).
