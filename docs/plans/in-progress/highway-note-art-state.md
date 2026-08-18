@@ -82,7 +82,8 @@ MEASURED, not suspected:
    the side ramps have already decayed to zero — a step of up to the halo's full 0.55 alpha across
    ZERO width. That is the "hard cut", exactly located.
 
-**BUILT 2026-08-16 and awaiting sighting.** One per-fragment falloff program, `accent_glow`,
+**BUILT 2026-08-16; its parameters SIGNED 2026-08-18 (the `medium flat` block up top).** One
+per-fragment falloff program, `accent_glow`,
 evaluating a rounded-box / rhombus signed distance (a capsule is the rounded box at corner radius
 == half thickness) — the intersection of two precedents this renderer already shipped, the
 box-mute SDF program and the window light's soft edges, rather than a third mechanism. What it
@@ -180,7 +181,9 @@ were definition errors rather than tuning, so they are corrected rather than lef
 Constants are now stated in TEXELS and converted through `headArtTexelWorld(metrics)`, so the
 conversion can be wrong in one place instead of four, and the head's world size is read from the
 metrics rather than a literal `0.48`. The 50% threshold is named in the block, since the numbers
-are meaningless without it. `notes.png` was not touched (sha256 still `cd8c5c4d68b922a2…`).
+are meaningless without it. `notes.png` was not touched
+by that step (sha256 then `cd8c5c4d68b922a2…`; the marks-final and pick-slide bakes have
+since superseded it — the current hash lives in the header up top).
 
 Two further facts worth keeping. The rectangular corners are **neither circular nor chamfered** —
 the art is a solid 41×21 rectangle wrapped in a one-texel fringe with the corner texel omitted, so
@@ -236,7 +239,8 @@ cell 4's two axes are equal to 0.000000 tx.
   core. The chord box lost its hand-tuned white lift entirely — the gain whitens its core by the
   same mechanism it uses on every note, so a box now shares the candidate outright and carries no
   number of its own.
-- **The three defects the same sighting reported are fixed and await re-sighting.** (a) Open
+- **The three defects the same sighting reported were fixed and re-sighted through the rounds
+  that followed; the 2026-08-18 signing closed them.** (a) Open
   strings looked like *"a box of light with sharp corners over the string"* — the light was a
   plain quad in a batch that submits AFTER the bars. It is now a CAPSULE distance field (half
   extents of the bar's middle cross-section, corner radius equal to its half thickness), under the
@@ -274,8 +278,9 @@ cell 4's two axes are equal to 0.000000 tx.
   full-alpha station, never inward, its strength following the authored ramp through
   `openBarEmission` (third call site, corner-clustered columns like the bar strip), the case
   read off each end's packed colors (outer == edge = hard silhouette) with no note-kind branch.
-  A fretted tail's own pixels are identical lit or unlit; awaiting the user's 1x sighting for
-  whether the pure halo reads loud enough at far z (the knob is `g_accent_gain`).
+  A fretted tail's own pixels are identical lit or unlit. Whether the halo reads loud enough at
+  far z closed with the 2026-08-18 signing and lives on as the watch item's trigger (the knob is
+  `g_accent_gain`).
 - **Ghost: SIGNED 2026-08-15 and no longer a sighting item.** `half light` won on the highway
   (sighted at alpha 0.45 head and markers against 0.65 tail; **collapsed on trial to a single 0.5
   everywhere** at the user's suggestion, plus 0.5 open-bar thickness, to test whether the
@@ -314,7 +319,9 @@ note beside it. (The generator's output paths were absolute into a coding sessio
 directory, so it wrote correctly once and then to a path that no longer existed; they are now
 resolved beside the script.)
 
-**Ruled 2026-08-15: the harmonic marker's height EQUALS the full mute's, in every scheme.** It
+**Ruled 2026-08-15, since ABSORBED by the complete mark law below (the squared trio's one
+shared 1.07-of-pitch height states it directly): the harmonic marker's height EQUALS the full
+mute's, in every scheme.** It
 tracks that mark rather than carrying a size of its own, so whatever a sizing scheme sets the
 mutes to is what the harmonic gets. This supersedes both the seat-scale fitting the round-base
 rounds produced and an intermediate "keep it head-matched" rule — at family sizes above the head
@@ -345,10 +352,16 @@ from `marks-final`, and the pick slide restored to 1.5x the head's solid height.
 sighting variants live outside the repo in `rockhero-atlas-variants`; a rebuild is now the only
 thing that writes the deployed copies.
 
-## Shipped 2026-08-15 (newest first)
+## Shipped (newest first)
 
 | Commit | What |
 |---|---|
+| `bc230f1c` | Settled the atlas: pick slide restored to 1.5x, the sighting rig retired |
+| `a319c152` | Restored the pick slide's head (`15576f52`'s bare-scrape experiment, rejected) |
+| `adc9a84a` | Signed the accent light (medium flat); every sighting sampler deleted |
+| `5cf148b4` | The marks-final atlas: the complete mark law, centred art, concentric interiors |
+| `d492272f` | Inlay dots became code-mapped world squares; the sheet is one dot cell |
+| `ac6382fe` | Head-art silhouette constants graduated to a load-time measurement |
 | `33e43599` | Node heads hold flat through the approach (no rolling flip) |
 | `832558b7` | This state file |
 | `ae589b2e` | Locked in the edge-height diamond harmonic base (D); rejected candidates removed |
@@ -372,7 +385,8 @@ half of the same sentence, taking overhang asymmetry from 0.087 px to 0.319 px. 
 2026-08-18 and left as shipped; legato, full mute and natural harmonic SQUARE at the
 same height (the full mute widened 3.6% to get there, arm angles +/-1.06 degrees; the harmonic
 is concentric circles, so its squareness is exact by construction); the pick slide is the one
-EXPLICIT EXCEPTION, sized at 1.5 x the head's own solid height — 31.149 x 32.966 tx — because
+EXPLICIT EXCEPTION, sized at 1.5 x the head's own solid height (its 50%-contour height,
+21.976 tx — not the 41x21 solid-texel rectangle) at 31.149 x 32.966 tx, because
 its design law is covering the head's footprint, not lane adjacency (user 2026-08-18: too small
 under the family law; see the restore below). Every mark
 and all five head-family cells are centred at their cell centres — the half-texel authoring
@@ -399,12 +413,12 @@ asymmetry (1.0 tx top-heavy, opening 0.5 tx low) equalized with its outer contou
 tracking the head — overriding an earlier preserve-by-default, on the now-measured rule that
 eccentric brightness inside a centred silhouette reads as mis-seating.
 
-**A technique mark's HEIGHT is 1.07 x the string pitch — 24.5766 atlas texels.** SIGNED
-2026-08-17 from a four-state sighting (today / 1.00 tangent / 1.07 / 1.10) cycled in the app.
+**The HEIGHT half of the complete law above, SIGNED first: 1.07 x the string pitch — 24.5766
+atlas texels.** SIGNED 2026-08-17 from a four-state sighting (today / 1.00 tangent / 1.07 / 1.10) cycled in the app.
 It is the third-party reference's own measured overhang: adjacent-lane marks kiss rather than
 merely touch, overlapping by ~0.07 of the pitch. Exact tangency (1.00) read as timid beside it.
 
-Two consequences the sighting exposed, both being worked now:
+Two consequences the sighting exposed, both since SHIPPED in marks-final:
 - **Width leaves the uniform rule.** At 1.07 the palm mute (35.61 tx) and slap (41.31 tx)
   shrank away from the note's edge and read wrong, while tap (48.12) and pop (53.18) grew past
   it. The user's ruling: palm mute should span the note like tap does, slap like pop. Width is
@@ -421,15 +435,16 @@ right — the reference's slot-to-pitch ratio varies per fret (q ≈ 0.971–0.9
 to ~2.62 at fret 13) while ours is a constant 3.143, so a uniform shrink that fixes the
 mid-neck slot fill opens the chord stacks to a gap the reference never shows. The spacing axis
 measured 0.966, inside its own band around 1.000 — the board's spacing was never the mismatch.
-The current direction instead: heads hold today's dimensions and the technique MARKS rescale to
-the pitch standard (the marks-pitch-* atlas variants). F6 and F7 are unbound again; ids 0x1305
-and 0x1306 are retired forever.
+The direction that won: heads held today's dimensions and the technique MARKS rescaled to the
+pitch standard — shipped in marks-final (the marks-pitch-* sighting variants went with the
+swapper). F6 and F7 are unbound again; ids 0x1305 and 0x1306 are retired forever.
 
 **The harmonic diamond stays at today's span, deliberately past the pitch standard.** SIGNED
 2026-08-17: the tips standing proud of the ring are what make the mark read. Accepted pending
 evaluation, with the measured costs: stacked diamonds on adjacent strings interpenetrate ~4.2
 texels per side, and on the outer strings the tip extends ~4.2 texels (0.6–1.9 screen px) past
-the string grid's edge line — the user has asked to evaluate both in the app.
+the string grid's edge line — the user has asked to evaluate both in the app. Registered in
+`docs/tracking/watch-items.md` so the evaluation survives this file's retirement.
 
 **The arpeggio brackets and the bend chevron are SETTLED at their current size.** SIGNED
 2026-08-17, stated while scoping the technique-mark tangency bake: no mark-sizing round may
@@ -497,12 +512,13 @@ Spares are **3, 6 and 7** — byte-identical empties, each the growth slot of th
 it sits in. `g_head_cell_count` is **20**, which is full capacity: no headroom, and a 21st named
 cell needs a sixth row (256×384).
 
-**The marker family's sizing is SETTLED at v7** — every technique symbol at 85% of its authored
-height, sighted and accepted 2026-08-15 (*"I think all these sizes look pretty good. Even pick
-slide"*). The harmonic marker tracks the full mute's height per the rule above rather than
-carrying its own. The one cost that shrink took has since been PAID BACK: it cost the pick slide
-its deliberate over-coverage of the head, the watch item opened for it fired, and the mark is
-restored below.
+**The v7 family sizing — every technique symbol at 85% of its authored height — was the
+standard from its 2026-08-15 signing (*"I think all these sizes look pretty good. Even pick
+slide"*) until the pitch law above ABSORBED it; the texel numbers up top are the only live
+authority. Under v7 the harmonic marker tracked the full mute's height rather than carrying its
+own — also absorbed, since the squared trio's shared height states it directly. The one cost
+the shrink took has since been PAID BACK: it cost the pick slide its deliberate over-coverage of
+the head, the watch item opened for it fired, and the mark is restored below.
 
 **The pick slide is RESTORED to 1.5 x the head's solid height. SIGNED 2026-08-18** (user, after
 sighting the baked variant in the app: *"The new size looks good"*). The full history, measured
@@ -570,9 +586,13 @@ depth 0.125 semitones, wave anchored to the note's own extremes so it stays rigi
 
 ## Watching
 
+Registered in `docs/tracking/watch-items.md` (the standing registry, which outlives this file):
+
 - **Stacked node heads.** D's overlap is accepted on sight, not measured against the corpus. If it
   reads wrong in real charts, the evidence to gather first is how often simultaneous harmonics land
   on adjacent strings — a corpus count, not a guess.
+- **The harmonic diamond's stacking and edge overhang** (the evaluation the user asked for; the
+  measured costs are with the 2026-08-17 signing above).
 
 ## Conventions this pass established
 

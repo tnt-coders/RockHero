@@ -5,9 +5,9 @@ with live remaining items. Checklist items 1, 2 and 3 are shipped: `NoteEmphasis
 `accent` bool through the format, both projections, and both surfaces; the document writes
 `"emphasis"` and refuses the old key loudly; the Guitar Pro importer maps `AntiAccent` to `Ghost`
 and both loud tiers to `Accent`. Item 4's GHOST half is signed on both surfaces and its
-alternatives are ripped out; its ACCENT half is still being sighted on the highway (see
-`highway-note-art-state.md`). What remains is that accent sighting, item 5's editing verb, item
-6's detection touchpoint, and item 7's re-import.
+alternatives are ripped out; its ACCENT half SIGNED 2026-08-18 as the rendered `medium flat`
+light (see `highway-note-art-state.md`). What remains is item 5's editing verb, item 6's
+detection touchpoint, and item 7's re-import.
 
 **Item 7 has a second producer nobody had counted.** The external converter tool under
 `custom-song-importer/tools/` writes these same chart documents and still emits `"accent": true`,
@@ -78,7 +78,8 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
 3. ~~**Projections/views:**~~ **SHIPPED.** Both view types carry the emphasis value; the D4 scrape
    pass-through carried over unchanged.
 4. **Rendering:** **GHOST SIGNED both surfaces 2026-08-15 — `half light` on the highway, the
-   opaque `lean` on the 2D lane. The ACCENT light is still being sighted.** Ghost draws quiet at
+   opaque `lean` on the 2D lane. The ACCENT light SIGNED 2026-08-18 as the rendered `medium
+   flat` glow.** Ghost draws quiet at
    the same weight, but each surface spends that weight the way it actually composites — the
    divergence the `StringStyle` constructor already signed for tails, now extended to the whole
    axis. The highway keeps translucency over its dark world (`g_ghost_alpha`, and a

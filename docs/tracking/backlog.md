@@ -65,6 +65,35 @@ Both sighted by the user against the technique-showcase package; each carries a 
   push a member into `highwayBentNoteY`'s saturation clamp — the per-note rule exists precisely
   to pick the roomier side, so overriding it is what could make a bend hit the board edge.
 
+## Found by the 2026-08-18 art-pass close-out review
+
+- **Derive `node_series` once per chart revision, not once per frame.** `Impl::draw`
+  (`highway_renderer.cpp`, the `std::vector<NodeSeries> node_series;` block) rebuilds the
+  harmonic-node series from EVERY note in the song each frame, and `node_suppresses` then scans
+  it linearly per (visible downbeat x fret) and per FHP. The data is a pure function of
+  `state.notes` — exactly like `sustain_prefix_max`, which `setViewState` already derives once.
+  Move the derivation there and make `node_suppresses` a binary search. Same class, smaller
+  cases: the whole-song `any_of` over `state.shapes` per boxed group, the `find_if` over all
+  `chord_groups` per visible arpeggio shape, and `windowSampleTimes` walking all
+  fret-hand-positions per shape rail. Precedent: the 2D grid-perf fix (derived index tables +
+  viewport-bounded scans).
+
+- **Reuse the draw path's batch vectors across frames.** `Impl::draw` constructs and destroys
+  its ten-plus note-batch vectors (plus `boxes`, `floor_numbers`, `hand_windows`, per-note
+  scratch) every frame; they are already reused across groups via `clear()`, so promoting the
+  long-lived ones to `Impl` members cleared at the top of `draw` removes most of the per-frame
+  heap churn for a few lines. The render path is a deadline path; neither this nor the item
+  above changes a pixel.
+
+- **Harden the two structural-art measurements' degenerate paths.** (a) `fitCornerRadius`
+  (`head_art_profile.cpp`): if every candidate radius captures fewer than 4 folded points the
+  golden-section cost is a flat `max` plateau and the search silently converges to the capsule
+  radius — return `UnanalyzableArt` instead of a plausible-looking number. (b) The node-diamond
+  span is a mean over rows assuming the edge law `|x| + |y| = span`; a non-diamond in cell 4
+  lands inside the sanity band and gets a rhombus fitted to it — reject when the per-row deviation
+  exceeds ~1 texel (shipped art: sigma = 0.03 tx), and add the rectangle-in-cell-4 test alongside.
+  All three are fail-loudly guards; the shipped assets pass them untouched.
+
 ## Found by the 2026-08-10 save/undo and timeline reviews
 
 The severe half shipped the same day: the package write is atomic, a NaN automation value is refused,

@@ -321,8 +321,8 @@ the options with the agent's recommendation.
   ARE the posture mark, so a number outside them reads as detached from what it names. Only the
   digit CENTRED in the brackets reads acceptably. What survives from this entry is the deletion of
   `sounded` and the principle that the posture states unconditionally; WHERE it states is being
-  worked in `docs/plans/in-progress/arpeggio-posture-display-options.md`, with a live `F6`/`F7`
-  experiment in the editor. The measured leader is a centred digit that slides in TIME past a head
+  worked in `docs/plans/in-progress/arpeggio-posture-display-options.md`; the `F6`/`F7`
+  experiment that drove it was removed 2026-08-14 (its record sits in that doc). The measured leader is a centred digit that slides in TIME past a head
   occupying the span start, suppressing only true duplicates. The record below is kept because its
   measurements stand and its dead ends should not be re-walked.
   **The ribbon problem and its answer (user-ruled and SHIPPED 2026-08-13).** A bare digit does not

@@ -537,7 +537,8 @@ the session record):
   regression test (hit line and the passed-note region stay inside [0,1); depth monotonic).
 - **Reversed depth (a reference-renderer inheritance) dropped**: conventional LESS + clear 1.0 — the default
   D3D11 depth buffer is 24-bit fixed point, where reversed-z buys nothing; image identical.
-- **Views**: 0 = background (color+depth clear, parallax matrix), 1 = board (depth-only clear,
+- **Views**: 0 = background (color+depth clear; carries no transform until a backdrop layer
+  draws — the parallax matrix helper waits in common/core), 1 = board (depth-only clear,
   foreground matrix), 2 = overlay (reserved; overlay v1 uses bgfx debug text). All Sequential —
   Charter's painter-ordered pass list becomes an enforceable contract; blended content
   interleaves in view 1 with a depth-test-only no-z-write state. No cull bits anywhere (mirrored

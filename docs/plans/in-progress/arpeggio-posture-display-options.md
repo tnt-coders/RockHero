@@ -186,8 +186,9 @@ Widen the bracket so the digit sits inside it, beside the head.
 
 ### I — Darken the sustain tail (user, 2026-08-14) — attacks the cause, not the symptom
 
-Multiply the tail's fill and edge down from the shipped `base x0.66`. **`F7` cycles 1.0 / 0.75 /
-0.55 / 0.40, independently of `F6`,** so any posture candidate can be seen against any tail.
+Multiply the tail's fill and edge down from the shipped `base x0.66`. **`F7` cycled 1.0 / 0.75 /
+0.55 / 0.40, independently of `F6`** (harness removed 2026-08-14), so any posture candidate could
+be sighted against any tail.
 
 - **Buys:** every contrast fight in this document is downstream of one fact — the tail fill is
   bright. On the yellow string the tail measures L\* 58.4 and its EDGE measures L\* 80.8, brighter
@@ -234,7 +235,7 @@ Cycling the candidates in the real editor is the right instrument: four rounds o
 measurement missed both objections that actually mattered (the sustain ribbon, and the enclosure
 grammar), because neither is a contrast problem.
 
-`F6` = **Cycle Posture Display (experiment)**, in the Authoring category, so it is rebindable like
+`F6` = **Cycle Posture Display (experiment)**, in the Authoring category, so it was rebindable like
 anything else. Each press advances one candidate and repaints; nothing is persisted, no undo entry
 is written, and the lane returns to the shipped candidate on restart. The cycle deliberately
 isolates *causes* as well as candidates:

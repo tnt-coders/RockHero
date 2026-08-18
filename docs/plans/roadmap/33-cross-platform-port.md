@@ -180,10 +180,10 @@ Audited guard by guard against the guiding principle:
      `game_resources.cpp` `shaderBackendDirectory()` (~18-29) maps it to `"dx11"`.
    - Literal backend spellings: `rock-hero-game/ui/src/surface/highway_shader_loader.cpp` passes
      `core::ShaderBackend::Direct3D11` in five `load_pair` calls (~lines 18-24);
-     `rock-hero-editor/ui/src/preview/preview_resources.cpp:39-52` hardcodes
+     `rock-hero-editor/ui/src/preview/preview_resources.cpp:43` hardcodes
      `.getChildFile("shaders").getChildFile("dx11")`.
    - Consumers of `defaultRenderBackend()`: `rock-hero-game/ui/src/surface/rock_hero_game.cpp:114`
-     and `rock-hero-editor/ui/src/preview/preview_surface.cpp:133`.
+     and `rock-hero-editor/ui/src/preview/preview_surface.cpp:146`.
 3. **Native window handle extraction is Win32-only, and bgfx platform data is incomplete for
    X11.** `rock-hero-game/ui/src/surface/game_window.cpp:131-140` queries only
    `SDL_PROP_WINDOW_WIN32_HWND_POINTER` (comment: "other platforms will branch here") and fails

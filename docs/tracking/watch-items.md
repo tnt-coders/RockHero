@@ -308,6 +308,25 @@ change; the sighted ladder ran 3.0 (`medium`) to 7.0 (`medium hot`), and the ful
 table is recorded with the 2026-08-18 signing in
 `docs/plans/in-progress/highway-note-art-state.md`.
 
+### Stacked node heads interpenetrate — trigger: simultaneous harmonics on adjacent strings read wrong
+
+The edge-height diamond (D) was signed 2026-08-15 with its adjacent-string overlap accepted on
+sight, not measured against the corpus. **Trigger**: stacked node heads read wrong in real
+charts. **Remedy path**: first a corpus count of how often simultaneous harmonics land on
+adjacent strings — evidence before any resize, since the diamond's proud tips are what make the
+mark read (see the 2026-08-17 span signing in
+`docs/plans/in-progress/highway-note-art-state.md`).
+
+### The harmonic diamond's span costs await an in-app evaluation — trigger: the user's asked-for evaluation, or either cost reads wrong
+
+SIGNED 2026-08-17 at today's span, deliberately past the pitch standard, with two measured
+costs accepted pending evaluation: stacked diamonds on adjacent strings interpenetrate ~4.2
+texels per side, and on the outer strings the tip extends ~4.2 texels (0.6–1.9 screen px) past
+the string grid's edge line. The user asked to evaluate both in the app. **Trigger**: that
+evaluation happens, or either cost reads wrong in practice. **Remedy**: sight in the app first;
+the tips standing proud of the ring are the mark's legibility, so any change is a re-signing,
+not a tune.
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer
@@ -493,8 +512,10 @@ Resolved by restoring the size rather than ramping toward it. Measured history: 
 shrink cut it to 26.43 x 28.05, shipping at 1.274x after the marks-final recentring. It is now
 baked at **1.5 x the head's solid height, 31.149 x 32.966 tx**, which lands within 0.034 tx of
 that historical height — the restore the remedy called for. The 1.57x figure this item quoted
-was the pre-recentring basis; against the head's current measured extents the same art is
-1.524x. Details, the rejected 1.90x proposal and the measured overlap costs are in
+was computed against the head's 21-texel solid-pixel rectangle; by the 50%-contour measure the
+same art was 1.524x against the head as then measured (21.66 tx) and is 1.502x against today's
+21.976 tx — three bases, one art, which is why the restore's target was stated as the round 1.5
+against the current measure. Details, the rejected 1.90x proposal and the measured overlap costs are in
 `docs/plans/in-progress/highway-note-art-state.md`.
 
 ### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
