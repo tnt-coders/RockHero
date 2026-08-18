@@ -242,15 +242,35 @@ PlatePalette platePalette(const StringStyle& style, const Hand hand)
                : PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]};
 }
 
-// A mute's fret-number plate, by the SAME rule the letter plates use above: the plate takes its
-// mark's own fill and the digit takes the contrasting ink, so the plate reads as the X's centre
-// rather than as a hole punched through it. SIGNED 2026-08-18 - the full mute's plate had been a
-// mid-gray box under a light digit, which the user read as harder to see than the palm mute's,
-// and the fix is one rule with two instantiations rather than a second hand-tuned pair.
-PlatePalette mutePlatePalette(const StringStyle& style, const bool full_mute)
+// A mute's fret-number plate, by the SAME rule the letter plates use above: the plate takes a
+// mark's fill and the digit takes the contrasting ink, so the plate reads as the X's centre rather
+// than as a hole punched through it. SIGNED 2026-08-18 - the full mute's plate had been a mid-gray
+// box under a light digit, which the user read as harder to see than the palm mute's, and the fix
+// is one rule with two instantiations rather than a second hand-tuned pair.
+//
+// Keyed on the PALM hand rather than on the full mute, which is what lets ONE rule say all three
+// states once the format carries the two mutes independently. The plate-flip design, chosen
+// 2026-08-18 from eleven measured candidates at 46.7 dL* of glance separation (today's surfaces
+// say nothing at all: 0.0):
+//
+//   THE X'S FILL SAYS WHAT THE NOTE SOUNDS AS; THE PLATE'S FILL SAYS WHETHER THE PALM HAND IS ON
+//   THE STRINGS.
+//
+// Read through this atlas's own hand signature - dark interior means the picking hand, light means
+// the fretting hand - that is not a colour code to memorise but the same rule extended: the DARK
+// INK MEANS THE PALM HAND in every state, and it simply moves to the plate when the X is busy
+// saying "this sounds dead". A both-muted note therefore wears a full mute's white X over a
+// near-black plate, and its residual likeness to a plain full mute is FREE, because the two sound
+// and score identically (user ruling 2026-08-18) - the design parks its one ambiguity where it
+// costs nothing, which is why reinforcing it with a dark rim measured WORSE (it drags "both" back
+// toward "palm only", the pair that differs in pitch).
+//
+// Under today's exclusive NoteMute enum palm is exactly !full, so this is behaviour-identical to
+// keying on the full mute; the difference appears the moment both can be set at once.
+PlatePalette mutePlatePalette(const StringStyle& style, const bool palm_mute)
 {
-    return full_mute ? PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]}
-                     : PlatePalette{.fill = style[Ink::PalmMuteInner], .ink = style[Ink::Digit]};
+    return palm_mute ? PlatePalette{.fill = style[Ink::PalmMuteInner], .ink = style[Ink::Digit]}
+                     : PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]};
 }
 
 // Every per-string style one paint can need, in both dynamics a note can be drawn at. A
@@ -1445,7 +1465,7 @@ void drawNoteHead(
         const juce::String head_text = tabNoteHeadText(note, note.fret);
         const bool muted = note.mute != common::core::NoteMute::None;
         const PlatePalette mute_plate =
-            mutePlatePalette(style, note.mute == common::core::NoteMute::Full);
+            mutePlatePalette(style, note.mute == common::core::NoteMute::Palm);
         if (muted)
         {
             // Both mutes box the fret number so it stays readable where the X's crossing strokes
