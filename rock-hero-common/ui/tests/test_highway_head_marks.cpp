@@ -59,15 +59,14 @@ TEST_CASE("Highway tech head follows the drawn marks", "[ui][highway]")
     CHECK(highwayTechHead(
         noteWith(common::core::NoteAttack::Legato, common::core::LegatoMotion::Pull)));
 
-    // The other clause, so the connection one cannot be masking it: a full mute.
+    // The other two clauses, so the connection one cannot be masking them: a full mute and a
+    // scrape's unpitched travel.
     common::core::HighwayNoteView muted =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     muted.mute = common::core::NoteMute::Full;
     CHECK(highwayTechHead(muted));
 
-    // A scrape is deliberately NOT a tech head: it draws no base at all (the bare-scrape
-    // experiment), so a predicate claiming one for it would darken a head that never lands.
-    CHECK_FALSE(highwayTechHead(
+    CHECK(highwayTechHead(
         noteWith(common::core::NoteAttack::PickSlide, common::core::LegatoMotion::Unjustified)));
 
     // A node head is deliberately NOT a tech head anymore: it wears its own round base, which

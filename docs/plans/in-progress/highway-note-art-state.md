@@ -12,19 +12,13 @@ separate track. When resuming, read both.
 
 ## In flight right now
 
-**BUILT and awaiting sighting — the BARE SCRAPE (user, 2026-08-18): no rectangular head under
-a pick slide.** *"Pick slides are somewhat a special case and the rectangle feels like it
-doesn't really fit"* — the scrape now wears the plectrum alone. Three coupled surfaces moved
-together, each stated at its site in the renderer: the base quad is skipped; the anticipation
-ring is skipped (the ring is the head's hollow twin, and announcing a rectangle that never lands
-is the approach-lie the one-shape law forbids); and an accented scrape takes NO head light — a
-lamp behind a head that is not there would show its whole solid field, the deleted rectangle
-back in light form — so its accent rides the tail light alone. `highwayTechHead` lost its scrape
-clause with the base. Open follow-ups if the bare look signs: whether the plectrum wants a light
-of its own (its silhouette is not measured in `head_art_profile`, and the distance field has no
-plectrum shape), and whether a scrape needs a landing cue back in the approach. Signed or
-reverted from git once sighted; the pre-bend outline is untouched, since its gate cannot fire
-for unpitched travel.
+**RULED 2026-08-18: the pick slide KEEPS its rectangular head.** The bare-scrape experiment
+(the plectrum alone, no base, no anticipation ring, accent on the tail only — built at
+`15576f52` from the user's *"the rectangle feels like it doesn't really fit"*) was sighted the
+same day and rejected: *"Add the note head back to the pick slide."* The revert restores all
+three coupled surfaces — the tech base under the plectrum, the anticipation ring, the head's
+accent light — and `highwayTechHead`'s scrape clause with them. A scrape wears the pick mark on
+the darker tech base; that is now a sighted decision, not a default.
 
 **The ACCENT LIGHT is SIGNED 2026-08-18: `medium flat`** — reach 0.12 world, alpha 1.0, exponent
 2.0, gain 1.0, additive blend. The user: *"'accent light: medium flat' looks best"*, signed with

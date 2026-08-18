@@ -87,10 +87,10 @@ the head sits, and the technique markers still stack over it.
 /*!
 \brief True when a head takes the darker technique base cell instead of the standard one.
 
-Charter's base-cell selection: a head wearing a left-hand technique marker. A node head is no
-longer among them: it wears its own round base (\ref highwayNodeHead), which outranks this
-darkening. Neither is a scrape any more: it draws no base at all and wears the plectrum alone —
-the bare-scrape experiment under sighting, whose gate lives at the renderer's base draw.
+Charter's base-cell selection: a head wearing a left-hand technique marker, and a scrape — whose
+travel is unpitched noise, so it takes the base a full-muted note takes and lets its pick mark sit
+on that rather than on an X. A node head is no longer among them: it wears its own round base
+(\ref highwayNodeHead), which outranks this darkening.
 
 Asks \ref highwayLegatoCell rather than testing the motion again, so the base can never darken for
 a claim that draws no mark (or stay light under one that does).
@@ -101,7 +101,8 @@ a claim that draws no mark (or stay light under one that does).
 [[nodiscard]] constexpr bool highwayTechHead(const common::core::HighwayNoteView& note) noexcept
 {
     return note.mute == common::core::NoteMute::Full ||
-           highwayLegatoCell(note.legato) != HighwayLegatoCell::None;
+           highwayLegatoCell(note.legato) != HighwayLegatoCell::None ||
+           note.attack == common::core::NoteAttack::PickSlide;
 }
 
 } // namespace rock_hero::common::ui
