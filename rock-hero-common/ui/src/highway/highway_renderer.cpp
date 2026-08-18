@@ -648,6 +648,11 @@ constexpr double g_glow_spectral_floor = 0.18;
     return cycle == 0 || cycle == 3 || cycle == 5 || cycle == 7 || cycle == 9;
 }
 
+// The double marker's (frets 12, 24) dot separation as a fraction of the string grid's height,
+// measured from the shipped sheet's 12th-fret pair: 341 of 512 cell texels, exactly symmetric
+// about the grid's vertical middle.
+constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
+
 // Continuous hand-window extent at a time, as sorted world-X edges: the core query's eased
 // fractional lines mapped through the fractional fret-line overload. Fret lines stay fixed —
 // these are the sliding window border's positions.
@@ -5342,49 +5347,62 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
-    // --- Fretboard skin: one textured cell per fret from the reference inlay atlas (8x4 grid),
-    // drawn last on the face like Charter (the art is transparent between markers). ---
+    // --- Fretboard markers: the classic inlay dots, drawn as world-square quads at
+    // code-derived positions from the single dot cell — round and exactly seated at every
+    // string count by construction. The stretched per-fret sheet this replaces rendered the
+    // dots elliptical (a fixed-aspect cell over the count-dependent board rect) and carried
+    // four hand-seat bugs; user-provided per-count art layers back on top as plan 58's
+    // override tier. Positions reuse the one marker law (isDottedFret): cycles 3/5/7/9 are
+    // singles at the grid's vertical middle, cycle 0 (frets 12, 24) the symmetric double.
+    // The quad is one fret slot square, so the dot's drawn width exactly matches the sheet it
+    // replaces (55 texels of a 256 cell over the slot) — only its height changes, by the
+    // 4.8% that made it elliptical. A double's upper quad may overhang the grid top; the quad
+    // is transparent outside the dot, and the dot itself stays inside the grid.
     if (inlay_texture.isValid())
     {
         std::vector<PosColorUvVertex> vertices;
         std::vector<std::uint16_t> indices;
-        constexpr int inlay_columns = 8;
-        constexpr int inlay_rows = 4;
-        // Every fret addresses its own cell below (cell = fret - 1), so the grid must hold the
-        // whole drawn neck. A shorter grid would sample past the texture and smear the last row
-        // across every fret beyond it rather than failing.
-        static_assert(inlay_columns * inlay_rows >= g_face_fret_count);
-        // Half-texel inset so a cell samples strictly inside its own texels; the inlay PNG is not
-        // square, so u and v inset by different amounts. Zero dimensions (decode failed) fall back
-        // to no inset.
+        // Half-texel inset so the quad samples strictly inside the dot cell's texels; zero
+        // dimensions (decode failed) fall back to no inset.
         const float half_texel_u =
             inlay_texture_width > 0 ? 0.5F / static_cast<float>(inlay_texture_width) : 0.0F;
         const float half_texel_v =
             inlay_texture_height > 0 ? 0.5F / static_cast<float>(inlay_texture_height) : 0.0F;
-        const float cell_u = 1.0F / inlay_columns;
-        const float cell_v = 1.0F / inlay_rows;
-        for (int fret = 1; fret <= g_face_fret_count; ++fret)
-        {
-            const int cell = fret - 1;
-            // Named row/column: the integer division is the grid addressing, kept out of the
-            // float expressions on purpose.
-            const int cell_column = cell % inlay_columns;
-            const int cell_row = cell / inlay_columns;
-            const float u0 = (static_cast<float>(cell_column) * cell_u) + half_texel_u;
-            const float v0 = (static_cast<float>(cell_row) * cell_v) + half_texel_v;
-            const float u1 = (static_cast<float>(cell_column + 1) * cell_u) - half_texel_u;
-            const float v1 = (static_cast<float>(cell_row + 1) * cell_v) - half_texel_v;
-            const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
-            const auto [x0, x1] = std::minmax(low_x, high_x);
-            const std::uint32_t white = packAbgr(0xFFFFFFFF);
+        const float u0 = half_texel_u;
+        const float v0 = half_texel_v;
+        const float u1 = 1.0F - half_texel_u;
+        const float v1 = 1.0F - half_texel_v;
+        const double quad_half = metrics.first_fret_distance / 2.0;
+        const double middle_y = (face_bottom_y + face_top_y) / 2.0;
+        const double double_offset =
+            g_inlay_double_separation_fraction * (face_top_y - face_bottom_y) / 2.0;
+        const std::uint32_t white = packAbgr(0xFFFFFFFF);
+        const auto push_dot = [&](const double center_x, const double center_y) {
             pushQuad(
                 vertices,
                 indices,
-                makeUvVertex(x0, face_bottom_y, 0.0, white, u0, v1),
-                makeUvVertex(x1, face_bottom_y, 0.0, white, u1, v1),
-                makeUvVertex(x1, face_top_y, 0.0, white, u1, v0),
-                makeUvVertex(x0, face_top_y, 0.0, white, u0, v0));
+                makeUvVertex(center_x - quad_half, center_y - quad_half, 0.0, white, u0, v1),
+                makeUvVertex(center_x + quad_half, center_y - quad_half, 0.0, white, u1, v1),
+                makeUvVertex(center_x + quad_half, center_y + quad_half, 0.0, white, u1, v0),
+                makeUvVertex(center_x - quad_half, center_y + quad_half, 0.0, white, u0, v0));
+        };
+        for (int fret = 1; fret <= g_face_fret_count; ++fret)
+        {
+            if (!isDottedFret(fret))
+            {
+                continue;
+            }
+            // The slot-midpoint law the note heads already use, not a restatement of it.
+            const double center_x = common::core::highwayNoteCenterX(fret, metrics, mirrored);
+            if (fret % 12 == 0)
+            {
+                push_dot(center_x, middle_y - double_offset);
+                push_dot(center_x, middle_y + double_offset);
+            }
+            else
+            {
+                push_dot(center_x, middle_y);
+            }
         }
         const bgfx::TextureHandle inlays = inlay_texture.get();
         submitBatch(

@@ -82,7 +82,8 @@ enum class HighwayTexture : std::uint8_t
     /*! \brief Note-head atlas PNG (4x4 grid, reference channel scheme). */
     Notes,
 
-    /*! \brief Fretboard skin PNG (8x4 grid, one 256x512 cell per fret). */
+    /*! \brief Inlay dot cell PNG: one round marker dot, mapped world-square by the renderer at
+        code-derived positions (the isDottedFret law). */
     Inlays,
 
     /*! \brief Fingering-panel PNG (4x4 grid: barre shapes plus finger name glyphs). */
