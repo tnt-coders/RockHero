@@ -307,6 +307,21 @@ committed atlas at any time.
 
 ## Decided, with the numbers the decisions rest on
 
+**A technique mark's HEIGHT is 1.07 x the string pitch — 24.5766 atlas texels.** SIGNED
+2026-08-17 from a four-state sighting (today / 1.00 tangent / 1.07 / 1.10) cycled in the app.
+It is the third-party reference's own measured overhang: adjacent-lane marks kiss rather than
+merely touch, overlapping by ~0.07 of the pitch. Exact tangency (1.00) read as timid beside it.
+
+Two consequences the sighting exposed, both being worked now:
+- **Width leaves the uniform rule.** At 1.07 the palm mute (35.61 tx) and slap (41.31 tx)
+  shrank away from the note's edge and read wrong, while tap (48.12) and pop (53.18) grew past
+  it. The user's ruling: palm mute should span the note like tap does, slap like pop. Width is
+  therefore a per-mark authored quantity, not a consequence of the height scale.
+- **The marks are REDRAWN, not resampled.** Resizing by resample softened edges (the palm mute
+  most visibly). Per the true-to-size rule, each mark's construction is recovered from the
+  source art and re-rendered analytically at its target extents, so the shipped art is
+  pixel-exact at its own size.
+
 **The uniform family scale and the string spacing are SIGNED at 1.000 and their samplers
 deleted.** SIGNED 2026-08-17. The family axis died twice: the eye ruled today's head size "by
 far the closest" to the reference, and the pitch-frame analysis proved no uniform value can be
