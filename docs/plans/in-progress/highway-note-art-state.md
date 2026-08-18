@@ -404,6 +404,33 @@ that conversion existed to patch. `HighwayBeatView::signature_denominator` lost 
 and went too (recover it from git if the grid ever needs re-reading). `g_highway_vibrato_period_seconds`
 stopped being a fallback and became the one authority.
 
+**The literature agrees, and sharpens two things** (reviewed 2026-08-18, sources in the session
+record). Tempo-independence is confirmed about as firmly as this literature confirms anything:
+the one direct experiment (Desain et al. 1999, five professionals across a 26% tempo span) found
+scaling in two of five players, and the largest tempo effect measured anywhere — 8.3%, in a
+40-bassist slow-vs-fast contrast — is smaller than the within-condition spread, and smaller than
+the effects of register and finger choice. Notation independently reaches the same answer:
+SMuFL bakes vibrato speed into fixed-wavelength glyphs tiled along the note, never computed from
+tempo — which is also why the 2D lane's spatial-period squiggle is the correct model there and
+not a divergence from this surface.
+
+The centre is ~6 Hz rather than our 5.0: production means cluster 5.2—6.6 Hz and every
+perception study peaks at 6.0—6.5. We sit below that deliberately (a drawn wobble reads busier
+than the pitch waver it depicts), but the gap deserves ONE more sighting, because the rejection
+that set our ceiling may no longer bind: **6.25 Hz was called "frantic" at 0.25 semitones of
+depth, and the depth has since HALVED to 0.125** — and the literature is explicit that rate and
+extent interact perceptually (listeners judge how fast a vibrato is partly by how wide it is;
+production couples them inversely at r = -0.62). So 6 Hz at today's narrower swing is a
+genuinely different stimulus from the one that was rejected. Caveat kept in view: no
+electric-guitar vibrato rate has ever been published, so every number here is transferred from
+voice and bowed strings.
+
+**Two better axes than tempo, if vibrato ever earns time-variation.** (1) Rate rises ~15% toward
+the END of a sustained note (Prame 1994, replicated by Desain et al. for all five instruments) —
+a larger and better-established effect than tempo. (2) If a WIDE vibrato ever ships, bias it
+SLOWER (~5—5.5 Hz), since production couples extent and rate inversely and notation's own
+wide-vibrato glyphs vary amplitude, not speed.
+
 **Ruled at the same time: no roadmap plan for grid-derived vibrato.** The user asked whether to
 plan making the rate configurable from the song's grid later. That would re-introduce exactly the
 defect removed here, so it is deliberately NOT planned. The musically real axis, if vibrato ever

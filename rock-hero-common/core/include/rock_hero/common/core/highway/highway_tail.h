@@ -17,9 +17,16 @@ namespace rock_hero::common::core
 \brief Vibrato wobble period in seconds, FIXED for every song and tempo (5.0 Hz).
 
 A vibrato's rate is a property of the player's hand, not of the song: the wrist oscillates at
-its own frequency whether the piece is a ballad or a thrash number, which is why the detection
-plan bands real guitar vibrato at 4—7 Hz without reference to tempo
-(docs/plans/roadmap/22-note-detection.md). The drawn wobble had been locked to the grid's
+its own frequency whether the piece is a ballad or a thrash number. The detection plan bands it
+at 4—7 Hz (docs/plans/roadmap/22-note-detection.md), and a 2026-08-18 literature review agreed
+while sharpening the centre — measured production means cluster 5.2—6.6 Hz across voice, violin
+and double bass, and every perception study peaks in the same place (preference 6.0—6.5,
+optimal ~6, widest-wobble tolerance 5—7). Tempo dependence is near zero: the one direct
+experiment found rate scaling in 2 of 5 professionals, and the largest effect measured anywhere
+is 8.3%, smaller than the within-performer spread and smaller than register or finger choice.
+Worth knowing, because it is a real evidence gap: nobody has published an electric-guitar
+measurement at all, so the band is a transfer from instruments whose vibrato is a comparable
+wrist rotation. The drawn wobble had been locked to the grid's
 eighth note, so it ran at BPM/30 Hz — 2.0 Hz at 60 BPM and 7.1 Hz at 213, the two ends of
 the user's own library, which is both slower and faster than any hand produces (user
 2026-08-18: *"vibrato looks WAY too slow on some songs and WAY too fast on others"*).
