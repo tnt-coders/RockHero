@@ -721,6 +721,14 @@ std::optional<ChartNotesEditPlan> planSetAttack(
         {
             continue;
         }
+        // The scrape's own eligibility, which the validator above cannot judge yet because the
+        // path is built below: an existing slide that HOLDS a fret cannot become a scrape, since
+        // a pick cannot rest and still be scraping. Skipped like any other ineligible note so a
+        // mixed selection still applies to the rest.
+        if (attack == common::core::NoteAttack::PickSlide && !scrapePathIsConvertible(note))
+        {
+            continue;
+        }
         const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
         const bool node_leaves = nodeLeavesWithAttack(note, attack);
         note.attack = attack;
@@ -739,12 +747,31 @@ std::optional<ChartNotesEditPlan> planSetAttack(
         }
         if (attack == common::core::NoteAttack::PickSlide)
         {
-            // The note's own fret is the scrape start (unlike imported carriers, whose dead
-            // strings carry no meaningful fret); the default travels to the far end of the
-            // corpus range, downward from the neck's upper half.
-            const bool upward =
-                note.fret <= (g_pick_slide_default_high_fret + g_pick_slide_default_low_fret) / 2;
-            applyDefaultPickSlidePath(note, upward);
+            // A scrape needs room to travel, so a sustainless note grows one first: a quarter
+            // note, clamped by the SAME growth limit every tail-growing verb obeys, so an
+            // authored default can never crowd the next onset.
+            if (note.sustain.numerator <= 0)
+            {
+                const common::core::TimeSignatureChange signature =
+                    tempo_map.timeSignatureAt(note.position.measure);
+                common::core::Fraction wanted = pickSlideDefaultSustainBeats(signature.denominator);
+                const std::optional<common::core::Fraction> limit =
+                    sustainGrowthLimit(chart, tempo_map, note);
+                if (limit.has_value() && *limit < wanted)
+                {
+                    wanted = *limit;
+                }
+                note.sustain = wanted > g_minimum_slide_window ? wanted : g_minimum_slide_window;
+            }
+            // An existing slide IS the gesture's path, so converting keeps the frets and the
+            // direction the charter already drew; only a note with no slide at all takes the
+            // synthesized default. The note's own fret is always the start (unlike imported
+            // carriers, whose dead strings carry no meaningful fret).
+            if (!convertSlideToScrapePath(note))
+            {
+                applyDefaultPickSlidePath(
+                    note, pickSlideDefaultUpward(note.fret, chart.tuning.capo));
+            }
         }
         else if (was_scrape)
         {

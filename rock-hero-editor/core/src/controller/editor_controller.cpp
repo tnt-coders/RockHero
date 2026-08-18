@@ -1631,7 +1631,7 @@ void EditorController::Impl::clearChartEditingState()
     clearSelection();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
-    m_chart_legato_toggle.reset();
+    disarmTechniqueToggleWindows();
     m_chart_notes_top.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
     // position is the position, and nothing is armed until the first click or arrow (the
@@ -1693,7 +1693,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
 {
     m_selection = std::move(selection);
     m_chart_fret_entry.reset();
-    m_chart_legato_toggle.reset();
+    disarmTechniqueToggleWindows();
     static_cast<void>(settleChartLegato());
 }
 
@@ -2070,7 +2070,7 @@ bool EditorController::Impl::applyChartEditPlan(
     // A typing-style edit interrupts any in-flight fret entry, and any chart edit closes the H
     // toggle window, unless the caller re-arms them.
     m_chart_fret_entry.reset();
-    m_chart_legato_toggle.reset();
+    disarmTechniqueToggleWindows();
 
     // The selection follows the edit: retyped/moved/inserted notes stay selected under their
     // new keys, deleted notes drop out (their keys no longer resolve).
@@ -3256,6 +3256,80 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
 // the press by what the PLAN does rather than by what the selection already holds is what keeps a
 // rider note from stranding the toggle in apply mode forever. The clear flattens only the stored
 // claims: a left-hand tap riding the selection keeps its attack, since Ctrl+H is its sole author.
+// Disarms every technique toggle window. Called from each COMMIT point — a selection change, a
+// caret move, an edit, undo/redo, a settling sweep — so a press after any of them means the verb's
+// ordinary law instead of a reversal. One call rather than a list of members, so the commit points
+// cannot fall out of step with the verbs that own windows.
+void EditorController::Impl::disarmTechniqueToggleWindows() noexcept
+{
+    m_chart_legato_toggle.reset();
+    m_chart_pick_slide_toggle.reset();
+}
+
+// The technique verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
+// copied into each: while the selection and the burst record still prove the previous press was
+// this verb's own entry, this press REVERSES that entry exactly, so the pair leaves no trace —
+// including tails an assist grew, which a verb's own clear law could never restore.
+//
+// ALWAYS disarms, reversal or not: a press whose proofs fail commits the previous entry, which is
+// what makes the window end at the next selection change or caret move.
+//
+// window: the verb's armed keys, reset by this call.
+// revert_label: undo label for the inverse entry a mid-window save forces.
+// Returns true when this press was consumed by a reversal, so the caller must not plan.
+bool EditorController::Impl::reverseTechniqueToggleWindow(
+    std::optional<std::vector<ChartNoteKey>>& window, const std::string_view revert_label)
+{
+    if (!window.has_value())
+    {
+        return false;
+    }
+    const std::vector<ChartNoteKey> armed_keys = *window;
+    window.reset();
+    const EditorUndoHistorySnapshot history = m_undo_history.snapshot();
+    // Bound once so every read below is provably behind the has_value check, the shape this file
+    // uses wherever an optional's guarantee has to survive intervening calls.
+    const ChartNotesTopEntry* const burst =
+        m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
+    if (burst == nullptr || armed_keys != chartSelection().notes() ||
+        history.position != burst->history_position)
+    {
+        return false;
+    }
+    const ChartNotesEditPlan applied = burst->plan;
+    common::core::Chart* const chart = m_session.currentChart();
+    // A save mid-window makes the entry the file's clean state, so erasing it would make "return
+    // to clean" a lie. The reversal still happens — the toggle stays genuine and the grown tail
+    // comes back — but as its own inverse entry, which leaves the session correctly dirty
+    // (ruled 2026-08-11).
+    const bool clean_entry = history.clean_position == burst->history_position;
+    const bool reversed =
+        chart != nullptr &&
+        applyChartNotesChange(*chart, applied.inserted, applied.removed).has_value();
+    if (reversed && clean_entry)
+    {
+        m_chart_notes_top.reset();
+        pushUndoEntry(
+            std::make_unique<ChartNotesEdit>(ChartNotesEditPlan{
+                .removed = applied.inserted,
+                .inserted = applied.removed,
+                .label = std::string{revert_label},
+            }));
+        updateView();
+        return true;
+    }
+    if (reversed && m_undo_history.dropTop().status == EditorUndoTransitionStatus::Applied)
+    {
+        m_chart_notes_top.reset();
+        updateView();
+        return true;
+    }
+    // The proofs above guarantee the stream and the history top still match the entry, so a failed
+    // reversal is a logic error; surface it rather than silently re-planning.
+    reportError("Could not apply chart edit: " + applied.label);
+    return true;
+}
+
 void EditorController::Impl::onChartLegatoToggleRequested()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -3265,55 +3339,9 @@ void EditorController::Impl::onChartLegatoToggleRequested()
         return;
     }
 
-    // The H toggle window (ruling 4): while the selection and the burst record prove the previous
-    // press is this verb's own entry, this press REVERSES that entry exactly — including any tails
-    // the assist grew, which the claim-or-clear law below could never restore — so the pair of
-    // presses leaves no trace.
-    if (m_chart_legato_toggle.has_value())
+    if (reverseTechniqueToggleWindow(m_chart_legato_toggle, "Revert Legato"))
     {
-        const std::vector<ChartNoteKey> armed_keys = *m_chart_legato_toggle;
-        m_chart_legato_toggle.reset();
-        const EditorUndoHistorySnapshot history = m_undo_history.snapshot();
-        // Bound once so every read below is provably behind the has_value check, the shape this
-        // file uses wherever an optional's guarantee has to survive intervening calls.
-        const ChartNotesTopEntry* const burst =
-            m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
-        if (burst != nullptr && armed_keys == chartSelection().notes() &&
-            history.position == burst->history_position)
-        {
-            const ChartNotesEditPlan applied = burst->plan;
-            common::core::Chart* const chart = m_session.currentChart();
-            // A save mid-window makes the entry the file's clean state, so erasing it would make
-            // "return to clean" a lie. The reversal still happens — the toggle stays genuine and
-            // the grown tail comes back — but as its own inverse entry, which leaves the session
-            // correctly dirty (ruled 2026-08-11).
-            const bool clean_entry = history.clean_position == burst->history_position;
-            const bool reversed =
-                chart != nullptr &&
-                applyChartNotesChange(*chart, applied.inserted, applied.removed).has_value();
-            if (reversed && clean_entry)
-            {
-                m_chart_notes_top.reset();
-                pushUndoEntry(
-                    std::make_unique<ChartNotesEdit>(ChartNotesEditPlan{
-                        .removed = applied.inserted,
-                        .inserted = applied.removed,
-                        .label = "Revert Legato",
-                    }));
-                updateView();
-                return;
-            }
-            if (reversed && m_undo_history.dropTop().status == EditorUndoTransitionStatus::Applied)
-            {
-                m_chart_notes_top.reset();
-                updateView();
-                return;
-            }
-            // The proofs above guarantee the stream and the history top still match the entry, so a
-            // failed reversal is a logic error; surface it rather than silently re-planning.
-            reportError("Could not apply chart edit: " + applied.label);
-            return;
-        }
+        return;
     }
 
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
@@ -3398,6 +3426,11 @@ void EditorController::Impl::onChartPickSlideToggleRequested()
         return;
     }
 
+    if (reverseTechniqueToggleWindow(m_chart_pick_slide_toggle, "Revert Pick Slide"))
+    {
+        return;
+    }
+
     const std::vector<common::core::ChartNote> selected =
         chartNotesForKeys(chartSelection().notes());
     if (selected.empty())
@@ -3409,12 +3442,20 @@ void EditorController::Impl::onChartPickSlideToggleRequested()
     });
     const common::core::NoteAttack target =
         all_scrapes ? common::core::NoteAttack::Pick : common::core::NoteAttack::PickSlide;
-    static_cast<void>(applyChartEditPlan(planSetAttack(
-        *arrangement->chart,
-        session().song().tempo_map,
-        chartSelection().notes(),
-        target,
-        all_scrapes ? "Remove Pick Slide" : "Pick Slide")));
+    const std::vector<ChartNoteKey> keys = chartSelection().notes();
+    if (applyChartEditPlan(planSetAttack(
+            *arrangement->chart,
+            session().song().tempo_map,
+            keys,
+            target,
+            all_scrapes ? "Remove Pick Slide" : "Pick Slide")))
+    {
+        // Arms the window on the entering press and the clearing one alike: reversing either
+        // restores exactly what the notes carried before, which for a scrape means the sustain the
+        // default grew and the glide a conversion consumed — neither of which the plain
+        // apply-or-clear law could put back.
+        m_chart_pick_slide_toggle = keys;
+    }
 }
 
 // Esc is a settle event whichever rung consumes it, so the ladder itself is the helper below and
@@ -3462,7 +3503,7 @@ bool EditorController::Impl::consumeChartEscapeRung()
     {
         dissolveChartCaretInPlace();
         m_chart_fret_entry.reset();
-        m_chart_legato_toggle.reset();
+        disarmTechniqueToggleWindows();
         return true;
     }
 
@@ -3579,7 +3620,7 @@ bool EditorController::Impl::settleChartLegato()
     // content without moving the history position, so an armed window's proof would otherwise still
     // pass and reverse or widen a plan that no longer exists.
     m_chart_notes_top.reset();
-    m_chart_legato_toggle.reset();
+    disarmTechniqueToggleWindows();
     m_chart_fret_entry.reset();
     updateView();
     return true;
@@ -3720,7 +3761,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
     // over, so no coalescing window may reach across one. Stated here rather than left to the
     // position proof, which an undo followed by a redo restores.
     m_chart_notes_top.reset();
-    m_chart_legato_toggle.reset();
+    disarmTechniqueToggleWindows();
     const EditorUndoBeginResult begin = m_undo_history.beginUndo();
     logEditorUndoTransitionResult("undo.begin", begin.result);
     dispatchUndoTransition(begin);
@@ -3730,7 +3771,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
 void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
 {
     m_chart_notes_top.reset();
-    m_chart_legato_toggle.reset();
+    disarmTechniqueToggleWindows();
     const EditorUndoBeginResult begin = m_undo_history.beginRedo();
     logEditorUndoTransitionResult("redo.begin", begin.result);
     dispatchUndoTransition(begin);
@@ -3917,7 +3958,7 @@ void EditorController::Impl::resetUndoHistory(std::string_view context)
     m_output_gain_preview_before.reset();
     // Every entry the coalescing windows name is gone with the stack.
     m_chart_notes_top.reset();
-    m_chart_legato_toggle.reset();
+    disarmTechniqueToggleWindows();
     const EditorUndoTransitionResult result = m_undo_history.reset();
     logEditorUndoTransitionResult(context, result);
 }

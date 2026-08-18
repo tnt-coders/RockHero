@@ -188,6 +188,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartLegatoToggleRequested();
     void onChartLeftTapRequested();
     void onChartPickSlideToggleRequested();
+
+    void disarmTechniqueToggleWindows() noexcept;
+
+    [[nodiscard]] bool reverseTechniqueToggleWindow(
+        std::optional<std::vector<ChartNoteKey>>& window, std::string_view revert_label);
     void onChartEscapePressed();
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
     // consumed it (true = a rung consumed the press).
@@ -793,12 +798,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
 
-    // The H toggle window (the legato plan's ruling 4): while the selection still matches and the
-    // record above still owns the history top, a second press REVERSES that entry exactly, tails
-    // the assist grew included — a true ON/OFF toggle rather than a do/undo pair. Once either proof
-    // fails (selection changed, any edit, undo/redo, a committing settle), the window is dead and H
-    // means the ordinary claim-or-clear law; grown tails then stay and Ctrl+Z is the revert.
+    // The technique verbs' toggle windows (the legato plan's ruling 4, extended to the scrape
+    // 2026-08-18): while the selection still matches and the record above still owns the history
+    // top, a second press REVERSES that entry exactly, tails an assist grew included — a true
+    // ON/OFF toggle rather than a do/undo pair. Once either proof fails (selection changed, any
+    // edit, undo/redo, a committing settle), the window is dead and the verb means its ordinary
+    // law; grown tails then stay and Ctrl+Z is the revert.
+    //
+    // One window per verb, disarmed together through disarmTechniqueToggleWindows(), so a verb
+    // joining the family adds a field here and nothing else: the commit points must never learn
+    // the list by hand.
     std::optional<std::vector<ChartNoteKey>> m_chart_legato_toggle{};
+    std::optional<std::vector<ChartNoteKey>> m_chart_pick_slide_toggle{};
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the

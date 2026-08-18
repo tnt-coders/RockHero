@@ -1479,8 +1479,11 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     CHECK(chart->notes[0].sustain == common::core::Fraction{});
 }
 
-// The pick-slide toggle authors a scrape from a plain note and back within the session, each
-// direction one compound undo entry replaying exactly through the shared edit seam.
+// The pick-slide toggle authors a scrape from a plain note and back within the session. The
+// second press lands inside the toggle window (D14 ruling 4, extended to the scrape 2026-08-18),
+// so it REVERSES the first press's entry exactly rather than authoring a second one — which is
+// what lets it restore things the plain clear law could never put back, like a sustain the
+// default grew or a glide a conversion consumed.
 TEST_CASE("EditorController toggles pick slides with exact restoration", "[core][chart]")
 {
     FakeTransport transport;
@@ -1516,19 +1519,19 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
         CHECK(scrape.slide_out->offset == scrape.sustain);
     }
 
-    // Toggling back restores the note field-for-field: the scrape's path clears and nothing
-    // else was ever touched.
+    // Toggling back inside the window restores the note field-for-field.
     controller.onChartPickSlideToggleRequested();
     chart = chartOrNull(controller);
     CHECK(chart->notes[0] == original);
 
-    // Undo replays both directions exactly: first back to the scrape, then to the original.
+    // And it leaves NO TRACE in the history: the reversal consumed the scrape's own entry, so the
+    // next undo reaches past it to the sustain adjust that preceded the pair. That is the whole
+    // difference between a true toggle and a do/undo pair.
     controller.onUndoRequested();
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
-    controller.onUndoRequested();
-    chart = chartOrNull(controller);
-    CHECK(chart->notes[0] == original);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
+    CHECK_FALSE(chart->notes[0].slide_out.has_value());
+    CHECK(chart->notes[0].sustain == common::core::Fraction{});
 }
 
 // Uniform scope on a mixed selection: any plain note present makes the whole selection become
@@ -1564,6 +1567,12 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
     CHECK(chart->notes[1].attack == common::core::NoteAttack::PickSlide);
+
+    // A history move COMMITS the entry above and closes the toggle window, and undo-then-redo
+    // lands the chart back in this exact state - so the press below exercises the uniform-scope
+    // law rather than a reversal (the window itself is pinned in the round-trip case above).
+    controller.onUndoRequested();
+    controller.onRedoRequested();
 
     // Now all-scrape: the same intent reverts the whole selection in one entry.
     controller.onChartPickSlideToggleRequested();

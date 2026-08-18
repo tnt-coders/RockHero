@@ -774,10 +774,12 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     CHECK(isWhiteInk(image.getPixelAt(mute_x - 10, lane_y + 10)));
     CHECK(image.getPixelAt(scrape_x + 2, lane_y + 8).getAlpha() == 255);
 
-    // NO BOXED NUMBER. A real mute fills its plate with Charter's gray behind the digit; the same
-    // probe on the scrape reads the head's own colored center instead.
-    CHECK(image.getPixelAt(mute_x + 3, lane_y + 5) == juce::Colour{0xff808080});
-    CHECK(image.getPixelAt(scrape_x + 3, lane_y + 5) != juce::Colour{0xff808080});
+    // NO BOXED NUMBER. A real mute fills a plate behind the digit; the same probe on the scrape
+    // reads the head's own colored center instead. The full mute's plate takes its own X's light
+    // fill (mutePlatePalette, 2026-08-18), so this probe now separates plate-from-head rather
+    // than plate-from-X - the plate is deliberately invisible against the mark it centers.
+    CHECK(isWhiteInk(image.getPixelAt(mute_x + 3, lane_y + 5)));
+    CHECK(!isWhiteInk(image.getPixelAt(scrape_x + 3, lane_y + 5)));
     CHECK(image.getPixelAt(scrape_x + 3, lane_y + 5).getAlpha() == 255);
 
     // THE DIGIT RIDES 3 PX HIGHER, and only on the plectrum. The glyph is the same raster shifted

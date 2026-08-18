@@ -29,7 +29,6 @@ const juce::Colour g_hand_shape_color{0xff3157a7};          // HAND_SHAPE
 const juce::Colour g_hand_shape_arpeggio_color{0xff8559b7}; // HAND_SHAPE_ARPEGGIO
 const juce::Colour g_vibrato_sine_color{0xffb6b6b6};        // java Color.GRAY.brighter()
 const juce::Colour g_mute_border_color{0xff808080};         // java Color.GRAY
-const juce::Colour g_full_mute_text_border{0xffc0c0c0};     // java Color.LIGHT_GRAY
 const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
 
 // The lane's hand axis (55-Q1): a mark's hand signature is its FILL POLARITY, not its shape —
@@ -129,16 +128,15 @@ enum class Ink : std::uint8_t
     TailEdge,    // sustain border: the authority's bright x0.66 tail, brightened
     Accent,      // accent glow: ring brightened, hue-preserving
 
-    HeadBacking,    // the head's outermost layer, which melts into the dark lane
-    Digit,          // fret numbers, on the head and on the floating chips
-    TechniqueLine,  // slide diagonals and the bend polyline
-    VibratoSine,    // the sine riding a tail
-    MuteBorder,     // the mute X's outline, and a palm mute's number plate
-    MuteTextBorder, // a full mute's number-plate outline
-    PalmMuteInner,  // the palm mute X's fill
-    PlateRim,       // every letter plate's rim, both hands
-    PlateDark,      // the picking hand's plate fill and the fretting hand's letter ink
-    PlateLight,     // the fretting hand's plate fill and the picking hand's letter ink
+    HeadBacking,   // the head's outermost layer, which melts into the dark lane
+    Digit,         // fret numbers, on the head and on the floating chips
+    TechniqueLine, // slide diagonals and the bend polyline
+    VibratoSine,   // the sine riding a tail
+    MuteBorder,    // the mute X's outline, and every mute number-plate's rim
+    PalmMuteInner, // the palm mute X's fill
+    PlateRim,      // every letter plate's rim, both hands
+    PlateDark,     // the picking hand's plate fill and the fretting hand's letter ink
+    PlateLight,    // the fretting hand's plate fill and the picking hand's letter ink
 
     Count
 };
@@ -200,7 +198,6 @@ struct StringStyle
               juce::Colours::white,
               g_vibrato_sine_color,
               g_mute_border_color,
-              g_full_mute_text_border,
               g_palm_mute_inner_color,
               g_plate_rim,
               juce::Colours::black,
@@ -243,6 +240,17 @@ PlatePalette platePalette(const StringStyle& style, const Hand hand)
     return hand == Hand::Picking
                ? PlatePalette{.fill = style[Ink::PlateDark], .ink = style[Ink::PlateLight]}
                : PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]};
+}
+
+// A mute's fret-number plate, by the SAME rule the letter plates use above: the plate takes its
+// mark's own fill and the digit takes the contrasting ink, so the plate reads as the X's centre
+// rather than as a hole punched through it. SIGNED 2026-08-18 - the full mute's plate had been a
+// mid-gray box under a light digit, which the user read as harder to see than the palm mute's,
+// and the fix is one rule with two instantiations rather than a second hand-tuned pair.
+PlatePalette mutePlatePalette(const StringStyle& style, const bool full_mute)
+{
+    return full_mute ? PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]}
+                     : PlatePalette{.fill = style[Ink::PalmMuteInner], .ink = style[Ink::Digit]};
 }
 
 // Every per-string style one paint can need, in both dynamics a note can be drawn at. A
@@ -1435,12 +1443,13 @@ void drawNoteHead(
     if (metrics.draw_text)
     {
         const juce::String head_text = tabNoteHeadText(note, note.fret);
-        if (note.mute != common::core::NoteMute::None)
+        const bool muted = note.mute != common::core::NoteMute::None;
+        const PlatePalette mute_plate =
+            mutePlatePalette(style, note.mute == common::core::NoteMute::Full);
+        if (muted)
         {
-            // Charter boxes the fret number on full mutes so it stays readable over the X;
-            // palm mutes need the same plate (the X's crossing strokes cut through the digits),
-            // in the palm X's own colors so it reads as the X's center.
-            const bool full_mute = note.mute == common::core::NoteMute::Full;
+            // Both mutes box the fret number so it stays readable where the X's crossing strokes
+            // cut through the digits; the plate rule lives in mutePlatePalette.
             const auto text_width = static_cast<float>(textWidth(metrics.fret_font, head_text));
             const juce::Rectangle<float> box{
                 onset_x - text_width / 2.0f - 2.0f,
@@ -1448,16 +1457,16 @@ void drawNoteHead(
                 text_width + 4.0f,
                 metrics.fret_font.getHeight() + 2.0f
             };
-            g.setColour(full_mute ? style[Ink::MuteBorder] : style[Ink::PalmMuteInner]);
+            g.setColour(mute_plate.fill);
             g.fillRect(box);
-            g.setColour(full_mute ? style[Ink::MuteTextBorder] : style[Ink::MuteBorder]);
+            g.setColour(style[Ink::MuteBorder]);
             g.drawRect(box, 1.0f);
         }
         // Only the plectrum moves its digit: the disc and the diamond are widest on the string
         // line, so their numbers stay centered on it.
         const float digit_raise =
             shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
-        g.setColour(style[Ink::Digit]);
+        g.setColour(muted ? mute_plate.ink : style[Ink::Digit]);
         g.setFont(metrics.fret_font);
         g.drawText(
             head_text,

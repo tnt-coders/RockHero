@@ -318,7 +318,10 @@ namespace
     // and inventing one here would be an unsigned keymap decision. Registered anyway so it is
     // reachable at all — it appears in the Actions dialog and the chart's discovery menu, and the
     // user can bind it there.
-    add(EditorCommandId::ChartPickSlideToggle, "Toggle Pick Slide", "Authoring", {});
+    add(EditorCommandId::ChartPickSlideToggle,
+        "Toggle Pick Slide",
+        "Authoring",
+        {chord('x', shift)});
     // `L` matches the claim's direction, not Guitar Pro's technique letter: the claim is stored on
     // the arriving note and reaches backward to its predecessor, which is the shape of GP's "Tie
     // note" (L) — GP's H links the selected note FORWARD to the next, so an H habit here authored

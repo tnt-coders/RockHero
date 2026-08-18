@@ -748,8 +748,11 @@ TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]
     }
 }
 
-// A zero-sustain note first extends to the minimum gesture window so the path can travel.
-TEST_CASE("planSetAttack extends a zero sustain to the minimum window", "[core][chart]")
+// A sustainless note grows the DEFAULT scrape length so the path has somewhere to travel: a
+// quarter note (user 2026-08-18), not the old degeneracy floor of an eighth of a beat, which a
+// corpus survey found to be 16x shorter than any scrape anyone charted. Nothing later blocks
+// this note within a quarter note, so the growth clamp does not bind here.
+TEST_CASE("planSetAttack gives a sustainless scrape the default quarter note", "[core][chart]")
 {
     const common::core::Chart chart = makeChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -763,11 +766,14 @@ TEST_CASE("planSetAttack extends a zero sustain to the minimum window", "[core][
         const common::core::ChartNote* scrape =
             noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
         REQUIRE(scrape != nullptr);
-        CHECK(scrape->sustain == g_minimum_slide_window);
+        CHECK(scrape->sustain == pickSlideDefaultSustainBeats(4));
+        CHECK(scrape->sustain > g_minimum_slide_window);
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
         {
-            CHECK(scrape->slide_out->offset == g_minimum_slide_window);
+            // The terminal is pinned exactly at the sustain: a scrape rings no longer than it
+            // travels.
+            CHECK(scrape->slide_out->offset == scrape->sustain);
         }
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -1036,11 +1042,33 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
     }
 }
 
-// Entering a pick slide REPLACES a pitched glide with the scrape path: `slides` is the path's
-// own storage, definitionally outside the latent contract, so toggling back clears the path
-// rather than resurrecting the glide — undo is the recovery. Pinned so the asymmetry with the
-// technique latents stays deliberate.
-TEST_CASE("planSetAttack replaces a pitched glide and does not restore it", "[core][chart]")
+// A slide that HOLDS a fret cannot become a scrape. The rule authority requires a scrape's whole
+// path to keep traveling (consecutive neck positions strictly differ, the start fret included),
+// because a pick cannot rest on a fret and still be scraping — where an ordinary slide's
+// equal-fret segment is a legitimate hold. The note is skipped like any other ineligible one, so
+// the verb refuses rather than authoring an invalid gesture.
+TEST_CASE("planSetAttack refuses a scrape on a slide that holds a fret", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    // The note's own fret is 7, so a waypoint at 7 is a segment with no travel at all.
+    chart.notes[2].slides = {
+        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+    };
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto plan =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    CHECK_FALSE(plan.has_value());
+}
+
+// Entering a pick slide CONVERTS an existing pitched glide rather than discarding it (user
+// 2026-08-18): the glide already IS a path, so its frets and direction are what the charter drew
+// and the scrape keeps them, with the last leg promoted to the gesture's required terminal.
+// Exiting is still destructive — `slides` is the path's own storage, definitionally outside the
+// latent contract, so toggling back clears the path rather than resurrecting the glide, and undo
+// is the recovery. Pinned so that asymmetry with the technique latents stays deliberate.
+TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core][chart]")
 {
     common::core::Chart chart = makeChart();
     chart.notes[2].tremolo = true;
@@ -1066,11 +1094,15 @@ TEST_CASE("planSetAttack replaces a pitched glide and does not restore it", "[co
     CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
     const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(scrape != nullptr);
+    // The glide's single waypoint was its whole path, so it becomes the terminal: fret 9 kept
+    // from the charter's own glide rather than the synthesized default's far endpoint.
     CHECK(scrape->slides.empty());
     REQUIRE(scrape->slide_out.has_value());
     if (scrape->slide_out.has_value())
     {
-        CHECK(scrape->slide_out->fret == g_pick_slide_default_high_fret);
+        CHECK(scrape->slide_out->fret == 9);
+        CHECK(scrape->slide_out->fret != g_pick_slide_default_high_fret);
+        CHECK(scrape->slide_out->offset == scrape->sustain);
     }
 
     const auto exit =

@@ -419,7 +419,19 @@ the options with the agent's recommendation.
   layered head with a plain white number and neither the X nor the mute plate the onset head gets, so
   a muted slide's continuation asserts a pitched landing. Partly mitigated by the linked fill reading
   darker. Options: the mute restates at every junction, or it is a once-at-the-onset property.
-- [ ] **W9-H — Is the scrape toggle a true ON/OFF?** Toggling a zero-sustain note into a pick slide
+- [x] **W9-H — Is the scrape toggle a true ON/OFF? RULED 2026-08-18: YES, and SHIPPED.** The
+  user: *"pressing Shift+X a second time should restore exactly what the note had before. Once you
+  change selection or move the caret then the change is committed and the toggle behavior goes
+  away. We did this with legato and other techniques. This should function the same for
+  consistency."* Built as the walkthrough predicted — wiring, not design — but SHARED rather than
+  copied: the ~50-line reversal proof became `reverseTechniqueToggleWindow`, which legato and the
+  scrape both call, and the nine commit points now call `disarmTechniqueToggleWindows()` instead
+  of naming a member, so a third verb joins by adding one field. The scrape arms on the entering
+  AND the clearing press, because reversal restores what its own clear law cannot: the sustain the
+  default grew on a note that had none, and the glide a conversion consumed into the terminal.
+  The original question below is kept for the record.
+
+  ORIGINAL: Toggling a zero-sustain note into a pick slide
   grows its sustain to the minimum gesture window (correctly — a path needs room to travel), and
   toggling back clears the path but leaves the grown sustain, so the note ends carrying a tail it
   never had. D14 ruling 4 settled the analogous question for the legato verb in favour of a true
@@ -429,7 +441,13 @@ the options with the agent's recommendation.
   burst record `m_chart_notes_top` plus `EditorUndoHistory::dropTop`, with the clean-entry case
   pushing the exact inverse instead of dropping — so adopting it here is wiring rather than design,
   and the scrape verb would arm the same record it already writes.
-- [ ] **W9-I — Which chord does the scrape toggle get?** It ships registered with no default chord,
+- [x] **W9-I — Which chord does the scrape toggle get? RULED 2026-08-18: `Shift+X`, and bound.**
+  Both natural first letters are plate letters (`P` pop, `S` slap) and a plate letter outranks a
+  name letter, so the scrape joins the `X` family: `X` is tab's dead-note glyph and is becoming
+  the full mute's letter, and a full mute and a scrape are both unpitched NOISE. Full reasoning in
+  `keymap-matrix.md`. The original question below is kept for the record.
+
+  ORIGINAL: It ships registered with no default chord,
   reachable only from the lane's right-click menu, because the signed keymap never assigned it one.
   `Ctrl+H` is **taken, not merely reserved** (the left-hand tap shipped 2026-08-10 and was
   relabelled "Left-Hand Tap" 2026-08-11), so the scrape needs its own.
