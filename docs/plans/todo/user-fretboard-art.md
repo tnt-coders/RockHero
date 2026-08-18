@@ -27,9 +27,13 @@ aspect; the code never stretches art across counts.
 
 - File naming and selection: e.g. inlays-4.png / inlays-5.png / inlays-6.png / inlays-7.png,
   chosen by the chart's string count.
-- Fallback when a count's file is missing: ship generated sheets for every supported count
-  (the generator makes this free), and for USER art fall back to the shipped sheet for that
-  count rather than stretching the user's nearest file.
+- Fallback when a count's file is missing (user ruling 2026-08-17): a DEFAULT tier that maps
+  a single dot cell at code-derived positions - the generator's placement law executed at
+  runtime - so an unusual count with no authored art (a 9-string, say) still gets round,
+  exactly seated markers instead of a stretched sheet. Shipped generated sheets cover the
+  common counts; the default tier covers everything else. The placement law (marker fret set,
+  doubles, diameter, vertical law) then exists in the runtime table and in the generator -
+  keep both pointing at each other, and keep the law small enough to verify at a glance.
 - Whole-board single image vs today's per-fret cells: a single board-rect image is the
   friendlier authoring contract and supports art that spans frets (vine inlays); today's equal
   fret slots make the mapping linear either way. Decide with the feature.
