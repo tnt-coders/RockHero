@@ -102,6 +102,20 @@ void paintRoundedRectangle(
     }
 }
 
+// The profile enforces that the tech head (cell 1) carries coverage byte-identical to the
+// standard head's; the synthetic atlases satisfy that contract the same way the shipped one
+// does, by stamping the standard cell into the tech cell.
+void mirrorStandardToTech(juce::Image& image)
+{
+    for (int y = 0; y < g_cell; ++y)
+    {
+        for (int x = 0; x < g_cell; ++x)
+        {
+            image.setPixelAt(g_cell + x, y, image.getPixelAt(x, y));
+        }
+    }
+}
+
 [[nodiscard]] std::vector<std::byte> encodePng(const juce::Image& image)
 {
     juce::MemoryOutputStream bytes;
@@ -117,6 +131,7 @@ TEST_CASE("head art profile measures a hard-edged atlas exactly", "[head_art_pro
     juce::Image atlas = blankAtlas();
     // 41 x 21 solid rectangle, centred like the shipped art: half a texel off the quad centre.
     paintRectangle(atlas, 12, 52, 22, 42, 255);
+    mirrorStandardToTech(atlas);
     paintDiamond(atlas, 15);
 
     const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
@@ -145,6 +160,7 @@ TEST_CASE("head art profile interpolates a fringed edge", "[head_art_profile]")
     // crossing then sits inside the fringe texel, between its value and the solid's.
     paintRectangle(atlas, 11, 53, 21, 43, 64);
     paintRectangle(atlas, 12, 52, 22, 42, 255);
+    mirrorStandardToTech(atlas);
     paintDiamond(atlas, 15);
 
     const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
@@ -165,6 +181,7 @@ TEST_CASE("head art profile recovers a known corner radius", "[head_art_profile]
 {
     juce::Image atlas = blankAtlas();
     paintRoundedRectangle(atlas, 20.0, 10.0, 3.0);
+    mirrorStandardToTech(atlas);
     paintDiamond(atlas, 15);
 
     const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
@@ -184,6 +201,7 @@ TEST_CASE("head art profile byte overload round-trips an encoded atlas", "[head_
 {
     juce::Image atlas = blankAtlas();
     paintRectangle(atlas, 12, 52, 22, 42, 255);
+    mirrorStandardToTech(atlas);
     paintDiamond(atlas, 15);
     const std::vector<std::byte> png = encodePng(atlas);
 
@@ -245,6 +263,25 @@ TEST_CASE("head art profile rejects empty bytes and empty cells", "[head_art_pro
         return;
     }
     CHECK(no_art.error() == HeadArtProfileError::UnanalyzableArt);
+}
+
+TEST_CASE("head art profile rejects a diverged tech head", "[head_art_profile]")
+{
+    juce::Image atlas = blankAtlas();
+    paintRectangle(atlas, 12, 52, 22, 42, 255);
+    mirrorStandardToTech(atlas);
+    paintDiamond(atlas, 15);
+    // One texel of coverage divergence between the standard and tech cells must fail the load:
+    // the renderer applies cell 0's measured silhouette to heads drawn from cell 1.
+    setCoverage(atlas, g_cell + 32, 32, 254);
+
+    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    REQUIRE_FALSE(profile.has_value());
+    if (profile.has_value())
+    {
+        return;
+    }
+    CHECK(profile.error() == HeadArtProfileError::UnanalyzableArt);
 }
 
 } // namespace rock_hero::common::ui

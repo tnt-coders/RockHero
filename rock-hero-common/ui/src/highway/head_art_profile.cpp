@@ -23,6 +23,7 @@ constexpr float g_measurable_peak = 0.25F;
 // below it in column 0.
 constexpr int g_atlas_columns = 4;
 constexpr int g_standard_cell = 0;
+constexpr int g_tech_cell = 1;
 constexpr int g_node_cell = 4;
 
 // One cell's pixel window and its coverage reader (B of the structural scheme). Holds the bitmap
@@ -251,6 +252,23 @@ std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const j
     const double quad_center = (static_cast<double>(cell_size) - 1.0) / 2.0;
 
     const CellView standard = cell_view(g_standard_cell);
+    // The tech head (cell 1) shares this profile: the renderer applies cell 0's measured
+    // silhouette to heads drawn from either cell, which is only honest while their coverage is
+    // byte-identical. Guarded here so a rebake that diverges them fails as an invalid asset
+    // instead of silently lighting tech heads with the wrong silhouette. Coverage bytes only —
+    // the tech head's tint channels differ by design.
+    const CellView tech = cell_view(g_tech_cell);
+    for (int y = 0; y < cell_size; ++y)
+    {
+        for (int x = 0; x < cell_size; ++x)
+        {
+            if (bitmap.getPixelColour(standard.x0 + x, standard.y0 + y).getBlue() !=
+                bitmap.getPixelColour(tech.x0 + x, tech.y0 + y).getBlue())
+            {
+                return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+            }
+        }
+    }
     const CellProfiles standard_profiles = maxProjections(standard);
     if (standard_profiles.peak < g_measurable_peak)
     {

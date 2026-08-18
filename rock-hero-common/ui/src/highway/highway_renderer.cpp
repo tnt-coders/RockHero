@@ -117,12 +117,14 @@ constexpr double g_tail_slope_shade_depth = 0.5;
 // while the geometric wobble itself is unaffected.
 constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 
-// Bend chevron station, in head half-heights from the head center along the drawn bend-lift
-// direction (above the note for an upward curve, below on bend-inverted lanes). Derived from
-// the atlas pixels, not the quad: the head art fills only the middle ~34% of its cell and the
-// glyph band is cell-centered, so this sits deliberately inside bare touch — the chevron's
-// legs anchor ON the note's top edge with the apex rising clear, the bend cue's overlap.
-constexpr double g_bend_marker_offset_heads = 0.38;
+// Bend chevron clearance past the head ART's top edge, in head half-heights along the drawn
+// bend-lift direction. The chevron's authored relationship is to the note's VISIBLE top edge —
+// legs anchoring on it with the apex rising clear, the bend cue's overlap — so the station is
+// derived per draw from the load-measured silhouette (edge = center + half height) plus this
+// clearance, and can never drift when the art is rebaked. The value is the remainder of the
+// previously hand-kept 0.38 station after subtracting the art's top edge as it measured when
+// that station was authored ((10.822 - 0.526) / 31.5), preserving the authored look exactly.
+constexpr double g_bend_marker_edge_clearance_heads = 0.0532;
 
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
 // chart-truth height is an annotation, dimmed so the rising head stays the subject.
@@ -5049,10 +5051,15 @@ void HighwayRenderer::Impl::draw(
             // is placed at the ART'S centre rather than the head's. The offset rides the rolling
             // flip with everything else, which is why it is rotated here instead of being folded
             // into the shape.
+            // A node head's offset scales with the same diamond factor as its extents below —
+            // two adjacent expressions that must agree, stated once here so they cannot drift.
+            const double node_scale = node_head ? harmonic_size.diamond_scale : 1.0;
             const double art_dx =
-                (node_head ? head_art.node_center_x_texels : head_art.center_x_texels) * texel_x;
+                (node_head ? head_art.node_center_x_texels : head_art.center_x_texels) *
+                node_scale * texel_x;
             const double art_dy =
-                (node_head ? head_art.node_center_y_texels : head_art.center_y_texels) * texel_y;
+                (node_head ? head_art.node_center_y_texels : head_art.center_y_texels) *
+                node_scale * texel_y;
             pushAccentGlow(
                 accent_glow_vertices,
                 accent_glow_indices,
@@ -5169,16 +5176,26 @@ void HighwayRenderer::Impl::draw(
         // not the rising head; everywhere else chart and head coincide.
         if (!note.bend.empty())
         {
+            // The station derives from the load-measured silhouette, so the chevron's legs keep
+            // anchoring on the note's VISIBLE top edge whatever the art measures at load — see
+            // the clearance constant for the authored relationship this preserves.
+            const double head_art_edge_world =
+                (head_art.center_y_texels + head_art.half_height_texels) *
+                headArtTexelHeight(metrics);
+            const double bend_marker_lift =
+                head_art_edge_world + (g_bend_marker_edge_clearance_heads * head_half_h);
             // The 180-degree flip is a rotation like any other marker's: cos_r carries the
             // direction and sin_r stays zero, which negates both offsets exactly as before.
+            // Both quad extents from the height metric, like every marker: the chevron is
+            // square art at the family size and never takes the head-width knob.
             pending_markers.push_back(
                 PendingMarker{
                     .x = x,
-                    .y = chart_head_y + (bend_direction * g_bend_marker_offset_heads * head_half_h),
+                    .y = chart_head_y + (bend_direction * bend_marker_lift),
                     .z = z,
                     .cos_r = bend_direction,
                     .sin_r = 0.0,
-                    .half_w = head_half_w,
+                    .half_w = head_half_h,
                     .half_h = head_half_h,
                     .cell = g_head_cell_bend,
                     .tint = tint,

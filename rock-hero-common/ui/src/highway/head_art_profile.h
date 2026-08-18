@@ -98,9 +98,12 @@ struct HeadArtProfile
 \brief Measures the head silhouettes from a decoded notes.png image.
 
 Reads the standard head cell and the node-head base cell of the atlas grid (the same
-width-over-four cell derivation the atlas layout uses). Only the coverage channel is read; any
-alpha the decoder attached is ignored, because whether the ART carries alpha is a question about
-the file that only the byte overload below can answer.
+width-over-four cell derivation the atlas layout uses), and enforces that the tech head's
+coverage is byte-identical to the standard's — the renderer applies the one measured silhouette
+to heads drawn from either cell, so a rebake diverging them must fail loudly here rather than
+light tech heads with the wrong shape. Only the coverage channel is read; any alpha the decoder
+attached is ignored, because whether the ART carries alpha is a question about the file that
+only the byte overload below can answer.
 
 \param image Decoded notes.png.
 \return The measured profile, or the measurement failure — the renderer treats any failure as an

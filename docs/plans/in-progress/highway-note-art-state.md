@@ -307,6 +307,38 @@ committed atlas at any time.
 
 ## Decided, with the numbers the decisions rest on
 
+**The complete mark-sizing law, SIGNED 2026-08-18 and shipped in the marks-final atlas.**
+Every head-riding technique mark is 1.07 x the string pitch tall (24.5766 tx). Width by group:
+palm mute, pinch harmonic, slap, pop and tap at 1.07 x the head art's width (44.52 tx — equal
+overhang past the head on all four sides); legato, full mute and natural harmonic SQUARE at the
+same height (the full mute widened 3.6% to get there, arm angles +/-1.06 degrees; the harmonic
+is concentric circles, so its squareness is exact by construction); the pick slide is the one
+EXPLICIT EXCEPTION, kept at its authored size (user 2026-08-18: too small under the family
+law) because its design law is covering the head's footprint, not lane adjacency. Every mark
+and all five head-family cells are centred at their cell centres — the half-texel authoring
+offsets that drew heads ~1 px low-right of the string, and the mutes' authored low seats
+(up to 1.24 tx), are gone; the slap-vs-pop sibling split fell 1.51 -> 0.01 tx and the
+hammer-vs-pull flip split 0.41 -> 0.02 tx. Verified independently after the bake by
+re-measuring the written file: four centre estimators, a per-axis mirror test at each shape's
+own intrinsic-asymmetry floor, per-side overhang tables, and the 1:1 faithfulness controls.
+
+Two accepted notes from the bake, each with its knob: the recentred head's one-texel edge now
+rasterizes at a phase that reads crisper (~2.3 -> ~1.4 px transition at the hit line; the
+softness knob on cells 0/1/2 exists if it ever reads hard), and the harmonic symbol's 1.07
+height halves its crossing of the diamond (+2.4 -> +1.2 tx, tips more proud — the direction
+the diamond ruling favours; the symbol's own height is the knob).
+
+**The head's INTERIOR is concentric with its silhouette** — found by measuring the user's own
+rendered frame after the recentring: the silhouette sat on the string to +/-0.15 px, but the
+bright rim ring inside it was authored +0.5 tx low, putting the brightest feature ~1.4 px
+below the string at 1920 — exactly the "head looks very slightly low" the user kept seeing on
+a perfectly-seated head. Fixed in the same atlas: ring bands now equidistant from the mask
+centre (equidistance error 0.98 -> 0.02 tx, whole-art mirror centre +0.46 -> -0.004 tx) with
+the deliberate top-lit fill gradient preserved, and the anticipation ring's authored stroke
+asymmetry (1.0 tx top-heavy, opening 0.5 tx low) equalized with its outer contour still
+tracking the head — overriding an earlier preserve-by-default, on the now-measured rule that
+eccentric brightness inside a centred silhouette reads as mis-seating.
+
 **A technique mark's HEIGHT is 1.07 x the string pitch — 24.5766 atlas texels.** SIGNED
 2026-08-17 from a four-state sighting (today / 1.00 tangent / 1.07 / 1.10) cycled in the app.
 It is the third-party reference's own measured overhang: adjacent-lane marks kiss rather than

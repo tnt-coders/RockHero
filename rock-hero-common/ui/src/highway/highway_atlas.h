@@ -202,9 +202,11 @@ on the cell's vertical center line. The offset is equal along the arms and acros
 construction that buys the balance without moving the kink off that line. Its across-the-arms half
 is why the upper point cuts a shallower notch through the rim than the lower one: recovering that
 notch means giving the balance back, and pushing the point further past the outline was measured not
-to recover it. Seated concentric on the head like the harmonic cell, at 0.76 of the
-head's solid width and 1.57 of its height: it covers the head's own footprint, which is why a
-scrape wears this mark alone and no X beneath it.
+to recover it. Seated concentric on the head like the harmonic cell, at its AUTHORED size — the
+mark family's 1.07 sizing law explicitly excepts it (user ruling 2026-08-18: its design law is
+covering the head's footprint, not lane adjacency) — measuring 0.635 of the head art's width and
+1.293 of its height by the 50%-contour extents: it covers the head's own footprint, which is why
+a scrape wears this mark alone and no X beneath it.
 */
 inline constexpr int g_head_cell_pick_slide = 19;
 
@@ -221,14 +223,15 @@ inline constexpr int g_head_cell_palm_mute = 12;
 inline constexpr int g_head_cell_full_mute = 13;
 
 /*!
-\brief Natural-harmonic head marker, authored at its approved seat scale.
+\brief Natural-harmonic head marker, sized by the family law.
 
-Drawn on the one uniform quad with its seat scale carried in the cell's own art — 0.6767 of
-the icon's original authoring resolution, the fitted size approved with the round base (the
-original full-size art was retired with the rectangle base it fit). Its own cell rather than
-a bake into the bases because per-quad shader clamping is load-bearing: the family highlight
-deliberately overdrives past white and the icon's translucent moat darkens the CLAMPED
-result, which a single merged structural cell cannot express (measured 74 counts off).
+Drawn on the one uniform quad with its size carried in the cell's own art, which the 2026-08
+mark law sets like every technique mark's: 1.07 x the string pitch tall, and square (its
+construction is three concentric circles, so squareness is exact by construction). Its own
+cell rather than a bake into the bases because per-quad shader clamping is load-bearing: the
+family highlight deliberately overdrives past white and the icon's translucent moat darkens
+the CLAMPED result, which a single merged structural cell cannot express (measured 74 counts
+off).
 */
 inline constexpr int g_head_cell_harmonic = 14;
 
@@ -240,12 +243,15 @@ inline constexpr int g_head_cell_pinch_harmonic = 15;
 
 A node head lands between fret wires wherever the overtone lives, so the family rectangle's
 flat ears read as a misaligned ordinary note there; this diamond — the 2D lane's shape — has
-no horizontal edge to disagree with a wire. Its EDGE length equals the regular head's height
-(the head-height square rotated 45 degrees, vertex span about 30.6), the calibration chosen
-from the 2026-08-15 candidate rounds (commit 21bfa768 holds all four): the marker's ring
-lands inscribed in it, clearing the flats by a measured 0.08 tx, while the four points show
-4.4 tx proud of the ring. The accepted price is stacking: node heads at the lane pitch
-interpenetrate about 3.7 tx per side, the tradeoff taken for the strongest shape identity.
+no horizontal edge to disagree with a wire. Its size is SIGNED at the 2026-08-15 span (the
+shape chosen from the candidate rounds; commit 21bfa768 holds all four), deliberately past the
+technique marks' pitch standard because the tips standing proud of the ring are what make the
+mark read. The 2026-08 remeasurement and the 1.07 mark sizing revised the numbers this
+calibration was first stated with: the marker's ring now CROSSES the diamond's inscribed
+radius by about 1.2 tx (it was authored crossing 2.4 tx before the ring took the family
+height), the four points stand about 3.4 tx proud of the ring, and node heads at the lane
+pitch interpenetrate about 4.2 tx per side — the accepted price for the strongest shape
+identity, with the outer-string tips reaching about 4.2 tx past the string grid's edge.
 */
 inline constexpr int g_head_cell_harmonic_base = 4;
 
