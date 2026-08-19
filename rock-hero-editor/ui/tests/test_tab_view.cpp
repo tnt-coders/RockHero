@@ -100,21 +100,32 @@ TEST_CASE("TabView colors strings by their standard-window position", "[ui][tab-
 // identical (20px here) whether it is a four-string bass, a six-string guitar, or an eight-string.
 TEST_CASE("TabView stacks lanes evenly across a proportional row", "[ui][tab-view]")
 {
+    // Every centre carries the .5 of a pixel ROW CENTRE, which is what lets the marks a lane draws
+    // be symmetric about the string line at all: a row spans [N, N+1], so it has a mirror row only
+    // when 2 * center_y is whole.
+    //
     // Six strings across the reference-height row: 20px lanes from the top edge down.
     const juce::Rectangle<int> six{0, 0, 100, 120};
-    CHECK(tabLaneCenterY(6, 6, six) == Catch::Approx(10.0f));
-    CHECK(tabLaneCenterY(1, 6, six) == Catch::Approx(110.0f));
+    CHECK(tabLaneCenterY(6, 6, six) == Catch::Approx(10.5f));
+    CHECK(tabLaneCenterY(1, 6, six) == Catch::Approx(110.5f));
 
     // Four-string bass: the host shrinks the row to fit, so lanes stay at 20px with no margin.
     const juce::Rectangle<int> bass{0, 0, 100, 80};
-    CHECK(tabLaneCenterY(4, 4, bass) == Catch::Approx(10.0f));
-    CHECK(tabLaneCenterY(1, 4, bass) == Catch::Approx(70.0f));
+    CHECK(tabLaneCenterY(4, 4, bass) == Catch::Approx(10.5f));
+    CHECK(tabLaneCenterY(1, 4, bass) == Catch::Approx(70.5f));
 
     // Eight-string: the host grows the row, so lanes still hold the same 20px spacing.
     const juce::Rectangle<int> eight{0, 0, 100, 160};
-    CHECK(tabLaneCenterY(8, 8, eight) == Catch::Approx(10.0f));
-    CHECK(tabLaneCenterY(7, 8, eight) == Catch::Approx(30.0f));
-    CHECK(tabLaneCenterY(1, 8, eight) == Catch::Approx(150.0f));
+    CHECK(tabLaneCenterY(8, 8, eight) == Catch::Approx(10.5f));
+    CHECK(tabLaneCenterY(7, 8, eight) == Catch::Approx(30.5f));
+    CHECK(tabLaneCenterY(1, 8, eight) == Catch::Approx(150.5f));
+
+    // The SPACING is what this case is really about, and the snap leaves it untouched at every
+    // count - which is the property that would break if the snap were ever applied per-lane in a
+    // way that accumulated rounding.
+    CHECK((tabLaneCenterY(1, 6, six) - tabLaneCenterY(6, 6, six)) == Catch::Approx(100.0f));
+    CHECK((tabLaneCenterY(1, 4, bass) - tabLaneCenterY(4, 4, bass)) == Catch::Approx(60.0f));
+    CHECK((tabLaneCenterY(1, 8, eight) - tabLaneCenterY(8, 8, eight)) == Catch::Approx(140.0f));
 }
 
 // The range query bounds candidates by sorted starts and the prefix maximum of sustain ends.

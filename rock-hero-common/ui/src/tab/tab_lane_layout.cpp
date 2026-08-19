@@ -1,6 +1,7 @@
 #include "tab/tab_lane_layout.h"
 
 #include <algorithm>
+#include <cmath>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 
 namespace rock_hero::common::ui
@@ -22,7 +23,20 @@ float tabLaneCenterY(
 {
     const float lane_height = bounds_height / static_cast<float>(displayed_string_count);
     const auto lane_index = static_cast<float>(displayed_string_count - displayed_string);
-    return bounds_y + (lane_index + 0.5f) * lane_height;
+    // Snapped to a pixel ROW CENTRE, which is what makes every mark this lane draws symmetric
+    // about the string line. A pixel row spans [N, N+1], so a row is the mirror of another row
+    // only when 2 * center_y is a whole number; the shipped editor divides 237 px over six lanes
+    // for 39.5 px each, which lands EVERY lane centre on a .25 or .75 boundary and leaves no row
+    // with a mirror at all. The tail's two rails then rasterise to different row counts — two
+    // solid rows on one side, three on the other, a 93.6-count difference in the outermost row —
+    // which reads as one border being crisper than the other, and the head and the accent halo
+    // inherit the same phase error.
+    //
+    // The string line does NOT move: drawStringLines already snapped its own one-pixel line with
+    // `(int)y`, which is exactly `floor(c) + 0.5` as a row centre. This moves the tail and the
+    // head onto the row the renderer was already drawing, rather than the reverse, and lets that
+    // second snapping authority be deleted.
+    return std::floor(bounds_y + ((lane_index + 0.5f) * lane_height)) + 0.5f;
 }
 
 // Maps a timeline time onto the lane's horizontal axis, measured from the bounds' left edge just
@@ -66,7 +80,12 @@ TabLaneGeometry makeTabLaneGeometry(
         return static_cast<float>(rounded % 2 == 0 ? rounded + 1 : rounded);
     };
     geometry.tail_height = odd(geometry.note_height * 3.0f / 4.0f);
-    geometry.tail_edge_size = std::max(1.0f, geometry.tail_height / 8.0f);
+    // A WHOLE number of rows, so both rails rasterise identically instead of one landing on a
+    // half-covered row. At the shipped tail height this rounds 2.375 down to 2, which is what
+    // widens the technique band below (tailInterior grows 10.9%, the vibrato sine's swing 14.4%);
+    // std::ceil is the knob if the band reads too tall, giving a 3 px rail and a 9.2% narrower
+    // band instead.
+    geometry.tail_edge_size = std::max(1.0f, std::round(geometry.tail_height / 8.0f));
     geometry.tremolo_size = std::max(2.0f, geometry.tail_height / 6.0f);
     geometry.max_note_height = style.max_note_height;
     geometry.draw_text = geometry.note_height >= g_min_note_height_for_text;
@@ -80,7 +99,10 @@ TailSpan tailSpan(const TabLaneGeometry& geometry, float center_y) noexcept
     // the overhang in here keeps the symmetry in ONE place instead of asking every consumer to
     // re-balance it (the tremolo band and the hit-test rectangle both sagged a pixel low when
     // they didn't).
-    const float half = geometry.tail_height / 3.0f + 1.0f;
+    // Rounded to a HALF pixel so that, with the lane centre on a row centre (C1 in
+    // tabLaneCenterY), both span edges land on whole pixel boundaries and the two rails cover
+    // identical rows. 19/3 + 1 = 7.3333 becomes 7.5 at the shipped tail height.
+    const float half = std::round(((geometry.tail_height / 3.0f) + 1.0f) * 2.0f) / 2.0f;
     return TailSpan{
         .top = center_y - half,
         .bottom = center_y + half,

@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cmath>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
@@ -95,9 +96,12 @@ TEST_CASE("Tab lane geometry maps time and strings to pixels", "[ui][tab-layout]
     CHECK(geometry.x(10.0) == Catch::Approx(200.0f));
     CHECK(geometry.x(20.0) == Catch::Approx(400.0f));
 
-    // Highest string on top, lowest at the bottom, centers 40px apart.
-    CHECK(geometry.laneY(6) == Catch::Approx(20.0f));
-    CHECK(geometry.laneY(1) == Catch::Approx(220.0f));
+    // Highest string on top, lowest at the bottom, centers 40px apart — and each landing on a
+    // pixel ROW CENTRE, hence the .5. A row spans [N, N+1], so a row is the mirror of another only
+    // when 2 * center_y is whole; without the snap the shipped 39.5 px lane put every centre on a
+    // quarter boundary and the tail's two rails rasterised to different row counts.
+    CHECK(geometry.laneY(6) == Catch::Approx(20.5f));
+    CHECK(geometry.laneY(1) == Catch::Approx(220.5f));
 
     // Extra user lanes below the chart push chart strings upward.
     const TabLaneGeometry extra = makeTabLaneGeometry(
@@ -112,12 +116,30 @@ TEST_CASE("Tab lane geometry maps time and strings to pixels", "[ui][tab-layout]
         8,
         6);
     CHECK(extra.extra_lanes == 2);
-    // Chart string 1 renders on displayed lane 3 of 8: 40px lanes, center 220 from the top.
-    CHECK(extra.laneY(1) == Catch::Approx(220.0f));
+    // Chart string 1 renders on displayed lane 3 of 8: 40px lanes, center 220 from the top,
+    // snapped to that row's centre.
+    CHECK(extra.laneY(1) == Catch::Approx(220.5f));
 
     // The float lane-center helper matches the geometry's own stacking.
-    CHECK(tabLaneCenterY(6, 6, 0.0f, 240.0f) == Catch::Approx(20.0f));
-    CHECK(tabLaneCenterY(1, 6, 0.0f, 240.0f) == Catch::Approx(220.0f));
+    CHECK(tabLaneCenterY(6, 6, 0.0f, 240.0f) == Catch::Approx(20.5f));
+    CHECK(tabLaneCenterY(1, 6, 0.0f, 240.0f) == Catch::Approx(220.5f));
+
+    // The snap's whole point, stated as the property rather than as sample values: 2 * center_y is
+    // a whole number on EVERY lane, at every height and count, which is exactly the condition for
+    // a pixel row to have a mirror row. This is what a lane height of 39.5 (the shipped editor's)
+    // used to break on all six lanes at once.
+    for (const float height : {240.0f, 237.0f, 235.0f, 238.0f, 246.0f})
+    {
+        for (int count = 1; count <= 8; ++count)
+        {
+            for (int lane = 1; lane <= count; ++lane)
+            {
+                CAPTURE(height, count, lane);
+                const float doubled = 2.0f * tabLaneCenterY(lane, count, 0.0f, height);
+                CHECK(doubled == Catch::Approx(std::floor(doubled)));
+            }
+        }
+    }
 }
 
 // The tab surface reads the one shared visible-range search: the prefix table is the running
@@ -178,14 +200,15 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
     };
     const TabNoteLayout layout = tabNoteLayout(geometry, sustained, sustained.end_seconds);
 
-    // Onset at 5s across 20s of 400px is x = 100; string 1 is the bottom lane center, 220.
+    // Onset at 5s across 20s of 400px is x = 100; string 1 is the bottom lane center, 220, on that
+    // row's centre.
     CHECK(layout.onset_x == Catch::Approx(100.0f));
-    CHECK(layout.center_y == Catch::Approx(220.0f));
+    CHECK(layout.center_y == Catch::Approx(220.5f));
 
     // Heads render one pixel larger than the note height, centered on the anchor.
     CHECK(layout.head_size == Catch::Approx(26.0f));
     CHECK(layout.head.x == Catch::Approx(87.0f));
-    CHECK(layout.head.y == Catch::Approx(207.0f));
+    CHECK(layout.head.y == Catch::Approx(207.5f));
     CHECK(layout.head.width == Catch::Approx(26.0f));
     CHECK(layout.head.height == Catch::Approx(26.0f));
     CHECK(layout.head.contains(100.0f, 220.0f));

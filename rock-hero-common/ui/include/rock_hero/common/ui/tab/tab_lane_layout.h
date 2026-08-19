@@ -28,6 +28,19 @@ struct TabLaneStyle
     and smaller lanes shrink notes proportionally (laneHeight = 1.5 x noteHeight).
     */
     float max_note_height{25.0f};
+
+    /*!
+    \brief SIGHTING TOGGLE (temporary): draw the dark outer backing on heads and tails.
+
+    True is the shipped look — the head's outermost layer, and the tail's matching one. False drops
+    both, promoting the head's bright ring to its outer edge so the silhouette is unchanged, and
+    letting an accent's halo leave the bright edge directly rather than standing off a dark step.
+    Carried here rather than as a global so the paint core stays a pure function of its inputs.
+
+    DELETION PLAN: when the look is signed, delete this field, the `dark_backings` copy in
+    \ref TabLaneGeometry, both branches in the paint core, TabView's member and setter, and
+    `EditorCommandId::ToggleTabDarkBackings` with its registry row and locked-table entry.
+    */
 };
 
 /*!

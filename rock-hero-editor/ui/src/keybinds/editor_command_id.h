@@ -81,9 +81,9 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief View > 3D Preview (`F3`). */
     TogglePreview3D = 0x1303,
 
-    // 0x1304 through 0x1309 were the highway appearance samplers (accent light, family scale,
-    // string spacing, harmonic size, head width, staged-atlas cycling), each deleted when its
-    // decision signed (2026-08-17/18); retired ids are never revived.
+    // 0x1304 through 0x130A were sighting samplers (accent light, family scale, string spacing,
+    // harmonic size, head width, staged-atlas cycling, and the 2D note trim), each deleted when
+    // its decision signed (2026-08-17/19); retired ids are never revived.
 
     /*!
     \brief Insert a tone-change marker at the cursor (`Ctrl+T`).

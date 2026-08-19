@@ -377,8 +377,11 @@ void drawStringLines(
         const float y = tabLaneCenterY(displayed_string, metrics.displayed_count, metrics.bounds);
         g.setColour(
             charterMultiply(tabStringColor(displayed_string, metrics.displayed_count), 0.8));
-        // Snapped to a whole pixel row so the one-pixel line stays crisp like Charter's.
-        const auto row = static_cast<float>(static_cast<int>(y));
+        // The lane centre IS a row centre (tabLaneCenterY snaps it), so the row this line fills
+        // is that centre less half a row. This used to snap independently with `(int)y`, which
+        // gave the same answer and was therefore a second authority on the same fact — the kind
+        // that only shows up when one of them moves.
+        const float row = y - 0.5f;
         auto cursor = static_cast<float>(clip.getX());
         const auto right = static_cast<float>(clip.getRight());
         for (const ArpeggioBracket& bracket : brackets)
@@ -468,9 +471,9 @@ struct TailRun
     };
 }
 
-// The thickness of a note element's dark outer backing, and of the bright ring inside it on a head.
-// ONE number for the head and the tail so their silhouettes are built alike; fillHeadShape reads it
-// for its own layers, which is where the size/15 came from.
+// The thickness of a head's bright ring. VARIANT: with the dark backings gone this has one caller
+// again (fillHeadShape), where the size/15 came from; it stays a named function so the committed
+// version is a one-line diff away rather than a re-inline.
 [[nodiscard]] float noteBorderThickness(const float head_size)
 {
     return std::max(1.0f, head_size / 15.0f);
@@ -558,14 +561,6 @@ void drawTremoloTail(
         path.closeSubPath();
     };
 
-    // The dark outer layer, grown around the snaking band rather than laid as a rectangle behind
-    // it: the gaps the snake leaves inside its envelope belong to the lane, and a rectangle would
-    // fill them.
-    juce::Path backing_band;
-    add_band(backing_band, -noteBorderThickness(metrics.headSize()));
-    g.setColour(style[Ink::HeadBacking]);
-    g.fillPath(backing_band);
-
     juce::Path edge_band;
     add_band(edge_band, 0.0f);
     g.setColour(style[Ink::TailEdge]);
@@ -652,25 +647,18 @@ void drawNoteTail(
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
-    // The tail's own dark outer layer, the one the head has always had (fillHeadShape draws it
-    // outermost) and the tail did not. It is the LANE'S OWN GROUND, so over bare lane it melts
-    // exactly as the head's does and changes nothing; it shows only where something else sits
-    // behind the note — a measure line, the waveform, an accent's halo — which is precisely where
-    // the head's shows too. The gap went unnoticed for as long as it did because nothing bright
-    // was ever drawn behind a tail to reveal it; the accent light reaching the ribbon is what
-    // finally put the two constructions side by side.
-    //
-    // Grown OUTWARD, where the head's is inset. tailSpan is the one definition of the tail's
-    // envelope and tailInterior derives every technique mark's swing from it, so insetting the
-    // rails to make room would move the sine, the bend polyline and the slide diagonals with
-    // them. Growing leaves the signed tail exactly as sighted and adds the rim outside it.
-    const float backing = noteBorderThickness(metrics.headSize());
-    // Half the tremolo's swing each way, because that variant's band snakes wider than the plain
-    // span; zero otherwise. The accent halo and the backing share it so they stay concentric.
-    const float swing = note.tremolo ? metrics.tremolo_size / 2.0f : 0.0f;
-    // Behind everything the tail draws, and ahead of the branch below so a tremolo accent is
-    // haloed too. Measured from the BACKING's outer edge rather than the rail's, so the halo
-    // stands off its subject by the same distance the head's does.
+    // How far past the plain span the tremolo band actually reaches, so the halo and the backing
+    // clear it; zero otherwise. The band reaches a WHOLE tremolo size, not half: drawTremoloTail
+    // adds one amplitude (half the size) to its half_thickness and then swings its CENTRELINE by
+    // another. Reading "amplitude" once and calling it the excursion put the halo's opaque edge
+    // 1.583 px INSIDE the ribbon at the shipped size, so the teeth cut through the glow's bright
+    // line at every apex and it read as a straight bar laid across the ribbon rather than a light
+    // around it.
+    const float swing = note.tremolo ? metrics.tremolo_size : 0.0f;
+    // Measured from the RAIL, which is the tail's outermost ink now that the dark backing is gone
+    // (sighted 2026-08-19): the light leaves the bright edge directly, the way a real emitter does
+    // rather than across a dark gap. The head obeys the same law — its glow stands off the bright
+    // ring, not the empty margin outside it — so one accent reads at one strength across the note.
     if (common::core::isAccented(note.emphasis))
     {
         drawAccentTailGlow(
@@ -678,8 +666,8 @@ void drawNoteTail(
             style,
             onset_x,
             end_x,
-            span.top - swing - backing,
-            span.bottom + swing + backing,
+            span.top - swing,
+            span.bottom + swing,
             metrics.headSize() * g_accent_glow_reach_heads);
     }
     // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them. A scrape is one continuous
@@ -701,14 +689,6 @@ void drawNoteTail(
             g.setColour(colour);
             g.fillRect(juce::Rectangle<float>{onset_x - 1.0f, top, end_x - onset_x + 1.0f, height});
         };
-
-        // The backing, laid first and to the SAME horizontal extent as the rails: it stops at the
-        // hold end with them, because a backing running past it would be the end cap the tail
-        // deliberately does not draw.
-        fill(
-            style[Ink::HeadBacking],
-            span.top - backing,
-            (span.bottom - span.top) + (2.0f * backing));
 
         // The fill covers the whole envelope and the rails lay over its top and bottom — every
         // color here is opaque, so painting the rails over the fill is the same pixels as
@@ -937,8 +917,8 @@ constexpr std::array<juce::Point<float>, 16> g_plectrum_half_outline{
 // shipping beside it. The plectrum's rings are therefore the family's middle case, 1.0222x the
 // diamond's — 1.2529 px against 1.2257 px at a 25 px note height.
 void fillHeadShape(
-    juce::Graphics& g, const StringStyle& style, juce::Colour border_inner, juce::Colour inner,
-    float center_x, float center_y, float size, HeadShape shape)
+    juce::Graphics& g, juce::Colour border_inner, juce::Colour inner, float center_x,
+    float center_y, float size, HeadShape shape)
 {
     const float border = noteBorderThickness(size);
 
@@ -971,7 +951,13 @@ void fillHeadShape(
         }
     };
 
-    layer(0.0f, style[Ink::HeadBacking]);
+    // Two layers, and the outermost `border` of the head's box is left EMPTY on purpose. It used
+    // to hold a dark backing in the lane's own ground colour, which was invisible over bare lane
+    // and did its only visible work where the head overlapped its own tail, separating the two.
+    // Sighted 2026-08-19 against four alternatives and dropped: the separation it bought was not
+    // worth a dark rim on every note, and the plain head reads cleaner and matches the highway.
+    // The empty margin stays because `size` is what every other mark on the head is measured
+    // against - the mute X, the plate, the glow - so shrinking the box would move all of them.
     layer(border, border_inner);
     layer(border * 2.0f, inner);
 }
@@ -1081,7 +1067,7 @@ void drawSlideWaypointHeads(
         const float x = metrics.x(waypoint.seconds);
         const float size = metrics.headSize();
         fillHeadShape(
-            g, style, style[Ink::BorderInner], style[Ink::LinkedInner], x, center_y, size, shape);
+            g, style[Ink::BorderInner], style[Ink::LinkedInner], x, center_y, size, shape);
         if (metrics.draw_text)
         {
             // A junction labels its own stop through the SAME rule the onset head uses, so one
@@ -1169,12 +1155,27 @@ void drawBendLines(
 // a 25 px head against the disc's 1.560: visually tight but real. The knob is glow_size, which
 // the round head shares, so widening it is a joint retune (measurements in the
 // technique-compatibility plan doc).
+// The accent glow's outer diameter: the head's VISIBLE edge grown by the shared reach on every
+// side. Which edge is visible depends on the trim, and that is the whole point of this function
+// existing rather than a literal 1.4 — the backing is opaque and the lane's own colour, so with it
+// present the glow is hidden inside radius `size / 2` no matter what radius it is drawn at, and
+// 1.4 * size is correct. Without it the bright ring at `size / 2 - border` becomes the visible
+// edge, and the unchanged radius exposes a further `border` of glow inward: the outer edge has not
+// moved, the inner one has, and the mark reads much larger.
+//
+// PlainInset keeps the shipped radius ON PURPOSE, so that difference can be seen beside
+// PlainInsetTrimGlow rather than being quietly corrected in both.
+[[nodiscard]] float accentGlowSize(const float size)
+{
+    return 2.0f *
+           (((size / 2.0f) - noteBorderThickness(size)) + (g_accent_glow_reach_heads * size));
+}
+
 void drawAccentGlow(
     juce::Graphics& g, const StringStyle& style, float center_x, float center_y, float size,
     HeadShape shape)
 {
-    // The head grown by the shared reach on every side, which is where its 1.4 came from.
-    const float glow_size = size * (1.0f + (2.0f * g_accent_glow_reach_heads));
+    const float glow_size = accentGlowSize(size);
     if (shape == HeadShape::Diamond)
     {
         // Concentric fading diamond outlines approximate Charter's diamond-distance fade.
@@ -1552,8 +1553,7 @@ void drawNoteHead(
         drawAccentGlow(g, style, onset_x, center_y, size, shape);
     }
 
-    fillHeadShape(
-        g, style, style[Ink::BorderInner], style[Ink::Inner], onset_x, center_y, size, shape);
+    fillHeadShape(g, style[Ink::BorderInner], style[Ink::Inner], onset_x, center_y, size, shape);
 
     if (note.attack == common::core::NoteAttack::Pinch)
     {

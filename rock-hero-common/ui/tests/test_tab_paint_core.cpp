@@ -10,6 +10,8 @@
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
+#include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -839,12 +841,19 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     // The silhouette stands exactly as tall as the disc it replaces and 0.9395 as wide, so the
     // lane's vertical collision budget is untouched. Height is the center column's coverage (the
     // head is opaque, so the string line under it adds nothing); width is twice the widest sampled
-    // half-chord, which lands a little under the true 24.43 px maximum because it is averaged over
-    // a whole pixel row.
+    // half-chord, which lands a little under the true maximum because it is averaged over a whole
+    // pixel row.
+    //
+    // The absolute figures dropped by 2 * border on 2026-08-19, when the head's dark outer backing
+    // was dropped. That layer was the lane's own ground colour, so it never showed in the editor;
+    // it DID paint here, because these cases render onto a transparent image where any opaque
+    // layer counts as coverage. What the eye sees is unchanged — the bright ring was always the
+    // head's visible edge, and it has not moved. The disc-versus-plectrum equality below is the
+    // assertion that actually carries this case, and it is untouched by the drop.
     const double scrape_height = columnCoverage(image, scrape_x, lane_y - 20, lane_y + 20);
     const double plain_height = columnCoverage(image, plain_x, lane_y - 20, lane_y + 20);
-    CHECK(scrape_height > 25.5);
-    CHECK(scrape_height < 26.2);
+    CHECK(scrape_height > 22.0);
+    CHECK(scrape_height < 23.0);
     CHECK(std::abs(scrape_height - plain_height) < 0.5);
     const double scrape_aspect = 2.0 * scrape_upper / scrape_height;
     CHECK(scrape_aspect > 0.92);
@@ -889,6 +898,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
     const auto digit_ink_clear_of_rim =
         [&image](int center_x, int center_y, int digit_top, int window) {
             int found = 0;
+            std::string offender;
             bool clear = true;
             for (int y = digit_top; y <= center_y + 20; ++y)
             {
@@ -904,27 +914,48 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
                         for (int dx = -2; dx <= 2; ++dx)
                         {
                             const juce::Colour near_ink = image.getPixelAt(x + dx, y + dy);
-                            clear = clear && near_ink.getAlpha() == 255 &&
-                                    near_ink != juce::Colour{0xff101010};
+                            // Head ink, and not the lane's ground. The bar was full opacity until
+                            // 2026-08-19, which only held because the head's dark backing sat
+                            // behind its ring and made the ring's ANTIALIASED outer edge composite
+                            // to 255; with that layer dropped the same edge reports partial alpha
+                            // (measured B996FF4F, the string's own green at 185) while looking
+                            // identical in the editor, where it composites over the lane instead
+                            // of over this case's transparent image. What the case is really
+                            // asserting survives intact: the digit sits on the head's own coloured
+                            // centre rather than on a plate or hanging off onto the lane, and a
+                            // pixel outside the head still reads alpha 0 and fails.
+                            const bool ok =
+                                near_ink.getAlpha() > 0 && near_ink != juce::Colour{0xff101010};
+                            if (!ok && offender.empty())
+                            {
+                                offender = "first offender at (" + std::to_string(x + dx) + "," +
+                                           std::to_string(y + dy) +
+                                           ") = " + near_ink.toDisplayString(true).toStdString() +
+                                           "  from digit ink at (" + std::to_string(x) + "," +
+                                           std::to_string(y) + ")";
+                            }
+                            clear = clear && ok;
                         }
                     }
                 }
             }
-            return std::pair{found, clear};
+            return std::tuple{found, clear, offender};
         };
 
-    const auto [one_digit_ink, one_digit_clear] =
+    const auto [one_digit_ink, one_digit_clear, one_digit_offender] =
         digit_ink_clear_of_rim(scrape_x, lane_y, scrape_digit_top, g_digit_window);
     CHECK(one_digit_ink > 0);
+    INFO(one_digit_offender);
     CHECK(one_digit_clear);
 
     // The two-digit scrape sits on string 5 (lane center y = 60). Its window stops short of the
     // chip's own letters so only the fret number answers.
     constexpr int wide_lane_y = 60;
     const int wide_scrape_digit_top = topDigitInkRow(image, scrape_x, wide_lane_y);
-    const auto [two_digit_ink, two_digit_clear] =
+    const auto [two_digit_ink, two_digit_clear, two_digit_offender] =
         digit_ink_clear_of_rim(scrape_x, wide_lane_y, wide_scrape_digit_top, 6);
     CHECK(two_digit_ink > one_digit_ink);
+    INFO(two_digit_offender);
     CHECK(two_digit_clear);
     // And it is raised by the same three pixels as the one-digit number.
     const int wide_plain_digit_top = topDigitInkRow(image, plain_x, wide_lane_y);
