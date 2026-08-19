@@ -269,44 +269,75 @@ binary-search this precondition).
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::NoteAttack attack, std::string_view label);
 
-/*! \brief Which of a note's two independent mutes a mute verb writes. */
-enum class ChartMute : std::uint8_t
+/*!
+\brief Which of a note's independent boolean techniques a toggle verb writes.
+
+Not a family by meaning — a palm mute and a tremolo have nothing musical in common — but by SHAPE:
+each is one bool on \ref common::core::ChartNote that a verb sets over a selection under the
+uniform-scope law, with eligibility asked of the per-note rule authority. Grouping them is what
+keeps that law written once instead of once per technique, and every one of them acquires a new
+rule for free when the rules change (a dead note's refusal of vibrato, a tap harmonic's refusal
+of tremolo).
+*/
+enum class ChartNoteFlag : std::uint8_t
 {
     /*! \brief The picking hand's palm damping the string: still pitched, but damped. */
-    Palm,
+    PalmMute,
 
     /*! \brief The string deadened into an unpitched click. */
     Dead,
+
+    /*! \brief Unmeasured repeated picking: as fast as possible, no real timing. */
+    Tremolo,
+
+    /*! \brief The fretting hand oscillating the stopped pitch. */
+    Vibrato,
 };
 
 /*!
-\brief The note member one \ref ChartMute names.
+\brief The note member one \ref ChartNoteFlag names.
 
-The one place the mute axis maps onto a field. Returned as a pointer-to-member rather than read
-through an accessor so the planner that WRITES the flag and the callers that READ it for the
-uniform-scope decision share the single mapping — a read accessor would need a reference-returning
-twin, which is the same rule stated twice and free to disagree.
+The one place the axis maps onto a field. Returned as a pointer-to-member rather than read through
+an accessor so the planner that WRITES the flag and the callers that READ it for the uniform-scope
+decision share the single mapping — a read accessor would need a reference-returning twin, which is
+the same rule stated twice and free to disagree.
 
-\param which Mute axis to resolve.
+\param which Flag to resolve.
 
-\return Pointer to the \ref common::core::ChartNote member carrying that mute.
+\return Pointer to the \ref common::core::ChartNote member carrying that flag.
 */
-[[nodiscard]] constexpr bool common::core::ChartNote::* chartMuteField(ChartMute which) noexcept
+[[nodiscard]] constexpr bool common::core::ChartNote::* chartNoteFlagField(
+    const ChartNoteFlag which) noexcept
 {
-    return which == ChartMute::Palm ? &common::core::ChartNote::palm_mute
-                                    : &common::core::ChartNote::dead;
+    switch (which)
+    {
+        case ChartNoteFlag::PalmMute:
+            return &common::core::ChartNote::palm_mute;
+        case ChartNoteFlag::Dead:
+            return &common::core::ChartNote::dead;
+        case ChartNoteFlag::Tremolo:
+            return &common::core::ChartNote::tremolo;
+        case ChartNoteFlag::Vibrato:
+            return &common::core::ChartNote::vibrato;
+    }
+    return &common::core::ChartNote::palm_mute;
 }
 
 /*!
-\brief Plans setting one of the keyed notes' two mutes, leaving the other mute alone.
+\brief Plans setting one of the keyed notes' boolean techniques, leaving the others alone.
 
-One planner for both verbs because they are the same edit over different fields; the two mutes are
-independent properties of a note, so a note may end up carrying both. Eligibility is asked of the
-per-note rule authority rather than restated, so a mixed selection applies to the notes that can
-take the mute and silently skips the rest: `dead` is refused wherever a technique needs the pitch
-it removes — a bend, a vibrato, a pinch's squeal — while a palm mute has no such restriction. An
-on-neck harmonic node is refused by neither, because on a dead note it names where the hand stands
-rather than what rings. A pick slide takes neither mute, because its saved form records neither.
+One planner for every such verb because they are the same edit over different fields; the flags are
+independent properties of a note, so a note may end up carrying any combination the rules allow.
+
+Eligibility is asked of the per-note rule authority rather than restated, so a mixed selection
+applies to the notes that can take the flag and silently skips the rest — and each flag inherits
+its OWN rules that way, which are not the same rules. `dead` is refused wherever a technique needs
+the pitch it removes (a bend, a vibrato, a pinch's squeal); `tremolo` is refused on a tap harmonic,
+whose damping finger leaves the string so nothing holds the node under re-picking; `vibrato` is
+refused on a dead note and on a fret-hand harmonic, which has no press to shake. An on-neck
+harmonic node is refused by none of them, because on a dead note it names where the hand stands
+rather than what rings, and a palm mute is refused by nothing at all. A pick slide takes neither
+mute, because its saved form records neither.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
@@ -317,9 +348,9 @@ binary-search this precondition).
 \param label User-visible undo label.
 \return The plan, or empty when nothing changes.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planSetMute(
+[[nodiscard]] std::optional<ChartNotesEditPlan> planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, ChartMute which, bool value, std::string_view label);
+    const std::vector<ChartNoteKey>& keys, ChartNoteFlag which, bool value, std::string_view label);
 
 /*!
 \brief Plans setting the keyed notes' emphasis to one value of the axis.

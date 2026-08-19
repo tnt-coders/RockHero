@@ -442,6 +442,23 @@ public:
     virtual void onChartGhostToggleRequested() = 0;
 
     /*!
+    \brief Handles a request to toggle tremolo picking on the selected notes.
+
+    Uniform scope and one compound undo entry, like the mutes. Eligibility is the rule authority's:
+    a tap harmonic cannot be tremolo picked, because the damping finger leaves the string and
+    nothing holds the node under re-picking.
+    */
+    virtual void onChartTremoloToggleRequested() = 0;
+
+    /*!
+    \brief Handles a request to toggle vibrato on the selected notes.
+
+    Same law again. A dead note refuses it (vibrato modulates a pitch it does not have) and so
+    does a fret-hand harmonic (a light touch at a node cannot press the string).
+    */
+    virtual void onChartVibratoToggleRequested() = 0;
+
+    /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
 
     The Esc ladder (the marker model): an in-flight pointer gesture (marquee or

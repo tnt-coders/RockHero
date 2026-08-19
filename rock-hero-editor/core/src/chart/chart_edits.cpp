@@ -790,9 +790,9 @@ std::optional<ChartNotesEditPlan> planSetAttack(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::optional<ChartNotesEditPlan> planSetMute(
+std::optional<ChartNotesEditPlan> planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, const ChartMute which, const bool value,
+    const std::vector<ChartNoteKey>& keys, const ChartNoteFlag which, const bool value,
     const std::string_view label)
 {
     if (keys.empty())
@@ -800,7 +800,7 @@ std::optional<ChartNotesEditPlan> planSetMute(
         return std::nullopt;
     }
 
-    bool common::core::ChartNote::* const field = chartMuteField(which);
+    bool common::core::ChartNote::* const field = chartNoteFlagField(which);
     std::vector<common::core::ChartNote> candidate = chart.notes;
     bool changed = false;
     for (common::core::ChartNote& note : candidate)

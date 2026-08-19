@@ -608,3 +608,20 @@ Items whose trigger fired and were handled. Kept for auditability.
   shared rim re-solved to #777777 cuts the halo by 2.4 L* and the mass ratio to 4.5x, at the
   price of splitting the fretting hand's whites — the legato triangles are pure white in the
   same slot, so the clean form moves both through one shared constant.
+
+- **A separator between the note head and its tail (raised 2026-08-19).** The 2D lane's dark outer
+  backing was dropped from both the head and the tail after five variants were sighted; the plain
+  head with a trimmed glow won, and the user's stated reason for the runner-up is the thing to
+  watch. The backing is the lane's own ground colour, so it never shows against bare lane; its one
+  real job was where the head OVERLAPS its own tail, punching a ring that separated the two and
+  made the head pop. Heads paint in a pass after all tails, so that seam exists on every sustained
+  note. **Trigger:** the user says the head and tail need a slight separator, or heads start
+  reading as merged into their sustains on dense charts. **The remedy, already measured and
+  costed:** restore the backing on the HEAD only, leaving the tail plain — the runner-up variant,
+  a close second on sighting. That is `fillHeadShape`'s layer stack gaining `layer(0.0f, backing)`
+  back with the ring and fill inset as they already are, and nothing on the tail side; the head's
+  visible ring does not move, since the backing occupies the outermost `border` that the head's
+  box already reserves and leaves empty. Note the second-order effect if it is ever restored: the
+  accent glow's radius is currently derived from the ring as the visible edge (`accentGlowSize`),
+  and a restored backing would hide the inner `border` of it again, so the glow would need to grow
+  back by that much or it will read tight.

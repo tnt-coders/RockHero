@@ -490,6 +490,12 @@ public:
     /*! \copydoc IEditorController::onChartGhostToggleRequested */
     void onChartGhostToggleRequested() override;
 
+    /*! \copydoc IEditorController::onChartTremoloToggleRequested */
+    void onChartTremoloToggleRequested() override;
+
+    /*! \copydoc IEditorController::onChartVibratoToggleRequested */
+    void onChartVibratoToggleRequested() override;
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;
 

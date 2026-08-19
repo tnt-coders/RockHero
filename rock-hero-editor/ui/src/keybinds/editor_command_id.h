@@ -218,6 +218,12 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the ghost note on the selected notes (`G`). */
     ChartGhostToggle = 0x170F,
 
+    /*! \brief Toggle tremolo picking on the selected notes (`R`). */
+    ChartTremoloToggle = 0x1710,
+
+    /*! \brief Toggle vibrato on the selected notes (`V`). */
+    ChartVibratoToggle = 0x1711,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

@@ -968,6 +968,16 @@ void EditorController::onChartGhostToggleRequested()
     m_impl->onChartGhostToggleRequested();
 }
 
+void EditorController::onChartTremoloToggleRequested()
+{
+    m_impl->onChartTremoloToggleRequested();
+}
+
+void EditorController::onChartVibratoToggleRequested()
+{
+    m_impl->onChartVibratoToggleRequested();
+}
+
 void EditorController::onChartEscapePressed()
 {
     m_impl->onChartEscapePressed();
@@ -3288,6 +3298,8 @@ void EditorController::Impl::disarmTechniqueToggleWindows() noexcept
     m_chart_dead_note_toggle.reset();
     m_chart_accent_toggle.reset();
     m_chart_ghost_toggle.reset();
+    m_chart_tremolo_toggle.reset();
+    m_chart_vibrato_toggle.reset();
 }
 
 // The technique verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
@@ -3482,14 +3494,15 @@ void EditorController::Impl::onChartPickSlideToggleRequested()
     }
 }
 
-// The body both mute verbs share. Uniform scope, one compound undo entry: a selection where every
-// note already carries this mute clears it, anything else sets it on all of them. The other mute
-// is never read or written — they are independent properties, so a note can end up carrying both —
-// and planSetMute owns eligibility, so a selection the mute is only partly legal on applies to the
-// notes that can take it rather than refusing as a whole. Both directions arm the toggle window,
-// because either press is what a second press must be able to reverse exactly.
-void EditorController::Impl::toggleChartMute(
-    const ChartMute which, std::optional<std::vector<ChartNoteKey>>& window,
+// The body every boolean-technique verb shares. Uniform scope, one compound undo entry: a
+// selection where every note already carries this flag clears it, anything else sets it on all of
+// them. The OTHER flags are never read or written — they are independent properties, so a note can
+// end up carrying any combination the rules allow — and planSetNoteFlag owns eligibility, so a
+// selection the flag is only partly legal on applies to the notes that can take it rather than
+// refusing as a whole. Both directions arm the toggle window, because either press is what a
+// second press must be able to reverse exactly.
+void EditorController::Impl::toggleChartNoteFlag(
+    const ChartNoteFlag which, std::optional<std::vector<ChartNoteKey>>& window,
     const std::string_view noun)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -3512,11 +3525,11 @@ void EditorController::Impl::toggleChartMute(
     }
     // Read through the same mapping the planner writes through, so the law measuring the press and
     // the edit carrying it out can never disagree about which flag this verb is about.
-    bool common::core::ChartNote::* const field = chartMuteField(which);
+    bool common::core::ChartNote::* const field = chartNoteFlagField(which);
     const bool all_muted = std::ranges::all_of(
         selected, [field](const common::core::ChartNote& note) { return note.*field; });
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
-    if (applyChartEditPlan(planSetMute(
+    if (applyChartEditPlan(planSetNoteFlag(
             *arrangement->chart,
             session().song().tempo_map,
             keys,
@@ -3530,12 +3543,22 @@ void EditorController::Impl::toggleChartMute(
 
 void EditorController::Impl::onChartPalmMuteToggleRequested()
 {
-    toggleChartMute(ChartMute::Palm, m_chart_palm_mute_toggle, "Palm Mute");
+    toggleChartNoteFlag(ChartNoteFlag::PalmMute, m_chart_palm_mute_toggle, "Palm Mute");
 }
 
 void EditorController::Impl::onChartDeadNoteToggleRequested()
 {
-    toggleChartMute(ChartMute::Dead, m_chart_dead_note_toggle, "Dead Note");
+    toggleChartNoteFlag(ChartNoteFlag::Dead, m_chart_dead_note_toggle, "Dead Note");
+}
+
+void EditorController::Impl::onChartTremoloToggleRequested()
+{
+    toggleChartNoteFlag(ChartNoteFlag::Tremolo, m_chart_tremolo_toggle, "Tremolo");
+}
+
+void EditorController::Impl::onChartVibratoToggleRequested()
+{
+    toggleChartNoteFlag(ChartNoteFlag::Vibrato, m_chart_vibrato_toggle, "Vibrato");
 }
 
 // The body both emphasis verbs share. Uniform scope, one compound undo entry: a selection where

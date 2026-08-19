@@ -212,7 +212,7 @@ is becoming the full mute's own letter (pending #38's two-flag ruling), and a fu
 scrape are both UNPITCHED NOISE, which makes `Shift+X` a real kinship rather than a letter
 collision. The `Shift` plane already resolves a collision elsewhere in this map (`Shift+V` is
 contested between wide vibrato and the whammy bar), so this is precedent, not a new exception |
-| `V` | **vibrato** | settled. **`Shift+V` reserved for a *wide* vibrato** (2026-08-12: `Shift` is the sibling modifier, superseding the earlier `Alt+V` float) — still a possibility rather than a decision: the field is a bool today, so a width distinction would need the format to carry one. 2026-08-13: `Shift+V` is also the recorded **whammy-bar alternative** (see the `W` reservation) — if wide vibrato is dropped or width becomes tunable data, whammy may claim this chord instead |
+| `V` | **vibrato** | **Live 2026-08-19** (`ChartVibratoToggle`, verb `planSetNoteFlag`). Settled long before that: **`Shift+V` reserved for a *wide* vibrato** (2026-08-12: `Shift` is the sibling modifier, superseding the earlier `Alt+V` float) — still a possibility rather than a decision: the field is a bool today, so a width distinction would need the format to carry one. 2026-08-13: `Shift+V` is also the recorded **whammy-bar alternative** (see the `W` reservation) — if wide vibrato is dropped or width becomes tunable data, whammy may claim this chord instead |
 | `A` | **accent** | settled, conditional on `A` not being wanted elsewhere. Checked 2026-08-07: plain `A` and `;` are both unassigned everywhere in this matrix, the interaction model and the registry; "select all" would be `Ctrl+A`, which is a different chord, and the arpeggio reading is derived rather than authored so it needs no key. **Live 2026-08-18** (`ChartAccentToggle`, verb `planSetEmphasis`) |
 | `G` | **ghost note** — the quiet end of the emphasis axis | **SIGNED and Live 2026-08-18** (user: *"Ghost should be G not Shift+A"*, `ChartGhostToggle`). Two PLAIN letters rather than a `Shift` pair, for a reason worth stating because it looks like a sibling and is not: the ghost and the accent are opposite POLES of one three-valued field, neither a modified form of the other, while this map's `Shift` plane states a modified form of the plain key's technique. That is the same conclusion the two mutes reached on `M`/`X`, by a different route — they are independent flags, these are opposite poles, and neither shape is what `Shift` means |
 | `Shift+A` | **heavy accent** — RESERVED, unbuilt and possibly never built | reserved 2026-08-18 (user: *"Shift+A may someday be HEAVY accent"*). This is the `Shift` plane used exactly as intended: a magnitude variant of the plain key's own technique, the same shape as `Shift+V`'s wide vibrato, and it is why the ghost could not have this chord. Like wide vibrato it would need the format to carry the extra value — `NoteEmphasis` has three today, and `isAccented` is already written as "every emphasis above normal" so a fourth would light up every consumer without a hunt |
@@ -249,9 +249,12 @@ contested between wide vibrato and the whammy bar), so this is precedent, not a 
   place it identically. (2026-08-12: a shortcut cheat sheet corroborates `;` = "Accented note", but
   the same page repeats the wrong `[` claim, so it may describe an older GP — the official GP8
   appendix remains the bar.)
-- **tremolo picking.** The one technique verb the 2026-08-12 letter map left without a letter (`T`
-  is the tap's). The other seven of the formerly-open eight settled into the table above; this one
-  still needs its discussion.
+- ~~**tremolo picking.**~~ **CLOSED 2026-08-19 at `R`** (user), and Live the same day
+  (`ChartTremoloToggle`). It was the one technique verb the 2026-08-12 letter map left without a
+  letter, because `T` is the tap's. `R` is for REPEAT rather than for tRemolo's second letter, and
+  that distinction is the reason to prefer it: both surfaces already describe the teeth as
+  "repeated attacks", so the mnemonic states the rule the notation is drawn from instead of
+  borrowing whichever letter happened to be free.
 
 ---
 

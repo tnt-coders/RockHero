@@ -322,6 +322,18 @@ public:
         chart_ghost_toggle_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartTremoloToggleRequested */
+    void onChartTremoloToggleRequested() override
+    {
+        chart_tremolo_toggle_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartVibratoToggleRequested */
+    void onChartVibratoToggleRequested() override
+    {
+        chart_vibrato_toggle_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override
     {}
@@ -823,6 +835,12 @@ public:
 
     /*! \brief Number of onChartGhostToggleRequested() intents received. */
     int chart_ghost_toggle_count{0};
+
+    /*! \brief Number of onChartTremoloToggleRequested() intents received. */
+    int chart_tremolo_toggle_count{0};
+
+    /*! \brief Number of onChartVibratoToggleRequested() intents received. */
+    int chart_vibrato_toggle_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

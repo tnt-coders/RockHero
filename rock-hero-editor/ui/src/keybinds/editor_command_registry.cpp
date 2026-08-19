@@ -355,6 +355,13 @@ namespace
     // spending the chord on the ghost would have closed it off.
     add(EditorCommandId::ChartAccentToggle, "Toggle Accent", "Authoring", {chord('a')});
     add(EditorCommandId::ChartGhostToggle, "Toggle Ghost Note", "Authoring", {chord('g')});
+    // `V` is vibrato's own first letter and was settled 2026-08-12; `Shift+V` stays reserved for a
+    // WIDE vibrato, the magnitude variant the Shift plane is for. Tremolo could not have its own
+    // first letter — `T` is the tap's — so it takes `R` for REPEAT (user 2026-08-19), which is what
+    // the technique is: both surfaces already describe the teeth as "repeated attacks", so the
+    // mnemonic states the rule rather than borrowing a spare letter.
+    add(EditorCommandId::ChartVibratoToggle, "Toggle Vibrato", "Authoring", {chord('v')});
+    add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.
