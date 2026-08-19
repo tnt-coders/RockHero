@@ -5019,14 +5019,20 @@ void HighwayRenderer::Impl::draw(
 
         // Rolling flip: single notes stand vertical as they enter the visibility window and
         // roll flat around their travel axis across the whole approach, landing flat
-        // g_flip_flat_lead_seconds before the hit line. Chord notes stay flat throughout, and
-        // so do node heads: the roll reads as a card turning face-up only while the art has a
-        // face to turn, and a diamond rolling out of a flat line reads as a shape morphing
-        // instead — the more so with the marker covering most of it. The clock
-        // (flip_remaining) is computed beside the head station, where the pre-bend reveal
-        // shares it, so a node head still RISES onto a pre-bent station; it just never spins.
-        const double rotation =
-            in_chord || node_head ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
+        // g_flip_flat_lead_seconds before the hit line. Chords are the one exclusion, and it is
+        // about the GROUP rather than the art: members must arrive as one object rather than as
+        // a row of cards spinning out of step with each other.
+        //
+        // Node heads roll with everything else. They were held flat as well while the exclusion
+        // was read as being about the art having a face to turn, but the diamond is an L1 ball
+        // (\ref headArtProfile measures it by that edge law) drawn into a SQUARE quad, so a
+        // quarter turn maps it onto itself: what the approach actually shows is the base easing
+        // through an axis-aligned square at 45 degrees while the harmonic marker riding it turns
+        // the full 90, which is the same motion every other head makes.
+        //
+        // The clock (flip_remaining) is computed beside the head station, where the pre-bend
+        // reveal shares it, so a head rises onto a pre-bent station and rolls on one clock.
+        const double rotation = in_chord ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
 
