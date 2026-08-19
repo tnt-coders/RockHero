@@ -292,6 +292,37 @@ entry and is visible and reversible as one edit — never as a silent conversion
 
 ## Highway note art
 
+### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong
+
+The technique marks and head bases carry a top-lit rim gradient painted into their pixels —
+bright on top-facing edges, dark on bottom-facing, measured at roughly 100 counts on the palm
+mute and 58 on the pinch harmonic. That is a statement about where the light is, frozen into art
+the renderer then turns.
+
+**Three transforms invalidate it, and the third is the one that matters.** The legato cell is
+v-flipped to draw a pull-off, so its gradient renders upside down. The bend chevron takes a
+180-degree rotation on bend-inverted lanes, with the same result. And `highway_renderer.cpp`
+rolls every single non-chord, non-node note ninety degrees across its WHOLE approach
+(`rotation = (pi / 2) * flip_remaining`), with technique markers inheriting the same
+`cos_r`/`sin_r` — so a baked top-lit gradient points SIDEWAYS for most of a note's visible life
+and only points up in the last quarter-second before the hit line. This is not an edge case at a
+flip; it is continuously wrong for every ordinary note on screen.
+
+**The right fix is architectural, and the user named it (2026-08-18):** bake the art with NO
+lighting at all, and light the highway for real — one light direction in world space, shading
+computed where the orientation is actually known. Baking a light direction into art that gets
+rotated is the category error.
+
+**Trigger**: real highway lighting is taken up, OR a pull-off, an inverted-lane bend chevron, or
+a mid-approach mark reads visibly wrong-lit in practice. **Remedy**: strip the directional term
+from every cell (an analytic re-bake through the recovered constructions, cheap now that they
+are recorded) and add the light to the renderer. **Why it is not done now**: the gradient is
+doing real work as a bevel, so flattening it today trades a known-good look for a correctness
+win nobody can see until the light exists — the user ruled to take the free half instead (the
+2026-08-18 left-right symmetry pass, which removes an authoring artifact without touching the
+vertical axis) and file this. Recorded so the next person to notice a wrong-lit pull-off finds
+the analysis rather than re-deriving it.
+
 ### The signed accent light is deliberately subtle — trigger: accents don't stand out enough in practice
 
 The accent light signed 2026-08-18 is `medium flat`: reach 0.12 world, alpha 1.0, exponent 2.0,
