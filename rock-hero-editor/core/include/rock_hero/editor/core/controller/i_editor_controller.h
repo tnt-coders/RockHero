@@ -416,9 +416,10 @@ public:
     \brief Handles a request to toggle the dead-note mute on the selected notes.
 
     Uniform scope and one compound undo entry, exactly like the palm mute above, over the other
-    flag. A dead note sounds no pitch, so the rule authority refuses the mute on a note carrying a
-    harmonic node, a bend, or vibrato; those notes are skipped and the rest of the selection still
-    takes it. A second press inside the toggle window reverses the first exactly.
+    flag. A dead note sounds no pitch, so the rule authority refuses the mute on any note whose
+    techniques need one; those notes are skipped and the rest of the selection still takes it.
+    Which techniques those are is that authority's to say and is deliberately not listed here.
+    A second press inside the toggle window reverses the first exactly.
     */
     virtual void onChartDeadNoteToggleRequested() = 0;
 

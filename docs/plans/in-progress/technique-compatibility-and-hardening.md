@@ -91,7 +91,7 @@ Each of these is either enforced in code today or physically unambiguous. Rows w
 | **E5** | A pull-off needs a preceding note on the same string at a **higher** released fret, **still holdable at the onset** | Something must be released to sound it — and still held to release. The hold half (D13, signed 2026-08-09): past the kept-sustain bound (`g_minimum_kept_sustain_beats`) a held predecessor necessarily carries a tail reaching the minimum-sustain-distance margin, so a shorter tail is a proven release (`predecessorHoldReaches`). **No longer a validation rule (2026-08-11):** it is the resolver's Pull clause, so a claim it refuses reads as a plain pick rather than refusing the document. |
 | **E6** | Legato direction derives from that relationship | `docs/plans/in-progress/legato-final-spec.md`. **The resolver is the sole authority**, asked per chart revision by both surfaces, the gameplay build, the reader, and the `H` planner. |
 | **E7** | `Natural` harmonic excludes `slides` and `slide_out` | User, 2026-08-07: *"A natural harmonic CANNOT be slid by definition. It is physically impossible."* A natural harmonic is a light touch at a node, not a press; sliding moves the touch off the node and the harmonic simply stops. A slide is unambiguously fretting-hand travel with no whammy equivalent, so unlike bend and vibrato below this cell has no ambiguity. **Nothing to remove:** searched for supporting logic and found none — the projections only zero a harmonic for scrapes. Record it so nobody *adds* support later. |
-| **E8** | `Full` mute excludes `harmonic` | A full mute sounds no pitch; a harmonic *is* a pitch, so they contradict by definition. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so full mute never has to stretch to cover it, and that case is Q1 instead. |
+| **E8** | `dead` excludes only the **pinch's** harmonic, not every harmonic | **AMENDED 2026-08-18** (user): *"Sometimes you do hold a position of a harmonic while deadening the strings and the harmonic in this case would be more positional information than it would be pitch."* The original reading — a harmonic *is* a pitch, so they contradict by definition — mistook a position for a pitch. A node with a hand standing on it goes on naming where that hand is once the pitch is gone, exactly as a dead note's own `fret` does, so it survives and the note stays **dead**: detection and scoring still read percussive. The one node that does not survive is the **pinch's**, because it is the one that lies off the neck (`nodeIsOnNeck`) — it records the picking thumb's graze, so it names no position the fret does not already give and asks for a squeal a damped string cannot make. The "almost muted harmonic" the user weighed is *partial* damping, which is what `Palm` already means — so the dead flag never has to stretch to cover it, and that case is Q1 instead. |
 | **E9** | `Natural` harmonic excludes `bend` and `vibrato` — **natural only, NOT pinch** | User, 2026-08-07. Same physics as E7: a light touch at a node cannot press the string, so the fretting hand cannot modulate the pitch. A **pinch** harmonic's fretting hand *is* pressing a real fret, so bending it works normally and a bent pinch squeal is a staple — excluding it would make a very common figure unrepresentable. This is the second cell where the two harmonic kinds need opposite answers. |
 | **E10** | `Full` mute excludes `bend` (but **allows** `slides` and `slide_out`) | User, 2026-08-07. Incoherent data rather than an impossible motion: a bend stores semitones, an offset from a pitch a dead note does not have. Positions survive the same test — a slide's waypoints and a `slide_out`'s target are places, not pitches, and the pick-slide precedent already treats fret data as right-hand travel. |
 | **E11** | `Full` mute excludes `vibrato` | User, 2026-08-07. Completes the row: a full mute excludes every **pitch-modulating** payload and allows every **position-valued** one. Vibrato asserts pitch modulation of a note with no pitch — it stores only presence rather than a magnitude like `bend`, but it describes the same nonexistent thing. |
@@ -208,11 +208,15 @@ meaning extends across the sustain**, which is why it must own its slide payload
 splits the scrape into its own variant is really a proposal to stop it from sitting on the `attack`
 axis while behaving like a payload.
 
-**The full-mute row reduces to one sentence.** A full mute sounds no pitch, so it excludes everything
-**pitch-valued** — `harmonic` (E8), `bend` (E10), `vibrato` (E11) — and allows everything
-**position-valued** — `slides` and `slide_out` (E10). That is a cleaner rule than the five-way bundle
-H4 attempted, and it generalizes: the question to ask of any future payload is whether it names a
-pitch or a place.
+**The dead-note row reduces to one sentence**, though the 2026-08-18 amendment made the sentence
+finer than it first looked. A dead note sounds no pitch, so it excludes everything that NEEDS one —
+`bend` (E10), `vibrato` (E11), and the pinch's node (E8) — and allows everything that still names a
+**place**: `slides` and `slide_out` (E10), and the on-neck `harmonic_node` (E8). That is a cleaner
+rule than the five-way bundle H4 attempted, and it generalizes — but not in the form first written
+here, which asked whether a payload names a pitch or a place and put every harmonic on the pitch
+side. A node names BOTH. So the question to ask of any future payload is which of its readings
+SURVIVES the deadening: a bend has only the pitch reading and goes, a waypoint has only the place
+reading and stays, and a node stays exactly where a hand is standing on it to be read.
 
 **E3 is the one that started this, and the collapse retired its verb problem** — attack is a single
 field now, so assigning one clears the other structurally. What replaced it is a different verb

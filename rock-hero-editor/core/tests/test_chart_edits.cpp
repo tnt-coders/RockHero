@@ -728,8 +728,11 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
 // The eligible-subset skip covers EVERY per-note rule, not a hand-picked pair of them. It used to
 // copy two of the validator's predicates, so a note the target attack broke some other rule on was
 // not skipped — and the whole-stream gate then refused the plan for every note in the selection,
-// not just that one. Here a dead note cannot become a pinch (a dead note sounds no pitch, so
-// it carries no harmonic, and a pinch must carry a node), which neither copied predicate named.
+// not just that one. Here a dead note cannot become a pinch, which neither copied predicate named.
+// Note the refusal is specifically the PINCH's: a dead note may carry a harmonic node as of
+// 2026-08-18, but only the on-neck kind a hand stands on, and the verb synthesizes an off-neck one
+// when it converts. The test needed no change when that rule narrowed, which is the whole point of
+// asking the authority instead of restating it.
 TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]")
 {
     common::core::Chart chart = makeChart();
@@ -916,10 +919,12 @@ TEST_CASE("planSetMute writes one mute without disturbing the other", "[core][ch
     }
 }
 
-// Eligibility is asked of the per-note rule authority rather than restated, so the two verbs get
-// different answers for free: a dead note sounds no pitch, so vibrato and a harmonic node each
-// refuse it — and refuse only THAT note, leaving the rest of the selection muted — while a palm
-// mute has no such restriction and takes the whole selection, harmonic included.
+// Eligibility is asked of the per-note rule authority rather than restated, so the verb tracks
+// that rule for free — including when it MOVES. A dead note sounds no pitch, so pitch
+// MODULATION refuses it (vibrato here) and refuses only THAT note, leaving the rest of the
+// selection muted; a harmonic node does NOT refuse it, because the node is positional on a dead
+// note (2026-08-18). Neither restricts a palm mute. This test needed no change to the verb when
+// that rule moved, which is the property the indirection buys.
 TEST_CASE("planSetMute skips notes the dead-note rule refuses", "[core][chart]")
 {
     common::core::Chart chart = makeChart();
@@ -938,10 +943,17 @@ TEST_CASE("planSetMute skips notes the dead-note rule refuses", "[core][chart]")
     {
         return;
     }
-    // Only the plain note takes the X; the whole edit is not refused for the other two.
-    REQUIRE(dead->inserted.size() == 1);
-    CHECK(dead->inserted.front().string == 2);
-    CHECK(dead->inserted.front().dead);
+    // The vibrato note is skipped; the plain note AND the harmonic both take the X.
+    REQUIRE(dead->inserted.size() == 2);
+    CHECK(std::ranges::none_of(dead->inserted, [](const common::core::ChartNote& note) {
+        return note.vibrato;
+    }));
+    CHECK(std::ranges::all_of(dead->inserted, [](const common::core::ChartNote& note) {
+        return note.dead;
+    }));
+    CHECK(std::ranges::any_of(dead->inserted, [](const common::core::ChartNote& note) {
+        return note.harmonic_node.has_value();
+    }));
     applyAndValidate(chart, tempo_map, *dead);
 
     const auto palm = planSetMute(chart, tempo_map, keys, ChartMute::Palm, true, "Palm Mute");

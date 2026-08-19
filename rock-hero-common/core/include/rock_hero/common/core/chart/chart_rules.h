@@ -178,13 +178,31 @@ string with no node has nowhere to strike — so it belongs to the one-note half
 \ref validateChartNoteAlone, which means a builder must not produce that note rather than expecting
 a shed here.
 
-Which side loses is settled by how much of the note each fact determines: the pitch identity (a
-harmonic's node) outranks how the string is articulated (the deadening), which outranks modulation
-of a pitch over time (bend, vibrato). A note's own `dead` flag therefore survives against a bend,
-and falls against a harmonic. Dropping the lower-ranked side is always the smaller lie: keeping the
-deadening over a harmonic would silence a note the score named precisely, and keeping a bend over
-it would give a dead note a pitch to bend. The palm flag never enters the ranking: it says where
-the hand is rather than what the string sounds, so nothing it can be paired with contradicts it.
+Which side loses is settled by whether the loser still says something true. **The deadening wins
+outright**: it describes what the string actually does, and nothing paired with it survives as a
+pitch. What differs is what the loser BECOMES.
+
+A harmonic node SURVIVES the deadening (user ruling 2026-08-18) because it stops being a pitch and
+goes on being a POSITION — a player can hold a harmonic's shape while damping, and the node then
+says where the hand is rather than what rings. That is not a special case but the reading this
+model already applies to a dead note's own `fret`, which nothing strips, and which \ref fretFor
+resolves through the node for exactly this reason. The note stays dead, so detection and scoring
+see percussive, and the node keeps placing the hand.
+
+A bend or a vibrato does NOT survive, because it has no second reading: it modulates a pitch, the
+dead note has none, and unlike a node it says nothing about where the hand is. So it is dropped.
+
+Which sorts the PINCH with the bend rather than with its fellow harmonics, and shows the test is
+really "does a hand stand on it" rather than "is it a harmonic": a pinch's node is the one that
+lies off the neck (\ref rock_hero::common::core::nodeIsOnNeck), recording where the picking thumb
+grazes, so it names no position the note's own fret does not already give and asks for a squeal a
+damped string cannot make. It is shed with its attack, since a pinch carrying no node is missing
+data rather than shed technique.
+
+The earlier ranking here had the node outrank the deadening and un-deaden the note, on the grounds
+that keeping the deadening "would silence a note the score named precisely" — which mistook a
+position for a pitch. The palm flag never enters any of this: it says where the picking hand is
+rather than what the string sounds, so nothing it can be paired with contradicts it.
 
 \param note Note as a source described it.
 

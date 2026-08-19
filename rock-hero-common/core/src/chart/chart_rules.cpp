@@ -238,21 +238,28 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
 
 ChartNote executableChartNote(ChartNote note)
 {
-    // A harmonic outranks the deadening: the node names the pitch, the mute only says how the
-    // string was articulated. Every other pitch payload loses to it instead, because a dead note
-    // has no pitch for a bend or a vibrato to act on. The palm flag is untouched either way — a
-    // palm-muted harmonic is ordinary, and nothing here is deciding what the note sounds like.
+    // The DEADENING outranks the harmonic (user ruling 2026-08-18, reversing the earlier reading
+    // that a node names a pitch and so must un-deaden the note). A player can hold a harmonic's
+    // position while damping the strings, and the node is then POSITIONAL — it says where the
+    // hand is, not what rings — so the note stays dead and detection scores it percussive. That
+    // is already how the rest of this model reads a dead note: it keeps its FRET, and fretFor()
+    // resolves a node to the hand's slot. What a dead note still cannot carry is pitch
+    // MODULATION, because a bend or a vibrato needs a pitch to act on and has no positional
+    // reading of its own. The palm flag is untouched either way — a palm-muted harmonic is
+    // ordinary, and nothing here is deciding what the note sounds like.
     if (note.dead)
     {
-        if (note.harmonic_node.has_value())
-        {
-            note.dead = false;
-        }
-        else
-        {
-            note.bend.clear();
-            note.vibrato = false;
-        }
+        note.bend.clear();
+        note.vibrato = false;
+    }
+    // The pinch is the one harmonic the deadening does take with it, because its node is off the
+    // neck and so survives as neither pitch nor hand position (\ref validateChartNoteAlone).
+    // Attack and node go together: shedding the node alone would leave a pinch carrying none,
+    // which is missing DATA rather than shed technique, and this function only ever drops.
+    if (note.dead && note.harmonic_node.has_value() && !nodeIsOnNeck(note.attack))
+    {
+        note.attack = NoteAttack::Pick;
+        note.harmonic_node.reset();
     }
     // A tap harmonic's damping finger leaves the string, so nothing holds the node under
     // re-picking.
@@ -361,16 +368,36 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "tapped note needs a place to strike at " + positionText(note.position),
         }};
     }
-    // A dead note sounds no pitch, so it excludes every pitch-valued payload: a harmonic IS
-    // a pitch, and bend or vibrato modulate a pitch the dead note does not have. Positions
-    // (slides, slide-out) stay legal. Asked of the dead flag alone, never of the pair: a note
-    // that is also palm muted sounds exactly as dead, and a palm mute on its own sounds pitched.
-    if (note.dead && (note.harmonic_node.has_value() || !note.bend.empty() || note.vibrato))
+    // A dead note sounds no pitch, so it excludes pitch MODULATION: a bend or a vibrato needs a
+    // pitch to act on. POSITION-valued payloads all stay legal, and since 2026-08-18 that
+    // includes a HARMONIC NODE ON THE NECK (user ruling): a player can hold a harmonic's shape
+    // while damping, and the node then says where the hand is rather than what rings — exactly
+    // how this model already reads a dead note's own FRET, which nothing strips. Slides and the
+    // slide-out were always legal for the same reason. Asked of the dead flag alone, never of the
+    // pair: a note that is also palm muted sounds exactly as dead, and a palm mute on its own
+    // sounds pitched.
+    if (note.dead && (!note.bend.empty() || note.vibrato))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "a dead note sounds no pitch, so it cannot carry a harmonic, bend, or "
-                       "vibrato at " +
+            .message = "a dead note sounds no pitch, so it cannot carry a bend or vibrato at " +
+                       positionText(note.position),
+        }};
+    }
+    // The one node that does NOT survive the deadening is the node OFF the neck, which today is
+    // the pinch's alone. What earns every other node its place on a dead note is that a hand is
+    // standing on it, so it goes on naming a position once the pitch is gone; a pinch's node
+    // instead records where the picking thumb grazes, which names no hand position the fret does
+    // not already give and asks for a squeal a damped string cannot make. That leaves it
+    // describing the unexecutable, exactly as the tremolo tap harmonic below does. Asked of
+    // `nodeIsOnNeck` rather than of `Pinch`, so this and the placement rules cannot drift apart
+    // if another off-neck harmonic is ever added.
+    if (note.dead && note.harmonic_node.has_value() && !nodeIsOnNeck(note.attack))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "a damped string cannot squeal, so a dead note cannot be a pinch harmonic "
+                       "at " +
                        positionText(note.position),
         }};
     }

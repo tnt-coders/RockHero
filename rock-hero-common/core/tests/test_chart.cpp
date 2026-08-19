@@ -961,9 +961,31 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         both_bend.bend = {BendPoint{.offset = Fraction{0}, .semitones = 1.0}};
         CHECK_FALSE(validate({both_bend}).has_value());
 
+        // A dead harmonic is LEGAL (2026-08-18): the node is positional there, saying where the
+        // hand is rather than what rings, which is the same reading that lets a dead note keep
+        // its fret.
         ChartNote muted_harmonic = dead;
         muted_harmonic.harmonic_node = 17.0;
-        CHECK_FALSE(validate({muted_harmonic}).has_value());
+        CHECK(validate({muted_harmonic}).has_value());
+        // And it stays DEAD through execution rather than being un-deadened into a sounding
+        // harmonic: the deadening outranks the node, so detection and scoring see percussive.
+        const ChartNote executed = executableChartNote(muted_harmonic);
+        CHECK(executed.dead);
+        CHECK(executed.harmonic_node.has_value());
+
+        // ...but the PINCH's node does not survive, because it is the one off the neck: it
+        // records the thumb's graze rather than a hand position, and the squeal it asks for
+        // cannot sound on a damped string.
+        ChartNote muted_pinch = muted_harmonic;
+        muted_pinch.attack = NoteAttack::Pinch;
+        CHECK_FALSE(validate({muted_pinch}).has_value());
+        // The shed drops the whole harmonic rather than the node alone, which would leave a
+        // pinch with none; the deadening is what survives.
+        const ChartNote shed_pinch = executableChartNote(muted_pinch);
+        CHECK(shed_pinch.dead);
+        CHECK(shed_pinch.attack == NoteAttack::Pick);
+        CHECK_FALSE(shed_pinch.harmonic_node.has_value());
+        CHECK(validate({shed_pinch}).has_value());
 
         ChartNote muted_bend = dead;
         muted_bend.bend = {BendPoint{.offset = Fraction{0}, .semitones = 1.0}};

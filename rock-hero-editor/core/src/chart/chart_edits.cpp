@@ -823,8 +823,9 @@ std::optional<ChartNotesEditPlan> planSetMute(
         }
         // Eligible-subset skip, exactly as planSetAttack does it: the per-note rule authority is
         // asked of the note as it would be WRITTEN, so a mixed selection applies to what CAN take
-        // the mute and leaves the rest alone. That rule is what refuses `dead` on a harmonic, a
-        // bend, or a vibrato — a dead note sounds no pitch — and what a palm mute always passes.
+        // the mute and leaves the rest alone. That rule is what refuses `dead` wherever a
+        // technique needs the pitch it removes — a bend, a vibrato, a pinch's squeal — and what
+        // a palm mute always passes.
         if (!common::core::validateChartNoteAlone(muted, chart.tuning, tempo_map).has_value())
         {
             continue;

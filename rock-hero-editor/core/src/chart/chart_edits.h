@@ -303,10 +303,10 @@ twin, which is the same rule stated twice and free to disagree.
 One planner for both verbs because they are the same edit over different fields; the two mutes are
 independent properties of a note, so a note may end up carrying both. Eligibility is asked of the
 per-note rule authority rather than restated, so a mixed selection applies to the notes that can
-take the mute and silently skips the rest: `dead` is refused on a note carrying a harmonic node, a
-bend, or vibrato (a dead note sounds no pitch), while a palm mute has no such restriction — a
-palm-muted harmonic is ordinary. A pick slide takes neither, because its saved form records
-neither.
+take the mute and silently skips the rest: `dead` is refused wherever a technique needs the pitch
+it removes — a bend, a vibrato, a pinch's squeal — while a palm mute has no such restriction. An
+on-neck harmonic node is refused by neither, because on a dead note it names where the hand stands
+rather than what rings. A pick slide takes neither mute, because its saved form records neither.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
