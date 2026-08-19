@@ -190,11 +190,19 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPickSlideToggleRequested();
     void onChartPalmMuteToggleRequested();
     void onChartDeadNoteToggleRequested();
+    void onChartAccentToggleRequested();
+    void onChartGhostToggleRequested();
     // The body both mute verbs share, so the uniform-scope law and the toggle window are written
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.
     void toggleChartMute(
         ChartMute which, std::optional<std::vector<ChartNoteKey>>& window, std::string_view noun);
+
+    // The body both emphasis verbs share, the same shape the mutes share above. They differ only
+    // in which END of the axis they drive, which window they arm, and the noun their labels use.
+    void toggleChartEmphasis(
+        common::core::NoteEmphasis target, std::optional<std::vector<ChartNoteKey>>& window,
+        std::string_view noun);
 
     void disarmTechniqueToggleWindows() noexcept;
 
@@ -819,6 +827,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     std::optional<std::vector<ChartNoteKey>> m_chart_pick_slide_toggle{};
     std::optional<std::vector<ChartNoteKey>> m_chart_palm_mute_toggle{};
     std::optional<std::vector<ChartNoteKey>> m_chart_dead_note_toggle{};
+    std::optional<std::vector<ChartNoteKey>> m_chart_accent_toggle{};
+    std::optional<std::vector<ChartNoteKey>> m_chart_ghost_toggle{};
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the

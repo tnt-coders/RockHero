@@ -424,6 +424,24 @@ public:
     virtual void onChartDeadNoteToggleRequested() = 0;
 
     /*!
+    \brief Handles a request to toggle the accent on the selected notes.
+
+    Uniform scope and one compound undo entry, like the mutes above, but over the emphasis AXIS
+    rather than a flag: a selection already wholly accented returns to normal, anything else takes
+    the accent — and accenting a ghosted note replaces the ghost, because the two are ends of one
+    field. A second press inside the toggle window reverses the first exactly.
+    */
+    virtual void onChartAccentToggleRequested() = 0;
+
+    /*!
+    \brief Handles a request to toggle the ghost note on the selected notes.
+
+    The quiet end of the axis \ref onChartAccentToggleRequested drives, with the same scope, undo
+    and toggle-window behaviour.
+    */
+    virtual void onChartGhostToggleRequested() = 0;
+
+    /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
 
     The Esc ladder (the marker model): an in-flight pointer gesture (marquee or

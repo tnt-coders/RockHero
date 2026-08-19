@@ -1661,6 +1661,96 @@ TEST_CASE("EditorController sets both mutes on one note", "[core][chart]")
     CHECK(chart->notes[0].dead);
 }
 
+// The emphasis verbs join the same toggle window, and for them it does something the mutes never
+// needed it for. A mute is its own inverse — clearing the flag restores what was there. An axis
+// is NOT: the accent overwrote the ghost, and "off" for the accent verb is Normal, so only an
+// exact reversal can put the ghost back. This pins that the second press restores the GHOST
+// rather than settling at Normal.
+TEST_CASE("EditorController accent toggle restores an overwritten ghost", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    controller.onChartGhostToggleRequested();
+    // A history move commits that entry and closes the GHOST's window, so the accent press below
+    // is an ordinary press rather than a reversal of it.
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(common::core::isGhosted(chart->notes[0].emphasis));
+    const common::core::ChartNote ghosted = chart->notes[0];
+
+    controller.onChartAccentToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(common::core::isAccented(chart->notes[0].emphasis));
+    CHECK_FALSE(common::core::isGhosted(chart->notes[0].emphasis));
+
+    controller.onChartAccentToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0] == ghosted);
+
+    // And the pair left no entry of its own, so undo reaches past it to the ghost press.
+    controller.onUndoRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].emphasis == common::core::NoteEmphasis::Normal);
+}
+
+// Uniform scope over the axis, the same law the mutes obey: any selected note not already at this
+// end makes the press SET it on the whole selection; only a selection wholly at it returns to
+// Normal.
+TEST_CASE("EditorController emphasis toggle applies uniform scope", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // One note is accented first, so the marquee selection below is mixed.
+    click(controller, 40.0f, 220.0f);
+    controller.onChartAccentToggleRequested();
+
+    // Marquee both measure-2 chord members: an accented note plus a plain one.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    controller.onChartAccentToggleRequested();
+    const auto* chart = chartOrNull(controller);
+    CHECK(common::core::isAccented(chart->notes[0].emphasis));
+    CHECK(common::core::isAccented(chart->notes[1].emphasis));
+
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+
+    controller.onChartAccentToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].emphasis == common::core::NoteEmphasis::Normal);
+    CHECK(chart->notes[1].emphasis == common::core::NoteEmphasis::Normal);
+}
+
 // Uniform scope: any selected note lacking the mute makes the press SET it on the whole
 // selection; only an all-muted selection clears. Pins the all-of decision an any-of regression
 // would silently invert.

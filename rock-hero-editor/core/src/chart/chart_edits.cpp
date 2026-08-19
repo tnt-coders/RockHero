@@ -840,6 +840,51 @@ std::optional<ChartNotesEditPlan> planSetMute(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
+std::optional<ChartNotesEditPlan> planSetEmphasis(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, const common::core::NoteEmphasis value,
+    const std::string_view label)
+{
+    if (keys.empty())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    bool changed = false;
+    for (common::core::ChartNote& note : candidate)
+    {
+        if (!std::ranges::binary_search(keys, keyOf(note)))
+        {
+            continue;
+        }
+        common::core::ChartNote struck = note;
+        struck.emphasis = value;
+        // The same "the write changes nothing the document would record" gate the mute verb uses,
+        // asked of the writer's own authority rather than spelled here as "already at this
+        // value". Emphasis survives savedChartNote on every attack today — a scrape's dynamics
+        // are its own — so the two readings coincide; asking the authority is what keeps them
+        // coinciding if that stops being true, instead of leaving a verb that writes a value no
+        // document would keep.
+        if (common::core::savedChartNote(struck) == common::core::savedChartNote(note))
+        {
+            continue;
+        }
+        // Eligible-subset skip, exactly as the mute and attack verbs do it.
+        if (!common::core::validateChartNoteAlone(struck, chart.tuning, tempo_map).has_value())
+        {
+            continue;
+        }
+        note = struck;
+        changed = true;
+    }
+    if (!changed)
+    {
+        return std::nullopt;
+    }
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+}
+
 std::expected<void, EditorUndoFailureCode> applyChartNotesChange(
     common::core::Chart& chart, const std::vector<common::core::ChartNote>& to_remove,
     const std::vector<common::core::ChartNote>& to_insert)

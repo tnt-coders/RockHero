@@ -343,6 +343,18 @@ namespace
     // is also why the format field is named `dead`.
     add(EditorCommandId::ChartPalmMuteToggle, "Toggle Palm Mute", "Authoring", {chord('m')});
     add(EditorCommandId::ChartDeadNoteToggle, "Toggle Dead Note", "Authoring", {chord('x')});
+    // Dynamics rather than technique, and two PLAIN letters rather than a `Shift` pair. `A` was
+    // settled for the accent 2026-08-07; the ghost takes `G` (user 2026-08-18). The two are
+    // opposite POLES of one axis rather than one being a variant of the other, and this map's
+    // `Shift` plane states a MODIFIED form of the plain key's technique — so the pole reading
+    // would have misused it, exactly as it would have for the two independent mutes on `M`/`X`.
+    //
+    // `Shift+A` is deliberately left unbound rather than merely unused: it is reserved for a
+    // possible HEAVY accent, which is a magnitude variant of `A` and therefore precisely what the
+    // plane is for. That is the same shape `Shift+V` already carries for a wide vibrato, and
+    // spending the chord on the ghost would have closed it off.
+    add(EditorCommandId::ChartAccentToggle, "Toggle Accent", "Authoring", {chord('a')});
+    add(EditorCommandId::ChartGhostToggle, "Toggle Ghost Note", "Authoring", {chord('g')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

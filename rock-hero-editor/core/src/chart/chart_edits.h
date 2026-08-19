@@ -322,6 +322,34 @@ binary-search this precondition).
     const std::vector<ChartNoteKey>& keys, ChartMute which, bool value, std::string_view label);
 
 /*!
+\brief Plans setting the keyed notes' emphasis to one value of the axis.
+
+One planner for both emphasis verbs, and unlike the two mutes it takes a VALUE rather than a field
+selector: emphasis is a single three-valued axis (\ref rock_hero::common::core::NoteEmphasis), so
+the ghost and the accent are two ends of one field rather than two independent properties. Striking
+a ghosted note as an accent therefore replaces the ghost instead of joining it, which is what an
+axis means and why no note can ever be both.
+
+Eligibility is asked of the per-note rule authority rather than restated, exactly as the mute and
+attack verbs ask it. No rule refuses an emphasis today — dynamics compose with every attack,
+mute and articulation there is, and a scrape's emphasis is its own — so the gate never fires;
+it is here so the verb tracks that authority if it ever changes, rather than encoding "nothing
+refuses this" as a second fact maintained by hand.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param keys Notes whose emphasis changes, sorted ascending (the ChartSelection order — lookups
+binary-search this precondition).
+\param value Emphasis every keyed note receives.
+\param label User-visible undo label.
+\return The plan, or empty when nothing changes.
+*/
+[[nodiscard]] std::optional<ChartNotesEditPlan> planSetEmphasis(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, common::core::NoteEmphasis value,
+    std::string_view label);
+
+/*!
 \brief Applies a removed/inserted note change atomically to a chart.
 
 Verifies every removed note still matches by full value and every inserted slot is free, then

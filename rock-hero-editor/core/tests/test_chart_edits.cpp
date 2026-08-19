@@ -862,6 +862,58 @@ TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
         planSetAttack(chart, tempo_map, {}, common::core::NoteAttack::Pick, "Pick").has_value());
 }
 
+// Emphasis is ONE three-valued axis, which is the whole structural difference from the two mutes
+// below: a note carries exactly one end of it, so striking an already-ghosted note as an accent
+// REPLACES the ghost rather than joining it. Nothing can ever be both, and that is a property of
+// the field rather than a rule the verb enforces.
+TEST_CASE("planSetEmphasis moves a note along one axis", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    const auto ghost =
+        planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Ghost, "Ghost Note");
+    REQUIRE(ghost.has_value());
+    if (!ghost.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *ghost);
+    const common::core::ChartNote* note = noteAt(chart.notes, {.measure = 2, .beat = 1}, 1);
+    REQUIRE(note != nullptr);
+    if (note != nullptr)
+    {
+        CHECK(common::core::isGhosted(note->emphasis));
+    }
+
+    const auto accent =
+        planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Accent, "Accent");
+    REQUIRE(accent.has_value());
+    if (!accent.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *accent);
+    note = noteAt(chart.notes, {.measure = 2, .beat = 1}, 1);
+    REQUIRE(note != nullptr);
+    if (note != nullptr)
+    {
+        // The ghost is GONE rather than carried alongside: one field, one value.
+        CHECK(common::core::isAccented(note->emphasis));
+        CHECK_FALSE(common::core::isGhosted(note->emphasis));
+    }
+
+    // A write recording what the document already records is not an edit, so it pushes no history
+    // entry — the same savedChartNote gate the mute verb uses.
+    CHECK_FALSE(
+        planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Accent, "Accent")
+            .has_value());
+    CHECK_FALSE(
+        planSetEmphasis(chart, tempo_map, {}, common::core::NoteEmphasis::Ghost, "Ghost Note")
+            .has_value());
+}
+
 // The two mutes are independent fields, so each verb writes exactly its own and reads nothing of
 // the other. A note therefore ends up carrying BOTH when both are set — a dead string inside a
 // palm-muted chord — and clearing one leaves the other standing.

@@ -310,6 +310,18 @@ public:
         chart_dead_note_toggle_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartAccentToggleRequested */
+    void onChartAccentToggleRequested() override
+    {
+        chart_accent_toggle_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartGhostToggleRequested */
+    void onChartGhostToggleRequested() override
+    {
+        chart_ghost_toggle_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override
     {}
@@ -805,6 +817,12 @@ public:
 
     /*! \brief Number of onChartDeadNoteToggleRequested() intents received. */
     int chart_dead_note_toggle_count{0};
+
+    /*! \brief Number of onChartAccentToggleRequested() intents received. */
+    int chart_accent_toggle_count{0};
+
+    /*! \brief Number of onChartGhostToggleRequested() intents received. */
+    int chart_ghost_toggle_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

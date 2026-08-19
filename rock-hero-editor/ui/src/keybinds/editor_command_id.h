@@ -212,6 +212,12 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the dead-note mute on the selected notes (`X`). */
     ChartDeadNoteToggle = 0x170D,
 
+    /*! \brief Toggle the accent on the selected notes (`A`). */
+    ChartAccentToggle = 0x170E,
+
+    /*! \brief Toggle the ghost note on the selected notes (`G`). */
+    ChartGhostToggle = 0x170F,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

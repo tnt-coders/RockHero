@@ -484,6 +484,12 @@ public:
     /*! \copydoc IEditorController::onChartDeadNoteToggleRequested */
     void onChartDeadNoteToggleRequested() override;
 
+    /*! \copydoc IEditorController::onChartAccentToggleRequested */
+    void onChartAccentToggleRequested() override;
+
+    /*! \copydoc IEditorController::onChartGhostToggleRequested */
+    void onChartGhostToggleRequested() override;
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;
 

@@ -397,6 +397,8 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::ChartLeftTap, .value = 0x170B, .chords = {chord('t', shift)}},
         {.id = EditorCommandId::ChartPalmMuteToggle, .value = 0x170C, .chords = {chord('m')}},
         {.id = EditorCommandId::ChartDeadNoteToggle, .value = 0x170D, .chords = {chord('x')}},
+        {.id = EditorCommandId::ChartAccentToggle, .value = 0x170E, .chords = {chord('a')}},
+        {.id = EditorCommandId::ChartGhostToggle, .value = 0x170F, .chords = {chord('g')}},
         {.id = EditorCommandId::TypeDigit0,
          .value = 0x1801,
          .chords = {chord('0'), chord(juce::KeyPress::numberPad0)}},

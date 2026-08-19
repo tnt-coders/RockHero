@@ -958,6 +958,16 @@ void EditorController::onChartDeadNoteToggleRequested()
     m_impl->onChartDeadNoteToggleRequested();
 }
 
+void EditorController::onChartAccentToggleRequested()
+{
+    m_impl->onChartAccentToggleRequested();
+}
+
+void EditorController::onChartGhostToggleRequested()
+{
+    m_impl->onChartGhostToggleRequested();
+}
+
 void EditorController::onChartEscapePressed()
 {
     m_impl->onChartEscapePressed();
@@ -3276,6 +3286,8 @@ void EditorController::Impl::disarmTechniqueToggleWindows() noexcept
     m_chart_pick_slide_toggle.reset();
     m_chart_palm_mute_toggle.reset();
     m_chart_dead_note_toggle.reset();
+    m_chart_accent_toggle.reset();
+    m_chart_ghost_toggle.reset();
 }
 
 // The technique verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
@@ -3524,6 +3536,61 @@ void EditorController::Impl::onChartPalmMuteToggleRequested()
 void EditorController::Impl::onChartDeadNoteToggleRequested()
 {
     toggleChartMute(ChartMute::Dead, m_chart_dead_note_toggle, "Dead Note");
+}
+
+// The body both emphasis verbs share. Uniform scope, one compound undo entry: a selection where
+// every note already carries this emphasis returns to Normal, anything else takes it. The one
+// difference from the mutes is structural rather than behavioural — these two write the SAME
+// field, so they are not independent: accenting a ghosted note replaces the ghost rather than
+// joining it, which is what an axis means. Both directions arm the toggle window, because either
+// press is what a second press must be able to reverse exactly, and that reversal is what lets a
+// mis-struck ghost come back rather than settling at Normal.
+void EditorController::Impl::toggleChartEmphasis(
+    const common::core::NoteEmphasis target, std::optional<std::vector<ChartNoteKey>>& window,
+    const std::string_view noun)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
+        chartSelection().empty())
+    {
+        return;
+    }
+
+    if (reverseTechniqueToggleWindow(window, "Revert " + std::string{noun}))
+    {
+        return;
+    }
+
+    const std::vector<common::core::ChartNote> selected =
+        chartNotesForKeys(chartSelection().notes());
+    if (selected.empty())
+    {
+        return;
+    }
+    const bool all_struck =
+        std::ranges::all_of(selected, [target](const common::core::ChartNote& note) {
+            return note.emphasis == target;
+        });
+    const std::vector<ChartNoteKey> keys = chartSelection().notes();
+    if (applyChartEditPlan(planSetEmphasis(
+            *arrangement->chart,
+            session().song().tempo_map,
+            keys,
+            all_struck ? common::core::NoteEmphasis::Normal : target,
+            all_struck ? "Remove " + std::string{noun} : std::string{noun})))
+    {
+        window = keys;
+    }
+}
+
+void EditorController::Impl::onChartAccentToggleRequested()
+{
+    toggleChartEmphasis(common::core::NoteEmphasis::Accent, m_chart_accent_toggle, "Accent");
+}
+
+void EditorController::Impl::onChartGhostToggleRequested()
+{
+    toggleChartEmphasis(common::core::NoteEmphasis::Ghost, m_chart_ghost_toggle, "Ghost Note");
 }
 
 // Esc is a settle event whichever rung consumes it, so the ladder itself is the helper below and
