@@ -468,6 +468,14 @@ struct TailRun
     };
 }
 
+// The thickness of a note element's dark outer backing, and of the bright ring inside it on a head.
+// ONE number for the head and the tail so their silhouettes are built alike; fillHeadShape reads it
+// for its own layers, which is where the size/15 came from.
+[[nodiscard]] float noteBorderThickness(const float head_size)
+{
+    return std::max(1.0f, head_size / 15.0f);
+}
+
 // Draws the tremolo tail as a constant-thickness zigzag band: the plain sustain's ribbon with
 // its top and bottom borders displaced TOGETHER, so the strip snakes instead of pulsing in
 // thickness the way the ported pointed-gem chain did. This matches the 3D highway's teeth,
@@ -550,6 +558,14 @@ void drawTremoloTail(
         path.closeSubPath();
     };
 
+    // The dark outer layer, grown around the snaking band rather than laid as a rectangle behind
+    // it: the gaps the snake leaves inside its envelope belong to the lane, and a rectangle would
+    // fill them.
+    juce::Path backing_band;
+    add_band(backing_band, -noteBorderThickness(metrics.headSize()));
+    g.setColour(style[Ink::HeadBacking]);
+    g.fillPath(backing_band);
+
     juce::Path edge_band;
     add_band(edge_band, 0.0f);
     g.setColour(style[Ink::TailEdge]);
@@ -559,6 +575,63 @@ void drawTremoloTail(
     add_band(inner_band, metrics.tail_edge_size);
     g.setColour(style[Ink::Tail]);
     g.fillPath(inner_band);
+}
+
+// How far past its subject's edge an accent's halo reaches, as a fraction of the note height. ONE
+// number for both halos: the head's glow ellipse is its head grown by this on every side, and the
+// tail's halo takes the same absolute distance, so one accent reads at one strength wherever on
+// the note it appears rather than the two drifting apart under separate literals.
+constexpr float g_accent_glow_reach_heads = 0.2f;
+
+// Draws the accent's glow behind the sustain tail: two bands riding the tail's rails, fading
+// outward, with NO cap at either end.
+//
+// An accent reaches the TAIL because it is a dynamic marking and not an attack-only one. Notation
+// defines the mark as "a louder dynamic AND a stronger attack", and the physics says the same
+// thing less ambiguously: a plucked string rings as A * exp(-lambda * t), where picking harder
+// raises the initial amplitude A while lambda is fixed by the damping rather than by the
+// excitation — so an accented note is louder at EVERY instant of its ring, not only at its onset.
+// The intuition that an accent is "an attack thing" comes from the GLYPH, a point symbol sitting
+// over the head; but this surface renders the accent as light rather than as a glyph, and once the
+// phenomenon is what is drawn, the phenomenon's extent governs.
+//
+// The quiet end of this axis already reached the tail here (a ghost leans the whole ink set, the
+// ribbon with it), so a head-only accent left the axis saying different things at its two ends on
+// one surface. The highway reached this same conclusion for its ribbon; this is the 2D half.
+//
+// NO END CAP, which is the whole reason this is two straight bands rather than a halo around the
+// tail's outline. The tail itself draws top and bottom rails only — the left end omitted because
+// the head covers it, the right end because a cap boxes in whatever technique mark reaches the
+// tail's tip (SIGNED 2026-08-16 with the bare end chosen over both a cap and a dissolve). A glow
+// wrapping the tip would restore that cap in light and box the mark in exactly the same way, so
+// the halo ends where the rails end and states nothing about the tip that the ribbon does not.
+//
+// This is also why the halo does not fade ALONG the tail as the highway's does. Both surfaces
+// obey one rule — the accent light traces the tail that surface actually draws — and they differ
+// only because the ribbons do: the highway's light fades because its ribbon's alpha fades, while
+// the editor's ribbon is uniform with a hard stop, so its halo is uniform and stops with it.
+void drawAccentTailGlow(
+    juce::Graphics& g, const StringStyle& style, const float onset_x, const float end_x,
+    const float top, const float bottom, const float reach)
+{
+    // A straight edge takes a real linear gradient, unlike the head's non-circular subjects, which
+    // is why nothing here needs the concentric-outline approximation the diamond glow uses.
+    const auto band = [&](const float outer_y, const float inner_y) {
+        const juce::ColourGradient gradient{
+            style[Ink::Accent].withAlpha(0.0f),
+            onset_x,
+            outer_y,
+            style[Ink::Accent],
+            onset_x,
+            inner_y,
+            false
+        };
+        g.setGradientFill(gradient);
+        g.fillRect(
+            juce::Rectangle<float>{onset_x, std::min(outer_y, inner_y), end_x - onset_x, reach});
+    };
+    band(top - reach, top);
+    band(bottom + reach, bottom);
 }
 
 // Draws the sustain tail's BODY: Charter's filled bar with its brighter rails, or the tremolo gem
@@ -579,6 +652,36 @@ void drawNoteTail(
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
+    // The tail's own dark outer layer, the one the head has always had (fillHeadShape draws it
+    // outermost) and the tail did not. It is the LANE'S OWN GROUND, so over bare lane it melts
+    // exactly as the head's does and changes nothing; it shows only where something else sits
+    // behind the note — a measure line, the waveform, an accent's halo — which is precisely where
+    // the head's shows too. The gap went unnoticed for as long as it did because nothing bright
+    // was ever drawn behind a tail to reveal it; the accent light reaching the ribbon is what
+    // finally put the two constructions side by side.
+    //
+    // Grown OUTWARD, where the head's is inset. tailSpan is the one definition of the tail's
+    // envelope and tailInterior derives every technique mark's swing from it, so insetting the
+    // rails to make room would move the sine, the bend polyline and the slide diagonals with
+    // them. Growing leaves the signed tail exactly as sighted and adds the rim outside it.
+    const float backing = noteBorderThickness(metrics.headSize());
+    // Half the tremolo's swing each way, because that variant's band snakes wider than the plain
+    // span; zero otherwise. The accent halo and the backing share it so they stay concentric.
+    const float swing = note.tremolo ? metrics.tremolo_size / 2.0f : 0.0f;
+    // Behind everything the tail draws, and ahead of the branch below so a tremolo accent is
+    // haloed too. Measured from the BACKING's outer edge rather than the rail's, so the halo
+    // stands off its subject by the same distance the head's does.
+    if (common::core::isAccented(note.emphasis))
+    {
+        drawAccentTailGlow(
+            g,
+            style,
+            onset_x,
+            end_x,
+            span.top - swing - backing,
+            span.bottom + swing + backing,
+            metrics.headSize() * g_accent_glow_reach_heads);
+    }
     // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them. A scrape is one continuous
     // drag — teeth would assert a repetition it never performs, and it cannot be tremolo picked
     // at all (E2) — so it draws the plain ribbon with its slide diagonals carrying the travel,
@@ -598,6 +701,14 @@ void drawNoteTail(
             g.setColour(colour);
             g.fillRect(juce::Rectangle<float>{onset_x - 1.0f, top, end_x - onset_x + 1.0f, height});
         };
+
+        // The backing, laid first and to the SAME horizontal extent as the rails: it stops at the
+        // hold end with them, because a backing running past it would be the end cap the tail
+        // deliberately does not draw.
+        fill(
+            style[Ink::HeadBacking],
+            span.top - backing,
+            (span.bottom - span.top) + (2.0f * backing));
 
         // The fill covers the whole envelope and the rails lay over its top and bottom — every
         // color here is opaque, so painting the rails over the fill is the same pixels as
@@ -829,7 +940,7 @@ void fillHeadShape(
     juce::Graphics& g, const StringStyle& style, juce::Colour border_inner, juce::Colour inner,
     float center_x, float center_y, float size, HeadShape shape)
 {
-    const float border = std::max(1.0f, size / 15.0f);
+    const float border = noteBorderThickness(size);
 
     const auto layer = [&](float inset, juce::Colour color) {
         const float extent = size - 2.0f * inset;
@@ -1062,7 +1173,8 @@ void drawAccentGlow(
     juce::Graphics& g, const StringStyle& style, float center_x, float center_y, float size,
     HeadShape shape)
 {
-    const float glow_size = size * 1.4f;
+    // The head grown by the shared reach on every side, which is where its 1.4 came from.
+    const float glow_size = size * (1.0f + (2.0f * g_accent_glow_reach_heads));
     if (shape == HeadShape::Diamond)
     {
         // Concentric fading diamond outlines approximate Charter's diamond-distance fade.

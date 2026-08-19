@@ -180,6 +180,92 @@ TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab
     CHECK(worstPixelDelta(hammer, pull) > 0);
 }
 
+// An accent reaches the TAIL, not only the head. An accent mark states a louder DYNAMIC as well as
+// a stronger attack, and a plucked string's whole ring scales with how hard it was struck — it
+// rings as A * exp(-lambda * t), where picking harder raises A while lambda is fixed by the
+// damping, so the note is louder at every instant it sounds rather than only at its onset. The
+// quiet end of this axis already said so here by leaning the entire ink set, ribbon included, so a
+// head-only accent left one axis saying two different things at its two ends.
+//
+// And it rides the RAILS with NO END CAP. The tail draws no cap at either end by the 2026-08-16
+// ruling — a cap boxes in whatever technique mark reaches the tip — so a halo wrapping the tip
+// would restore that cap in light and box the mark in exactly the same way. Past the tail's end
+// the two renders must therefore be the SAME PICTURE, which is the half that the obvious
+// implementation (grow the tail's outline, stroke it) silently fails while still lighting the
+// rails correctly.
+TEST_CASE("Tab paint core reaches an accent along the tail without capping it", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const auto painted = [](const common::core::NoteEmphasis emphasis) {
+        common::core::TabViewState state;
+        state.string_count = 6;
+        state.notes = {
+            common::core::TabNoteView{
+                .start_seconds = 5.0,
+                .end_seconds = 9.0,
+                .string = 3,
+                .fret = 7,
+                .emphasis = emphasis,
+                .bend = {},
+                .slides = {},
+            },
+        };
+        const std::vector<double> prefix_max = resolveHoldEnds(state);
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, referenceMetrics(state.string_count), state, prefix_max);
+        return image;
+    };
+
+    const juce::Image plain = painted(common::core::NoteEmphasis::Normal);
+    const juce::Image accented = painted(common::core::NoteEmphasis::Accent);
+
+    const common::core::TabNoteView probe{
+        .start_seconds = 5.0,
+        .end_seconds = 9.0,
+        .string = 3,
+        .fret = 7,
+        .bend = {},
+        .slides = {},
+    };
+    const TabNoteLayout layout = tabNoteLayout(referenceMetrics(6), probe, probe.end_seconds);
+
+    const auto worstInBand =
+        [&plain, &accented](const int x_from, const int x_to, const int y_from, const int y_to) {
+            int worst = 0;
+            for (int x = x_from; x <= x_to; ++x)
+            {
+                for (int y = y_from; y <= y_to; ++y)
+                {
+                    const juce::Colour from_plain = plain.getPixelAt(x, y);
+                    const juce::Colour from_accented = accented.getPixelAt(x, y);
+                    worst = std::max(
+                        worst,
+                        std::max(
+                            {std::abs(from_plain.getAlpha() - from_accented.getAlpha()),
+                             std::abs(from_plain.getRed() - from_accented.getRed()),
+                             std::abs(from_plain.getGreen() - from_accented.getGreen()),
+                             std::abs(from_plain.getBlue() - from_accented.getBlue())}));
+                }
+            }
+            return worst;
+        };
+
+    const int tail_end = juce::roundToInt(layout.tail.x + layout.tail.width);
+    const int tail_top = juce::roundToInt(layout.tail.y);
+    const int tail_bottom = juce::roundToInt(layout.tail.y + layout.tail.height);
+    // Sampled well along the tail, clear of the head's own halo, so this cannot pass on the head
+    // glow that was already there.
+    const int mid_from = juce::roundToInt(layout.tail.x + (layout.tail.width * 0.6f));
+
+    // The halo is present on BOTH rails.
+    CHECK(worstInBand(mid_from, mid_from + 4, tail_top - 4, tail_top - 1) > 0);
+    CHECK(worstInBand(mid_from, mid_from + 4, tail_bottom + 1, tail_bottom + 4) > 0);
+    // And it stops with them: nothing past the tail's end, on any row the halo occupies.
+    CHECK(worstInBand(tail_end + 2, tail_end + 12, tail_top - 6, tail_bottom + 6) == 0);
+}
+
 // The stated left-hand tap wears its own charting mark — the tap letter in the fretting hand's
 // LIGHT polarity — never the merged triangle and never the picking hand's dark plate. Three
 // identities kill the three ways the mark can silently regress: drawing nothing, folding back
