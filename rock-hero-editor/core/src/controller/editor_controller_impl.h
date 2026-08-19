@@ -188,6 +188,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartLegatoToggleRequested();
     void onChartLeftTapRequested();
     void onChartPickSlideToggleRequested();
+    void onChartPalmMuteToggleRequested();
+    void onChartDeadNoteToggleRequested();
+    // The body both mute verbs share, so the uniform-scope law and the toggle window are written
+    // once: the two verbs differ only in which flag they write, which window they arm, and the
+    // noun their undo labels are built from.
+    void toggleChartMute(
+        ChartMute which, std::optional<std::vector<ChartNoteKey>>& window, std::string_view noun);
 
     void disarmTechniqueToggleWindows() noexcept;
 
@@ -810,6 +817,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the list by hand.
     std::optional<std::vector<ChartNoteKey>> m_chart_legato_toggle{};
     std::optional<std::vector<ChartNoteKey>> m_chart_pick_slide_toggle{};
+    std::optional<std::vector<ChartNoteKey>> m_chart_palm_mute_toggle{};
+    std::optional<std::vector<ChartNoteKey>> m_chart_dead_note_toggle{};
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the

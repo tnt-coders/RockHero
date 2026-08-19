@@ -298,6 +298,18 @@ public:
         chart_pick_slide_toggle_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartPalmMuteToggleRequested */
+    void onChartPalmMuteToggleRequested() override
+    {
+        chart_palm_mute_toggle_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartDeadNoteToggleRequested */
+    void onChartDeadNoteToggleRequested() override
+    {
+        chart_dead_note_toggle_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override
     {}
@@ -787,6 +799,12 @@ public:
 
     /*! \brief Number of onChartPickSlideToggleRequested() intents received. */
     int chart_pick_slide_toggle_count{0};
+
+    /*! \brief Number of onChartPalmMuteToggleRequested() intents received. */
+    int chart_palm_mute_toggle_count{0};
+
+    /*! \brief Number of onChartDeadNoteToggleRequested() intents received. */
+    int chart_dead_note_toggle_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

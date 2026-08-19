@@ -1107,12 +1107,13 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::NeutralInsert);
     add(note_menu, EditorCommandId::SelectionDelete);
     note_menu.addSeparator();
-    // The technique verbs, so the menu teaches the whole set. The legato toggle was the one verb
-    // with a chord to teach and the one missing here, while the scrape toggle — which has no chord
-    // yet — was reachable ONLY through this menu, making it the second way to act the menu is not
-    // supposed to be.
+    // The technique verbs, so the menu teaches the whole set: every one of them now carries a
+    // chord, and the menu's job is to TEACH those chords rather than to be a second way to act.
+    // A verb missing here is a chord nobody discovers.
     add(note_menu, EditorCommandId::ChartLegatoToggle);
     add(note_menu, EditorCommandId::ChartLeftTap);
+    add(note_menu, EditorCommandId::ChartPalmMuteToggle);
+    add(note_menu, EditorCommandId::ChartDeadNoteToggle);
     add(note_menu, EditorCommandId::ChartPickSlideToggle);
 
     juce::PopupMenu move_menu;
@@ -1423,6 +1424,8 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::ChartLegatoToggle:
         case EditorCommandId::ChartLeftTap:
+        case EditorCommandId::ChartPalmMuteToggle:
+        case EditorCommandId::ChartDeadNoteToggle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::SustainLengthenFine:
@@ -1614,6 +1617,22 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartLeftTapRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::ChartPalmMuteToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartPalmMuteToggleRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::ChartDeadNoteToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartDeadNoteToggleRequested();
             }
             return true;
         }

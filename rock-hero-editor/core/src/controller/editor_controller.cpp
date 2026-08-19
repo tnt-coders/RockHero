@@ -948,6 +948,16 @@ void EditorController::onChartPickSlideToggleRequested()
     m_impl->onChartPickSlideToggleRequested();
 }
 
+void EditorController::onChartPalmMuteToggleRequested()
+{
+    m_impl->onChartPalmMuteToggleRequested();
+}
+
+void EditorController::onChartDeadNoteToggleRequested()
+{
+    m_impl->onChartDeadNoteToggleRequested();
+}
+
 void EditorController::onChartEscapePressed()
 {
     m_impl->onChartEscapePressed();
@@ -3264,6 +3274,8 @@ void EditorController::Impl::disarmTechniqueToggleWindows() noexcept
 {
     m_chart_legato_toggle.reset();
     m_chart_pick_slide_toggle.reset();
+    m_chart_palm_mute_toggle.reset();
+    m_chart_dead_note_toggle.reset();
 }
 
 // The technique verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
@@ -3456,6 +3468,62 @@ void EditorController::Impl::onChartPickSlideToggleRequested()
         // apply-or-clear law could put back.
         m_chart_pick_slide_toggle = keys;
     }
+}
+
+// The body both mute verbs share. Uniform scope, one compound undo entry: a selection where every
+// note already carries this mute clears it, anything else sets it on all of them. The other mute
+// is never read or written — they are independent properties, so a note can end up carrying both —
+// and planSetMute owns eligibility, so a selection the mute is only partly legal on applies to the
+// notes that can take it rather than refusing as a whole. Both directions arm the toggle window,
+// because either press is what a second press must be able to reverse exactly.
+void EditorController::Impl::toggleChartMute(
+    const ChartMute which, std::optional<std::vector<ChartNoteKey>>& window,
+    const std::string_view noun)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
+        chartSelection().empty())
+    {
+        return;
+    }
+
+    if (reverseTechniqueToggleWindow(window, "Revert " + std::string{noun}))
+    {
+        return;
+    }
+
+    const std::vector<common::core::ChartNote> selected =
+        chartNotesForKeys(chartSelection().notes());
+    if (selected.empty())
+    {
+        return;
+    }
+    // Read through the same mapping the planner writes through, so the law measuring the press and
+    // the edit carrying it out can never disagree about which flag this verb is about.
+    bool common::core::ChartNote::* const field = chartMuteField(which);
+    const bool all_muted = std::ranges::all_of(
+        selected, [field](const common::core::ChartNote& note) { return note.*field; });
+    const std::vector<ChartNoteKey> keys = chartSelection().notes();
+    if (applyChartEditPlan(planSetMute(
+            *arrangement->chart,
+            session().song().tempo_map,
+            keys,
+            which,
+            !all_muted,
+            all_muted ? "Remove " + std::string{noun} : std::string{noun})))
+    {
+        window = keys;
+    }
+}
+
+void EditorController::Impl::onChartPalmMuteToggleRequested()
+{
+    toggleChartMute(ChartMute::Palm, m_chart_palm_mute_toggle, "Palm Mute");
+}
+
+void EditorController::Impl::onChartDeadNoteToggleRequested()
+{
+    toggleChartMute(ChartMute::Dead, m_chart_dead_note_toggle, "Dead Note");
 }
 
 // Esc is a settle event whichever rung consumes it, so the ladder itself is the helper below and

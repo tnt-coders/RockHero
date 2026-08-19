@@ -1585,6 +1585,163 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     CHECK_FALSE(chart->notes[1].slide_out.has_value());
 }
 
+// The mutes join the shared toggle window rather than owning a law of their own: a second press
+// while the selection and the history top still prove the first was this verb's reverses it
+// exactly and leaves NO history entry behind, so the next undo reaches past the pair.
+TEST_CASE("EditorController toggles a palm mute with exact restoration", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // A preceding entry so the undo below has somewhere to land past the toggle pair.
+    click(controller, 40.0f, 220.0f);
+    controller.onChartSustainAdjustRequested(1, false);
+    const auto* chart = chartOrNull(controller);
+    const common::core::ChartNote original = chart->notes[0];
+
+    controller.onChartPalmMuteToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].palm_mute);
+    CHECK_FALSE(chart->notes[0].dead);
+
+    controller.onChartPalmMuteToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0] == original);
+
+    controller.onUndoRequested();
+    chart = chartOrNull(controller);
+    CHECK_FALSE(chart->notes[0].palm_mute);
+    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+}
+
+// The both-muted note the two-flag model exists for, authored the way the user authors it: press
+// one verb, then the other. Each writes only its own field, so the second press does not disturb
+// what the first wrote, and a third clears only the flag it owns.
+TEST_CASE("EditorController sets both mutes on one note", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    controller.onChartPalmMuteToggleRequested();
+    controller.onChartDeadNoteToggleRequested();
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes[0].palm_mute);
+    CHECK(chart->notes[0].dead);
+
+    // The dead press was the last edit, so it closed the palm window: this press means the palm
+    // verb's ordinary law, which clears the palm flag and leaves the X standing.
+    controller.onChartPalmMuteToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK_FALSE(chart->notes[0].palm_mute);
+    CHECK(chart->notes[0].dead);
+}
+
+// Uniform scope: any selected note lacking the mute makes the press SET it on the whole
+// selection; only an all-muted selection clears. Pins the all-of decision an any-of regression
+// would silently invert.
+TEST_CASE("EditorController mute toggle applies uniform scope", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // One note is muted first, so the marquee selection below is mixed.
+    click(controller, 40.0f, 220.0f);
+    controller.onChartPalmMuteToggleRequested();
+
+    // Marquee both measure-2 chord members: a muted note plus a plain one.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    controller.onChartPalmMuteToggleRequested();
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes[0].palm_mute);
+    CHECK(chart->notes[1].palm_mute);
+
+    // A history move COMMITS that entry and closes the toggle window, and undo-then-redo lands
+    // the chart back in this exact state - so the press below exercises the uniform-scope law
+    // rather than a reversal.
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+
+    controller.onChartPalmMuteToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK_FALSE(chart->notes[0].palm_mute);
+    CHECK_FALSE(chart->notes[1].palm_mute);
+}
+
+// The eligible-subset skip reaching the user: a dead note sounds no pitch, so X over a selection
+// holding a vibrato note mutes what it can and leaves that note exactly as it was, rather than
+// refusing the whole edit for every note in the selection.
+TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    common::core::Chart chart_with_vibrato = makeTestChart();
+    chart_with_vibrato.notes[0].vibrato = true;
+    REQUIRE(loadChartArrangement(
+        controller, project_services, audio, {}, std::move(chart_with_vibrato)));
+
+    // Marquee both measure-2 chord members: the vibrato note plus a plain one.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    controller.onChartDeadNoteToggleRequested();
+    const auto* chart = chartOrNull(controller);
+    CHECK_FALSE(chart->notes[0].dead);
+    CHECK(chart->notes[0].vibrato);
+    CHECK(chart->notes[1].dead);
+}
+
 // A refused first digit still arms the multi-digit entry window, so an in-range two-digit
 // value stays typeable on a scrape whose translated path rejects every single-digit target.
 TEST_CASE("EditorController fret typing recovers from a refused first digit", "[core][chart]")

@@ -790,6 +790,55 @@ std::optional<ChartNotesEditPlan> planSetAttack(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
+std::optional<ChartNotesEditPlan> planSetMute(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, const ChartMute which, const bool value,
+    const std::string_view label)
+{
+    if (keys.empty())
+    {
+        return std::nullopt;
+    }
+
+    bool common::core::ChartNote::* const field = chartMuteField(which);
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    bool changed = false;
+    for (common::core::ChartNote& note : candidate)
+    {
+        if (!std::ranges::binary_search(keys, keyOf(note)))
+        {
+            continue;
+        }
+        common::core::ChartNote muted = note;
+        muted.*field = value;
+        // Skips every note the write leaves recording what it already recorded, which is one test
+        // for two cases: the note that carries the flag already, and the scrape, whose saved form
+        // strips BOTH mutes (the in-memory override contract in chart.h). Asked of the writer's
+        // own authority rather than restated as an attack test, so the verb cannot disagree with
+        // it about where a mute is real — writing one onto a scrape would otherwise push an undo
+        // entry for a flag no surface draws and no document keeps.
+        if (common::core::savedChartNote(muted) == common::core::savedChartNote(note))
+        {
+            continue;
+        }
+        // Eligible-subset skip, exactly as planSetAttack does it: the per-note rule authority is
+        // asked of the note as it would be WRITTEN, so a mixed selection applies to what CAN take
+        // the mute and leaves the rest alone. That rule is what refuses `dead` on a harmonic, a
+        // bend, or a vibrato — a dead note sounds no pitch — and what a palm mute always passes.
+        if (!common::core::validateChartNoteAlone(muted, chart.tuning, tempo_map).has_value())
+        {
+            continue;
+        }
+        note = muted;
+        changed = true;
+    }
+    if (!changed)
+    {
+        return std::nullopt;
+    }
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+}
+
 std::expected<void, EditorUndoFailureCode> applyChartNotesChange(
     common::core::Chart& chart, const std::vector<common::core::ChartNote>& to_remove,
     const std::vector<common::core::ChartNote>& to_insert)

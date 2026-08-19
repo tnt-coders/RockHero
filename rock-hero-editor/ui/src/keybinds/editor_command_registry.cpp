@@ -314,10 +314,10 @@ namespace
         "Insert Note / Point",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
-    // No default chord: the verb shipped with plan 55 but the signed keymap never assigned it one,
-    // and inventing one here would be an unsigned keymap decision. Registered anyway so it is
-    // reachable at all — it appears in the Actions dialog and the chart's discovery menu, and the
-    // user can bind it there.
+    // Shift+X rides the X FAMILY rather than claiming a scrape is a kind of dead note: the Shift
+    // plane resolves letter COLLISIONS as well as naming siblings, and a scrape and a full mute
+    // are both unpitched noise, which makes the shared letter a real kinship. `P` stayed free for
+    // pop, so the mutes moved to M/X and left the scrape here.
     add(EditorCommandId::ChartPickSlideToggle,
         "Toggle Pick Slide",
         "Authoring",
@@ -336,6 +336,13 @@ namespace
     // modifier; Ctrl stays the app-command plane (Save/Open/tone change), which is why the earlier
     // Ctrl+H default moved here.
     add(EditorCommandId::ChartLeftTap, "Left-Hand Tap", "Authoring", {chord('t', shift)});
+    // Two PLAIN letters rather than a sibling pair: the mutes are independent properties a note
+    // may carry at once (a dead string inside a palm-muted chord), and `Shift` means "the related
+    // sibling technique" everywhere else in this map, which a pair could only misstate. `M` is the
+    // palm; `X` is what standard tab writes a dead note as and what both our surfaces draw, which
+    // is also why the format field is named `dead`.
+    add(EditorCommandId::ChartPalmMuteToggle, "Toggle Palm Mute", "Authoring", {chord('m')});
+    add(EditorCommandId::ChartDeadNoteToggle, "Toggle Dead Note", "Authoring", {chord('x')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

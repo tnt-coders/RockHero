@@ -206,6 +206,12 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Set the selected notes to the left-hand tap attack (`Shift+T`). */
     ChartLeftTap = 0x170B,
 
+    /*! \brief Toggle the picking hand's palm mute on the selected notes (`M`). */
+    ChartPalmMuteToggle = 0x170C,
+
+    /*! \brief Toggle the dead-note mute on the selected notes (`X`). */
+    ChartDeadNoteToggle = 0x170D,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

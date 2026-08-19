@@ -859,6 +859,133 @@ TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
         planSetAttack(chart, tempo_map, {}, common::core::NoteAttack::Pick, "Pick").has_value());
 }
 
+// The two mutes are independent fields, so each verb writes exactly its own and reads nothing of
+// the other. A note therefore ends up carrying BOTH when both are set — a dead string inside a
+// palm-muted chord — and clearing one leaves the other standing.
+TEST_CASE("planSetMute writes one mute without disturbing the other", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    const auto palm = planSetMute(chart, tempo_map, keys, ChartMute::Palm, true, "Palm Mute");
+    REQUIRE(palm.has_value());
+    if (!palm.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *palm);
+    const common::core::ChartNote* note = noteAt(chart.notes, {.measure = 2, .beat = 1}, 1);
+    REQUIRE(note != nullptr);
+    if (note != nullptr)
+    {
+        CHECK(note->palm_mute);
+        CHECK_FALSE(note->dead);
+    }
+
+    const auto dead = planSetMute(chart, tempo_map, keys, ChartMute::Dead, true, "Dead Note");
+    REQUIRE(dead.has_value());
+    if (!dead.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *dead);
+    note = noteAt(chart.notes, {.measure = 2, .beat = 1}, 1);
+    REQUIRE(note != nullptr);
+    if (note != nullptr)
+    {
+        // Both mutes on one note, which is the whole point of the two-flag model.
+        CHECK(note->palm_mute);
+        CHECK(note->dead);
+    }
+
+    const auto cleared =
+        planSetMute(chart, tempo_map, keys, ChartMute::Palm, false, "Remove Palm Mute");
+    REQUIRE(cleared.has_value());
+    if (!cleared.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *cleared);
+    note = noteAt(chart.notes, {.measure = 2, .beat = 1}, 1);
+    REQUIRE(note != nullptr);
+    if (note != nullptr)
+    {
+        CHECK_FALSE(note->palm_mute);
+        CHECK(note->dead);
+    }
+}
+
+// Eligibility is asked of the per-note rule authority rather than restated, so the two verbs get
+// different answers for free: a dead note sounds no pitch, so vibrato and a harmonic node each
+// refuse it — and refuse only THAT note, leaving the rest of the selection muted — while a palm
+// mute has no such restriction and takes the whole selection, harmonic included.
+TEST_CASE("planSetMute skips notes the dead-note rule refuses", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[0].vibrato = true;       // measure 2 / string 1
+    chart.notes[2].harmonic_node = 12.0; // measure 3 / string 1, fret 7
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{
+        keyAt({.measure = 2, .beat = 1}, 1),
+        keyAt({.measure = 2, .beat = 1}, 2),
+        keyAt({.measure = 3, .beat = 1}, 1),
+    };
+
+    const auto dead = planSetMute(chart, tempo_map, keys, ChartMute::Dead, true, "Dead Note");
+    REQUIRE(dead.has_value());
+    if (!dead.has_value())
+    {
+        return;
+    }
+    // Only the plain note takes the X; the whole edit is not refused for the other two.
+    REQUIRE(dead->inserted.size() == 1);
+    CHECK(dead->inserted.front().string == 2);
+    CHECK(dead->inserted.front().dead);
+    applyAndValidate(chart, tempo_map, *dead);
+
+    const auto palm = planSetMute(chart, tempo_map, keys, ChartMute::Palm, true, "Palm Mute");
+    REQUIRE(palm.has_value());
+    if (palm.has_value())
+    {
+        // A palm-muted harmonic is ordinary, and so is a palm-muted vibrato.
+        CHECK(palm->inserted.size() == 3);
+        applyAndValidate(chart, tempo_map, *palm);
+    }
+}
+
+// A scrape records neither mute — savedChartNote strips both, the in-memory override contract —
+// so the verb skips it instead of storing a flag no surface draws and no document keeps. Asked of
+// the writer's own authority rather than restated as an attack test, so the two can never
+// disagree about where a mute is real.
+TEST_CASE("planSetMute leaves a pick slide unmuted", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    CHECK_FALSE(
+        planSetMute(chart, tempo_map, keys, ChartMute::Palm, true, "Palm Mute").has_value());
+    CHECK_FALSE(
+        planSetMute(chart, tempo_map, keys, ChartMute::Dead, true, "Dead Note").has_value());
+}
+
+// Keyed notes already carrying the mute plan nothing, and neither does an empty key set.
+TEST_CASE("planSetMute returns nullopt when nothing changes", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[0].palm_mute = true;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    CHECK_FALSE(
+        planSetMute(chart, tempo_map, keys, ChartMute::Palm, true, "Palm Mute").has_value());
+    CHECK_FALSE(
+        planSetMute(chart, tempo_map, keys, ChartMute::Dead, false, "Remove Dead").has_value());
+    CHECK_FALSE(planSetMute(chart, tempo_map, {}, ChartMute::Palm, true, "Palm Mute").has_value());
+}
+
 // A scrape's path translates with its start under retype, preserving the gesture's travel; a
 // path fret pushed past the neck refuses the whole plan exactly like a member fret.
 TEST_CASE("planRetypeFrets translates a scrape's path with its start", "[core][chart]")

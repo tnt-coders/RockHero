@@ -478,6 +478,12 @@ public:
     /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
     void onChartPickSlideToggleRequested() override;
 
+    /*! \copydoc IEditorController::onChartPalmMuteToggleRequested */
+    void onChartPalmMuteToggleRequested() override;
+
+    /*! \copydoc IEditorController::onChartDeadNoteToggleRequested */
+    void onChartDeadNoteToggleRequested() override;
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;
 

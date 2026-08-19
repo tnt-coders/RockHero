@@ -401,6 +401,28 @@ public:
     virtual void onChartPickSlideToggleRequested() = 0;
 
     /*!
+    \brief Handles a request to toggle the picking hand's palm mute on the selected notes.
+
+    Uniform scope, one compound undo entry: when every selected note is already palm muted the
+    press clears the mute across the selection, otherwise it sets it on all of them. The note's
+    other mute is never touched — the two are independent properties and a note may carry both —
+    and a palm mute has no per-note restriction, so nothing but a pick slide is skipped (its saved
+    form records no mute at all). A second press inside the toggle window reverses the first
+    exactly and leaves no history entry behind.
+    */
+    virtual void onChartPalmMuteToggleRequested() = 0;
+
+    /*!
+    \brief Handles a request to toggle the dead-note mute on the selected notes.
+
+    Uniform scope and one compound undo entry, exactly like the palm mute above, over the other
+    flag. A dead note sounds no pitch, so the rule authority refuses the mute on a note carrying a
+    harmonic node, a bend, or vibrato; those notes are skipped and the rest of the selection still
+    takes it. A second press inside the toggle window reverses the first exactly.
+    */
+    virtual void onChartDeadNoteToggleRequested() = 0;
+
+    /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
 
     The Esc ladder (the marker model): an in-flight pointer gesture (marquee or
