@@ -37,7 +37,7 @@ public:
     \brief Takes ownership of a handle (which may be invalid, leaving the wrapper empty).
     \param handle Handle to own.
     */
-    explicit UniqueBgfxHandle(const HandleT handle) noexcept
+    explicit UniqueBgfxHandle(HandleT handle) noexcept
         : m_handle{handle}
     {}
 

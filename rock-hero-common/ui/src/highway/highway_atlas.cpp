@@ -62,6 +62,8 @@ static_assert(g_glyph_layout.capacity() >= g_last_glyph - g_first_glyph + 1);
 
 } // namespace
 
+// UV rect of one cell, inset half a texel per side so neighbouring cells cannot bleed under
+// minification; an unconfigured layout yields a zero rect.
 std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcept
 {
     const int cells_per_row = columns();
@@ -85,6 +87,7 @@ std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcep
     };
 }
 
+// Maps a drawable character to its glyph-atlas cell; nullopt outside the baked range.
 std::optional<int> highwayGlyphCellIndex(const char character) noexcept
 {
     if (character < g_first_glyph || character > g_last_glyph)
@@ -94,6 +97,8 @@ std::optional<int> highwayGlyphCellIndex(const char character) noexcept
     return character - g_first_glyph;
 }
 
+// Decodes PNG bytes and uploads them as an immutable bgfx texture with the decoded size;
+// failure leaves the returned handle invalid so create()'s asset validation reports it.
 UploadedTexture uploadPngTexture(const std::span<const std::byte> png_bytes)
 {
     if (png_bytes.empty())
@@ -115,6 +120,9 @@ UploadedTexture uploadPngTexture(const std::span<const std::byte> png_bytes)
     };
 }
 
+// Builds both atlases: the glyph sheet is rasterized at runtime from the bundled font, while
+// the note-head atlas uploads the shipped PNG and derives its cell layout from the decoded
+// width.
 HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_png)
 {
     HighwayAtlases atlases;
@@ -136,7 +144,7 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
             atlases.head_layout = HighwayAtlasLayout{
                 .texture_width = decoded.getWidth(),
                 .texture_height = decoded.getHeight(),
-                .cell_size = decoded.getWidth() / 4,
+                .cell_size = decoded.getWidth() / g_head_atlas_columns,
             };
         }
     }

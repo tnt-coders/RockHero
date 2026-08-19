@@ -52,16 +52,22 @@ lane drew for the same note. One authority removes the class.
 \return The cell treatment, or `None` when the head draws no connection mark.
 */
 [[nodiscard]] constexpr HighwayLegatoCell highwayLegatoCell(
-    const common::core::LegatoMotion motion) noexcept
+    common::core::LegatoMotion motion) noexcept
 {
     switch (motion)
     {
         case common::core::LegatoMotion::Hammer:
+        {
             return HighwayLegatoCell::Upright;
+        }
         case common::core::LegatoMotion::Pull:
+        {
             return HighwayLegatoCell::Flipped;
+        }
         case common::core::LegatoMotion::Unjustified:
+        {
             break;
+        }
     }
     return HighwayLegatoCell::None;
 }

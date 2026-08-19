@@ -18,6 +18,8 @@ namespace
     return juce::KeyPress{key_code, juce::ModifierKeys{modifier_flags}, 0};
 }
 
+// Builds the one authoritative command table (ids, names, categories, default chords) that
+// dispatch, keymap persistence, and the keymap UI all read.
 [[nodiscard]] std::vector<EditorCommandSpec> makeRegistry()
 {
     constexpr int command = juce::ModifierKeys::commandModifier;
@@ -384,12 +386,15 @@ namespace
 
 } // namespace
 
+// Meyers-singleton table: built once on first use, immutable afterwards.
 const std::vector<EditorCommandSpec>& editorCommandRegistry()
 {
     static const std::vector<EditorCommandSpec> g_registry = makeRegistry();
     return g_registry;
 }
 
+// Lookup by id; nullptr for unknown or retired ids, which is what lets a stale persisted
+// keymap drop them generically instead of needing per-id migration.
 const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id)
 {
     for (const EditorCommandSpec& spec : editorCommandRegistry())

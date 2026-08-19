@@ -141,7 +141,7 @@ TEST_CASE("Box mute profiles measure painted cross-sections", "[ui][highway]")
          .core_stroke_width = 0.0F,
          .core = std::nullopt},
     };
-    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
+    const std::expected<BoxMuteProfiles, StructuralArtError> profiles =
         measureBoxMuteProfiles(structuralArt(96, 96, cells));
     REQUIRE(profiles.has_value());
     if (!profiles.has_value())
@@ -186,7 +186,7 @@ TEST_CASE("Box mute profiles anchor faint and hollow cores to the rim", "[ui][hi
          .core_stroke_width = 8.0F,
          .core = Band{.coverage = 0.0F, .weight = 0.0F}},
     };
-    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
+    const std::expected<BoxMuteProfiles, StructuralArtError> profiles =
         measureBoxMuteProfiles(structuralArt(96, 96, cells));
     REQUIRE(profiles.has_value());
     if (!profiles.has_value())
@@ -220,7 +220,7 @@ TEST_CASE("Box mute profiles anchor partly covered rims at half the peak", "[ui]
          .core_stroke_width = 0.0F,
          .core = std::nullopt},
     };
-    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
+    const std::expected<BoxMuteProfiles, StructuralArtError> profiles =
         measureBoxMuteProfiles(structuralArt(96, 96, cells));
     REQUIRE(profiles.has_value());
     if (!profiles.has_value())
@@ -255,12 +255,12 @@ TEST_CASE("Box mute profiles reject an alpha-bearing image", "[ui][highway]")
     juce::MemoryOutputStream encoded;
     REQUIRE(juce::PNGImageFormat{}.writeImageToStream(alpha_bearing, encoded));
 
-    const std::expected<BoxMuteProfiles, BoxMuteProfileError> result = measureBoxMuteProfiles(
+    const std::expected<BoxMuteProfiles, StructuralArtError> result = measureBoxMuteProfiles(
         std::span{static_cast<const std::byte*>(encoded.getData()), encoded.getDataSize()});
     REQUIRE_FALSE(result.has_value());
     if (!result.has_value())
     {
-        CHECK(result.error() == BoxMuteProfileError::AlphaBearingImage);
+        CHECK(result.error() == StructuralArtError::AlphaBearingImage);
     }
 }
 
@@ -277,7 +277,7 @@ TEST_CASE("The shipped box mute art satisfies its authoring contract", "[ui][hig
     juce::MemoryBlock bytes;
     REQUIRE(art.loadFileAsData(bytes));
 
-    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles = measureBoxMuteProfiles(
+    const std::expected<BoxMuteProfiles, StructuralArtError> profiles = measureBoxMuteProfiles(
         std::span{static_cast<const std::byte*>(bytes.getData()), bytes.getSize()});
     REQUIRE(profiles.has_value());
     if (!profiles.has_value())

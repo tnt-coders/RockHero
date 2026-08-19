@@ -16,6 +16,8 @@ constexpr int g_default_height = 720;
 
 } // namespace
 
+// Native-titled wrapper owning the surface; centring prefers the editor window so the preview
+// opens where the user is looking.
 PreviewWindow::PreviewWindow(
     const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
     std::function<bool(const juce::KeyPress&)> forward_key_press,
@@ -47,6 +49,7 @@ PreviewWindow::~PreviewWindow()
     close();
 }
 
+// Shows the window, attaches the surface's renderer, and routes keyboard focus to the surface.
 void PreviewWindow::open()
 {
     setVisible(true);
@@ -82,6 +85,8 @@ void PreviewWindow::closeButtonPressed()
     close();
 }
 
+// Editor-forwarding hook: transport shortcuts pressed in the preview run in the editor first;
+// keys the editor declines fall through to the DocumentWindow behavior.
 bool PreviewWindow::keyPressed(const juce::KeyPress& key)
 {
     if (m_forward_key_press && m_forward_key_press(key))

@@ -6,7 +6,9 @@
 #include <cstddef>
 #include <expected>
 #include <juce_graphics/juce_graphics.h>
+#include <rock_hero/common/core/highway/highway_resources.h>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace rock_hero::common::ui
@@ -126,7 +128,9 @@ void mirrorStandardToTech(juce::Image& image)
 
 } // namespace
 
-TEST_CASE("head art profile measures a hard-edged atlas exactly", "[head_art_profile]")
+// Hard edges make every expected value exact: extents, centres, and the diamond's
+// edge-law span.
+TEST_CASE("Head art profile measures a hard-edged atlas exactly", "[ui][highway]")
 {
     juce::Image atlas = blankAtlas();
     // 41 x 21 solid rectangle, centred like the shipped art: half a texel off the quad centre.
@@ -134,7 +138,7 @@ TEST_CASE("head art profile measures a hard-edged atlas exactly", "[head_art_pro
     mirrorStandardToTech(atlas);
     paintDiamond(atlas, 15);
 
-    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    const std::expected<HeadArtProfile, StructuralArtError> profile = measureHeadArtProfile(atlas);
     REQUIRE(profile.has_value());
     if (!profile.has_value())
     {
@@ -153,7 +157,9 @@ TEST_CASE("head art profile measures a hard-edged atlas exactly", "[head_art_pro
     CHECK(profile->node_center_y_texels == Catch::Approx(-0.5).margin(0.001));
 }
 
-TEST_CASE("head art profile interpolates a fringed edge", "[head_art_profile]")
+// The shipped art's fringe construction: the 50% crossing interpolates inside the fringe
+// texel rather than snapping to it.
+TEST_CASE("Head art profile interpolates a fringed edge", "[ui][highway]")
 {
     juce::Image atlas = blankAtlas();
     // The shipped art's construction: a solid rectangle wrapped in a one-texel fringe. The 50%
@@ -163,7 +169,7 @@ TEST_CASE("head art profile interpolates a fringed edge", "[head_art_profile]")
     mirrorStandardToTech(atlas);
     paintDiamond(atlas, 15);
 
-    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    const std::expected<HeadArtProfile, StructuralArtError> profile = measureHeadArtProfile(atlas);
     REQUIRE(profile.has_value());
     if (!profile.has_value())
     {
@@ -177,14 +183,15 @@ TEST_CASE("head art profile interpolates a fringed edge", "[head_art_profile]")
     CHECK(profile->center_y_texels == Catch::Approx(-0.5).margin(0.001));
 }
 
-TEST_CASE("head art profile recovers a known corner radius", "[head_art_profile]")
+// A supersampled rounded rectangle with a known radius: the corner fit must recover it.
+TEST_CASE("Head art profile recovers a known corner radius", "[ui][highway]")
 {
     juce::Image atlas = blankAtlas();
     paintRoundedRectangle(atlas, 20.0, 10.0, 3.0);
     mirrorStandardToTech(atlas);
     paintDiamond(atlas, 15);
 
-    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    const std::expected<HeadArtProfile, StructuralArtError> profile = measureHeadArtProfile(atlas);
     REQUIRE(profile.has_value());
     if (!profile.has_value())
     {
@@ -197,7 +204,8 @@ TEST_CASE("head art profile recovers a known corner radius", "[head_art_profile]
     CHECK(profile->corner_texels == Catch::Approx(3.0).margin(0.2));
 }
 
-TEST_CASE("head art profile byte overload round-trips an encoded atlas", "[head_art_profile]")
+// The byte entry point decodes and defers: an encoded atlas measures like its image.
+TEST_CASE("Head art profile byte overload round-trips an encoded atlas", "[ui][highway]")
 {
     juce::Image atlas = blankAtlas();
     paintRectangle(atlas, 12, 52, 22, 42, 255);
@@ -205,7 +213,7 @@ TEST_CASE("head art profile byte overload round-trips an encoded atlas", "[head_
     paintDiamond(atlas, 15);
     const std::vector<std::byte> png = encodePng(atlas);
 
-    const std::expected<HeadArtProfile, HeadArtProfileError> profile =
+    const std::expected<HeadArtProfile, StructuralArtError> profile =
         measureHeadArtProfile(std::span<const std::byte>{png});
     REQUIRE(profile.has_value());
     if (!profile.has_value())
@@ -216,7 +224,9 @@ TEST_CASE("head art profile byte overload round-trips an encoded atlas", "[head_
     CHECK(profile->node_half_span_texels == Catch::Approx(15.5).margin(0.01));
 }
 
-TEST_CASE("head art profile rejects an alpha-bearing file", "[head_art_profile]")
+// The no-alpha half of the contract rejects at the byte boundary, the only place the
+// file's own alpha state is known.
+TEST_CASE("Head art profile rejects an alpha-bearing file", "[ui][highway]")
 {
     // Same art painted into an ARGB image: the encoded PNG then carries a real alpha channel,
     // which the contract rejects at the byte boundary — decode-time premultiplication would
@@ -233,39 +243,42 @@ TEST_CASE("head art profile rejects an alpha-bearing file", "[head_art_profile]"
     }
     const std::vector<std::byte> png = encodePng(atlas);
 
-    const std::expected<HeadArtProfile, HeadArtProfileError> profile =
+    const std::expected<HeadArtProfile, StructuralArtError> profile =
         measureHeadArtProfile(std::span<const std::byte>{png});
     REQUIRE_FALSE(profile.has_value());
     if (profile.has_value())
     {
         return;
     }
-    CHECK(profile.error() == HeadArtProfileError::AlphaBearingImage);
+    CHECK(profile.error() == StructuralArtError::AlphaBearingImage);
 }
 
-TEST_CASE("head art profile rejects empty bytes and empty cells", "[head_art_profile]")
+// Decode and measurement failures are typed, never silently zero-sized.
+TEST_CASE("Head art profile rejects empty bytes and empty cells", "[ui][highway]")
 {
-    const std::expected<HeadArtProfile, HeadArtProfileError> empty_bytes =
+    const std::expected<HeadArtProfile, StructuralArtError> empty_bytes =
         measureHeadArtProfile(std::span<const std::byte>{});
     REQUIRE_FALSE(empty_bytes.has_value());
     if (empty_bytes.has_value())
     {
         return;
     }
-    CHECK(empty_bytes.error() == HeadArtProfileError::UndecodableImage);
+    CHECK(empty_bytes.error() == StructuralArtError::UndecodableImage);
 
     // A decodable atlas whose head cell is blank is unanalyzable, not silently zero-sized.
     const juce::Image blank = blankAtlas();
-    const std::expected<HeadArtProfile, HeadArtProfileError> no_art = measureHeadArtProfile(blank);
+    const std::expected<HeadArtProfile, StructuralArtError> no_art = measureHeadArtProfile(blank);
     REQUIRE_FALSE(no_art.has_value());
     if (no_art.has_value())
     {
         return;
     }
-    CHECK(no_art.error() == HeadArtProfileError::UnanalyzableArt);
+    CHECK(no_art.error() == StructuralArtError::UnanalyzableArt);
 }
 
-TEST_CASE("head art profile rejects a diverged tech head", "[head_art_profile]")
+// The tech cell must stay byte-identical to the standard: the renderer applies one
+// measured silhouette to heads drawn from either cell.
+TEST_CASE("Head art profile rejects a diverged tech head", "[ui][highway]")
 {
     juce::Image atlas = blankAtlas();
     paintRectangle(atlas, 12, 52, 22, 42, 255);
@@ -275,13 +288,47 @@ TEST_CASE("head art profile rejects a diverged tech head", "[head_art_profile]")
     // the renderer applies cell 0's measured silhouette to heads drawn from cell 1.
     setCoverage(atlas, g_cell + 32, 32, 254);
 
-    const std::expected<HeadArtProfile, HeadArtProfileError> profile = measureHeadArtProfile(atlas);
+    const std::expected<HeadArtProfile, StructuralArtError> profile = measureHeadArtProfile(atlas);
     REQUIRE_FALSE(profile.has_value());
     if (profile.has_value())
     {
         return;
     }
-    CHECK(profile.error() == HeadArtProfileError::UnanalyzableArt);
+    CHECK(profile.error() == StructuralArtError::UnanalyzableArt);
+}
+
+// The shipped asset has to satisfy its own contract. Everything above measures synthetic art,
+// so this is the only check that covers the real file: a re-bake shipping an alpha channel, a
+// diverged tech cell, or art the measurement cannot read fails here instead of at application
+// startup, and the centring rule (every cell's art centred in its cell) is pinned as a measured
+// property of the committed bytes.
+TEST_CASE("The shipped head art satisfies its authoring contract", "[ui][highway]")
+{
+    const juce::File art = juce::File{ROCK_HERO_TEXTURES_DIR}.getChildFile(
+        std::string{common::core::highwayTextureFileName(common::core::HighwayTexture::Notes)});
+    REQUIRE(art.existsAsFile());
+    juce::MemoryBlock bytes;
+    REQUIRE(art.loadFileAsData(bytes));
+
+    const std::expected<HeadArtProfile, StructuralArtError> profile = measureHeadArtProfile(
+        std::span{static_cast<const std::byte*>(bytes.getData()), bytes.getSize()});
+    REQUIRE(profile.has_value());
+    if (!profile.has_value())
+    {
+        return;
+    }
+
+    // Centred art in both measured cells: the marks-final centring contract, read from the bytes.
+    CHECK(std::abs(profile->center_x_texels) < 0.05);
+    CHECK(std::abs(profile->center_y_texels) < 0.05);
+    CHECK(std::abs(profile->node_center_x_texels) < 0.05);
+    CHECK(std::abs(profile->node_center_y_texels) < 0.05);
+    // Extents must be measurable art rather than degenerate slivers. The exact sizes are signed
+    // in the atlas doc block and deliberately NOT pinned here: the load-time measurement exists
+    // so the code adapts to a signed resize instead of breaking on it.
+    CHECK(profile->half_width_texels > 4.0);
+    CHECK(profile->half_height_texels > 4.0);
+    CHECK(profile->node_half_span_texels > 4.0);
 }
 
 } // namespace rock_hero::common::ui

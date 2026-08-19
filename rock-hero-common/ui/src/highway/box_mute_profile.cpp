@@ -20,7 +20,7 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
 // Measures one cell's glyph. Cuts are taken perpendicular to both arms at stations along the
 // outer spans (clear of the crossing and of the corner tips), sampled bilinearly, and
 // averaged into the ramp.
-[[nodiscard]] std::expected<BoxMuteProfile, BoxMuteProfileError> measureCell(
+[[nodiscard]] std::expected<BoxMuteProfile, StructuralArtError> measureCell(
     const juce::Image::BitmapData& bitmap, const int y_begin, const int y_end)
 {
     const int width = bitmap.width;
@@ -49,7 +49,7 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
     }
     if (peak_pixel_coverage < 0.25F)
     {
-        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const float solid_coverage = peak_pixel_coverage / 2.0F;
     int min_x = width;
@@ -72,7 +72,7 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
     }
     if (max_x < 0 || (max_x - min_x) < 8 || (max_y - min_y) < 8)
     {
-        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const double rect_width = max_x - min_x + 1;
     const double rect_height = max_y - min_y + 1;
@@ -212,7 +212,7 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
     }
     if (peak_coverage < 0.25)
     {
-        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const double edge_coverage = peak_coverage / 2.0;
 
@@ -238,7 +238,7 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
     }
     if (stroke_half <= 0.0 || last_visible <= stroke_half)
     {
-        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
 
     // Second pass: the shipped ramp, cut over a tight extent that ends at the last visible
@@ -276,21 +276,21 @@ constexpr float g_visible_coverage = 2.0F / 255.0F;
 // Validates the two-cell stack shape, then measures each cell's glyph. The no-alpha half of the
 // contract is enforced by the byte overload below, which is the only caller that can see what the
 // FILE carried; this overload reads the three structural channels of whatever it is handed.
-std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(const juce::Image& image)
+std::expected<BoxMuteProfiles, StructuralArtError> measureBoxMuteProfiles(const juce::Image& image)
 {
     if (image.getWidth() < 16 || image.getHeight() < 16 || (image.getHeight() % 2) != 0)
     {
-        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const juce::Image::BitmapData bitmap{image, juce::Image::BitmapData::readOnly};
     const int cell_height = image.getHeight() / 2;
-    const std::expected<BoxMuteProfile, BoxMuteProfileError> palm =
+    const std::expected<BoxMuteProfile, StructuralArtError> palm =
         measureCell(bitmap, 0, cell_height);
     if (!palm.has_value())
     {
         return std::unexpected(palm.error());
     }
-    const std::expected<BoxMuteProfile, BoxMuteProfileError> full =
+    const std::expected<BoxMuteProfile, StructuralArtError> full =
         measureCell(bitmap, cell_height, image.getHeight());
     if (!full.has_value())
     {
@@ -299,33 +299,18 @@ std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(const
     return BoxMuteProfiles{.palm = *palm, .full = *full};
 }
 
-// Decodes the PNG bytes, then defers to the image overload.
-std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
+// Decodes through the shared structural-art seam, which enforces the no-alpha rule, then defers
+// to the image overload.
+std::expected<BoxMuteProfiles, StructuralArtError> measureBoxMuteProfiles(
     const std::span<const std::byte> png_bytes)
 {
-    if (png_bytes.empty())
+    const std::expected<juce::Image, StructuralArtError> decoded =
+        decodeStructuralArtPng(png_bytes);
+    if (!decoded.has_value())
     {
-        return std::unexpected(BoxMuteProfileError::UndecodableImage);
+        return std::unexpected(decoded.error());
     }
-    juce::MemoryInputStream stream{png_bytes.data(), png_bytes.size(), false};
-    const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
-    if (decoded.isNull())
-    {
-        return std::unexpected(BoxMuteProfileError::UndecodableImage);
-    }
-    // Whether the decoded image has an alpha channel is NOT the same question as whether the file
-    // did, so it cannot be the test. On macOS JUCE decodes every PNG through CoreImage, which
-    // cannot produce a 24-bit image and so always hands back ARGB with opaque alpha
-    // (juce_CoreGraphicsContext_mac.mm juce_loadWithCoreImage); asking hasAlphaChannel() there
-    // rejects every alpha-free PNG, including the shipped asset. Both of JUCE's decode paths
-    // record the file's real alpha state in this property for exactly this purpose, so it is the
-    // portable answer. An opaque alpha channel premultiplies by 1 and leaves the structural
-    // channels intact, which is why measuring the macOS ARGB image is still bit-exact.
-    if (static_cast<bool>(decoded.getProperties()->getWithDefault("originalImageHadAlpha", false)))
-    {
-        return std::unexpected(BoxMuteProfileError::AlphaBearingImage);
-    }
-    return measureBoxMuteProfiles(decoded);
+    return measureBoxMuteProfiles(*decoded);
 }
 
 } // namespace rock_hero::common::ui

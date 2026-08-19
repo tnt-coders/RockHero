@@ -85,8 +85,11 @@ enum class EditorCommandId : std::uint16_t
     // string spacing, harmonic size, head width, staged-atlas cycling), each deleted when its
     // decision signed (2026-08-17/18); retired ids are never revived.
 
-    /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
-        when one exists, else the transport position (`Ctrl+T`). */
+    /*!
+    \brief Insert a tone-change marker at the cursor (`Ctrl+T`).
+
+    The marker rule: the armed caret when one exists, else the transport position.
+    */
     InsertToneChange = 0x1401,
 
     /*! \brief Step the caret one grid slot left (`Left`). */
@@ -197,10 +200,10 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle the selected notes to or from the pick-slide attack (no default chord). */
     ChartPickSlideToggle = 0x1709,
 
-    /*! \brief Claim or clear a legato connection on the selected notes (`H`). */
+    /*! \brief Claim or clear a legato connection on the selected notes (`L`). */
     ChartLegatoToggle = 0x170A,
 
-    /*! \brief Set the selected notes to the left-hand tap attack (`Ctrl+H`). */
+    /*! \brief Set the selected notes to the left-hand tap attack (`Shift+T`). */
     ChartLeftTap = 0x170B,
 
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */

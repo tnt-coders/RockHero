@@ -16,6 +16,7 @@ target_sources(
             src/highway/head_art_profile.cpp
             src/highway/highway_atlas.cpp
             src/highway/highway_renderer.cpp
+            src/highway/structural_art.cpp
             src/render/render_device.cpp
             src/string_colors/string_color_palette.cpp
             src/tab/tab_lane_layout.cpp

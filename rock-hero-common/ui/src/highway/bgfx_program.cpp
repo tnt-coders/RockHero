@@ -5,6 +5,9 @@
 namespace rock_hero::common::ui
 {
 
+// Wraps prebuilt shader blobs (compiled offline) into a linked bgfx program. Empty or rejected
+// blobs yield an empty wrapper rather than aborting, so the caller's asset validation reports
+// the broken install.
 UniqueBgfxHandle<bgfx::ProgramHandle> createProgramFromBytes(
     const std::span<const std::byte> vertex_bytes, const std::span<const std::byte> fragment_bytes)
 {

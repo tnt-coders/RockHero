@@ -160,8 +160,7 @@ enum class NoteEmphasis : std::uint8_t
 
 The one place the loud end of the axis is defined, so a heavier tier arriving above \ref
 NoteEmphasis::Accent lights up every consumer at once instead of leaving each open-coded
-comparison quietly answering "not accented". Deliberately not paired with a ghost predicate
-while nothing asks that question in more than one place.
+comparison quietly answering "not accented". Its quiet twin is \ref isGhosted below.
 
 \param emphasis How hard the note is struck.
 
@@ -170,6 +169,22 @@ while nothing asks that question in more than one place.
 [[nodiscard]] constexpr bool isAccented(NoteEmphasis emphasis) noexcept
 {
     return emphasis == NoteEmphasis::Accent;
+}
+
+/*!
+\brief Reports whether a note is struck QUIETER than normal.
+
+The quiet end's one classifier, mirroring \ref isAccented: added once both renderers and the
+view-state grouping were each open-coding the ghost comparison, so a second quiet tier arriving
+below \ref NoteEmphasis::Ghost lights up every consumer at once.
+
+\param emphasis How hard the note is struck.
+
+\return True for every emphasis below normal.
+*/
+[[nodiscard]] constexpr bool isGhosted(NoteEmphasis emphasis) noexcept
+{
+    return emphasis == NoteEmphasis::Ghost;
 }
 
 /*!

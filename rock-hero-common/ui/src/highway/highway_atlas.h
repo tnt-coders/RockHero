@@ -103,8 +103,9 @@ struct HighwayAtlases
     HighwayAtlasLayout glyph_layout{};
 };
 
-// The cell vocabulary, row-major on the 4-column grid, sorted semantically rather than in the
-// Charter reference asset's order. Two rules, one per half of the sheet:
+// The cell vocabulary of the 4-column sheet, DECLARED semantically below rather than in cell
+// order (the sheet itself is row-major; the declarations group by meaning). Two rules, one per
+// half of the sheet:
 //
 // HEAD BASES take a row per SHAPE FAMILY, each complete with its hollow twin. Row 0 is the
 // rectangle family (standard, tech, and the anticipation ring the two of them share); row 1 is
@@ -125,6 +126,9 @@ struct HighwayAtlases
 // One art set serves every head-composite consumer deliberately (absolute consistency, no
 // dedicated variants); repeat-box mute marks render through the SDF program instead of any cell,
 // because their line weights must hold across arbitrary box aspects.
+
+/*! \brief Column count of the head atlas grid; the cell size derives as width over this. */
+inline constexpr int g_head_atlas_columns = 4;
 
 /*! \brief Cell index of the standard note head inside the head atlas. */
 inline constexpr int g_head_cell_standard = 0;

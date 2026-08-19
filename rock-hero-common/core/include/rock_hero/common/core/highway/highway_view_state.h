@@ -1029,7 +1029,7 @@ whatever window a renderer happens to be drawing.
             {
                 group.emphasis = NoteEmphasis::Accent;
             }
-            all_ghosted = all_ghosted && note.emphasis == NoteEmphasis::Ghost;
+            all_ghosted = all_ghosted && isGhosted(note.emphasis);
             if (note.mute != group.common_mute)
             {
                 group.common_mute = NoteMute::None;

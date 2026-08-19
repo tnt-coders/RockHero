@@ -2,6 +2,7 @@
 
 #include "keybinds/editor_command_registry.h"
 
+#include <expected>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/shared/logger.h>

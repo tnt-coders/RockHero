@@ -263,7 +263,7 @@ struct LaneStyles
     {
         const auto index = static_cast<std::size_t>(
             std::clamp(chart_string, 1, common::core::g_max_chart_strings) - 1);
-        return emphasis == common::core::NoteEmphasis::Ghost ? ghost[index] : normal[index];
+        return common::core::isGhosted(emphasis) ? ghost[index] : normal[index];
     }
 };
 

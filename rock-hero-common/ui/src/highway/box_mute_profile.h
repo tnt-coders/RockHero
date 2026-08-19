@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "highway/structural_art.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -21,24 +23,6 @@ namespace rock_hero::common::ui
 
 /*! \brief Number of RGBA samples one mark's cross-section ramp carries. */
 inline constexpr std::size_t g_box_mute_ramp_samples = 64;
-
-/*! \brief Why a chords.png measurement failed; the renderer reports it as an invalid asset. */
-enum class BoxMuteProfileError : std::uint8_t
-{
-    /*! \brief The bytes are empty or do not decode as an image. */
-    UndecodableImage,
-
-    /*! \brief The image is not a two-cell stack of glyphs the contract can measure. */
-    UnanalyzableGlyph,
-
-    /*!
-    \brief The PNG file carries a real alpha channel. The contract requires opacity in the coverage
-    channel instead, because JUCE premultiplies an alpha-bearing PNG at decode and would silently
-    scale every channel of the structural scheme by it. This is a fact about the file, not about
-    the decoded image: macOS decodes every PNG to ARGB whatever the file's color type.
-    */
-    AlphaBearingImage,
-};
 
 /*!
 \brief One mark's measured cross-section: the art's tint weighting and coverage as a function of
@@ -117,7 +101,7 @@ answer. Callers holding a file must go through that overload to get the no-alpha
 \return Both profiles, or the measurement failure — the renderer treats any failure as an
         invalid required asset.
 */
-[[nodiscard]] std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
+[[nodiscard]] std::expected<BoxMuteProfiles, StructuralArtError> measureBoxMuteProfiles(
     const juce::Image& image);
 
 /*!
@@ -130,7 +114,7 @@ rejected.
 \param png_bytes The chords.png file contents.
 \return Both profiles, or the decode, alpha, or measurement failure.
 */
-[[nodiscard]] std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
+[[nodiscard]] std::expected<BoxMuteProfiles, StructuralArtError> measureBoxMuteProfiles(
     std::span<const std::byte> png_bytes);
 
 } // namespace rock_hero::common::ui

@@ -5,7 +5,9 @@
 
 #pragma once
 
-#include <cstdint>
+#include "highway/structural_art.h"
+
+#include <cstddef>
 #include <expected>
 #include <span>
 
@@ -16,25 +18,6 @@ class Image;
 
 namespace rock_hero::common::ui
 {
-
-/*! \brief Why a notes.png silhouette measurement failed; the renderer reports it as an invalid
-    asset. */
-enum class HeadArtProfileError : std::uint8_t
-{
-    /*! \brief The bytes are empty or do not decode as an image. */
-    UndecodableImage,
-
-    /*! \brief A head cell does not carry a silhouette the contract can measure. */
-    UnanalyzableArt,
-
-    /*!
-    \brief The PNG file carries a real alpha channel. The contract requires opacity in the
-    coverage channel instead, because JUCE premultiplies an alpha-bearing PNG at decode and would
-    silently scale every channel of the structural scheme by it. This is a fact about the file,
-    not about the decoded image: macOS decodes every PNG to ARGB whatever the file's color type.
-    */
-    AlphaBearingImage,
-};
 
 /*!
 \brief The head art's measured silhouette, in atlas texels of the drawn quad's index space.
@@ -48,12 +31,12 @@ structural scheme; the shipped file carries no alpha). The threshold is load-bea
 radius is a strong function of it — fitted to the antialias tail instead, the same art measures
 roughly twice the radius — so every field here reads the same contour.
 
-Centres are offsets from the drawn quad's centre, +x right and +y up. They are NOT zero and not
-an art defect: odd-sized art inside an even cell cannot be quad-centred by construction, so it
-sits half a texel off on both axes (plus any authored banding asymmetry). Modelling this is what
-makes a symmetric distance field fit an asymmetric silhouette; without it the glow's ridge lands
-up to a texel off the art's edge, bright on bare texture along two edges and buried under the
-head along the other two.
+Centres are offsets from the drawn quad's centre, +x right and +y up. The marks-final atlas
+measures them at exactly zero — every cell is recentred by contract — but the fields stay
+measured rather than assumed: art authored even half a texel off-centre would land the glow's
+ridge off the art's edge, bright on bare texture along two edges and buried under the head along
+the other two, and modelling the offset is what lets a symmetric distance field fit whatever the
+art actually ships.
 */
 struct HeadArtProfile
 {
@@ -97,19 +80,19 @@ struct HeadArtProfile
 /*!
 \brief Measures the head silhouettes from a decoded notes.png image.
 
-Reads the standard head cell and the node-head base cell of the atlas grid (the same
-width-over-four cell derivation the atlas layout uses), and enforces that the tech head's
-coverage is byte-identical to the standard's — the renderer applies the one measured silhouette
-to heads drawn from either cell, so a rebake diverging them must fail loudly here rather than
-light tech heads with the wrong shape. Only the coverage channel is read; any alpha the decoder
-attached is ignored, because whether the ART carries alpha is a question about the file that
-only the byte overload below can answer.
+Reads the standard head cell and the node-head base cell of the atlas grid (texture width over \ref
+g_head_atlas_columns — the same cell derivation the atlas layout uses), and enforces that the tech
+head's coverage is byte-identical to the standard's — the renderer applies the one measured
+silhouette to heads drawn from either cell, so a rebake diverging them must fail loudly here rather
+than light tech heads with the wrong shape. Only the coverage channel is read; any alpha the decoder
+attached is ignored, because whether the ART carries alpha is a question about the file that only
+the byte overload below can answer.
 
 \param image Decoded notes.png.
 \return The measured profile, or the measurement failure — the renderer treats any failure as an
         invalid required asset.
 */
-[[nodiscard]] std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(
+[[nodiscard]] std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(
     const juce::Image& image);
 
 /*!
@@ -121,7 +104,7 @@ still known, so it is where an alpha-bearing re-bake is rejected.
 \param png_bytes The notes.png file contents.
 \return The measured profile, or the decode, alpha, or measurement failure.
 */
-[[nodiscard]] std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(
+[[nodiscard]] std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(
     std::span<const std::byte> png_bytes);
 
 } // namespace rock_hero::common::ui

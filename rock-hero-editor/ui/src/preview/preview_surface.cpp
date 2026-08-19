@@ -6,9 +6,7 @@
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <string>
 #include <utility>
-#include <vector>
 
 #if JUCE_WINDOWS
 #define WIN32_LEAN_AND_MEAN
@@ -150,6 +148,7 @@ void PreviewSurface::attach()
                 .width = size.width,
                 .height = size.height,
                 .vsync = true,
+                .msaa = common::ui::RenderMsaa::X4,
                 .debug = false,
             });
     if (!device.has_value())
@@ -343,9 +342,10 @@ void PreviewSurface::renderFrame()
 
     // Song time follows the marker rule while paused — the armed caret is THE paused position (the
     // marker model), with the exact transport position as the passive fallback so paused seeks
-    // always land even if the clock publisher is idle. The transport is read only when paused and
-    // unarmed, so the port call stays off the playing path. PreviewTimeModel owns the
-    // playing/paused policy (extrapolation and the paused glide).
+    // always land even if the clock publisher is idle. The transport read sits in the ternary's
+    // paused arm, so the port call stays off the playing path (value_or does evaluate it whenever
+    // paused, armed or not — harmless there). PreviewTimeModel owns the playing/paused policy
+    // (extrapolation and the paused glide).
     const common::audio::PlaybackClockSnapshot snapshot = m_playback_clock.snapshot();
     const double paused_target_seconds =
         snapshot.playing ? 0.0 : m_caret_seconds.value_or(m_transport.position().seconds);

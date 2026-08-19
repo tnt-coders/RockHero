@@ -1,5 +1,7 @@
 #include "highway/head_art_profile.h"
 
+#include "highway/highway_atlas.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -17,14 +19,6 @@ namespace
 
 // Peak-coverage floor under which a cell counts as empty rather than measurable art.
 constexpr float g_measurable_peak = 0.25F;
-
-// The atlas grid the layout derives: four columns of square cells (highway_atlas.cpp derives the
-// cell size as width / 4). The standard head is cell 0; the node-head base, cell 4, sits directly
-// below it in column 0.
-constexpr int g_atlas_columns = 4;
-constexpr int g_standard_cell = 0;
-constexpr int g_tech_cell = 1;
-constexpr int g_node_cell = 4;
 
 // One cell's pixel window and its coverage reader (B of the structural scheme). Holds the bitmap
 // by pointer purely as a value type; the view never outlives the measurement pass.
@@ -53,6 +47,9 @@ struct Crossings
     double hi;
 };
 
+// Interpolated threshold crossings of one max-projection profile: the sub-texel positions
+// where coverage rises above and falls back below the threshold. Empty when the profile never
+// reaches it.
 [[nodiscard]] std::optional<Crossings> crossingsAt(
     const std::span<const double> profile, const double threshold)
 {
@@ -230,19 +227,22 @@ the corner.
 
 } // namespace
 
-std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const juce::Image& image)
+// Validates the atlas shape, measures the standard and node silhouettes, and enforces the
+// tech-cell byte-identity guard. The no-alpha half of the contract is enforced by the byte
+// overload below; this overload reads the coverage channel of whatever it is handed.
+std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(const juce::Image& image)
 {
-    const int cell_size = image.getWidth() / g_atlas_columns;
+    const int cell_size = image.getWidth() / g_head_atlas_columns;
     if (cell_size < 16 || image.getHeight() < cell_size * 2)
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const juce::Image::BitmapData bitmap{image, juce::Image::BitmapData::readOnly};
     const auto cell_view = [&](const int index) {
         return CellView{
             .bitmap = &bitmap,
-            .x0 = (index % g_atlas_columns) * cell_size,
-            .y0 = (index / g_atlas_columns) * cell_size,
+            .x0 = (index % g_head_atlas_columns) * cell_size,
+            .y0 = (index / g_head_atlas_columns) * cell_size,
             .size = cell_size,
         };
     };
@@ -251,13 +251,13 @@ std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const j
     // relative to that, +x right and +y up (image rows grow down, hence the y negation).
     const double quad_center = (static_cast<double>(cell_size) - 1.0) / 2.0;
 
-    const CellView standard = cell_view(g_standard_cell);
+    const CellView standard = cell_view(g_head_cell_standard);
     // The tech head (cell 1) shares this profile: the renderer applies cell 0's measured
     // silhouette to heads drawn from either cell, which is only honest while their coverage is
     // byte-identical. Guarded here so a rebake that diverges them fails as an invalid asset
     // instead of silently lighting tech heads with the wrong silhouette. Coverage bytes only —
     // the tech head's tint channels differ by design.
-    const CellView tech = cell_view(g_tech_cell);
+    const CellView tech = cell_view(g_head_cell_tech);
     for (int y = 0; y < cell_size; ++y)
     {
         for (int x = 0; x < cell_size; ++x)
@@ -265,14 +265,14 @@ std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const j
             if (bitmap.getPixelColour(standard.x0 + x, standard.y0 + y).getBlue() !=
                 bitmap.getPixelColour(tech.x0 + x, tech.y0 + y).getBlue())
             {
-                return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+                return std::unexpected(StructuralArtError::UnanalyzableArt);
             }
         }
     }
     const CellProfiles standard_profiles = maxProjections(standard);
     if (standard_profiles.peak < g_measurable_peak)
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const double standard_threshold = standard_profiles.peak / 2.0;
     const std::optional<Crossings> standard_x =
@@ -281,7 +281,7 @@ std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const j
         crossingsAt(standard_profiles.by_y, standard_threshold);
     if (!standard_x.has_value() || !standard_y.has_value())
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const double half_width = (standard_x->hi - standard_x->lo) / 2.0;
     const double half_height = (standard_y->hi - standard_y->lo) / 2.0;
@@ -290,21 +290,21 @@ std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const j
     if (half_width < 4.0 || half_height < 2.0 || half_width > quad_center ||
         half_height > quad_center)
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
 
-    const CellView node = cell_view(g_node_cell);
+    const CellView node = cell_view(g_head_cell_harmonic_base);
     const CellProfiles node_profiles = maxProjections(node);
     if (node_profiles.peak < g_measurable_peak)
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const double node_threshold = node_profiles.peak / 2.0;
     const std::optional<Crossings> node_x = crossingsAt(node_profiles.by_x, node_threshold);
     const std::optional<Crossings> node_y = crossingsAt(node_profiles.by_y, node_threshold);
     if (!node_x.has_value() || !node_y.has_value())
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const double node_cx = (node_x->lo + node_x->hi) / 2.0;
     const double node_cy = (node_y->lo + node_y->hi) / 2.0;
@@ -325,12 +325,12 @@ std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const j
     }
     if (span_count < 4)
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
     const double node_half_span = span_sum / span_count;
     if (node_half_span < 4.0 || node_half_span > quad_center)
     {
-        return std::unexpected(HeadArtProfileError::UnanalyzableArt);
+        return std::unexpected(StructuralArtError::UnanalyzableArt);
     }
 
     return HeadArtProfile{
@@ -346,27 +346,18 @@ std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(const j
     };
 }
 
-std::expected<HeadArtProfile, HeadArtProfileError> measureHeadArtProfile(
+// Decodes through the shared structural-art seam, which enforces the no-alpha rule, then defers
+// to the image overload.
+std::expected<HeadArtProfile, StructuralArtError> measureHeadArtProfile(
     const std::span<const std::byte> png_bytes)
 {
-    if (png_bytes.empty())
+    const std::expected<juce::Image, StructuralArtError> decoded =
+        decodeStructuralArtPng(png_bytes);
+    if (!decoded.has_value())
     {
-        return std::unexpected(HeadArtProfileError::UndecodableImage);
+        return std::unexpected(decoded.error());
     }
-    juce::MemoryInputStream stream{png_bytes.data(), png_bytes.size(), false};
-    const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
-    if (decoded.isNull())
-    {
-        return std::unexpected(HeadArtProfileError::UndecodableImage);
-    }
-    // Whether the decoded image has an alpha channel is NOT the same question as whether the file
-    // did (macOS decodes every PNG to ARGB); both decode paths record the file's real alpha state
-    // in this property for exactly this purpose. See box_mute_profile.cpp for the full account.
-    if (static_cast<bool>(decoded.getProperties()->getWithDefault("originalImageHadAlpha", false)))
-    {
-        return std::unexpected(HeadArtProfileError::AlphaBearingImage);
-    }
-    return measureHeadArtProfile(decoded);
+    return measureHeadArtProfile(*decoded);
 }
 
 } // namespace rock_hero::common::ui

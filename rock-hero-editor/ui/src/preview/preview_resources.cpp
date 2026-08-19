@@ -54,6 +54,8 @@ namespace
 
 } // namespace
 
+// Loads every compiled shader pair the shared program table names; nullopt on any missing
+// stage so the preview reports a broken deployment instead of drawing without a program.
 std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
 {
     common::ui::HighwayShaderSet set;
@@ -78,6 +80,8 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
     return set;
 }
 
+// Loads every texture the shared table names; a missing file stays an empty entry because the
+// renderer's create() owns the required-asset judgment and its diagnostic.
 common::ui::HighwayTextureSet loadPreviewHighwayTextures()
 {
     const juce::File textures = resourcesRoot().getChildFile("textures");
