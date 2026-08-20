@@ -62,7 +62,12 @@ item ships, mark it and name the commit.
     no-op red, so the seven
     planners move to `std::expected<ChartNotesEditPlan, ChartPlanRefusal>` with
     `{NoChange, Invalid}`. This is why **every refusal in the editor is silent today** — no
-    caller can tell one from the other. **Correction 2026-08-11:** W5's counted feedback did NOT
+    caller can tell one from the other. **SHIPPED `3ddae58d` 2026-08-20** (eight planners by
+    then — `planSetEmphasis` had joined the shape): `finalizePlan` owns the classification,
+    per-planner early-outs classified where they occur, `planSettleLegato`'s distinct emptiness
+    and `planSetLegato`'s typed report untouched, refusal kinds pinned by tests. The
+    `planRetypeFrets` scrape-path deletion that had to land first shipped the same day
+    (`1624bb2f`). **Correction 2026-08-11:** W5's counted feedback did NOT
     need this channel and no longer waits on it — `planSetLegato` returns its own typed skip report
     beside the plan. The two are different questions: this one distinguishes a refused plan from an
     empty one, W5's names which notes the resolver turned down and why.
