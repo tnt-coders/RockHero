@@ -49,7 +49,17 @@ item ships, mark it and name the commit.
   runAction gate, settleChartLegato's head, and each direct chart verb head) and discarded when
   invalid. W2's reversal machinery, the history splice, and all mid-entry chart mutation are
   deleted; both latent bugs (paused-seek widen, mid-window save split) are unrepresentable; the
-  controller test harness gained the deferring scheduler and its first injected clock. **Still
+  controller test harness gained the deferring scheduler and its first injected clock.
+  **Amended on first sighting (user re-rulings 2026-08-20, same day):** (1) an INVALID value is
+  STICKY — it outlives its window and persists red until a further digit extends it or Esc /
+  any other intent discards it, for immediate digits too (a refusal display that vanishes on a
+  timer, or never appears, is no display); (2) the box's plate FLIPS with validity — valid rides
+  the lane's near-black in the digit's white, invalid flips to a white plate with the theme's
+  red, so the polarity flip itself is the glance signal (the mute plate-flip mechanism) and
+  red-on-white carries the error idiom at full contrast; (3) the window wake is TOKEN-ONLY —
+  the earlier clock re-check could strand a marginally-early wake as a pending entry nothing
+  would settle (sighted as the timeout not committing), and a correctness check must not be
+  able to create a stuck state. **Still
   follow-on, not part of this ship:** the W5 counted-skip and W6 locked-tail payloads need their
   own notice surface — the pending box carries a typed value, not a report; their entries below
   stay open for exactly that surface.

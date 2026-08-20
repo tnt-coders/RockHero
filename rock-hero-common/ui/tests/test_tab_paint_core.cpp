@@ -1473,39 +1473,46 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
 }
 
 // The pending entry box: the editor's provisional-value chrome, exported from the core so the
-// digit's plate and typography stay the committed head's. Pins the three inks the primitive
-// promises: the host's text color at the glyphs, the host's border color on the frame, and the
-// lane's near-black known ground between them.
+// digit's plate and typography stay the committed head's. Pins the inks the primitive promises
+// on BOTH plate polarities: the host's text color at the glyphs, the host's border color on the
+// frame, and the known ground — near-black under a valid value, white under an invalid one
+// (the plate flip is itself the glance signal).
 TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
-    juce::Graphics graphics{image};
-    const juce::Colour ink{0xffff0000};
     const juce::Colour border{0xff87cefa};
-    paintTabPendingEntryBox(graphics, referenceMetrics(6), 200.0f, 120.0f, "17", ink, border);
+    // Renders one box and probes exact text-ink and ground pixels plus the frame's presence.
+    // The glyph cores and the fill's interior land at full strength, so those probe exactly;
+    // the one-pixel frame sits on fractional edges and antialiases everywhere, so it probes by
+    // hue instead — the accent is the only blue-dominant ink in either image.
+    const auto probe =
+        [&border](const bool light_plate, const juce::Colour ink, const juce::Colour ground) {
+            const juce::Image image{juce::SoftwareImageType{}.create(
+                juce::Image::ARGB, 400, 240, true)};
+            juce::Graphics graphics{image};
+            paintTabPendingEntryBox(
+                graphics, referenceMetrics(6), 200.0f, 120.0f, "17", light_plate, ink, border);
+            int text_pixels = 0;
+            int border_pixels = 0;
+            int ground_pixels = 0;
+            for (int y = 90; y <= 150; ++y)
+            {
+                for (int x = 160; x <= 240; ++x)
+                {
+                    const juce::Colour pixel = image.getPixelAt(x, y);
+                    text_pixels += pixel == ink ? 1 : 0;
+                    border_pixels +=
+                        pixel.getAlpha() > 0 && pixel.getBlue() > pixel.getRed() + 24 ? 1 : 0;
+                    ground_pixels += pixel == ground ? 1 : 0;
+                }
+            }
+            CHECK(text_pixels > 4);
+            CHECK(border_pixels > 8);
+            CHECK(ground_pixels > 20);
+        };
 
-    // Probe a window around the box. The glyph cores and the fill's interior land at full
-    // strength, so those two probe exactly; the one-pixel frame sits on fractional edges and
-    // antialiases everywhere, so it probes by hue instead — the accent is the only
-    // blue-dominant ink in the image, and its blend against the near-black ground keeps that
-    // dominance at any coverage.
-    int text_pixels = 0;
-    int border_pixels = 0;
-    int ground_pixels = 0;
-    for (int y = 90; y <= 150; ++y)
-    {
-        for (int x = 160; x <= 240; ++x)
-        {
-            const juce::Colour pixel = image.getPixelAt(x, y);
-            text_pixels += pixel == ink ? 1 : 0;
-            border_pixels += pixel.getAlpha() > 0 && pixel.getBlue() > pixel.getRed() + 24 ? 1 : 0;
-            ground_pixels += pixel == juce::Colour{0xff101010} ? 1 : 0;
-        }
-    }
-    CHECK(text_pixels > 4);
-    CHECK(border_pixels > 8);
-    CHECK(ground_pixels > 20);
+    probe(/*light_plate=*/false, juce::Colour{0xffffffff}, juce::Colour{0xff101010});
+    probe(/*light_plate=*/true, juce::Colour{0xffff0000}, juce::Colour{0xffffffff});
 }
 
 } // namespace rock_hero::common::ui

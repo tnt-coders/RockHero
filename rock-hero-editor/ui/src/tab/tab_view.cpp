@@ -345,8 +345,10 @@ void TabView::paint(juce::Graphics& g)
     // primitive so the digit's typography and plate cannot drift from the committed head's.
     if (m_edit.pending_fret.has_value())
     {
-        const juce::Colour ink =
-            m_edit.pending_fret->valid ? editorTheme().primary_text : editorTheme().invalid;
+        // Valid rides the dark plate in the digit's own white; invalid FLIPS the plate to the
+        // white ground with the theme's red — the polarity flip is itself the glance signal.
+        const bool invalid = !m_edit.pending_fret->valid;
+        const juce::Colour ink = invalid ? editorTheme().invalid : editorTheme().primary_text;
         const juce::String text{m_edit.pending_fret->text};
         for (const std::size_t index : m_edit.pending_fret->notes)
         {
@@ -358,7 +360,7 @@ void TabView::paint(juce::Graphics& g)
             const common::ui::TabNoteLayout layout =
                 common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
             common::ui::paintTabPendingEntryBox(
-                g, metrics, layout.onset_x, layout.center_y, text, ink, accent);
+                g, metrics, layout.onset_x, layout.center_y, text, invalid, ink, accent);
         }
         if (m_edit.pending_fret->insert_seconds.has_value() &&
             m_edit.pending_fret->insert_string >= 1 &&
@@ -370,6 +372,7 @@ void TabView::paint(juce::Graphics& g)
                 metrics.x(*m_edit.pending_fret->insert_seconds),
                 metrics.laneY(m_edit.pending_fret->insert_string),
                 text,
+                invalid,
                 ink,
                 accent);
         }

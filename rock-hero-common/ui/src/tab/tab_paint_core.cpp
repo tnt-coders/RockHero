@@ -1886,17 +1886,19 @@ void strokeTabNoteHeadOutline(
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
 }
 
-// Rationale lives on the declaration in tab_paint_core.h. The fill stays internal on purpose:
-// the ruling wants a KNOWN ground under the provisional text so the valid/invalid ink carries
-// the signal on luminance alone, and 0xff101010 is the lane's own established near-black (the
-// quieting target the 2D surface already leans toward), so the box belongs to the lane on any
-// string color.
+// Rationale lives on the declaration in tab_paint_core.h. The two grounds stay internal on
+// purpose: they are KNOWN backgrounds the host cannot mispair with its inks. Dark is
+// 0xff101010, the lane's own established near-black (the quieting target the 2D surface
+// already leans toward); light is pure white, so the invalid red reads at the error idiom's
+// full pop and the PLATE POLARITY FLIP itself signals invalid even in full monochrome — the
+// same glance mechanism the mute plate-flip design established.
 void paintTabPendingEntryBox(
     juce::Graphics& g, const TabLaneMetrics& metrics, const float center_x, const float center_y,
-    const juce::String& text, const juce::Colour text_color, const juce::Colour border_color)
+    const juce::String& text, const bool light_plate, const juce::Colour text_color,
+    const juce::Colour border_color)
 {
     const juce::Rectangle<float> plate = headTextPlate(metrics, text, center_x, center_y);
-    g.setColour(juce::Colour{0xff101010});
+    g.setColour(light_plate ? juce::Colour{0xffffffff} : juce::Colour{0xff101010});
     g.fillRect(plate);
     g.setColour(border_color);
     g.drawRect(plate, 1.0f);

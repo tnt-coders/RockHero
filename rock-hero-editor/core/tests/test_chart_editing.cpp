@@ -108,6 +108,27 @@ void doubleClick(EditorController& controller, float x, float y)
     controller.onChartPointerUp(pointerEvent(x, y, {}, 2));
 }
 
+// Chart typing fixture: the deferring scheduler holds the pending window's wake for explicit
+// pumping, and the injected clock pins the combine window, so a provisional value stays pending
+// exactly until the test settles it. Under the immediate scheduler the wake settles inside the
+// arming keystroke — production-correct, but useless for pinning the pending state itself, so
+// every test whose narrative needs a value to STAY pending builds its controller over this.
+// Declare it before the controller: the services lambda reads the clock through `this`.
+struct PendingEntryHarness
+{
+    testing::DeferringMessageThreadScheduler scheduler{};
+    std::uint32_t now_ms{1000};
+
+    // Builds the controller services over this harness's scheduler and clock.
+    [[nodiscard]] EditorController::Services services()
+    {
+        EditorController::Services services =
+            controllerServices(nullEditorSettings(), immediateTaskRunner(), scheduler);
+        services.now_milliseconds = [this] { return now_ms; };
+        return services;
+    }
+};
+
 } // namespace
 
 // A glyph click selects the note and never seeks the transport.
@@ -1121,9 +1142,10 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1132,6 +1154,7 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     FakeEditorView view;
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
 
     // Place the caret at measure 4 beat 1 (x = 120 is 6.0s) on string 1 and type 1 then 2:
     // ONE inserted note at fret 12, selected, as ONE undo entry.
@@ -1239,9 +1262,10 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1250,6 +1274,7 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     FakeEditorView view;
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
 
     // A plain click selects just the string-1 note (containment hierarchy).
     click(controller, 40.0f, 220.0f);
@@ -1301,22 +1326,19 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
 }
 
 // The pending window itself, driven exactly like production: a deferring scheduler holds the
-// wake and an injected clock decides when the window has elapsed. Pins the three wake laws: it
-// settles once the clock agrees, an early delivery no-ops (the clock is the authority, not the
-// scheduler), and a wake left behind by a settled entry is stale and cannot double-commit.
+// wake for explicit delivery. Pins the wake laws: a live wake settles its entry
+// unconditionally (the stamp is the only guard — a clock re-check used to be able to strand a
+// marginally-early wake as a pending entry nothing would settle), and a wake left behind by a
+// settled entry is stale and cannot double-commit.
 TEST_CASE("EditorController pending digit settles on its window wake", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
-    testing::DeferringMessageThreadScheduler scheduler;
-    std::uint32_t now_ms = 1000;
-    EditorController::Services services =
-        controllerServices(nullEditorSettings(), immediateTaskRunner(), scheduler);
-    services.now_milliseconds = [&now_ms] { return now_ms; };
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        services,
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1327,7 +1349,7 @@ TEST_CASE("EditorController pending digit settles on its window wake", "[core][c
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     // Drain anything the load itself scheduled, so the pumps below deliver exactly the fret
     // window's wake.
-    static_cast<void>(scheduler.runDelayed());
+    static_cast<void>(pending.scheduler.runDelayed());
 
     click(controller, 40.0f, 220.0f);
     const EditorViewState* state = stateOrNull(view.last_state);
@@ -1340,10 +1362,9 @@ TEST_CASE("EditorController pending digit settles on its window wake", "[core][c
     CHECK(state->undo_history.labels.size() == entries_before);
     REQUIRE(state->chart_edit.pending_fret.has_value());
 
-    SECTION("the wake settles once the window has elapsed")
+    SECTION("the delivered wake settles the entry")
     {
-        now_ms += 751;
-        CHECK(scheduler.runDelayed() == 1);
+        CHECK(pending.scheduler.runDelayed() == 1);
         chart = chartOrNull(controller);
         CHECK(chart->notes[0].fret == 2);
         CHECK(state->undo_history.labels.size() == entries_before + 1);
@@ -1353,17 +1374,6 @@ TEST_CASE("EditorController pending digit settles on its window wake", "[core][c
         controller.onUndoRequested();
         CHECK(chartOrNull(controller)->notes[0].fret == 3);
     }
-    SECTION("an early wake no-ops and the value still commits at the next intent")
-    {
-        CHECK(scheduler.runDelayed() == 1);
-        chart = chartOrNull(controller);
-        CHECK(chart->notes[0].fret == 3);
-        CHECK(state->chart_edit.pending_fret.has_value());
-
-        controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-        CHECK(chartOrNull(controller)->notes[0].fret == 2);
-        CHECK(state->undo_history.labels.size() == entries_before + 1);
-    }
     SECTION("a stale wake after a second digit cannot double-commit")
     {
         controller.onChartFretDigitTyped(3);
@@ -1371,31 +1381,27 @@ TEST_CASE("EditorController pending digit settles on its window wake", "[core][c
         CHECK(chart->notes[0].fret == 23);
         CHECK(state->undo_history.labels.size() == entries_before + 1);
 
-        now_ms += 751;
-        CHECK(scheduler.runDelayed() == 1);
+        CHECK(pending.scheduler.runDelayed() == 1);
         chart = chartOrNull(controller);
         CHECK(chart->notes[0].fret == 23);
         CHECK(state->undo_history.labels.size() == entries_before + 1);
     }
 }
 
-// The red half of the pending model: a provisional digit whose plan the gate refuses paints
-// invalid, applies nothing while pending, and DISCARDS at its window — the previous values were
-// never touched, so there is nothing to restore. The same capo that refuses the single digit is
-// why the window exists at all: the two-digit target it feeds is legal and must stay typable.
-TEST_CASE("EditorController discards an invalid pending digit at its window", "[core][chart]")
+// The red half of the pending model, as re-ruled 2026-08-20: an INVALID value is STICKY. It
+// paints red, applies nothing, outlives its window (the wake skips it — a refusal display that
+// vanishes on a timer is barely a display), always accepts a further digit however long it has
+// sat, and discards only when Esc or another intent settles it. The refused first digit is also
+// exactly what keeps the legal two-digit target typable under a capo.
+TEST_CASE("EditorController keeps an invalid pending digit until it is settled", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
-    testing::DeferringMessageThreadScheduler scheduler;
-    std::uint32_t now_ms = 1000;
-    EditorController::Services services =
-        controllerServices(nullEditorSettings(), immediateTaskRunner(), scheduler);
-    services.now_milliseconds = [&now_ms] { return now_ms; };
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        services,
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1406,7 +1412,7 @@ TEST_CASE("EditorController discards an invalid pending digit at its window", "[
     common::core::Chart capo_chart = makeTestChart();
     capo_chart.tuning.capo = 2;
     REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart)));
-    static_cast<void>(scheduler.runDelayed());
+    static_cast<void>(pending.scheduler.runDelayed());
 
     click(controller, 40.0f, 220.0f);
     const EditorViewState* state = stateOrNull(view.last_state);
@@ -1424,21 +1430,80 @@ TEST_CASE("EditorController discards an invalid pending digit at its window", "[
         CHECK_FALSE(state->chart_edit.pending_fret->valid);
     }
 
-    // The window elapses: the invalid value discards — no edit, no entry, previous value stands.
-    now_ms += 751;
-    CHECK(scheduler.runDelayed() == 1);
-    chart = chartOrNull(controller);
-    CHECK(chart->notes[0].fret == 3);
-    CHECK(state->undo_history.labels.size() == entries_before);
-    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    SECTION("the wake leaves it red, and a digit long past the window still extends it")
+    {
+        CHECK(pending.scheduler.runDelayed() == 1);
+        CHECK(chartOrNull(controller)->notes[0].fret == 3);
+        REQUIRE(state->chart_edit.pending_fret.has_value());
 
-    // The refused first digit is exactly what keeps 23 typable: the second digit combines and
-    // commits the legal two-digit value as one entry.
-    controller.onChartFretDigitTyped(2);
-    controller.onChartFretDigitTyped(3);
-    chart = chartOrNull(controller);
-    CHECK(chart->notes[0].fret == 23);
-    CHECK(state->undo_history.labels.size() == entries_before + 1);
+        // Far past the window: the red box is visibly live, so the digit combines — 23 is the
+        // legal value the refused first digit exists to keep typable.
+        pending.now_ms += 5000;
+        controller.onChartFretDigitTyped(3);
+        CHECK(chartOrNull(controller)->notes[0].fret == 23);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    }
+    SECTION("another intent's prologue discards it and the verb still applies")
+    {
+        controller.onChartPalmMuteToggleRequested();
+        CHECK(chartOrNull(controller)->notes[0].fret == 3);
+        CHECK(chartOrNull(controller)->notes[0].palm_mute);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    }
+}
+
+// The sticky rule holds for IMMEDIATE digits too: a digit that would settle in its own
+// keystroke when valid goes pending red when the gate refuses it, because the refusal must be
+// seen — the old model's silent no-op was exactly the invisible refusal W3 exists to end.
+TEST_CASE("EditorController keeps an invalid immediate digit pending red", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    PendingEntryHarness pending;
+    EditorController controller{
+        audioPorts(transport, audio),
+        pending.services(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    common::core::Chart capo_chart = makeTestChart();
+    capo_chart.tuning.capo = 5;
+    // The fixture's fret-3 notes sit under this capo; re-fret them legal so the chart loads.
+    for (common::core::ChartNote& note : capo_chart.notes)
+    {
+        note.fret += 5;
+    }
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart)));
+    static_cast<void>(pending.scheduler.runDelayed());
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    // "4" is an immediate digit, but under capo 5 it is Invalid: pending red, nothing applied.
+    controller.onChartFretDigitTyped(4);
+    CHECK(chartOrNull(controller)->notes[0].fret == 8);
+    CHECK(state->undo_history.labels.size() == entries_before);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    if (state->chart_edit.pending_fret.has_value())
+    {
+        CHECK(state->chart_edit.pending_fret->text == "4");
+        CHECK_FALSE(state->chart_edit.pending_fret->valid);
+    }
+
+    // Esc cancels the problem: the value discards and the caret survives.
+    controller.onChartEscapePressed();
+    CHECK(chartOrNull(controller)->notes[0].fret == 8);
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    CHECK(state->chart_edit.caret.has_value());
 }
 
 // Esc's rung is claimed by an INVALID pending value only: it cancels the problem, so the value
@@ -1485,9 +1550,10 @@ TEST_CASE("EditorController Esc commits a valid pending value via the caret rung
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1496,6 +1562,7 @@ TEST_CASE("EditorController Esc commits a valid pending value via the caret rung
     FakeEditorView view;
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
 
     click(controller, 40.0f, 220.0f);
     const EditorViewState* state = stateOrNull(view.last_state);
@@ -1521,9 +1588,10 @@ TEST_CASE("EditorController undo settles a pending value then undoes it", "[core
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1532,6 +1600,7 @@ TEST_CASE("EditorController undo settles a pending value then undoes it", "[core
     FakeEditorView view;
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
 
     click(controller, 40.0f, 220.0f);
     const EditorViewState* state = stateOrNull(view.last_state);
@@ -1556,14 +1625,10 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
-    testing::DeferringMessageThreadScheduler scheduler;
-    std::uint32_t now_ms = 1000;
-    EditorController::Services services =
-        controllerServices(nullEditorSettings(), immediateTaskRunner(), scheduler);
-    services.now_milliseconds = [&now_ms] { return now_ms; };
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        services,
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1572,7 +1637,7 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     FakeEditorView view;
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
-    static_cast<void>(scheduler.runDelayed());
+    static_cast<void>(pending.scheduler.runDelayed());
 
     // The empty caret at measure 4 beat 1 (x = 120 is 6.0s) on string 1.
     click(controller, 120.0f, 220.0f);
@@ -1593,8 +1658,7 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
         CHECK(state->chart_edit.pending_fret->insert_string == 1);
     }
 
-    now_ms += 751;
-    CHECK(scheduler.runDelayed() == 1);
+    CHECK(pending.scheduler.runDelayed() == 1);
     chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 4);
     CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 4, .beat = 1});
@@ -1615,9 +1679,10 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1649,6 +1714,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
         },
     };
     REQUIRE(loadChartArrangement(controller, project_services, audio, {}, chart_with_claim));
+    static_cast<void>(pending.scheduler.runDelayed());
 
     const auto resolution = [&](const std::size_t index) {
         const common::core::Chart& current = *controller.session().currentArrangement()->chart;
@@ -2168,9 +2234,10 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2179,6 +2246,7 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     FakeEditorView view;
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
 
     // Build a high downward scrape: type the note to fret 17, then toggle — the default path
     // travels to fret 3, so typing "3" would still the start against the terminal.
@@ -3351,9 +3419,10 @@ TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
+    PendingEntryHarness pending;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        pending.services(),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -3363,6 +3432,7 @@ TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[
     controller.attachView(view);
     REQUIRE(
         loadChartArrangement(controller, project_services, audio, {}, makeBreakableClaimChart()));
+    static_cast<void>(pending.scheduler.runDelayed());
 
     const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
         return controller.session().currentArrangement()->chart->notes[index];

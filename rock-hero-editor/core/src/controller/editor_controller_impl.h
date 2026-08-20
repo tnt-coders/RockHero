@@ -192,6 +192,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void settleChartFretEntry();
     void discardChartFretEntry();
     void armChartFretEntry(ChartFretEntry entry);
+    // The disposition rule for a freshly planned entry: invalid values pend sticky (the red box
+    // must be seen), extendable valid values wait out the window, everything else settles now.
+    void armOrSettleChartFretEntry(ChartFretEntry entry);
     void scheduleChartFretEntryWake();
     // One authority for what a pending entry would apply, run in full on every keystroke.
     [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> replanChartFretEntry(

@@ -3015,7 +3015,12 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
     {
         return false;
     }
-    if (now_ms - m_chart_fret_entry->armed_ms > g_fret_entry_window_ms)
+    // An INVALID entry is an open error state: its red box is visibly live however long it has
+    // sat, so a digit always extends it. The window expiry binds valid entries only — and there
+    // it is a belt, because the wake should already have settled an expired one.
+    const bool invalid = !m_chart_fret_entry->plan.has_value() &&
+                         m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid;
+    if (!invalid && now_ms - m_chart_fret_entry->armed_ms > g_fret_entry_window_ms)
     {
         settleChartFretEntry();
         return false;
@@ -3031,15 +3036,7 @@ bool EditorController::Impl::combineChartFretEntry(const int digit, const std::u
     entry.value = combined;
     entry.armed_ms = now_ms;
     entry.plan = replanChartFretEntry(entry);
-    if (chartFretValueExtendable(combined))
-    {
-        // Unreachable at the current cap (a second digit always exhausts the entry) but kept
-        // general, so a raised cap grows a third digit without rework.
-        armChartFretEntry(std::move(entry));
-        return true;
-    }
-    m_chart_fret_entry = std::move(entry);
-    settleChartFretEntry();
+    armOrSettleChartFretEntry(std::move(entry));
     return true;
 }
 
@@ -3100,6 +3097,24 @@ void EditorController::Impl::settleChartFretEntry()
     updateView();
 }
 
+// The one disposition rule for a freshly planned entry — a fresh digit or a combination: an
+// INVALID value goes pending whatever its digits, because the red box must be SEEN, and it
+// persists until a further digit, Esc, or any other intent settles it, never a timer (user
+// re-ruling 2026-08-20); an extendable valid value waits out its window; every other valid
+// value settles in the same keystroke.
+void EditorController::Impl::armOrSettleChartFretEntry(ChartFretEntry entry)
+{
+    const bool invalid = !entry.plan.has_value() && entry.plan.error() == ChartPlanRefusal::Invalid;
+    if (invalid || chartFretValueExtendable(entry.value))
+    {
+        armChartFretEntry(std::move(entry));
+        return;
+    }
+    // An immediate digit is a pending entry that settles in the same keystroke.
+    m_chart_fret_entry = std::move(entry);
+    settleChartFretEntry();
+}
+
 // Drops the pending entry without committing — context teardown and the Esc invalid rung,
 // where committing would author into a dying session or keep exactly the value Esc rejects.
 void EditorController::Impl::discardChartFretEntry()
@@ -3122,12 +3137,14 @@ void EditorController::Impl::armChartFretEntry(ChartFretEntry entry)
     updateView();
 }
 
-// Schedules the settle at the window's end. The wake validates two things: its stamp (a settle,
-// discard, or re-arm since scheduling makes it stale) and the injected clock, which is the
-// authority over the scheduler — a scheduler that fires early (the tests' immediate scheduler
-// runs delayed work synchronously) finds the window not yet elapsed and no-ops WITHOUT
-// rescheduling, because every arm schedules its own wake and a rescheduling wake would spin
-// under a synchronous scheduler.
+// Schedules the settle at the window's end. The stamp is the ONLY guard: a settle, discard, or
+// re-arm since scheduling makes the wake stale, and a live stamp means this wake is the live
+// entry's own timer, so it settles unconditionally. Deliberately NO clock re-check: an earlier
+// version second-guessed the scheduler against the injected clock and no-oped without
+// rescheduling, which left a marginally-early wake as a pending entry nothing would ever
+// settle — a stuck state a correctness check must not be able to create. Under the tests'
+// synchronous scheduler the wake therefore settles inside the arming keystroke, which is why
+// every test that needs the pending state to persist uses the deferring scheduler instead.
 void EditorController::Impl::scheduleChartFretEntryWake()
 {
     const std::uint64_t stamp = m_chart_fret_entry_wake;
@@ -3137,7 +3154,11 @@ void EditorController::Impl::scheduleChartFretEntryWake()
             {
                 return;
             }
-            if (m_now_milliseconds() - m_chart_fret_entry->armed_ms < g_fret_entry_window_ms)
+            // An INVALID value outlives its window (user re-ruling 2026-08-20): the red box IS
+            // the refusal display, and a display that vanishes on a timer is barely a display.
+            // It stays until a further digit extends it or Esc / any other intent discards it.
+            if (!m_chart_fret_entry->plan.has_value() &&
+                m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid)
             {
                 return;
             }
@@ -3166,14 +3187,7 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
         .armed_ms = now_ms,
     };
     entry.plan = replanChartFretEntry(entry);
-    if (chartFretValueExtendable(digit))
-    {
-        armChartFretEntry(std::move(entry));
-        return;
-    }
-    // An immediate digit is a pending entry that settles in the same keystroke.
-    m_chart_fret_entry = std::move(entry);
-    settleChartFretEntry();
+    armOrSettleChartFretEntry(std::move(entry));
 }
 
 // Fresh retype: capture the selection's pre-entry values as the replan base, plan the typed
@@ -3197,14 +3211,7 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
         .armed_ms = now_ms,
     };
     entry.plan = replanChartFretEntry(entry);
-    if (chartFretValueExtendable(digit))
-    {
-        armChartFretEntry(std::move(entry));
-        return;
-    }
-    // An immediate digit is a pending entry that settles in the same keystroke.
-    m_chart_fret_entry = std::move(entry);
-    settleChartFretEntry();
+    armOrSettleChartFretEntry(std::move(entry));
 }
 
 // The full note values behind a sorted key set, in chart order — the one selection-snapshot
