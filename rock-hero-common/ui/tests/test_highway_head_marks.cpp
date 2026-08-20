@@ -1,6 +1,8 @@
+#include "highway/highway_atlas.h"
 #include "highway/highway_head_marks.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <vector>
 
 namespace rock_hero::common::ui
 {
@@ -17,6 +19,16 @@ namespace
     note.attack = attack;
     note.legato = motion;
     return note;
+}
+
+[[nodiscard]] std::vector<int> cellsOf(const HighwayHeadMarkStack& stack)
+{
+    std::vector<int> cells;
+    for (const HighwayHeadMark& mark : stack)
+    {
+        cells.push_back(mark.cell);
+    }
+    return cells;
 }
 
 } // namespace
@@ -123,6 +135,119 @@ TEST_CASE("Highway node head follows the drawn sounding position", "[ui][highway
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     far_node.harmonic_node = 40.0;
     CHECK(highwayNodeHead(far_node));
+}
+
+// The ORDER is the whole reason this authority exists. It used to be hand-written in the
+// open-string branch and again in the fretted one, and the two had already drifted: the open
+// branch drew the connection cell underneath everything and no harmonic at all, while the fretted
+// branch drew the harmonic at the very bottom and the connection cell fifth. Neither draw branch
+// is reachable from a test, so the divergence had no witness until the list moved here.
+TEST_CASE("Highway head marks stack in override order", "[ui][highway]")
+{
+    // Deliberately synthetic: every rung at once, which is also the provable maximum a head can
+    // wear. No chart need produce this note — the case exists to pin the ladder, and pinning it
+    // needs all five rungs present at the same time.
+    common::core::HighwayNoteView loaded =
+        noteWith(common::core::NoteAttack::Tap, common::core::LegatoMotion::Hammer);
+    loaded.palm_mute = true;
+    loaded.harmonic_node = 12.0;
+    loaded.dead = true;
+
+    const HighwayHeadMarkStack stack = highwayHeadMarks(loaded);
+    REQUIRE(stack.count == HighwayHeadMarkStack::g_capacity);
+    CHECK(
+        cellsOf(stack) == std::vector<int>{
+                              g_head_cell_palm_mute,
+                              g_head_cell_tap,
+                              g_head_cell_legato,
+                              g_head_cell_harmonic,
+                              g_head_cell_full_mute
+                          });
+
+    // A head wearing nothing stacks nothing, so a plain pick costs no markers at all.
+    CHECK(
+        highwayHeadMarks(
+            noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified))
+            .count == 0);
+}
+
+// The deadening X is the mark that must survive intact — a broken X reads as a different mark —
+// so it draws over everything. Both marks below used to cut it: the connection cell on a fretted
+// head, and slap on an open string.
+TEST_CASE("Highway dead X draws over every other head mark", "[ui][highway]")
+{
+    common::core::HighwayNoteView legato_dead =
+        noteWith(common::core::NoteAttack::Legato, common::core::LegatoMotion::Pull);
+    legato_dead.dead = true;
+    CHECK(
+        cellsOf(highwayHeadMarks(legato_dead)) ==
+        std::vector<int>{g_head_cell_legato, g_head_cell_full_mute});
+
+    common::core::HighwayNoteView slap_dead =
+        noteWith(common::core::NoteAttack::Slap, common::core::LegatoMotion::Unjustified);
+    slap_dead.dead = true;
+    CHECK(
+        cellsOf(highwayHeadMarks(slap_dead)) ==
+        std::vector<int>{g_head_cell_slap, g_head_cell_full_mute});
+}
+
+// A scrape is a category of one, and that is a chart rule rather than a layering choice: the
+// validator holds a pick-slide note to savedChartNote(note) == note, a fixpoint that strips every
+// mute, node, vibrato, tremolo and bend. The stack must therefore refuse to stack anything on it
+// even when handed a view that carries the flags anyway.
+TEST_CASE("Highway scrape wears its pick mark alone", "[ui][highway]")
+{
+    common::core::HighwayNoteView scrape =
+        noteWith(common::core::NoteAttack::PickSlide, common::core::LegatoMotion::Hammer);
+    scrape.palm_mute = true;
+    scrape.dead = true;
+    scrape.harmonic_node = 12.0;
+    CHECK(cellsOf(highwayHeadMarks(scrape)) == std::vector<int>{g_head_cell_pick_slide});
+}
+
+// The two harmonic cells are one rung, not two: a pinch and a node are the same claim about pitch
+// made by different hands, and the attack slot can only hold one of them.
+TEST_CASE("Highway harmonic rung takes the pinch cell or the node cell", "[ui][highway]")
+{
+    common::core::HighwayNoteView pinch =
+        noteWith(common::core::NoteAttack::Pinch, common::core::LegatoMotion::Unjustified);
+    pinch.harmonic_node = 17.0;
+    CHECK(cellsOf(highwayHeadMarks(pinch)) == std::vector<int>{g_head_cell_pinch_harmonic});
+
+    common::core::HighwayNoteView natural =
+        noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
+    natural.harmonic_node = 12.0;
+    CHECK(cellsOf(highwayHeadMarks(natural)) == std::vector<int>{g_head_cell_harmonic});
+}
+
+// Rotation travels WITH each mark because the ladder interleaves the two kinds: the harmonic rides
+// the head's rolling flip and the connection cell directly beneath it does not. A call site that
+// re-derived this from the mark's position in the list would get it wrong.
+TEST_CASE("Highway head marks carry their own roll behavior", "[ui][highway]")
+{
+    common::core::HighwayNoteView note =
+        noteWith(common::core::NoteAttack::Tap, common::core::LegatoMotion::Pull);
+    note.palm_mute = true;
+    note.harmonic_node = 12.0;
+    note.dead = true;
+
+    const HighwayHeadMarkStack stack = highwayHeadMarks(note);
+    REQUIRE(stack.count == HighwayHeadMarkStack::g_capacity);
+    CHECK(stack.marks.at(0).rides_roll);       // palm
+    CHECK(stack.marks.at(1).rides_roll);       // tap
+    CHECK_FALSE(stack.marks.at(2).rides_roll); // connection
+    CHECK(stack.marks.at(3).rides_roll);       // harmonic
+    CHECK_FALSE(stack.marks.at(4).rides_roll); // dead X
+
+    // The pull-off is the connection cell mirrored, and only that mark is ever mirrored.
+    CHECK(stack.marks.at(2).flipped);
+    CHECK_FALSE(stack.marks.at(0).flipped);
+    CHECK_FALSE(stack.marks.at(3).flipped);
+
+    common::core::HighwayNoteView hammer =
+        noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Hammer);
+    REQUIRE(highwayHeadMarks(hammer).count == 1);
+    CHECK_FALSE(highwayHeadMarks(hammer).marks.at(0).flipped);
 }
 
 } // namespace rock_hero::common::ui

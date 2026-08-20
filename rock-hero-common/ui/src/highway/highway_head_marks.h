@@ -1,15 +1,23 @@
 /*!
 \file highway_head_marks.h
-\brief What a highway note head draws for its resolved connection, and when it takes the tech base.
+\brief What a highway note head draws: its technique marks in order, its connection cell, its base.
 
-Two decisions the 3D draw path made inline, hoisted out for two reasons. They were each read in more
+Decisions the 3D draw path made inline, hoisted out for two reasons. They were each read in more
 than one place — the connection cell in the open-string branch and again in the fretted one, where
 the open branch restated a SUBSET of the rule — and nothing inside the renderer's draw pass is
 reachable from a test, so inline they had no witness at all.
+
+\ref highwayHeadMarks is the same class caught one level up: the two branches did not merely
+restate the connection rule, they hand-wrote the whole marker LIST twice and came to different
+answers about its order.
 */
 
 #pragma once
 
+#include "highway/highway_atlas.h"
+
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -112,6 +120,142 @@ palm marker stacks over that. A palm mute on its own leaves the head light — i
 {
     return note.dead || highwayLegatoCell(note.legato) != HighwayLegatoCell::None ||
            note.attack == common::core::NoteAttack::PickSlide;
+}
+
+/*!
+\brief One technique mark stacked on a note head.
+*/
+struct HighwayHeadMark
+{
+    /*! \brief Atlas cell this mark draws. */
+    int cell{};
+
+    /*! \brief True when the mark turns with the head's rolling flip rather than staying upright. */
+    bool rides_roll{};
+
+    /*! \brief True when the cell draws mirrored vertically (the connection cell's pull-off). */
+    bool flipped{};
+};
+
+/*!
+\brief The technique marks a head wears, in draw order: front is lowest, back is on top.
+
+Fixed capacity because the maximum is provable rather than guessed, and the render path may not
+allocate per note: a head stacks at most a palm mark, ONE hand mark (tap, slap, pop and pinch are
+all the same `attack` slot, so they are mutually exclusive), a connection cell, a harmonic, and the
+deadening X. Five, exactly.
+*/
+struct HighwayHeadMarkStack
+{
+    /*! \brief Palm, hand, connection, harmonic, deadening — the provable maximum. */
+    static constexpr std::size_t g_capacity = 5;
+
+    /*! \brief Marks in draw order; only the first \ref count entries are populated. */
+    std::array<HighwayHeadMark, g_capacity> marks{};
+
+    /*! \brief How many of \ref marks this head actually wears. */
+    std::size_t count{};
+
+    /*! \brief Range begin, so a caller can draw the stack with a plain range-for. */
+    [[nodiscard]] const HighwayHeadMark* begin() const noexcept
+    {
+        return marks.data();
+    }
+
+    /*! \brief Range end at \ref count, not at capacity. */
+    [[nodiscard]] const HighwayHeadMark* end() const noexcept
+    {
+        return marks.data() + count;
+    }
+};
+
+/*!
+\brief Builds the ordered technique-mark stack for one head, lowest mark first.
+
+THE draw order for note-head technique marks, asked by every head the highway draws — the open
+string's overlay and the fretted head alike. It used to be two hand-written lists, and they had
+already diverged: the open branch drew the connection cell FIRST, underneath everything, while the
+fretted branch drew it fifth, and the fretted branch drew the harmonic at the very bottom where the
+open branch drew no harmonic at all. Both were "the marker order", written twice, answered
+differently — this project's recurring defect rather than a matter of taste.
+
+The order is DERIVED, not authored, from how much of the note's identity each mark overrides.
+A palm mute only shades the tone; a hand mark says how the string was struck; a connection says
+whether it was struck at all; a harmonic says the pitch is not the fretted one; and the deadening X
+says there is no pitch. Each claim swallows the one before it, so each draws over the one before
+it, and the X — the mark that must survive intact, because a broken X reads as a different mark
+entirely — lands on top by construction rather than by special case.
+
+A scrape is not a rank in that ladder but a category of one, and that is a chart rule rather than a
+layering preference: `chart_rules.cpp` validates a pick-slide note against `savedChartNote(note) ==
+note`, a fixpoint that strips every mute, node, vibrato, tremolo and bend, while its attack slot is
+already spent on `PickSlide`. Nothing can stack with it, so it returns before the ladder starts.
+
+Rotation travels with each mark instead of being re-derived at the call site (\ref
+HighwayHeadMark::rides_roll), because the ladder interleaves the two kinds: the harmonic rides the
+head's flip and the connection cell below it does not. The open-string bar has no flip, so it
+ignores the flag and draws every mark upright.
+
+\param note Projected note whose head is being drawn.
+\return The marks in draw order; empty when the head wears none.
+*/
+[[nodiscard]] inline HighwayHeadMarkStack highwayHeadMarks(
+    const common::core::HighwayNoteView& note)
+{
+    HighwayHeadMarkStack stack;
+    const auto add = [&stack](const int cell, const bool rides_roll, const bool flipped = false) {
+        stack.marks.at(stack.count) =
+            HighwayHeadMark{.cell = cell, .rides_roll = rides_roll, .flipped = flipped};
+        ++stack.count;
+    };
+
+    if (note.attack == common::core::NoteAttack::PickSlide)
+    {
+        // The pick mark seats concentric on the head and covers its whole footprint, so it needs
+        // nothing under it and admits nothing over it.
+        add(g_head_cell_pick_slide, false);
+        return stack;
+    }
+
+    if (note.palm_mute)
+    {
+        add(g_head_cell_palm_mute, true);
+    }
+
+    if (note.attack == common::core::NoteAttack::Tap)
+    {
+        add(g_head_cell_tap, true);
+    }
+    else if (note.attack == common::core::NoteAttack::Slap)
+    {
+        add(g_head_cell_slap, true);
+    }
+    else if (note.attack == common::core::NoteAttack::Pop)
+    {
+        add(g_head_cell_pop, true);
+    }
+
+    if (const HighwayLegatoCell legato_cell = highwayLegatoCell(note.legato);
+        legato_cell != HighwayLegatoCell::None)
+    {
+        add(g_head_cell_legato, false, legato_cell == HighwayLegatoCell::Flipped);
+    }
+
+    if (note.attack == common::core::NoteAttack::Pinch)
+    {
+        add(g_head_cell_pinch_harmonic, true);
+    }
+    else if (note.harmonic_node.has_value())
+    {
+        add(g_head_cell_harmonic, true);
+    }
+
+    if (note.dead)
+    {
+        add(g_head_cell_full_mute, false);
+    }
+
+    return stack;
 }
 
 } // namespace rock_hero::common::ui

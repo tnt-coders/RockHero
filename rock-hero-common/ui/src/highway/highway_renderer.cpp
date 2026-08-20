@@ -4832,44 +4832,20 @@ void HighwayRenderer::Impl::draw(
                         at(left_x, glow_half_h, left_abgr));
                 }
             }
-            // Technique markers at the window center (Charter's open-note overlay set).
+            // Technique markers at the window center, from the same ordered authority the
+            // fretted head below asks. An open bar has no rolling flip, so every mark draws
+            // upright here and the stack's per-mark roll flag simply does not apply.
+            //
+            // Asking the shared list also restores marks this branch silently dropped: an open
+            // string carrying a harmonic node drew no harmonic cell, and a tapped one drew no tap
+            // cell, because the hand-written set here was a subset nobody had reconciled.
             {
                 const double center_x = (x0 + x1) / 2.0;
                 const std::uint32_t marker_tint = packAbgr(base_color, fade * open_bar_alpha);
-                // The connection cell, from the same authority the fretted head below asks: an open
-                // string usually carries only the pull-off, but a left-hand tap resolves to the
-                // hammer motion unconditionally and is legal on an open string with a node.
-                if (const HighwayLegatoCell legato_cell = highwayLegatoCell(note.legato);
-                    legato_cell != HighwayLegatoCell::None)
+                for (const HighwayHeadMark& mark : highwayHeadMarks(note))
                 {
                     push_marker(
-                        center_x,
-                        head_y,
-                        z,
-                        1.0,
-                        0.0,
-                        g_head_cell_legato,
-                        marker_tint,
-                        legato_cell == HighwayLegatoCell::Flipped);
-                }
-                // Two independent flags, so two independent marks: a both-muted open string wears
-                // the palm mark AND the dead X, exactly as the fretted head below does. Chained
-                // as an if/else this drew only the palm mark and silently lost the deadening.
-                if (note.palm_mute)
-                {
-                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_palm_mute, marker_tint);
-                }
-                if (note.dead)
-                {
-                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, marker_tint);
-                }
-                if (note.attack == common::core::NoteAttack::Slap)
-                {
-                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_slap, marker_tint);
-                }
-                else if (note.attack == common::core::NoteAttack::Pop)
-                {
-                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_pop, marker_tint);
+                        center_x, head_y, z, 1.0, 0.0, mark.cell, marker_tint, mark.flipped);
                 }
             }
             continue;
@@ -4883,7 +4859,6 @@ void HighwayRenderer::Impl::draw(
         // tail carries, and a head shaking with them reads as a jitter fighting its own digit
         // rather than as picking energy.
         x += head_slide.x_offset;
-        const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
 
         if (!in_chord)
         {
@@ -5128,63 +5103,28 @@ void HighwayRenderer::Impl::draw(
         }
 
         {
-            // Rotating markers ride the rolling flip (Charter bakes these into the head
-            // texture), in Charter's composite order.
-            if (note.attack == common::core::NoteAttack::Pinch)
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pinch_harmonic, tint);
-            }
-            else if (note.harmonic_node.has_value())
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
-            }
-            if (note.palm_mute)
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_palm_mute, tint);
-            }
-            if (note.attack == common::core::NoteAttack::Tap)
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_tap, tint);
-            }
-            else if (note.attack == common::core::NoteAttack::Slap)
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_slap, tint);
-            }
-            else if (note.attack == common::core::NoteAttack::Pop)
-            {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pop, tint);
-            }
-            // No accent MARK: emphasis is a rendered light now, and the atlas ring it replaces
-            // is retired rather than drawn beneath it.
-            // Upright markers stay flat through the flip (Charter overlays these after
-            // the rotated head).
-            if (note.dead)
-            {
-                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, tint);
-            }
-            // The scrape's pick mark seats concentric on the head, the way the harmonic cell
-            // does, and covers the head's own footprint. An X underneath would show only through
-            // the pick's fracture, reading as a second mark inside the crack rather than as the
-            // unpitched-noise cue it is meant to be — so a scrape wears the pick alone.
-            if (scrape)
-            {
-                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_pick_slide, tint);
-            }
-            // The legato pair is one cell: the hammer-on upright, the pull-off flipped, so the
-            // two can never drift apart in weight or border the way separately drawn art did.
-            // Which way it goes — and whether it is drawn at all — is highwayLegatoCell's answer.
-            if (const HighwayLegatoCell legato_cell = highwayLegatoCell(note.legato);
-                legato_cell != HighwayLegatoCell::None)
+            // ONE authority for which marks a head wears and in what order: highwayHeadMarks, in
+            // highway_head_marks.h. The open-string overlay above asks the very same function, so
+            // the two branches can no longer answer the same question differently — which they
+            // already did, each having hand-written the list. This branch drew the harmonic
+            // underneath everything and the connection cell fifth; the open branch drew the
+            // connection cell at the BOTTOM and drew no harmonic at all.
+            //
+            // Marks that ride the head's rolling flip take the roll here and the rest stay upright
+            // through it, exactly as before — the stack carries that per mark, because the order
+            // interleaves the two kinds. No accent MARK appears in it: emphasis is a rendered light
+            // now, and the atlas ring it replaced is retired rather than drawn beneath it.
+            for (const HighwayHeadMark& mark : highwayHeadMarks(note))
             {
                 push_marker(
                     x,
                     head_y,
                     z,
-                    1.0,
-                    0.0,
-                    g_head_cell_legato,
+                    mark.rides_roll ? cos_r : 1.0,
+                    mark.rides_roll ? sin_r : 0.0,
+                    mark.cell,
                     tint,
-                    legato_cell == HighwayLegatoCell::Flipped);
+                    mark.flipped);
             }
         }
 
