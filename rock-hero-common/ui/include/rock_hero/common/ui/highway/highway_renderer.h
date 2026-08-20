@@ -19,28 +19,6 @@
 namespace rock_hero::common::ui
 {
 
-// ============================================================================
-// SIGHTING RIG - DELETE WHEN THE ACCENT INTENSITY IS SIGNED
-//
-// Deliberately the first thing this header declares, so it cannot be forgotten.
-// The full rationale, the rung values and the removal list live at the
-// g_accent_gain_rungs banner in highway_renderer.cpp.
-// ============================================================================
-
-/*!
-\brief Reports the accent light's current radiance gain (SIGHTING RIG).
-\return The gain the glow shader is being handed this frame.
-*/
-[[nodiscard]] double highwayAccentGain();
-
-/*!
-\brief Advances the accent light to the next intensity rung and wraps (SIGHTING RIG).
-\return The gain now in effect, so a caller can echo the rung it selected.
-*/
-double cycleHighwayAccentGain();
-
-// ======================= END SIGHTING RIG ===================================
-
 /*! \brief One shader program's compiled stage binaries. */
 struct HighwayShaderPair
 {

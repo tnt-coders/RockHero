@@ -72,15 +72,6 @@ public:
     */
     void setCaretSeconds(std::optional<double> seconds);
 
-    /*!
-    \brief Puts the accent light's current rung in the title bar (SIGHTING RIG - DELETE WITH IT).
-
-    The one place the rung readout is built. Both F9 branches call it — this window's, and
-    EditorView's for the case where the preview is being watched while the editor holds focus —
-    so the two can never disagree about how the rung is spelled.
-    */
-    void refreshAccentRungTitle();
-
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
 
