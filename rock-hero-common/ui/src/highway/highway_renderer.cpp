@@ -265,21 +265,38 @@ constexpr double g_glow_solid_emitter_depth = 1.0;
 constexpr double g_accent_reach = 0.12;
 constexpr double g_accent_exponent = 2.0;
 
+// A chord box keeps the ORIGINAL neutral radiance while notes were raised to 1.6
+// (sighted 2026-08-20: "chord boxes are already plenty accented as shipped").
+//
+// This is a size compensation, NOT a second opinion about the light. Outside a
+// silhouette the field is provably identical for both subjects: the shader's
+// inward term is max(-d - depth, 0), which is zero wherever d > 0, so the
+// emitter depth that separates a solid from a frame never touches the outward
+// falloff. A note's halo and a box's halo are the same brightness at the same
+// distance from their edge. What differs is how MUCH of it there is - a box
+// frame is a long band where a note's halo is a ring a couple of pixels wide on
+// approach - so equal radiance does not read as equal accent. Holding the read
+// equal is what the player actually sees, and it costs one number.
+//
+// If an accented chord ever shows its box and its heads disagreeing when read in
+// one glance, that is the signal this trade was the wrong way round.
+constexpr double g_accent_gain_boxes = 1.0;
+
 // ==========================================================================
 // SIGHTING RIG - DELETE WHEN THE ACCENT INTENSITY IS SIGNED
 //
-// "More intense accents" needs no new mechanism: the signed comment above
-// already names the gain as the knob for exactly this question, and it is one
-// uniform value the shader multiplies its field by. The rungs below just hand
-// it a bigger one. Rung 0 is the shipped light untouched, so the control is
-// always in the toggle.
+// The gain is the knob the signed comment above already names for this exact
+// question, so bolder accents need no new mechanism: it is one uniform value
+// the shader multiplies its field by.
 //
-// Rung 1 is the first rung past the shader's per-channel clip - the palette's
-// brightest channel is 237, so clipping begins at 255/237 = 1.076 - where the
-// halo starts growing a white-hot core instead of only a brighter pedestal.
-// Rungs 2 and 3 carry that further. Gain widens the halo as well as
-// brightening it, because the visible edge is wherever gain times the falloff
-// clears the display threshold, so one knob covers both readings of "bolder".
+// Rung 0 is the SIGHTED value (1.6, two rungs above the original neutral 1.0),
+// so the shipped light is the chosen one whether or not the toggle is ever
+// pressed; the other rungs bracket it for confirmation in play. Everything here
+// is past the shader's per-channel clip - the palette's brightest channel is
+// 237, so clipping begins at 255/237 = 1.076 - which is where the halo grows a
+// white-hot core rather than only a brighter pedestal. Gain widens the halo as
+// well as brightening it, because the visible edge is wherever gain times the
+// falloff clears the display threshold.
 //
 // TO REMOVE: delete this banner and the two lines under it; delete
 // highwayAccentGain and cycleHighwayAccentGain just past the anonymous
@@ -287,7 +304,7 @@ constexpr double g_accent_exponent = 2.0;
 // `constexpr double g_accent_gain = <signed value>;` here and use it again in
 // glow_uniform_at; drop the F9 branch in PreviewWindow::keyPressed.
 // ==========================================================================
-constexpr std::array<double, 4> g_accent_gain_rungs{1.0, 1.25, 1.6, 2.1};
+constexpr std::array<double, 4> g_accent_gain_rungs{1.6, 1.35, 1.9, 2.2};
 std::size_t g_accent_gain_rung = 0;
 
 // Overlay content is screen-space and never depth-tested.
@@ -2112,23 +2129,28 @@ void HighwayRenderer::Impl::draw(
         0.0F
     };
 
-    // One light is shared by every lit subject — fretted heads, open strings, and chord box
-    // frames; only the EMITTER DEPTH differs, and it is the
-    // one number separating a solid object from a frame. A note is lit from behind, so its whole
-    // interior emits; a chord box is a frame the player reads notes THROUGH, so only the band one
-    // frame-thickness deep emits and the interior stays dark. Two uniform values, one field.
-    const auto glow_uniform_at = [](const double emitter_depth) {
+    // One FALLOFF is shared by every lit subject — fretted heads, open strings, and chord box
+    // frames — and exactly two numbers differ per subject. The EMITTER DEPTH separates a solid
+    // object from a frame: a note is lit from behind, so its whole interior emits; a chord box is a
+    // frame the player reads notes THROUGH, so only the band one frame-thickness deep emits and the
+    // interior stays dark. The RADIANCE compensates for how much of each subject ends up lit, which
+    // the depth deliberately does not do (see g_accent_gain_boxes). One field, two dials.
+    const auto glow_uniform_at = [](const double emitter_depth, const double gain) {
         return std::array<float, 4>{
             static_cast<float>(g_accent_reach),
             static_cast<float>(g_accent_exponent),
             static_cast<float>(emitter_depth),
-            // SIGHTING RIG: reads the rung instead of the constant. Restore
-            // g_accent_gain here when the intensity is signed.
-            static_cast<float>(highwayAccentGain()),
+            static_cast<float>(gain),
         };
     };
-    const std::array<float, 4> note_glow_uniform = glow_uniform_at(g_glow_solid_emitter_depth);
-    const std::array<float, 4> box_glow_uniform = glow_uniform_at(metrics.string_grid_base_y);
+    // Gain sits beside depth because both are per-SUBJECT: one shared falloff, asked for the two
+    // numbers that differ. See g_accent_gain_boxes for why the radiances differ at all.
+    // SIGHTING RIG: the note gain reads the rung; drop highwayAccentGain() for the plain constant
+    // when it is signed.
+    const std::array<float, 4> note_glow_uniform =
+        glow_uniform_at(g_glow_solid_emitter_depth, highwayAccentGain());
+    const std::array<float, 4> box_glow_uniform =
+        glow_uniform_at(metrics.string_grid_base_y, g_accent_gain_boxes);
 
     // Settled hand windows visible this frame: each placement owns the time range from its
     // arrival up to the next placement's ramp start (the transition itself is drawn as a
