@@ -415,23 +415,14 @@ std::optional<ChartNotesEditPlan> planRetypeFrets(
     retyped_notes.reserve(base.size());
     for (const common::core::ChartNote& note : base)
     {
-        const int fret = set_exact ? target : note.fret + delta;
+        // The fret-verb law (user-ruled 2026-08-13): a fret verb edits exactly the selected
+        // notes' own frets — a slide's path never rides along, in either mode, because every
+        // waypoint was placed on its fret on purpose. Do not restore the old scrape special case
+        // that translated the path with the start; it was ruled a bug. A scrape start retyped
+        // onto its first path position is refused downstream by the always-traveling rule in the
+        // finalize gate; a pitched slide's equal-fret start is the legal hold encoding and passes.
         common::core::ChartNote retyped = note;
-        retyped.fret = fret;
-        // A scrape's path translates with its start (the plan-55 transposition special case):
-        // the whole gesture shifts by the same delta, preserving travel.
-        if (note.attack == common::core::NoteAttack::PickSlide)
-        {
-            const int path_delta = fret - note.fret;
-            for (common::core::SlideWaypoint& waypoint : retyped.slides)
-            {
-                waypoint.fret += path_delta;
-            }
-            if (retyped.slide_out.has_value())
-            {
-                retyped.slide_out->fret += path_delta;
-            }
-        }
+        retyped.fret = set_exact ? target : note.fret + delta;
         retyped_notes.push_back(std::move(retyped));
     }
     std::vector<common::core::ChartNote> candidate = chart.notes;

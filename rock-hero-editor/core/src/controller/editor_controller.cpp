@@ -3169,10 +3169,11 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
     std::optional<ChartNotesEditPlan> plan = planRetypeFrets(
         *arrangement->chart, session().song().tempo_map, base_notes, digit, /*set_exact=*/true);
-    // A refused first digit (the fret cap, or a scrape's translated path leaving the neck)
-    // still arms the entry window: the digit applies nothing, but the widen replans the
-    // two-digit value from the same pre-entry base, so every in-range multi-digit target
-    // stays reachable — a scrape's wide default path would otherwise dead-end all typing.
+    // A refused first digit (a sub-capo target, or a scrape's start stilled against its first
+    // path position) still arms the entry window: the digit applies nothing, but the widen
+    // replans the two-digit value from the same pre-entry base, so every in-range multi-digit
+    // target stays reachable — under a capo, every playable fret would otherwise be untypable
+    // because its first digit alone always refuses.
     // Whether the digit PUSHED is what the widen needs, because a pushing entry owns the burst
     // record and reverses it to reconstruct the pre-entry stream — however much that plan touched —
     // while a refused one has applied nothing to reverse.

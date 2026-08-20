@@ -109,8 +109,10 @@ the whole entry from the pre-entry originals while widening; the retyped values 
 the live stream for the shared finalize, whose whole-matrix gate replaces the old local fret
 caps — any out-of-range or rule-violating result refuses the plan outright.
 
-A pick-slide member's path translates with its start fret — the whole gesture shifts by the
-member's delta, preserving travel.
+Retyping edits exactly the selected notes' own frets — a slide's path never rides along, in
+either mode (the fret-verb law: every waypoint was placed on its fret on purpose). A scrape
+start retyped onto its first path position refuses through the finalize gate's always-traveling
+rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.

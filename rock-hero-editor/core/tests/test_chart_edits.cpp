@@ -1104,38 +1104,125 @@ TEST_CASE("planSetNoteFlag returns nullopt when nothing changes", "[core][chart]
                     .has_value());
 }
 
-// A scrape's path translates with its start under retype, preserving the gesture's travel; a
-// path fret pushed past the neck refuses the whole plan exactly like a member fret.
-TEST_CASE("planRetypeFrets translates a scrape's path with its start", "[core][chart]")
+// The fret-verb law: retyping edits exactly the selected notes' own frets, so a slide's path
+// stays where it was authored — in both modes, for a scrape and a pitched slide alike. The old
+// scrape path translation was ruled a bug (every waypoint was placed on its fret on purpose).
+TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core][chart]")
 {
-    const std::vector<common::core::ChartNote> base{makeScrape({.measure = 1, .beat = 1}, 1)};
+    // Asserts the retyped note carries the expected start with the fixture's authored path
+    // untouched, and that the applied chart still passes the whole-chart rules gate.
+    const auto check_path_kept = [](const common::core::Chart& chart,
+                                    const std::optional<ChartNotesEditPlan>& plan,
+                                    const int expected_start) {
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->inserted.size() == 1);
+            const common::core::ChartNote& retyped = plan->inserted.front();
+            CHECK(retyped.fret == expected_start);
+            REQUIRE(retyped.slides.size() == 1);
+            CHECK(retyped.slides[0].fret == chart.notes.front().slides[0].fret);
+            REQUIRE(retyped.slide_out.has_value() == chart.notes.front().slide_out.has_value());
+            if (retyped.slide_out.has_value() && chart.notes.front().slide_out.has_value())
+            {
+                CHECK(retyped.slide_out->fret == chart.notes.front().slide_out->fret);
+            }
+            common::core::Chart applied = chart;
+            applyAndValidate(applied, makeTempoMap(), *plan);
+        }
+    };
 
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = base;
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 11, /*set_exact=*/false);
+    SECTION("scrape: transpose moves the start only")
+    {
+        chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
+        check_path_kept(
+            chart,
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, 11, /*set_exact=*/false),
+            11);
+    }
+    SECTION("scrape: set-exact assigns the start only")
+    {
+        chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
+        check_path_kept(
+            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 11, /*set_exact=*/true), 11);
+    }
+    SECTION("scrape: a start past the old translated-path ceiling is now legal")
+    {
+        // Under the deleted translation, transposing to 28 pushed the terminal's 12 to 31 and
+        // refused; with the path in place every fret the start itself can reach is typable.
+        chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
+        check_path_kept(
+            chart,
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, 28, /*set_exact=*/false),
+            28);
+    }
+    SECTION("pitched slide: transpose moves the start only")
+    {
+        common::core::ChartNote slide =
+            makeNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+        slide.slides = {
+            common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        };
+        chart.notes = {std::move(slide)};
+        check_path_kept(
+            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 8, /*set_exact=*/false), 8);
+    }
+    SECTION("pitched slide: set-exact assigns the start only")
+    {
+        common::core::ChartNote slide =
+            makeNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+        slide.slides = {
+            common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        };
+        chart.notes = {std::move(slide)};
+        check_path_kept(
+            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 9, /*set_exact=*/true), 9);
+    }
+}
+
+// A scrape cannot sit still: retyping its start onto its first path position refuses through
+// the finalize gate's always-traveling rule, in both modes — the fixture's first waypoint is
+// fret 3, so a target of 3 stills the opening segment.
+TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
+
+    CHECK_FALSE(
+        planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/true).has_value());
+    CHECK_FALSE(
+        planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/false).has_value());
+}
+
+// The stilled-scrape refusal is scrape-only: a pitched slide's equal-fret segment is the legal
+// hold-then-glide encoding the importer emits, so retyping a pitched start onto its first
+// waypoint's fret is a legitimate correction and must pass, not refuse.
+TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fret", "[core][chart]")
+{
+    common::core::ChartNote slide =
+        makeNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+    slide.slides = {common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {std::move(slide)};
+
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), chart.notes, 7, /*set_exact=*/true);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
         REQUIRE(plan->inserted.size() == 1);
-        const common::core::ChartNote& retyped = plan->inserted.front();
-        CHECK(retyped.fret == 11);
-        REQUIRE(retyped.slides.size() == 1);
-        CHECK(retyped.slides[0].fret == 5);
-        REQUIRE(retyped.slide_out.has_value());
-        if (retyped.slide_out.has_value())
-        {
-            CHECK(retyped.slide_out->fret == 14);
-        }
+        CHECK(plan->inserted.front().fret == 7);
+        REQUIRE(plan->inserted.front().slides.size() == 1);
+        CHECK(plan->inserted.front().slides[0].fret == 7);
 
         common::core::Chart applied = chart;
         applyAndValidate(applied, makeTempoMap(), *plan);
     }
-
-    // Transposing to 28 lands the start inside the neck but pushes the terminal's 12 to 31,
-    // which the finalize gate refuses.
-    CHECK_FALSE(planRetypeFrets(chart, makeTempoMap(), base, 28, /*set_exact=*/false).has_value());
 }
 
 // A sustain change re-terminates a scrape's path: shrink compresses the final point onto the

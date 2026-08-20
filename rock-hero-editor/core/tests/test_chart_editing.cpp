@@ -1833,7 +1833,8 @@ TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][char
 }
 
 // A refused first digit still arms the multi-digit entry window, so an in-range two-digit
-// value stays typeable on a scrape whose translated path rejects every single-digit target.
+// value stays typeable when the digit alone refuses — here a scrape start stilled against its
+// path terminal, the fret-verb law's surviving scrape refusal (the path itself never retypes).
 TEST_CASE("EditorController fret typing recovers from a refused first digit", "[core][chart]")
 {
     FakeTransport transport;
@@ -1852,7 +1853,7 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
     // Build a high downward scrape: type the note to fret 17, then toggle — the default path
-    // travels to fret 3, so any single typed digit d would translate it to d - 14 < 0.
+    // travels to fret 3, so typing "3" would still the start against the terminal.
     click(controller, 40.0f, 220.0f);
     controller.onChartFretDigitTyped(1);
     controller.onChartFretDigitTyped(7);
@@ -1867,19 +1868,20 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
         REQUIRE(scrape.slide_out->fret == 3);
     }
 
-    // "1" refuses (the terminal would leave the neck) but arms the window; "5" widens to 15
-    // and the whole path translates with the start.
-    controller.onChartFretDigitTyped(1);
+    // "3" refuses (start stilled against the terminal — a scrape cannot sit still) but arms
+    // the window; "0" widens to 30, which travels again, and the path stays where it was
+    // authored per the fret-verb law.
+    controller.onChartFretDigitTyped(3);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 17);
-    controller.onChartFretDigitTyped(5);
+    controller.onChartFretDigitTyped(0);
     chart = chartOrNull(controller);
     const common::core::ChartNote& widened = chart->notes[0];
-    CHECK(widened.fret == 15);
+    CHECK(widened.fret == 30);
     REQUIRE(widened.slide_out.has_value());
     if (widened.slide_out.has_value())
     {
-        CHECK(widened.slide_out->fret == 1);
+        CHECK(widened.slide_out->fret == 3);
     }
 }
 
