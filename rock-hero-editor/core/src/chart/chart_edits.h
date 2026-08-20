@@ -42,6 +42,27 @@ struct [[nodiscard]] ChartNotesEditPlan
 };
 
 /*!
+\brief Why a planner returned no plan: a valid no-op is not a refusal.
+
+The two emptinesses used to share one `std::nullopt`, which made every refusal in the editor
+silent — no caller could tell "this edit is not allowed" from "this edit changes nothing", so
+nothing could report the former without lying about the latter. W3's pending fret entry is the
+consumer that forces the split: a provisional value that plans to a no-op is VALID and must not
+paint red. A bare enum rather than a code-plus-message error type on purpose: both reasons map to
+fixed meanings, the callers branch rather than display, and any user-facing text belongs to the
+surface that shows it.
+*/
+enum class ChartPlanRefusal : std::uint8_t
+{
+    /*! \brief The edit would change nothing a document records — legal, just empty. */
+    NoChange,
+
+    /*! \brief The result would break a chart rule (or a planner's own bound), so the whole plan
+    is refused, never clamped. */
+    Invalid,
+};
+
+/*!
 \brief Plans placing one note, replacing any note already on its (position, string) slot.
 
 The placed note's sustain clamps against the next same-string onset and any earlier same-string
@@ -50,9 +71,9 @@ sustain ringing across the onset truncates (40-Q2-B), all in the one plan.
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param note Note to place; the caller owns position/string/fret validity.
-\return The plan, or empty when the placement changes nothing.
+\return The plan; NoChange when the placement changes nothing, Invalid when the gate refuses it.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planInsertNote(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note);
 
@@ -68,9 +89,9 @@ relational truths are not the burst's business.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param keys Notes to delete, sorted ascending (the ChartSelection order — lookups binary-search
 this precondition); keys with no matching note are skipped.
-\return The plan, or empty when no key matched.
+\return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planDeleteNotes(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planDeleteNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys);
 
@@ -88,9 +109,10 @@ this precondition).
 \param beat_delta Signed exact beat delta.
 \param string_delta Signed string-lane delta.
 \param label User-visible undo label.
-\return The plan, or empty when refused or nothing changes.
+\return The plan; NoChange when nothing moves or changes, Invalid when a destination leaves the
+        neck, collides, or fails the gate.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planMoveNotes(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planMoveNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta, int string_delta,
     std::string_view label);
@@ -119,9 +141,11 @@ rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 \param base Snapshot of the notes being retyped.
 \param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
 \param set_exact True to assign the target to every note instead of transposing.
-\return The plan, or nullopt when refused, nothing changes, or the snapshot is empty.
+\return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
+        when the gate refuses the result. The split is what lets the pending entry paint a
+        refused value red without painting a valid no-op red.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planRetypeFrets(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
@@ -138,9 +162,9 @@ clipped with it.
 \param keys Notes whose sustains change, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
 \param beat_delta Signed exact beat delta.
-\return The plan, or empty when nothing changes.
+\return The plan; NoChange when nothing changes, Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planAdjustSustain(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta);
 
@@ -265,9 +289,10 @@ nothing else.
 binary-search this precondition).
 \param attack Attack every keyed note receives.
 \param label User-visible undo label.
-\return The plan, or empty when nothing changes.
+\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
+        Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planSetAttack(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::NoteAttack attack, std::string_view label);
 
@@ -348,9 +373,10 @@ binary-search this precondition).
 \param which Which mute the write targets.
 \param value Value that mute receives.
 \param label User-visible undo label.
-\return The plan, or empty when nothing changes.
+\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
+        Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planSetNoteFlag(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, ChartNoteFlag which, bool value, std::string_view label);
 
@@ -375,9 +401,10 @@ refuses this" as a second fact maintained by hand.
 binary-search this precondition).
 \param value Emphasis every keyed note receives.
 \param label User-visible undo label.
-\return The plan, or empty when nothing changes.
+\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
+        Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planSetEmphasis(
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::NoteEmphasis value,
     std::string_view label);

@@ -3,6 +3,7 @@
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>
+#include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_document.h>
@@ -527,27 +528,35 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
     chart.notes = base;
 
     // Lowest fret 25 to the cap is a +5 shift; the higher member reaches 33, past the cap —
-    // refused by the shared finalize gate, which replaced the old local caps.
-    CHECK_FALSE(
-        planRetypeFrets(chart, makeTempoMap(), base, common::core::g_max_fret, false).has_value());
+    // refused by the shared finalize gate, which replaced the old local caps. The kind matters:
+    // this is Invalid, the emptiness a pending entry paints red.
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, common::core::g_max_fret, false);
+    REQUIRE_FALSE(plan.has_value());
+    CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
 
-// An empty snapshot has no anchor fret, so no plan is produced.
-TEST_CASE("planRetypeFrets returns nullopt for an empty snapshot", "[core][chart]")
+// An empty snapshot has no anchor fret, so no plan is produced — and that emptiness is a
+// NoChange, not a refusal: there was nothing to edit, so nothing was disallowed.
+TEST_CASE("planRetypeFrets reports NoChange for an empty snapshot", "[core][chart]")
 {
-    CHECK_FALSE(planRetypeFrets(makeChart(), makeTempoMap(), {}, 5, false).has_value());
+    const auto plan = planRetypeFrets(makeChart(), makeTempoMap(), {}, 5, false);
+    REQUIRE_FALSE(plan.has_value());
+    CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
 
 // A target already matching plans nothing, like every planner since the shared finalize took
-// over the diff.
-TEST_CASE("planRetypeFrets returns nullopt when nothing changes", "[core][chart]")
+// over the diff — and it reports NoChange, never Invalid: a valid no-op must not read as a
+// refusal, or the pending entry would paint an already-correct value red.
+TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart]")
 {
     const std::vector<common::core::ChartNote> base{makeNote({.measure = 1, .beat = 1}, 1, 5)};
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = base;
 
-    CHECK_FALSE(planRetypeFrets(chart, makeTempoMap(), base, 5, true).has_value());
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 5, true);
+    REQUIRE_FALSE(plan.has_value());
+    CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
 
 // Shrinking a sustain past zero floors it at zero rather than going negative.
@@ -1112,7 +1121,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     // Asserts the retyped note carries the expected start with the fixture's authored path
     // untouched, and that the applied chart still passes the whole-chart rules gate.
     const auto check_path_kept = [](const common::core::Chart& chart,
-                                    const std::optional<ChartNotesEditPlan>& plan,
+                                    const std::expected<ChartNotesEditPlan, ChartPlanRefusal>& plan,
                                     const int expected_start) {
         REQUIRE(plan.has_value());
         if (plan.has_value())
@@ -1192,10 +1201,13 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
 
-    CHECK_FALSE(
-        planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/true).has_value());
-    CHECK_FALSE(
-        planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/false).has_value());
+    const auto exact = planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/true);
+    REQUIRE_FALSE(exact.has_value());
+    CHECK(exact.error() == ChartPlanRefusal::Invalid);
+    const auto shifted =
+        planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/false);
+    REQUIRE_FALSE(shifted.has_value());
+    CHECK(shifted.error() == ChartPlanRefusal::Invalid);
 }
 
 // The stilled-scrape refusal is scrape-only: a pitched slide's equal-fret segment is the legal

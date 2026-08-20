@@ -1853,7 +1853,7 @@ void EditorController::Impl::insertChartNoteAt(
     note.position = position;
     note.string = string;
     note.fret = fret;
-    std::optional<ChartNotesEditPlan> plan =
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan =
         planInsertNote(*arrangement->chart, session().song().tempo_map, note);
     if (!plan.has_value())
     {
@@ -2073,9 +2073,12 @@ common::core::Fraction EditorController::Impl::chartGridStepBeats(
 }
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
-// so every projection rebuilds) and records it as one undo entry.
+// so every projection rebuilds) and records it as one undo entry. Takes the planners' own return
+// shape; the refusal kind is not consumed here — a caller that wants to distinguish NoChange from
+// Invalid branches before handing the plan over.
 bool EditorController::Impl::applyChartEditPlan(
-    std::optional<ChartNotesEditPlan> plan, std::optional<std::vector<ChartNoteKey>> select_exactly)
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan,
+    std::optional<std::vector<ChartNoteKey>> select_exactly)
 {
     if (!plan.has_value())
     {
@@ -2900,7 +2903,7 @@ void EditorController::Impl::onNeutralInsertRequested()
     note.position = caret->position;
     note.string = caret->string;
     note.fret = 0;
-    std::optional<ChartNotesEditPlan> plan =
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan =
         planInsertNote(*arrangement->chart, session().song().tempo_map, note);
     if (!plan.has_value())
     {
@@ -3022,24 +3025,25 @@ bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms
             m_chart_fret_entry.reset();
             return true;
         }
-        std::optional<ChartNotesEditPlan> widened;
-        if (entry.began_as_insert)
-        {
-            common::core::ChartNote note;
-            note.position = entry.keys.front().position;
-            note.string = entry.keys.front().string;
-            note.fret = combined;
-            widened = planInsertNote(pre_entry, session().song().tempo_map, std::move(note));
-        }
-        else
-        {
-            widened = planRetypeFrets(
+        // Assigned in both branches rather than default-constructed: a default std::expected
+        // holds a VALUE (an empty-but-valid plan), which is exactly the lie the type exists to
+        // prevent.
+        const std::expected<ChartNotesEditPlan, ChartPlanRefusal> widened = [&] {
+            if (entry.began_as_insert)
+            {
+                common::core::ChartNote note;
+                note.position = entry.keys.front().position;
+                note.string = entry.keys.front().string;
+                note.fret = combined;
+                return planInsertNote(pre_entry, session().song().tempo_map, std::move(note));
+            }
+            return planRetypeFrets(
                 pre_entry,
                 session().song().tempo_map,
                 entry.base_notes,
                 combined,
                 /*set_exact=*/true);
-        }
+        }();
         if (!widened.has_value())
         {
             return true;
@@ -3128,7 +3132,7 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
     note.position = caret->position;
     note.string = caret->string;
     note.fret = digit;
-    std::optional<ChartNotesEditPlan> plan =
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan =
         planInsertNote(*arrangement->chart, session().song().tempo_map, note);
     if (!plan.has_value())
     {
@@ -3167,7 +3171,7 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     }
     std::vector<common::core::ChartNote> base_notes = chartNotesForKeys(chartSelection().notes());
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
-    std::optional<ChartNotesEditPlan> plan = planRetypeFrets(
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan = planRetypeFrets(
         *arrangement->chart, session().song().tempo_map, base_notes, digit, /*set_exact=*/true);
     // A refused first digit (a sub-capo target, or a scrape's start stilled against its first
     // path position) still arms the entry window: the digit applies nothing, but the widen
@@ -3386,7 +3390,7 @@ void EditorController::Impl::onChartLegatoToggleRequested()
         planSetLegato(*arrangement->chart, session().song().tempo_map, keys, "Legato");
     if (planned.plan.has_value())
     {
-        if (applyChartEditPlan(std::move(planned.plan)))
+        if (applyChartEditPlan(std::move(*planned.plan)))
         {
             m_chart_legato_toggle = keys;
         }
@@ -3401,14 +3405,14 @@ void EditorController::Impl::onChartLegatoToggleRequested()
             legato_keys.push_back(ChartNoteKey{.position = note.position, .string = note.string});
         }
     }
-    std::optional<ChartNotesEditPlan> clear_plan = legato_keys.empty()
-                                                       ? std::nullopt
-                                                       : planSetAttack(
-                                                             *arrangement->chart,
-                                                             session().song().tempo_map,
-                                                             legato_keys,
-                                                             common::core::NoteAttack::Pick,
-                                                             "Remove Legato");
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> clear_plan =
+        legato_keys.empty() ? std::unexpected{ChartPlanRefusal::NoChange}
+                            : planSetAttack(
+                                  *arrangement->chart,
+                                  session().song().tempo_map,
+                                  legato_keys,
+                                  common::core::NoteAttack::Pick,
+                                  "Remove Legato");
     if (clear_plan.has_value())
     {
         // The clear press arms the window too: reversing it restores the exact previous mix.

@@ -242,7 +242,9 @@ void normalizeSustainOverlaps(
 // impossible by construction — a plan whose candidate the document reader would reject refuses
 // here, for every present and future verb, with no per-verb guard to forget. It validates the SAVED
 // form, because a scrape's latent overrides are legal in memory and stripped by the writer.
-[[nodiscard]] std::optional<ChartNotesEditPlan> finalizePlan(
+// The two emptinesses are distinct on purpose: the gate's refusal is Invalid, an empty diff is
+// NoChange — conflating them is what made every refusal in the editor silent.
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
@@ -274,14 +276,19 @@ void normalizeSustainOverlaps(
     }
     if (!common::core::validateChartNotes(saved_form, chart.tuning, tempo_map).has_value())
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    return diffNotes(chart.notes, candidate, label);
+    std::optional<ChartNotesEditPlan> plan = diffNotes(chart.notes, candidate, label);
+    if (!plan.has_value())
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+    return std::move(*plan);
 }
 
 } // namespace
 
-std::optional<ChartNotesEditPlan> planInsertNote(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note)
 {
@@ -297,7 +304,7 @@ std::optional<ChartNotesEditPlan> planInsertNote(
     return finalizePlan(chart, tempo_map, std::move(candidate), "Insert Note");
 }
 
-std::optional<ChartNotesEditPlan> planDeleteNotes(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planDeleteNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys)
 {
@@ -315,21 +322,21 @@ std::optional<ChartNotesEditPlan> planDeleteNotes(
     }
     if (deleted == 0)
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
     const std::string label =
         deleted == 1 ? std::string{"Delete Note"} : "Delete " + std::to_string(deleted) + " Notes";
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::optional<ChartNotesEditPlan> planMoveNotes(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planMoveNotes(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta, int string_delta,
     std::string_view label)
 {
     if (keys.empty() || (beat_delta.numerator == 0 && string_delta == 0))
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     const int string_count = static_cast<int>(chart.tuning.strings.size());
@@ -347,7 +354,7 @@ std::optional<ChartNotesEditPlan> planMoveNotes(
             // Refused, never clamped: a move that would leave the neck or the grid is invalid.
             if (target.string < 1 || target.string > string_count)
             {
-                return std::nullopt;
+                return std::unexpected{ChartPlanRefusal::Invalid};
             }
             moved.push_back(std::move(target));
         }
@@ -358,7 +365,7 @@ std::optional<ChartNotesEditPlan> planMoveNotes(
     }
     if (moved.empty())
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     // Origin-clamped or converging moves that stack two notes on one slot are refused, as is
@@ -372,13 +379,13 @@ std::optional<ChartNotesEditPlan> planMoveNotes(
     std::ranges::sort(target_keys);
     if (std::ranges::adjacent_find(target_keys) != target_keys.end())
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::Invalid};
     }
     for (const common::core::ChartNote& note : candidate)
     {
         if (std::ranges::binary_search(target_keys, keyOf(note)))
         {
-            return std::nullopt;
+            return std::unexpected{ChartPlanRefusal::Invalid};
         }
     }
 
@@ -386,7 +393,7 @@ std::optional<ChartNotesEditPlan> planMoveNotes(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::optional<ChartNotesEditPlan> planRetypeFrets(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact)
 {
@@ -401,7 +408,7 @@ std::optional<ChartNotesEditPlan> planRetypeFrets(
     }
     if (!lowest.has_value())
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     const int delta = set_exact ? 0 : target - *lowest;
@@ -440,13 +447,13 @@ std::optional<ChartNotesEditPlan> planRetypeFrets(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::optional<ChartNotesEditPlan> planAdjustSustain(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta)
 {
     if (keys.empty() || beat_delta.numerator == 0)
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
@@ -493,7 +500,7 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
     }
     if (!changed)
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
     return finalizePlan(
         chart,
@@ -634,7 +641,15 @@ ChartLegatoPlan planSetLegato(
     }
     if (changed)
     {
-        outcome.plan = finalizePlan(chart, tempo_map, std::move(candidate), label);
+        // The refusal kind is deliberately not forwarded: an Invalid finalize leaves the plan
+        // empty exactly like an all-skipped press, so the press falls through to its clear
+        // meaning — the behavior this verb always had. The skip channel, not the plan's absence,
+        // is this planner's feedback payload.
+        if (auto plan = finalizePlan(chart, tempo_map, std::move(candidate), label);
+            plan.has_value())
+        {
+            outcome.plan = std::move(*plan);
+        }
     }
     return outcome;
 }
@@ -666,14 +681,14 @@ std::optional<ChartNotesEditPlan> planSettleLegato(
         .value_or(ChartNotesEditPlan{.removed = {}, .inserted = {}, .label = std::string{label}});
 }
 
-std::optional<ChartNotesEditPlan> planSetAttack(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, const common::core::NoteAttack attack,
     const std::string_view label)
 {
     if (keys.empty())
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
@@ -776,19 +791,19 @@ std::optional<ChartNotesEditPlan> planSetAttack(
     }
     if (!changed)
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::optional<ChartNotesEditPlan> planSetNoteFlag(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, const ChartNoteFlag which, const bool value,
     const std::string_view label)
 {
     if (keys.empty())
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     bool common::core::ChartNote::* const field = chartNoteFlagField(which);
@@ -826,19 +841,19 @@ std::optional<ChartNotesEditPlan> planSetNoteFlag(
     }
     if (!changed)
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::optional<ChartNotesEditPlan> planSetEmphasis(
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, const common::core::NoteEmphasis value,
     const std::string_view label)
 {
     if (keys.empty())
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
@@ -871,7 +886,7 @@ std::optional<ChartNotesEditPlan> planSetEmphasis(
     }
     if (!changed)
     {
-        return std::nullopt;
+        return std::unexpected{ChartPlanRefusal::NoChange};
     }
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }

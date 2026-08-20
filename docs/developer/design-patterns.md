@@ -159,8 +159,10 @@ forbids.
 ## Plan / apply split
 
 A mutation is a pure, headless `plan...()` function that reads the model and returns an edit
-description (`std::optional`, empty = refused) without mutating anything; a separate apply step
-checks preconditions and swaps the change in. Undo replays the same plan in reverse, so round
+description (`std::expected<Plan, ChartPlanRefusal>` — a plan, or WHY there is none:
+`NoChange` for a valid no-op, `Invalid` for a rule refusal; the two emptinesses shared one
+`std::nullopt` until 2026-08-20, which made every refusal silent) without mutating anything; a
+separate apply step checks preconditions and swaps the change in. Undo replays the same plan in reverse, so round
 trips are exact by construction — and the hover ghost can run the *same* planner the click
 runs, so an affordance can never promise an edit the commit would refuse.
 

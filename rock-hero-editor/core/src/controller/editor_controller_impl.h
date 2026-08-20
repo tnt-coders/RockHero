@@ -267,7 +267,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(common::core::GridPosition at) const;
     bool applyChartEditPlan(
-        std::optional<ChartNotesEditPlan> plan,
+        std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartNoteKey>> select_exactly = std::nullopt);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
