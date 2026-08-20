@@ -658,3 +658,33 @@ Items whose trigger fired and were handled. Kept for auditability.
   collision total on an accented note. Changing `EditorTheme::accent` away from the blue family, or
   giving the glow an ink of its own, are the levers that have not been tried. Both change the
   shipped look and need sign-off.
+
+
+- **A dead note that is also a legato connection draws two marks over each other (accepted
+  2026-08-20).** Sighted after the draw order was folded into one authority: the X on top reads
+  *better* than the connection cell on top, but the pair still visibly conflicts. Accepted as-is,
+  because both techniques must remain chartable together and the combination is rare enough that a
+  slightly ugly rendering beats refusing to show one of them.
+
+  **Why it is not an ordering bug.** Every technique mark on a 3D head is pushed at the SAME centre
+  and the SAME family size — `push_marker(x, head_y, z, ...)` takes identical coordinates for all
+  of them — so any two marks a head wears overlap by construction. Draw order cannot separate them;
+  it only chooses which one survives intact. `highwayHeadMarks` makes that choice once, and the
+  choice is right (the X is the mark whose meaning breaks when it is cut). The residue is a
+  *sizing and placement* question about the marks themselves, not an order question.
+
+  **Trigger:** a charted song makes the pair common enough that the user reads it wrong in practice,
+  OR the technique-mark family is being resized for another reason and can absorb the fix in the
+  same pass. Either graduates this to real work.
+
+  **Where a future attempt should start.** Not the draw order. The levers are the marks: giving the
+  connection cell a satellite slot the way the 2D lane does (the lane has no conflict precisely
+  because its satellite sits beside the head rather than on it), or shrinking one mark so the pair
+  nests instead of crossing. Both are art changes and need a texture pass plus sign-off.
+
+  **Related, and larger:** the whole marker order is due a re-evaluation against the note
+  compatibility matrix (`docs/plans/in-progress/technique-compatibility-and-hardening.md`) rather
+  than against the pairs that happened to be sighted. The order shipped today is derived from how
+  much of the note's identity each mark overrides, which is a sound rule, but it has never been
+  checked pair-by-pair against every combination the matrix says is legal. That is a task in its
+  own right, not a watch item.

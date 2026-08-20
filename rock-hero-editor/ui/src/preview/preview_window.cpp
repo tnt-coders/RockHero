@@ -82,6 +82,13 @@ void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
     m_surface->setCaretSeconds(seconds);
 }
 
+// SIGHTING RIG - see the banner at g_accent_gain_rungs; delete with it. The ONE place the rung
+// readout is spelled, so this window's F9 and EditorView's cannot drift apart on the wording.
+void PreviewWindow::refreshAccentRungTitle()
+{
+    setName("3D Preview - accent gain " + juce::String(common::ui::highwayAccentGain(), 2));
+}
+
 void PreviewWindow::closeButtonPressed()
 {
     close();
@@ -104,8 +111,8 @@ bool PreviewWindow::keyPressed(const juce::KeyPress& key)
     // ======================================================================
     if (key == juce::KeyPress::F9Key)
     {
-        const double gain = common::ui::cycleHighwayAccentGain();
-        setName("3D Preview - accent gain " + juce::String(gain, 2));
+        common::ui::cycleHighwayAccentGain();
+        refreshAccentRungTitle();
         return true;
     }
 
