@@ -401,15 +401,38 @@ the options with the agent's recommendation.
   shape is to stop flattening: the view state mirrors the domain (waypoints plus an optional
   terminal), which the W9-B fold is rebuilding these element types for anyway. 3D needs the
   counterpart glyph or the no-surface-divergence law is broken.
-- [ ] **W9-E — Where does the attack mark go on a muted head?** (Still open, and unchanged by the
-  legato model — the mark's *value* now comes from the resolved motion, but its geometry is the same
-  triangle in the same slot.) The beside-head mark (the connection
-  triangle and friends) sizes its slot from the head's rim and the fret digits, never from the mute
-  X, and draws AFTER the X — so on a muted legato note, which E24 explicitly allows as the funk and
-  percussive-fingerstyle vocabulary, the mark overpaints most of the X's upper-left arm and the X
-  reads as broken. The root flaw is two independent size authorities on one head, so adding a third
-  `max()` term is the wrong instinct. Options: (a) the mark moves to a shoulder the X does not use;
-  (b) the X yields that arm when a mark is present.
+- [x] **W9-E — Where does the attack mark go on a muted head? RULED 2026-08-20: neither option —
+  the OVERLAP is settled by order, and the order differs per surface because the geometry does.**
+  Neither (a) nor (b) was taken. The user's rule: *"the dead note (mute X) should draw ON TOP of
+  legato ... And honestly it should draw on top of just about any other technique too"*, then, after
+  sighting: *"The X over the legato definitely looks BETTER although it still definitely conflicts.
+  Both techniques NEED to be supported together though ... Supporting it in a slightly ugly way is
+  better than no support at all."*
+
+  The shared law is that whichever mark cannot afford to be CUT draws last, and it resolves
+  differently on each surface. On the 3D head every mark is pushed at the same centre and the same
+  family size, so marks overlap by construction and order only picks the survivor: the X wins,
+  because a broken X reads as a different mark. In the 2D lane the satellite sits in its own slot up
+  and left of the head and meets the X at one arm's tip, so the satellite draws last — covering the
+  small mark entirely costs the reader more than clipping the end of a long stroke whose identity is
+  already legible. Carrying the 3D order into 2D was tried and reverted on sight.
+
+  The 3D marker order also stopped being hand-written per branch. `highwayHeadMarks`
+  (`highway_head_marks.h`) is now the one ordered authority both the open-string overlay and the
+  fretted head ask, derived from how much of the note's identity each mark overrides: palm, hand
+  mark, connection, harmonic, dead X, with a pick slide a category of one because the chart rules
+  prove it carries nothing else. The residual dead-plus-legato conflict is accepted and recorded in
+  `docs/tracking/watch-items.md`; a pair-by-pair re-check of the whole ladder against the note
+  compatibility matrix is a separate task.
+
+  **The residual is SEQUENCED, not dropped (user 2026-08-20):** *"This type of conflict is hard to
+  avoid and we MAY need a better solution later. But we may want to queue it up behind our work on
+  mipmaps to make things read better at a distance first so we can REALLY do a clear evaluation."*
+  Marks are sampled with no mip chain today, so a fix chosen now would be tuned against a sampling
+  artifact. Plan 56 (`docs/plans/roadmap/56-head-atlas-mipmapping.md`) states the same constraint
+  from its own side — mipmapping and mark distance-legibility work "should be judged together",
+  since mips alone make every annotated note relatively less conspicuous at the horizon — so the
+  two belong in one pass.
 - [ ] **W9-F — Should 2D distinguish an unpitched slide?** Every slide diagonal is stroked plain
   white whatever `unpitched` says, while the highway dims an unpitched run to a quarter alpha. So a
   note that glides 5 to 7 and then trails off shows two identical diagonals in 2D and two visibly

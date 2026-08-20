@@ -323,21 +323,29 @@ win nobody can see until the light exists — the user ruled to take the free ha
 vertical axis) and file this. Recorded so the next person to notice a wrong-lit pull-off finds
 the analysis rather than re-deriving it.
 
-### The signed accent light is deliberately subtle — trigger: accents don't stand out enough in practice
+### Accent strength: the gain lever is SPENT — trigger: accents still read thin in play
 
-The accent light signed 2026-08-18 is `medium flat`: reach 0.12 world, alpha 1.0, exponent 2.0,
-gain 1.0, additive — the un-gained control row of a nine-row sweep built to show what a radiance
-gain buys. The user signed it with the reservation recorded verbatim: *"it is a bit subtle but
-looks good"*, asking that the options tried be kept so the choice can be revisited *"if this
-turns out it doesn't stand out enough in practice."*
+The entry this replaces watched a reservation, and the reservation came true. The 2026-08-18
+signing took `medium flat` at gain 1.0 with the user's *"it is a bit subtle but looks good"*.
+Sighted 2026-08-20 against a four-rung toggle, the user took two rungs up for notes — *"I think I
+like 2 steps up from what is currently shipped for note heads and tails"* — and left chord boxes
+alone: *"chord boxes are already plenty accented as shipped"*.
 
-**Trigger**: accents fail to register in real play or charting — the light reads as decoration
-rather than emphasis. **Remedy**: raise `g_accent_gain` (inline beside `g_accent_reach` and
-`g_accent_exponent` in `highway_renderer.cpp`). The shader still clips per channel, so gain
-above 1.0 buys the white-hot core and the per-string brightness equalization with no code
-change; the sighted ladder ran 3.0 (`medium`) to 7.0 (`medium hot`), and the full nine-row
-table is recorded with the 2026-08-18 signing in
-`docs/plans/in-progress/highway-note-art-state.md`.
+**Shipped**: `g_accent_gain` 1.5 on a note (`highway_emphasis_styles.h`, mirroring `g_ghost_alpha`
+0.5), `g_accent_gain_boxes` 1.0 on a chord box (`highway_renderer.cpp`). The sighting toggle is
+deleted; nothing of it remains.
+
+**Why this stays open at all.** The old entry named the gain as THE remedy, and the gain has now
+been spent, so a future attempt must not simply reach for it again. The untried lever is REACH. A
+note's halo is only about one to four pixels wide on approach (scaled from the measured 0.075 world
+= 0.7-2.3 px figure for the highway frame, not measured directly at 0.12), so gain brightens a thin
+band where reach would widen it. Past roughly gain 2.0 the extra radiance mostly grows the
+white-hot core rather than adding width, so raising it further buys progressively less.
+
+**Trigger**: accents still read as decoration rather than emphasis in real play. **Remedy**: sight
+`g_accent_reach` (inline beside `g_accent_exponent` in `highway_renderer.cpp`), not the gain. Note
+that the note/box radiance split would need re-sighting alongside it, since widening the halo
+changes the lit-length imbalance the split exists to compensate for.
 
 ### Stacked node heads interpenetrate — trigger: simultaneous harmonics on adjacent strings read wrong
 
@@ -673,9 +681,22 @@ Items whose trigger fired and were handled. Kept for auditability.
   choice is right (the X is the mark whose meaning breaks when it is cut). The residue is a
   *sizing and placement* question about the marks themselves, not an order question.
 
-  **Trigger:** a charted song makes the pair common enough that the user reads it wrong in practice,
-  OR the technique-mark family is being resized for another reason and can absorb the fix in the
-  same pass. Either graduates this to real work.
+  **Trigger, and it is SEQUENCED (user 2026-08-20).** This class of conflict is hard to avoid and may
+  well need a real solution, but it is queued BEHIND head-atlas mipmapping
+  (`docs/plans/roadmap/56-head-atlas-mipmapping.md`) rather than picked up on its own. The marks are
+  sampled today with no mip chain, so how two overlapping marks actually read cannot be judged
+  fairly until they read correctly at distance — any fix chosen now would be tuned against a
+  sampling artifact.
+
+  Plan 56 already carries the same constraint from its own side, which is why the two belong in one
+  pass rather than in sequence with a gap: it records that mipmapping and any distance-legibility
+  work on the marks "should be judged together", because mips alone make every annotated note
+  relatively LESS conspicuous at the horizon (at the far edge an ordinary note gains 72.7% from
+  correct filtering against a mark's 21.8%). Fixing this conflict before that lands would mean
+  re-judging it immediately afterwards.
+
+  Until then, only one thing should pull this forward early: a charted song making the pair common
+  enough that it is misread in real use.
 
   **Where a future attempt should start.** Not the draw order. The levers are the marks: giving the
   connection cell a satellite slot the way the 2D lane does (the lane has no conflict precisely

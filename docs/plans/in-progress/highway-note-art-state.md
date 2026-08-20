@@ -28,11 +28,20 @@ three coupled surfaces — the tech base under the plectrum, the anticipation ri
 accent light — and `highwayTechHead`'s scrape clause with them. A scrape wears the pick mark on
 the darker tech base; that is now a sighted decision, not a default.
 
-**The ACCENT LIGHT is SIGNED 2026-08-18: `medium flat`** — reach 0.12 world, alpha 1.0, exponent
-2.0, gain 1.0, additive blend. The user: *"'accent light: medium flat' looks best"*, signed with
-the reservation *"it is a bit subtle but looks good"* — recorded as a watch item
-(`docs/tracking/watch-items.md`) whose trigger is accents not standing out enough in practice
-and whose knob is `g_accent_gain`. The winning numbers live inline in `highway_renderer.cpp`
+**The ACCENT LIGHT's SHAPE is SIGNED 2026-08-18: `medium flat`** — reach 0.12 world, alpha 1.0,
+exponent 2.0, additive blend. The user: *"'accent light: medium flat' looks best"*, signed with the
+reservation *"it is a bit subtle but looks good"*.
+
+**Its STRENGTH was revised 2026-08-20, and the reservation is why.** Sighted against a four-rung
+toggle, notes and tails took two rungs up while chord boxes stayed as shipped, so the radiance is
+now per subject: `g_accent_gain` 1.5 on a note, `g_accent_gain_boxes` 1.0 on a chord box. That
+split is a size compensation rather than two opinions about the light — outside a silhouette the
+shader's inward term is zero, so the falloff is provably identical for both subjects and only the
+lit LENGTH differs. The note value moved to `highway_emphasis_styles.h` to sit beside
+`g_ghost_alpha` 0.5, which it deliberately mirrors: both ends of the emphasis axis sit the same
+distance either side of neutral, stated as separate constants because alpha on an object and
+radiance on a light beside it are separate mechanisms. The gain lever is now spent; the watch item
+carries reach as the remaining one. The winning numbers live inline in `highway_renderer.cpp`
 (`g_accent_reach` / `g_accent_exponent` / `g_accent_gain`); the candidate table, its
 `AccentBlend` enum, the F9 sampler, the F4/F10 size samplers and the F6 atlas-variant cycler
 are all deleted with their plumbing (`highway_board_scales.h` gone, `highway_emphasis_styles.h`
