@@ -1673,11 +1673,23 @@ void drawNoteHead(
 
     if (note.attack == common::core::NoteAttack::Pinch)
     {
-        const float line_x = onset_x - metrics.note_height / 2.0f;
+        // The bar is capped to the DIAMOND's own height and seated ON it (user ruling 2026-08-20):
+        // its left edge lands exactly on the diamond's leftmost point, so the bar overlaps the head
+        // instead of hanging off its side, and it stands as tall as the diamond rather than as tall
+        // as the note. It used to be centred half a note height out from the onset and drawn the
+        // full note height, which left it taller than the head it belongs to and mostly outside it.
+        //
+        // Both numbers come from the head's VISIBLE half-extent — the bright ring at
+        // `size/2 - border`, which is the same quantity the accent glow stands off. Asking for it
+        // here rather than restating `note_height / 2` is what keeps the bar seated if the head's
+        // layering moves again: it moved today, when the dark outer backing came off and the ring
+        // became the outermost thing a head draws.
+        const float diamond_half =
+            (metrics.headSize() / 2.0f) - noteBorderThickness(metrics.headSize());
         g.setColour(style[Ink::BorderInner]);
         g.fillRect(
             juce::Rectangle<float>{
-                line_x - 1.5f, center_y - metrics.note_height / 2.0f, 3.0f, metrics.note_height
+                onset_x - diamond_half, center_y - diamond_half, 3.0f, diamond_half * 2.0f
             });
     }
 
@@ -1685,6 +1697,7 @@ void drawNoteHead(
     // one note and another elsewhere is a mark the reader has to disambiguate; the plectrum
     // silhouette already says what a scrape is. The chart rules reject a mute on a pick-slide
     // note outright, so a scrape passes two clear flags here and draws no X at all.
+
     drawMuteIcon(g, metrics, style, note.palm_mute, note.dead, onset_x, center_y);
 
     if (metrics.draw_text)
@@ -1722,6 +1735,16 @@ void drawNoteHead(
             juce::Justification::centred);
     }
 
+    // The beside-head satellite draws LAST here, over every other mark including the dead X —
+    // the opposite of the order the 3D head uses, and deliberately so. The surfaces are not
+    // disagreeing about one rule; they are answering two different questions. On the highway
+    // every mark stacks CONCENTRIC on the head, so the order decides which mark survives a
+    // collision outright, and there the X wins because a broken X reads as a different mark.
+    // In this lane the satellite has its own slot up and left of the head and meets the X only
+    // at one arm's tip: covering the small mark entirely costs the reader more than clipping the
+    // end of a long stroke whose identity is already legible. The shared law is "whichever mark
+    // cannot afford to be cut draws last", and that resolves to a different mark on each surface
+    // because the geometry differs.
     drawAttackIcon(g, metrics, style, note, onset_x, center_y);
 }
 

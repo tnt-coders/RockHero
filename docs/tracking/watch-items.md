@@ -625,3 +625,36 @@ Items whose trigger fired and were handled. Kept for auditability.
   accent glow's radius is currently derived from the ring as the visible edge (`accentGlowSize`),
   and a restored backing would hide the inner `border` of it again, so the glow would need to grow
   back by that much or it will read tight.
+
+- **The selection ring is hard to read on the blue string (accepted 2026-08-20).** Worst on blue,
+  worse again when the note is accented. Two rounds of constructions were built, sighted and
+  REJECTED — the shipped ring reads better than every alternative — so this is accepted as shipped
+  rather than solved, and the reasons are worth keeping because they bound what a future attempt
+  may try.
+
+  **Root cause, measured.** `EditorTheme::accent` is `0x87cefa`; the blue string's bright head ring
+  is `0x29caff`. That pair measures **6.89 dE00**, against **>= 42.55** for every other string, so
+  blue is 6.2x closer to the ring than the next-worst. It is a light blue line drawn on light blue.
+  The accent then makes it worse structurally: `huePreservingAccentColor` caps its gain at 1.0 on
+  all six strings, so **the accent glow's ink IS the head-ring ink**, and the ring sits entirely
+  inside the glow (stroke r 11.70-14.30; glow full-alpha to 13.17, zero at 15.64). On a plain note
+  the ring's outer neighbour is the lane at 69.68 — its one good side — and the accent replaces
+  that with more of the ink it already cannot beat. Blue measures **35.00 -> 5.76 dL\***, a
+  **-83.5%** collapse.
+
+  **What is already ruled out, with numbers, so nobody repeats it.** (1) A different single ink
+  cannot work: the neighbour inks' L\* values are packed tightly enough that **no ink anywhere in
+  sRGB can exceed a 6.30 dL\* floor** against all of them, where relocating the ring gets 72.98 —
+  an 11x difference, proved structurally rather than by search. (2) Anything drawn INSIDE the
+  glow's annulus that is strong enough to beat the glow also covers it: every clearer construction
+  measured dropped accent retention to 7-11% where the shipped ring retains 20%. The user's words:
+  *"all the ones that look CLEARER effectively KILL the accent ring."* (3) A standoff ring outside
+  the glow measures far better on both objectives (blue accented 5.76 -> 42.45) and was still
+  rejected on sight, as was a version fitted to the note's own silhouette.
+
+  **Trigger:** the user says the ring is a real obstacle in charting use, rather than a noted
+  annoyance. **Where a future attempt should start:** not the ring. The root cause is upstream —
+  the editor's selection accent and the string palette collide, and the glow's gain cap makes the
+  collision total on an accented note. Changing `EditorTheme::accent` away from the blue family, or
+  giving the glow an ink of its own, are the levers that have not been tried. Both change the
+  shipped look and need sign-off.
