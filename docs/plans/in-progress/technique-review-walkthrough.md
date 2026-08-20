@@ -130,14 +130,20 @@ item ships, mark it and name the commit.
   cannot refuse the chart, and the noise-idiom tail display. Blocks nothing but touches W1, E10,
   E24 and the display; build before the lock/break work so the tail rules are stated once.
 
-  **Design opened 2026-08-20 and PAUSED mid-discussion at the user's request:
-  `docs/plans/in-progress/e25-muted-tail-implementation.md`.** Read that before starting — it
-  carries the investigation (E25 has zero implementation on any path, and neither the editor's load
-  nor its save runs `validateChartRules` at all), the load-policy decision (normalize at the
-  boundary and warn, never refuse), the fixpoint construction that keeps the rule from being stated
-  twice, a code-site inventory, and FOUR OPEN QUESTIONS that must be settled before code. The third
-  part above is also now confirmed to be zero code: under E25 every surviving muted tail already
-  carries teeth or a diagonal, so the display needs no branch.
+  **Design opened 2026-08-20, paused, and SIGNED later the same day — all four open questions
+  ruled: `docs/plans/in-progress/e25-muted-tail-implementation.md`.** Read that before starting —
+  it carries the investigation (E25 has zero implementation on any path, and neither the editor's
+  load nor its save runs `validateChartRules` at all), the code-site inventory, and the signed
+  shape: E25's arm joins `executableChartNote` (whose contract already IS the droppable-rule shed,
+  and which import already applies destructively), the validator's droppable section collapses to
+  the fixpoint `executableChartNote(note) == note`, the package read runs the same shed before
+  validating and reports through its existing `conversions` channel, structural violations still
+  refuse loudly, and the warning is a one-shot themed notice at open naming rule and positions.
+  The third part above is also now confirmed to be zero code: under E25 every surviving muted tail
+  already carries teeth or a diagonal, so the display needs no branch. **One conflict left before
+  code (doc §6.5):** the legato-flatten watch item's recorded remedy predates these rulings and is
+  overridden by them — the proposed reconciliation (the open-time notice also names the claims the
+  settle sweep flattens; the watch item retires) needs the user's read.
 - [ ] **W5 — `H` eligible-subset fix SHIPPED 2026-08-10; counted feedback SHIPPED AS DATA ONLY, its
   surface deferred to W3 (revised 2026-08-11 by the legato review's F1).** The eligible-subset half:
   the controller asks `planSetLegato` itself whether applying would change anything (the oracle, never
@@ -637,7 +643,10 @@ shipped technique verbs.
   transpose scopes to exactly the selected points, and string moves are allowed whenever the head
   is in the selection (the path rides by construction; a waypoint-only selection refuses).
 - **Build order:** the `planRetypeFrets` deletion (with tests) ships as its own small change
-  before W3, whose typing path sits on that planner.
+  before W3, whose typing path sits on that planner. **SHIPPED `1624bb2f` 2026-08-20**: the
+  branch died whole; the stilled-scrape refusal rides the existing always-traveling rule, pinned
+  with the pitched equal-fret hold acceptance, and the controller's refused-first-digit recovery
+  re-pinned off the surviving refusal.
 
 ## Ruled by the user 2026-08-08 (done or queued to enforcement)
 

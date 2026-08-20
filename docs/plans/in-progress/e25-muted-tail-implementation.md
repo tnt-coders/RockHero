@@ -1,11 +1,13 @@
 # E25 Muted Tails — Implementation Design (W4)
 
-**Status: rule SIGNED, implementation NOT STARTED, design UNDER DISCUSSION.**
+**Status: rule SIGNED, implementation design SIGNED 2026-08-20 (all four questions ruled),
+implementation NOT STARTED. One late conflict to resolve first — see §6.5.**
 
 The rule itself was signed 2026-08-09 as E25 (ruling D16) and needs no revisiting. What this
-document holds is the *implementation* design, which was opened 2026-08-20 and paused mid-discussion
-at the user's request. Four questions are still open — they are listed at the bottom, and they
-should be settled before any code is written.
+document holds is the *implementation* design, opened 2026-08-20, paused mid-discussion, and
+settled later the same day: the user ruled all four open questions, each on the recommended
+option (the resolutions are recorded in §6). What remains before code is §6.5 — a standing
+watch-item remedy that the load design overrides and that needs the user's read.
 
 Source of the rule: `technique-review-walkthrough.md` (D16 for the ruling, W4 for the work item)
 and `technique-compatibility-and-hardening.md` (the E25 row, and the matrix status line that names
@@ -152,6 +154,69 @@ hold-scoring question, not a chart one.
 ---
 
 ## 6. OPEN QUESTIONS — settle these before writing code
+
+> **Second look, 2026-08-20 (later session): the normalizer already exists, which resolves most of
+> this.** `executableChartNote` (`chart_rules.cpp:239`) already DROPS exactly the payloads the
+> validator refuses — dead+bend/vibrato, the dead pinch, tap-harmonic tremolo, fret-hand-harmonic
+> payloads — and its header contract (`chart_rules.h:171`) states the job in so many words: *"It
+> covers exactly the rules a single note can be made to obey by DROPPING something."* The GP
+> importer already applies it destructively as its counted shed pass (`gp_chart_builder.cpp:2686`),
+> with a comment recording that a hand-kept copy of the list "drifted from the list there twice."
+> So the validator's droppable section is today a hand-restated fixpoint of the shed — the
+> rule-stated-twice defect. On the reporting side, the package reader already has a `conversions`
+> channel that the editor logs and that opens the session dirty ("memory no longer equals disk",
+> `project.cpp:383-400`), and the load gate that would brick projects is the package read's
+> `validateChartRules` refusal (`rock_song_package_read.cpp:830`).
+>
+> **All four RULED by the user 2026-08-20 (same day, later session), each on the option below:**
+>
+> - **Q1 — all drops, stated once.** The validator's droppable section becomes the fixpoint
+>   `executableChartNote(note) == note` (the pick-slide `savedChartNote` fixpoint precedent,
+>   `chart_rules.cpp:557`), deleting the four hand-restated refusals. E25's arm lands in the shed
+>   and the validator enforces it for free. Edit verbs still refuse — a plan failing the fixpoint
+>   is refused — so verb behavior is unchanged.
+> - **Q2 — shed, then refuse structural, and the taxonomy needs no enum.** Parse → shed
+>   (normalize + warn) → validate; whatever the validator still refuses after the shed is
+>   structural by construction. The shed's own header already draws the line: range violations,
+>   missing data (the pinch node), and everything relational stay refusals.
+> - **Q3 — no third normalizer.** The E25 arm (`dead`, no `tremolo`, no slide payload → zero
+>   sustain) goes into `executableChartNote`, placed LAST so the fixpoint settles in one pass
+>   (the tap-harmonic arm can clear a tremolo that was the tail's justification). The package
+>   read runs the same shed just before its validate, reporting through the existing
+>   `conversions` channel. `savedChartNote` stays the memory→document latents seam.
+> - **Q4 — one-shot notice with positions.** The conversion note names the rule and the note
+>   positions (capped, full list in the log) and a themed message box shows it once at open, only
+>   when load actually shed something — which after a rule change happens once per project, since
+>   save normalizes. The session still opens dirty. The rejected alternatives: conversions log +
+>   dirty flag only (import parity, but close to silent — the concern that opened this question),
+>   and deferring a durable surface to W3's channel. GP import keeps its counted convention:
+>   import converts wholesale, while a load shed edits saved work, which earns specificity.
+
+## 6.5. LATE CONFLICT — the legato-flatten watch item (needs the user's read before code)
+
+`docs/tracking/watch-items.md` ("A muted-tail trim would flatten legato claims corpus-wide —
+trigger: W4/E25 builds the trim", recorded 2026-08-11) fires on this exact work, and its recorded
+remedy predates today's rulings and conflicts with them. The hazard is real and second-order: a
+fully muted note's tail counts at stored length for the connection hold test, so the moment the
+shed trims it, every legato claim that depended on that tail stops resolving and the load-time
+settle sweep (`sweepUnjustifiedLegato`, run by every load path) flattens them to plain picks — a
+knock-on edit the trim warning alone does not mention. The remedy recorded then: run the trim as
+an editor plan operation riding one undo entry, "never as a silent conversion inside
+`readRockSongPackageDirectory`".
+
+That remedy imagined a world where the validator refuses and a migration tool repairs. Today's
+rulings chose the other world: load normalizes and can never refuse, so the trim MUST live in the
+load shed — an editor-verb-only trim would leave the package read either refusing (bricking, the
+thing Q2 forbids) or admitting an invalid chart. The reconciliation to put to the user:
+
+- Keep the signed load design unchanged.
+- Extend the Q4 notice to cover the knock-on: the settle sweep already returns the set it
+  flattened, so the one open-time notice names BOTH the trimmed tails and the legato claims that
+  consequently read as plain picks, each with positions. Nothing is silent, which was the watch
+  item's real complaint; "reversible" is answered by the file being untouched until save rather
+  than by undo.
+- Retire the watch item with this ruling recorded (its trigger has fired and its remedy is
+  superseded), per the registry's own discipline.
 
 **Q1. Normalize-on-load forces a taxonomy the rules do not currently have.** If load normalizes
 rather than refuses, every rule must be normalizable or load still has a failure path. Today they
