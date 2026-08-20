@@ -709,3 +709,40 @@ Items whose trigger fired and were handled. Kept for auditability.
   much of the note's identity each mark overrides, which is a sound rule, but it has never been
   checked pair-by-pair against every combination the matrix says is legal. That is a task in its
   own right, not a watch item.
+- **The 3D accent reads bolder on a tremolo tail than on a straight one (accepted 2026-08-20).**
+  The user, sighting the highway: *"In 3D the accent DEFINITELY looks like it stands out way more on
+  tremolo than on straight tails ... It also looks like the glow spikes a bit brighter at each
+  exterior angle and dips out a bit at each interior angle on the tremolo tail."* Two rounds of
+  alternative constructions were built and sighted, and ALL were rejected — *"shipped is the only
+  one that looks consistent across all tail types"* — so this is accepted as shipped rather than
+  solved. The 2D half of the same complaint WAS fixed (the 2D halo now traces the band's centreline,
+  commit 5ef89e26); only the 3D half remains.
+
+  **Root cause.** The tail's glow is emitted per segment along the path, and the operator is
+  additive (signed 2026-08-18). Where the path turns outward, consecutive segments' halos overlap
+  and their contributions ADD, so the halo beads bright; where it turns inward they leave a gap and
+  it thins. A straight tail never turns, so it never shows either. A tremolo path turns at every
+  tooth, which is why the same light reads bolder there. It is a property of the operator meeting a
+  turning path, not of the tremolo art.
+
+  **What was ruled out, so it is not rebuilt.** Every rejected candidate partitioned the path into
+  per-segment pieces and then tried to fix the joints — offsetting them to overlap makes the beading
+  worse under an adding operator, and abutting them exactly seams dark instead, because two
+  antialiased edges meeting do not sum to one opaque edge. The user recognised this on sight:
+  *"Did we not try that already? Isn't that the method that left breaks at each joint?"* The
+  candidates also read as glitchy while PAUSED and in the still sheets, which killed any explanation
+  that depended on motion. Shipped survives because it never partitions the path at all, so its
+  error is constant with the tooth density instead of scaling with the number of joints.
+
+  **The one identified fix, not taken.** A MAX blend equation (`BGFX_STATE_BLEND_EQUATION_MAX`)
+  removes the class outright rather than tuning it, because taking a maximum makes overlap
+  idempotent — two halos covering the same fragment give the brighter one, not their sum, so a turn
+  cannot bead. The cost is why it was not taken on the spot: it overturns the additive operator
+  signed 2026-08-18, and the note heads, open-string bars and chord boxes share the accent batch and
+  rely on accumulation, so they would need their own draw call first.
+
+  **Trigger:** an accented tremolo reads wrong in real play, OR the accent batch is being
+  restructured for another reason — the tail-glow vertex-explosion bug is in that same batch and
+  would be the natural moment, since splitting the batch is most of the work MAX blending needs
+  anyway. **Where to start:** the blend equation, not the geometry. Every geometric approach has
+  been tried and sighted.
