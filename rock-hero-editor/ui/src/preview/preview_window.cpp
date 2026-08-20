@@ -3,6 +3,8 @@
 #include "preview/preview_surface.h"
 #include "shared/editor_theme.h"
 
+// SIGHTING RIG include - drops out with the F9 branch below.
+#include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -89,6 +91,24 @@ void PreviewWindow::closeButtonPressed()
 // keys the editor declines fall through to the DocumentWindow behavior.
 bool PreviewWindow::keyPressed(const juce::KeyPress& key)
 {
+    // ======================================================================
+    // SIGHTING RIG - DELETE WHEN THE ACCENT INTENSITY IS SIGNED. The rungs,
+    // the rationale and the full removal list are at the g_accent_gain_rungs
+    // banner in highway_renderer.cpp.
+    //
+    // Claimed BEFORE the editor forward, which is exactly the key-trap shape
+    // this window was fixed for once already - it is tolerable only because
+    // the block is temporary, and it is the reason the block must not outlive
+    // the decision. The rung goes in the TITLE rather than a log line so the
+    // sighting never has to guess which rung is on screen.
+    // ======================================================================
+    if (key == juce::KeyPress::F9Key)
+    {
+        const double gain = common::ui::cycleHighwayAccentGain();
+        setName("3D Preview - accent gain " + juce::String(gain, 2));
+        return true;
+    }
+
     if (m_forward_key_press && m_forward_key_press(key))
     {
         return true;

@@ -264,7 +264,31 @@ constexpr double g_glow_solid_emitter_depth = 1.0;
 // white-hot-core clipping the glow shader describes into play.
 constexpr double g_accent_reach = 0.12;
 constexpr double g_accent_exponent = 2.0;
-constexpr double g_accent_gain = 1.0;
+
+// ==========================================================================
+// SIGHTING RIG - DELETE WHEN THE ACCENT INTENSITY IS SIGNED
+//
+// "More intense accents" needs no new mechanism: the signed comment above
+// already names the gain as the knob for exactly this question, and it is one
+// uniform value the shader multiplies its field by. The rungs below just hand
+// it a bigger one. Rung 0 is the shipped light untouched, so the control is
+// always in the toggle.
+//
+// Rung 1 is the first rung past the shader's per-channel clip - the palette's
+// brightest channel is 237, so clipping begins at 255/237 = 1.076 - where the
+// halo starts growing a white-hot core instead of only a brighter pedestal.
+// Rungs 2 and 3 carry that further. Gain widens the halo as well as
+// brightening it, because the visible edge is wherever gain times the falloff
+// clears the display threshold, so one knob covers both readings of "bolder".
+//
+// TO REMOVE: delete this banner and the two lines under it; delete
+// highwayAccentGain and cycleHighwayAccentGain just past the anonymous
+// namespace and their declarations in highway_renderer.h; restore
+// `constexpr double g_accent_gain = <signed value>;` here and use it again in
+// glow_uniform_at; drop the F9 branch in PreviewWindow::keyPressed.
+// ==========================================================================
+constexpr std::array<double, 4> g_accent_gain_rungs{1.0, 1.25, 1.6, 2.1};
+std::size_t g_accent_gain_rung = 0;
 
 // Overlay content is screen-space and never depth-tested.
 constexpr std::uint64_t g_overlay_state =
@@ -1564,6 +1588,19 @@ linkProgram(const HighwayShaderPair& pair, const std::string_view name)
 
 } // namespace
 
+// SIGHTING RIG - see the banner at g_accent_gain_rungs; delete with it.
+double highwayAccentGain()
+{
+    return g_accent_gain_rungs.at(g_accent_gain_rung);
+}
+
+// SIGHTING RIG - see the banner at g_accent_gain_rungs; delete with it.
+double cycleHighwayAccentGain()
+{
+    g_accent_gain_rung = (g_accent_gain_rung + 1) % g_accent_gain_rungs.size();
+    return highwayAccentGain();
+}
+
 /*
 All bgfx-facing state and drawing lives here, behind the public header's opaque pointer, so the
 framework never leaks into common/ui's interface (the Tracktion isolation treatment).
@@ -2085,7 +2122,9 @@ void HighwayRenderer::Impl::draw(
             static_cast<float>(g_accent_reach),
             static_cast<float>(g_accent_exponent),
             static_cast<float>(emitter_depth),
-            static_cast<float>(g_accent_gain),
+            // SIGHTING RIG: reads the rung instead of the constant. Restore
+            // g_accent_gain here when the intensity is signed.
+            static_cast<float>(highwayAccentGain()),
         };
     };
     const std::array<float, 4> note_glow_uniform = glow_uniform_at(g_glow_solid_emitter_depth);
