@@ -129,6 +129,15 @@ item ships, mark it and name the commit.
   `tremolo` or a slide payload), the import normalization that zeroes such a sustain so a re-read
   cannot refuse the chart, and the noise-idiom tail display. Blocks nothing but touches W1, E10,
   E24 and the display; build before the lock/break work so the tail rules are stated once.
+
+  **Design opened 2026-08-20 and PAUSED mid-discussion at the user's request:
+  `docs/plans/in-progress/e25-muted-tail-implementation.md`.** Read that before starting — it
+  carries the investigation (E25 has zero implementation on any path, and neither the editor's load
+  nor its save runs `validateChartRules` at all), the load-policy decision (normalize at the
+  boundary and warn, never refuse), the fixpoint construction that keeps the rule from being stated
+  twice, a code-site inventory, and FOUR OPEN QUESTIONS that must be settled before code. The third
+  part above is also now confirmed to be zero code: under E25 every surviving muted tail already
+  carries teeth or a diagonal, so the display needs no branch.
 - [ ] **W5 — `H` eligible-subset fix SHIPPED 2026-08-10; counted feedback SHIPPED AS DATA ONLY, its
   surface deferred to W3 (revised 2026-08-11 by the legato review's F1).** The eligible-subset half:
   the controller asks `planSetLegato` itself whether applying would change anything (the oracle, never
