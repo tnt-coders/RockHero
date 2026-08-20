@@ -153,6 +153,31 @@ void strokeTabNoteHeadOutline(
     float extent, float stroke_thickness);
 
 /*!
+\brief Draws the editor's pending fret entry box: the mute number-plate's own geometry and font
+carrying a provisional value.
+
+Host chrome, not notation — the game renders no keyboard entry — but exported from the core
+rather than restated in the host so the provisional digit's typography and placement CANNOT
+drift from the committed head's (the one-primitive rule of the pending-entry design; the insert
+ghost's shape drifted exactly this way once). The plate rect is the same authority the mute
+number-plate draws, the font is the head digit's own, and the fill is the lane's near-black — a
+known ground, so the text color alone carries the valid/invalid signal over any string lane.
+The border and inks are the host's, because pending is an editor state and this core owns no
+editor colors.
+
+\param g Graphics context to draw into.
+\param metrics Metrics of the lane being painted.
+\param center_x Box center on the time axis — a head's onset x, or an empty insert slot's x.
+\param center_y Box center on the lane's string line.
+\param text Provisional value exactly as typed.
+\param text_color Text ink: the host's digit white while the value would apply, red when not.
+\param border_color Box border: the host's editor accent.
+*/
+void paintTabPendingEntryBox(
+    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
+    const juce::String& text, juce::Colour text_color, juce::Colour border_color);
+
+/*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.
 
 String lines, hand-shape spans, sustain tails with their slide and bend lines, arpeggio posture

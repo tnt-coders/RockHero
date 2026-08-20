@@ -337,6 +337,43 @@ void TabView::paint(juce::Graphics& g)
         g.drawEllipse(
             center_x - size / 2.0f, center_y - size / 2.0f, size, size, overlayRingStroke(size));
     }
+
+    // The pending fret entry: the provisional value in its accent-bordered box over each
+    // affected head (or at the empty insert slot), red when it cannot apply — every affected
+    // head marks together, because a relational refusal has no per-note attribution. Editor
+    // chrome like the caret and the ghost, but drawn through the paint core's one exported
+    // primitive so the digit's typography and plate cannot drift from the committed head's.
+    if (m_edit.pending_fret.has_value())
+    {
+        const juce::Colour ink =
+            m_edit.pending_fret->valid ? editorTheme().primary_text : editorTheme().invalid;
+        const juce::String text{m_edit.pending_fret->text};
+        for (const std::size_t index : m_edit.pending_fret->notes)
+        {
+            if (index >= m_tab->notes.size())
+            {
+                continue;
+            }
+            const common::core::TabNoteView& note = m_tab->notes[index];
+            const common::ui::TabNoteLayout layout =
+                common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
+            common::ui::paintTabPendingEntryBox(
+                g, metrics, layout.onset_x, layout.center_y, text, ink, accent);
+        }
+        if (m_edit.pending_fret->insert_seconds.has_value() &&
+            m_edit.pending_fret->insert_string >= 1 &&
+            m_edit.pending_fret->insert_string <= m_tab->string_count)
+        {
+            common::ui::paintTabPendingEntryBox(
+                g,
+                metrics,
+                metrics.x(*m_edit.pending_fret->insert_seconds),
+                metrics.laneY(m_edit.pending_fret->insert_string),
+                text,
+                ink,
+                accent);
+        }
+    }
 }
 
 // Resolves the caret square against freshly derived metrics, mirroring paint's derivation so

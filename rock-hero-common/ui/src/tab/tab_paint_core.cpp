@@ -96,6 +96,23 @@ constexpr int g_arpeggio_posture_gap{1};
     return static_cast<int>(std::ceil(arrangement.getBoundingBox(0, -1, true).getWidth()));
 }
 
+// The plate rect the mute number-plate and the editor's pending entry box share: sized against
+// the text's own ink so the box reads as the number's ground, never a fixed chip. One authority
+// on purpose — the pending box exists to carry a provisional value in exactly the committed
+// number's frame, so a second derivation here would be the drift the export exists to prevent.
+[[nodiscard]] juce::Rectangle<float> headTextPlate(
+    const TabLaneMetrics& metrics, const juce::String& text, const float center_x,
+    const float center_y)
+{
+    const auto text_width = static_cast<float>(textWidth(metrics.fret_font, text));
+    return juce::Rectangle<float>{
+        center_x - text_width / 2.0f - 2.0f,
+        center_y - metrics.fret_font.getHeight() / 2.0f - 1.0f,
+        text_width + 4.0f,
+        metrics.fret_font.getHeight() + 2.0f
+    };
+}
+
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation for the in-file call
 // sites that derive from already-opaque colors.
 [[nodiscard]] juce::Colour charterDarker(juce::Colour color)
@@ -1708,14 +1725,9 @@ void drawNoteHead(
         if (muted)
         {
             // Both mutes box the fret number so it stays readable where the X's crossing strokes
-            // cut through the digits; the plate rule lives in mutePlatePalette.
-            const auto text_width = static_cast<float>(textWidth(metrics.fret_font, head_text));
-            const juce::Rectangle<float> box{
-                onset_x - text_width / 2.0f - 2.0f,
-                center_y - metrics.fret_font.getHeight() / 2.0f - 1.0f,
-                text_width + 4.0f,
-                metrics.fret_font.getHeight() + 2.0f
-            };
+            // cut through the digits; the plate rule lives in mutePlatePalette and the geometry
+            // in headTextPlate, shared with the pending entry box.
+            const juce::Rectangle<float> box = headTextPlate(metrics, head_text, onset_x, center_y);
             g.setColour(mute_plate.fill);
             g.fillRect(box);
             g.setColour(style[Ink::MuteBorder]);
@@ -1872,6 +1884,28 @@ void strokeTabNoteHeadOutline(
             break;
     }
     g.strokePath(outline, juce::PathStrokeType{stroke_thickness});
+}
+
+// Rationale lives on the declaration in tab_paint_core.h. The fill stays internal on purpose:
+// the ruling wants a KNOWN ground under the provisional text so the valid/invalid ink carries
+// the signal on luminance alone, and 0xff101010 is the lane's own established near-black (the
+// quieting target the 2D surface already leans toward), so the box belongs to the lane on any
+// string color.
+void paintTabPendingEntryBox(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const float center_x, const float center_y,
+    const juce::String& text, const juce::Colour text_color, const juce::Colour border_color)
+{
+    const juce::Rectangle<float> plate = headTextPlate(metrics, text, center_x, center_y);
+    g.setColour(juce::Colour{0xff101010});
+    g.fillRect(plate);
+    g.setColour(border_color);
+    g.drawRect(plate, 1.0f);
+    if (metrics.draw_text)
+    {
+        g.setColour(text_color);
+        g.setFont(metrics.fret_font);
+        g.drawText(text, plate, juce::Justification::centred);
+    }
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.

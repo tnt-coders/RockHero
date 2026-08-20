@@ -86,6 +86,16 @@ struct EditorTheme
     /*! \brief Interaction accent: snap guides, drop indicators, selection borders. */
     juce::Colour accent{0xff87cefa};
 
+    /*!
+    \brief Invalid-state ink: a provisional value that cannot apply (the pending fret entry's
+    red text).
+
+    Pure red on purpose: its relative luminance (~0.21) against the digit white (1.0) keeps the
+    valid/invalid signal legible on luminance alone, so it survives protan and deutan vision
+    without a second shape (the pending-entry ruling).
+    */
+    juce::Colour invalid{0xffff0000};
+
     /*! \brief Emphasized foreground text over dark surfaces. */
     juce::Colour primary_text{0xffffffff};
 
