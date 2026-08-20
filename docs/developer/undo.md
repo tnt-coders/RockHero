@@ -37,8 +37,9 @@ funnel because flattening a claim to a plain pick can violate no rule; see the p
 (document replace, tone import). Capture rules that keep fidelity:
 
 - Capture the before-state **before** mutating, and push exactly one entry per user gesture.
-  Bursts that *are* one gesture (multi-digit fret typing, wheel ticks) widen the just-pushed
-  entry via `EditorUndoHistory::replaceTop` inside a time window instead of stacking entries.
+  Multi-digit fret typing is one gesture by construction: the typed value stays PENDING —
+  nothing reaches the chart until the entry settles — so the whole number commits as one entry
+  with no splice (the W3 pending model; `settleChartFretEntry`, `editor_controller.cpp`).
   A toggle whose second press provably reverses its own first press (the legato toggle window)
   applies the entry's inverse and removes it via `EditorUndoHistory::dropTop`, so the pair
   leaves no trace. Both splices refuse when the top entry is the reachable clean state — the file

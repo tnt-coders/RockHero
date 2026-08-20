@@ -332,23 +332,28 @@ track's active-region highlight and the lanes' live-value tracking. Pair with a 
 
 ## Input coalescing windows
 
-Rapid repeated input folds into one committed value and **one undo entry** instead of a stack:
-multi-digit fret entry widens the in-flight edit through `EditorUndoHistory::replaceTop` inside
-a millisecond window (`g_fret_entry_window_ms`, `editor_controller.cpp`); wheel-tick verbs
-coalesce the same way; the engine's plugin dirty tracking settles state transactions behind a
-quiet debounce (`plugin_dirty_tracking.cpp`). Reach for it when a burst of inputs is one user
-gesture — the undo rule is one entry per gesture, not per event.
+Rapid repeated input folds into one committed value and **one undo entry** instead of a stack.
+The multi-digit fret entry does it with a PENDING model (the W3 design): the typed value is
+provisional, replanned in full on every keystroke, and nothing reaches the chart until the entry
+settles — a second digit, the millisecond window elapsing (`g_fret_entry_window_ms`,
+`editor_controller.cpp`), or any other action's settle prologue (`settleChartFretEntry`, called
+at the action gate, at `settleChartLegato`'s head, and at each direct chart verb head). One
+commit, one entry, no mid-entry mutation to reverse. The engine's plugin dirty tracking settles
+state transactions behind a quiet debounce in the same spirit
+(`plugin_dirty_tracking.cpp`). Reach for the pending shape when a burst of inputs is
+one user gesture — the undo rule is one entry per gesture, not per event, and a value that has
+not settled is chrome, never chart.
 
-Two windows in the chart editor are **proof-based rather than timed** — the fret entry's second
-digit and the legato toggle's second press each prove the burst is still theirs from the armed keys
-plus the history position, so any interleaved edit, undo, or redo retires them without teardown
-discipline. Both read one shared record of what the burst pushed (`m_chart_notes_top`: the plan, and
-the position that proves it is still the top), which is also what the legato settle sweep folds into.
-**Neither keeps a copy of that plan** — the fret entry stores only whether the record is its OWN push,
-which it needs because a refused first digit still arms a window and has pushed nothing to reverse.
-That sharing is what forces the rule **a sweep that commits anything closes both windows**: a fold
-changes the top entry's content without moving the history position, so an armed proof would
-otherwise still pass and reverse or widen a plan that no longer exists.
+The legato toggle's window remains **proof-based rather than timed** — its second press proves
+the burst is still its own from the armed keys plus the history position, so any interleaved
+edit, undo, or redo retires it without teardown discipline. It reads the shared record of what
+the burst pushed (`m_chart_notes_top`: the plan, and the position that proves it is still the
+top), which is also what the legato settle sweep folds into — and that sharing is what forces
+the rule **a sweep that commits anything closes the toggle windows**: a fold changes the top
+entry's content without moving the history position, so an armed proof would otherwise still
+pass and reverse a plan that no longer exists. The fret entry needs none of those proofs: it
+settles before anything that could invalidate it runs, which is the pending model's whole
+bargain.
 
 # Asynchrony and lifetime patterns
 

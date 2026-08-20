@@ -37,14 +37,22 @@ item ships, mark it and name the commit.
   chug is not held" is a physical statement and not merely a display one. One hold concept, both
   readers. Do not implement the split.
 - [x] **W2 — Two-digit fret entry on a legato predecessor** (defect in D12's settle hack).
-  SHIPPED `d0b1d32b`: the entry carries its applied plan and the widen reverses it to
-  reconstruct pre-entry exactly; the selection-follow rule no longer adopts repaired notes.
-  **Superseded if W3 is adopted** (the pending model deletes the splice machinery entirely).
-- [ ] **W3 — Pending fret entry with invalid-red feedback (user proposal 2026-08-09; APPROVED to
-  build, ground-up design done).** Nothing commits mid-entry: the typed value is provisional,
-  drawn on the head(s), RED when it cannot be applied, committed as one undo entry when the
-  window settles and discarded (previous value preserved) when it is invalid. Deletes W2's
-  reversal machinery, the history splice, and all mid-entry chart mutation.
+  SHIPPED `d0b1d32b`: the entry carried its applied plan and the widen reversed it to
+  reconstruct pre-entry exactly. **SUPERSEDED AND DELETED by W3's build 2026-08-20** — the
+  pending model removed the splice machinery entirely (`ef2ce5f7`).
+- [x] **W3 — Pending fret entry with invalid-red feedback (user proposal 2026-08-09). SHIPPED
+  2026-08-20** in three commits: the planner refusal channel (`3ddae58d`), the pending model
+  (`ef2ce5f7`), and the entry-box drawing (`5d9adc8e`). Nothing commits mid-entry: the typed
+  value is provisional, drawn on the head(s) in the accent-bordered box, RED when it cannot be
+  applied, committed as one undo entry when the entry settles (second digit, the 750 ms window's
+  scheduler wake with the injected clock as authority, or any action's settle prologue — at the
+  runAction gate, settleChartLegato's head, and each direct chart verb head) and discarded when
+  invalid. W2's reversal machinery, the history splice, and all mid-entry chart mutation are
+  deleted; both latent bugs (paused-seek widen, mid-window save split) are unrepresentable; the
+  controller test harness gained the deferring scheduler and its first injected clock. **Still
+  follow-on, not part of this ship:** the W5 counted-skip and W6 locked-tail payloads need their
+  own notice surface — the pending box carries a typed value, not a report; their entries below
+  stay open for exactly that surface.
   - **CORRECTED digit split — my refinement had an arithmetic error.** `g_max_fret` is **30**
     (`chart_rules.h:34`), so `digit * 10 > g_max_fret` is FALSE for 3 (30 > 30) — committing 3
     immediately would make **fret 30 untypable**, a refuse-never-clamp violation dressed as a UX
