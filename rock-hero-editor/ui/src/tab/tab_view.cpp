@@ -360,7 +360,7 @@ void TabView::paint(juce::Graphics& g)
             const common::ui::TabNoteLayout layout =
                 common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
             common::ui::paintTabPendingEntryBox(
-                g, metrics, layout.onset_x, layout.center_y, text, invalid, ink, accent);
+                g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
         }
         if (m_edit.pending_fret->insert_seconds.has_value() &&
             m_edit.pending_fret->insert_string >= 1 &&
@@ -369,6 +369,7 @@ void TabView::paint(juce::Graphics& g)
             common::ui::paintTabPendingEntryBox(
                 g,
                 metrics,
+                nullptr,
                 metrics.x(*m_edit.pending_fret->insert_seconds),
                 metrics.laneY(m_edit.pending_fret->insert_string),
                 text,

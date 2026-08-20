@@ -1485,34 +1485,83 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
     // The glyph cores and the fill's interior land at full strength, so those probe exactly;
     // the one-pixel frame sits on fractional edges and antialiases everywhere, so it probes by
     // hue instead — the accent is the only blue-dominant ink in either image.
-    const auto probe =
-        [&border](const bool light_plate, const juce::Colour ink, const juce::Colour ground) {
-            const juce::Image image{juce::SoftwareImageType{}.create(
-                juce::Image::ARGB, 400, 240, true)};
-            juce::Graphics graphics{image};
-            paintTabPendingEntryBox(
-                graphics, referenceMetrics(6), 200.0f, 120.0f, "17", light_plate, ink, border);
-            int text_pixels = 0;
-            int border_pixels = 0;
-            int ground_pixels = 0;
-            for (int y = 90; y <= 150; ++y)
+    const auto probe = [&border](
+                           const bool light_plate,
+                           const juce::Colour ink,
+                           const juce::Colour ground) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabPendingEntryBox(
+            graphics, referenceMetrics(6), nullptr, 200.0f, 120.0f, "17", light_plate, ink, border);
+        int text_pixels = 0;
+        int border_pixels = 0;
+        int ground_pixels = 0;
+        for (int y = 90; y <= 150; ++y)
+        {
+            for (int x = 160; x <= 240; ++x)
             {
-                for (int x = 160; x <= 240; ++x)
-                {
-                    const juce::Colour pixel = image.getPixelAt(x, y);
-                    text_pixels += pixel == ink ? 1 : 0;
-                    border_pixels +=
-                        pixel.getAlpha() > 0 && pixel.getBlue() > pixel.getRed() + 24 ? 1 : 0;
-                    ground_pixels += pixel == ground ? 1 : 0;
-                }
+                const juce::Colour pixel = image.getPixelAt(x, y);
+                text_pixels += pixel == ink ? 1 : 0;
+                border_pixels +=
+                    pixel.getAlpha() > 0 && pixel.getBlue() > pixel.getRed() + 24 ? 1 : 0;
+                ground_pixels += pixel == ground ? 1 : 0;
             }
-            CHECK(text_pixels > 4);
-            CHECK(border_pixels > 8);
-            CHECK(ground_pixels > 20);
-        };
+        }
+        CHECK(text_pixels > 4);
+        CHECK(border_pixels > 8);
+        CHECK(ground_pixels > 20);
+    };
 
     probe(/*light_plate=*/false, juce::Colour{0xffffffff}, juce::Colour{0xff101010});
     probe(/*light_plate=*/true, juce::Colour{0xffff0000}, juce::Colour{0xffffffff});
+
+    // The placement rule rides along: over a plectrum head the whole box lifts by the head's
+    // own digit raise, so the provisional number sits exactly where the committed one lands.
+    const auto top_ink_row = [](const juce::Image& image, const juce::Colour ink) {
+        for (int y = 60; y <= 180; ++y)
+        {
+            for (int x = 160; x <= 240; ++x)
+            {
+                if (image.getPixelAt(x, y) == ink)
+                {
+                    return y;
+                }
+            }
+        }
+        return -1;
+    };
+    const auto painted_box = [&border](const common::core::TabNoteView* note) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabPendingEntryBox(
+            graphics,
+            referenceMetrics(6),
+            note,
+            200.0f,
+            120.0f,
+            "17",
+            /*light_plate=*/false,
+            juce::Colour{0xffffffff},
+            border);
+        return image;
+    };
+    const common::core::TabNoteView scrape{
+        .start_seconds = 5.0,
+        .end_seconds = 6.0,
+        .string = 3,
+        .fret = 9,
+        .attack = common::core::NoteAttack::PickSlide,
+        .legato = common::core::LegatoMotion::Unjustified,
+        .bend = {},
+        .slides = {},
+    };
+    const int plain_top = top_ink_row(painted_box(nullptr), juce::Colour{0xffffffff});
+    const int scrape_top = top_ink_row(painted_box(&scrape), juce::Colour{0xffffffff});
+    REQUIRE(plain_top > 0);
+    REQUIRE(scrape_top > 0);
+    CHECK(scrape_top < plain_top);
 }
 
 } // namespace rock_hero::common::ui

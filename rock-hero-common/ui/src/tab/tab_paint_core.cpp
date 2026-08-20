@@ -946,6 +946,15 @@ enum class HeadShape : std::uint8_t
 // their digits must sit at the same height.
 constexpr float g_plectrum_digit_raise = 0.1154f;
 
+// The digit's vertical raise for one head shape: only the plectrum moves its number — the disc
+// and the diamond are widest on the string line, so their digits stay centered on it. The one
+// authority for every drawer that places a head digit (the onset head, a scrape's junction
+// heads, and the pending entry box), so one shape's digit cannot sit at two heights.
+[[nodiscard]] constexpr float headDigitRaise(const HeadShape shape, const float size)
+{
+    return shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
+}
+
 // Half of the plectrum silhouette, measured off the pick-slide cell of the shipped note atlas
 // (g_head_cell_pick_slide) at its 0.5-coverage line — the same level the atlas's own
 // fracture is pinned to — in units of the head's extent, with the silhouette's box center at the
@@ -1195,8 +1204,7 @@ void drawSlideWaypointHeads(
             const juce::String text = tabNoteHeadText(note, waypoint.fret);
             // The plectrum's digit rides the same raise its onset head uses, so the two
             // plectrum numbers on one gesture cannot sit at different heights.
-            const float digit_raise =
-                shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
+            const float digit_raise = headDigitRaise(shape, size);
             g.setColour(style[Ink::Digit]);
             g.setFont(metrics.fret_font);
             g.drawText(
@@ -1733,10 +1741,9 @@ void drawNoteHead(
             g.setColour(style[Ink::MuteBorder]);
             g.drawRect(box, 1.0f);
         }
-        // Only the plectrum moves its digit: the disc and the diamond are widest on the string
-        // line, so their numbers stay centered on it.
-        const float digit_raise =
-            shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
+        // Only the plectrum moves its digit; the shared raise rule says so once for every
+        // digit-placing drawer.
+        const float digit_raise = headDigitRaise(shape, size);
         g.setColour(muted ? mute_plate.ink : style[Ink::Digit]);
         g.setFont(metrics.fret_font);
         g.drawText(
@@ -1893,11 +1900,18 @@ void strokeTabNoteHeadOutline(
 // full pop and the PLATE POLARITY FLIP itself signals invalid even in full monochrome — the
 // same glance mechanism the mute plate-flip design established.
 void paintTabPendingEntryBox(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const float center_x, const float center_y,
-    const juce::String& text, const bool light_plate, const juce::Colour text_color,
-    const juce::Colour border_color)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView* note,
+    const float center_x, const float center_y, const juce::String& text, const bool light_plate,
+    const juce::Colour text_color, const juce::Colour border_color)
 {
-    const juce::Rectangle<float> plate = headTextPlate(metrics, text, center_x, center_y);
+    // The box rides the head's own digit placement — the plectrum raise included — so the
+    // provisional number sits exactly where the committed one will land. An empty insert slot
+    // has no head and takes the string-line center, which is where its plain round head's digit
+    // will sit.
+    const float digit_raise =
+        note != nullptr ? headDigitRaise(headShapeFor(*note), metrics.headSize()) : 0.0f;
+    const juce::Rectangle<float> plate =
+        headTextPlate(metrics, text, center_x, center_y - digit_raise);
     g.setColour(light_plate ? juce::Colour{0xffffffff} : juce::Colour{0xff101010});
     g.fillRect(plate);
     g.setColour(border_color);

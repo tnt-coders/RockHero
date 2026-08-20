@@ -167,18 +167,26 @@ idiom at full contrast, and the plate polarity flip itself carries the signal in
 monochrome, the glance mechanism the mute plate-flip design established. The border and inks
 are the host's, because pending is an editor state and this core owns no editor colors.
 
+The box follows the head's own digit PLACEMENT too: a plectrum raises its number to fit the
+silhouette, so the box over a scrape rides the same raise — the provisional digit must sit
+exactly where the committed one will land.
+
 \param g Graphics context to draw into.
 \param metrics Metrics of the lane being painted.
+\param note Note whose head the box rides, or null at an empty insert slot; supplies the head
+       shape the digit placement follows.
 \param center_x Box center on the time axis — a head's onset x, or an empty insert slot's x.
-\param center_y Box center on the lane's string line.
+\param center_y The head's center on the lane's string line; the box derives the digit's own
+       center from it.
 \param text Provisional value exactly as typed.
 \param light_plate True flips the box to the white invalid ground; false is the dark valid one.
 \param text_color Text ink: the host's digit white while the value would apply, red when not.
 \param border_color Box border: the host's editor accent.
 */
 void paintTabPendingEntryBox(
-    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
-    const juce::String& text, bool light_plate, juce::Colour text_color, juce::Colour border_color);
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView* note,
+    float center_x, float center_y, const juce::String& text, bool light_plate,
+    juce::Colour text_color, juce::Colour border_color);
 
 /*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.
