@@ -262,8 +262,17 @@ PlatePalette platePalette(const StringStyle& style, const Hand hand)
 // saying "this sounds dead". A both-muted note therefore wears a full mute's white X over a
 // near-black plate, and its residual likeness to a plain full mute is FREE, because the two sound
 // and score identically (user ruling 2026-08-18) - the design parks its one ambiguity where it
-// costs nothing, which is why reinforcing it with a dark rim measured WORSE (it drags "both" back
-// toward "palm only", the pair that differs in pitch).
+// costs nothing.
+//
+// AMENDED 2026-08-19: the X now ALSO carries a near-black rim when both mutes are set
+// (drawMuteIcon), which this paragraph used to argue against - reinforcing the pair that way
+// measured WORSE, because it drags "both" back toward "palm only", and those two differ in pitch
+// where "both" and "dead only" do not. Two separate rounds measured that, and the user sighted the
+// rim against the alternatives anyway and chose it. The measurement is not withdrawn and is left
+// standing above, because it states the cost the choice accepts: the rim buys a both-muted note a
+// visible statement of the palm hand ON THE MARK ITSELF, at the price of moving it a little nearer
+// the palm-only reading. The plate rule below is untouched and still carries the fact on its own,
+// so nothing depends on the rim being read.
 PlatePalette mutePlatePalette(const StringStyle& style, const bool palm_mute)
 {
     return palm_mute ? PlatePalette{.fill = style[Ink::PalmMuteInner], .ink = style[Ink::Digit]}
@@ -479,39 +488,41 @@ struct TailRun
     return std::max(1.0f, head_size / 15.0f);
 }
 
-// Draws the tremolo tail as a constant-thickness zigzag band: the plain sustain's ribbon with
-// its top and bottom borders displaced TOGETHER, so the strip snakes instead of pulsing in
-// thickness the way the ported pointed-gem chain did. This matches the 3D highway's teeth,
-// which swing a constant-width ribbon the same way.
-//
-// The band is the plain tail's span grown by half the tremolo size on each side and swung by
-// that same half, which pins two things at once: the outer envelope stays exactly the gem
-// chain's — the tail occupies the same rows it always has — and the strip's ALWAYS-covered
-// core is exactly the plain span, so a slide diagonal, which is drawn to that span, sits
-// entirely inside the band at every x instead of crossing its teeth. Apexes come twice per
-// gem cell, double the chain's rate, which reads as picking rather than as a slow wave. Drawn
-// edge-colored with the tail color inset by the edge size, like every other tail.
-void drawTremoloTail(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
-    float length, float center_y)
+// The sustain tail's shape, as the centreline its two rails are laid either side of. ONE authority
+// for the ribbon and for the accent halo that traces it: a plain tail is a flat two-point line, a
+// tremolo band is one point per apex, and nothing downstream has to know which it is. Sharing it is
+// the whole point — the halo used to be two straight fillRects while the band snaked, so the two
+// disagreed about the same edge and left up to 3.15 px of bare lane opening and closing every
+// 6.25 px along the tail.
+struct TailCenterline
+{
+    /*! Centreline points, left to right along the tail. */
+    std::vector<juce::Point<float>> points;
+
+    /*! Half the band's thickness; each rail lies this far off the centreline. */
+    float half_thickness{};
+};
+
+// The tremolo band's centreline: a triangle wave, zero at the onset so the band leaves the head
+// centered, which puts apex n on the half-odd multiple (n + 1/2) of the step.
+[[nodiscard]] TailCenterline tremoloCenterline(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const float x, const float length,
+    const float center_y)
 {
     const TailRun run = visibleTailRun(g, metrics, x, length);
     if (run.empty())
     {
-        return;
+        return TailCenterline{};
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
     const float band_center = (span.top + span.bottom) / 2.0f;
     // Half the tremolo size each way: the swing the band adds to its thickness is the swing it
-    // takes back by snaking, so the envelope is the plain span plus the whole tremolo size and
-    // the core is the plain span exactly.
+    // takes back by snaking, so the envelope is the plain span plus the whole tremolo size and the
+    // core is the plain span exactly.
     const float amplitude = metrics.tremolo_size / 2.0f;
-    const float half_thickness = ((span.bottom - span.top) / 2.0f) + amplitude;
     const float apex_step = std::max(2.0f, metrics.note_height / 4.0f);
 
-    // Triangle wave along the tail, zero at the onset so the band leaves the head centered, which
-    // puts apex n on the half-odd multiple (n + 1/2) of the step.
     const auto centerline_at = [&](const float dx) {
         const float cycles = (dx / (2.0f * apex_step)) - 0.25f;
         const float phase = cycles - std::floor(cycles);
@@ -529,34 +540,71 @@ void drawTremoloTail(
     const int last_apex = static_cast<int>(std::ceil((run.to_dx / apex_step) - 0.5f));
     const float from_dx = std::max(0.0f, apex_dx(first_apex));
     const float to_dx = std::min(length, apex_dx(last_apex));
-    // Those two ends, plus every apex strictly between them.
     const int inner_first = std::max(first_apex + 1, 0);
     const int inner_last = last_apex - 1;
     const int vertex_count = std::max(0, inner_last - inner_first + 1) + 2;
-    const auto vertex_dx = [&](const int index) {
-        if (index == 0)
-        {
-            return from_dx;
-        }
-        if (index == vertex_count - 1)
-        {
-            return to_dx;
-        }
-        return apex_dx(inner_first + index - 1);
+
+    TailCenterline centerline;
+    centerline.half_thickness = ((span.bottom - span.top) / 2.0f) + amplitude;
+    centerline.points.reserve(static_cast<std::size_t>(vertex_count));
+    for (int index = 0; index < vertex_count; ++index)
+    {
+        const float dx = index == 0                  ? from_dx
+                         : index == vertex_count - 1 ? to_dx
+                                                     : apex_dx(inner_first + index - 1);
+        centerline.points.emplace_back(x + dx, centerline_at(dx));
+    }
+    return centerline;
+}
+
+// A plain sustain's centreline: the tail span's own middle, straight from the onset to the hold
+// end. It is the DEGENERATE tremolo band — one segment, no swing — which is what lets the ribbon
+// and the halo take one rule each instead of one per tail kind. Every downstream expression
+// collapses to the straight-band form on it: the halo's per-segment gradient becomes the vertical
+// gradient a plain tail has always drawn, and its quad becomes the same rectangle.
+[[nodiscard]] TailCenterline plainCenterline(
+    const TabLaneMetrics& metrics, const float onset_x, const float end_x, const float center_y)
+{
+    const TailSpan span = tailSpan(metrics, center_y);
+    const float middle = (span.top + span.bottom) / 2.0f;
+    return TailCenterline{
+        .points = {{onset_x, middle}, {end_x, middle}},
+        .half_thickness = (span.bottom - span.top) / 2.0f,
     };
+}
+
+// Draws the sustain tail as a constant-thickness zigzag band: the plain sustain's ribbon with its
+// top and bottom borders displaced TOGETHER, so the strip snakes instead of pulsing in thickness
+// the way the ported pointed-gem chain did. This matches the 3D highway's teeth, which swing a
+// constant-width ribbon the same way. Drawn edge-colored with the tail color inset by the edge
+// size, like every other tail.
+//
+// The band is the plain tail's span grown by half the tremolo size on each side and swung by that
+// same half (see tremoloCenterline), which pins two things at once: the outer envelope stays
+// exactly the gem chain's — the tail occupies the same rows it always has — and the strip's
+// ALWAYS-covered core is exactly the plain span, so a slide diagonal, which is drawn to that span,
+// sits entirely inside the band at every x instead of crossing its teeth. Apexes come twice per
+// gem cell, double the chain's rate, which reads as picking rather than as a slow wave.
+void drawTremoloTail(
+    juce::Graphics& g, const StringStyle& style, const TabLaneMetrics& metrics,
+    const TailCenterline& centerline)
+{
+    if (centerline.points.size() < 2)
+    {
+        return;
+    }
 
     const auto add_band = [&](juce::Path& path, const float inset) {
-        const float half = std::max(1.0f, half_thickness - inset);
-        path.startNewSubPath(x + from_dx, centerline_at(from_dx) - half);
-        for (int index = 1; index < vertex_count; ++index)
+        const float half = std::max(1.0f, centerline.half_thickness - inset);
+        const std::vector<juce::Point<float>>& points = centerline.points;
+        path.startNewSubPath(points.front().x, points.front().y - half);
+        for (std::size_t index = 1; index < points.size(); ++index)
         {
-            const float dx = vertex_dx(index);
-            path.lineTo(x + dx, centerline_at(dx) - half);
+            path.lineTo(points[index].x, points[index].y - half);
         }
-        for (int index = vertex_count - 1; index >= 0; --index)
+        for (std::size_t index = points.size(); index-- > 0;)
         {
-            const float dx = vertex_dx(index);
-            path.lineTo(x + dx, centerline_at(dx) + half);
+            path.lineTo(points[index].x, points[index].y + half);
         }
         path.closeSubPath();
     };
@@ -594,39 +642,100 @@ constexpr float g_accent_glow_reach_heads = 0.2f;
 // ribbon with it), so a head-only accent left the axis saying different things at its two ends on
 // one surface. The highway reached this same conclusion for its ribbon; this is the 2D half.
 //
-// NO END CAP, which is the whole reason this is two straight bands rather than a halo around the
-// tail's outline. The tail itself draws top and bottom rails only — the left end omitted because
-// the head covers it, the right end because a cap boxes in whatever technique mark reaches the
-// tail's tip (SIGNED 2026-08-16 with the bare end chosen over both a cap and a dissolve). A glow
-// wrapping the tip would restore that cap in light and box the mark in exactly the same way, so
-// the halo ends where the rails end and states nothing about the tip that the ribbon does not.
+// NO END CAP. The tail itself draws top and bottom rails only — the left end omitted because the
+// head covers it, the right end because a cap boxes in whatever technique mark reaches the tail's
+// tip (SIGNED 2026-08-16 with the bare end chosen over both a cap and a dissolve). A glow wrapping
+// the tip would restore that cap in light and box the mark in exactly the same way, so the halo
+// ends where the rails end and states nothing about the tip that the ribbon does not.
 //
 // This is also why the halo does not fade ALONG the tail as the highway's does. Both surfaces
 // obey one rule — the accent light traces the tail that surface actually draws — and they differ
 // only because the ribbons do: the highway's light fades because its ribbon's alpha fades, while
 // the editor's ribbon is uniform with a hard stop, so its halo is uniform and stops with it.
+//
+// It traces the CENTRELINE it is handed rather than a pair of straight lines, which is what makes
+// it correct on a tremolo band. A straight halo against a snaking ribbon left 0.0127 to 3.1540 px
+// of bare lane, opening and closing every 6.25 px — 224 bare-lane pixels on one tail, where a
+// plain tail has 0. Tracing brings that to 0.0000 px. A plain tail hands in a flat two-point
+// centreline and every expression below collapses to the straight-band form it had before.
 void drawAccentTailGlow(
-    juce::Graphics& g, const StringStyle& style, const float onset_x, const float end_x,
-    const float top, const float bottom, const float reach)
+    juce::Graphics& g, const StringStyle& style, const TailCenterline& centerline,
+    const float reach)
 {
-    // A straight edge takes a real linear gradient, unlike the head's non-circular subjects, which
-    // is why nothing here needs the concentric-outline approximation the diamond glow uses.
-    const auto band = [&](const float outer_y, const float inner_y) {
-        const juce::ColourGradient gradient{
-            style[Ink::Accent].withAlpha(0.0f),
-            onset_x,
-            outer_y,
-            style[Ink::Accent],
-            onset_x,
-            inner_y,
-            false
-        };
-        g.setGradientFill(gradient);
-        g.fillRect(
-            juce::Rectangle<float>{onset_x, std::min(outer_y, inner_y), end_x - onset_x, reach});
-    };
-    band(top - reach, top);
-    band(bottom + reach, bottom);
+    const std::vector<juce::Point<float>>& points = centerline.points;
+    if (points.size() < 2)
+    {
+        return;
+    }
+
+    for (const float outward : {-1.0f, 1.0f})
+    {
+        for (std::size_t index = 0; index + 1 < points.size(); ++index)
+        {
+            const juce::Point<float> edge_from{
+                points[index].x, points[index].y + (outward * centerline.half_thickness)
+            };
+            const juce::Point<float> edge_to{
+                points[index + 1].x, points[index + 1].y + (outward * centerline.half_thickness)
+            };
+            const float run_x = edge_to.x - edge_from.x;
+            const float run_y = edge_to.y - edge_from.y;
+            const float run_squared = (run_x * run_x) + (run_y * run_y);
+            if (!(run_squared > 0.0f))
+            {
+                continue;
+            }
+            // TWO DIFFERENT AXES, and keeping them apart is the whole correctness of this
+            // function.
+            //
+            // The QUAD is the edge segment extruded VERTICALLY by the full reach. It has to be
+            // vertical because the tail's every other thickness is: `half_thickness` is a
+            // vertical half-thickness, tailSpan is a vertical span, and a plain tail's halo was a
+            // vertical fillRect. Extruding the quad perpendicularly instead shortens it to
+            // reach * run_x^2 / |run|^2 (4.138 px of the 5.200 at the shipped lane, a fifth of the
+            // halo gone) and, worse, slides its outer corners sideways by
+            // reach * run_x * run_y / |run|^2, so consecutive quads' outer corners land 4.193 px
+            // apart in x: a bare wedge at every apex that turns one way and a double-blended
+            // overlap at every apex that turns the other. Vertical extrusion has neither, because
+            // the outer boundary is then the centreline's own polyline translated, and a
+            // translated polyline still meets itself at every vertex.
+            //
+            // The GRADIENT's axis is the perpendicular one, and only the gradient's. Its
+            // iso-alpha lines have to run PARALLEL to the edge or the ramp would fade along the
+            // tail instead of across it, so its far point is the edge point pushed along the
+            // segment normal by exactly as far as a vertical reach carries: |scale| * |run|.
+            // Alpha at any point is then 1 - (vertical distance outward) / reach, and with
+            // run_y == 0 the whole expression collapses to the straight-band gradient a plain
+            // tail has always drawn.
+            //
+            // The colour order is that straight case's - clear at the outer point, accent ON the
+            // edge - and it has to stay that way. JUCE FLOORS the gradient's lookup index, so
+            // running the ramp the other way shifts every sample a whole table step: 19 counts of
+            // alpha on a flat edge, exactly where this and the straight case must agree.
+            const float scale = -outward * reach * run_x / run_squared;
+            const juce::Point<float> gradient_end{
+                edge_from.x + (scale * run_y), edge_from.y - (scale * run_x)
+            };
+            const float rise = outward * reach;
+
+            juce::Path quad;
+            quad.startNewSubPath(edge_from);
+            quad.lineTo(edge_to);
+            quad.lineTo(edge_to.x, edge_to.y + rise);
+            quad.lineTo(edge_from.x, edge_from.y + rise);
+            quad.closeSubPath();
+
+            g.setGradientFill(
+                juce::ColourGradient{
+                    style[Ink::Accent].withAlpha(0.0f),
+                    gradient_end,
+                    style[Ink::Accent],
+                    edge_from,
+                    false
+                });
+            g.fillPath(quad);
+        }
+    }
 }
 
 // Draws the sustain tail's BODY: Charter's filled bar with its brighter rails, or the tremolo gem
@@ -647,28 +756,21 @@ void drawNoteTail(
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
-    // How far past the plain span the tremolo band actually reaches, so the halo and the backing
-    // clear it; zero otherwise. The band reaches a WHOLE tremolo size, not half: drawTremoloTail
-    // adds one amplitude (half the size) to its half_thickness and then swings its CENTRELINE by
-    // another. Reading "amplitude" once and calling it the excursion put the halo's opaque edge
-    // 1.583 px INSIDE the ribbon at the shipped size, so the teeth cut through the glow's bright
-    // line at every apex and it read as a straight bar laid across the ribbon rather than a light
-    // around it.
-    const float swing = note.tremolo ? metrics.tremolo_size : 0.0f;
+    // The tail's shape, resolved ONCE and handed to both the ribbon and its halo. This is what
+    // deleted the old `swing` constant: the centreline carries the band's full excursion, so
+    // nothing has to restate how far past the plain span a tremolo reaches — a question the
+    // straight-halo version got wrong twice, first by half (reading one amplitude where the band
+    // swings two) and then in kind (a straight line against a snaking edge).
+    const TailCenterline centerline = note.tremolo
+                                          ? tremoloCenterline(g, metrics, onset_x, length, center_y)
+                                          : plainCenterline(metrics, onset_x, end_x, center_y);
     // Measured from the RAIL, which is the tail's outermost ink now that the dark backing is gone
     // (sighted 2026-08-19): the light leaves the bright edge directly, the way a real emitter does
     // rather than across a dark gap. The head obeys the same law — its glow stands off the bright
     // ring, not the empty margin outside it — so one accent reads at one strength across the note.
     if (common::core::isAccented(note.emphasis))
     {
-        drawAccentTailGlow(
-            g,
-            style,
-            onset_x,
-            end_x,
-            span.top - swing,
-            span.bottom + swing,
-            metrics.headSize() * g_accent_glow_reach_heads);
+        drawAccentTailGlow(g, style, centerline, metrics.headSize() * g_accent_glow_reach_heads);
     }
     // The teeth mean REPEATED ATTACKS, so only `tremolo` wears them. A scrape is one continuous
     // drag — teeth would assert a repetition it never performs, and it cannot be tremolo picked
@@ -680,7 +782,7 @@ void drawNoteTail(
     // a plain muted slide's single drag.
     if (note.tremolo)
     {
-        drawTremoloTail(g, metrics, style, onset_x, length, center_y);
+        drawTremoloTail(g, style, metrics, centerline);
     }
     else
     {
@@ -1250,8 +1352,22 @@ void drawMuteIcon(
     const juce::Colour inner = dead ? style[Ink::PlateLight] : style[Ink::PalmMuteInner];
     g.setColour(inner);
     g.fillPath(x_shape);
-    g.setColour(style[Ink::MuteBorder]);
-    g.strokePath(x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
+    // E1 (sighting candidate, 2026-08-19): a note carrying BOTH mutes states the fusion on its RIM
+    // rather than inside the fill, and states it in the PALM's own near-black rather than the
+    // border's grey. That colour is the whole point and the first attempt missed it: the fill says
+    // the note sounds DEAD (white) while the rim says the PALM hand is also on the string, so the
+    // one mark carries both flags in the two inks that already mean them elsewhere. Doubling a
+    // grey rim instead moved the outline by 0.54 px per side and said nothing.
+    //
+    // The rim is where it goes because the fret plate covers most of the X — 60% at the widest
+    // lane this surface draws and 98% at the smallest — so anything stated inside the mark is
+    // mostly hidden, while the rim survives at the four exposed tips. The stroke is centred on the
+    // outline, so the extra width eats inward as much as outward and the silhouette grows by only
+    // half of it.
+    const bool both_mutes = palm_mute && dead;
+    g.setColour(both_mutes ? style[Ink::PalmMuteInner] : style[Ink::MuteBorder]);
+    g.strokePath(
+        x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f) * (both_mutes ? 2.0f : 1.0f)});
 }
 
 // The lettered plate's side, as a fraction of the note height: big enough to hold the fret
