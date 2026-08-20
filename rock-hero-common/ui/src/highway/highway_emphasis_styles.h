@@ -1,13 +1,17 @@
 /*!
 \file highway_emphasis_styles.h
-\brief Appearance numbers for the note-emphasis axis: the signed ghost treatment.
+\brief Appearance numbers for the note-emphasis axis: the signed ghost and accent treatments.
 
-Both ends of the axis are SIGNED. Ghosts are a transparency treatment (numbers below); accents
-are a rendered light whose look was signed 2026-08-18 as the sighted "medium flat" candidate,
-with its constants living beside the glow states in highway_renderer.cpp and the tried
-alternatives recorded in docs/plans/in-progress/highway-note-art-state.md. The nine-row accent
-candidate table and its cycling keybind were deleted with that signing, per the scaffold
-lifecycle.
+Both ends are SIGNED, and both sit the same distance either side of a neutral note — a ghost keeps
+half the light, an accent spends half again more. That symmetry is deliberate and worth keeping,
+but the two are NOT one number and are not derived from one: they act through different mechanisms
+(see \ref g_ghost_alpha and \ref g_accent_gain, each of which names the other), they are judged by
+eye separately, and only the accent has a hard constraint of its own. Stating them apart is what
+lets either be retuned without silently dragging the other.
+
+The accent light's SHAPE — its reach and falloff exponent — is a different question and still lives
+beside the glow states in highway_renderer.cpp, with the tried alternatives recorded in
+docs/plans/in-progress/highway-note-art-state.md. Only its strength belongs to the axis.
 */
 
 #pragma once
@@ -33,6 +37,11 @@ ribbon dimmed as hard as its head would read as a rendering fault. Both were col
 against exactly that reasoning, and the collapse stands: the note still reads as one quiet
 gesture, so the split was a distinction the eye never made and the axis is simpler by a whole
 variable.
+
+Mirrored by \ref g_accent_gain, which spends half again MORE than neutral where this keeps half.
+The pair is deliberately symmetric and deliberately NOT shared: a ghost is alpha on the object
+itself, an accent is radiance on a light drawn beside it, and they are sighted separately. Keep
+them symmetric by intent when either moves; do not derive one from the other.
 */
 inline constexpr double g_ghost_alpha{0.5};
 
@@ -50,6 +59,30 @@ quieting sites (head, markers, tail, open bar, chord box) cannot drift apart.
 {
     return common::core::isGhosted(emphasis) ? g_ghost_alpha : 1.0;
 }
+
+/*!
+\brief Radiance the accent light is emitted at on a NOTE, as a multiple of neutral.
+
+The mirror of \ref g_ghost_alpha: where a ghost keeps half the light, an accented note spends half
+again more, so the two ends sit the same distance either side of neutral. Mirror by INTENT, not by
+derivation — the two are separate constants because they are separate mechanisms. This multiplies
+the glow shader's field (`u_accent_glow_params.w`), where 1.0 reproduces the un-gained light
+exactly; the ghost's number scales the object's own alpha. Nothing in the renderer requires them to
+match, and only this end has a hard constraint (the clip below), so a future retune of either must
+be sighted on its own and the symmetry re-chosen rather than inherited.
+
+Above the shader's per-channel clip, which begins at 255/237 = 1.076 for the palette's brightest
+channel, so an accent grows a white-hot core rather than only a brighter pedestal — the behaviour
+the glow shader's own comment describes as what makes a bright light read as bright. The gain also
+widens the halo, because its visible edge is wherever gain times the falloff clears the display
+threshold.
+
+NOTES ONLY. A chord box draws its accent at neutral radiance instead; that is a compensation for
+how much of each subject ends up lit, and the reasoning lives with the constant in
+highway_renderer.cpp rather than here, because it is a property of the subject rather than of the
+emphasis axis.
+*/
+inline constexpr double g_accent_gain{1.5};
 
 /*!
 \brief Thickness multiplier for a ghosted open string's bar, which has no head to thin.

@@ -265,8 +265,9 @@ constexpr double g_glow_solid_emitter_depth = 1.0;
 constexpr double g_accent_reach = 0.12;
 constexpr double g_accent_exponent = 2.0;
 
-// A chord box keeps the ORIGINAL neutral radiance while notes were raised to 1.6
-// (sighted 2026-08-20: "chord boxes are already plenty accented as shipped").
+// A chord box draws its accent at NEUTRAL radiance, where a note takes the axis's
+// step up (g_accent_gain, highway_emphasis_styles.h). Sighted 2026-08-20: "chord
+// boxes are already plenty accented as shipped".
 //
 // This is a size compensation, NOT a second opinion about the light. Outside a
 // silhouette the field is provably identical for both subjects: the shader's
@@ -285,26 +286,23 @@ constexpr double g_accent_gain_boxes = 1.0;
 // ==========================================================================
 // SIGHTING RIG - DELETE WHEN THE ACCENT INTENSITY IS SIGNED
 //
-// The gain is the knob the signed comment above already names for this exact
-// question, so bolder accents need no new mechanism: it is one uniform value
-// the shader multiplies its field by.
+// Rung 0 IS the shipped value, taken from the axis rather than restated, so the
+// light is the chosen one whether or not the toggle is ever pressed and cannot
+// drift from g_accent_gain. The rig only brackets it for confirmation in play.
 //
-// Rung 0 is the SIGHTED value (1.6, two rungs above the original neutral 1.0),
-// so the shipped light is the chosen one whether or not the toggle is ever
-// pressed; the other rungs bracket it for confirmation in play. Everything here
-// is past the shader's per-channel clip - the palette's brightest channel is
-// 237, so clipping begins at 255/237 = 1.076 - which is where the halo grows a
-// white-hot core rather than only a brighter pedestal. Gain widens the halo as
-// well as brightening it, because the visible edge is wherever gain times the
-// falloff clears the display threshold.
+// Every rung is past the shader's per-channel clip, which begins at 255/237 =
+// 1.076 for the palette's brightest channel, so each grows a white-hot core
+// rather than only a brighter pedestal. Gain widens the halo as well, because
+// its visible edge is wherever gain times the falloff clears the display
+// threshold.
 //
 // TO REMOVE: delete this banner and the two lines under it; delete
-// highwayAccentGain and cycleHighwayAccentGain just past the anonymous
-// namespace and their declarations in highway_renderer.h; restore
-// `constexpr double g_accent_gain = <signed value>;` here and use it again in
-// glow_uniform_at; drop the F9 branch in PreviewWindow::keyPressed.
+// highwayAccentGain and cycleHighwayAccentGain just past the anonymous namespace
+// and their declarations in highway_renderer.h; pass g_accent_gain directly at
+// glow_uniform_at; drop the F9 branch in BOTH PreviewWindow::keyPressed and
+// EditorView::keyPressed, and PreviewWindow::refreshAccentRungTitle with them.
 // ==========================================================================
-constexpr std::array<double, 4> g_accent_gain_rungs{1.6, 1.35, 1.9, 2.2};
+constexpr std::array<double, 4> g_accent_gain_rungs{g_accent_gain, 1.25, 1.75, 2.0};
 std::size_t g_accent_gain_rung = 0;
 
 // Overlay content is screen-space and never depth-tested.
