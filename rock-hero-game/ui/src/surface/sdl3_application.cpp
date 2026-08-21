@@ -24,8 +24,8 @@ constexpr int g_max_juce_messages_per_frame = 256;
 // clock has never published. Returns the pacing summary when this frame closed a window so the
 // overlay can display it.
 std::optional<core::FramePacingSummary> logFrameInstrumentation(
-    const std::chrono::nanoseconds cpu_frame_time, const core::FrameClockSample& frame_sample,
-    const std::chrono::nanoseconds frame_boundary_time,
+    const std::chrono::nanoseconds cpu_frame_time, const std::chrono::nanoseconds content_cpu_time,
+    const core::FrameClockSample& frame_sample, const std::chrono::nanoseconds frame_boundary_time,
     const std::chrono::nanoseconds previous_frame_boundary, core::FramePacingStats& pacing_stats)
 {
     const std::chrono::nanoseconds boundary_delta =
@@ -38,11 +38,12 @@ std::optional<core::FramePacingSummary> logFrameInstrumentation(
 
     RH_LOG_TRACE(
         "game.frame",
-        "frame boundary_ns={} delta_ns={} bgfx_cpu_ns={} song_time_s={} mirror_age_ns={} "
-        "playing={}",
+        "frame boundary_ns={} delta_ns={} bgfx_cpu_ns={} content_cpu_ns={} song_time_s={} "
+        "mirror_age_ns={} playing={}",
         frame_boundary_time.count(),
         boundary_delta.count(),
         cpu_frame_time.count(),
+        content_cpu_time.count(),
         frame_sample.song_time.seconds,
         mirror_age_ns,
         frame_sample.playing);
@@ -98,6 +99,7 @@ int SDL3Application::run()
             std::chrono::steady_clock::now().time_since_epoch();
         const std::optional<core::FramePacingSummary> summary = logFrameInstrumentation(
             timing.cpu_frame_time,
+            timing.content_cpu_time,
             timing.sample,
             frame_boundary_time,
             m_previous_frame_boundary,

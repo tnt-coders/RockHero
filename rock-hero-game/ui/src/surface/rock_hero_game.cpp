@@ -203,11 +203,16 @@ SDL3Application::FrameTiming RockHeroGame::onFrame(
     const core::FrameClockSample frame_sample = m_impl->game.update(frame_sample_time);
 
     m_impl->game.render(m_impl->device, pacing_summary);
+    // Stamped before the submit: the submit blocks on the device (and on vsync), which is the
+    // device's time, not the content's.
+    const std::chrono::nanoseconds content_cpu_time =
+        std::chrono::steady_clock::now().time_since_epoch() - frame_sample_time;
 
     m_impl->device.submitFrame();
     return FrameTiming{
         .sample = frame_sample,
         .cpu_frame_time = m_impl->device.lastCpuFrameTime(),
+        .content_cpu_time = content_cpu_time,
     };
 }
 

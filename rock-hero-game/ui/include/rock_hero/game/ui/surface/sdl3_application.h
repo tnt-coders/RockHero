@@ -82,6 +82,16 @@ protected:
 
         /*! \brief The render device's CPU time for the submitted frame, for the trace channel. */
         std::chrono::nanoseconds cpu_frame_time{0};
+
+        /*!
+        \brief CPU time the content spent building the frame — update plus render encoding — for
+        the trace channel.
+
+        The device's figure above spans the whole interval between submits, so under vsync it
+        reads the refresh period whatever the content costs; this is the content's own share of
+        it, which is what a per-frame budget is measured against.
+        */
+        std::chrono::nanoseconds content_cpu_time{0};
     };
 
     /*!
