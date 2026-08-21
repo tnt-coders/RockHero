@@ -20,7 +20,11 @@ add_executable(
     test_audio_device_status_text.cpp
     test_busy_operation_workflow.cpp
     test_busy_operation_state.cpp
+    test_chart_caret.cpp
     test_chart_editing.cpp
+    test_chart_fret_entry.cpp
+    test_chart_legato_editing.cpp
+    test_chart_technique_toggles.cpp
     test_chart_edits.cpp
     test_chart_hit_testing.cpp
     test_chart_navigation.cpp

@@ -598,4 +598,61 @@ TEST_CASE("Nearest tempo grid position is exact for odd note values", "[core][te
         common::core::GridPosition{.measure = 1, .beat = 2, .offset = common::core::Fraction{}});
 }
 
+// The grid lattice is implemented twice: snapGridPosition (common/core, exact rationals, the caret
+// and stepping verbs) and the timeline's MeasureGridWalker (seconds, the click snap and the drawn
+// lines). The two answer different questions — nearest line by beats against nearest by seconds
+// — but they must agree on WHICH lines exist, or a caret could step onto a line no click can
+// reach. This walks the stepper's lattice across a meter change, an odd meter, and a tempo change
+// with a grid whose step does not divide every measure, and holds the walker to the same lines:
+// every stepped line is where a click at its own time lands, a click half a step short of it still
+// resolves to a line of the lattice, and no line sits on the walk the stepper skips.
+TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo-grid]")
+{
+    // 4/4, then 6/8, then 7/8; the tempo halves at measure 3.
+    const common::core::TempoMap map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{.measure = 2, .numerator = 6, .denominator = 8},
+            common::core::TimeSignatureChange{.measure = 3, .numerator = 7, .denominator = 8},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.0},
+            common::core::BeatAnchor{.measure = 5, .beat = 1, .seconds = 21.0},
+        },
+    };
+    // A dotted-eighth grid: 3/16 of a whole note divides none of the three measures evenly, so
+    // every downbeat restart is exercised.
+    const common::core::Fraction grid{3, 16};
+
+    common::core::GridPosition line{.measure = 1, .beat = 1, .offset = {}};
+    const common::core::GridPosition terminal{.measure = 5, .beat = 1, .offset = {}};
+    int lines = 0;
+    while (line < terminal)
+    {
+        CAPTURE(line.measure, line.beat, line.offset.numerator, line.offset.denominator);
+        // The stepper's line is a fixed point of the walker: a click exactly on it lands on it.
+        const double seconds = secondsAtGridPosition(map, line);
+        CHECK(nearestTempoGridPosition(map, grid, common::core::TimePosition{seconds}) == line);
+
+        const common::core::GridPosition next = adjacentTempoGridPosition(map, grid, line, true);
+        REQUIRE(line < next);
+        const double next_seconds = secondsAtGridPosition(map, next);
+        // A click just short of halfway to the next line snaps back to this one, and one just
+        // past halfway snaps forward to the next: nothing of the walker's lies between them.
+        const double midpoint = (seconds + next_seconds) / 2.0;
+        CHECK(
+            nearestTempoGridPosition(map, grid, common::core::TimePosition{midpoint - 1e-6}) ==
+            line);
+        CHECK(
+            nearestTempoGridPosition(map, grid, common::core::TimePosition{midpoint + 1e-6}) ==
+            next);
+        line = next;
+        ++lines;
+    }
+    // Non-vacuity: a 3/4-beat step puts 6 lines in 4/4, a 1.5-beat step 4 in 6/8 and 5 in each
+    // 7/8 measure.
+    CHECK(lines == 6 + 4 + 5 + 5);
+}
+
 } // namespace rock_hero::editor::core
