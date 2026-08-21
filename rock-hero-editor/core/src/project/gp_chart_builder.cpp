@@ -1019,7 +1019,7 @@ void normalizeImportedSustains(
                     // spacing the rule exists to protect. g_minimum_slide_window keeps its other
                     // job, which is SYNTHESIS: a gesture built from nothing needs a default span.
                     // That is not this decision.
-                    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value())
+                    if (isScrape(note.attack) && note.slide_out.has_value())
                     {
                         const Fraction leg_start =
                             note.slides.empty() ? Fraction{} : note.slides.back().offset;
@@ -1901,7 +1901,7 @@ void resolveSlideOutExits(
         ChartNote& note = entry.note;
         // A scrape's slide-out is authored travel, not a trail-off exit to resolve — and the
         // scrape never anchors the hand, so there is no placement to ride.
-        if (!note.slide_out.has_value() || note.attack == NoteAttack::PickSlide)
+        if (!note.slide_out.has_value() || isScrape(note.attack))
         {
             continue;
         }

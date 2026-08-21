@@ -119,7 +119,7 @@ palm marker stacks over that. A palm mute on its own leaves the head light — i
 [[nodiscard]] constexpr bool highwayTechHead(const common::core::NoteViewState& note) noexcept
 {
     return note.dead || highwayLegatoCell(note.legato) != HighwayLegatoCell::None ||
-           note.attack == common::core::NoteAttack::PickSlide;
+           common::core::isScrape(note.attack);
 }
 
 /*!
@@ -208,7 +208,7 @@ ignores the flag and draws every mark upright.
         ++stack.count;
     };
 
-    if (note.attack == common::core::NoteAttack::PickSlide)
+    if (common::core::isScrape(note.attack))
     {
         // The pick mark seats concentric on the head and covers its whole footprint, so it needs
         // nothing under it and admits nothing over it.

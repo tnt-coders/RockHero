@@ -268,6 +268,25 @@ reads plainly and stays visible to the optional-access checker, which cannot see
 }
 
 /*!
+\brief Reports whether the attack is a pick scrape: the plectrum dragged along the string.
+
+A scrape is unpitched travel end to end, and everything about it follows from that: it overrides
+the note's other techniques in memory and the writer strips them (\ref savedChartNote), every
+waypoint of its path is unpitched and its required terminal is its slide-out, it renders through
+the unpitched machinery on both surfaces, it never anchors a fret-hand placement, and it never
+justifies a legato claim on the note after it (\ref resolveLegato). Asked by name so the one
+attack those rules hang on is grep-able and can never be mistaken for an incidental equality.
+
+\param attack Attack to classify.
+
+\return True when the attack is a pick scrape.
+*/
+[[nodiscard]] constexpr bool isScrape(NoteAttack attack) noexcept
+{
+    return attack == NoteAttack::PickSlide;
+}
+
+/*!
 \brief Reports whether the attack is produced by the picking hand at the neck (tap, pick slide).
 
 These onsets never anchor, cover, or ring into a fretting-hand posture; the fret-hand
@@ -279,7 +298,7 @@ generator, posture derivation, chord grouping, and camera framing all share this
 */
 [[nodiscard]] constexpr bool rightHandOnset(NoteAttack attack) noexcept
 {
-    return attack == NoteAttack::Tap || attack == NoteAttack::PickSlide;
+    return attack == NoteAttack::Tap || isScrape(attack);
 }
 
 /*!
@@ -489,6 +508,22 @@ struct ChartNote
 };
 
 /*!
+\brief The chart's note order: ascending onset, then ascending string.
+
+Every note stream is kept in this order — the validator refuses one that is not, the editor's
+planners restore it before gating a candidate, and every cursor walk over a stream assumes it —
+so it is stated once. Two notes equal under it are the same slot, which no chart may hold twice.
+
+\param lhs Left-hand note.
+\param rhs Right-hand note.
+\return True when lhs comes strictly before rhs in the chart's order.
+*/
+[[nodiscard]] constexpr bool chartNoteOrderLess(const ChartNote& lhs, const ChartNote& rhs) noexcept
+{
+    return lhs.position < rhs.position || (lhs.position == rhs.position && lhs.string < rhs.string);
+}
+
+/*!
 \brief Returns the note's unpitched slide-out as a nullable pointer.
 \param note Note whose tail is inspected.
 \return Address of the slide-out when present, or nullptr when the tail simply ends.
@@ -612,8 +647,7 @@ node, not whether a stop is pressed.
 {
     // `nodeIsOnNeck` rather than a spelled-out pinch test, so this, the dead-pinch rule, and the
     // placement rules cannot drift apart if another off-neck harmonic is ever added.
-    return harmonic_node.has_value() && fret == 0 && nodeIsOnNeck(attack) &&
-           attack != NoteAttack::PickSlide;
+    return harmonic_node.has_value() && fret == 0 && nodeIsOnNeck(attack) && !isScrape(attack);
 }
 
 /*!

@@ -473,7 +473,7 @@ tap onset's release.
     // a release and never moves the light; a scrape's unpitched waypoints ARE the hand's
     // travel.
     const auto member_fret_at = [](const NoteViewState& note, const double seconds) {
-        const bool scrape = note.attack == NoteAttack::PickSlide;
+        const bool scrape = isScrape(note.attack);
         double previous_seconds = note.start_seconds;
         // Where the note SOUNDS, not its stop: a tap harmonic strikes its node, and on an open
         // string that node is the only position it has. Waypoints ride the same rule, since a node
@@ -507,8 +507,7 @@ tap onset's release.
     // follows (the release is already underway), otherwise the sustain end — which for a
     // scrape is the path's end, where the pick lifts.
     const auto member_release_at = [](const NoteViewState& note) {
-        if (note.attack != NoteAttack::PickSlide && !note.slides.empty() &&
-            note.slides.back().unpitched)
+        if (!isScrape(note.attack) && !note.slides.empty() && note.slides.back().unpitched)
         {
             double last_pitched = note.start_seconds;
             for (const SlideViewState& waypoint : note.slides)
@@ -579,11 +578,10 @@ tap onset's release.
                 hold_end = std::max(hold_end, member_release_at(*tap));
                 for (const SlideViewState& waypoint : tap->slides)
                 {
-                    if ((!waypoint.unpitched || tap->attack == NoteAttack::PickSlide) &&
-                        waypoint.fret > 0)
+                    if ((!waypoint.unpitched || isScrape(tap->attack)) && waypoint.fret > 0)
                     {
                         station_times.push_back(waypoint.seconds);
-                        if (tap->attack == NoteAttack::PickSlide)
+                        if (isScrape(tap->attack))
                         {
                             scrape_times.push_back(waypoint.seconds);
                         }

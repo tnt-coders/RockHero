@@ -64,7 +64,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         // A scrape renders through the unpitched machinery end to end and never feeds the
         // slide-locked ramps: it has no fret-hand anchor to ramp.
-        const bool scrape = note.attack == NoteAttack::PickSlide;
+        const bool scrape = isScrape(note.attack);
         NoteViewState view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
         view.end_seconds =

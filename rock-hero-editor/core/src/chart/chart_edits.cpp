@@ -22,11 +22,6 @@ namespace
     return ChartNoteKey{.position = note.position, .string = note.string};
 }
 
-[[nodiscard]] bool keyLess(const common::core::ChartNote& lhs, const common::core::ChartNote& rhs)
-{
-    return keyOf(lhs) < keyOf(rhs);
-}
-
 // Drops bend and slide points past the note's (possibly shortened) sustain so the payload rule
 // "offsets within the sustain" keeps holding after a 40-Q2-B truncation. A slide-out past the
 // sustain drops like any payload. Latent payloads on a scrape clip too — they must still fit
@@ -44,7 +39,7 @@ void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_o
     std::erase_if(note.bend, [&note](const common::core::BendPoint& point) {
         return note.sustain < point.offset;
     });
-    if (note.attack == common::core::NoteAttack::PickSlide && note.slide_out.has_value())
+    if (common::core::isScrape(note.attack) && note.slide_out.has_value())
     {
         // A scrape's gesture ends exactly at the sustain, so a sustain change RE-TERMINATES the
         // slide-out instead of dropping it (the import trim's compress twist under the editor's
@@ -211,12 +206,12 @@ void normalizeSustainOverlaps(
         }
         const common::core::ChartNote& old_note = before[before_index];
         const common::core::ChartNote& new_note = after[after_index];
-        if (keyLess(old_note, new_note))
+        if (common::core::chartNoteOrderLess(old_note, new_note))
         {
             plan.removed.push_back(before[before_index++]);
             continue;
         }
-        if (keyLess(new_note, old_note))
+        if (common::core::chartNoteOrderLess(new_note, old_note))
         {
             plan.inserted.push_back(after[after_index++]);
             continue;
@@ -275,7 +270,7 @@ enum class EligibilityRepairs : std::uint8_t
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
-    std::ranges::sort(candidate, keyLess);
+    std::ranges::sort(candidate, common::core::chartNoteOrderLess);
     normalizeSustainOverlaps(candidate, tempo_map);
     // The in-plan repairs (repairOwnTruths). Relational truths deliberately do not repair here
     // (see planSettleLegato): mid-burst a claim the chart cannot justify simply plays as the pick
@@ -553,8 +548,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         // A scrape needs somewhere to travel: its sustain floors at the minimum gesture window
         // instead of zero (the path re-terminates onto the shrunk tail via the payload clip).
-        if (note.attack == common::core::NoteAttack::PickSlide &&
-            next_sustain < g_minimum_slide_window)
+        if (common::core::isScrape(note.attack) && next_sustain < g_minimum_slide_window)
         {
             next_sustain = g_minimum_slide_window;
         }
@@ -785,8 +779,8 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
             {
                 retyped.harmonic_node.reset();
             }
-            const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
-            if (was_scrape && attack != common::core::NoteAttack::PickSlide)
+            const bool was_scrape = common::core::isScrape(note.attack);
+            if (was_scrape && !common::core::isScrape(attack))
             {
                 // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
                 // would be a fiction. The overridden techniques were never touched, so they
@@ -805,7 +799,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
                     static_cast<double>(common::core::physicalStopFret(note, chart.tuning.capo)) +
                     12.0;
             }
-            if (attack == common::core::NoteAttack::PickSlide)
+            if (common::core::isScrape(attack))
             {
                 // A scrape needs room to travel, so a sustainless note grows one first: a quarter
                 // note, clamped by the SAME growth limit every tail-growing verb obeys, so an
@@ -1008,7 +1002,7 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                 .noun = "Pick Slide",
                 .carries =
                     [](const common::core::ChartNote& note) {
-                        return note.attack == common::core::NoteAttack::PickSlide;
+                        return common::core::isScrape(note.attack);
                     },
                 .plan =
                     [](const common::core::Chart& chart,
@@ -1044,7 +1038,7 @@ std::expected<void, EditorUndoFailureCode> applyChartNotesChange(
     std::vector<common::core::ChartNote> notes = chart.notes;
     for (const common::core::ChartNote& note : to_remove)
     {
-        const auto found = std::ranges::lower_bound(notes, note, keyLess);
+        const auto found = std::ranges::lower_bound(notes, note, common::core::chartNoteOrderLess);
         if (found == notes.end() || !(*found == note))
         {
             return std::unexpected{EditorUndoFailureCode::PreflightRejected};
@@ -1053,7 +1047,8 @@ std::expected<void, EditorUndoFailureCode> applyChartNotesChange(
     }
     for (const common::core::ChartNote& note : to_insert)
     {
-        const auto insert_at = std::ranges::lower_bound(notes, note, keyLess);
+        const auto insert_at =
+            std::ranges::lower_bound(notes, note, common::core::chartNoteOrderLess);
         if (insert_at != notes.end() && keyOf(*insert_at) == keyOf(note))
         {
             return std::unexpected{EditorUndoFailureCode::PreflightRejected};

@@ -248,7 +248,7 @@ HighwayCameraTarget makeHighwayCameraTarget(
         // A pick slide's head rides its whole traveled path with no fret-hand anchor chasing
         // it (the scrape is excluded from the fret-hand track like the tap above), so the
         // framing must cover every neck position the path reaches, not just the start.
-        if (note.attack == NoteAttack::PickSlide)
+        if (isScrape(note.attack))
         {
             for (const SlideViewState& waypoint : note.slides)
             {

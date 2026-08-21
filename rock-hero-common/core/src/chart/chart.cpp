@@ -38,7 +38,7 @@ std::string harmonicNodeText(const double node)
 ChartNote savedChartNote(const ChartNote& note)
 {
     ChartNote saved = note;
-    if (saved.attack == NoteAttack::PickSlide)
+    if (isScrape(saved.attack))
     {
         saved.palm_mute = false;
         saved.dead = false;

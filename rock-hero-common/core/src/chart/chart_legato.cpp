@@ -28,8 +28,7 @@ LegatoMotion resolveLegato(
     // same day, 2026-08-20): its finger is on the stop, and the muted cluck that follows is a
     // hammer or pull like any other; what bounds it is the hold test below, since a dead note
     // carries no tail to prove a hold past the kept-sustain bound.
-    if (predecessor == nullptr || predecessor->attack == NoteAttack::PickSlide ||
-        fretHandHarmonic(*predecessor) ||
+    if (predecessor == nullptr || isScrape(predecessor->attack) || fretHandHarmonic(*predecessor) ||
         !predecessorHoldReaches(
             predecessor->position, predecessor_effective_sustain, note.position, tempo_map))
     {

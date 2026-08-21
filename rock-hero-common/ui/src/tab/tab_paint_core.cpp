@@ -929,7 +929,7 @@ enum class HeadShape : std::uint8_t
     {
         return HeadShape::Diamond;
     }
-    if (note.attack == common::core::NoteAttack::PickSlide)
+    if (common::core::isScrape(note.attack))
     {
         return HeadShape::Plectrum;
     }

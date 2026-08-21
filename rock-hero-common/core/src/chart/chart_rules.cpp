@@ -9,7 +9,6 @@
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <string_view>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -388,7 +387,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    so it stays a refusal.
     const int floor = firstPlayableFret(tuning.capo);
     bool below_capo = false;
-    if (note.attack == NoteAttack::PickSlide && note.fret < floor)
+    if (isScrape(note.attack) && note.fret < floor)
     {
         below_capo = true;
         note.fret = floor;
@@ -448,7 +447,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     }
     // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or trail-off
     // is dropped whole. A scrape never reaches this — its start was floored above.
-    if (note.attack != NoteAttack::PickSlide && note.fret == 0 &&
+    if (!isScrape(note.attack) && note.fret == 0 &&
         (!note.slides.empty() || note.slide_out.has_value()))
     {
         note.slides.clear();
@@ -469,8 +468,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    refusal, so only a present exit is judged. Demoted to the plain pick it sounds like, with
     //    its path cleared. The editor's scrape verb asks no question of its own here: it builds
     //    the path and lets the fixpoint judge it, so a held segment skips the note the same way.
-    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value() &&
-        !pickSlidePathTravels(note))
+    if (isScrape(note.attack) && note.slide_out.has_value() && !pickSlidePathTravels(note))
     {
         note.attack = NoteAttack::Pick;
         note.slides.clear();
@@ -646,8 +644,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // do not exist to play. A pressed note on one has no repair that is not an invented pitch,
     // so it stays a refusal; a SCRAPE's start on one is the normalizer's lift (a scrape has no
     // open form — user ruling 2026-08-20, closing W9-J), asked as the fixpoint below.
-    if (note.fret != 0 && note.fret < firstPlayableFret(tuning.capo) &&
-        note.attack != NoteAttack::PickSlide)
+    if (note.fret != 0 && note.fret < firstPlayableFret(tuning.capo) && !isScrape(note.attack))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
@@ -701,7 +698,7 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // fails loudly; emphasis is a scrape's own dynamics and passes. The gesture is the required
     // unpitched slide-out terminal, exactly at the sustain (nothing rings past a scrape). That the
     // path keeps traveling is the normalizer's demotion, asked as the fixpoint below.
-    if (note.attack == NoteAttack::PickSlide)
+    if (isScrape(note.attack))
     {
         // Stated as a FIXPOINT rather than by listing the overridden fields: a saved note must
         // already equal its own saved form. Enumerating mute/node/vibrato/tremolo/bend here
@@ -755,10 +752,7 @@ std::expected<void, ChartError> validateChartNotes(
         }
         if (previous_note != nullptr)
         {
-            const auto order_key = [](const ChartNote& entry) {
-                return std::make_tuple(entry.position, entry.string);
-            };
-            if (order_key(*previous_note) >= order_key(note))
+            if (!chartNoteOrderLess(*previous_note, note))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::UnsortedOrDuplicateNotes,
