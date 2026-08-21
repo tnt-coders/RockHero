@@ -3430,9 +3430,9 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
     SECTION("an upward trail-off at the top of the neck clamps to the last fret")
     {
         GpScore score = makeLinearScore(1, syncs);
-        // Fret 28 with the four-fret upward default would exit at 32 — off a 30-fret neck.
+        // Fret 22 with the four-fret upward default would exit at 26 — off a 24-fret neck.
         score.tracks[0].bars.push_back(
-            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 28, 0, 8), noteBeat(Fraction{1, 4}, 28)}}});
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 22, 0, 8), noteBeat(Fraction{1, 4}, 22)}}});
 
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
@@ -3993,13 +3993,15 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
 
     SECTION("a fret that lands past the neck once the capo shifts it")
     {
-        // Capo 12 plus a fret-24 note is absolute fret 36, past the 30 the model bounds notes by.
+        // Capo 12 plus a fret-24 note is absolute fret 36, past the cap the model bounds notes
+        // by (g_max_fret, the drawn board's 24).
         const auto built = importWith(GpNote{.string = 0, .fret = 24}, 12, false);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
         CHECK(chart.notes[0].fret == common::core::g_max_fret);
-        CHECK(anyNoteContains(built->notes, "past fret 30"));
+        CHECK(
+            anyNoteContains(built->notes, "past fret " + std::to_string(common::core::g_max_fret)));
     }
 
     SECTION("a natural harmonic whose node would sit off the neck")

@@ -26,12 +26,16 @@ inline constexpr int g_max_chart_strings{8};
 /*!
 \brief Highest fret a note, slide waypoint, or fret-hand position may reference.
 
-Frets above the low twenties do not exist on real instruments; the cap leaves headroom for
-extended-range hardware without accepting junk data. Shared with import code so fret clamping
-and validation agree on one authority. Harmonic nodes are bounded separately by
-\ref g_max_harmonic_node, since a node is not a neck position.
+Capped at the drawn 24-fret board (user ruling 2026-08-20): the cap used to hold headroom at 30
+for extended-range hardware, but the highway lays out 24 frets and silently clamped anything
+above them onto the last fret — a fret the model accepts and the board cannot show is a lie on
+whichever surface loses. \ref g_highway_fret_count derives from this constant, so the two cannot
+drift again; raising the cap is one edit here, and the moment for it is when a way exists to
+STATE positions above the board (the open node-entry question), not before. Shared with import
+code so fret clamping and validation agree on one authority. Harmonic nodes are bounded
+separately by \ref g_max_harmonic_node, since a node is not a neck position.
 */
-inline constexpr int g_max_fret{30};
+inline constexpr int g_max_fret{24};
 
 /*!
 \brief Highest harmonic node position accepted, in fret units.

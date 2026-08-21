@@ -791,19 +791,19 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
 }
 
 // The WHOLE hand window must fit on the neck: bounding only the index finger let a wide hand run
-// off the end. With g_max_fret = 30, fret 26 width 5 spans 26..30 and stands, while fret 28
-// width 5 wants 28..32 and is refused.
+// off the end. With g_max_fret = 24, fret 20 width 5 spans 20..24 and stands, while fret 22
+// width 5 wants 22..26 and is refused.
 TEST_CASE("Chart rules bound the whole hand window by the neck", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     Chart chart = makeFullChart();
     REQUIRE_FALSE(chart.fret_hand_positions.empty());
 
-    chart.fret_hand_positions.back().fret = 26;
+    chart.fret_hand_positions.back().fret = 20;
     chart.fret_hand_positions.back().width = 5;
     CHECK(validateChartRules(chart, tempo_map).has_value());
 
-    chart.fret_hand_positions.back().fret = 28;
+    chart.fret_hand_positions.back().fret = 22;
     CHECK_FALSE(validateChartRules(chart, tempo_map).has_value());
 }
 

@@ -1633,9 +1633,9 @@ constexpr float g_chart_click_threshold_px = 4.0f;
 constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
 // Could another digit reach a value this one alone cannot? The provisional/immediate split for
-// the pending fret entry: {1,2,3} at the current cap wait out the window, everything else
-// settles in the same keystroke. 0 is deliberately immediate — arming the window for it served
-// only a leading-zero path nobody types, making the open string (the commonest value on the
+// the pending fret entry: {1,2} at the 24-fret cap wait out the window, everything else settles
+// in the same keystroke. 0 is deliberately immediate — arming the window for it served only a
+// leading-zero path nobody types, making the open string (the commonest value on the
 // instrument) wait out the window.
 [[nodiscard]] constexpr bool chartFretValueExtendable(const int value)
 {
@@ -2978,9 +2978,8 @@ void EditorController::Impl::onSelectionDeleteRequested()
 // pending entry — drawn on the head(s), red when it cannot apply — and the chart holds nothing
 // of it until the entry settles (a second digit, the window elapsing, or any other action's
 // settle prologue). A first digit no second digit could extend within the fret cap needs no
-// window and settles in the same keystroke, so 0 and 4-9 land as fast as they ever did; only a
-// leading 1-3 waits. The flows live in their own helpers below; this dispatcher only orders
-// them.
+// window and settles in the same keystroke, so only a leading 1 or 2 waits at the 24-fret cap.
+// The flows live in their own helpers below; this dispatcher only orders them.
 void EditorController::Impl::onChartFretDigitTyped(int digit)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();

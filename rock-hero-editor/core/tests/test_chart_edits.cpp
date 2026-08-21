@@ -1160,13 +1160,13 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     }
     SECTION("scrape: a start past the old translated-path ceiling is now legal")
     {
-        // Under the deleted translation, transposing to 28 pushed the terminal's 12 to 31 and
+        // Under the deleted translation, transposing to 24 pushed the terminal's 12 to 27 and
         // refused; with the path in place every fret the start itself can reach is typable.
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(chart, makeTempoMap(), chart.notes, 28, /*set_exact=*/false),
-            28);
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, 24, /*set_exact=*/false),
+            24);
     }
     SECTION("pitched slide: transpose moves the start only")
     {

@@ -59,7 +59,12 @@ item ships, mark it and name the commit.
   red-on-white carries the error idiom at full contrast; (3) the window wake is TOKEN-ONLY —
   the earlier clock re-check could strand a marginally-early wake as a pending entry nothing
   would settle (sighted as the timeout not committing), and a correctness check must not be
-  able to create a stuck state. **Still
+  able to create a stuck state; (4) **`g_max_fret` is 24, not 30** — the drawn board lays out
+  24 frets and silently clamped anything above them onto the last fret, so the 30 headroom let
+  the model accept frets no surface could show (and made a lone "3" pend for a fret-30 second
+  digit that barely existed). `g_highway_fret_count` now DERIVES from `g_max_fret`, the
+  provisional split is {1,2}, and raising the cap is one edit gated on a way to STATE positions
+  above the board (the open node-entry question). **Still
   follow-on, not part of this ship:** the W5 counted-skip and W6 locked-tail payloads need their
   own notice surface — the pending box carries a typed value, not a report; their entries below
   stay open for exactly that surface.

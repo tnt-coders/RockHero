@@ -496,15 +496,15 @@ TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[co
     CHECK(chart->notes[0].fret == 0);
     CHECK(chart->notes[1].fret == 2);
 
-    // Shifting up stops when the highest fret reaches the cap (30): 28 upward ticks land on
-    // 28/30 and the next is refused.
+    // Shifting up stops when the highest fret reaches the cap (24): 22 upward ticks land on
+    // 22/24 and every further tick is refused.
     for (int step = 0; step < 29; ++step)
     {
         controller.onChartFretShiftRequested(1);
     }
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].fret == 28);
-    CHECK(chart->notes[1].fret == 30);
+    CHECK(chart->notes[0].fret == 22);
+    CHECK(chart->notes[1].fret == 24);
 }
 
 // An empty-lane click places the caret at the snapped slot on the clicked string — never a
@@ -2264,20 +2264,34 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
         REQUIRE(scrape.slide_out->fret == 3);
     }
 
-    // "3" refuses (start stilled against the terminal — a scrape cannot sit still) but arms
-    // the window; "0" widens to 30, which travels again, and the path stays where it was
-    // authored per the fret-verb law.
+    // "3" refuses (start stilled against the terminal — a scrape cannot sit still): at the
+    // 24-fret cap it is an immediate digit, so it goes pending red rather than silently
+    // no-oping, and the chart holds its old value.
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
     controller.onChartFretDigitTyped(3);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 17);
-    controller.onChartFretDigitTyped(0);
-    chart = chartOrNull(controller);
-    const common::core::ChartNote& widened = chart->notes[0];
-    CHECK(widened.fret == 30);
-    REQUIRE(widened.slide_out.has_value());
-    if (widened.slide_out.has_value())
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    if (state->chart_edit.pending_fret.has_value())
     {
-        CHECK(widened.slide_out->fret == 3);
+        CHECK_FALSE(state->chart_edit.pending_fret->valid);
+    }
+
+    // Esc cancels the problem and the caret survives, so the recovery is an immediate retype:
+    // "1" then "3" combine to 13, which travels to the terminal again, and the path stays where
+    // it was authored per the fret-verb law.
+    controller.onChartEscapePressed();
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    controller.onChartFretDigitTyped(1);
+    controller.onChartFretDigitTyped(3);
+    chart = chartOrNull(controller);
+    const common::core::ChartNote& retyped = chart->notes[0];
+    CHECK(retyped.fret == 13);
+    REQUIRE(retyped.slide_out.has_value());
+    if (retyped.slide_out.has_value())
+    {
+        CHECK(retyped.slide_out->fret == 3);
     }
 }
 
@@ -3461,11 +3475,11 @@ TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[
     REQUIRE_FALSE(state->chart_edit.selected_notes.empty());
 
     // The next digit starts a FRESH value — provisional again, committed by a second seek's
-    // prologue: fret 3, never the widened 23.
-    controller.onChartFretDigitTyped(3);
+    // prologue: fret 1, never the widened 21.
+    controller.onChartFretDigitTyped(1);
     CHECK(note(1).fret == 2);
     controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
-    CHECK(note(1).fret == 3);
+    CHECK(note(1).fret == 1);
     CHECK(state->undo_history.labels.size() == entries_before + 2);
 
     // And the two entries undo cleanly in order, the fold restoring retype and claim as one step.

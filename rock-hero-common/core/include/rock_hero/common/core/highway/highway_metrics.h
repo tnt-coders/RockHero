@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <rock_hero/common/core/chart/chart_rules.h>
 
 namespace rock_hero::common::core
 {
@@ -14,13 +15,14 @@ namespace rock_hero::common::core
 /*!
 \brief Fret count of the highway board, counted from the nut.
 
-A fixed property of the drawn board rather than a tuning knob: the board face always lays out
-this many fret slots, however few a chart uses (chart validation caps fret numbers separately,
-at \ref g_max_fret). A namespace constant rather than a \ref HighwayMetrics field because the
-renderer sizes per-fret-line arrays with it, and because the metrics struct holds the world-space
-distances that scale the board — this is how many frets those distances are laid out across.
+DERIVED from the model's own fret cap (user ruling 2026-08-20): the board draws every fret a
+chart may reference and no more, so a note the model accepts can never be silently clamped onto
+a fret line it does not sit on. A namespace constant rather than a \ref HighwayMetrics field
+because the renderer sizes per-fret-line arrays with it, and because the metrics struct holds
+the world-space distances that scale the board — this is how many frets those distances are laid
+out across.
 */
-inline constexpr int g_highway_fret_count{24};
+inline constexpr int g_highway_fret_count{g_max_fret};
 
 /*!
 \brief Every world-space constant of the 3D highway, in one documented struct.
