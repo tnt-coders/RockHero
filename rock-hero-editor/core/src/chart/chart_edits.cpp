@@ -431,7 +431,10 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planMoveNotes(
                 common::core::advanceGridPosition(tempo_map, target.position, beat_delta);
             target.string += string_delta;
             // Refused, never clamped: a move that would leave the neck or the grid is invalid.
-            if (target.string < 1 || target.string > string_count)
+            // The grid arithmetic itself clamps at the origin, so leaving the grid shows up as a
+            // move that fell short of the delta asked for.
+            if (target.string < 1 || target.string > string_count ||
+                common::core::beatDistance(tempo_map, note.position, target.position) != beat_delta)
             {
                 return std::unexpected{ChartPlanRefusal::Invalid};
             }
@@ -447,8 +450,8 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planMoveNotes(
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
-    // Origin-clamped or converging moves that stack two notes on one slot are refused, as is
-    // landing on a slot an unmoved note occupies.
+    // Converging moves that stack two notes on one slot are refused, as is landing on a slot an
+    // unmoved note occupies.
     std::vector<ChartNoteKey> target_keys;
     target_keys.reserve(moved.size());
     for (const common::core::ChartNote& note : moved)

@@ -388,9 +388,10 @@ TEST_CASE("planMoveNotes refuses a move off the fret neck", "[core][chart]")
                     .has_value());
 }
 
-// Two notes that both clamp to the grid origin under a large negative beat delta would stack on
-// one slot; the move is refused rather than collapsing them.
-TEST_CASE("planMoveNotes refuses origin-clamped converging moves", "[core][chart]")
+// A move that would leave the grid's start is refused outright, never clamped: the grid arithmetic
+// clamps at measure 1 beat 1, and a LONE note used to be silently repositioned there (only a
+// converging pair was caught, by colliding at the origin).
+TEST_CASE("planMoveNotes refuses a move off the grid's start", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -399,11 +400,30 @@ TEST_CASE("planMoveNotes refuses origin-clamped converging moves", "[core][chart
         makeNote({.measure = 1, .beat = 3}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // One note, two beats left of beat 2: clamping would land it on beat 1 as if it had moved one.
+    CHECK_FALSE(planMoveNotes(
+                    chart,
+                    tempo_map,
+                    {keyAt({.measure = 1, .beat = 2}, 1)},
+                    common::core::Fraction{-2},
+                    0,
+                    "Move Notes")
+                    .has_value());
+    // The same note one beat left lands exactly on the origin, which is a legal destination.
+    CHECK(planMoveNotes(
+              chart,
+              tempo_map,
+              {keyAt({.measure = 1, .beat = 2}, 1)},
+              common::core::Fraction{-1},
+              0,
+              "Move Notes")
+              .has_value());
+
+    // Two notes that would both clamp to the origin are refused too (they would also collide).
     const std::vector<ChartNoteKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1), keyAt({.measure = 1, .beat = 3}, 1)
     };
-
-    // Both notes clamp to measure 1 beat 1 on string 1, colliding at the origin.
     CHECK_FALSE(planMoveNotes(chart, tempo_map, keys, common::core::Fraction{-10}, 0, "Move Notes")
                     .has_value());
 }
