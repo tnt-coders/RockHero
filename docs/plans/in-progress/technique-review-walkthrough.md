@@ -292,6 +292,25 @@ item ships, mark it and name the commit.
   model, before W9-D's glyph choice hardens, and before the W9-B fold freezes the shared element
   types — a fold that bakes today's `{offset, fret}` waypoint into the shared view state would have
   to be reopened.
+- [ ] **W14 — A legato claim after a DEAD note is unjustified (user-proposed 2026-08-20, agent
+  agrees; awaiting the firm ruling).** A hammer-on or pull-off carries the predecessor's energy
+  into the next note; a dead note's string is not ringing, so there is nothing to carry, and the
+  legitimate "hammer from nowhere" after a dead note is the fretting hand's own strike — the
+  `LeftTap`, which stays legal because the resolver answers it locally. **Implementation is one
+  resolver clause, and the model absorbs everything else:** `resolveLegato` returns
+  `Unjustified` when the predecessor is `dead` (the `dead` flag alone — a palm-muted predecessor
+  rings, and a both-muted note sounds as dead). From there: mid-burst the claim displays and
+  scores as the pick it plays as (the existing contract), and the settle sweep
+  (`sweepUnjustifiedLegato`) flattens it at the next settle point — that IS the normalization the
+  user asked for, with no new mechanism, and it runs on every load path already. **The X toggle
+  round-trips for free:** X on the predecessor arms the dead-note toggle window; a second X
+  inside the window reverses that entry exactly, and since no settle ran in between, the claim
+  was never flattened and resolves again. A settle in between (selection change, seek) flattens
+  the claim folded INTO the dead toggle's own entry, so one Ctrl+Z restores both — the same
+  contract every technique window already has (W7, the fold rule). Scope: the note AFTER a dead
+  note; a claim ON a dead note itself (a hammered-then-damped position) is untouched and keeps
+  its accepted display watch item. Touchpoints when ruled: the resolver clause, its test in the
+  relational matrix suite, and the E-row in `technique-compatibility-and-hardening.md`.
 
 ## W9 — Rulings the deep review needs (opened 2026-08-10)
 

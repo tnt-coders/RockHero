@@ -236,18 +236,78 @@ the editor and the game both refuse to OPEN such a project. That is the brick W4
 prevent, arriving through the class Q2 said could not change. (The shed's scrape-start
 exclusion is a red herring here: the shed does not run at load at all today.)
 
-**Proposed amendment, pending the user's read.** The load normalizer runs inside the package
-reader, which HAS the tuning, so range-class repairs are available at load even though the
-per-note shed (which has no tuning) cannot express them. Give load two repair passes before the
-validate — the shed for technique-class rules, and a tuning-aware *range* pass that applies the
-importer's own repairs: clamp a fret or exit past the cap to the cap, drop a waypoint below the
-floor, lift an exit below the floor to `capo + 1`, shrink an FHP window onto the neck, and
-demote a scrape whose start cannot be floored to the plain pick it sounds like with its path
-cleared. Both passes report through the same conversions channel with positions. What then
-remains for the validator to refuse is genuinely structural — ordering, missing data, a string
-the tuning lacks — which no rule change produces. Until W4 builds, the standing policy for these
-projects is the one the backlog already records: re-import from the GP source, which the
-importer now produces in valid form.
+**RULED 2026-08-20 (user): ONE normalizer, not two.** A first draft here proposed a tuning-aware
+range pass *beside* the per-note shed. The user objected to the proliferating validation paths,
+and the objection was right: that would have been a fourth statement of the rules (validator,
+shed, the importer's scattered clamps, and the new pass). The signed shape instead:
+
+- **`normalizeChart(chart) → {chart, conversions}`**, chart-level, with the tuning in hand, owns
+  every REPAIRABLE rule: the technique drops (today's `executableChartNote` becomes one stage
+  of it, not a sibling) and the range repairs (clamp a fret or exit past the cap to the cap, drop
+  a waypoint below the floor, lift an exit below the floor to `capo + 1`, fit an FHP window
+  onto the neck, demote a scrape whose start cannot be floored to the plain pick it sounds like
+  with its path cleared). The repair POLICY — clamp vs. drop vs. demote — is stated exactly
+  once, as this function.
+- **The validator shrinks to two things**: the genuinely structural refusals no repair can
+  express (ordering, missing data, a string the tuning lacks — which no rule change produces),
+  and the fixpoint `normalizeChart(chart) == chart`. Nothing else is restated there.
+- **Import** calls it at build completion (where it calls the shed today); its scattered clamps
+  and floors migrate INTO it as each is next touched, instead of living on as guarantees kept
+  in step by hand.
+- **Load** (this plan) calls it, reports the diff, opens the session dirty — a rule change
+  repairs-and-warns instead of bricking.
+- **Editing** stays refuse-at-the-gate: `finalizePlan` asks whether the candidate is a
+  fixpoint, and the pending entry paints red when it is not. Where the design prefers a repair
+  to a refusal (the E4 strike flatten already does this inside `finalizePlan`), that repair IS
+  the normalizer, not a second rule.
+
+Every chart the editor, importer, or loader can produce is then a fixpoint of one authority —
+the user's "invalid states impossible while editing", achieved with one statement of each rule
+instead of three. The standing principle, to be codified in `architectural-principles.md` once
+the user confirms it firmly: **memory holds only normal charts; every mutation path is
+normalize-or-refuse through one authority.** Until this builds, the policy for projects today's
+rulings invalidated is the backlog's: re-import from the GP source.
+
+### 6.7. The load flow in detail (user question, 2026-08-20)
+
+Opening a `.rhp` whose chart carries normalizable issues:
+
+1. The package extracts and the chart document PARSES structurally (today's `readChartDocument`,
+   unchanged — it has never validated).
+2. `normalizeChart` runs on the parsed chart BEFORE anything else sees it. The invalid form
+   exists only as a local inside the reader; memory, the view, the undo history, and the game
+   never hold it. There is no "enter the invalid state, then fix it" step.
+3. `validateChartRules` runs on the result. The fixpoint half is trivially satisfied; only a
+   structural violation can still refuse, and it refuses loudly exactly as today (the file is
+   corrupt, not out of date).
+4. The conversions — rule, count, positions — flow through the package reader's existing
+   `conversions` channel: logged at `project open` as today, and the session opens DIRTY
+   ("memory no longer equals disk"), exactly as hand-made and third-party files already do.
+5. Per the Q4 ruling, a one-shot themed notice shows at open, naming each rule and its positions
+   (capped, full list in the log) — and also the legato claims the settle sweep flattened as a
+   consequence (§6.5), so nothing is silent. It is a summary AFTER the fact, never a prompt
+   before: a prompt's decline branch would need somewhere to put an un-normalized chart, and
+   there is nowhere. The decline branch is simply "close without saving" — the file on disk is
+   untouched until the user saves, so anyone who meant a trimmed tail as tremolo, or wants the
+   original bytes kept, has them.
+6. The conversions are part of the loaded BASELINE, not undo entries: history starts from the
+   normal chart. That is what "never enter the invalid state" means for undo.
+
+The game's package load is the same reader and the same normalizer; it logs and plays the
+normal chart. One path.
+
+### 6.8. Validation at save and publish (user question, 2026-08-20)
+
+Yes, and it duplicates nothing: it is one more CALL of the one validator, at the package
+WRITER, so save and publish both get it and the writer refuses to emit a document the reader
+would refuse — a symmetric gate with zero restated rules. Memory is valid by induction (load
+normalizes, verbs refuse), so this assertion should never fire; when it does, it has caught a
+verb bug, and it must fail LOUDLY: the save refuses with the typed error naming the rule and the
+position, and the message says plainly that this is a defect worth reporting. The editor may
+ALSO offer "repair and save", because the repair is the same normalizer applied as one undoable
+edit (diff the normalized chart against memory into a `ChartNotesEditPlan`, push it as "Repair
+chart", then write) — so the user is never stranded, and the offer adds no second rule. The
+offer must not soften the message: an auto-fix that hides the bug is worse than the bug.
 
 **Q1. Normalize-on-load forces a taxonomy the rules do not currently have.** If load normalizes
 rather than refuses, every rule must be normalizable or load still has a failure path. Today they
