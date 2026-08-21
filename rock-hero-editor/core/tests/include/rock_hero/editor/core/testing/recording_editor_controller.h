@@ -280,58 +280,16 @@ public:
         chart_sustain_adjust_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartLegatoToggleRequested */
-    void onChartLegatoToggleRequested() override
+    /*! \copydoc IEditorController::onChartTechniqueToggleRequested */
+    void onChartTechniqueToggleRequested(const ChartTechnique technique) override
     {
-        chart_legato_toggle_count += 1;
+        chart_technique_toggles.push_back(technique);
     }
 
     /*! \copydoc IEditorController::onChartLeftTapRequested */
     void onChartLeftTapRequested() override
     {
         chart_left_tap_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
-    void onChartPickSlideToggleRequested() override
-    {
-        chart_pick_slide_toggle_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartPalmMuteToggleRequested */
-    void onChartPalmMuteToggleRequested() override
-    {
-        chart_palm_mute_toggle_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartDeadNoteToggleRequested */
-    void onChartDeadNoteToggleRequested() override
-    {
-        chart_dead_note_toggle_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartAccentToggleRequested */
-    void onChartAccentToggleRequested() override
-    {
-        chart_accent_toggle_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartGhostToggleRequested */
-    void onChartGhostToggleRequested() override
-    {
-        chart_ghost_toggle_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartTremoloToggleRequested */
-    void onChartTremoloToggleRequested() override
-    {
-        chart_tremolo_toggle_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartVibratoToggleRequested */
-    void onChartVibratoToggleRequested() override
-    {
-        chart_vibrato_toggle_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartEscapePressed */
@@ -815,32 +773,11 @@ public:
     /*! \brief Number of onChartSustainAdjustRequested() intents received. */
     int chart_sustain_adjust_count{0};
 
-    /*! \brief Number of onChartLegatoToggleRequested() intents received. */
-    int chart_legato_toggle_count{0};
+    /*! \brief Every technique toggle received, in order. */
+    std::vector<ChartTechnique> chart_technique_toggles{};
 
     /*! \brief Number of onChartLeftTapRequested() intents received. */
     int chart_left_tap_count{0};
-
-    /*! \brief Number of onChartPickSlideToggleRequested() intents received. */
-    int chart_pick_slide_toggle_count{0};
-
-    /*! \brief Number of onChartPalmMuteToggleRequested() intents received. */
-    int chart_palm_mute_toggle_count{0};
-
-    /*! \brief Number of onChartDeadNoteToggleRequested() intents received. */
-    int chart_dead_note_toggle_count{0};
-
-    /*! \brief Number of onChartAccentToggleRequested() intents received. */
-    int chart_accent_toggle_count{0};
-
-    /*! \brief Number of onChartGhostToggleRequested() intents received. */
-    int chart_ghost_toggle_count{0};
-
-    /*! \brief Number of onChartTremoloToggleRequested() intents received. */
-    int chart_tremolo_toggle_count{0};
-
-    /*! \brief Number of onChartVibratoToggleRequested() intents received. */
-    int chart_vibrato_toggle_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

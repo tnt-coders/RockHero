@@ -20,6 +20,7 @@ run in opposite directions, so undo round-trips are exact by construction.
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/editor/core/chart/chart_technique.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -418,6 +419,44 @@ binary-search this precondition).
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::NoteEmphasis value,
     std::string_view label);
+
+/*!
+\brief The law one technique's toggle verb runs: what to call it, whether a note already carries it,
+and the planner that writes or clears it.
+
+The one table behind the toggle verb, so a technique joining the family adds a row here and nothing
+in the controller: the verb reads the selection through `carries` to decide set-or-clear (the
+uniform-scope law), plans through `plan`, and labels the entry and its reversal from `noun`.
+*/
+struct ChartTechniqueLaw
+{
+    /*! \brief The undo noun: "Palm Mute" labels the set, "Remove Palm Mute" the clear. */
+    std::string_view noun;
+
+    /*! \brief True when the note already carries the technique as the verb would write it. */
+    bool (*carries)(const common::core::ChartNote& note);
+
+    /*!
+    \brief Plans setting (`set`) or clearing the technique across `keys` under `label`, with the
+    per-note eligibility the planner owns.
+    */
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> (*plan)(
+        const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+        const std::vector<ChartNoteKey>& keys, bool set, std::string_view label);
+};
+
+/*!
+\brief The law for every uniformly planned technique.
+
+Total over the seven techniques a set-or-clear plan describes. `ChartTechnique::Legato` is NOT
+among them — its plan is \ref planSetLegato, which decides set-or-clear itself from what the
+resolver justifies — so asking for it is a caller error, not a row.
+
+\param technique Technique the verb is toggling; never `Legato`.
+
+\return That technique's law.
+*/
+[[nodiscard]] ChartTechniqueLaw chartTechniqueLaw(ChartTechnique technique);
 
 /*!
 \brief Applies a removed/inserted note change atomically to a chart.

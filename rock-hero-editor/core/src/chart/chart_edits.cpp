@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/session/session.h>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -253,6 +254,15 @@ void repairOwnTruths(common::core::ChartNote& note)
     static_cast<void>(common::core::trimMutedTail(note));
 }
 
+// Which of the plan's own repairs a verb's per-note eligibility applies before asking the rule
+// authority. Every verb asks the tail trim; only the verbs whose intent is NOT the attack ask the
+// strike flatten too, since for the attack verb a strike with nowhere to land is a note to skip.
+enum class EligibilityRepairs : std::uint8_t
+{
+    StrikeAndTail,
+    TailOnly
+};
+
 // Finalizes a candidate stream: restores (position, string) order, applies the 40-Q2-B overlap
 // normalization and the two in-plan repairs, gates the result through the whole technique matrix,
 // and diffs against the current stream. The gate is what makes authoring an invalid chart
@@ -294,6 +304,65 @@ void repairOwnTruths(common::core::ChartNote& note)
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
     return std::move(*plan);
+}
+
+// The one per-note write plan every property verb runs — flags, emphasis, and attack — so the law
+// is written once: each selected note is built as the verb would WRITE it (`write` fills `written`
+// from `note`, or returns false to leave the note alone), a write that changes nothing the document
+// would record is skipped (asked of the writer's own authority, so a scrape, whose saved form
+// strips its latents, never earns an undo entry for a flag no surface draws), the plan's own
+// repairs ride the eligibility test, and the per-note rule authority then judges the SAVED form so
+// a mixed selection applies to what CAN take the write and leaves the rest alone. The three
+// planners used to carry this skeleton each, and two of them disagreed about the no-op test.
+template <typename Write>
+[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planNoteWrite(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, const std::string_view label,
+    const EligibilityRepairs repairs, Write&& write)
+{
+    if (keys.empty())
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    bool changed = false;
+    for (common::core::ChartNote& note : candidate)
+    {
+        if (!std::ranges::binary_search(keys, keyOf(note)))
+        {
+            continue;
+        }
+        common::core::ChartNote written = note;
+        if (!write(std::as_const(note), written))
+        {
+            continue;
+        }
+        if (common::core::savedChartNote(written) == common::core::savedChartNote(note))
+        {
+            continue;
+        }
+        if (repairs == EligibilityRepairs::StrikeAndTail)
+        {
+            repairOwnTruths(written);
+        }
+        else
+        {
+            static_cast<void>(common::core::trimMutedTail(written));
+        }
+        if (!common::core::validateChartNoteAlone(
+                 common::core::savedChartNote(written), chart.tuning, tempo_map)
+                 .has_value())
+        {
+            continue;
+        }
+        note = std::move(written);
+        changed = true;
+    }
+    if (!changed)
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
 } // namespace
@@ -694,105 +763,82 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
     const std::vector<ChartNoteKey>& keys, const common::core::NoteAttack attack,
     const std::string_view label)
 {
-    if (keys.empty())
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-
-    std::vector<common::core::ChartNote> candidate = chart.notes;
-    bool changed = false;
-    for (common::core::ChartNote& note : candidate)
-    {
-        if (!std::ranges::binary_search(keys, keyOf(note)) || note.attack == attack)
-        {
-            continue;
-        }
-        // The note is built exactly as the verb would write it, ONCE, and then judged; the write
-        // is the assignment of that same value, so what the gate judged is what the chart gets.
-        // (It used to be built twice by hand — once to validate, once to write — and the two
-        // copies agreed only because someone kept them in step.)
-        common::core::ChartNote retyped = note;
-        retyped.attack = attack;
-        if (nodeLeavesWithAttack(note, attack))
-        {
-            retyped.harmonic_node.reset();
-        }
-        const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
-        if (was_scrape && attack != common::core::NoteAttack::PickSlide)
-        {
-            // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
-            // would be a fiction. The overridden techniques were never touched, so they simply
-            // resurface — except a latent slide-out, which the scrape's own terminal occupied.
-            retyped.slides.clear();
-            retyped.slide_out.reset();
-        }
-        // A pinch is picking while damping a node, so the verb authors one when none exists:
-        // the octave at the stop — the lowest-order harmonic available at any fret and the
-        // commonest squeal — matching the import default. An existing node keeps its position;
-        // it names the same physical point under either picking-hand reading.
-        if (attack == common::core::NoteAttack::Pinch && !retyped.harmonic_node.has_value())
-        {
-            retyped.harmonic_node =
-                static_cast<double>(common::core::physicalStopFret(note, chart.tuning.capo)) + 12.0;
-        }
-        if (attack == common::core::NoteAttack::PickSlide)
-        {
-            // A scrape needs room to travel, so a sustainless note grows one first: a quarter
-            // note, clamped by the SAME growth limit every tail-growing verb obeys, so an
-            // authored default can never crowd the next onset.
-            if (retyped.sustain.numerator <= 0)
+    // Only the tail trim rides THIS verb's eligibility, never the strike flatten: here the attack
+    // IS what the user asked for, so a strike with nowhere to land (an open-string pinch re-handed
+    // to the fretting hand) is a note to skip, not one to quietly retype as a pick.
+    return planNoteWrite(
+        chart,
+        tempo_map,
+        keys,
+        label,
+        EligibilityRepairs::TailOnly,
+        [&](const common::core::ChartNote& note, common::core::ChartNote& retyped) {
+            if (note.attack == attack)
             {
-                const common::core::TimeSignatureChange signature =
-                    tempo_map.timeSignatureAt(note.position.measure);
-                common::core::Fraction wanted = pickSlideDefaultSustainBeats(signature.denominator);
-                const std::optional<common::core::Fraction> limit =
-                    sustainGrowthLimit(chart, tempo_map, note);
-                if (limit.has_value() && *limit < wanted)
+                return false;
+            }
+            retyped.attack = attack;
+            if (nodeLeavesWithAttack(note, attack))
+            {
+                retyped.harmonic_node.reset();
+            }
+            const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
+            if (was_scrape && attack != common::core::NoteAttack::PickSlide)
+            {
+                // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
+                // would be a fiction. The overridden techniques were never touched, so they
+                // simply resurface — except a latent slide-out, which the scrape's own terminal
+                // occupied.
+                retyped.slides.clear();
+                retyped.slide_out.reset();
+            }
+            // A pinch is picking while damping a node, so the verb authors one when none exists:
+            // the octave at the stop — the lowest-order harmonic available at any fret and the
+            // commonest squeal — matching the import default. An existing node keeps its
+            // position; it names the same physical point under either picking-hand reading.
+            if (attack == common::core::NoteAttack::Pinch && !retyped.harmonic_node.has_value())
+            {
+                retyped.harmonic_node =
+                    static_cast<double>(common::core::physicalStopFret(note, chart.tuning.capo)) +
+                    12.0;
+            }
+            if (attack == common::core::NoteAttack::PickSlide)
+            {
+                // A scrape needs room to travel, so a sustainless note grows one first: a quarter
+                // note, clamped by the SAME growth limit every tail-growing verb obeys, so an
+                // authored default can never crowd the next onset.
+                if (retyped.sustain.numerator <= 0)
                 {
-                    wanted = *limit;
+                    const common::core::TimeSignatureChange signature =
+                        tempo_map.timeSignatureAt(note.position.measure);
+                    common::core::Fraction wanted =
+                        pickSlideDefaultSustainBeats(signature.denominator);
+                    const std::optional<common::core::Fraction> limit =
+                        sustainGrowthLimit(chart, tempo_map, note);
+                    if (limit.has_value() && *limit < wanted)
+                    {
+                        wanted = *limit;
+                    }
+                    retyped.sustain =
+                        wanted > g_minimum_slide_window ? wanted : g_minimum_slide_window;
                 }
-                retyped.sustain = wanted > g_minimum_slide_window ? wanted : g_minimum_slide_window;
+                // An existing slide IS the gesture's path, so converting keeps the frets and the
+                // direction the charter already drew; only a note with no slide at all takes the
+                // synthesized default. The note's own fret is always the start (unlike imported
+                // carriers, whose dead strings carry no meaningful fret). A converted path that
+                // HOLDS a fret is no scrape — a pick cannot rest and still be scraping — and the
+                // gate skips the note on exactly that rule (the normalizer's demotion), so no
+                // travel test is restated here.
+                if (!convertSlideToScrapePath(retyped))
+                {
+                    applyDefaultPickSlidePath(
+                        retyped,
+                        pickSlideDefaultUpward(retyped.fret, chart.tuning.capo),
+                        chart.tuning.capo);
+                }
             }
-            // An existing slide IS the gesture's path, so converting keeps the frets and the
-            // direction the charter already drew; only a note with no slide at all takes the
-            // synthesized default. The note's own fret is always the start (unlike imported
-            // carriers, whose dead strings carry no meaningful fret). A converted path that HOLDS
-            // a fret is no scrape — a pick cannot rest and still be scraping — and the gate
-            // below skips the note on exactly that rule (the normalizer's demotion), so no travel
-            // test is restated here.
-            if (!convertSlideToScrapePath(retyped))
-            {
-                applyDefaultPickSlidePath(
-                    retyped,
-                    pickSlideDefaultUpward(retyped.fret, chart.tuning.capo),
-                    chart.tuning.capo);
-            }
-        }
-        // Only the tail trim rides THIS verb's eligibility, never the strike flatten: here the
-        // attack IS what the user asked for, so a strike with nowhere to land (an open-string
-        // pinch re-handed to the fretting hand) is a note to skip, not one to quietly retype as a
-        // pick. The flatten belongs to the verbs where the attack is secondary — a fret edit.
-        static_cast<void>(common::core::trimMutedTail(retyped));
-        // Eligible-subset skip, so a mixed selection applies to what CAN take the attack. Asked of
-        // the per-note rule authority rather than restated: two of its predicates used to be copied
-        // here, which meant any OTHER rule the target attack could break went unskipped, and the
-        // whole-stream gate then refused the edit for every note in the selection instead of just
-        // that one. Asked of the note as it would be WRITTEN — the saved form — since a scrape's
-        // latent overrides are legal in memory and stripped by the writer.
-        if (!common::core::validateChartNoteAlone(
-                 common::core::savedChartNote(retyped), chart.tuning, tempo_map)
-                 .has_value())
-        {
-            continue;
-        }
-        note = std::move(retyped);
-        changed = true;
-    }
-    if (!changed)
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+            return true;
+        });
 }
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
@@ -800,54 +846,21 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
     const std::vector<ChartNoteKey>& keys, const ChartNoteFlag which, const bool value,
     const std::string_view label)
 {
-    if (keys.empty())
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-
+    // The write is one bool, and the rule authority is what refuses `dead` wherever a technique
+    // needs the pitch it removes — a bend, a vibrato, a pinch's squeal — and what a palm mute
+    // always passes. The eligibility asks the plan's own repairs first, so a held note is
+    // eligible for X (its tail goes with the press) rather than skipped over the tail.
     bool common::core::ChartNote::* const field = chartNoteFlagField(which);
-    std::vector<common::core::ChartNote> candidate = chart.notes;
-    bool changed = false;
-    for (common::core::ChartNote& note : candidate)
-    {
-        if (!std::ranges::binary_search(keys, keyOf(note)))
-        {
-            continue;
-        }
-        common::core::ChartNote muted = note;
-        muted.*field = value;
-        // Skips every note the write leaves recording what it already recorded, which is one test
-        // for two cases: the note that carries the flag already, and the scrape, whose saved form
-        // strips BOTH mutes (the in-memory override contract in chart.h). Asked of the writer's
-        // own authority rather than restated as an attack test, so the verb cannot disagree with
-        // it about where a mute is real — writing one onto a scrape would otherwise push an undo
-        // entry for a flag no surface draws and no document keeps.
-        if (common::core::savedChartNote(muted) == common::core::savedChartNote(note))
-        {
-            continue;
-        }
-        // Eligible-subset skip, exactly as planSetAttack does it: the per-note rule authority is
-        // asked of the note as it would be WRITTEN, so a mixed selection applies to what CAN take
-        // the mute and leaves the rest alone. That rule is what refuses `dead` wherever a
-        // technique needs the pitch it removes — a bend, a vibrato, a pinch's squeal — and what
-        // a palm mute always passes. Asked AFTER the plan's own repairs, so a held note is
-        // eligible for X — its tail goes with the press — rather than skipped over the tail, and
-        // asked of the SAVED form, since a scrape's latent overrides are legal in memory.
-        repairOwnTruths(muted);
-        if (!common::core::validateChartNoteAlone(
-                 common::core::savedChartNote(muted), chart.tuning, tempo_map)
-                 .has_value())
-        {
-            continue;
-        }
-        note = muted;
-        changed = true;
-    }
-    if (!changed)
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+    return planNoteWrite(
+        chart,
+        tempo_map,
+        keys,
+        label,
+        EligibilityRepairs::StrikeAndTail,
+        [field, value](const common::core::ChartNote&, common::core::ChartNote& written) {
+            written.*field = value;
+            return true;
+        });
 }
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
@@ -855,47 +868,169 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
     const std::vector<ChartNoteKey>& keys, const common::core::NoteEmphasis value,
     const std::string_view label)
 {
-    if (keys.empty())
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
+    return planNoteWrite(
+        chart,
+        tempo_map,
+        keys,
+        label,
+        EligibilityRepairs::StrikeAndTail,
+        [value](const common::core::ChartNote&, common::core::ChartNote& struck) {
+            struck.emphasis = value;
+            return true;
+        });
+}
 
-    std::vector<common::core::ChartNote> candidate = chart.notes;
-    bool changed = false;
-    for (common::core::ChartNote& note : candidate)
+ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
+{
+    // Each row binds a noun, the "already carries it" test, and the planner. The flag rows ask
+    // the one flag-to-field mapping; the emphasis rows compare against the axis's value; the
+    // scrape row is the attack planner in both directions.
+    switch (technique)
     {
-        if (!std::ranges::binary_search(keys, keyOf(note)))
+        case ChartTechnique::PalmMute:
         {
-            continue;
+            return ChartTechniqueLaw{
+                .noun = "Palm Mute",
+                .carries = [](const common::core::ChartNote& note) { return note.palm_mute; },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const std::vector<ChartNoteKey>& keys,
+                       const bool set,
+                       const std::string_view label) {
+                        return planSetNoteFlag(
+                            chart, tempo_map, keys, ChartNoteFlag::PalmMute, set, label);
+                    },
+            };
         }
-        common::core::ChartNote struck = note;
-        struck.emphasis = value;
-        // The same "the write changes nothing the document would record" gate the mute verb uses,
-        // asked of the writer's own authority rather than spelled here as "already at this
-        // value". Emphasis survives savedChartNote on every attack today — a scrape's dynamics
-        // are its own — so the two readings coincide; asking the authority is what keeps them
-        // coinciding if that stops being true, instead of leaving a verb that writes a value no
-        // document would keep.
-        if (common::core::savedChartNote(struck) == common::core::savedChartNote(note))
+        case ChartTechnique::Dead:
         {
-            continue;
+            return ChartTechniqueLaw{
+                .noun = "Dead Note",
+                .carries = [](const common::core::ChartNote& note) { return note.dead; },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const std::vector<ChartNoteKey>& keys,
+                       const bool set,
+                       const std::string_view label) {
+                        return planSetNoteFlag(
+                            chart, tempo_map, keys, ChartNoteFlag::Dead, set, label);
+                    },
+            };
         }
-        // Eligible-subset skip, exactly as the mute and attack verbs do it, of the saved form.
-        repairOwnTruths(struck);
-        if (!common::core::validateChartNoteAlone(
-                 common::core::savedChartNote(struck), chart.tuning, tempo_map)
-                 .has_value())
+        case ChartTechnique::Tremolo:
         {
-            continue;
+            return ChartTechniqueLaw{
+                .noun = "Tremolo",
+                .carries = [](const common::core::ChartNote& note) { return note.tremolo; },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const std::vector<ChartNoteKey>& keys,
+                       const bool set,
+                       const std::string_view label) {
+                        return planSetNoteFlag(
+                            chart, tempo_map, keys, ChartNoteFlag::Tremolo, set, label);
+                    },
+            };
         }
-        note = struck;
-        changed = true;
+        case ChartTechnique::Vibrato:
+        {
+            return ChartTechniqueLaw{
+                .noun = "Vibrato",
+                .carries = [](const common::core::ChartNote& note) { return note.vibrato; },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const std::vector<ChartNoteKey>& keys,
+                       const bool set,
+                       const std::string_view label) {
+                        return planSetNoteFlag(
+                            chart, tempo_map, keys, ChartNoteFlag::Vibrato, set, label);
+                    },
+            };
+        }
+        case ChartTechnique::Accent:
+        {
+            return ChartTechniqueLaw{
+                .noun = "Accent",
+                .carries =
+                    [](const common::core::ChartNote& note) {
+                        return note.emphasis == common::core::NoteEmphasis::Accent;
+                    },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const std::vector<ChartNoteKey>& keys,
+                       const bool set,
+                       const std::string_view label) {
+                        return planSetEmphasis(
+                            chart,
+                            tempo_map,
+                            keys,
+                            set ? common::core::NoteEmphasis::Accent
+                                : common::core::NoteEmphasis::Normal,
+                            label);
+                    },
+            };
+        }
+        case ChartTechnique::Ghost:
+        {
+            return ChartTechniqueLaw{
+                .noun = "Ghost Note",
+                .carries =
+                    [](const common::core::ChartNote& note) {
+                        return note.emphasis == common::core::NoteEmphasis::Ghost;
+                    },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const std::vector<ChartNoteKey>& keys,
+                       const bool set,
+                       const std::string_view label) {
+                        return planSetEmphasis(
+                            chart,
+                            tempo_map,
+                            keys,
+                            set ? common::core::NoteEmphasis::Ghost
+                                : common::core::NoteEmphasis::Normal,
+                            label);
+                    },
+            };
+        }
+        case ChartTechnique::PickSlide:
+        {
+            return ChartTechniqueLaw{
+                .noun = "Pick Slide",
+                .carries =
+                    [](const common::core::ChartNote& note) {
+                        return note.attack == common::core::NoteAttack::PickSlide;
+                    },
+                .plan =
+                    [](const common::core::Chart& chart,
+                       const common::core::TempoMap& tempo_map,
+                       const std::vector<ChartNoteKey>& keys,
+                       const bool set,
+                       const std::string_view label) {
+                        return planSetAttack(
+                            chart,
+                            tempo_map,
+                            keys,
+                            set ? common::core::NoteAttack::PickSlide
+                                : common::core::NoteAttack::Pick,
+                            label);
+                    },
+            };
+        }
+        case ChartTechnique::Legato:
+        {
+            break;
+        }
     }
-    if (!changed)
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+    // Legato's plan is planSetLegato, which decides set-or-clear itself; reaching here is a caller
+    // bug, and inventing a row would be a verb that looks like it works.
+    std::unreachable();
 }
 
 std::expected<void, EditorUndoFailureCode> applyChartNotesChange(

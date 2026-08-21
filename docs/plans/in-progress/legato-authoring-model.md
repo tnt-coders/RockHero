@@ -140,9 +140,11 @@ pixel-identical by design.
 **One record, three readers — a simplification the spec did not ask for.** The spec named a
 `ChartLegatoToggleEntry`; what shipped keeps the *plan* once, in `m_chart_notes_top`
 (`ChartNotesTopEntry{plan, history_position}`), and the toggle window stores only the armed keys
-(`m_chart_legato_toggle`). The settle sweep folds into that record, the toggle reverses it, and the
-multi-digit fret widen reverses it to rebuild its pre-entry stream — so no two verbs can disagree
-about what the burst did, because there is no second copy to keep in step. The history position IS
+(since 2026-08-21 the ONE `m_chart_toggle_window{technique, keys}` every technique verb shares,
+because at most one window can ever be armed). The settle sweep folds into that record and the
+toggle reverses it — the multi-digit fret widen was a third reader until the pending model deleted
+it — so no two verbs can disagree about what the burst did, because there is no second copy to
+keep in step. The history position IS
 the proof of ownership: any other push, undo, or redo moves the cursor and retires the record.
 
 The fret widen was the third reader only from 2026-08-11 (review fix F4): it had kept its own

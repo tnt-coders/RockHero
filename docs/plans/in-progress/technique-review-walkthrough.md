@@ -552,8 +552,10 @@ the options with the agent's recommendation.
   away. We did this with legato and other techniques. This should function the same for
   consistency."* Built as the walkthrough predicted — wiring, not design — but SHARED rather than
   copied: the ~50-line reversal proof became `reverseTechniqueToggleWindow`, which legato and the
-  scrape both call, and the nine commit points now call `disarmTechniqueToggleWindows()` instead
-  of naming a member, so a third verb joins by adding one field. The scrape arms on the entering
+  scrape both call, and the nine commit points now call the one disarm instead of naming a
+  member. (2026-08-21: the per-verb window fields collapsed to ONE `m_chart_toggle_window` keyed
+  by `ChartTechnique`, and the eight toggle methods to one `onChartTechniqueToggleRequested` driven
+  by `chartTechniqueLaw`, so a verb joining the family is one enumerator and one law row.) The scrape arms on the entering
   AND the clearing press, because reversal restores what its own clear law cannot: the sustain the
   default grew on a note that had none, and the glide a conversion consumed into the terminal.
   The original question below is kept for the record.

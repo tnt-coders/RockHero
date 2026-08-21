@@ -1446,7 +1446,7 @@ TEST_CASE("EditorController keeps an invalid pending digit until it is settled",
     }
     SECTION("another intent's prologue discards it and the verb still applies")
     {
-        controller.onChartPalmMuteToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
         CHECK(chartOrNull(controller)->notes[0].fret == 3);
         CHECK(chartOrNull(controller)->notes[0].palm_mute);
         CHECK(state->undo_history.labels.size() == entries_before + 1);
@@ -1760,7 +1760,7 @@ TEST_CASE("EditorController closes a technique toggle window on a caret move", "
     REQUIRE(state != nullptr);
     const std::size_t entries_before = state->undo_history.labels.size();
 
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     CHECK(chartOrNull(controller)->notes[0].palm_mute);
     CHECK(state->undo_history.labels.size() == entries_before + 1);
 
@@ -1771,7 +1771,7 @@ TEST_CASE("EditorController closes a technique toggle window on a caret move", "
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     // The ordinary law: a second entry that removes the mute, not a reversal that erases the first.
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     CHECK_FALSE(chartOrNull(controller)->notes[0].palm_mute);
     CHECK(state->undo_history.labels.size() == entries_before + 2);
     REQUIRE_FALSE(state->undo_history.labels.empty());
@@ -2010,7 +2010,7 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     const auto* chart = chartOrNull(controller);
     const common::core::ChartNote original = chart->notes[0];
 
-    controller.onChartPickSlideToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
     chart = chartOrNull(controller);
     const common::core::ChartNote& scrape = chart->notes[0];
     CHECK(scrape.attack == common::core::NoteAttack::PickSlide);
@@ -2022,7 +2022,7 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     }
 
     // Toggling back inside the window restores the note field-for-field.
-    controller.onChartPickSlideToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0] == original);
 
@@ -2058,14 +2058,14 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
 
     // One note becomes a scrape first, so the marquee selection below is mixed.
     click(controller, 40.0f, 220.0f);
-    controller.onChartPickSlideToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
 
     // Marquee both measure-1 chord members: a scrape plus a plain note.
     controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
     controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
-    controller.onChartPickSlideToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
     CHECK(chart->notes[1].attack == common::core::NoteAttack::PickSlide);
@@ -2077,7 +2077,7 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     controller.onRedoRequested();
 
     // Now all-scrape: the same intent reverts the whole selection in one entry.
-    controller.onChartPickSlideToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
     CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
@@ -2113,12 +2113,12 @@ TEST_CASE("EditorController toggles a palm mute with exact restoration", "[core]
     const auto* chart = chartOrNull(controller);
     const common::core::ChartNote original = chart->notes[0];
 
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].palm_mute);
     CHECK_FALSE(chart->notes[0].dead);
 
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0] == original);
 
@@ -2149,15 +2149,15 @@ TEST_CASE("EditorController sets both mutes on one note", "[core][chart]")
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
     click(controller, 40.0f, 220.0f);
-    controller.onChartPalmMuteToggleRequested();
-    controller.onChartDeadNoteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Dead);
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].palm_mute);
     CHECK(chart->notes[0].dead);
 
     // The dead press was the last edit, so it closed the palm window: this press means the palm
     // verb's ordinary law, which clears the palm flag and leaves the X standing.
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     chart = chartOrNull(controller);
     CHECK_FALSE(chart->notes[0].palm_mute);
     CHECK(chart->notes[0].dead);
@@ -2186,7 +2186,7 @@ TEST_CASE("EditorController accent toggle restores an overwritten ghost", "[core
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
     click(controller, 40.0f, 220.0f);
-    controller.onChartGhostToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Ghost);
     // A history move commits that entry and closes the GHOST's window, so the accent press below
     // is an ordinary press rather than a reversal of it.
     controller.onUndoRequested();
@@ -2195,12 +2195,12 @@ TEST_CASE("EditorController accent toggle restores an overwritten ghost", "[core
     REQUIRE(common::core::isGhosted(chart->notes[0].emphasis));
     const common::core::ChartNote ghosted = chart->notes[0];
 
-    controller.onChartAccentToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Accent);
     chart = chartOrNull(controller);
     CHECK(common::core::isAccented(chart->notes[0].emphasis));
     CHECK_FALSE(common::core::isGhosted(chart->notes[0].emphasis));
 
-    controller.onChartAccentToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Accent);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0] == ghosted);
 
@@ -2232,14 +2232,14 @@ TEST_CASE("EditorController emphasis toggle applies uniform scope", "[core][char
 
     // One note is accented first, so the marquee selection below is mixed.
     click(controller, 40.0f, 220.0f);
-    controller.onChartAccentToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Accent);
 
     // Marquee both measure-2 chord members: an accented note plus a plain one.
     controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
     controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
-    controller.onChartAccentToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Accent);
     const auto* chart = chartOrNull(controller);
     CHECK(common::core::isAccented(chart->notes[0].emphasis));
     CHECK(common::core::isAccented(chart->notes[1].emphasis));
@@ -2247,7 +2247,7 @@ TEST_CASE("EditorController emphasis toggle applies uniform scope", "[core][char
     controller.onUndoRequested();
     controller.onRedoRequested();
 
-    controller.onChartAccentToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Accent);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].emphasis == common::core::NoteEmphasis::Normal);
     CHECK(chart->notes[1].emphasis == common::core::NoteEmphasis::Normal);
@@ -2275,14 +2275,14 @@ TEST_CASE("EditorController mute toggle applies uniform scope", "[core][chart]")
 
     // One note is muted first, so the marquee selection below is mixed.
     click(controller, 40.0f, 220.0f);
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
 
     // Marquee both measure-2 chord members: a muted note plus a plain one.
     controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
     controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].palm_mute);
     CHECK(chart->notes[1].palm_mute);
@@ -2293,7 +2293,7 @@ TEST_CASE("EditorController mute toggle applies uniform scope", "[core][chart]")
     controller.onUndoRequested();
     controller.onRedoRequested();
 
-    controller.onChartPalmMuteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
     chart = chartOrNull(controller);
     CHECK_FALSE(chart->notes[0].palm_mute);
     CHECK_FALSE(chart->notes[1].palm_mute);
@@ -2327,7 +2327,7 @@ TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][char
     controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
 
-    controller.onChartDeadNoteToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::Dead);
     const auto* chart = chartOrNull(controller);
     CHECK_FALSE(chart->notes[0].dead);
     CHECK(chart->notes[0].vibrato);
@@ -2361,7 +2361,7 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     click(controller, 40.0f, 220.0f);
     controller.onChartFretDigitTyped(1);
     controller.onChartFretDigitTyped(7);
-    controller.onChartPickSlideToggleRequested();
+    controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
     const auto* chart = chartOrNull(controller);
     const common::core::ChartNote& scrape = chart->notes[0];
     REQUIRE(scrape.attack == common::core::NoteAttack::PickSlide);
@@ -2642,17 +2642,17 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         click(controller, 80.0f, 220.0f);
         click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
 
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
         CHECK(note_attack(1) == common::core::NoteAttack::Pick);
 
         // The second press reverses — this used to be the stuck press that re-applied forever.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Pick);
         CHECK(note_attack(1) == common::core::NoteAttack::Pick);
 
         // And the toggle keeps round-tripping.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
     }
 
@@ -2661,11 +2661,11 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         click(controller, 80.0f, 220.0f);
         click(controller, 40.0f, 140.0f, ChartPointerModifiers{.ctrl = true});
 
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
         CHECK(note_attack(2) == common::core::NoteAttack::Tap);
 
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Pick);
         CHECK(note_attack(2) == common::core::NoteAttack::Tap);
     }
@@ -2676,7 +2676,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         // destroy: the toggle cannot re-create it, so flattening it would lose authored intent no
         // press could bring back.
         click(controller, 80.0f, 220.0f);
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
 
         // The rider becomes a deliberate tap of its own. Nothing precedes it on its string, so no
@@ -2688,7 +2688,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         // With both selected there is nothing left to claim — the connection already stands and the
         // tap cannot be justified — so the press clears, and clears the claim only.
         click(controller, 80.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Pick);
         CHECK(note_attack(2) == common::core::NoteAttack::LeftTap);
     }
@@ -2701,13 +2701,13 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
         // count and the dominant reason still travel on planSetLegato's own return (pinned in
         // test_chart_edits.cpp) and surface once a non-modal refusal channel exists.
         click(controller, 40.0f, 180.0f);
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(1) == common::core::NoteAttack::Pick);
         CHECK(view.shown_errors.empty());
 
         // Nor does a press that applies report anything: the marks it moved are the feedback.
         click(controller, 80.0f, 220.0f);
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note_attack(3) == common::core::NoteAttack::Legato);
         CHECK(view.shown_errors.empty());
     }
@@ -2797,7 +2797,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
     SECTION("it overrides a standing claim, and plain H claims the connection back")
     {
         click(controller, 80.0f, 220.0f);
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(5).attack == common::core::NoteAttack::Legato);
 
         // Only the author knows the predecessor was damped, so the tap overrides the claim.
@@ -2806,7 +2806,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
 
         // The signed symmetry between the stating verb and the inferring one: where the chart DOES
         // justify a connection, plain H writes it again.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(5).attack == common::core::NoteAttack::Legato);
     }
 
@@ -2935,13 +2935,13 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
 
         // The assist: the hold was the only thing missing, so the press grows the predecessor's
         // tail to the margin point and claims the connection in one entry.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
         CHECK(note(0).sustain == common::core::Fraction{15, 4});
 
         // The window (ruling 4): the second press reverses that entry exactly — the grown tail
         // included, which the clear law could never restore — and leaves no history entry.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
         CHECK(note(0).sustain == common::core::Fraction{});
         const EditorViewState* state = stateOrNull(view.last_state);
@@ -2949,7 +2949,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         CHECK(state->undo_label != std::optional<std::string>{"Legato"});
 
         // And the pair of presses keeps cycling.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
         CHECK(note(0).sustain == common::core::Fraction{15, 4});
     }
@@ -2957,14 +2957,14 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     SECTION("a selection change closes the window: the clear stands and the tail stays")
     {
         click(controller, 80.0f, 220.0f);
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
 
         // Extending the selection kills the window's proof, so the next press means the
         // ordinary law — the clear — and the grown tail stays (Ctrl+Z is the revert once the window
         // is gone).
         click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
         CHECK(note(0).sustain == common::core::Fraction{15, 4});
 
@@ -2988,7 +2988,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     SECTION("the assist never spends a gesture carrier's tail")
     {
         click(controller, 160.0f, 140.0f);
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
 
         // Nothing changed at all: no claim, no growth, and the trail-off's own geometry intact.
         CHECK(note(4).attack == common::core::NoteAttack::Pick);
@@ -3007,8 +3007,8 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     SECTION("undo after the pair is a no-op on the chart: the entry is gone")
     {
         click(controller, 80.0f, 220.0f);
-        controller.onChartLegatoToggleRequested();
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
 
         controller.onUndoRequested();
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
@@ -3018,7 +3018,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     SECTION("a save between the presses reverses by pushing the exact inverse")
     {
         click(controller, 80.0f, 220.0f);
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
 
         // The save makes that entry the file's clean state, so dropping it would make "return to
@@ -3033,7 +3033,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         // The saved position IS the clean one, which is what the drop would have had to erase.
         CHECK(state->undo_history.clean_position == std::optional{state->undo_history.position});
 
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
         CHECK(note(0).sustain == common::core::Fraction{});
         CHECK(state->undo_history.labels.size() == entries_after_save + 1);
@@ -3349,7 +3349,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
 
         // `H` claims the middle note's own connection and arms the toggle window.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(1).attack == common::core::NoteAttack::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
 
@@ -3363,7 +3363,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
         // The press that follows is the ordinary law: it CLEARS the claim it can no longer set.
         // Were the window still armed it would reverse the folded entry instead, resurrecting the
         // claim the sweep just flattened.
-        controller.onChartLegatoToggleRequested();
+        controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(1).attack == common::core::NoteAttack::Pick);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
         CHECK(state->undo_history.labels.size() == entries_after_settle + 1);

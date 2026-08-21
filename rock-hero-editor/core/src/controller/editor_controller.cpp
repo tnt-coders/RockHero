@@ -934,49 +934,14 @@ void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
     m_impl->onChartSustainAdjustRequested(direction, fine);
 }
 
-void EditorController::onChartLegatoToggleRequested()
+void EditorController::onChartTechniqueToggleRequested(const ChartTechnique technique)
 {
-    m_impl->onChartLegatoToggleRequested();
+    m_impl->onChartTechniqueToggleRequested(technique);
 }
 
 void EditorController::onChartLeftTapRequested()
 {
     m_impl->onChartLeftTapRequested();
-}
-
-void EditorController::onChartPickSlideToggleRequested()
-{
-    m_impl->onChartPickSlideToggleRequested();
-}
-
-void EditorController::onChartPalmMuteToggleRequested()
-{
-    m_impl->onChartPalmMuteToggleRequested();
-}
-
-void EditorController::onChartDeadNoteToggleRequested()
-{
-    m_impl->onChartDeadNoteToggleRequested();
-}
-
-void EditorController::onChartAccentToggleRequested()
-{
-    m_impl->onChartAccentToggleRequested();
-}
-
-void EditorController::onChartGhostToggleRequested()
-{
-    m_impl->onChartGhostToggleRequested();
-}
-
-void EditorController::onChartTremoloToggleRequested()
-{
-    m_impl->onChartTremoloToggleRequested();
-}
-
-void EditorController::onChartVibratoToggleRequested()
-{
-    m_impl->onChartVibratoToggleRequested();
 }
 
 void EditorController::onChartEscapePressed()
@@ -1762,7 +1727,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
     // over, so no coalescing window may reach across one. Stated here rather than left to the
     // position proof, which an undo followed by a redo restores.
     m_chart_notes_top.reset();
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
     const EditorUndoBeginResult begin = m_undo_history.beginUndo();
     logEditorUndoTransitionResult("undo.begin", begin.result);
     dispatchUndoTransition(begin);
@@ -1772,7 +1737,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
 void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
 {
     m_chart_notes_top.reset();
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
     const EditorUndoBeginResult begin = m_undo_history.beginRedo();
     logEditorUndoTransitionResult("redo.begin", begin.result);
     dispatchUndoTransition(begin);
@@ -1960,7 +1925,7 @@ void EditorController::Impl::resetUndoHistory(std::string_view context)
     m_output_gain_preview_before.reset();
     // Every entry the coalescing windows name is gone with the stack.
     m_chart_notes_top.reset();
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
     const EditorUndoTransitionResult result = m_undo_history.reset();
     logEditorUndoTransitionResult(context, result);
 }

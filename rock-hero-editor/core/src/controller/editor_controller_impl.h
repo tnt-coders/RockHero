@@ -204,32 +204,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::vector<ChartNoteKey>& keys) const;
     void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction, bool fine);
-    void onChartLegatoToggleRequested();
+    void onChartTechniqueToggleRequested(ChartTechnique technique);
     void onChartLeftTapRequested();
-    void onChartPickSlideToggleRequested();
-    void onChartPalmMuteToggleRequested();
-    void onChartDeadNoteToggleRequested();
-    void onChartAccentToggleRequested();
-    void onChartGhostToggleRequested();
-    void onChartTremoloToggleRequested();
-    void onChartVibratoToggleRequested();
     // The body both mute verbs share, so the uniform-scope law and the toggle window are written
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.
-    void toggleChartNoteFlag(
-        ChartNoteFlag which, std::optional<std::vector<ChartNoteKey>>& window,
-        std::string_view noun);
-
-    // The body both emphasis verbs share, the same shape the mutes share above. They differ only
-    // in which END of the axis they drive, which window they arm, and the noun their labels use.
-    void toggleChartEmphasis(
-        common::core::NoteEmphasis target, std::optional<std::vector<ChartNoteKey>>& window,
-        std::string_view noun);
-
-    void disarmTechniqueToggleWindows() noexcept;
-
-    [[nodiscard]] bool reverseTechniqueToggleWindow(
-        std::optional<std::vector<ChartNoteKey>>& window, std::string_view revert_label);
+    void toggleChartLegato(const std::vector<ChartNoteKey>& keys);
+    void disarmTechniqueToggleWindow() noexcept;
+    [[nodiscard]] bool reverseTechniqueToggleWindow(ChartTechnique technique);
     void onChartEscapePressed();
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
     // consumed it (true = a rung consumed the press).
@@ -854,17 +836,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // edit, undo/redo, a committing settle), the window is dead and the verb means its ordinary
     // law; grown tails then stay and Ctrl+Z is the revert.
     //
-    // One window per verb, disarmed together through disarmTechniqueToggleWindows(), so a verb
-    // joining the family adds a field here and nothing else: the commit points must never learn
-    // the list by hand.
-    std::optional<std::vector<ChartNoteKey>> m_chart_legato_toggle{};
-    std::optional<std::vector<ChartNoteKey>> m_chart_pick_slide_toggle{};
-    std::optional<std::vector<ChartNoteKey>> m_chart_palm_mute_toggle{};
-    std::optional<std::vector<ChartNoteKey>> m_chart_dead_note_toggle{};
-    std::optional<std::vector<ChartNoteKey>> m_chart_accent_toggle{};
-    std::optional<std::vector<ChartNoteKey>> m_chart_ghost_toggle{};
-    std::optional<std::vector<ChartNoteKey>> m_chart_tremolo_toggle{};
-    std::optional<std::vector<ChartNoteKey>> m_chart_vibrato_toggle{};
+    // ONE window, because at most one can ever be armed: every arming runs after
+    // applyChartEditPlan, which disarms, so eight per-verb fields encoded a one-of-eight state and
+    // needed a hand-kept disarm list. The technique is what the next press is compared against.
+    struct ChartToggleWindow
+    {
+        ChartTechnique technique{};
+        std::vector<ChartNoteKey> keys;
+    };
+    std::optional<ChartToggleWindow> m_chart_toggle_window{};
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the

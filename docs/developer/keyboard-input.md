@@ -139,12 +139,14 @@ and chart-bound extends of the grid-locked `TimeSelection` — the range edge re
 shared destination helpers, so the two can never drift on the same motion),
 `onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction, fine)`,
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
-`onNeutralInsertRequested`, `onChartLegatoToggleRequested`, `onChartLeftTapRequested`,
-`onChartPickSlideToggleRequested` (the technique verbs — uniform scope over the selection, one
-compound undo entry each; all of them SILENT when they apply nothing, because the view's only
-reporting seam is a modal error box and "nothing to do" is not an error — `L` counts its skips and
-their dominant reason in `ChartLegatoPlan` for the non-modal channel W3 will build, and shows
-nothing until then), `onChartEscapePressed` —
+`onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
+toggle verb — one method for palm mute, dead note, tremolo, vibrato, accent, ghost, pick slide,
+and legato, each a row of `chartTechniqueLaw` in `chart_edits.h` except legato, which plans
+through the resolver; uniform scope over the selection, one compound undo entry, one toggle
+window — all SILENT when they apply nothing, because the view's only reporting seam is a modal
+error box and "nothing to do" is not an error — legato counts its skips and their dominant reason
+in `ChartLegatoPlan` for the non-modal channel W5 will build, and shows nothing until then),
+`onChartLeftTapRequested`, `onChartEscapePressed` —
 implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`
 (`rock-hero-editor/core/src/controller/editor_controller_impl.h`), always present, exactly one

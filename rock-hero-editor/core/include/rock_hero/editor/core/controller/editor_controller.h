@@ -469,32 +469,11 @@ public:
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
     void onChartSustainAdjustRequested(int direction, bool fine) override;
 
-    /*! \copydoc IEditorController::onChartLegatoToggleRequested */
-    void onChartLegatoToggleRequested() override;
+    /*! \copydoc IEditorController::onChartTechniqueToggleRequested */
+    void onChartTechniqueToggleRequested(ChartTechnique technique) override;
 
     /*! \copydoc IEditorController::onChartLeftTapRequested */
     void onChartLeftTapRequested() override;
-
-    /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
-    void onChartPickSlideToggleRequested() override;
-
-    /*! \copydoc IEditorController::onChartPalmMuteToggleRequested */
-    void onChartPalmMuteToggleRequested() override;
-
-    /*! \copydoc IEditorController::onChartDeadNoteToggleRequested */
-    void onChartDeadNoteToggleRequested() override;
-
-    /*! \copydoc IEditorController::onChartAccentToggleRequested */
-    void onChartAccentToggleRequested() override;
-
-    /*! \copydoc IEditorController::onChartGhostToggleRequested */
-    void onChartGhostToggleRequested() override;
-
-    /*! \copydoc IEditorController::onChartTremoloToggleRequested */
-    void onChartTremoloToggleRequested() override;
-
-    /*! \copydoc IEditorController::onChartVibratoToggleRequested */
-    void onChartVibratoToggleRequested() override;
 
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;

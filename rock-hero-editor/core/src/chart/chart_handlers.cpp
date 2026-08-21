@@ -75,7 +75,7 @@ void EditorController::Impl::clearChartEditingState()
     discardChartFretEntry();
     clearSelection();
     m_chart_gesture.reset();
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
     m_chart_notes_top.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
     // position is the position, and nothing is armed until the first click or arrow (the
@@ -139,7 +139,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     // expressed against the outgoing selection, and a value you typed is a value you meant.
     settleChartFretEntry();
     m_selection = std::move(selection);
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
     static_cast<void>(settleChartLegato());
 }
 
@@ -241,7 +241,7 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
     settleChartFretEntry();
     // A caret move is a commit point for the technique toggle windows: a press after it means the
     // verb's ordinary law, never a reversal of the entry the window remembers.
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
     m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartNoteKey key{.position = position, .string = string};
     if (chartSlotOccupied(position, string))
@@ -510,7 +510,7 @@ bool EditorController::Impl::applyChartEditPlan(
     // discard rather than commit — this plan was computed without knowledge of the pending one,
     // so committing both here could preflight-collide.
     discardChartFretEntry();
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
 
     // The selection follows the edit: retyped/moved/inserted notes stay selected under their
     // new keys, deleted notes drop out (their keys no longer resolve).
@@ -1629,20 +1629,12 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
         *arrangement->chart, session().song().tempo_map, chartSelection().notes(), delta)));
 }
 
-// Disarms every technique toggle window. Called from each COMMIT point — a selection change, a
+// Disarms the technique toggle window. Called from each COMMIT point — a selection change, a
 // caret move, an edit, undo/redo, a settling sweep — so a press after any of them means the verb's
-// ordinary law instead of a reversal. One call rather than a list of members, so the commit points
-// cannot fall out of step with the verbs that own windows.
-void EditorController::Impl::disarmTechniqueToggleWindows() noexcept
+// ordinary law instead of a reversal.
+void EditorController::Impl::disarmTechniqueToggleWindow() noexcept
 {
-    m_chart_legato_toggle.reset();
-    m_chart_pick_slide_toggle.reset();
-    m_chart_palm_mute_toggle.reset();
-    m_chart_dead_note_toggle.reset();
-    m_chart_accent_toggle.reset();
-    m_chart_ghost_toggle.reset();
-    m_chart_tremolo_toggle.reset();
-    m_chart_vibrato_toggle.reset();
+    m_chart_toggle_window.reset();
 }
 
 // The technique verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
@@ -1653,18 +1645,25 @@ void EditorController::Impl::disarmTechniqueToggleWindows() noexcept
 // ALWAYS disarms, reversal or not: a press whose proofs fail commits the previous entry, which is
 // what makes the window end at the next selection change or caret move.
 //
-// window: the verb's armed keys, reset by this call.
-// revert_label: undo label for the inverse entry a mid-window save forces.
+// technique: the verb pressed now; only a press of the technique that armed the window reverses.
 // Returns true when this press was consumed by a reversal, so the caller must not plan.
-bool EditorController::Impl::reverseTechniqueToggleWindow(
-    std::optional<std::vector<ChartNoteKey>>& window, const std::string_view revert_label)
+bool EditorController::Impl::reverseTechniqueToggleWindow(const ChartTechnique technique)
 {
-    if (!window.has_value())
+    if (!m_chart_toggle_window.has_value())
     {
         return false;
     }
-    const std::vector<ChartNoteKey> armed_keys = *window;
-    window.reset();
+    const ChartToggleWindow window = std::move(*m_chart_toggle_window);
+    m_chart_toggle_window.reset();
+    if (window.technique != technique)
+    {
+        return false;
+    }
+    const std::vector<ChartNoteKey>& armed_keys = window.keys;
+    const std::string revert_label =
+        "Revert " + (technique == ChartTechnique::Legato
+                         ? std::string{"Legato"}
+                         : std::string{chartTechniqueLaw(technique).noun});
     const EditorUndoHistorySnapshot history = m_undo_history.snapshot();
     // Bound once so every read below is provably behind the has_value check, the shape this file
     // uses wherever an optional's guarantee has to survive intervening calls.
@@ -1712,15 +1711,16 @@ bool EditorController::Impl::reverseTechniqueToggleWindow(
     return true;
 }
 
-// Claims or clears a legato connection across the selection as one compound undo entry, uniform
-// scope. planSetLegato is the oracle and the resolver its only authority, so eligibility is never
-// restated here: applying is always the first answer — every selected note whose claim the chart
-// justifies gets it, including the assist growing a predecessor's tail when the hold was the only
-// thing missing — and only when applying would change nothing does the press mean clear. Measuring
-// the press by what the PLAN does rather than by what the selection already holds is what keeps a
-// rider note from stranding the toggle in apply mode forever. The clear flattens only the stored
-// claims: a left-hand tap riding the selection keeps its attack, since Ctrl+H is its sole author.
-void EditorController::Impl::onChartLegatoToggleRequested()
+// The one technique toggle verb. Uniform scope, one compound undo entry: a selection where every
+// note already carries the technique clears it, anything else sets it on all of them; the planner
+// owns eligibility, so a selection the technique is only partly legal on applies to the notes that
+// can take it rather than refusing as a whole. Both directions arm the toggle window, because
+// either press is what a second press must be able to reverse exactly — which for a scrape means
+// the sustain the default grew and the glide a conversion consumed, and for an emphasis the ghost
+// an accent overwrote, neither of which the plain apply-or-clear law could put back. Every
+// technique is one row of chartTechniqueLaw; the legato claim shares the window and the contract
+// but plans through the resolver, so it branches to its own law once the shared prologue has run.
+void EditorController::Impl::onChartTechniqueToggleRequested(const ChartTechnique technique)
 {
     // The pending fret entry settles first (the uniform prologue).
     settleChartFretEntry();
@@ -1730,20 +1730,55 @@ void EditorController::Impl::onChartLegatoToggleRequested()
     {
         return;
     }
-
-    if (reverseTechniqueToggleWindow(m_chart_legato_toggle, "Revert Legato"))
+    if (reverseTechniqueToggleWindow(technique))
     {
         return;
     }
-
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
+    if (technique == ChartTechnique::Legato)
+    {
+        toggleChartLegato(keys);
+        return;
+    }
+
+    const ChartTechniqueLaw law = chartTechniqueLaw(technique);
+    const std::vector<common::core::ChartNote> selected = chartNotesForKeys(keys);
+    if (selected.empty())
+    {
+        return;
+    }
+    const bool all_carry = std::ranges::all_of(selected, law.carries);
+    const std::string label = all_carry ? "Remove " + std::string{law.noun} : std::string{law.noun};
+    if (applyChartEditPlan(
+            law.plan(*arrangement->chart, session().song().tempo_map, keys, !all_carry, label)))
+    {
+        m_chart_toggle_window = ChartToggleWindow{.technique = technique, .keys = keys};
+    }
+}
+
+// The legato claim's own law under the shared toggle contract. planSetLegato is the oracle and the
+// resolver its only authority, so eligibility is never restated here: applying is always the first
+// answer — every selected note whose claim the chart justifies gets it, including the assist
+// growing a predecessor's tail when the hold was the only thing missing — and only when applying
+// would change nothing does the press mean clear. Measuring the press by what the PLAN does rather
+// than by what the selection already holds is what keeps a rider note from stranding the toggle in
+// apply mode forever. The clear flattens only the stored claims: a left-hand tap riding the
+// selection keeps its attack, since Ctrl+H is its sole author.
+void EditorController::Impl::toggleChartLegato(const std::vector<ChartNoteKey>& keys)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
     ChartLegatoPlan planned =
         planSetLegato(*arrangement->chart, session().song().tempo_map, keys, "Legato");
     if (planned.plan.has_value())
     {
         if (applyChartEditPlan(std::move(*planned.plan)))
         {
-            m_chart_legato_toggle = keys;
+            m_chart_toggle_window =
+                ChartToggleWindow{.technique = ChartTechnique::Legato, .keys = keys};
         }
         return;
     }
@@ -1769,17 +1804,18 @@ void EditorController::Impl::onChartLegatoToggleRequested()
         // The clear press arms the window too: reversing it restores the exact previous mix.
         if (applyChartEditPlan(std::move(clear_plan)))
         {
-            m_chart_legato_toggle = keys;
+            m_chart_toggle_window =
+                ChartToggleWindow{.technique = ChartTechnique::Legato, .keys = keys};
         }
         return;
     }
     // A press that changed nothing is SILENT, exactly like every other technique verb that applies
-    // nothing (Ctrl+H, the pick-slide toggle): selecting a phrase's first note and pressing H is
-    // the commonest press there is, and it is not an error. `planned` still carries the count and
-    // the dominant reason — that IS the feedback payload — but the only reporting seam the view
-    // offers today is a modal "Could not complete request" box, which interrupts a keystroke to say
-    // nothing failed. The count surfaces once W3's non-modal refusal channel exists (tasks
-    // #33/#35); until then the spec's counted-skip half is deferred rather than mis-routed.
+    // nothing: selecting a phrase's first note and pressing H is the commonest press there is, and
+    // it is not an error. `planned` still carries the count and the dominant reason — that IS the
+    // feedback payload — but the only reporting seam the view offers today is a modal "Could not
+    // complete request" box, which interrupts a keystroke to say nothing failed. The count surfaces
+    // once W5's non-modal refusal channel exists; until then the spec's counted-skip half is
+    // deferred rather than mis-routed.
 }
 
 // Sets the selection to the left-hand tap attack as one compound undo entry, uniform scope. The
@@ -1805,179 +1841,6 @@ void EditorController::Impl::onChartLeftTapRequested()
         chartSelection().notes(),
         common::core::NoteAttack::LeftTap,
         "Left-Hand Tap")));
-}
-
-// Toggles the selection to or from the pick-slide attack as one compound undo entry, uniform
-// scope: an all-scrape selection reverts to plain picks (the in-memory technique overrides
-// simply resurface), anything else becomes scrapes. Runs through the ordinary edit seam, so
-// undo/redo replay exactly and the revision bump rebuilds every projection.
-void EditorController::Impl::onChartPickSlideToggleRequested()
-{
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty())
-    {
-        return;
-    }
-
-    if (reverseTechniqueToggleWindow(m_chart_pick_slide_toggle, "Revert Pick Slide"))
-    {
-        return;
-    }
-
-    const std::vector<common::core::ChartNote> selected =
-        chartNotesForKeys(chartSelection().notes());
-    if (selected.empty())
-    {
-        return;
-    }
-    const bool all_scrapes = std::ranges::all_of(selected, [](const common::core::ChartNote& note) {
-        return note.attack == common::core::NoteAttack::PickSlide;
-    });
-    const common::core::NoteAttack target =
-        all_scrapes ? common::core::NoteAttack::Pick : common::core::NoteAttack::PickSlide;
-    const std::vector<ChartNoteKey> keys = chartSelection().notes();
-    if (applyChartEditPlan(planSetAttack(
-            *arrangement->chart,
-            session().song().tempo_map,
-            keys,
-            target,
-            all_scrapes ? "Remove Pick Slide" : "Pick Slide")))
-    {
-        // Arms the window on the entering press and the clearing one alike: reversing either
-        // restores exactly what the notes carried before, which for a scrape means the sustain the
-        // default grew and the glide a conversion consumed — neither of which the plain
-        // apply-or-clear law could put back.
-        m_chart_pick_slide_toggle = keys;
-    }
-}
-
-// The body every boolean-technique verb shares. Uniform scope, one compound undo entry: a
-// selection where every note already carries this flag clears it, anything else sets it on all of
-// them. The OTHER flags are never read or written — they are independent properties, so a note can
-// end up carrying any combination the rules allow — and planSetNoteFlag owns eligibility, so a
-// selection the flag is only partly legal on applies to the notes that can take it rather than
-// refusing as a whole. Both directions arm the toggle window, because either press is what a
-// second press must be able to reverse exactly.
-void EditorController::Impl::toggleChartNoteFlag(
-    const ChartNoteFlag which, std::optional<std::vector<ChartNoteKey>>& window,
-    const std::string_view noun)
-{
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty())
-    {
-        return;
-    }
-
-    if (reverseTechniqueToggleWindow(window, "Revert " + std::string{noun}))
-    {
-        return;
-    }
-
-    const std::vector<common::core::ChartNote> selected =
-        chartNotesForKeys(chartSelection().notes());
-    if (selected.empty())
-    {
-        return;
-    }
-    // Read through the same mapping the planner writes through, so the law measuring the press and
-    // the edit carrying it out can never disagree about which flag this verb is about.
-    bool common::core::ChartNote::* const field = chartNoteFlagField(which);
-    const bool all_muted = std::ranges::all_of(
-        selected, [field](const common::core::ChartNote& note) { return note.*field; });
-    const std::vector<ChartNoteKey> keys = chartSelection().notes();
-    if (applyChartEditPlan(planSetNoteFlag(
-            *arrangement->chart,
-            session().song().tempo_map,
-            keys,
-            which,
-            !all_muted,
-            all_muted ? "Remove " + std::string{noun} : std::string{noun})))
-    {
-        window = keys;
-    }
-}
-
-void EditorController::Impl::onChartPalmMuteToggleRequested()
-{
-    toggleChartNoteFlag(ChartNoteFlag::PalmMute, m_chart_palm_mute_toggle, "Palm Mute");
-}
-
-void EditorController::Impl::onChartDeadNoteToggleRequested()
-{
-    toggleChartNoteFlag(ChartNoteFlag::Dead, m_chart_dead_note_toggle, "Dead Note");
-}
-
-void EditorController::Impl::onChartTremoloToggleRequested()
-{
-    toggleChartNoteFlag(ChartNoteFlag::Tremolo, m_chart_tremolo_toggle, "Tremolo");
-}
-
-void EditorController::Impl::onChartVibratoToggleRequested()
-{
-    toggleChartNoteFlag(ChartNoteFlag::Vibrato, m_chart_vibrato_toggle, "Vibrato");
-}
-
-// The body both emphasis verbs share. Uniform scope, one compound undo entry: a selection where
-// every note already carries this emphasis returns to Normal, anything else takes it. The one
-// difference from the mutes is structural rather than behavioural — these two write the SAME
-// field, so they are not independent: accenting a ghosted note replaces the ghost rather than
-// joining it, which is what an axis means. Both directions arm the toggle window, because either
-// press is what a second press must be able to reverse exactly, and that reversal is what lets a
-// mis-struck ghost come back rather than settling at Normal.
-void EditorController::Impl::toggleChartEmphasis(
-    const common::core::NoteEmphasis target, std::optional<std::vector<ChartNoteKey>>& window,
-    const std::string_view noun)
-{
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty())
-    {
-        return;
-    }
-
-    if (reverseTechniqueToggleWindow(window, "Revert " + std::string{noun}))
-    {
-        return;
-    }
-
-    const std::vector<common::core::ChartNote> selected =
-        chartNotesForKeys(chartSelection().notes());
-    if (selected.empty())
-    {
-        return;
-    }
-    const bool all_struck =
-        std::ranges::all_of(selected, [target](const common::core::ChartNote& note) {
-            return note.emphasis == target;
-        });
-    const std::vector<ChartNoteKey> keys = chartSelection().notes();
-    if (applyChartEditPlan(planSetEmphasis(
-            *arrangement->chart,
-            session().song().tempo_map,
-            keys,
-            all_struck ? common::core::NoteEmphasis::Normal : target,
-            all_struck ? "Remove " + std::string{noun} : std::string{noun})))
-    {
-        window = keys;
-    }
-}
-
-void EditorController::Impl::onChartAccentToggleRequested()
-{
-    toggleChartEmphasis(common::core::NoteEmphasis::Accent, m_chart_accent_toggle, "Accent");
-}
-
-void EditorController::Impl::onChartGhostToggleRequested()
-{
-    toggleChartEmphasis(common::core::NoteEmphasis::Ghost, m_chart_ghost_toggle, "Ghost Note");
 }
 
 // Esc is a settle event whichever rung consumes it, so the ladder itself is the helper below and
@@ -2036,7 +1899,7 @@ bool EditorController::Impl::consumeChartEscapeRung()
     {
         settleChartFretEntry();
         dissolveChartCaretInPlace();
-        disarmTechniqueToggleWindows();
+        disarmTechniqueToggleWindow();
         return true;
     }
 
@@ -2159,7 +2022,7 @@ bool EditorController::Impl::settleChartLegato()
     // needs no closing here — it settled at this function's head, before the sweep judged the
     // chart.
     m_chart_notes_top.reset();
-    disarmTechniqueToggleWindows();
+    disarmTechniqueToggleWindow();
     updateView();
     return true;
 }

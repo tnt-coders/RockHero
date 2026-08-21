@@ -1615,7 +1615,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartPickSlideToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::PickSlide);
             }
             return true;
         }
@@ -1623,7 +1623,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartLegatoToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Legato);
             }
             return true;
         }
@@ -1639,7 +1639,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartPalmMuteToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::PalmMute);
             }
             return true;
         }
@@ -1647,7 +1647,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartDeadNoteToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Dead);
             }
             return true;
         }
@@ -1655,7 +1655,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartAccentToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Accent);
             }
             return true;
         }
@@ -1663,7 +1663,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartGhostToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Ghost);
             }
             return true;
         }
@@ -1671,7 +1671,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartTremoloToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Tremolo);
             }
             return true;
         }
@@ -1679,7 +1679,7 @@ bool EditorView::perform(const InvocationInfo& info)
         {
             if (hasChart())
             {
-                m_controller.onChartVibratoToggleRequested();
+                m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Vibrato);
             }
             return true;
         }

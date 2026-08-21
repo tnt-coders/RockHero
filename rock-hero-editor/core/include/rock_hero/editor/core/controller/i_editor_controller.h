@@ -18,6 +18,7 @@
 #include <rock_hero/editor/core/audio/game_audio_source_error.h>
 #include <rock_hero/editor/core/audio/game_audio_source_state.h>
 #include <rock_hero/editor/core/chart/chart_pointer.h>
+#include <rock_hero/editor/core/chart/chart_technique.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
@@ -360,22 +361,32 @@ public:
     virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
 
     /*!
-    \brief Handles a request to claim or clear a legato connection on the selected notes.
+    \brief Handles a request to toggle one technique on the selected notes.
 
-    Uniform scope, one compound undo entry, with the connection resolver as the only authority on
-    eligibility: applying is always the first answer — every selected note whose claim the chart
-    justifies gets it, and when the predecessor's hold is the only thing missing the same plan grows
-    that tail to the margin point so the connection is authored rather than demanded — and only when
-    applying would change nothing does the press mean clear. The clear flattens only the notes
-    actually carrying a claim, so a left-hand tap riding the selection keeps its attack (Ctrl+H is
-    that attack's sole author). No direction is authored or stored; hammer-versus-pull is read back
-    from the predecessor. A press that skipped notes reports how many and why, so an all-skipped
-    press is never a dead key. While the selection and undo history still prove the previous press
-    was this verb's own, a second press reverses that press exactly — grown tails included — and
-    leaves no history entry behind: a true on/off toggle. Once that proof fails, grown tails stay
-    and undo is the revert.
+    One verb for every technique (\ref ChartTechnique), under one law: uniform scope and one
+    compound undo entry — a selection already carrying the technique on every note clears it,
+    anything else sets it on all of them — with eligibility the chart rule authority's per note, so
+    a mixed selection applies to the notes that can take the technique and skips the rest (a dead
+    note refuses the pitch modulations, a tap harmonic refuses tremolo, a scrape's saved form
+    records no mute). The emphasis pair writes one AXIS: accenting a ghosted note replaces the
+    ghost. The pick slide keeps each note's fret as the scrape's start and grows the default path;
+    clearing it lets the overridden techniques resurface. While the selection and undo history
+    still prove the previous press was this verb's own entry, a second press of the SAME technique
+    reverses that
+    entry exactly — grown tails included — and leaves no history entry behind: a true on/off
+    toggle. Once that proof fails (a selection change, a caret move, any edit, undo/redo, a settling
+    sweep) the verb means its ordinary law again and Ctrl+Z is the revert.
+
+    `ChartTechnique::Legato` runs under the same contract with its own plan: the connection resolver
+    is the only authority on eligibility, applying is always the first answer — every note whose
+    claim the chart justifies gets it, and when the predecessor's hold is the only thing missing the
+    same plan grows that tail so the connection is authored rather than demanded — and only when
+    applying would change nothing does the press mean clear, flattening the stored claims alone (a
+    left-hand tap riding the selection keeps its attack). No direction is authored or stored.
+
+    \param technique The technique to set or clear.
     */
-    virtual void onChartLegatoToggleRequested() = 0;
+    virtual void onChartTechniqueToggleRequested(ChartTechnique technique) = 0;
 
     /*!
     \brief Handles a request to set the selected notes to the left-hand tap attack.
@@ -388,75 +399,6 @@ public:
     open string with no node is skipped.
     */
     virtual void onChartLeftTapRequested() = 0;
-
-    /*!
-    \brief Handles a request to toggle the selected notes to or from the pick-slide attack.
-
-    Uniform scope, one compound undo entry: when every selected note is already a pick slide
-    the whole selection reverts to a plain picked attack — the techniques the scrape overrode
-    stay in memory for the session (chart contract) and simply resurface — otherwise the whole
-    selection becomes pick slides, each keeping its fret as the scrape start and gaining the
-    default path toward the far default endpoint.
-    */
-    virtual void onChartPickSlideToggleRequested() = 0;
-
-    /*!
-    \brief Handles a request to toggle the picking hand's palm mute on the selected notes.
-
-    Uniform scope, one compound undo entry: when every selected note is already palm muted the
-    press clears the mute across the selection, otherwise it sets it on all of them. The note's
-    other mute is never touched — the two are independent properties and a note may carry both —
-    and a palm mute has no per-note restriction, so nothing but a pick slide is skipped (its saved
-    form records no mute at all). A second press inside the toggle window reverses the first
-    exactly and leaves no history entry behind.
-    */
-    virtual void onChartPalmMuteToggleRequested() = 0;
-
-    /*!
-    \brief Handles a request to toggle the dead-note mute on the selected notes.
-
-    Uniform scope and one compound undo entry, exactly like the palm mute above, over the other
-    flag. A dead note sounds no pitch, so the rule authority refuses the mute on any note whose
-    techniques need one; those notes are skipped and the rest of the selection still takes it.
-    Which techniques those are is that authority's to say and is deliberately not listed here.
-    A second press inside the toggle window reverses the first exactly.
-    */
-    virtual void onChartDeadNoteToggleRequested() = 0;
-
-    /*!
-    \brief Handles a request to toggle the accent on the selected notes.
-
-    Uniform scope and one compound undo entry, like the mutes above, but over the emphasis AXIS
-    rather than a flag: a selection already wholly accented returns to normal, anything else takes
-    the accent — and accenting a ghosted note replaces the ghost, because the two are ends of one
-    field. A second press inside the toggle window reverses the first exactly.
-    */
-    virtual void onChartAccentToggleRequested() = 0;
-
-    /*!
-    \brief Handles a request to toggle the ghost note on the selected notes.
-
-    The quiet end of the axis \ref onChartAccentToggleRequested drives, with the same scope, undo
-    and toggle-window behaviour.
-    */
-    virtual void onChartGhostToggleRequested() = 0;
-
-    /*!
-    \brief Handles a request to toggle tremolo picking on the selected notes.
-
-    Uniform scope and one compound undo entry, like the mutes. Eligibility is the rule authority's:
-    a tap harmonic cannot be tremolo picked, because the damping finger leaves the string and
-    nothing holds the node under re-picking.
-    */
-    virtual void onChartTremoloToggleRequested() = 0;
-
-    /*!
-    \brief Handles a request to toggle vibrato on the selected notes.
-
-    Same law again. A dead note refuses it (vibrato modulates a pitch it does not have) and so
-    does a fret-hand harmonic (a light touch at a node cannot press the string).
-    */
-    virtual void onChartVibratoToggleRequested() = 0;
 
     /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
