@@ -707,69 +707,40 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
         {
             continue;
         }
-        // Eligible-subset skip, so a mixed selection applies to what CAN take the attack. Asked of
-        // the per-note rule authority rather than restated: two of its predicates used to be copied
-        // here, which meant any OTHER rule the target attack could break went unskipped, and the
-        // whole-stream gate then refused the edit for every note in the selection instead of just
-        // that one. Asked of the note as it would be WRITTEN, since the conversions below are part
-        // of what makes it legal.
+        // The note is built exactly as the verb would write it, ONCE, and then judged; the write
+        // is the assignment of that same value, so what the gate judged is what the chart gets.
+        // (It used to be built twice by hand — once to validate, once to write — and the two
+        // copies agreed only because someone kept them in step.)
         common::core::ChartNote retyped = note;
         retyped.attack = attack;
         if (nodeLeavesWithAttack(note, attack))
         {
             retyped.harmonic_node.reset();
         }
-        if (attack != common::core::NoteAttack::PickSlide &&
-            note.attack == common::core::NoteAttack::PickSlide)
+        const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
+        if (was_scrape && attack != common::core::NoteAttack::PickSlide)
         {
+            // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
+            // would be a fiction. The overridden techniques were never touched, so they simply
+            // resurface — except a latent slide-out, which the scrape's own terminal occupied.
             retyped.slides.clear();
             retyped.slide_out.reset();
-        }
-        if (attack == common::core::NoteAttack::Pinch && !retyped.harmonic_node.has_value())
-        {
-            const int stop = note.fret > 0 ? note.fret : chart.tuning.capo;
-            retyped.harmonic_node = static_cast<double>(stop) + 12.0;
-        }
-        // Only the tail trim rides THIS verb's eligibility, never the strike flatten: here the
-        // attack IS what the user asked for, so a strike with nowhere to land (an open-string
-        // pinch re-handed to the fretting hand) is a note to skip, not one to quietly retype as a
-        // pick. The flatten belongs to the verbs where the attack is secondary — a fret edit.
-        static_cast<void>(common::core::trimMutedTail(retyped));
-        if (attack != common::core::NoteAttack::PickSlide &&
-            !common::core::validateChartNoteAlone(retyped, chart.tuning, tempo_map).has_value())
-        {
-            continue;
-        }
-        // The scrape's own eligibility, which the validator above cannot judge yet because the
-        // path is built below: an existing slide that HOLDS a fret cannot become a scrape, since
-        // a pick cannot rest and still be scraping. Skipped like any other ineligible note so a
-        // mixed selection still applies to the rest.
-        if (attack == common::core::NoteAttack::PickSlide && !scrapePathIsConvertible(note))
-        {
-            continue;
-        }
-        const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
-        const bool node_leaves = nodeLeavesWithAttack(note, attack);
-        note.attack = attack;
-        if (node_leaves)
-        {
-            note.harmonic_node.reset();
         }
         // A pinch is picking while damping a node, so the verb authors one when none exists:
         // the octave at the stop — the lowest-order harmonic available at any fret and the
         // commonest squeal — matching the import default. An existing node keeps its position;
         // it names the same physical point under either picking-hand reading.
-        if (attack == common::core::NoteAttack::Pinch && !note.harmonic_node.has_value())
+        if (attack == common::core::NoteAttack::Pinch && !retyped.harmonic_node.has_value())
         {
-            const int stop = note.fret > 0 ? note.fret : chart.tuning.capo;
-            note.harmonic_node = static_cast<double>(stop) + 12.0;
+            retyped.harmonic_node =
+                static_cast<double>(common::core::physicalStopFret(note, chart.tuning.capo)) + 12.0;
         }
         if (attack == common::core::NoteAttack::PickSlide)
         {
             // A scrape needs room to travel, so a sustainless note grows one first: a quarter
             // note, clamped by the SAME growth limit every tail-growing verb obeys, so an
             // authored default can never crowd the next onset.
-            if (note.sustain.numerator <= 0)
+            if (retyped.sustain.numerator <= 0)
             {
                 const common::core::TimeSignatureChange signature =
                     tempo_map.timeSignatureAt(note.position.measure);
@@ -780,26 +751,41 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
                 {
                     wanted = *limit;
                 }
-                note.sustain = wanted > g_minimum_slide_window ? wanted : g_minimum_slide_window;
+                retyped.sustain = wanted > g_minimum_slide_window ? wanted : g_minimum_slide_window;
             }
             // An existing slide IS the gesture's path, so converting keeps the frets and the
             // direction the charter already drew; only a note with no slide at all takes the
             // synthesized default. The note's own fret is always the start (unlike imported
-            // carriers, whose dead strings carry no meaningful fret).
-            if (!convertSlideToScrapePath(note))
+            // carriers, whose dead strings carry no meaningful fret). A converted path that HOLDS
+            // a fret is no scrape — a pick cannot rest and still be scraping — and the gate
+            // below skips the note on exactly that rule (the normalizer's demotion), so no travel
+            // test is restated here.
+            if (!convertSlideToScrapePath(retyped))
             {
                 applyDefaultPickSlidePath(
-                    note, pickSlideDefaultUpward(note.fret, chart.tuning.capo), chart.tuning.capo);
+                    retyped,
+                    pickSlideDefaultUpward(retyped.fret, chart.tuning.capo),
+                    chart.tuning.capo);
             }
         }
-        else if (was_scrape)
+        // Only the tail trim rides THIS verb's eligibility, never the strike flatten: here the
+        // attack IS what the user asked for, so a strike with nowhere to land (an open-string
+        // pinch re-handed to the fretting hand) is a note to skip, not one to quietly retype as a
+        // pick. The flatten belongs to the verbs where the attack is secondary — a fret edit.
+        static_cast<void>(common::core::trimMutedTail(retyped));
+        // Eligible-subset skip, so a mixed selection applies to what CAN take the attack. Asked of
+        // the per-note rule authority rather than restated: two of its predicates used to be copied
+        // here, which meant any OTHER rule the target attack could break went unskipped, and the
+        // whole-stream gate then refused the edit for every note in the selection instead of just
+        // that one. Asked of the note as it would be WRITTEN — the saved form — since a scrape's
+        // latent overrides are legal in memory and stripped by the writer.
+        if (!common::core::validateChartNoteAlone(
+                 common::core::savedChartNote(retyped), chart.tuning, tempo_map)
+                 .has_value())
         {
-            // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
-            // would be a fiction. The overridden techniques were never touched, so they simply
-            // resurface — except a latent slide-out, which the scrape's own terminal occupied.
-            note.slides.clear();
-            note.slide_out.reset();
+            continue;
         }
+        note = std::move(retyped);
         changed = true;
     }
     if (!changed)
@@ -845,9 +831,12 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
         // the mute and leaves the rest alone. That rule is what refuses `dead` wherever a
         // technique needs the pitch it removes — a bend, a vibrato, a pinch's squeal — and what
         // a palm mute always passes. Asked AFTER the plan's own repairs, so a held note is
-        // eligible for X — its tail goes with the press — rather than skipped over the tail.
+        // eligible for X — its tail goes with the press — rather than skipped over the tail, and
+        // asked of the SAVED form, since a scrape's latent overrides are legal in memory.
         repairOwnTruths(muted);
-        if (!common::core::validateChartNoteAlone(muted, chart.tuning, tempo_map).has_value())
+        if (!common::core::validateChartNoteAlone(
+                 common::core::savedChartNote(muted), chart.tuning, tempo_map)
+                 .has_value())
         {
             continue;
         }
@@ -891,9 +880,11 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
         {
             continue;
         }
-        // Eligible-subset skip, exactly as the mute and attack verbs do it.
+        // Eligible-subset skip, exactly as the mute and attack verbs do it, of the saved form.
         repairOwnTruths(struck);
-        if (!common::core::validateChartNoteAlone(struck, chart.tuning, tempo_map).has_value())
+        if (!common::core::validateChartNoteAlone(
+                 common::core::savedChartNote(struck), chart.tuning, tempo_map)
+                 .has_value())
         {
             continue;
         }

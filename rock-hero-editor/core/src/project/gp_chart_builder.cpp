@@ -1607,7 +1607,8 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             next_width = std::max(4, event.max_fret - event.min_fret + 1);
             // The window can never sit below the capo: its lowest legal anchor is the first
             // fret above it.
-            const int lowest_anchor = std::max(capo + 1, event.max_fret - next_width + 1);
+            const int lowest_anchor =
+                std::max(common::core::firstPlayableFret(capo), event.max_fret - next_width + 1);
             // The floor wins if it ever crosses the covered extent. std::clamp is UB when its
             // low bound exceeds its high one, and the capo term makes that reachable in
             // principle: every guarantee that a covered fret sits above the capo (validation
@@ -1788,7 +1789,7 @@ void resolveSlideIns(
             }
         }
         // The approach is a pressed position, so its floor is the first fret above the capo.
-        start = std::clamp(start, capo + 1, common::core::g_max_fret);
+        start = std::clamp(start, common::core::firstPlayableFret(capo), common::core::g_max_fret);
         if (start == note.fret)
         {
             // Sliding into the neck's lowest playable fret from below (or the last fret from
@@ -1831,8 +1832,8 @@ void resolveSlideIns(
             const auto active = after - 1;
             if (start < active->fret || start >= active->fret + active->width)
             {
-                const int dip_anchor =
-                    windowAnchorCovering(*active, start - note.fret, start, capo + 1);
+                const int dip_anchor = windowAnchorCovering(
+                    *active, start - note.fret, start, common::core::firstPlayableFret(capo));
                 dip_placements.push_back(
                     common::core::FretHandPosition{
                         .position = note.position,
@@ -1947,7 +1948,10 @@ void resolveSlideOutExits(
         if (departs)
         {
             const int travel = widenedToMinimumTravel(delta, downward);
-            note.slide_out->fret = std::clamp(departing + travel, 0, common::core::g_max_fret);
+            note.slide_out->fret = std::clamp(
+                departing + travel,
+                common::core::firstPlayableFret(capo),
+                common::core::g_max_fret);
         }
         else if (has_next)
         {
@@ -1964,7 +1968,10 @@ void resolveSlideOutExits(
         // The riding window derives from the active one by the gesture's travel, clamped to
         // keep the exit fret covered on the neck — never below the capo, where no hand can sit.
         const int anchor = windowAnchorCovering(
-            *active, note.slide_out->fret - departing, note.slide_out->fret, capo + 1);
+            *active,
+            note.slide_out->fret - departing,
+            note.slide_out->fret,
+            common::core::firstPlayableFret(capo));
         exit_placements.push_back(
             common::core::FretHandPosition{
                 .position = end_position,
@@ -2183,10 +2190,10 @@ void resolveSlideOutExits(
                 {
                     note.attack = NoteAttack::Tap;
                 }
-                // The stop the harmonic speaks from: the note's (already capo-shifted, absolute)
-                // fret, or the capo when the string is open — the capo is what stops a capo'd
-                // string. Same formula E21 validates against.
-                const int stop_fret = note.fret > 0 ? note.fret : chart.tuning.capo;
+                // The stop the harmonic speaks from — the note's (already capo-shifted,
+                // absolute) fret, or the capo when the string is open — asked of the same
+                // authority E21 validates against.
+                const int stop_fret = common::core::physicalStopFret(note, chart.tuning.capo);
                 // With no usable label the octave is the default: the 2nd partial is the
                 // lowest-order harmonic available at any fret and so the easiest to ring. Using
                 // the *fret* as a label here would read a stop as a partial number.
@@ -2212,8 +2219,9 @@ void resolveSlideOutExits(
                     // A label naming a node this note cannot reach is junk, not data, so the
                     // octave takes over — the same fallback a missing label gets, and the
                     // lowest-order harmonic available at any stop. It always fits: a fret-hand
-                    // stop is the capo, so at most 12 + 12 against the neck's 30, and any other
-                    // stop is at most g_max_fret, so 30 + 12 against the string's 48.
+                    // stop is the capo, so at most g_max_capo + 12 against the neck's g_max_fret,
+                    // and any other stop is at most g_max_fret, so g_max_fret + 12 against the
+                    // string's g_max_harmonic_node.
                     note.harmonic_node = static_cast<double>(stop_fret) + 12.0;
                     ++nodes_off_the_string;
                 }
@@ -2385,7 +2393,9 @@ void resolveSlideOutExits(
             // first playable fret — the pick travels the sounding string, and a scrape at the nut
             // is no scrape). The default path floors its own terminal the same way.
             note.fret = upward ? pickSlideDefaultLowFret(chart.tuning.capo)
-                               : std::max(chart.tuning.capo + 1, g_pick_slide_default_high_fret);
+                               : std::max(
+                                     common::core::firstPlayableFret(chart.tuning.capo),
+                                     g_pick_slide_default_high_fret);
             note.sustain = span;
             applyDefaultPickSlidePath(note, upward, chart.tuning.capo);
             kept.end_global_beat = kept.global_beat + span;
@@ -2539,8 +2549,13 @@ void resolveSlideOutExits(
         if ((flags & (4 | 8)) != 0)
         {
             const bool upward = (flags & 8) != 0;
-            const int target = upward ? std::min(glide_fret + 4, common::core::g_max_fret)
-                                      : std::max(glide_fret - 4, 0);
+            // Four frets of travel, held onto the playable board at both ends: the floor is the
+            // first fret above the capo, never the nut — an exit below the floor was a form the
+            // rules refuse, produced here and caught only at the track's validation.
+            const int target =
+                upward
+                    ? std::min(glide_fret + 4, common::core::g_max_fret)
+                    : std::max(glide_fret - 4, common::core::firstPlayableFret(chart.tuning.capo));
             // The slide-out ends at the sustain end, strictly after any chain waypoint so the
             // payload stays ascending. The four-fret exit is provisional: resolveSlideOutExits
             // rides the hand's next move instead when it agrees with the flag's direction.

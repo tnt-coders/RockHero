@@ -103,21 +103,6 @@ corpus-derived low endpoint yields to the capo wherever the capo sits above it.
 [[nodiscard]] int pickSlideDefaultLowFret(int capo) noexcept;
 
 /*!
-\brief Reports whether an existing slide could become a scrape path.
-
-The one thing that makes it impossible is a segment that HOLDS its fret: the rule authority
-requires a scrape's whole path to keep traveling (consecutive neck positions strictly differ,
-the start fret included), because a pick cannot rest on a fret and still be scraping — where an
-ordinary slide's equal-fret segment is a legitimate hold. Nothing else disqualifies: a note with
-no slide at all takes the synthesized default, and pitched techniques need no handling because
-the in-memory override design leaves them latent for the writer to strip.
-
-\param note Note whose existing path is being judged.
-\return False only when a slide is present and one of its segments does not travel.
-*/
-[[nodiscard]] bool scrapePathIsConvertible(const common::core::ChartNote& note) noexcept;
-
-/*!
 \brief Rebuilds an existing slide as a scrape path, keeping its frets and direction.
 
 Preserves what the charter already drew rather than discarding it: the waypoints stay, and the

@@ -489,6 +489,19 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     {
         chart.tuning.strings.push_back(strings_json[index].toString().toStdString());
     }
+    // Typed like the note scalars: a wrong-typed capo silently read as 0 would then have every
+    // capo-relative rule — the floors, the hand windows, the node stops — measured against the
+    // wrong floor, and the chart would validate clean.
+    const juce::var& capo_json = Json::value(tuning_json, "capo");
+    if (!capo_json.isVoid() && !capo_json.isInt())
+    {
+        return std::unexpected{malformed("chart tuning \"capo\" has the wrong type")};
+    }
+    const juce::var& cent_offset_json = Json::value(tuning_json, "centOffset");
+    if (!cent_offset_json.isVoid() && !cent_offset_json.isDouble() && !cent_offset_json.isInt())
+    {
+        return std::unexpected{malformed("chart tuning \"centOffset\" has the wrong type")};
+    }
     chart.tuning.capo = Json::readOptionalInt(tuning_json, "capo", 0);
     chart.tuning.cent_offset = Json::readOptionalDouble(tuning_json, "centOffset", 0.0);
 
@@ -576,11 +589,21 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
             {
                 return std::unexpected{std::move(position.error())};
             }
+            for (const char* const key : {"fret", "width"})
+            {
+                const juce::var& property = Json::value(fhp_json, key);
+                if (!property.isVoid() && !property.isInt())
+                {
+                    return std::unexpected{malformed(
+                        "chart hand position \"" + std::string{key} + "\" has the wrong type")};
+                }
+            }
+            // The width's default is the type's own, stated once in chart.h.
             chart.fret_hand_positions.push_back(
                 FretHandPosition{
                     .position = *position,
                     .fret = Json::readOptionalInt(fhp_json, "fret", 0),
-                    .width = Json::readOptionalInt(fhp_json, "width", 4),
+                    .width = Json::readOptionalInt(fhp_json, "width", FretHandPosition{}.width),
                 });
         }
     }
@@ -648,7 +671,7 @@ namespace
     append_array("fhps", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
         std::string line = R"({ "position": ")" + formatGridPositionToken(fhp.position) +
                            R"(", "fret": )" + std::to_string(fhp.fret);
-        if (fhp.width != 4)
+        if (fhp.width != FretHandPosition{}.width)
         {
             line += R"(, "width": )" + std::to_string(fhp.width);
         }

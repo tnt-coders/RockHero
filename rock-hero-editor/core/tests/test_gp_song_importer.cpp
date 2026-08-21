@@ -1953,6 +1953,50 @@ namespace
 
 } // namespace
 
+// A downward trail-off from a low fret: the four-fret exit is held onto the playable board at the
+// first fret above the capo, never the nut. Before 2026-08-20 the importer floored this exit at 0
+// while the rules demanded above-the-capo, so a whole track's import failed on one trail-off from
+// frets 1-4 — a rule tightened centrally on a false belief about what the producer did. The
+// importer now asks the one floor, and the chart validates without any normalizer repair.
+TEST_CASE(
+    "Guitar Pro import floors a trail-off exit at the first playable fret", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("at no capo the floor is fret 1")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // Flag 4 is the downward trail-off; a half note leaves room for the exit.
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 2}, 3, 0, 4)}}});
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].slide_out.has_value());
+        CHECK(chart.notes[0].slide_out->fret == common::core::firstPlayableFret(0));
+        // The floor was authored, not repaired: nothing for the normalizer to report.
+        CHECK_FALSE(anyNoteContains(built->notes, "on or below the capo"));
+    }
+
+    SECTION("under a capo the floor follows it")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].capo = 3;
+        // Capo-relative fret 2 is absolute fret 5; four frets down would be 1, under the capo.
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 2}, 2, 0, 4)}}});
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].fret == 5);
+        REQUIRE(chart.notes[0].slide_out.has_value());
+        CHECK(chart.notes[0].slide_out->fret == common::core::firstPlayableFret(3));
+        CHECK_FALSE(anyNoteContains(built->notes, "on or below the capo"));
+    }
+}
+
 // Policy rule 3: the sub-beat drop decision belongs to the notated strum, not the single string.
 // Runs in 4/4, where the minimum sustain distance is a quarter beat.
 TEST_CASE("Guitar Pro import keeps a chord's tails together", "[core][gp-import]")

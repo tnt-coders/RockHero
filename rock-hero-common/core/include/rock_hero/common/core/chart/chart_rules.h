@@ -65,6 +65,24 @@ one. Shared with import code so capo clamping and validation agree on one author
 inline constexpr int g_max_capo{12};
 
 /*!
+\brief The lowest fret a hand can press or a pick can travel under a capo: the one above it.
+
+The capo floor stated once. Every fret a slide gesture names (a scrape's start, a turnaround, an
+exit), a pressed note, a template fret, and a hand window's index finger all sit at or above this;
+the normalizer lifts to it, the validator measures against it, and the importer and the scrape
+defaults author onto it — which is how a rule tightened here reaches every producer at once instead
+of leaving one still flooring at zero.
+
+\param capo The tuning's capo fret; 0 for none.
+
+\return The first playable fret.
+*/
+[[nodiscard]] constexpr int firstPlayableFret(const int capo) noexcept
+{
+    return capo + 1;
+}
+
+/*!
 \brief The highest node this note can carry, in fret units.
 
 One authority for a bound that is not one number. Every node is capped by \ref g_max_harmonic_node,
@@ -365,10 +383,14 @@ enforced by every consumer at once.
 
 Two halves, and only the first is a list of refusals: the structural rules no repair can express
 (a string the tuning lacks, a negative fret or sustain, a node off the string or behind its stop, a
-pinch without its node, a pressed note on a capo'd fret, a position off the grid), and then the
-FIXPOINT — the note must already equal its own normal form (\ref normalizeChartNote). Every other
-rule a note can break on its own is stated once, as that normalizer's repair, and enforced here
-for free; nothing is restated as a refusal beside it.
+pinch without its node, a pressed note on a capo'd fret, a position off the grid, a bend or slide
+payload outside its sustain or out of order, a scrape without its terminal at the sustain, a saved
+scrape still carrying a latent technique), and then the FIXPOINT — the note must already equal its
+own normal form (\ref normalizeChartNote). Every other rule a note can break on its own is stated
+once, as that normalizer's repair, and enforced here for free; nothing is restated as a refusal
+beside it. Everything that reads ONE note lives here, so the editor's per-note eligibility can ask
+the whole question of the note as it would be written; only ordering and the waypoint-on-a-later-
+onset rule read neighbours, and those stay in \ref validateChartNotes.
 
 Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
 this question per note: the whole-stream gate refuses an entire plan when one note is ineligible, so

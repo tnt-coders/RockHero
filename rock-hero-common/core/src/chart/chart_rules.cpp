@@ -28,6 +28,22 @@ constexpr double g_max_cent_offset{1200.0};
     return formatGridPositionToken(position);
 }
 
+// True when consecutive neck positions along a scrape's path — start, turnarounds, and the exit
+// when present — all strictly differ.
+[[nodiscard]] bool pickSlidePathTravels(const ChartNote& note)
+{
+    int previous_fret = note.fret;
+    for (const SlideWaypoint& waypoint : note.slides)
+    {
+        if (waypoint.fret == previous_fret)
+        {
+            return false;
+        }
+        previous_fret = waypoint.fret;
+    }
+    return !note.slide_out.has_value() || note.slide_out->fret != previous_fret;
+}
+
 } // namespace
 
 bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map)
@@ -370,7 +386,7 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    below the floor is dropped, since a pitched stop there is nothing pressed. A pressed
     //    NOTE on a capo'd fret is not repaired here: no lift can know the pitch the author meant,
     //    so it stays a refusal.
-    const int floor = tuning.capo + 1;
+    const int floor = firstPlayableFret(tuning.capo);
     bool below_capo = false;
     if (note.attack == NoteAttack::PickSlide && note.fret < floor)
     {
@@ -447,25 +463,19 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     }
 
     // 5. A scrape keeps traveling or it is no scrape: after the clamps, floors, and drops above,
-    //    consecutive neck positions — start, turnarounds, exit — must strictly differ. A scrape
-    //    without its terminal at all is missing data and stays a refusal, so only a present exit
-    //    is judged. Demoted to the plain pick it sounds like, with its path cleared.
-    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value())
+    //    consecutive neck positions — start, turnarounds, exit — must strictly differ, because a
+    //    pick cannot rest on a fret and still be scraping (an ordinary slide's equal-fret segment
+    //    is a legitimate hold). A scrape without its terminal at all is missing data and stays a
+    //    refusal, so only a present exit is judged. Demoted to the plain pick it sounds like, with
+    //    its path cleared. The editor's scrape verb asks no question of its own here: it builds
+    //    the path and lets the fixpoint judge it, so a held segment skips the note the same way.
+    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value() &&
+        !pickSlidePathTravels(note))
     {
-        int previous_fret = note.fret;
-        bool stilled = false;
-        for (const SlideWaypoint& waypoint : note.slides)
-        {
-            stilled = stilled || waypoint.fret == previous_fret;
-            previous_fret = waypoint.fret;
-        }
-        if (stilled || note.slide_out->fret == previous_fret)
-        {
-            note.attack = NoteAttack::Pick;
-            note.slides.clear();
-            note.slide_out.reset();
-            fired(ChartRepair::StilledScrape);
-        }
+        note.attack = NoteAttack::Pick;
+        note.slides.clear();
+        note.slide_out.reset();
+        fired(ChartRepair::StilledScrape);
     }
 
     // 6. The muted tail, last: the tap-harmonic arm above can clear the tremolo that was a
@@ -498,7 +508,7 @@ std::vector<ChartRepair> normalizeFretHandPosition(
 {
     // The playable board is what lies above the capo; a window wider than that cannot fit
     // anywhere, so the width shrinks first and the two placements below then always succeed.
-    const int floor = tuning.capo + 1;
+    const int floor = firstPlayableFret(tuning.capo);
     const int playable = g_max_fret - tuning.capo;
     bool past_board = position.width > playable;
     position.width = std::min(position.width, playable);
@@ -600,10 +610,9 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // A node lies on the speaking length, so it cannot sit at or behind the physical stop —
-    // nothing vibrates there. Fret 0 means the open string under the 0-means-open
-    // convention, so the stop it names is the nut or the capo.
-    const int physical_stop = note.fret == 0 ? tuning.capo : note.fret;
-    if (note.harmonic_node.has_value() && *note.harmonic_node <= static_cast<double>(physical_stop))
+    // nothing vibrates there.
+    if (note.harmonic_node.has_value() &&
+        *note.harmonic_node <= static_cast<double>(physicalStopFret(note, tuning.capo)))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
@@ -637,12 +646,85 @@ std::expected<void, ChartError> validateChartNoteAlone(
     // do not exist to play. A pressed note on one has no repair that is not an invented pitch,
     // so it stays a refusal; a SCRAPE's start on one is the normalizer's lift (a scrape has no
     // open form — user ruling 2026-08-20, closing W9-J), asked as the fixpoint below.
-    if (note.fret != 0 && note.fret <= tuning.capo && note.attack != NoteAttack::PickSlide)
+    if (note.fret != 0 && note.fret < firstPlayableFret(tuning.capo) &&
+        note.attack != NoteAttack::PickSlide)
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
             .message = "fret must be 0 or above the capo at " + positionText(note.position),
         }};
+    }
+    // Payload geometry no repair can express: a bend or slide point outside the sustain or out of
+    // order is incoherent data, not a technique to shed. Where a waypoint sits on the NECK is the
+    // normalizer's (the board clamp and the capo floor), asked as the fixpoint below.
+    Fraction previous_offset{-1, 1};
+    for (const BendPoint& point : note.bend)
+    {
+        if (point.offset.numerator < 0 || point.offset > note.sustain ||
+            point.offset <= previous_offset)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNotePayload,
+                .message =
+                    "bend offsets must ascend within the sustain at " + positionText(note.position),
+            }};
+        }
+        previous_offset = point.offset;
+    }
+    previous_offset = Fraction{0};
+    for (const SlideWaypoint& waypoint : note.slides)
+    {
+        if (waypoint.offset <= previous_offset || waypoint.offset > note.sustain ||
+            waypoint.fret < 0)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNotePayload,
+                .message = "slide waypoints must ascend within the sustain at " +
+                           positionText(note.position),
+            }};
+        }
+        previous_offset = waypoint.offset;
+    }
+    // A slide-out owns its geometry and must stay ordered like any payload.
+    const SlideOut* const slide_out = slideOutOrNull(note);
+    if (slide_out != nullptr && (slide_out->offset <= previous_offset ||
+                                 slide_out->offset > note.sustain || slide_out->fret < 0))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNotePayload,
+            .message = "slide-out must end after every waypoint, within the sustain at " +
+                       positionText(note.position),
+        }};
+    }
+    // A SAVED pick-slide note carries no pitched technique — the document writer omits them (the
+    // in-memory override design, chart.h) — so a document that does is hand-made or a bug and
+    // fails loudly; emphasis is a scrape's own dynamics and passes. The gesture is the required
+    // unpitched slide-out terminal, exactly at the sustain (nothing rings past a scrape). That the
+    // path keeps traveling is the normalizer's demotion, asked as the fixpoint below.
+    if (note.attack == NoteAttack::PickSlide)
+    {
+        // Stated as a FIXPOINT rather than by listing the overridden fields: a saved note must
+        // already equal its own saved form. Enumerating mute/node/vibrato/tremolo/bend here
+        // duplicated exactly the set savedChartNote strips, so the writer and the validator had
+        // to agree by hand and a sixth overridden field would have updated only one of them. (If
+        // another attack ever gains latent overrides, lift this check out of the PickSlide branch
+        // — the comparison is identity for every attack that has none.)
+        if (!(savedChartNote(note) == note))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidPickSlide,
+                .message = "pick-slide note must not carry pitched techniques at " +
+                           positionText(note.position),
+            }};
+        }
+        if (slide_out == nullptr || !(slide_out->offset == note.sustain))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidPickSlide,
+                .message = "pick slide must end in a slide-out exactly at the sustain at " +
+                           positionText(note.position),
+            }};
+        }
     }
     // Everything else a note can break on its own is a repair the normalizer owns, so the rule
     // is asked exactly once: the note must already be its own normal form.
@@ -666,8 +748,7 @@ std::expected<void, ChartError> validateChartNotes(
     for (const ChartNote& note : notes)
     {
         // Every rule a note can break on its own, asked of the one authority for them rather than
-        // restated here. What remains below is only what reads a note's NEIGHBOURS, plus the
-        // payload geometry no repair can express.
+        // restated here. What remains below is only what reads a note's NEIGHBOURS.
         if (auto alone = validateChartNoteAlone(note, tuning, tempo_map); !alone.has_value())
         {
             return alone;
@@ -688,40 +769,13 @@ std::expected<void, ChartError> validateChartNotes(
             }
         }
 
-        Fraction previous_offset{-1, 1};
-        for (const BendPoint& point : note.bend)
-        {
-            if (point.offset.numerator < 0 || point.offset > note.sustain ||
-                point.offset <= previous_offset)
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNotePayload,
-                    .message = "bend offsets must ascend within the sustain at " +
-                               positionText(note.position),
-                }};
-            }
-            previous_offset = point.offset;
-        }
-
-        previous_offset = Fraction{0};
+        // A curve waypoint may never sit on a later onset of its own string: a glide into a real
+        // note is the slideEnd "next" terminal, which stores no coordinates. Rejecting the
+        // coordinate copy here is what keeps the desyncable encoding unrepresentable. Scrape
+        // turnarounds are bound too; the scrape's sustain-parked terminal is its slide-out, which
+        // this rule never sees.
         for (const SlideWaypoint& waypoint : note.slides)
         {
-            // Where a waypoint sits in TIME has no repair; where it sits on the NECK is the
-            // normalizer's (the board clamp and the capo floor), already asked per note.
-            if (waypoint.offset <= previous_offset || waypoint.offset > note.sustain ||
-                waypoint.fret < 0)
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNotePayload,
-                    .message = "slide waypoints must ascend within the sustain at " +
-                               positionText(note.position),
-                }};
-            }
-            // A curve waypoint may never sit on a later onset of its own string: a glide into a
-            // real note is the slideEnd "next" terminal, which stores no coordinates. Rejecting
-            // the coordinate copy here is what keeps the desyncable encoding unrepresentable.
-            // Scrape turnarounds are bound too; the scrape's sustain-parked terminal is its
-            // slide-out, which this rule never sees.
             const GridPosition waypoint_position =
                 advanceGridPosition(tempo_map, note.position, waypoint.offset);
             for (auto at_waypoint = std::ranges::lower_bound(
@@ -738,50 +792,6 @@ std::expected<void, ChartError> validateChartNotes(
                                    "; a glide ends before its re-picked landing",
                     }};
                 }
-            }
-            previous_offset = waypoint.offset;
-        }
-
-        // A slide-out owns its geometry and must stay ordered like any payload.
-        const SlideOut* const slide_out = slideOutOrNull(note);
-        if (slide_out != nullptr && (slide_out->offset <= previous_offset ||
-                                     slide_out->offset > note.sustain || slide_out->fret < 0))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNotePayload,
-                .message = "slide-out must end after every waypoint, within the sustain at " +
-                           positionText(note.position),
-            }};
-        }
-
-        // A SAVED pick-slide note carries no pitched technique — the document writer omits them
-        // (the in-memory override design, chart.h) — so a document that does is hand-made or a
-        // bug and fails loudly; emphasis is a scrape's own dynamics and passes. The gesture is
-        // the required unpitched slide-out terminal, exactly at the sustain (nothing rings past
-        // a scrape). That the path keeps traveling is the normalizer's demotion, already asked.
-        if (note.attack == NoteAttack::PickSlide)
-        {
-            // Stated as a FIXPOINT rather than by listing the overridden fields: a saved note must
-            // already equal its own saved form. Enumerating mute/node/vibrato/tremolo/bend here
-            // duplicated exactly the set savedChartNote strips, so the writer and the validator
-            // had to agree by hand and a sixth overridden field would have updated only one of
-            // them. (If another attack ever gains latent overrides, lift this check out of the
-            // PickSlide branch — the comparison is identity for every attack that has none.)
-            if (!(savedChartNote(note) == note))
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidPickSlide,
-                    .message = "pick-slide note must not carry pitched techniques at " +
-                               positionText(note.position),
-                }};
-            }
-            if (slide_out == nullptr || !(slide_out->offset == note.sustain))
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidPickSlide,
-                    .message = "pick slide must end in a slide-out exactly at the sustain at " +
-                               positionText(note.position),
-                }};
             }
         }
 

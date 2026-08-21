@@ -1,6 +1,7 @@
 #include "chart/pick_slide_defaults.h"
 
 #include <algorithm>
+#include <rock_hero/common/core/chart/chart_rules.h>
 
 namespace rock_hero::editor::core
 {
@@ -12,21 +13,7 @@ bool pickSlideDefaultUpward(const int start_fret, const int capo) noexcept
 
 int pickSlideDefaultLowFret(const int capo) noexcept
 {
-    return std::max(capo + 1, g_pick_slide_default_low_fret);
-}
-
-bool scrapePathIsConvertible(const common::core::ChartNote& note) noexcept
-{
-    int previous_fret = note.fret;
-    for (const common::core::SlideWaypoint& waypoint : note.slides)
-    {
-        if (waypoint.fret == previous_fret)
-        {
-            return false;
-        }
-        previous_fret = waypoint.fret;
-    }
-    return !note.slide_out.has_value() || note.slide_out->fret != previous_fret;
+    return std::max(common::core::firstPlayableFret(capo), g_pick_slide_default_low_fret);
 }
 
 bool convertSlideToScrapePath(common::core::ChartNote& note)

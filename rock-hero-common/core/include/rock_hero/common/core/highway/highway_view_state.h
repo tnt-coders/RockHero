@@ -250,10 +250,10 @@ Every 3D consumer must ask this rather than \ref soundingPositionAt, or the boar
 frame different places — which is exactly how a third-partial artificial harmonic came to be framed
 at its stop while drawn at its node, entirely off screen.
 
-NOT clamped here: a plain fret. Chart validation accepts frets to \ref g_max_fret, which is 30, so a
-fret-25-and-up note already draws past a 24-fret board with or without a harmonic. That is the same
-board-versus-domain mismatch and wants the same single decision, so it is left visible rather than
-quietly clamped to a fret the chart did not ask for.
+A plain fret is never clamped here, and since 2026-08-20 never needs to be: \ref g_max_fret is the
+drawn board's own 24, and \ref g_highway_fret_count derives from it, so a fret past the board is no
+longer representable. Only a NODE can still lie past the last fret (a bridge-side harmonic), which
+is why this function exists at all.
 
 \param note Note whose sounding place is wanted.
 \param fret_at_point Stop being labeled — the onset fret, or a slide waypoint's fret.

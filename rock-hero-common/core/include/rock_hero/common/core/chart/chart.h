@@ -610,8 +610,28 @@ node, not whether a stop is pressed.
 [[nodiscard]] inline bool fretHandHarmonic(
     const int fret, const std::optional<double>& harmonic_node, const NoteAttack attack) noexcept
 {
-    return harmonic_node.has_value() && fret == 0 && attack != NoteAttack::Pinch &&
+    // `nodeIsOnNeck` rather than a spelled-out pinch test, so this, the dead-pinch rule, and the
+    // placement rules cannot drift apart if another off-neck harmonic is ever added.
+    return harmonic_node.has_value() && fret == 0 && nodeIsOnNeck(attack) &&
            attack != NoteAttack::PickSlide;
+}
+
+/*!
+\brief The stop a note's string speaks from: its own fret, or the capo when the string is open.
+
+Fret 0 means the open string under the 0-means-open convention, so the stop it names is the nut or
+the capo — the capo is what stops a capo'd string. The one spelling of that fact, read by the
+node-beyond-the-stop rule, the pinch's default node (the octave above the stop), and the importer's
+harmonic placement, which used to carry three copies of the same conditional.
+
+\param note Note whose stop is wanted.
+\param capo The tuning's capo fret; 0 for none.
+
+\return The stop fret.
+*/
+[[nodiscard]] constexpr int physicalStopFret(const ChartNote& note, const int capo) noexcept
+{
+    return note.fret == 0 ? capo : note.fret;
 }
 
 /*! \copydoc fretHandHarmonic(int,const std::optional<double>&,NoteAttack) */
