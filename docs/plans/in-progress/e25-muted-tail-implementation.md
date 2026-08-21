@@ -29,9 +29,10 @@ mute) and a dragged muted slide. `Palm` is untouched — palm-muted notes ring.
 ("ANY note marked dead regardless of other techniques it carries should not be able to carry a note
 tail"), was shown that E25 already exists with the two exceptions, and confirmed the signed version
 stands. Keeping them matters beyond taste: D16 records that they are what make a muted tail *always*
-mean noise-or-travel (so the display needs no conditional), what bounds muted legato to the
-sub-bound window with zero new code, and what makes the display's all-muted span carve-out correct
-rather than a bug. Dropping them re-opens D13 and E24.
+mean noise-or-travel (so the display needs no conditional) and what makes the display's all-muted
+span carve-out correct rather than a bug. (They also once bounded muted legato to the sub-bound
+window; E26 superseded that on 2026-08-20 — a dead predecessor justifies nothing at any gap.)
+Dropping them re-opens D13 and E24.
 
 ---
 
@@ -192,7 +193,17 @@ hold-scoring question, not a chart one.
 >   and deferring a durable surface to W3's channel. GP import keeps its counted convention:
 >   import converts wholesale, while a load shed edits saved work, which earns specificity.
 
-## 6.5. LATE CONFLICT — the legato-flatten watch item (needs the user's read before code)
+## 6.5. ~~LATE CONFLICT~~ — the legato-flatten watch item — DISSOLVED 2026-08-20 by W14/E26
+
+**Resolution.** E26 (a dead predecessor justifies no connection, shipped the same day) removes
+the hazard at its root: a dead note's tail no longer enters any claim's answer, so trimming it
+cannot change what any claim resolves to. The muted-tail trim has NO legato knock-on left, and
+the reconciliation proposed below is moot. The corpus-wide flatten the watch item feared did
+happen — through E26 rather than the trim — and it rides the load sweep's existing conversions
+channel exactly as the ruled load policy prescribes (§4, §6.7): reported, session dirty, file
+untouched until save. The watch item is retired with that recorded. The original analysis is
+kept below for the record.
+
 
 `docs/tracking/watch-items.md` ("A muted-tail trim would flatten legato claims corpus-wide —
 trigger: W4/E25 builds the trim", recorded 2026-08-11) fires on this exact work, and its recorded

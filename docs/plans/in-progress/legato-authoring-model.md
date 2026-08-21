@@ -404,7 +404,8 @@ over — the sweep judges the whole stream and knows nothing about verbs.
 | Phase 7 waypoint edits changing the predecessor's last waypoint fret | yes, under released-fret semantics |
 | Paste / range move / range delete (plan 52) | reduce to the classes above |
 | Sustain edits | **yes since D13** — the predecessor's hold is part of the answer past the kept-sustain bound |
-| Bend, vibrato, tremolo, accent, mute edits | no — none enters the answer (a fully-muted predecessor is still a press) |
+| Bend, vibrato, tremolo, accent, palm-mute edits | no — none enters the answer (a palm-muted predecessor still rings) |
+| Dead-note edits on the predecessor | **yes since E26 (2026-08-20)** — a dead predecessor justifies nothing, so deadening one breaks the claim after it; the settle sweep flattens it, and the X toggle window round-trips it like any technique window |
 | Tuning capo/cent edits | no; a future string-count edit reduces to move-off-string |
 | Undo/redo themselves | **never** — they replay stored plans and bypass the planners, which is required for exactness |
 

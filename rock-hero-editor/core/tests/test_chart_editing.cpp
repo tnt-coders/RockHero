@@ -3491,4 +3491,65 @@ TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[
     CHECK(note(2).attack == common::core::NoteAttack::Legato);
 }
 
+// Deadening a note breaks the claim after it (a dead string has no energy to hand over), and the
+// dead-note toggle round-trips that the way every technique window does: nothing new was written
+// for it. Inside the window the second X reverses the entry before any settle could flatten the
+// claim; across a settle the flatten folds into the X entry itself, so one undo restores both.
+TEST_CASE("EditorController dead-note toggle round-trips the claim it breaks", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(
+        loadChartArrangement(controller, project_services, audio, {}, makeBreakableClaimChart()));
+
+    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
+        return controller.session().currentArrangement()->chart->notes[index];
+    };
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+    const common::core::ChartNote original = note(1);
+
+    // X deadens the middle note. The selection has not moved, so no settle has run: the claim
+    // after it still stands in memory even though nothing justifies it any more.
+    controller.onChartDeadNoteToggleRequested();
+    CHECK(note(1).dead);
+    CHECK(note(2).attack == common::core::NoteAttack::Legato);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+
+    // X again inside the window reverses the entry exactly — the claim was never flattened.
+    controller.onChartDeadNoteToggleRequested();
+    CHECK(note(1) == original);
+    CHECK(note(2).attack == common::core::NoteAttack::Legato);
+    CHECK(state->undo_history.labels.size() == entries_before);
+
+    // Deaden it again, then move the selection: the settle flattens the claim and folds the
+    // flatten into the X entry, so the history still holds ONE entry for the burst.
+    controller.onChartDeadNoteToggleRequested();
+    click(controller, 80.0f, 220.0f);
+    CHECK(note(1).dead);
+    CHECK(note(2).attack == common::core::NoteAttack::Pick);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+    REQUIRE_FALSE(state->undo_history.labels.empty());
+    CHECK(state->undo_history.labels.back() == "Dead Note");
+
+    // One undo restores the deadening and the claim together.
+    controller.onUndoRequested();
+    CHECK(note(1) == original);
+    CHECK(note(2).attack == common::core::NoteAttack::Legato);
+}
+
 } // namespace rock_hero::editor::core

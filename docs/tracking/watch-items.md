@@ -278,18 +278,6 @@ imported `chart.shapes`. **Trigger**: §5's slice 3 builds member-tail adjustmen
 learns the same span-sibling exemption, since §5 says member tails may legally ring past
 sibling onsets inside a shared span.
 
-### A muted-tail trim would flatten legato claims corpus-wide — trigger: W4/E25 builds the trim
-
-Recorded by the legato ruling of 2026-08-11 (`docs/plans/in-progress/legato-final-spec.md`,
-sequencing note). Today a fully muted note's tail counts at its stored length for the connection
-hold test, so a claim depending on such a tail resolves and stands. W4/E25's signed-but-unbuilt
-rule trims muted tails; the moment that lands, every dependent claim in the corpus stops resolving
-and the load-time settle sweep would flatten them all silently, on open, with a conversion note the
-user never asked for. **Trigger**: W4/E25's muted-tail trim is implemented. **Remedy**: run the
-trim as an editor plan operation over the current chart, so the flatten rides the trim's own undo
-entry and is visible and reversible as one edit — never as a silent conversion inside
-`readRockSongPackageDirectory`.
-
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong
@@ -535,6 +523,26 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ---
 
 ## Retired
+
+### ~~A muted-tail trim would flatten legato claims corpus-wide~~ — RETIRED 2026-08-20
+
+**The hazard was removed at its root, by a different ruling than the trigger named.** Recorded
+by the legato ruling of 2026-08-11: a fully muted note's tail counted at its stored length for the
+connection hold test, so a claim depending on such a tail resolved and stood, and W4/E25's
+muted-tail trim would have broken every such claim corpus-wide, silently, on open. The remedy
+recorded was to run the trim as an editor plan operation so the flatten rode its undo entry.
+
+Resolved on 2026-08-20 by **E26** (walkthrough W14): a dead predecessor justifies no connection at
+all — a deadened string has no energy to hand over, and the strike after a dead note is the
+`LeftTap`. With that clause in `resolveLegato`, a dead note's tail no longer enters any claim's
+answer, so the E25 trim has no legato knock-on left to guard against. The corpus-wide flatten
+this item feared does happen — through E26 rather than the trim — and it rides the load sweep's
+existing conversions channel exactly as the load policy ruled the same day
+(`docs/plans/in-progress/e25-muted-tail-implementation.md` §4, §6.7): every flattened claim is
+reported with its position, the session opens dirty, and the file is untouched until the user
+saves — which answers "visible and reversible" without an undo entry. The recorded remedy was
+also superseded on its own terms: load normalizes and never refuses, so an editor-verb-only
+repair would have left the package read either refusing or admitting an invalid chart.
 
 ### ~~The pick slide lost its deliberate over-coverage in the family shrink~~ — RETIRED 2026-08-18
 

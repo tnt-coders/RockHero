@@ -1255,6 +1255,59 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         CHECK(resolve_claim({harmonic_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
     }
 
+    SECTION("a dead predecessor justifies neither motion: it has no energy to hand over")
+    {
+        // A hammer-on or pull-off carries the ringing predecessor into the next note; a deadened
+        // string is not ringing. Both directions, and the hold is irrelevant — the tails here
+        // reach the margin so nothing but the deadening is under test.
+        ChartNote dead_above = make_note(1, 1, 9);
+        dead_above.dead = true;
+        dead_above.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({dead_above, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+
+        ChartNote dead_below = make_note(1, 1, 3);
+        dead_below.dead = true;
+        dead_below.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({dead_below, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+
+        // Nor does the sub-bound gap rescue it: under the bound the hold is unproven, but the
+        // deadening is stated.
+        ChartNote close_claim = claim_at(1, 1, 5);
+        close_claim.position.offset = Fraction{1, 2};
+        CHECK(resolve_claim({dead_above, close_claim}) == LegatoMotion::Unjustified);
+
+        // The `dead` flag alone: a palm-muted predecessor rings, so it hands over as any note does.
+        ChartNote palm_muted = make_note(1, 1, 9);
+        palm_muted.palm_mute = true;
+        palm_muted.sustain = Fraction{3, 4};
+        CHECK(resolve_claim({palm_muted, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
+
+        // The other direction is untouched: a ringing predecessor still justifies a claim ON a
+        // dead note — the muted hammer of E24.
+        ChartNote source = make_note(1, 1, 3);
+        source.sustain = Fraction{3, 4};
+        ChartNote dead_claim = claim_at(2, 1, 5);
+        dead_claim.dead = true;
+        CHECK(resolve_claim({source, dead_claim}) == LegatoMotion::Hammer);
+
+        // The legitimate strike after a dead note is the fretting hand's own, which reads no
+        // predecessor: the left-hand tap stands.
+        ChartNote left_tap = make_note(2, 1, 5);
+        left_tap.attack = NoteAttack::LeftTap;
+        CHECK(resolve_claim({dead_above, left_tap}) == LegatoMotion::Hammer);
+
+        // And the settle sweep is the normalization: a claim after a dead note flattens to the
+        // pick it plays as, while the tap beside it is never touched.
+        ChartNote dead_other = make_note(3, 2, 4);
+        dead_other.dead = true;
+        ChartNote tap_after_dead = make_note(4, 2, 6);
+        tap_after_dead.attack = NoteAttack::LeftTap;
+        std::vector<ChartNote> swept{dead_above, claim_at(2, 1, 5), dead_other, tap_after_dead};
+        CHECK(sweepUnjustifiedLegato(swept, {}, tempo_map).size() == 1);
+        CHECK(swept[1].attack == NoteAttack::Pick);
+        CHECK(swept[3].attack == NoteAttack::LeftTap);
+    }
+
     SECTION("a claim needs its predecessor still held")
     {
         // At the kept-sustain bound a held note necessarily carries a tail, so a bare predecessor

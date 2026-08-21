@@ -34,10 +34,15 @@ instead, because a claim the chart cannot justify is a claim that plays as a pla
 broken file.
 
 Judged against the RELEASED fret — where the predecessor's finger ends, so a glide hands over its
-last waypoint and a scrape its slide-out's end — never against predecessor identity. Three things
-disqualify a predecessor outright: none exists, it is a fret-hand harmonic (a touch holds nothing to
-hand over), or it is no longer holdable at this onset. Past the kept-sustain bound a disconnected
-tail is a proven release, which is why shrinking a tail drops the connection its neighbour claimed.
+last waypoint and a scrape its slide-out's end — never against predecessor identity. Four things
+disqualify a predecessor outright: none exists, it is dead (a hammer-on or pull-off carries the
+predecessor's energy into the next note, and a deadened string has none to carry — user ruling
+2026-08-20), it is a fret-hand harmonic (a touch holds nothing to hand over), or it is no longer
+holdable at this onset. Past the kept-sustain bound a disconnected tail is a proven release, which
+is why shrinking a tail drops the connection its neighbour claimed. The dead test reads the `dead`
+flag alone: a palm-muted string rings, and a both-muted note already sounds as dead. The legitimate
+strike after a dead note is the fretting hand's own — the `LeftTap` below, which no predecessor can
+withdraw.
 
 Then the released fret picks the direction: above the note is a pull-off, below it a hammer-on. A
 pull-off carries no harmonic (it releases onto a plain stopped pitch); a hammer-on needs somewhere
@@ -141,8 +146,8 @@ per call site.
 A `LeftTap` is never touched: its claim is local, so nothing can withdraw it.
 
 One pass is enough, and that is a property of the resolver rather than an assumption: resolution
-reads a predecessor's released fret, node, position and hold, and flattening `Legato` to `Pick`
-changes none of them, so no flatten can create or destroy another note's justification.
+reads a predecessor's released fret, node, dead flag, position and hold, and flattening `Legato` to
+`Pick` changes none of them, so no flatten can create or destroy another note's justification.
 
 \param notes Note stream sorted by (position, string); flattened in place.
 \param shapes Hand-posture spans the notes play under, for the hold test.

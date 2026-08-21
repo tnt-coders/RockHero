@@ -22,7 +22,10 @@ LegatoMotion resolveLegato(
     {
         return LegatoMotion::Hammer;
     }
-    if (predecessor == nullptr || fretHandHarmonic(*predecessor) ||
+    // A dead predecessor is disqualified on the `dead` flag alone: a palm-muted string still rings
+    // and can hand its energy over, and a note carrying both mutes already sounds as dead. The
+    // saved form is what is read, so a scrape's latent mute never reaches this test (E2 strips it).
+    if (predecessor == nullptr || predecessor->dead || fretHandHarmonic(*predecessor) ||
         !predecessorHoldReaches(
             predecessor->position, predecessor_effective_sustain, note.position, tempo_map))
     {

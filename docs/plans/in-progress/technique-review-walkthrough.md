@@ -292,8 +292,15 @@ item ships, mark it and name the commit.
   model, before W9-D's glyph choice hardens, and before the W9-B fold freezes the shared element
   types — a fold that bakes today's `{offset, fret}` waypoint into the shared view state would have
   to be reopened.
-- [ ] **W14 — A legato claim after a DEAD note is unjustified (user-proposed 2026-08-20, agent
-  agrees; awaiting the firm ruling).** A hammer-on or pull-off carries the predecessor's energy
+- [x] **W14 — A legato claim after a DEAD note is unjustified — RULED and SHIPPED 2026-08-20,
+  recorded as E26.** Built exactly as sketched below: one clause in `resolveLegato`, the new
+  section in the relational matrix suite (both motions, the sub-bound gap, palm-muted stays
+  ordinary, E24's converse untouched, the tap stands, the sweep flattens), and an editor test
+  pinning the X round-trip both inside the window and across a settle. No toggle code was
+  written. Two knock-ons recorded the same day: it dissolves the E25 plan's §6.5 conflict (a
+  dead predecessor's tail no longer enters any claim's answer, so the muted-tail trim has no
+  legato knock-on left), and it revises D7's "derives across fully-muted predecessors" half.
+  Original proposal: A hammer-on or pull-off carries the predecessor's energy
   into the next note; a dead note's string is not ringing, so there is nothing to carry, and the
   legitimate "hammer from nowhere" after a dead note is the fretting hand's own strike — the
   `LeftTap`, which stays legal because the resolver answers it locally. **Implementation is one
@@ -803,9 +810,12 @@ shipped technique verbs.
   and no notation source writes the gesture. Reopens only on real chart evidence.
 - [x] **D7 — E5: derivation vs validity — CLOSED 2026-08-09, simpler than every draft.** The
   user's second look used the D5 evidence against the first proposal and won: muted legato is
-  *common* vocabulary (funk/R&B, bass especially), so plain `H` **derives across fully-muted
-  predecessors normally** — requiring a modifier for the common case would surprise exactly the
-  charts that use it most. The final shape:
+  *common* vocabulary (funk/R&B, bass especially), so plain `H` ~~derives across fully-muted
+  predecessors normally~~ — requiring a modifier for the common case would surprise exactly the
+  charts that use it most. **The muted-predecessor half was REVISED 2026-08-20 (W14/E26):** a
+  dead predecessor justifies nothing — the cluck AFTER a dead note is the fretting hand's own
+  strike, `LeftTap`, not a carried hammer — while the muted hammer INTO a dead note (E24) and
+  the no-modifier `H` stand. The final shape:
   - **Validity (E5):** pull needs a same-string predecessor whose released fret is higher (a
     scrape's released fret is its slide-out's). Scrape predecessors are valid — pull-from-a-scrape
     "CAN be done" (user), authoring-only since Guitar Pro cannot write it (the earlier
@@ -1122,9 +1132,12 @@ shipped technique verbs.
        display needs no "is this a slide" branch. The tremolo band and a slide diagonal already
        coexist on one tail (the band's always-covered core is the plain span), so nothing new is
        needed there.
-    3. **Muted legato is thereby bounded to the sub-bound window, with ZERO new code** — a plain
-       muted note cannot carry a tail, so past the kept-sustain bound its hold can never reach
-       and D13 refuses it, while inside the bound nothing is proven and E24 applies untouched.
+    3. ~~**Muted legato is thereby bounded to the sub-bound window, with ZERO new code**~~ —
+       **superseded 2026-08-20 by W14/E26**, which disqualifies a dead predecessor outright at
+       any gap; the hold no longer enters that question. The original reasoning, kept for the
+       record: a plain muted note cannot carry a tail, so past the kept-sustain bound its hold
+       can never reach and D13 refuses it, while inside the bound nothing is proven and E24
+       applies untouched.
        That is where muted legato actually lives (clucks are sixteenths, not two-beat gestures),
        and past the bound the user's own reading is that a silently-held hand "may read odd."
        **This retracts the sounding-vs-fretted hold split recommended earlier**: with E25 in
