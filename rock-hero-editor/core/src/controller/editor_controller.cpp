@@ -1831,6 +1831,16 @@ bool EditorController::Impl::chartSlotOccupied(
 
 void EditorController::Impl::armChartCaret(common::core::GridPosition position, int string)
 {
+    // The pending fret entry settles BEFORE the marker moves: the settle selects the note it
+    // committed at the OLD slot, and the arming below then replaces that selection for the new
+    // slot, so "armed implies the selection is what sits under the caret" holds through every
+    // caret move. This is the one funnel behind pointer, arrow, jump, and row stepping; a verb
+    // that settled only after moving the marker (the End key once did) left the caret at the
+    // destination with the selection on the slot it left.
+    settleChartFretEntry();
+    // A caret move is a commit point for the technique toggle windows: a press after it means the
+    // verb's ordinary law, never a reversal of the entry the window remembers.
+    disarmTechniqueToggleWindows();
     m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartNoteKey key{.position = position, .string = string};
     if (chartSlotOccupied(position, string))
@@ -2173,13 +2183,17 @@ bool EditorController::Impl::applyChartEditPlan(
     }
 
     // Recorded before the plan moves into the entry: the settle sweep folds its flatten into this
-    // entry so the edit and the claim it broke undo together, and the H toggle window reverses it.
+    // entry so the edit and the claim it broke undo together, and the technique toggle windows
+    // reverse it. Recorded only for an entry the history actually took — a refused push resets
+    // the history, and a record claiming to own its top would then be a false proof.
     ChartNotesEditPlan recorded = *plan;
-    pushUndoEntry(std::make_unique<ChartNotesEdit>(std::move(*plan)));
-    m_chart_notes_top = ChartNotesTopEntry{
-        .plan = std::move(recorded),
-        .history_position = m_undo_history.snapshot().position,
-    };
+    if (pushUndoEntry(std::make_unique<ChartNotesEdit>(std::move(*plan))))
+    {
+        m_chart_notes_top = ChartNotesTopEntry{
+            .plan = std::move(recorded),
+            .history_position = m_undo_history.snapshot().position,
+        };
+    }
     updateView();
     return true;
 }
@@ -2645,17 +2659,25 @@ void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
     switch (target)
     {
         case ChartCaretJump::ChartStart:
+        {
             destination = chartStartPosition();
             break;
+        }
         case ChartCaretJump::ChartEnd:
+        {
             destination = common::core::terminalGridPosition(tempo_map);
             break;
+        }
         case ChartCaretJump::PreviousSection:
+        {
             destination = adjacentSectionPosition(session().song().sections, reference, false);
             break;
+        }
         case ChartCaretJump::NextSection:
+        {
             destination = adjacentSectionPosition(session().song().sections, reference, true);
             break;
+        }
     }
 
     if (!destination.has_value())
@@ -2740,19 +2762,27 @@ void EditorController::Impl::onTimeSelectionExtendRequested(
     switch (extent)
     {
         case TimeSelectionExtent::Grid:
+        {
             next_focus = adjacentTempoGridPosition(tempo_map, m_grid_note_value, focus, later);
             break;
+        }
         case TimeSelectionExtent::Measure:
+        {
             next_focus = measureJumpPosition(focus, later);
             break;
+        }
         case TimeSelectionExtent::Section:
+        {
             next_focus =
                 adjacentSectionPosition(session().song().sections, focus, later).value_or(focus);
             break;
+        }
         case TimeSelectionExtent::ChartBound:
+        {
             next_focus =
                 later ? common::core::terminalGridPosition(tempo_map) : chartStartPosition();
             break;
+        }
     }
 
     // Refused (grid edge, or no section that way): a held range stays; a first press makes none.
@@ -2925,24 +2955,20 @@ void EditorController::Impl::onNeutralInsertRequested()
         return;
     }
 
-    // String row: only an armed empty slot inserts (a selection means the slot is occupied).
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || !chartSelection().empty())
+    // String row. The pending fret entry settles FIRST, because it may plant the very slot this
+    // verb would — in which case the typed value IS the insert and this press has nothing left to
+    // do. Only an armed EMPTY slot inserts, asked of the chart after the settle rather than of the
+    // selection before it. Then the keyboard form of the same verb Alt+click performs, through the
+    // same planting function.
+    settleChartFretEntry();
+    const ChartCaret* const settled = armedChartCaret();
+    if (settled == nullptr || settled->lane.has_value() ||
+        chartSlotOccupied(settled->position, settled->string))
     {
         return;
     }
-    common::core::ChartNote note;
-    note.position = caret->position;
-    note.string = caret->string;
-    note.fret = 0;
-    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan =
-        planInsertNote(*arrangement->chart, session().song().tempo_map, note);
-    if (!plan.has_value())
-    {
-        return;
-    }
-    const ChartNoteKey key{.position = note.position, .string = note.string};
-    static_cast<void>(applyChartEditPlan(std::move(plan), std::vector<ChartNoteKey>{key}));
+    const ChartCaret armed = *settled;
+    insertChartNoteAt(armed.position, armed.string, 0);
 }
 
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
@@ -3087,11 +3113,14 @@ void EditorController::Impl::settleChartFretEntry()
     {
         // An insert selects the planted note — the caret stays armed on it, so the next digit
         // retypes it, the same post-state the old immediate insert left. A retype rides the
-        // default selection follow.
-        static_cast<void>(applyChartEditPlan(
-            std::move(*entry.plan),
-            entry.began_as_insert ? std::optional<std::vector<ChartNoteKey>>{entry.keys}
-                                  : std::nullopt));
+        // default selection follow. Bound before the call so the move and the sibling read never
+        // share one argument list.
+        std::optional<std::vector<ChartNoteKey>> select_exactly;
+        if (entry.began_as_insert)
+        {
+            select_exactly = entry.keys;
+        }
+        static_cast<void>(applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)));
     }
     updateView();
 }
@@ -3252,24 +3281,17 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
 
     const std::vector<common::core::ChartNote> selected =
         chartNotesForKeys(chartSelection().notes());
-    std::optional<int> lowest;
-    for (const common::core::ChartNote& note : selected)
-    {
-        if (!lowest.has_value() || note.fret < *lowest)
-        {
-            lowest = note.fret;
-        }
-    }
-    if (!lowest.has_value())
+    if (selected.empty())
     {
         return;
     }
+    const int lowest = std::ranges::min(selected, {}, &common::core::ChartNote::fret).fret;
 
     static_cast<void>(applyChartEditPlan(planRetypeFrets(
         *arrangement->chart,
         session().song().tempo_map,
         selected,
-        *lowest + (direction > 0 ? 1 : -1),
+        lowest + (direction > 0 ? 1 : -1),
         /*set_exact=*/false)));
 }
 
@@ -3296,14 +3318,6 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
         *arrangement->chart, session().song().tempo_map, chartSelection().notes(), delta)));
 }
 
-// Claims or clears a legato connection across the selection as one compound undo entry, uniform
-// scope. planSetLegato is the oracle and the resolver its only authority, so eligibility is never
-// restated here: applying is always the first answer — every selected note whose claim the chart
-// justifies gets it, including the assist growing a predecessor's tail when the hold was the only
-// thing missing — and only when applying would change nothing does the press mean clear. Measuring
-// the press by what the PLAN does rather than by what the selection already holds is what keeps a
-// rider note from stranding the toggle in apply mode forever. The clear flattens only the stored
-// claims: a left-hand tap riding the selection keeps its attack, since Ctrl+H is its sole author.
 // Disarms every technique toggle window. Called from each COMMIT point — a selection change, a
 // caret move, an edit, undo/redo, a settling sweep — so a press after any of them means the verb's
 // ordinary law instead of a reversal. One call rather than a list of members, so the commit points
@@ -3351,39 +3365,50 @@ bool EditorController::Impl::reverseTechniqueToggleWindow(
         return false;
     }
     const ChartNotesEditPlan applied = burst->plan;
-    common::core::Chart* const chart = m_session.currentChart();
+    // The history moves BEFORE the model, the settle sweep's own discipline: the two states must
+    // never disagree, and the guards above are exactly the history's preconditions, so a refusal
+    // here is a logic error reported with the chart untouched rather than left reversed under an
+    // entry that still describes the edit.
+    //
     // A save mid-window makes the entry the file's clean state, so erasing it would make "return
     // to clean" a lie. The reversal still happens — the toggle stays genuine and the grown tail
     // comes back — but as its own inverse entry, which leaves the session correctly dirty
     // (ruled 2026-08-11).
     const bool clean_entry = history.clean_position == burst->history_position;
-    const bool reversed =
-        chart != nullptr &&
-        applyChartNotesChange(*chart, applied.inserted, applied.removed).has_value();
-    if (reversed && clean_entry)
+    m_chart_notes_top.reset();
+    if (clean_entry)
     {
-        m_chart_notes_top.reset();
         pushUndoEntry(
             std::make_unique<ChartNotesEdit>(ChartNotesEditPlan{
                 .removed = applied.inserted,
                 .inserted = applied.removed,
                 .label = std::string{revert_label},
             }));
-        updateView();
-        return true;
     }
-    if (reversed && m_undo_history.dropTop().status == EditorUndoTransitionStatus::Applied)
+    else if (m_undo_history.dropTop().status != EditorUndoTransitionStatus::Applied)
     {
-        m_chart_notes_top.reset();
-        updateView();
+        reportError("Could not apply chart edit: " + applied.label);
         return true;
     }
-    // The proofs above guarantee the stream and the history top still match the entry, so a failed
-    // reversal is a logic error; surface it rather than silently re-planning.
-    reportError("Could not apply chart edit: " + applied.label);
+    common::core::Chart* const chart = m_session.currentChart();
+    if (chart == nullptr ||
+        !applyChartNotesChange(*chart, applied.inserted, applied.removed).has_value())
+    {
+        reportError("Could not apply chart edit: " + applied.label);
+        return true;
+    }
+    updateView();
     return true;
 }
 
+// Claims or clears a legato connection across the selection as one compound undo entry, uniform
+// scope. planSetLegato is the oracle and the resolver its only authority, so eligibility is never
+// restated here: applying is always the first answer — every selected note whose claim the chart
+// justifies gets it, including the assist growing a predecessor's tail when the hold was the only
+// thing missing — and only when applying would change nothing does the press mean clear. Measuring
+// the press by what the PLAN does rather than by what the selection already holds is what keeps a
+// rider note from stranding the toggle in apply mode forever. The clear flattens only the stored
+// claims: a left-hand tap riding the selection keeps its attack, since Ctrl+H is its sole author.
 void EditorController::Impl::onChartLegatoToggleRequested()
 {
     // The pending fret entry settles first (the uniform prologue).
@@ -4112,7 +4137,7 @@ EditorEditContext EditorController::Impl::editContext() noexcept
 }
 
 // Pushes one already-applied user edit into the product-level history stack.
-void EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
+bool EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
 {
     const bool had_edit = edit != nullptr;
     const EditorUndoTransitionResult result = m_undo_history.push(std::move(edit));
@@ -4121,6 +4146,7 @@ void EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
     {
         markUntrackedUnsavedEdit("undo.reset.failed_push");
     }
+    return result.status == EditorUndoTransitionStatus::Applied;
 }
 
 // Marks the live backend untrusted and routes the user toward reopening or closing the project.

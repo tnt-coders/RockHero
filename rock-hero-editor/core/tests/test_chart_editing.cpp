@@ -1670,6 +1670,114 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     CHECK(chartOrNull(controller)->notes.size() == 3);
 }
 
+// The caret funnel is where the pending entry settles, BEFORE the marker moves, so every caret
+// mover — pointer, arrow, jump, row step, and the Insert key through the same planting function —
+// commits a typed value with the selection landing where the caret lands. Two holes the design
+// review of 2026-08-20 found: the End key settled only after moving the marker, so the committed
+// note was selected at the slot the caret had LEFT; and the Insert key reached the apply path with
+// no prologue at all, so the last-resort branch discarded the typed value and planted fret 0.
+TEST_CASE("EditorController settles a pending entry through every caret mover", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    PendingEntryHarness pending;
+    EditorController controller{
+        audioPorts(transport, audio),
+        pending.services(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(pending.scheduler.runDelayed());
+
+    // The empty caret at measure 4 beat 1 on string 1, with a provisional 1 typed at it.
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+    controller.onChartFretDigitTyped(1);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    CHECK(chartOrNull(controller)->notes.size() == 3);
+
+    SECTION("a caret jump commits the value and the selection follows the caret, not the note")
+    {
+        controller.onChartCaretJumpRequested(ChartCaretJump::ChartEnd);
+        const auto* chart = chartOrNull(controller);
+        REQUIRE(chart->notes.size() == 4);
+        CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 4, .beat = 1});
+        CHECK(chart->notes[3].fret == 1);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+        // The caret sits at the chart end on an empty slot, so the selection is empty: "armed
+        // implies the selection is what sits under the caret" survives the jump.
+        const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+        REQUIRE(caret != nullptr);
+        CHECK(caret->seconds > 6.0);
+        CHECK(state->chart_edit.selected_notes.empty());
+    }
+
+    SECTION("the Insert key commits the typed value instead of discarding it for a fret 0")
+    {
+        controller.onNeutralInsertRequested();
+        const auto* chart = chartOrNull(controller);
+        // One note planted, at the typed fret; the slot is now occupied, so the Insert verb itself
+        // had nothing further to plant.
+        REQUIRE(chart->notes.size() == 4);
+        CHECK(chart->notes[3].fret == 1);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+        CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{3});
+    }
+}
+
+// A caret move is a commit point for the technique toggle windows (the legato ruling's settle
+// set): stepping away and back does not leave the window armed, so the next press is the verb's
+// ordinary law rather than a reversal of the entry it remembers.
+TEST_CASE("EditorController closes a technique toggle window on a caret move", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    controller.onChartPalmMuteToggleRequested();
+    CHECK(chartOrNull(controller)->notes[0].palm_mute);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+
+    // Away and back: the selection is the same note again, and the entry is still the history
+    // top, but the window died with the first move.
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+
+    // The ordinary law: a second entry that removes the mute, not a reversal that erases the first.
+    controller.onChartPalmMuteToggleRequested();
+    CHECK_FALSE(chartOrNull(controller)->notes[0].palm_mute);
+    CHECK(state->undo_history.labels.size() == entries_before + 2);
+    REQUIRE_FALSE(state->undo_history.labels.empty());
+    CHECK(state->undo_history.labels.back() == "Remove Palm Mute");
+}
+
 // Two-digit entry across a note another note connects to. Nothing is repaired mid-burst any more —
 // the claim is authored data and stays put — so what this pins is that the widen still reconstructs
 // the pre-entry stream by reversing its own plan, and that the connection is pure re-projection:

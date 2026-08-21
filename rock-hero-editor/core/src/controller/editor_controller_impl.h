@@ -423,7 +423,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::SaveToneFile action);
     void performActionImpl(const EditorAction::SaveToneFileAs& action);
     [[nodiscard]] EditorEditContext editContext() noexcept;
-    void pushUndoEntry(std::unique_ptr<IEdit> edit);
+    bool pushUndoEntry(std::unique_ptr<IEdit> edit);
     void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
     void enterFaultedSession();
     void faultSessionAfterRollbackContractViolation(
@@ -833,12 +833,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // synchronous test scheduler.
     std::uint64_t m_chart_fret_entry_wake{0};
 
-    // The chart-notes entry this burst pushed, and the history position holding it. Three verbs
-    // read it: the settle sweep folds its flatten into this entry (replaceTop) so the edit and the
-    // claim it broke undo together, the H toggle window reverses it, and the multi-digit fret widen
-    // reverses it to rebuild the pre-entry stream. The position IS the proof of ownership — any
-    // other push, undo, or redo moves the cursor and retires the record — which is why no verb
-    // keeps a plan of its own to agree with this one by hand.
+    // The chart-notes entry this burst pushed, and the history position holding it. Two readers:
+    // the settle sweep folds its flatten into this entry (replaceTop) so the edit and the claim it
+    // broke undo together, and the technique toggle windows reverse it. (The multi-digit fret
+    // widen used to be a third; the pending model deleted it — nothing commits mid-entry, so
+    // there is no plan to reverse.) The position IS the proof of ownership — any other push, undo,
+    // or redo moves the cursor and retires the record — which is why no verb keeps a plan of its
+    // own to agree with this one by hand.
     struct ChartNotesTopEntry
     {
         ChartNotesEditPlan plan{};

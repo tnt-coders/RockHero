@@ -334,20 +334,30 @@ the same rule stated twice and free to disagree.
 \return Pointer to the \ref common::core::ChartNote member carrying that flag.
 */
 [[nodiscard]] constexpr bool common::core::ChartNote::* chartNoteFlagField(
-    const ChartNoteFlag which) noexcept
+    ChartNoteFlag which) noexcept
 {
     switch (which)
     {
         case ChartNoteFlag::PalmMute:
+        {
             return &common::core::ChartNote::palm_mute;
+        }
         case ChartNoteFlag::Dead:
+        {
             return &common::core::ChartNote::dead;
+        }
         case ChartNoteFlag::Tremolo:
+        {
             return &common::core::ChartNote::tremolo;
+        }
         case ChartNoteFlag::Vibrato:
+        {
             return &common::core::ChartNote::vibrato;
+        }
     }
-    return &common::core::ChartNote::palm_mute;
+    // Total above; a value outside the enum is a caller bug, and answering it with the palm flag
+    // would be an invented answer that looks like a working verb.
+    std::unreachable();
 }
 
 /*!
