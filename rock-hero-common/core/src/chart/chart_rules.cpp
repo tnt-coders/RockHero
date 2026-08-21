@@ -511,15 +511,18 @@ std::expected<void, ChartError> validateChartNotes(
                                positionText(note.position),
                 }};
             }
-            // Pitched glides obey the capo floor exactly like the note's own fret — the frets
-            // the capo covers cannot sound. A scrape's turnarounds are unpitched pick travel
-            // and exempt, like its slide-out.
-            if (note.attack != NoteAttack::PickSlide && waypoint.fret != 0 &&
-                waypoint.fret <= tuning.capo)
+            // Every stop on a pitched glide is a PRESSED position, so it obeys the capo floor
+            // exactly like the note's own fret — and, unlike the note, it may not be the open
+            // string either (user rule 2026-08-20): a glide cannot arrive at fret 0, because
+            // nothing is pressed there to arrive with; sliding down toward the nut is the
+            // unpitched trail-off, which is what the importer degrades such a glide to. A
+            // scrape's turnarounds are unpitched pick travel and exempt, like its slide-out.
+            if (note.attack != NoteAttack::PickSlide && waypoint.fret <= tuning.capo)
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidNotePayload,
-                    .message = "slide waypoint must stay 0 or above the capo at " +
+                    .message = "a pitched glide cannot reach the open string or a capo'd fret "
+                               "at " +
                                positionText(note.position),
                 }};
             }

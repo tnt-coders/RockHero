@@ -2452,6 +2452,15 @@ void resolveSlideOutExits(
                 flags |= 4;
                 break;
             }
+            if (next->note.fret == 0)
+            {
+                // The landing is the open string: nothing is pressed to glide to, and a waypoint
+                // at fret 0 is refused (user rule 2026-08-20), so the gesture degrades to the
+                // unpitched trail-off exactly like a missing landing — which is what a slide
+                // down toward the open string physically is. The landing keeps its own onset.
+                flags |= 4;
+                break;
+            }
             const Fraction gap = next->global_beat - entry.global_beat;
             if ((flags & 2) != 0 && (flags & 1) == 0)
             {

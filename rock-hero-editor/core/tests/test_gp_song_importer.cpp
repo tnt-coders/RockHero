@@ -3356,6 +3356,35 @@ TEST_CASE(
     CHECK(merged.sustain == Fraction{9, 8});
 }
 
+// A glide whose landing is the OPEN string has nothing pressed to arrive with (user rule
+// 2026-08-20: a pitched waypoint may not be fret 0), so it degrades to the unpitched trail-off
+// exactly like a missing landing, and the open-string landing keeps its own onset.
+TEST_CASE(
+    "Guitar Pro import degrades a glide to the open string into a trail-off", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    // Flags 2 = legato slide from the fret-8 note; its landing is the open string.
+    score.tracks[0].bars.push_back(
+        GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 2), noteBeat(Fraction{1, 4}, 0)}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 2);
+
+    const common::core::ChartNote& origin = chart.notes[0];
+    CHECK(origin.fret == 8);
+    CHECK(origin.slides.empty());
+    CHECK(common::core::slideOutOrNull(origin) != nullptr);
+    CHECK(chart.notes[1].fret == 0);
+    CHECK(chart.notes[1].slides.empty());
+    CHECK(common::core::validateChartRules(chart, built->tempo_map).has_value());
+}
+
 // The window always rides an unpitched trail-off; the hand's next move
 // picks the figure. A next placement departing in the trail-off's direction AND serving the very
 // next onset makes the gesture a departure: the exit fret rides that anchor travel (widened to

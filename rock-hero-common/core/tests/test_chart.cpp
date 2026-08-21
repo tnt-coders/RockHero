@@ -942,6 +942,14 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         fretted.sustain = Fraction{1};
         fretted.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}};
         CHECK(validate({fretted}).has_value());
+
+        // Nor can a glide ARRIVE at the open string (same rule, other end): every stop on a
+        // pitched path is a pressed position, so a waypoint at fret 0 refuses like one under
+        // the capo. The importer degrades such a glide to the unpitched trail-off instead.
+        ChartNote to_open = make_note(1, 1, 3);
+        to_open.sustain = Fraction{1};
+        to_open.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 0}};
+        CHECK_FALSE(validate({to_open}).has_value());
     }
 
     SECTION("either tapping attack needs a place to strike")
