@@ -2381,18 +2381,14 @@ void resolveSlideOutExits(
             note = common::core::savedChartNote(note);
             // Carriers are dead strings with meaningless frets, so the import owns the start too;
             // the editor's toggle keeps a real note's fret instead. The start is floored above the
-            // capo because a note's `fret` is capo-validated whatever its attack: an upward
-            // scrape's default start is fret 3, so any capo at 3 or higher made the synthesized
-            // carrier refuse validation and took the WHOLE song's import down with it. (Whether a
-            // scrape's frets should be capo-floored at all is a real open question — its
-            // waypoints are exempt today as unpitched travel, so one scrape currently has its
-            // start judged as a pressed stop and its path judged as travel. Flooring here fixes
-            // the failure without settling that; the question is recorded for the user.)
-            note.fret = std::max(
-                chart.tuning.capo + 1,
-                upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret);
+            // capo like every fret a slide gesture names (user ruling 2026-08-20, which closed
+            // W9-J: a scrape's start, its turnarounds, and its terminal all sit at or above the
+            // first playable fret — the pick travels the sounding string, and a scrape at the nut
+            // is no scrape). The default path floors its own terminal the same way.
+            note.fret = upward ? pickSlideDefaultLowFret(chart.tuning.capo)
+                               : std::max(chart.tuning.capo + 1, g_pick_slide_default_high_fret);
             note.sustain = span;
-            applyDefaultPickSlidePath(note, upward);
+            applyDefaultPickSlidePath(note, upward, chart.tuning.capo);
             kept.end_global_beat = kept.global_beat + span;
             ++imported_pick_slides;
         }

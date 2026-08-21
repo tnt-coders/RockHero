@@ -7,8 +7,12 @@ namespace rock_hero::editor::core
 
 bool pickSlideDefaultUpward(const int start_fret, const int capo) noexcept
 {
-    const int low_target = std::max(capo + 1, g_pick_slide_default_low_fret);
-    return (start_fret - low_target) < g_pick_slide_minimum_travel;
+    return (start_fret - pickSlideDefaultLowFret(capo)) < g_pick_slide_minimum_travel;
+}
+
+int pickSlideDefaultLowFret(const int capo) noexcept
+{
+    return std::max(capo + 1, g_pick_slide_default_low_fret);
 }
 
 bool scrapePathIsConvertible(const common::core::ChartNote& note) noexcept
@@ -43,16 +47,20 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
     return true;
 }
 
-void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward)
+void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward, const int capo)
 {
     if (note.sustain.numerator <= 0)
     {
         note.sustain = g_minimum_slide_window;
     }
-    int target = upward ? g_pick_slide_default_high_fret : g_pick_slide_default_low_fret;
+    // The low endpoint is the capo-floored one the direction chooser already reasons with, so a
+    // downward scrape under a high capo terminates at the first playable fret rather than at a
+    // fret the chart rules refuse.
+    const int low_fret = pickSlideDefaultLowFret(capo);
+    int target = upward ? g_pick_slide_default_high_fret : low_fret;
     if (target == note.fret)
     {
-        target = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;
+        target = upward ? low_fret : g_pick_slide_default_high_fret;
     }
     // The gesture is the required slide-out terminal; turnaround waypoints are authored later.
     note.slides.clear();

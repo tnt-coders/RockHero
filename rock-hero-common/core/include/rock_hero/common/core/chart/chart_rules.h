@@ -205,8 +205,10 @@ data rather than shed technique.
 
 A slide from the OPEN string sheds the same way (user rule 2026-08-20): nothing is pressed to
 travel, so a fret-0 glide or trail-off describes the unexecutable and the path drops whole. The
-scrape is the exclusion — whether its start names a stop or pick travel is deliberately unruled
-(W9-J), and its path is unpitched gesture geometry either way.
+scrape is the exclusion for a different reason: its start is floored above the capo as a RANGE
+rule the importer and the toggle verb guarantee (every fret a slide gesture names sits at or
+above the first playable fret, the ruling that closed W9-J), and shedding a scrape's path would
+leave it without its required terminal — no repair at all.
 
 The earlier ranking here had the node outrank the deadening and un-deaden the note, on the grounds
 that keeping the deadening "would silence a note the score named precisely" — which mistook a

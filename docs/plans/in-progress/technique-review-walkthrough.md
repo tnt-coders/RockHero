@@ -230,7 +230,8 @@ item ships, mark it and name the commit.
 - [ ] **W9 — Rulings the deep review needs.** Twelve questions, in the section below; **five are now
   closed** (W9-L reverted 2026-08-10, W9-A ruled and shipped 2026-08-11, W9-B ruled 2026-08-13 —
   the fold tracked as its own work item, W9-C ruled and SHIPPED 2026-08-13, W9-D ruled 2026-08-13 —
-  which uncovered W13), leaving seven: W9-E, F, G, H, I, J, K. W9-K is pre-answered by the
+  which uncovered W13), then W9-E, H, I (2026-08-18/20) and W9-J (2026-08-20, with the
+  open-string slide rules), leaving three: W9-F, G, K. W9-K is pre-answered by the
   whammy-channel ruling in `docs/plans/todo/whammy-bar-support.md`, and W9-F should be ruled
   together with W9-D's open glyph choice — both are the one question of how 2D says *pitched* versus
   *falls away*. Nothing else from that review is waiting: the rest was fixed in place on 2026-08-10.
@@ -517,10 +518,17 @@ the options with the agent's recommendation.
   reachable only from the lane's right-click menu, because the signed keymap never assigned it one.
   `Ctrl+H` is **taken, not merely reserved** (the left-hand tap shipped 2026-08-10 and was
   relabelled "Left-Hand Tap" 2026-08-11), so the scrape needs its own.
-- [ ] **W9-J — Is a scrape's start a stop or travel?** A scrape's start fret is floored at `capo + 1`
-  like a pressed note, while its waypoints are exempt as unpitched travel — so one gesture has its
-  start judged as a stop and its path as travel. Both readings are defensible; the code records the
-  tension without resolving it.
+- [x] **W9-J — Is a scrape's start a stop or travel? RULED 2026-08-20 and SHIPPED: the whole
+  gesture is floored.** The user, on sighting the open-string slide rules: *"Even unpitched
+  slides should probably require ending at 1 or 1 fret above the capo."* So every fret a slide
+  gesture names — a scrape's start, its turnarounds, and every slide-out's exit (a pitched
+  note's trail-off included) — sits at or above `capo + 1`; the pick travels the sounding string,
+  and a scrape at the nut is no scrape. The start/travel tension dissolves because start and
+  path are now judged alike. Shipped with the open-string slide rules: the validator lost the
+  scrape exemptions and gained the slide-out exit floor, and the default scrape path floors its
+  terminal through the same low-endpoint authority the direction chooser already used
+  (`pickSlideDefaultLowFret`) — under a high capo it used to synthesize a terminal the new rule
+  refuses.
 - [ ] **W9-K — Is a negative bend amount legal?** Nothing validates a bend's AMOUNT: the rules check
   only offsets and the reader takes the value raw. A negative one renders a chip with no number at
   all (the formatter's fraction lookup clamps to an empty string), so the mark says a bend exists and

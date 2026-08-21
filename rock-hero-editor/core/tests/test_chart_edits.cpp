@@ -822,6 +822,40 @@ TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][c
     }
 }
 
+// Under a capo the low endpoint yields to the first playable fret: every fret a slide gesture
+// names sits at or above capo + 1 (user ruling 2026-08-20), so a downward default scrape under a
+// high capo terminates at capo + 1 rather than at the bare corpus default the gate now refuses.
+// The chart's other notes are lifted above the capo so the fixture itself stays legal.
+TEST_CASE("planSetAttack floors the default scrape terminal above the capo", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.tuning.capo = 5;
+    for (common::core::ChartNote& note : chart.notes)
+    {
+        note.fret += 5;
+    }
+    chart.notes[2].fret = 20;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto plan =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* scrape =
+            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+        REQUIRE(scrape != nullptr);
+        REQUIRE(scrape->slide_out.has_value());
+        if (scrape->slide_out.has_value())
+        {
+            CHECK(scrape->slide_out->fret == 6);
+        }
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
+    }
+}
+
 // Toggling the attack in and back out restores the note field-for-field: the latents were never
 // touched, the path clears on exit, and fret and sustain survive the round trip.
 TEST_CASE("planSetAttack round-trips a toggled note exactly", "[core][chart]")

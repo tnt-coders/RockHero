@@ -277,8 +277,10 @@ ChartNote executableChartNote(ChartNote note)
         note.slide_out.reset();
     }
     // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or trail-off
-    // is shed whole. The scrape keeps its path — whether its start is a stop or pick travel is
-    // deliberately unruled (W9-J), and the path is unpitched gesture geometry either way.
+    // is shed whole. The scrape keeps its path: a scrape's start is floored above the capo as a
+    // RANGE rule the importer and the toggle verb guarantee (shedding the path would leave a
+    // scrape without its required terminal, which is no repair), so a fret-0 scrape never
+    // reaches the shed from a source this project controls.
     if (note.attack != NoteAttack::PickSlide && note.fret == 0)
     {
         note.slides.clear();
@@ -359,8 +361,12 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // The capo is the string's floor: 0 means the capo'd open string, and the frets it
-    // covers do not exist to play.
-    if (note.fret != 0 && note.fret <= tuning.capo)
+    // covers do not exist to play. A SCRAPE has no open form (user ruling 2026-08-20, closing
+    // W9-J): every fret a slide gesture names — a scrape's start, its turnarounds, and every
+    // slide-out's exit — sits at or above the first playable fret, because the pick travels
+    // the sounding string and a "scrape at the nut" is no scrape. So a scrape's start is
+    // floored like a pressed stop, with no fret-0 carve-out.
+    if (note.fret <= tuning.capo && (note.fret != 0 || note.attack == NoteAttack::PickSlide))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
@@ -369,12 +375,9 @@ std::expected<void, ChartError> validateChartNoteAlone(
     }
     // An open string cannot slide — nothing is pressed to travel, and the capo'd open is no
     // different (the capo does not move) — so a glide or trail-off from fret 0 describes the
-    // unexecutable. The scrape is deliberately excluded: whether its start names a stop or pick
-    // travel is an open ruling (W9-J), and its path is unpitched gesture geometry either way.
-    // The shed (\ref executableChartNote) drops the same path, so import repairs what this gate
-    // refuses.
-    if (note.attack != NoteAttack::PickSlide && note.fret == 0 &&
-        (!note.slides.empty() || note.slide_out.has_value()))
+    // unexecutable. The shed (\ref executableChartNote) drops the same path, so import repairs
+    // what this gate refuses. (A fret-0 scrape never reaches here: the floor above refuses it.)
+    if (note.fret == 0 && (!note.slides.empty() || note.slide_out.has_value()))
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
@@ -511,17 +514,18 @@ std::expected<void, ChartError> validateChartNotes(
                                positionText(note.position),
                 }};
             }
-            // Every stop on a pitched glide is a PRESSED position, so it obeys the capo floor
-            // exactly like the note's own fret — and, unlike the note, it may not be the open
-            // string either (user rule 2026-08-20): a glide cannot arrive at fret 0, because
-            // nothing is pressed there to arrive with; sliding down toward the nut is the
-            // unpitched trail-off, which is what the importer degrades such a glide to. A
-            // scrape's turnarounds are unpitched pick travel and exempt, like its slide-out.
-            if (note.attack != NoteAttack::PickSlide && waypoint.fret <= tuning.capo)
+            // Every fret a slide gesture names sits at or above the first playable fret (user
+            // ruling 2026-08-20): a pitched glide's stops are PRESSED positions, and a scrape's
+            // turnarounds are pick travel along the sounding string, so neither may name the
+            // open string or a capo'd fret — a glide cannot arrive at fret 0 because nothing is
+            // pressed there to arrive with (sliding down toward the nut is the unpitched
+            // trail-off, which is what the importer degrades such a glide to), and a scrape at
+            // the nut is no scrape.
+            if (waypoint.fret <= tuning.capo)
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidNotePayload,
-                    .message = "a pitched glide cannot reach the open string or a capo'd fret "
+                    .message = "a slide waypoint cannot sit on the open string or a capo'd fret "
                                "at " +
                                positionText(note.position),
                 }};
@@ -561,6 +565,17 @@ std::expected<void, ChartError> validateChartNotes(
                 .code = ChartErrorCode::InvalidNotePayload,
                 .message = "slide-out must end after every waypoint, within the sustain at " +
                            positionText(note.position),
+            }};
+        }
+        // The exit is unpitched travel, but it is travel along the SOUNDING string: a
+        // trail-off or a scrape's terminal exits at or above the first playable fret (user
+        // ruling 2026-08-20), the same floor every other fret a slide gesture names obeys. The
+        // importer has always floored its exits there; this is the model saying so.
+        if (slide_out != nullptr && slide_out->fret <= tuning.capo)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNotePayload,
+                .message = "slide-out must exit above the capo at " + positionText(note.position),
             }};
         }
 

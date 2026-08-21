@@ -776,7 +776,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
             if (!convertSlideToScrapePath(note))
             {
                 applyDefaultPickSlidePath(
-                    note, pickSlideDefaultUpward(note.fret, chart.tuning.capo));
+                    note, pickSlideDefaultUpward(note.fret, chart.tuning.capo), chart.tuning.capo);
             }
         }
         else if (was_scrape)

@@ -91,6 +91,18 @@ would have nowhere to go.
 [[nodiscard]] bool pickSlideDefaultUpward(int start_fret, int capo) noexcept;
 
 /*!
+\brief The low default endpoint a scrape travels to, floored at the first playable fret.
+
+One authority for the direction chooser and the path synthesis: every fret a slide gesture names
+sits at or above `capo + 1` (the chart rules refuse a terminal on or below the capo), so the
+corpus-derived low endpoint yields to the capo wherever the capo sits above it.
+
+\param capo The tuning's capo.
+\return The low endpoint fret for this capo.
+*/
+[[nodiscard]] int pickSlideDefaultLowFret(int capo) noexcept;
+
+/*!
 \brief Reports whether an existing slide could become a scrape path.
 
 The one thing that makes it impossible is a segment that HOLDS its fret: the rule authority
@@ -122,14 +134,16 @@ bool convertSlideToScrapePath(common::core::ChartNote& note);
 
 Leaves `fret` alone — the note's fret is the path start — clears `slides`, and makes the whole
 gesture the required unpitched `slide_out` terminal: its offset exactly at the sustain, its fret
-the far default endpoint (the low end for a downward scrape, the high end for an upward one; a
-start already sitting on the far endpoint travels to the other, so the path always moves). A zero
-sustain first extends to the minimum slide window so the path has somewhere to go. Turnaround
-waypoints are authored later, never synthesized here — a default scrape is one straight drag.
+the far default endpoint (the capo-floored low end for a downward scrape, the high end for an
+upward one; a start already sitting on the far endpoint travels to the other, so the path always
+moves). A zero sustain first extends to the minimum slide window so the path has somewhere to
+go. Turnaround waypoints are authored later, never synthesized here — a default scrape is one
+straight drag.
 
 \param note Note receiving the path; the caller owns setting the attack itself.
 \param upward True to scrape toward the neck's high end, false toward the low end.
+\param capo The tuning's capo, which floors the low endpoint (\ref pickSlideDefaultLowFret).
 */
-void applyDefaultPickSlidePath(common::core::ChartNote& note, bool upward);
+void applyDefaultPickSlidePath(common::core::ChartNote& note, bool upward, int capo);
 
 } // namespace rock_hero::editor::core

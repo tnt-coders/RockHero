@@ -343,8 +343,10 @@ stop reads the shifted note fret, and the natural-label formula (`capo + snapped
 already exactly right. GP cannot even express an absolute sub-capo fret, so imports never produce
 one; the sub-capo *validation* (frets 1..capo invalid) **shipped 2026-08-09 together with the
 editor verb gate** — plus the template, fret-hand-position, and pitched-glide-waypoint analogs,
-with a scrape's turnarounds and every slide-out exempt as unpitched travel, and the import FHP
-generators floored at capo + 1 — so no verb can author what validation rejects.
+and the import FHP generators floored at capo + 1 — so no verb can author what validation
+rejects. (A scrape's turnarounds and every slide-out were at first exempt as unpitched travel;
+the 2026-08-20 ruling that closed W9-J floors them too — every fret a slide gesture names sits at
+or above capo + 1, the open string included, because the pick travels the sounding string.)
 
 **Newly recorded cells, closed by the criterion, flagged for the glance:** Palm + Pinch (the
 palm-muted squeal — the single most common pinch context, previously resting on silent

@@ -952,6 +952,41 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({to_open}).has_value());
     }
 
+    SECTION("every fret a slide gesture names sits above the capo")
+    {
+        // The ruling that closed W9-J: unpitched travel is travel along the SOUNDING string, so
+        // a scrape's start, its turnarounds, and every slide-out's exit obey the same floor a
+        // pressed stop does — a scrape at the nut is no scrape.
+        const auto make_scrape = [&make_note](const int start) {
+            ChartNote scrape = make_note(1, 1, start);
+            scrape.attack = NoteAttack::PickSlide;
+            scrape.sustain = Fraction{1};
+            scrape.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 9}};
+            scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 12};
+            return scrape;
+        };
+        CHECK(validate({make_scrape(5)}).has_value());
+        CHECK_FALSE(validate({make_scrape(0)}).has_value());
+        CHECK_FALSE(validate({make_scrape(5)}, 5).has_value());
+
+        ChartNote low_turnaround = make_scrape(12);
+        low_turnaround.slides[0].fret = 2;
+        CHECK(validate({low_turnaround}).has_value());
+        CHECK_FALSE(validate({low_turnaround}, 2).has_value());
+
+        ChartNote low_exit = make_scrape(12);
+        low_exit.slide_out = SlideOut{.offset = Fraction{1}, .fret = 1};
+        CHECK(validate({low_exit}).has_value());
+        CHECK_FALSE(validate({low_exit}, 1).has_value());
+
+        // A pitched note's unpitched trail-off exits above the capo too.
+        ChartNote trail_off = make_note(1, 1, 7);
+        trail_off.sustain = Fraction{1};
+        trail_off.slide_out = SlideOut{.offset = Fraction{1}, .fret = 3};
+        CHECK(validate({trail_off}).has_value());
+        CHECK_FALSE(validate({trail_off}, 3).has_value());
+    }
+
     SECTION("either tapping attack needs a place to strike")
     {
         // Both attacks that strike from nowhere are bound, and both rules read one note: an open
@@ -1096,7 +1131,7 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         CHECK_FALSE(validate({make_note(1, 1, 3)}, 3).has_value());
     }
 
-    SECTION("the capo floor binds pitched glide waypoints but not scrape travel")
+    SECTION("the capo floor binds pitched glide waypoints and scrape travel alike")
     {
         ChartNote glide = make_note(1, 1, 5);
         glide.sustain = Fraction{1};
@@ -1106,12 +1141,16 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         glide.slides.front().fret = 2;
         CHECK_FALSE(validate({glide}, 3).has_value());
 
-        // A scrape's turnaround is unpitched pick travel and may dip below the capo.
+        // A scrape's turnaround used to be exempt as unpitched travel; the 2026-08-20 ruling
+        // (W9-J) binds it too — the pick travels the sounding string, so dipping below the capo
+        // is not a scrape. The same scrape with its turnaround above the capo stands.
         ChartNote scrape = make_note(1, 1, 5);
         scrape.attack = NoteAttack::PickSlide;
         scrape.sustain = Fraction{1};
         scrape.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 1}};
         scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 6};
+        CHECK_FALSE(validate({scrape}, 3).has_value());
+        scrape.slides.front().fret = 4;
         CHECK(validate({scrape}, 3).has_value());
     }
 }
