@@ -17,7 +17,7 @@ namespace rock_hero::editor::core
 Song-level view data, not tab data: every arrangement shares the same section list, so the
 sections ride EditorViewState directly instead of the per-arrangement tab projection.
 */
-struct SongSectionView
+struct SongSectionViewState
 {
     /*! \brief Absolute timeline second the section starts at. */
     double seconds{0.0};
@@ -36,7 +36,7 @@ struct SongSectionView
     \param rhs Right-hand view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const SongSectionView& lhs, const SongSectionView& rhs)
+    friend bool operator==(const SongSectionViewState& lhs, const SongSectionViewState& rhs)
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name;
     }

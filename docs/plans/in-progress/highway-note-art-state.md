@@ -409,7 +409,7 @@ the median was shipped instead.
 The fix DELETED rather than added: `highwayVibratoPeriodSeconds` and its beat-interval search are
 gone, and with them the signature-denominator conversion into the quarter-note frame plus the
 whole "a beat of 12/8 is an eighth, so the raw interval runs vibrato at double speed" bug class
-that conversion existed to patch. `HighwayBeatView::signature_denominator` lost its only consumer
+that conversion existed to patch. `HighwayBeatViewState::signature_denominator` lost its only consumer
 and went too (recover it from git if the grid ever needs re-reading). `g_highway_vibrato_period_seconds`
 stopped being a fallback and became the one authority.
 

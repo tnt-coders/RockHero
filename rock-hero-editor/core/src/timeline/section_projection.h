@@ -23,7 +23,7 @@ projection discipline, so the ruler's section lane never queries musical positio
 \param tempo_map Tempo map used to resolve musical positions to seconds.
 \return Seconds-resolved section views in the same order.
 */
-[[nodiscard]] std::vector<SongSectionView> makeSongSectionViews(
+[[nodiscard]] std::vector<SongSectionViewState> makeSongSectionViews(
     const std::vector<common::core::SongSection>& sections,
     const common::core::TempoMap& tempo_map);
 

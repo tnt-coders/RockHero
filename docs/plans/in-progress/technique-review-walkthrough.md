@@ -366,7 +366,7 @@ the options with the agent's recommendation.
   `HighwayViewState::display_hold_ends` from — one shared derivation feeding both view states, so no
   third implementation appeared. Each surface still spends the value in its own idiom (a 2D ribbon
   against a pinned 3D head), which is lawful. **One residual, recorded as a watch item rather than
-  closed here:** the board additionally clamps its pin with `HighwayChordGroupView::hold_cap_seconds`
+  closed here:** the board additionally clamps its pin with `HighwayChordGroupViewState::hold_cap_seconds`
   and 2D has no cap, so a span covering two strums ends the drawn hold earlier in 3D. The original
   question and its options follow.
   The rule that a sustainless note

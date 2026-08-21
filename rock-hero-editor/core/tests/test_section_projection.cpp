@@ -29,7 +29,7 @@ TEST_CASE("Section projection resolves song sections to seconds", "[core][sectio
         SongSection{.position = GridPosition{.measure = 3, .beat = 1}, .name = "verse"},
     };
 
-    const std::vector<SongSectionView> views = makeSongSectionViews(sections, makeTempoMap());
+    const std::vector<SongSectionViewState> views = makeSongSectionViews(sections, makeTempoMap());
 
     // Measure 1 beat 1 sits at zero; measure 3 beat 1 is beat index 8, half a second per beat.
     REQUIRE(views.size() == 2);

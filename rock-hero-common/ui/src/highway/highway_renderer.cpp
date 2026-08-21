@@ -2206,7 +2206,7 @@ void HighwayRenderer::Impl::draw(
         // with the fretting hand's windows deduplicates itself, and the path union already
         // carries any tapped-slide morph — the eased-coverage machinery stays exclusive to the
         // current fretting-hand window's hit-line crossfade.
-        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
         {
             if (tap.path.front().seconds > span_end_seconds)
             {
@@ -2239,7 +2239,7 @@ void HighwayRenderer::Impl::draw(
         // past the extent's bounding lines, and lines take the max over taps, so hand overlap
         // deduplicates itself exactly like the other tiers.
         std::array<double, g_face_fret_count + 1> tap_coverage{};
-        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
         {
             const common::core::HighwayTapLightStation& front = tap.path.front();
             const common::core::HighwayTapLightStation& back = tap.path.back();
@@ -2550,7 +2550,7 @@ void HighwayRenderer::Impl::draw(
                     vertex(lane_x0, zb, tint_b, low_x_b, high_x_b));
             }
         };
-        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
         {
             const common::core::HighwayTapLightStation& front = tap.path.front();
             const common::core::HighwayTapLightStation& back = tap.path.back();
@@ -2648,7 +2648,7 @@ void HighwayRenderer::Impl::draw(
 
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
-        for (const common::core::HighwayBeatView& beat : state.beats)
+        for (const common::core::HighwayBeatViewState& beat : state.beats)
         {
             if (beat.seconds < now_seconds - 0.2 || beat.seconds > span_end_seconds)
             {
@@ -3019,7 +3019,7 @@ void HighwayRenderer::Impl::draw(
             const common::core::ShapeViewState* arpeggio_shape;
             // A tapped chord box spans the taps' own fret extent instead of the fretting
             // hand's window (right-hand-tap-lighting plan); null for left-hand boxes.
-            const common::core::HighwayTapOnsetView* tap;
+            const common::core::HighwayTapOnsetViewState* tap;
             // Build position, the sort's tiebreak: onset alone is not a total order (a
             // tap-and-strum instant emits two boxes), and the deterministic build order is what
             // keeps their overlap from flickering frame to frame.
@@ -3046,14 +3046,14 @@ void HighwayRenderer::Impl::draw(
                     state.chord_groups,
                     shape.start_seconds - g_onset_match_epsilon,
                     std::ranges::less{},
-                    &common::core::HighwayChordGroupView::start_seconds),
+                    &common::core::HighwayChordGroupViewState::start_seconds),
                 std::ranges::upper_bound(
                     state.chord_groups,
                     shape.start_seconds + g_onset_match_epsilon,
                     std::ranges::less{},
-                    &common::core::HighwayChordGroupView::start_seconds));
+                    &common::core::HighwayChordGroupViewState::start_seconds));
             const auto struck_group = std::ranges::find_if(
-                group_candidates, [&](const common::core::HighwayChordGroupView& group) {
+                group_candidates, [&](const common::core::HighwayChordGroupViewState& group) {
                     return group.fretting_hand_count >= 2 &&
                            std::abs(group.start_seconds - shape.start_seconds) <
                                g_onset_match_epsilon;
@@ -3082,13 +3082,13 @@ void HighwayRenderer::Impl::draw(
                 state.chord_groups,
                 now_seconds,
                 std::ranges::less{},
-                &common::core::HighwayChordGroupView::start_seconds),
+                &common::core::HighwayChordGroupViewState::start_seconds),
             std::ranges::upper_bound(
                 state.chord_groups,
                 span_end_seconds,
                 std::ranges::less{},
-                &common::core::HighwayChordGroupView::start_seconds));
-        for (const common::core::HighwayChordGroupView& group : boxed_groups)
+                &common::core::HighwayChordGroupViewState::start_seconds));
+        for (const common::core::HighwayChordGroupViewState& group : boxed_groups)
         {
             // Only non-tap members earn the plain (fretting-hand) box: a fretted note under a
             // simultaneous tap is a single note, and tapped chords get their own box below.
@@ -3134,7 +3134,7 @@ void HighwayRenderer::Impl::draw(
         // Tapped chord boxes (right-hand-tap-lighting plan): two or more taps struck together
         // get their own box on the taps' fret extent — the tapping hand's counterpart of the
         // strummed box. Derived per onset; no repeat-box chain (taps are percussive).
-        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
         {
             if (tap.count < 2 || tap.seconds < now_seconds || tap.seconds > span_end_seconds)
             {
@@ -3746,17 +3746,17 @@ void HighwayRenderer::Impl::draw(
         // Dotted-fret numbers on each visible measure downbeat, lit within the hand range (a
         // downbeat mid-transition blends the dim and active colors by its coverage). A downbeat
         // inside a harmonic series' span yields its number on the node's own fret.
-        for (const common::core::HighwayBeatView& beat : std::ranges::subrange(
+        for (const common::core::HighwayBeatViewState& beat : std::ranges::subrange(
                  std::ranges::lower_bound(
                      state.beats,
                      now_seconds - 0.2,
                      std::ranges::less{},
-                     &common::core::HighwayBeatView::seconds),
+                     &common::core::HighwayBeatViewState::seconds),
                  std::ranges::upper_bound(
                      state.beats,
                      span_end_seconds,
                      std::ranges::less{},
-                     &common::core::HighwayBeatView::seconds)))
+                     &common::core::HighwayBeatViewState::seconds)))
         {
             if (!beat.measure_downbeat)
             {
@@ -3835,8 +3835,8 @@ void HighwayRenderer::Impl::draw(
         // upper members. A tapped glide then establishes each landing as its own new position
         // (matching the placements a fretting-hand glide carries at its targets): every path
         // station that changes the extent gets an arrival number of its own.
-        const common::core::HighwayTapOnsetView* previous_tap = nullptr;
-        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        const common::core::HighwayTapOnsetViewState* previous_tap = nullptr;
+        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
         {
             const bool repeat_in_lit_run =
                 previous_tap != nullptr &&
@@ -3968,7 +3968,7 @@ void HighwayRenderer::Impl::draw(
     {
         const common::core::NoteViewState& note = state.chart.notes[index];
         const std::size_t group_index = state.note_group[index];
-        const common::core::HighwayChordGroupView& group = state.chord_groups[group_index];
+        const common::core::HighwayChordGroupViewState& group = state.chord_groups[group_index];
         if (group.box_only)
         {
             // Repeated and dead strums render as their repeat box alone:
@@ -5323,7 +5323,7 @@ void HighwayRenderer::Impl::draw(
         // hand's light path crosses light up while the tap is held or arriving soon. Per-line
         // array, so overlap with the fretting hand's windows deduplicates itself; the path
         // union carries any tapped-slide morph.
-        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
         {
             if (tap.path.front().seconds > now_seconds + g_fret_active_horizon_seconds)
             {
@@ -5519,12 +5519,12 @@ void HighwayRenderer::Impl::draw(
             // binary search over the whole-song list (the projection owns the groups now, so a
             // current chord well behind the visible window resolves too instead of falling off
             // the window's edge).
-            const common::core::HighwayChordGroupView* current_group = nullptr;
+            const common::core::HighwayChordGroupViewState* current_group = nullptr;
             const auto after_lookahead = std::ranges::upper_bound(
                 state.chord_groups,
                 now_seconds + 0.02,
                 std::ranges::less{},
-                &common::core::HighwayChordGroupView::start_seconds);
+                &common::core::HighwayChordGroupViewState::start_seconds);
             if (after_lookahead != state.chord_groups.begin())
             {
                 current_group = &*std::prev(after_lookahead);
@@ -5686,7 +5686,7 @@ void HighwayRenderer::Impl::draw(
 
         // Section labels floating above the board at their arrival time.
         const double section_y = face_top_y + (metrics.string_distance * 1.5);
-        for (const common::core::HighwaySectionView& section : state.sections)
+        for (const common::core::HighwaySectionViewState& section : state.sections)
         {
             if (section.seconds < now_seconds - 0.5 || section.seconds > span_end_seconds)
             {
@@ -5960,7 +5960,7 @@ void HighwayRenderer::Impl::draw(
         // extents are separate lights that max-resolve on any shared line.
         for (std::size_t tap_index = 0; tap_index < state.tap_onsets.size(); ++tap_index)
         {
-            const common::core::HighwayTapOnsetView& tap = state.tap_onsets[tap_index];
+            const common::core::HighwayTapOnsetViewState& tap = state.tap_onsets[tap_index];
             if (tap.seconds > now_seconds)
             {
                 break; // onsets ascend
@@ -5973,7 +5973,7 @@ void HighwayRenderer::Impl::draw(
             double spacing = std::numeric_limits<double>::infinity();
             for (std::size_t next = tap_index + 1; next < state.tap_onsets.size(); ++next)
             {
-                const common::core::HighwayTapOnsetView& later = state.tap_onsets[next];
+                const common::core::HighwayTapOnsetViewState& later = state.tap_onsets[next];
                 if (later.seconds - tap.seconds > clamp_horizon)
                 {
                     break;

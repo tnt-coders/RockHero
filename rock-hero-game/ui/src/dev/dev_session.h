@@ -140,7 +140,7 @@ private:
     std::string m_chosen_arrangement_id;
 
     std::vector<std::filesystem::path> m_watched_files;
-    std::vector<common::core::HighwaySectionView> m_sections;
+    std::vector<common::core::HighwaySectionViewState> m_sections;
     std::optional<common::core::HighwayViewState> m_loaded_state;
 
     core::ChartSourceWatcher m_watcher;

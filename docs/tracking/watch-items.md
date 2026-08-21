@@ -562,7 +562,7 @@ eight more instances of the shape elsewhere in the tree, and a second pass later
 all eight — five comparisons deleted where nothing compares them (`HighwayCameraTarget`,
 `HighwayCameraPose`, `ToneGainPoint`, `AudioDeviceStatus`, `EditorViewState`), three hand-written
 where a gate is the natural next use (`InputCalibrationPrompt`, `InputCalibrationViewState`,
-`SongSectionView`), and one routed through a value type (`SignalChainViewState`'s gain). A
+`SongSectionViewState`), and one routed through a value type (`SignalChainViewState`'s gain). A
 whole-tree scan for the shape now returns nothing, so the retirement finally stands on a
 mechanism rather than a claim. The remaining defaults are correct and deliberate: `ChartViewState`,
 `HighwayViewState`, `HighwayDisplayOptions` and `ShapeStringViewState` carry no floating member OF

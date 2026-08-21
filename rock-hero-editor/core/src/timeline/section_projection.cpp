@@ -16,15 +16,15 @@ namespace
 
 } // namespace
 
-std::vector<SongSectionView> makeSongSectionViews(
+std::vector<SongSectionViewState> makeSongSectionViews(
     const std::vector<common::core::SongSection>& sections, const common::core::TempoMap& tempo_map)
 {
-    std::vector<SongSectionView> views;
+    std::vector<SongSectionViewState> views;
     views.reserve(sections.size());
     for (const common::core::SongSection& section : sections)
     {
         views.push_back(
-            SongSectionView{
+            SongSectionViewState{
                 .seconds = tempo_map.secondsAtGlobalBeatPosition(
                     globalBeatPosition(tempo_map, section.position)),
                 .name = section.name,

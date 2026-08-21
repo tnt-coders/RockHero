@@ -752,7 +752,7 @@ void EditorView::setState(const core::EditorViewState& state)
     // The ruler's section chip row shows the song's section markers as a pinned marker lane.
     std::vector<RulerSectionLabel> section_labels;
     section_labels.reserve(m_state.sections.size());
-    for (const core::SongSectionView& section : m_state.sections)
+    for (const core::SongSectionViewState& section : m_state.sections)
     {
         section_labels.push_back(
             RulerSectionLabel{

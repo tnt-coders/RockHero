@@ -133,7 +133,7 @@ struct HighwayTapLightStation
 };
 
 /*! \brief One tapping-hand onset (a lone tap or a tapped chord) derived from the notes. */
-struct HighwayTapOnsetView
+struct HighwayTapOnsetViewState
 {
     /*! \brief Absolute onset position shared by the simultaneous taps. */
     double seconds{0.0};
@@ -179,7 +179,8 @@ struct HighwayTapOnsetView
     the projection produced. The scalars are tested before the path so an unequal onset rejects
     without walking the station vector.
     */
-    friend bool operator==(const HighwayTapOnsetView& lhs, const HighwayTapOnsetView& rhs) noexcept
+    friend bool operator==(
+        const HighwayTapOnsetViewState& lhs, const HighwayTapOnsetViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret_low == rhs.fret_low &&
                lhs.fret_high == rhs.fret_high && lhs.count == rhs.count &&
@@ -196,7 +197,7 @@ per revision by \ref makeHighwayChordGroups: the repeat rules look BACKWARD thro
 note stream, so deriving them inside the renderer's visible window both re-ran them every frame
 and could not see past the window's edge.
 */
-struct HighwayChordGroupView
+struct HighwayChordGroupViewState
 {
     /*! \brief Absolute onset second shared by the group's members. */
     double start_seconds{0.0};
@@ -276,7 +277,7 @@ struct HighwayChordGroupView
     values the projection produced, and infinity caps compare equal to themselves).
     */
     friend bool operator==(
-        const HighwayChordGroupView& lhs, const HighwayChordGroupView& rhs) noexcept
+        const HighwayChordGroupViewState& lhs, const HighwayChordGroupViewState& rhs) noexcept
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) && lhs.first == rhs.first &&
                lhs.count == rhs.count && lhs.fretting_hand_count == rhs.fretting_hand_count &&
@@ -290,7 +291,7 @@ struct HighwayChordGroupView
 struct HighwayChordGrouping
 {
     /*! \brief Onset groups in ascending time order. */
-    std::vector<HighwayChordGroupView> groups;
+    std::vector<HighwayChordGroupViewState> groups;
 
     /*! \brief Each note's index into \ref groups, sized and ordered like the note stream. */
     std::vector<std::size_t> note_group;
@@ -306,7 +307,7 @@ struct HighwayChordGrouping
 };
 
 /*! \brief One beat bar on the board, resolved to a timeline second. */
-struct HighwayBeatView
+struct HighwayBeatViewState
 {
     /*! \brief Absolute position of the beat. */
     double seconds{0.0};
@@ -321,7 +322,7 @@ struct HighwayBeatView
     \return True when both views store equal values.
     */
     friend constexpr bool operator==(
-        const HighwayBeatView& lhs, const HighwayBeatView& rhs) noexcept
+        const HighwayBeatViewState& lhs, const HighwayBeatViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
                lhs.measure_downbeat == rhs.measure_downbeat;
@@ -329,7 +330,7 @@ struct HighwayBeatView
 };
 
 /*! \brief One section label resolved to a timeline second. */
-struct HighwaySectionView
+struct HighwaySectionViewState
 {
     /*! \brief Absolute position the section starts at. */
     double seconds{0.0};
@@ -351,7 +352,7 @@ struct HighwaySectionView
     \param rhs Right-hand section view.
     \return True when both views store equal values.
     */
-    friend bool operator==(const HighwaySectionView& lhs, const HighwaySectionView& rhs)
+    friend bool operator==(const HighwaySectionViewState& lhs, const HighwaySectionViewState& rhs)
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name;
     }
@@ -388,7 +389,7 @@ struct HighwayViewState
     Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): these
     feed the per-tap light envelopes and the tapped chord boxes, and carry no user-editable data.
     */
-    std::vector<HighwayTapOnsetView> tap_onsets;
+    std::vector<HighwayTapOnsetViewState> tap_onsets;
 
     /*!
     \brief Onset groups in ascending order, classified for chord-box and repeat treatment.
@@ -396,7 +397,7 @@ struct HighwayViewState
     Derived once per chart revision by \ref makeHighwayChordGroups; the renderer clamps these to
     its visible range instead of rebuilding and reclassifying them every frame.
     */
-    std::vector<HighwayChordGroupView> chord_groups;
+    std::vector<HighwayChordGroupViewState> chord_groups;
 
     /*!
     \brief Each note's index into \ref chord_groups, sized and ordered like
@@ -405,10 +406,10 @@ struct HighwayViewState
     std::vector<std::size_t> note_group;
 
     /*! \brief Every beat of the song grid in ascending order, downbeats marked. */
-    std::vector<HighwayBeatView> beats;
+    std::vector<HighwayBeatViewState> beats;
 
     /*! \brief Section labels in ascending order. */
-    std::vector<HighwaySectionView> sections;
+    std::vector<HighwaySectionViewState> sections;
 
     /*!
     \brief Camera framing-zone start times in ascending order; each zone runs to the next start.
@@ -465,7 +466,7 @@ tap onset's release.
 \param note_rise_seconds Per-note margin rise duration in seconds, sized and ordered like notes.
 \return Tap onsets in ascending time order, each with at least one path station.
 */
-[[nodiscard]] inline std::vector<HighwayTapOnsetView> makeHighwayTapOnsets(
+[[nodiscard]] inline std::vector<HighwayTapOnsetViewState> makeHighwayTapOnsets(
     const std::vector<NoteViewState>& notes, const std::vector<double>& note_rise_seconds)
 {
     // A member's hand position at an instant: its own fret before any glide, linear between
@@ -522,7 +523,7 @@ tap onset's release.
         return std::max(note.end_seconds, note.start_seconds);
     };
 
-    std::vector<HighwayTapOnsetView> onsets;
+    std::vector<HighwayTapOnsetViewState> onsets;
     std::vector<const NoteViewState*> taps;
     std::vector<double> station_times;
     std::vector<double> scrape_times;
@@ -535,7 +536,7 @@ tap onset's release.
         {
             ++group_end;
         }
-        HighwayTapOnsetView view{.seconds = onset, .path = {}};
+        HighwayTapOnsetViewState view{.seconds = onset, .path = {}};
         taps.clear();
         for (std::size_t member = index; member < group_end; ++member)
         {
@@ -667,7 +668,7 @@ whatever window a renderer happens to be drawing.
         {
             ++group_end;
         }
-        HighwayChordGroupView group{
+        HighwayChordGroupViewState group{
             .start_seconds = notes[index].start_seconds,
             .first = index,
             .count = group_end - index,
@@ -732,7 +733,7 @@ whatever window a renderer happens to be drawing.
     };
     for (std::size_t group_index = 0; group_index < grouping.groups.size(); ++group_index)
     {
-        HighwayChordGroupView& group = grouping.groups[group_index];
+        HighwayChordGroupViewState& group = grouping.groups[group_index];
         if (group.count < 2)
         {
             continue;
@@ -861,7 +862,7 @@ whatever window a renderer happens to be drawing.
     // chugs, and single notes continue the hold rather than taking it over, exactly as they
     // never break a repeat chain.
     double next_shown_onset = std::numeric_limits<double>::infinity();
-    for (HighwayChordGroupView& group : grouping.groups | std::views::reverse)
+    for (HighwayChordGroupViewState& group : grouping.groups | std::views::reverse)
     {
         group.hold_cap_seconds = next_shown_onset;
         if (group.count >= 2 && !group.box_only && !group.all_dead)

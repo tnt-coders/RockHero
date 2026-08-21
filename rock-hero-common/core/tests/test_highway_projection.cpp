@@ -756,11 +756,11 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     add_note(3.000000000001, 17, NoteAttack::Tap);
     add_note(4.0, 9, NoteAttack::LeftTap); // The FRETTING hand's tap: no entry.
 
-    const std::vector<HighwayTapOnsetView> onsets =
+    const std::vector<HighwayTapOnsetViewState> onsets =
         makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
     REQUIRE(onsets.size() == 3);
     CHECK(
-        onsets[0] == HighwayTapOnsetView{
+        onsets[0] == HighwayTapOnsetViewState{
                          .seconds = 1.0,
                          .fret_low = 12,
                          .fret_high = 12,
@@ -770,7 +770,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
                          }},
                      });
     CHECK(
-        onsets[1] == HighwayTapOnsetView{
+        onsets[1] == HighwayTapOnsetViewState{
                          .seconds = 2.0,
                          .fret_low = 14,
                          .fret_high = 14,
@@ -780,7 +780,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
                          }},
                      });
     CHECK(
-        onsets[2] == HighwayTapOnsetView{
+        onsets[2] == HighwayTapOnsetViewState{
                          .seconds = 3.0,
                          .fret_low = 12,
                          .fret_high = 17,
@@ -805,7 +805,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
     tap.attack = NoteAttack::Tap;
     tap.harmonic_node = 12.0;
 
-    const std::vector<HighwayTapOnsetView> onsets =
+    const std::vector<HighwayTapOnsetViewState> onsets =
         makeHighwayTapOnsets({tap}, std::vector<double>(1, 0.0));
     REQUIRE(onsets.size() == 1);
     CHECK(onsets.front().count == 1);
@@ -861,7 +861,7 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     };
     notes.push_back(trailing);
 
-    const std::vector<HighwayTapOnsetView> onsets =
+    const std::vector<HighwayTapOnsetViewState> onsets =
         makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
     REQUIRE(onsets.size() == 3);
 
@@ -923,7 +923,7 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
     add_tap(3.6, 3.6, 15); // Rise clamps to 0.1s — the gap after the hold, not the onset gap.
 
     const std::vector<double> rises{0.2, 0.25, 0.25, 0.25, 0.25};
-    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes, rises);
+    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes, rises);
     REQUIRE(onsets.size() == 4);
     CHECK(onsets[0].ramp_seconds == Catch::Approx(0.25));
     CHECK(onsets[1].ramp_seconds == Catch::Approx(0.2));
@@ -978,7 +978,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     // The right-hand light rides the scrape: one onset whose path stations follow the
     // traveled waypoints (17 at the onset, 3 at the reversal, 9 at the end).
     REQUIRE(state.tap_onsets.size() == 1);
-    const HighwayTapOnsetView& light = state.tap_onsets.front();
+    const HighwayTapOnsetViewState& light = state.tap_onsets.front();
     CHECK(light.fret_low == 17);
     CHECK(light.count == 1);
     REQUIRE(light.path.size() == 3);
@@ -1060,7 +1060,7 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
     note.slides = {SlideViewState{.seconds = 2.0, .fret = 9, .unpitched = false}};
 
     const std::vector<NoteViewState> notes{note};
-    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes, {0.0});
+    const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes, {0.0});
 
     REQUIRE(onsets.size() == 1);
     REQUIRE_FALSE(onsets[0].path.empty());
@@ -1085,7 +1085,7 @@ TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]
 
     REQUIRE(grouping.groups.size() == 2);
     REQUIRE(grouping.note_group.size() == notes.size());
-    const HighwayChordGroupView& strum = grouping.groups[0];
+    const HighwayChordGroupViewState& strum = grouping.groups[0];
     CHECK(strum.first == 0);
     CHECK(strum.count == 3);
     CHECK(strum.fretting_hand_count == 2);
@@ -1108,7 +1108,7 @@ TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highw
     const auto mutesOf = [](std::vector<NoteViewState> notes) {
         const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
         REQUIRE(grouping.groups.size() == 1);
-        const HighwayChordGroupView& group = grouping.groups.front();
+        const HighwayChordGroupViewState& group = grouping.groups.front();
         return std::pair{group.all_palm_muted, group.all_dead};
     };
 

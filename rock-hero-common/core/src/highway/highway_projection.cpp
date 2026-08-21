@@ -38,7 +38,7 @@ HighwayViewState makeHighwayViewState(
         // section per frame for a value that only changes when the chart does.
         std::string name = asciiUppered(section.name);
         state.sections.push_back(
-            HighwaySectionView{
+            HighwaySectionViewState{
                 .seconds = tempo_map.secondsAtGlobalBeatPosition(
                     globalBeatPosition(tempo_map, section.position)),
                 .name = std::move(name),
@@ -93,7 +93,7 @@ HighwayViewState makeHighwayViewState(
     {
         const auto [measure, beat_in_measure] = tempo_map.beatAtGlobalIndex(index);
         state.beats.push_back(
-            HighwayBeatView{
+            HighwayBeatViewState{
                 .seconds = beat_cursor.secondsAt(static_cast<double>(index)),
                 .measure_downbeat = beat_in_measure == 1,
             });
@@ -106,7 +106,7 @@ HighwayViewState makeHighwayViewState(
     // downbeats, a run of empty measures collapses into one zone however long (rests are the
     // camera's travel time, not framing churn), and a section start forces a new zone.
     std::vector<double> measure_starts;
-    for (const HighwayBeatView& beat : state.beats)
+    for (const HighwayBeatViewState& beat : state.beats)
     {
         if (beat.measure_downbeat)
         {

@@ -649,7 +649,7 @@ struct EditorViewState
     \brief Song-structure sections resolved to seconds for the ruler's section chip row; empty
     when the song defines none.
     */
-    std::vector<SongSectionView> sections{};
+    std::vector<SongSectionViewState> sections{};
 
     /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.
