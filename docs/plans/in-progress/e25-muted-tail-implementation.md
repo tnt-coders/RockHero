@@ -218,6 +218,37 @@ thing Q2 forbids) or admitting an invalid chart. The reconciliation to put to th
 - Retire the watch item with this ruling recorded (its trigger has fired and its remedy is
   superseded), per the registry's own discipline.
 
+## 6.6. Q2's PREMISE WAS FALSIFIED the same day — range rules change too (needs the user's read)
+
+Q2 classed range violations (fret past the cap, a fret on or below the capo, an FHP window off
+the neck) as *structural*: "only producible by a corrupt or hand-mangled file, never by a rule
+change, so load never refuses in practice." Four rulings shipped on 2026-08-20 are rule changes
+that produce exactly those violations in previously-valid saved projects:
+
+| change | previously-valid form it invalidates |
+|---|---|
+| `g_max_fret` 30 → 24 | a note, waypoint, exit, template, or FHP window the old importer clamped to 25–30 (high-capo imports), and any FHP window generated near the old cap |
+| open-string slide rules | an imported legato glide from or to an open string |
+| every slide fret floored at `capo + 1` | an imported scrape under capo ≥ 3 whose default terminal sat at the bare fret 3; any turnaround or exit on a capo'd fret |
+
+Today none of these can enter memory — the package reader refuses at `validateChartRules`, so
+the editor and the game both refuse to OPEN such a project. That is the brick W4 exists to
+prevent, arriving through the class Q2 said could not change. (The shed's scrape-start
+exclusion is a red herring here: the shed does not run at load at all today.)
+
+**Proposed amendment, pending the user's read.** The load normalizer runs inside the package
+reader, which HAS the tuning, so range-class repairs are available at load even though the
+per-note shed (which has no tuning) cannot express them. Give load two repair passes before the
+validate — the shed for technique-class rules, and a tuning-aware *range* pass that applies the
+importer's own repairs: clamp a fret or exit past the cap to the cap, drop a waypoint below the
+floor, lift an exit below the floor to `capo + 1`, shrink an FHP window onto the neck, and
+demote a scrape whose start cannot be floored to the plain pick it sounds like with its path
+cleared. Both passes report through the same conversions channel with positions. What then
+remains for the validator to refuse is genuinely structural — ordering, missing data, a string
+the tuning lacks — which no rule change produces. Until W4 builds, the standing policy for these
+projects is the one the backlog already records: re-import from the GP source, which the
+importer now produces in valid form.
+
 **Q1. Normalize-on-load forces a taxonomy the rules do not currently have.** If load normalizes
 rather than refuses, every rule must be normalizable or load still has a failure path. Today they
 are not uniform:

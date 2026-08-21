@@ -135,6 +135,16 @@ rest, each verified against the code, each a fix rather than a question unless m
   attack token is a read error — so every package written before that date now fails to load for this
   reason too, whether or not it carried a harmonic. Same remedy, same tripwire; warn the user before
   they open an old project.
+  **Four rule tightenings widened it again (2026-08-20)** — these refuse at `validateChartRules`,
+  so an affected project fails to OPEN (editor and game alike): the fret cap fell from 30 to 24
+  (any note, waypoint, exit, template, or FHP window the old importer clamped to 25–30, and FHP
+  windows generated near the old cap); an open string can neither depart nor arrive a slide
+  (imported legato glides from/to an open string); and every fret a slide gesture names now sits
+  at or above `capo + 1` (an imported scrape under capo ≥ 3 whose default terminal sat at fret 3,
+  any turnaround or exit on a capo'd fret). Same remedy — re-import from the GP source, which the
+  importer now produces in valid form. The durable fix is W4's load normalization with the Q2
+  amendment recorded in `e25-muted-tail-implementation.md` §6.6, after which a rule change can
+  repair-and-warn at load instead of refusing.
   **The converter's own conversion notes need re-verifying before you trust them** (2026-08-10): the
   two recorded here — every natural harmonic gains a node equal to its touched fret (1960 of them in
   the packages measured), and pinch harmonics import as plain picks (5 notes corpus-wide, so a
