@@ -1427,7 +1427,7 @@ TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
     const std::vector<HighwayShapeView> shapes{chordShape(1.0, 3.0, posture)};
-    const double epsilon_below = 1.0 - (g_highway_onset_match_epsilon / 2.0);
+    const double epsilon_below = 1.0 - (g_onset_match_epsilon / 2.0);
     std::vector<HighwayNoteView> notes{
         chordNote(epsilon_below, 1, 3),
         chordNote(epsilon_below, 2, 5),

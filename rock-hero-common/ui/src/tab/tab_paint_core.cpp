@@ -1,5 +1,6 @@
 #include "tab/tab_paint_core.h"
 
+#include "highway/highway_emphasis_styles.h"
 #include "string_colors/string_color_palette.h"
 
 #include <algorithm>
@@ -36,19 +37,19 @@ const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
 // already draw white-on-black. The letter names the gesture and the polarity names the hand,
 // which is how the right-hand tap (dark T) and the left-hand tap (light T) share one letter
 // without colliding.
-enum class Hand
+enum class Hand : std::uint8_t
 {
     Picking,
     Fretting
 };
 
-/*! \brief One plate's two inks, chosen by the hand axis above; every plate shares one rim. */
+// One plate's two inks, chosen by the hand axis above; every plate shares one rim.
 struct PlatePalette
 {
-    /*! \brief Plate body fill. */
+    // Plate body fill.
     juce::Colour fill;
 
-    /*! \brief Letter ink. */
+    // Letter ink.
     juce::Colour ink;
 };
 
@@ -125,16 +126,14 @@ constexpr int g_arpeggio_posture_gap{1};
     return juce::Colour{multiplyColor(color.getARGB(), multiplier)};
 }
 
-/*!
-\brief Every ink one note can be drawn with, per-string and neutral alike.
-
-ONE authority. The per-string half of this list is the Charter derivation chain; the neutral half
-is the greys and whites the technique marks were reaching for directly, from the constants above.
-Both halves were always a note's ink — they were simply held in two places, so anything that had
-to act on ALL of a note's ink (the emphasis axis is the first, and it will not be the last) had no
-single place to act. Naming them one set is what makes \ref StringStyle::ghosted possible without
-a factor threaded through every drawing helper.
-*/
+// Every ink one note can be drawn with, per-string and neutral alike.
+//
+// ONE authority. The per-string half of this list is the Charter derivation chain; the neutral
+// half is the greys and whites the technique marks were reaching for directly, from the constants
+// above. Both halves were always a note's ink — they were simply held in two places, so anything
+// that had to act on ALL of a note's ink (the emphasis axis is the first, and it will not be the
+// last) had no single place to act. Naming them one set is what makes StringStyle::ghosted
+// possible without a factor threaded through every drawing helper.
 enum class Ink : std::uint8_t
 {
     Lane,        // string line: base x0.8
@@ -167,16 +166,15 @@ enum class Ink : std::uint8_t
 // four counts, and everywhere else translucency reveals a lane line, a waveform, a measure grid
 // and a neighbour's ribbon, every one of them brighter than a ghost's own ring.
 //
-// ONE weight, and it is the highway's own number read for this surface: a ghost there keeps alpha
-// 0.5 over a dark world, which leaves exactly half the ground showing through, so half is what
-// this surface leans. The two say the same thing about the same note through different mechanisms
-// — and because the arithmetic matches exactly, they stay in step by construction rather than by
-// two numbers being maintained in agreement.
+// ONE weight, read from the shared emphasis styles rather than spelled again here: a ghost on
+// the highway keeps that alpha over a dark world, which leaves exactly that share of the ground
+// showing through, so the same share is what this surface leans. The two say the same thing about
+// the same note through different mechanisms, and reading one number is what keeps them in step.
 //
 // The head and the sustain used to differ (0.55 against 0.35), on the reasoning that a ghost is an
 // attack dynamic rather than a sustain one so a ribbon dimmed as hard as its head would read as a
 // rendering fault. Collapsing them is being tried against exactly that claim.
-constexpr float g_ghost_ground{0.5f};
+constexpr float g_ghost_ground{static_cast<float>(g_ghost_alpha)};
 
 // Bridges the shared Charter-exact style derivation to JUCE colors at this module's boundary;
 // the per-string entries match common::ui::StringLaneStyle one for one.
@@ -229,18 +227,14 @@ struct StringStyle
             std::ranges::none_of(inks, [](const juce::Colour ink) { return ink.isTransparent(); }));
     }
 
-    /*!
-    \brief This string's ink set with a ghost's quiet taken out of it.
-
-    Quiet on THIS surface means leaning toward the lane's own ground, not translucency — the
-    ruling and its evidence sit with the weight above. Applied to EVERY ink at one weight, so a
-    mark added later is quiet by construction rather than by remembering to quiet it, and no ink
-    can drift out of step with its neighbours. \ref Ink::HeadBacking is self-correcting: the
-    ground leaned toward the ground is the ground.
-
-    \param ground How far every ink leans toward the lane's ground.
-    \return The quieted ink set.
-    */
+    // This string's ink set with a ghost's quiet taken out of it: `ground` is how far every ink
+    // leans toward the lane's ground.
+    //
+    // Quiet on THIS surface means leaning toward the lane's own ground, not translucency — the
+    // ruling and its evidence sit with the weight above. Applied to EVERY ink at one weight, so a
+    // mark added later is quiet by construction rather than by remembering to quiet it, and no
+    // ink can drift out of step with its neighbours. Ink::HeadBacking is self-correcting: the
+    // ground leaned toward the ground is the ground.
     [[nodiscard]] StringStyle ghosted(const float ground) const
     {
         StringStyle quiet = *this;
@@ -353,7 +347,9 @@ struct LabelChip
 [[nodiscard]] const common::core::TabNoteView* headAtSpanStart(
     const common::core::TabViewState& tab, double span_start_seconds, int chart_string)
 {
-    constexpr double tolerance = 1.0e-9;
+    // The same question every same-instant test on either surface asks — are these two chart
+    // times one moment — so it reads the one named tolerance rather than restating the number.
+    constexpr double tolerance = common::core::g_onset_match_epsilon;
     const auto onset = &common::core::TabNoteView::start_seconds;
     for (auto it = std::ranges::lower_bound(
              tab.notes, span_start_seconds - tolerance, std::ranges::less{}, onset);
@@ -513,10 +509,10 @@ struct TailRun
 // 6.25 px along the tail.
 struct TailCenterline
 {
-    /*! Centreline points, left to right along the tail. */
+    // Centreline points, left to right along the tail.
     std::vector<juce::Point<float>> points;
 
-    /*! Half the band's thickness; each rail lies this far off the centreline. */
+    // Half the band's thickness; each rail lies this far off the centreline.
     float half_thickness{};
 };
 
@@ -1222,7 +1218,7 @@ void drawSlideWaypointHeads(
 // point (white text on the string's lane color darkened twice).
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, float onset_x, float center_y,
+    const common::core::TabNoteView& note, const double end_seconds, float onset_x, float center_y,
     std::vector<LabelChip>& bend_chips)
 {
     if (note.bend.empty())
@@ -1244,7 +1240,9 @@ void drawBendLines(
     };
 
     const juce::Colour chip_background = charterDarker(charterDarker(style[Ink::Lane]));
-    const float end_x = metrics.x(note.end_seconds);
+    // The flat run ends where the DISPLAY hold ends — a span-held member's ribbon runs past its
+    // stored sustain, and the polyline it rides must reach the same end.
+    const float end_x = metrics.x(end_seconds);
     juce::Point<float> last{onset_x, bend_y(0.0)};
     g.setColour(style[Ink::TechniqueLine]);
     for (const common::core::TabBendPointView& point : note.bend)
@@ -1275,6 +1273,16 @@ void drawBendLines(
     g.drawLine(last.x, last.y, end_x, last.y, line_thickness);
 }
 
+// The accent glow's outer diameter: the head's VISIBLE edge grown by the shared reach on every
+// side. The visible edge is the bright ring at `size / 2 - border` now that the dark backing is
+// gone, and the reach is measured from there — a literal 1.4 * size would expose a further
+// `border` of glow inward and the mark would read larger than its reach.
+[[nodiscard]] float accentGlowSize(const float size)
+{
+    return 2.0f *
+           (((size / 2.0f) - noteBorderThickness(size)) + (g_accent_glow_reach_heads * size));
+}
+
 // Draws Charter's accent glow behind the head: a soft ring fading out just past the head edge.
 //
 // The plectrum shares the disc's radial fade. An accented scrape is legal — an aggressively
@@ -1282,22 +1290,6 @@ void drawBendLines(
 // a 25 px head against the disc's 1.560: visually tight but real. The knob is glow_size, which
 // the round head shares, so widening it is a joint retune (measurements in the
 // technique-compatibility plan doc).
-// The accent glow's outer diameter: the head's VISIBLE edge grown by the shared reach on every
-// side. Which edge is visible depends on the trim, and that is the whole point of this function
-// existing rather than a literal 1.4 — the backing is opaque and the lane's own colour, so with it
-// present the glow is hidden inside radius `size / 2` no matter what radius it is drawn at, and
-// 1.4 * size is correct. Without it the bright ring at `size / 2 - border` becomes the visible
-// edge, and the unchanged radius exposes a further `border` of glow inward: the outer edge has not
-// moved, the inner one has, and the mark reads much larger.
-//
-// PlainInset keeps the shipped radius ON PURPOSE, so that difference can be seen beside
-// PlainInsetTrimGlow rather than being quietly corrected in both.
-[[nodiscard]] float accentGlowSize(const float size)
-{
-    return 2.0f *
-           (((size / 2.0f) - noteBorderThickness(size)) + (g_accent_glow_reach_heads * size));
-}
-
 void drawAccentGlow(
     juce::Graphics& g, const StringStyle& style, float center_x, float center_y, float size,
     HeadShape shape)
@@ -1912,7 +1904,9 @@ void paintTabPendingEntryBox(
         note != nullptr ? headDigitRaise(headShapeFor(*note), metrics.headSize()) : 0.0f;
     const juce::Rectangle<float> plate =
         headTextPlate(metrics, text, center_x, center_y - digit_raise);
-    g.setColour(light_plate ? juce::Colour{0xffffffff} : juce::Colour{0xff101010});
+    // The valid ground is the lane's own near-black (the head backing's ink) and the invalid one is
+    // the light plate, the same two inks every plated digit already wears.
+    g.setColour(light_plate ? juce::Colours::white : g_note_background_color);
     g.fillRect(plate);
     g.setColour(border_color);
     g.drawRect(plate, 1.0f);
@@ -2198,7 +2192,15 @@ void paintTabLane(
             drawVibratoSine(
                 g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
             drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
-            drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
+            drawBendLines(
+                g,
+                metrics,
+                style,
+                note,
+                tab.display_hold_ends[index],
+                onset_x,
+                center_y,
+                bend_chips);
         }
     }
 

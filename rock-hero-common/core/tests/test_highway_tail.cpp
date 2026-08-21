@@ -344,7 +344,7 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
     };
     note.slides = {HighwaySlideView{.seconds = 12.7, .fret = 7, .unpitched = false}};
 
-    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {});
+    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {}, 256);
 
     REQUIRE(times.size() >= 5);
     CHECK(times.front() == Catch::Approx(10.0));
@@ -358,10 +358,10 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
     }
 
     // An empty span yields no samples; a control point landing on a uniform sample dedupes.
-    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5, {}).empty());
+    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5, {}, 256).empty());
     note.bend = {HighwayBendPointView{.seconds = 12.0, .semitones = 1.0}};
     note.slides.clear();
-    const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {});
+    const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {}, 256);
     CHECK(std::ranges::count(deduped, 12.0) == 1);
 }
 
@@ -375,7 +375,7 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
     note.end_seconds = 11.0;
 
     const std::vector<double> extra{10.13, 10.42, 10.87};
-    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, extra);
+    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, extra, 256);
 
     CHECK(std::ranges::is_sorted(times));
     for (const double wanted : extra)
@@ -387,7 +387,8 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
     // Extras outside the span are dropped rather than widening it, and the cap that bounds the
     // uniform grid never evicts the ones inside.
     const std::vector<double> outside{9.0, 10.5, 12.0};
-    const std::vector<double> clipped = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, outside);
+    const std::vector<double> clipped =
+        makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, outside, 256);
     CHECK(clipped.front() == Catch::Approx(10.0));
     CHECK(clipped.back() == Catch::Approx(11.0));
     CHECK(std::ranges::count_if(clipped, [](const double value) {
@@ -395,8 +396,44 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
           }) == 1);
 
     // Sampling extras stays optional: a plain tail passes none and gets the uniform grid.
-    const std::vector<double> plain = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, {});
+    const std::vector<double> plain = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, {}, 256);
     CHECK(plain.size() == 5);
+}
+
+// The cap is one budget for the whole list. The exact times are never evicted — a turning point
+// the grid rounds is a visible error — so the uniform grid is what yields, down to its two
+// endpoints. Before this the cap bounded only the grid, every exact time was appended past it, and
+// a long teethed open tail reached nearly twice the cap.
+TEST_CASE("Highway tail sample times hold the cap as one budget", "[core][highway][tail]")
+{
+    HighwayNoteView note;
+    note.start_seconds = 10.0;
+    note.end_seconds = 20.0;
+
+    // Forty exact times under a cap of 64: the grid shrinks to 24 and the list holds the cap.
+    std::vector<double> extra;
+    for (int index = 1; index <= 40; ++index)
+    {
+        extra.push_back(10.0 + (static_cast<double>(index) * 0.2));
+    }
+    const std::vector<double> budgeted =
+        makeHighwayTailSampleTimes(note, 10.0, 20.0, 256, extra, 64);
+    CHECK(budgeted.size() <= 64);
+    CHECK(budgeted.front() == Catch::Approx(10.0));
+    CHECK(budgeted.back() == Catch::Approx(20.0));
+    for (const double wanted : extra)
+    {
+        CHECK(std::ranges::count_if(budgeted, [&](const double value) {
+                  return std::abs(value - wanted) < 1.0e-9;
+              }) == 1);
+    }
+
+    // More exact times than the whole budget: every one survives and the grid is its endpoints.
+    const std::vector<double> flooded =
+        makeHighwayTailSampleTimes(note, 10.0, 20.0, 256, extra, 16);
+    CHECK(flooded.size() == extra.size() + 2);
+    CHECK(flooded.front() == Catch::Approx(10.0));
+    CHECK(flooded.back() == Catch::Approx(20.0));
 }
 
 } // namespace rock_hero::common::core

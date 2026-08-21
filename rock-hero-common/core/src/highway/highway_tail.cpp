@@ -157,21 +157,17 @@ double highwayTremoloEnvelope(const double cycles, const double end_cycles) noex
 
 std::vector<double> makeHighwayTailSampleTimes(
     const HighwayNoteView& note, const double from_seconds, const double to_seconds,
-    const std::size_t uniform_count, const std::span<const double> extra_times)
+    const std::size_t uniform_count, const std::span<const double> extra_times,
+    const std::size_t sample_cap)
 {
     if (to_seconds <= from_seconds)
     {
         return {};
     }
 
+    // The exact times first, so the uniform grid can be budgeted against what they leave.
     std::vector<double> times;
-    const std::size_t count = std::max(uniform_count, std::size_t{2});
-    times.reserve(count + note.bend.size() + note.slides.size());
-    for (std::size_t index = 0; index < count; ++index)
-    {
-        const double mix = static_cast<double>(index) / static_cast<double>(count - 1);
-        times.push_back(from_seconds + ((to_seconds - from_seconds) * mix));
-    }
+    times.reserve(sample_cap + note.bend.size() + note.slides.size() + extra_times.size());
     for (const HighwayBendPointView& point : note.bend)
     {
         if (point.seconds > from_seconds && point.seconds < to_seconds)
@@ -193,6 +189,14 @@ std::vector<double> makeHighwayTailSampleTimes(
             times.push_back(seconds);
         }
     }
+    const std::size_t budget = sample_cap > times.size() ? sample_cap - times.size() : 0;
+    const std::size_t count =
+        std::clamp(uniform_count, std::size_t{2}, std::max(budget, std::size_t{2}));
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        const double mix = static_cast<double>(index) / static_cast<double>(count - 1);
+        times.push_back(from_seconds + ((to_seconds - from_seconds) * mix));
+    }
 
     std::ranges::sort(times);
     // Dedupe with a tolerance: a uniform sample landing on a control point must not produce a
@@ -201,7 +205,7 @@ std::vector<double> makeHighwayTailSampleTimes(
     // than repeating the number, which is how the two would drift apart.
     const auto [first_dup, last_dup] =
         std::ranges::unique(times, [](const double lhs, const double rhs) {
-            return std::abs(rhs - lhs) < g_highway_onset_match_epsilon;
+            return std::abs(rhs - lhs) < g_onset_match_epsilon;
         });
     times.erase(first_dup, last_dup);
     return times;

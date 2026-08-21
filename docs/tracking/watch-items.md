@@ -724,7 +724,10 @@ Items whose trigger fired and were handled. Kept for auditability.
   rely on accumulation, so they would need their own draw call first.
 
   **Trigger:** an accented tremolo reads wrong in real play, OR the accent batch is being
-  restructured for another reason — the tail-glow vertex-explosion bug is in that same batch and
-  would be the natural moment, since splitting the batch is most of the work MAX blending needs
-  anyway. **Where to start:** the blend equation, not the geometry. Every geometric approach has
+  restructured for another reason — the tail-glow vertex budget is in that same batch and would
+  be the natural moment, since splitting the batch is most of the work MAX blending needs anyway.
+  (The silent half of that bug closed 2026-08-21: the tail sampler now holds its cap as ONE
+  budget, so a long teethed open tail can no longer reach twice the cap, and the oversized-batch
+  drop reports under its own flag instead of sharing one with pool exhaustion. The batch split
+  itself is still open.) **Where to start:** the blend equation, not the geometry. Every geometric approach has
   been tried and sighted.

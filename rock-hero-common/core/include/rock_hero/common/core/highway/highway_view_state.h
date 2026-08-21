@@ -761,23 +761,6 @@ struct HighwayViewState
 };
 
 /*!
-\brief Tolerance for matching an onset to another onset or a shape-span boundary.
-
-A true rounding tolerance and nothing more: a nanosecond is four orders above the double rounding
-error at song scale and six orders below the finest grid the editor offers (a 1/128 note is 15 ms at
-120 BPM), so it can only ever absorb arithmetic noise, never join two musically distinct events.
-
-It was 1e-4 s, on the stated grounds that a note onset and a shape boundary resolve through
-different tempo-map paths and so land a rounding epsilon apart. They do not: the forward cursor is
-documented as returning bit-identical results and computes the same expression against the same
-anchor span as the plain resolver, so equal grid positions resolve to equal seconds. The oversized
-value was the sole reason the display's simultaneity rule could group notes at DISTINCT musical
-positions that the chart-side rule (chartEffectiveSustains) refuses — a divergence
-`grid_arithmetic.h` recorded as deliberate. With the tolerance honest, the two rules agree.
-*/
-inline constexpr double g_highway_onset_match_epsilon = 1.0e-9;
-
-/*!
 \brief Derives the picking-hand onsets: one entry per onset group with taps or pick slides.
 
 Right-hand presentation is derived, never authored: each entry carries the fret extent and
@@ -870,7 +853,7 @@ tap onset's release.
         const double onset = notes[index].start_seconds;
         std::size_t group_end = index + 1;
         while (group_end < notes.size() &&
-               std::abs(notes[group_end].start_seconds - onset) < g_highway_onset_match_epsilon)
+               std::abs(notes[group_end].start_seconds - onset) < g_onset_match_epsilon)
         {
             ++group_end;
         }
@@ -933,7 +916,7 @@ tap onset's release.
             for (const double seconds : station_times)
             {
                 if (!view.path.empty() &&
-                    seconds - view.path.back().seconds < g_highway_onset_match_epsilon)
+                    seconds - view.path.back().seconds < g_onset_match_epsilon)
                 {
                     continue;
                 }
@@ -943,7 +926,7 @@ tap onset's release.
                     .fret_low = first_fret,
                     .fret_high = first_fret,
                     .unpitched = std::ranges::any_of(scrape_times, [&](const double time) {
-                        return std::abs(time - seconds) < g_highway_onset_match_epsilon;
+                        return std::abs(time - seconds) < g_onset_match_epsilon;
                     }),
                 };
                 for (std::size_t tap = 1; tap < taps.size(); ++tap)
@@ -1003,7 +986,7 @@ whatever window a renderer happens to be drawing.
         std::size_t group_end = index + 1;
         while (group_end < notes.size() &&
                std::abs(notes[group_end].start_seconds - notes[index].start_seconds) <
-                   g_highway_onset_match_epsilon)
+                   g_onset_match_epsilon)
         {
             ++group_end;
         }
@@ -1107,8 +1090,8 @@ whatever window a renderer happens to be drawing.
             {
                 const double onset = notes[cursor - 1].start_seconds;
                 std::size_t run_begin = cursor - 1;
-                while (run_begin > 0 && std::abs(notes[run_begin - 1].start_seconds - onset) <
-                                            g_highway_onset_match_epsilon)
+                while (run_begin > 0 &&
+                       std::abs(notes[run_begin - 1].start_seconds - onset) < g_onset_match_epsilon)
                 {
                     --run_begin;
                 }
@@ -1140,7 +1123,7 @@ whatever window a renderer happens to be drawing.
         {
             // Tolerance so a shape starting on the same grid position as the chord (resolved a
             // rounding epsilon later) is still selected rather than skipped.
-            if (candidate.start_seconds > group.start_seconds + g_highway_onset_match_epsilon)
+            if (candidate.start_seconds > group.start_seconds + g_onset_match_epsilon)
             {
                 break;
             }
@@ -1148,8 +1131,7 @@ whatever window a renderer happens to be drawing.
         }
         // A chord onset at (or within rounding of) the shape's end is still under the span — a
         // strict comparison here once dropped the handshape's last strum from repeat treatment.
-        if (shape == nullptr ||
-            group.start_seconds > shape->end_seconds + g_highway_onset_match_epsilon ||
+        if (shape == nullptr || group.start_seconds > shape->end_seconds + g_onset_match_epsilon ||
             !posture_matches(*shape, group_frets[group_index]))
         {
             continue;
@@ -1164,13 +1146,13 @@ whatever window a renderer happens to be drawing.
             // Tolerance at the span start: the first strum of a repeat chain usually sits exactly
             // on the shape start, and a rounding epsilon below it would break the walk before it
             // finds the anchoring run — the classic cause of a repeat chord flickering to notes.
-            if (onset < shape->start_seconds - g_highway_onset_match_epsilon)
+            if (onset < shape->start_seconds - g_onset_match_epsilon)
             {
                 break;
             }
             std::size_t run_begin = cursor - 1;
-            while (run_begin > 0 && std::abs(notes[run_begin - 1].start_seconds - onset) <
-                                        g_highway_onset_match_epsilon)
+            while (run_begin > 0 &&
+                   std::abs(notes[run_begin - 1].start_seconds - onset) < g_onset_match_epsilon)
             {
                 --run_begin;
             }

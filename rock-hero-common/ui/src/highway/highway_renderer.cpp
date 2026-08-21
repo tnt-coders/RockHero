@@ -110,10 +110,9 @@ constexpr double g_tail_slope_shade_depth = 0.5;
 // two on a real bend — the shade snapped between base and saturated over a couple of segments,
 // and foreshortening at screen center compressed that snap into a hard band that read as a
 // sharp point on a smooth curve. Smoothing over a fixed TIME window guarantees the fade-in/out
-// spans the same stretch of tail whatever the sample density or viewing angle. Stays under
-// half the vibrato period — tempo-locked to one wobble per eighth note — up to roughly
-// 300 BPM; faster songs dull the wobble's shimmer toward its average rather than breaking,
-// while the geometric wobble itself is unaffected.
+// spans the same stretch of tail whatever the sample density or viewing angle, and at 0.05 s it
+// stays well under half the fixed vibrato period (one sixth of a second for every song), so
+// the wobble's shimmer is never dulled toward its average.
 constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 
 // Bend chevron clearance past the head ART's top edge, in head half-heights along the drawn
@@ -253,15 +252,14 @@ constexpr std::uint64_t g_glow_add_state =
 // silhouette on the board (a node head's is 0.17), so nothing in the note batch approaches it.
 constexpr double g_glow_solid_emitter_depth = 1.0;
 
-// The accent light, SIGNED 2026-08-18 as the sighted "medium flat" candidate: reach 0.12 world
-// (about eight texels), falloff exponent 2.0, NEUTRAL radiance gain. The user chose the subtle
-// end of the ladder with eyes open ("a bit subtle but looks good"); the tried alternatives are
-// recorded in docs/plans/in-progress/highway-note-art-state.md, and the gain is the named knob
-// if accents fail to read in real play (docs/tracking/watch-items.md carries the trigger).
-// At gain 1.0 the shader's per-channel clip stays dormant — no channel of pedestal x weight
-// reaches 1 — so the halo's hue is shaped by emitterSpectrum's pedestal alone; raising the
-// gain past about 1.08 (255/237, the palette's brightest channel) is what brings the
-// white-hot-core clipping the glow shader describes into play.
+// The accent light, SIGNED 2026-08-18 as the sighted "medium flat" candidate — reach 0.12 world
+// (about eight texels), falloff exponent 2.0 — and its radiance gain raised to 1.5 on 2026-08-20
+// after the user found the neutral gain too subtle in play. The gain lever is now SPENT
+// (docs/tracking/watch-items.md): past roughly 2.0 the extra radiance mostly grows the white-hot
+// core rather than adding width, so if accents still fail to read the knob left is REACH. The
+// tried alternatives are recorded in docs/plans/in-progress/highway-note-art-state.md. Above a
+// gain of about 1.08 (255/237, the palette's brightest channel) the glow shader's per-channel
+// clip is live, which is what shapes the white-hot core the shader describes.
 constexpr double g_accent_reach = 0.12;
 constexpr double g_accent_exponent = 2.0;
 
@@ -295,9 +293,9 @@ constexpr std::uint64_t g_premultiplied_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA) | BGFX_STATE_MSAA;
 
-// How many fret slots the board face draws; charts cap at g_max_fret but the board draws a
-// fixed neck. Aliased from core so the drawn board and the camera's whole-neck focus reference
-// (highwayFocusWholeNeckX) can never disagree about how long the neck is.
+// How many fret slots the board face draws — the chart's own fret cap, derived rather than
+// restated, so the drawn board, the model's highest fret, and the camera's whole-neck focus
+// reference (highwayFocusWholeNeckX) can never disagree about how long the neck is.
 constexpr int g_face_fret_count = common::core::g_highway_fret_count;
 
 // Seconds a passed note takes to fade out after crossing the hit line.
@@ -313,7 +311,7 @@ constexpr double g_flip_flat_lead_seconds = 0.25;
 // Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
 // The core constant (see its rationale there) is shared so this file's chord grouping agrees
 // with HighwayViewState::display_hold_ends, whose span-held notes drive the visible range.
-constexpr double g_onset_match_epsilon = common::core::g_highway_onset_match_epsilon;
+constexpr double g_onset_match_epsilon = common::core::g_onset_match_epsilon;
 
 // Open-note bar cross-section (Charter's OpenNoteModel): a thin hexagonal prism spanning the
 // hand window, half-thickness 0.04 at the ends bulging to 0.05 at the center station, squashed
@@ -1490,7 +1488,7 @@ void pushChordBoxPanel(
     for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
     {
         push_fan(holder_background, origin_x, x_sign, box_solid);
-        push_fan(holder_front, origin_x, x_sign, packAbgr(g_chord_box_dark_color));
+        push_fan(holder_front, origin_x, x_sign, packAbgr(g_chord_box_dark_color, alpha_scale));
     }
 
     // Frame: bottom bar always, then full sides with a top bar or short fading sides. The accent
@@ -1615,6 +1613,8 @@ struct FloorNumber
     ArgbColor base{0};
     bool fade{false};
     double alpha{1.0};
+    // Position in build order, the sort's tiebreak; stamped in one pass before the sort.
+    std::size_t build_index{0};
 };
 
 // Geometry and label scratch reused across frames, so a steady scene stops allocating on the
@@ -1751,6 +1751,7 @@ struct HighwayRenderer::Impl
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
     bool reported_transient_drop{false};
+    bool reported_oversized_drop{false};
 
     void rebuildBoardFace();
     void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
@@ -1758,8 +1759,10 @@ struct HighwayRenderer::Impl
         std::span<const HighwayOverlayRect> rects, std::uint32_t width, std::uint32_t height);
 
     // Submits a CPU-built batch through the transient buffers; drops the batch (with one
-    // process-lifetime warning) if the transient budget is ever exceeded — a bug signal, not a
-    // runtime path (the defaults hold >6x headroom over the worst-case highway frame).
+    // process-lifetime warning per failure class) if it cannot be submitted — a bug signal, not a
+    // runtime path. Nothing measures the frame's emission against bgfx's default transient pool,
+    // so no headroom figure is claimed here; the tail sampler's one budget is what bounds the
+    // largest batch.
     template <typename Vertex>
     void submitBatch(
         const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices,
@@ -1772,13 +1775,16 @@ struct HighwayRenderer::Impl
             return;
         }
         // The batch builders index with 16-bit bases: past 65535 vertices the bases would wrap
-        // and render garbage silently, so an oversized batch (malformed input; unreachable for
-        // real charts) is dropped loudly instead.
+        // and render garbage silently, so an oversized batch is dropped and reported instead. Not
+        // unreachable for real charts — the accent glow of one onset group of long teethed open
+        // tails once reached it, which is why the tail sampler now holds one budget — so the
+        // report has its own flag: a pool-exhaustion report must not silence this one, nor this
+        // one it.
         if (vertices.size() > 65535 || (texture != nullptr && !bgfx::isValid(*texture)))
         {
-            if (!reported_transient_drop)
+            if (!reported_oversized_drop)
             {
-                reported_transient_drop = true;
+                reported_oversized_drop = true;
                 RH_LOG_WARNING(
                     "common.highway",
                     "unsubmittable batch dropped (vertices={}, texture_valid={})",
@@ -3866,10 +3872,20 @@ void HighwayRenderer::Impl::draw(
             }
         }
     }
-    // Far-to-near like the note sweep; stable so same-time numbers keep their authored
-    // layering (measure numbers under orange targets).
-    std::ranges::stable_sort(floor_numbers, [](const FloorNumber& lhs, const FloorNumber& rhs) {
-        return lhs.seconds > rhs.seconds;
+    // Far-to-near like the note sweep, with the build order as the tiebreak so same-time numbers
+    // keep their authored layering (measure numbers under orange targets). A tiebreak rather than
+    // stable_sort, for the reason the chord boxes already give: stable_sort allocates its merge
+    // buffer inside the per-frame draw path.
+    for (std::size_t index = 0; index < floor_numbers.size(); ++index)
+    {
+        floor_numbers[index].build_index = index;
+    }
+    std::ranges::sort(floor_numbers, [](const FloorNumber& lhs, const FloorNumber& rhs) {
+        if (std::is_neq(lhs.seconds <=> rhs.seconds))
+        {
+            return lhs.seconds > rhs.seconds;
+        }
+        return lhs.build_index < rhs.build_index;
     });
 
     std::vector<PosColorUvVertex>& number_vertices = scratch.number_vertices;
@@ -4349,22 +4365,20 @@ void HighwayRenderer::Impl::draw(
                         note.start_seconds, note.start_seconds + g_tail_onset_fade_seconds);
                     push_ramp_times(modulated_fade_begin, note.end_seconds);
                 }
-                std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
-                    note, tail_from, tail_to, uniform_count, wobble_times);
                 if (open_band_moves)
                 {
-                    // Fold in the window's own ramp samples so the band tracks the eased border
-                    // exactly instead of aliasing across it.
+                    // The window's own ramp samples join the exact set so the band tracks the
+                    // eased border exactly instead of aliasing across it — and so they count
+                    // against the one sample budget like every other exact time.
                     windowSampleTimes(
                         state, tail_from, tail_to, max_fhp_ramp_seconds, scratch.window_times);
-                    sample_times.insert(
-                        sample_times.end(),
+                    wobble_times.insert(
+                        wobble_times.end(),
                         scratch.window_times.begin(),
                         scratch.window_times.end());
-                    std::ranges::sort(sample_times);
-                    const auto duplicates = std::ranges::unique(sample_times);
-                    sample_times.erase(duplicates.begin(), duplicates.end());
                 }
+                const std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
+                    note, tail_from, tail_to, uniform_count, wobble_times, g_tail_sample_cap);
 
                 struct TailSample
                 {
@@ -5035,16 +5049,13 @@ void HighwayRenderer::Impl::draw(
 
         // The quiet end of the emphasis axis takes light out of the note. A ghost's markers quiet
         // with it: a full-brightness mark over a dim head reads as a rendering fault rather than
-        // as dynamics.
-        const bool ghosted = common::core::isGhosted(note.emphasis);
-        // ONE tint for the head art and for every marker riding it. They were two variables
-        // while a ghost quieted its head and its markers by different factors; once the axis
-        // collapsed to a single alpha they became the same expression written twice, which is a
-        // rule waiting to drift rather than a distinction.
+        // as dynamics. ONE tint for the head art and for every marker riding it, and the one
+        // emphasis-to-alpha mapping every other quieting site asks — this was the site that
+        // open-coded it.
         const std::uint32_t tint =
-            packAbgr(base_color, fade * head_slide.alpha * (ghosted ? g_ghost_alpha : 1.0));
+            packAbgr(base_color, fade * head_slide.alpha * emphasisAlpha(note.emphasis));
 
-        // Head base: the round node base when the head sits ON its harmonic node (it lands
+        // Head base: the diamond node base when the head sits ON its harmonic node (it lands
         // between fret wires, where the family rectangle reads as a misaligned ordinary note);
         // else the technique variant under left-hand technique markers and under a scrape — its
         // travel is unpitched noise, so it takes the darker base a dead note takes, and

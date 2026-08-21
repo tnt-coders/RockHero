@@ -358,8 +358,7 @@ HighwayViewState makeHighwayViewState(
         // this one) restarts the grouping.
         bool section_cut = false;
         while (section_cursor < state.sections.size() &&
-               state.sections[section_cursor].seconds <=
-                   measure_start + g_highway_onset_match_epsilon)
+               state.sections[section_cursor].seconds <= measure_start + g_onset_match_epsilon)
         {
             section_cut = true;
             ++section_cursor;

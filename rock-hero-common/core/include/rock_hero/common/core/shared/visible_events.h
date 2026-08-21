@@ -18,6 +18,24 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief Tolerance for matching an onset to another onset or a shape-span boundary: the one
+answer, on either surface, to "are these two chart times one moment".
+
+A true rounding tolerance and nothing more: a nanosecond is four orders above the double rounding
+error at song scale and six orders below the finest grid the editor offers (a 1/128 note is 15 ms at
+120 BPM), so it can only ever absorb arithmetic noise, never join two musically distinct events.
+
+It was 1e-4 s, on the stated grounds that a note onset and a shape boundary resolve through
+different tempo-map paths and so land a rounding epsilon apart. They do not: the forward cursor is
+documented as returning bit-identical results and computes the same expression against the same
+anchor span as the plain resolver, so equal grid positions resolve to equal seconds. The oversized
+value was the sole reason the display's simultaneity rule could group notes at DISTINCT musical
+positions that the chart-side rule (chartEffectiveSustains) refuses — a divergence
+`grid_arithmetic.h` recorded as deliberate. With the tolerance honest, the two rules agree.
+*/
+inline constexpr double g_onset_match_epsilon = 1.0e-9;
+
+/*!
 \brief An event occupying a timeline span: an onset and an end, both in absolute seconds.
 
 The shape every seconds-resolved view state shares, and the whole of what the search below needs.

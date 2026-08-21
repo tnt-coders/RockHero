@@ -278,17 +278,26 @@ teeth crowd that spacing. They arrive as times rather than being derived here be
 placement is projection state (the onset time each phase in \ref highwayTremoloTailCycles is
 measured from), which this module does not hold.
 
+The cap is ONE budget for the whole list, and the uniform grid is what yields to it: the exact
+times carry the shape's correctness (a turning point the grid rounds is a visible error), so they
+are never evicted, and the grid shrinks by their count instead — down to its two endpoints when the
+exact times alone fill the budget. Before this the cap bounded only the grid and every exact time
+was appended past it, so a long teethed open tail reached 477 samples against a cap of 256 and the
+accent batch it fed could exceed the 16-bit index budget and drop the whole group's light.
+
 \param note The note whose bend and slide times are folded in.
 \param from_seconds Visible span start (already clamped to the hit line by the caller).
 \param to_seconds Visible span end.
 \param uniform_count Uniform sample count from highwayTailSampleCount.
 \param extra_times Additional times the shape needs sampled exactly; those outside the span are
-       dropped. The uniform count's cap never evicts them.
+       dropped, and the budget never evicts the ones inside.
+\param sample_cap The whole list's budget; the uniform grid is clamped to what the exact times
+       leave of it, never below its two endpoints.
 \return Ascending, deduplicated sample times spanning [from_seconds, to_seconds]; empty when
         the span is empty.
 */
 [[nodiscard]] std::vector<double> makeHighwayTailSampleTimes(
     const HighwayNoteView& note, double from_seconds, double to_seconds, std::size_t uniform_count,
-    std::span<const double> extra_times);
+    std::span<const double> extra_times, std::size_t sample_cap);
 
 } // namespace rock_hero::common::core

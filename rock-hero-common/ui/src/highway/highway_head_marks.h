@@ -81,17 +81,17 @@ lane drew for the same note. One authority removes the class.
 }
 
 /*!
-\brief True when a head sits ON its harmonic node and takes the round base cell.
+\brief True when a head sits ON its harmonic node and takes the diamond base cell.
 
 A node head lands between fret wires wherever the overtone lives, so the family rectangle reads
-as a misaligned ordinary note there; the round base has no edge to disagree with a wire. Asks the
+as a misaligned ordinary note there; the diamond base has no edge to disagree with a wire. Asks the
 board's own placement rule (\ref highwayDrawnSoundingPosition, the one every 3D consumer must
 ask) rather than restating its condition, so the base shape can never disagree with where the
 head is actually drawn. Takes precedence over \ref highwayTechHead: the base SHAPE tracks where
 the head sits, and the technique markers still stack over it.
 
 \param note Projected note whose head is being drawn.
-\return True when the round node base applies.
+\return True when the diamond node base applies.
 */
 [[nodiscard]] inline bool highwayNodeHead(const common::core::HighwayNoteView& note)
 {
@@ -103,7 +103,7 @@ the head sits, and the technique markers still stack over it.
 
 Charter's base-cell selection: a head wearing a left-hand technique marker, and a scrape — whose
 travel is unpitched noise, so it takes the base a dead note takes and lets its pick mark sit
-on that rather than on an X. A node head is no longer among them: it wears its own round base
+on that rather than on an X. A node head is no longer among them: it wears its own diamond base
 (\ref highwayNodeHead), which outranks this darkening.
 
 Asks \ref highwayLegatoCell rather than testing the motion again, so the base can never darken for
