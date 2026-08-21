@@ -435,6 +435,51 @@ struct ChartInsertGhostViewState
 };
 
 /*!
+\brief The in-flight pending fret entry's rendered state.
+
+While a typed value is provisional the lane draws an entry box over each affected head — the
+plate the mute heads already draw, with the editor accent as a border so pending reads as an
+editor state — carrying the typed text: the ordinary digit ink while the value would apply, red
+when it cannot. Red marks EVERY affected head, deliberately without per-note attribution:
+relational refusals are properties of the whole selection, so a per-note red would claim a
+precision the refusal does not have. For an entry that began on an empty caret the box draws at
+the insert slot, where no head exists yet. Present exactly while a value is provisional — the
+box disappearing IS the settle becoming visible.
+*/
+struct ChartPendingFretViewState
+{
+    /*! \brief Ascending indices of the affected notes in the tab projection's note order; empty
+    for an insert entry, whose slot the insert fields below carry. */
+    std::vector<std::size_t> notes{};
+
+    /*! \brief Insert-entry slot position in seconds, absent for a retype entry. */
+    std::optional<double> insert_seconds{};
+
+    /*! \brief One-based string lane of the insert slot; meaningful only with insert_seconds. */
+    int insert_string{0};
+
+    /*! \brief The provisional value exactly as typed. */
+    std::string text{};
+
+    /*! \brief False when the value cannot apply — the box draws its text red. */
+    bool valid{true};
+
+    /*!
+    \brief Compares two pending-entry states by their stored values.
+
+    Defaulted on purpose: the one floating member is reached through std::optional, whose own
+    comparison does the compare inside a library header, so the float-equal warning cannot fire
+    (the ChartNote precedent in coding-conventions.md).
+
+    \param lhs Left-hand state.
+    \param rhs Right-hand state.
+    \return True when both states store equal values.
+    */
+    friend bool operator==(
+        const ChartPendingFretViewState& lhs, const ChartPendingFretViewState& rhs) = default;
+};
+
+/*!
 \brief Chart-editing selection state rendered as overlays above the tablature notation.
 
 Selected notes are indices into the current tab projection's note order (which matches the
@@ -468,6 +513,9 @@ struct ChartEditViewState
     would not insert (no Alt, over a note, or while playing), so the ring never lies.
     */
     std::optional<ChartInsertGhostViewState> insert_ghost{};
+
+    /*! \brief The pending fret entry, present exactly while a typed value is provisional. */
+    std::optional<ChartPendingFretViewState> pending_fret{};
 
     /*!
     \brief Compares two chart-editing states by their stored values.

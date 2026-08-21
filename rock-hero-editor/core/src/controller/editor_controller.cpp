@@ -1276,6 +1276,7 @@ EditorController::Impl::Impl(
               updateView();
           })
     , m_task_runner(services.task_runner)
+    , m_message_thread_scheduler(services.message_thread_scheduler)
     , m_transport_listener(transport, *this)
 {
     // Resolve the fret-entry coalescing clock: an injected source (tests) or the real wall clock.
@@ -1631,6 +1632,16 @@ constexpr float g_chart_click_threshold_px = 4.0f;
 // thinking pause, so "12" combines and "2, pause, 3" stays two values.
 constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
+// Could another digit reach a value this one alone cannot? The provisional/immediate split for
+// the pending fret entry: {1,2,3} at the current cap wait out the window, everything else
+// settles in the same keystroke. 0 is deliberately immediate — arming the window for it served
+// only a leading-zero path nobody types, making the open string (the commonest value on the
+// instrument) wait out the window.
+[[nodiscard]] constexpr bool chartFretValueExtendable(const int value)
+{
+    return value >= 1 && value * 10 <= common::core::g_max_fret;
+}
+
 } // namespace
 
 // The memoized projection deriveViewState pushed is exactly what the lane painted, so pointer
@@ -1658,9 +1669,11 @@ std::optional<ChartNoteKey> EditorController::Impl::chartNoteKeyAt(
 
 void EditorController::Impl::clearChartEditingState()
 {
+    // DISCARD rather than settle: this is context teardown (a chart being replaced or closed),
+    // and committing a pending value into a dying session would author into the wrong chart.
+    discardChartFretEntry();
     clearSelection();
     m_chart_gesture.reset();
-    m_chart_fret_entry.reset();
     disarmTechniqueToggleWindows();
     m_chart_notes_top.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
@@ -1721,8 +1734,10 @@ const TimeSelection* EditorController::Impl::selectedTimeSelection() const
 // do not come through here — settling on those would cut every burst into single edits.
 void EditorController::Impl::setSelection(EditorSelection selection)
 {
+    // Settle BEFORE the selection moves: the pending entry's plan and its selection follow are
+    // expressed against the outgoing selection, and a value you typed is a value you meant.
+    settleChartFretEntry();
     m_selection = std::move(selection);
-    m_chart_fret_entry.reset();
     disarmTechniqueToggleWindows();
     static_cast<void>(settleChartLegato());
 }
@@ -1844,6 +1859,8 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
 void EditorController::Impl::insertChartNoteAt(
     common::core::GridPosition position, int string, int fret)
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
@@ -2100,9 +2117,13 @@ bool EditorController::Impl::applyChartEditPlan(
         return false;
     }
 
-    // A typing-style edit interrupts any in-flight fret entry, and any chart edit closes the H
-    // toggle window, unless the caller re-arms them.
-    m_chart_fret_entry.reset();
+    // Any chart edit closes the technique toggle windows unless the caller re-arms them. The
+    // pending fret entry is normally ALREADY settled by the caller's prologue when another verb
+    // reaches here (and taken out by settleChartFretEntry when this apply IS the settle); an
+    // entry still present means a verb path missed its prologue, and the last resort is to
+    // discard rather than commit — this plan was computed without knowledge of the pending one,
+    // so committing both here could preflight-collide.
+    discardChartFretEntry();
     disarmTechniqueToggleWindows();
 
     // The selection follows the edit: retyped/moved/inserted notes stay selected under their
@@ -2173,6 +2194,9 @@ bool EditorController::Impl::applyChartEditPlan(
 // selection.
 void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 {
+    // The pending fret entry settles first (the uniform prologue): a click that starts a drag
+    // on the very note being retyped must not race a half-typed value.
+    settleChartFretEntry();
     const common::core::TabViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0 || isBusy())
     {
@@ -2523,6 +2547,10 @@ namespace
 // paused transport (armed ⟹ paused is structural).
 void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
 {
+    // The pending fret entry settles first (the uniform prologue): stepping away from a typed
+    // value commits it, so "1, arrow, 2" authors 1 then 2, never 12 — the old model's
+    // dissolved-caret widen bug is unrepresentable here.
+    settleChartFretEntry();
     const common::core::TabViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0 || isBusy() || m_transport.state().playing)
     {
@@ -2798,6 +2826,8 @@ void EditorController::Impl::onSelectionMoveRequested(ChartStepDirection directi
 // selection stays put, matching refuse-not-clamp everywhere else.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bool fine)
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
@@ -2858,6 +2888,8 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bo
 // Deletes the selected notes as one compound undo entry; the selection empties with them.
 void EditorController::Impl::deleteChartSelection()
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty())
@@ -2942,12 +2974,13 @@ void EditorController::Impl::onSelectionDeleteRequested()
     }
 }
 
-// Typed digits SET every selected note to the typed value — what you type is what appears — or,
-// with no selection, INSERT a note at the empty caret carrying the typed fret (the caret model).
-// Keystrokes inside the entry window combine into multi-digit values (a widened insert stays ONE
-// insert, so undo removes the note); each keystroke applies immediately so the notation always
-// shows the value being typed. The three flows live in their own helpers below; this dispatcher
-// only orders them.
+// Typed digits are PROVISIONAL (the W3 pending model): the value being typed lives in the
+// pending entry — drawn on the head(s), red when it cannot apply — and the chart holds nothing
+// of it until the entry settles (a second digit, the window elapsing, or any other action's
+// settle prologue). A first digit no second digit could extend within the fret cap needs no
+// window and settles in the same keystroke, so 0 and 4-9 land as fast as they ever did; only a
+// leading 1-3 waits. The flows live in their own helpers below; this dispatcher only orders
+// them.
 void EditorController::Impl::onChartFretDigitTyped(int digit)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -2958,7 +2991,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
     }
 
     const std::uint32_t now_ms = m_now_milliseconds();
-    if (m_chart_fret_entry.has_value() && widenChartFretEntry(digit, now_ms))
+    if (m_chart_fret_entry.has_value() && combineChartFretEntry(digit, now_ms))
     {
         return;
     }
@@ -2970,148 +3003,146 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
     retypeChartSelectionFret(digit, now_ms);
 }
 
-// A second digit inside the window WIDENS the in-flight entry: the chart moves to the
-// combined value and the just-pushed undo entry is replaced by one spanning from the
-// pre-entry originals, so the whole typed number undoes as one action. The widen requires the
-// same selection, a combinable value, and the history top still being our entry (any
-// interleaved edit or undo moves the position and kills the window); anything else reports
-// unhandled so the digit falls through to a fresh flow.
-bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms)
+// A digit while an entry is LIVE combines into it: the pending value widens to value*10+digit,
+// replanned in full from the pre-entry base, and — at the current fret cap, where a second
+// digit always exhausts the entry — settles immediately. An entry past its window settles
+// first (a value you typed is a value you meant) and the digit falls through to a fresh flow,
+// as does a combination past the fret cap: refused, never clamped, so the old value commits
+// alone and the digit starts over.
+bool EditorController::Impl::combineChartFretEntry(const int digit, const std::uint32_t now_ms)
 {
     if (!m_chart_fret_entry.has_value())
     {
         return false;
     }
-    const ChartFretEntry entry = *m_chart_fret_entry;
-    const int combined = entry.value * 10 + digit;
-    const bool widenable = now_ms - entry.last_keystroke_ms <= g_fret_entry_window_ms &&
-                           combined <= common::core::g_max_fret &&
-                           entry.keys == chartSelection().notes() &&
-                           m_undo_history.snapshot().position == entry.history_position;
-    if (widenable)
+    if (now_ms - m_chart_fret_entry->armed_ms > g_fret_entry_window_ms)
     {
-        common::core::Chart* const chart = m_session.currentChart();
-        if (chart == nullptr)
-        {
-            return true;
-        }
-        // What this entry has applied to the chart so far, read from the ONE record of what the
-        // burst pushed instead of a second copy kept in step by hand: an entry that pushed OWNS the
-        // history top, so that record is its plan. An entry whose first digit applied nothing (a
-        // refused fret still arms the window) owns nothing and has nothing to reverse.
-        const std::optional<ChartNotesEditPlan> applied =
-            entry.pushed && m_chart_notes_top.has_value() &&
-                    m_chart_notes_top->history_position == entry.history_position
-                ? std::optional<ChartNotesEditPlan>{m_chart_notes_top->plan}
-                : std::nullopt;
-        if (entry.pushed && !applied.has_value())
-        {
-            // The record retired while the window stayed armed. Nothing does that today without
-            // also moving the history position (which the proof above already refuses), but with
-            // no plan to reverse there is no pre-entry stream to replan from, so the window dies
-            // rather than guess.
-            m_chart_fret_entry.reset();
-            return false;
-        }
-        // The widened whole-entry plan runs from the PRE-ENTRY stream, reconstructed by
-        // reversing exactly what this entry applied — a plan's own inverse restores everything it
-        // touched, whatever that was, including notes outside the selection that the finalize's
-        // overlap pass retrimmed. Swapping the captured base values back would restore only the
-        // typed notes, so the widen must reverse the plan rather than the values.
-        common::core::Chart pre_entry = *chart;
-        if (applied.has_value() &&
-            !applyChartNotesChange(pre_entry, applied->inserted, applied->removed).has_value())
-        {
-            m_chart_fret_entry.reset();
-            return true;
-        }
-        // Assigned in both branches rather than default-constructed: a default std::expected
-        // holds a VALUE (an empty-but-valid plan), which is exactly the lie the type exists to
-        // prevent.
-        const std::expected<ChartNotesEditPlan, ChartPlanRefusal> widened = [&] {
-            if (entry.began_as_insert)
-            {
-                common::core::ChartNote note;
-                note.position = entry.keys.front().position;
-                note.string = entry.keys.front().string;
-                note.fret = combined;
-                return planInsertNote(pre_entry, session().song().tempo_map, std::move(note));
-            }
-            return planRetypeFrets(
-                pre_entry,
-                session().song().tempo_map,
-                entry.base_notes,
-                combined,
-                /*set_exact=*/true);
-        }();
-        if (!widened.has_value())
-        {
-            return true;
-        }
-
-        // Walk the live chart back to pre-entry and then to the combined target, so the state
-        // the history top describes is exactly the state the chart holds. Re-planning forward
-        // from the current values cannot do that: a plan is not its own inverse, so a first digit
-        // that also rewrote something else would leave the chart and the history entry
-        // disagreeing and undo would preflight-fail.
-        if (applied.has_value() &&
-            !applyChartNotesChange(*chart, applied->inserted, applied->removed).has_value())
-        {
-            reportError("Could not apply chart edit: " + widened->label);
-            m_chart_fret_entry.reset();
-            return true;
-        }
-        if (!applyChartNotesChange(*chart, widened->removed, widened->inserted).has_value())
-        {
-            reportError("Could not apply chart edit: " + widened->label);
-            m_chart_fret_entry.reset();
-            return true;
-        }
-
-        // The first digit's plan is no longer the top entry, and the burst record must not outlive
-        // it: a settle folding that plan would reconstruct the wrong pre-burst stream, and the
-        // widen below re-reads this record as its own.
-        m_chart_notes_top.reset();
-        // A pure insert carries no removed notes, so the emptiness check must span both
-        // sides — skipping the swap would leave history holding the first digit's insert
-        // while the chart shows the combined fret, and undo would preflight-fail.
-        if (!widened->removed.empty() || !widened->inserted.empty())
-        {
-            bool replaced = false;
-            if (entry.pushed)
-            {
-                replaced =
-                    m_undo_history.replaceTop(std::make_unique<ChartNotesEdit>(*widened)).status ==
-                    EditorUndoTransitionStatus::Applied;
-            }
-            if (!replaced)
-            {
-                // No entry of ours to widen (the first digit was a no-op) or the history
-                // refused the swap (for example a save marked the top entry clean mid-
-                // window): the combined change lands as its own entry instead — two
-                // undo steps in a rare edge beats a stack that lies about the file.
-                pushUndoEntry(std::make_unique<ChartNotesEdit>(*widened));
-            }
-            m_chart_notes_top = ChartNotesTopEntry{
-                .plan = *widened,
-                .history_position = m_undo_history.snapshot().position,
-            };
-        }
-        m_chart_fret_entry = ChartFretEntry{
-            .value = combined,
-            .last_keystroke_ms = now_ms,
-            .base_notes = entry.base_notes,
-            .keys = entry.keys,
-            .began_as_insert = entry.began_as_insert,
-            // Whether the record above is now this entry's own IS the pushed flag — asked of the
-            // record rather than tracked alongside it.
-            .pushed = m_chart_notes_top.has_value(),
-            .history_position = m_undo_history.snapshot().position,
-        };
-        updateView();
+        settleChartFretEntry();
+        return false;
+    }
+    const int combined = m_chart_fret_entry->value * 10 + digit;
+    if (combined > common::core::g_max_fret)
+    {
+        settleChartFretEntry();
+        return false;
+    }
+    ChartFretEntry entry = std::move(*m_chart_fret_entry);
+    m_chart_fret_entry.reset();
+    entry.value = combined;
+    entry.armed_ms = now_ms;
+    entry.plan = replanChartFretEntry(entry);
+    if (chartFretValueExtendable(combined))
+    {
+        // Unreachable at the current cap (a second digit always exhausts the entry) but kept
+        // general, so a raised cap grows a third digit without rework.
+        armChartFretEntry(std::move(entry));
         return true;
     }
-    return false;
+    m_chart_fret_entry = std::move(entry);
+    settleChartFretEntry();
+    return true;
+}
+
+// One authority for what a pending entry would apply: an insert entry plans ONE insert carrying
+// the combined value at its slot (undo removes the note), and a retype entry replans the whole
+// selection from the pre-entry base, so a widened value can never compound on its own earlier
+// digit.
+std::expected<ChartNotesEditPlan, ChartPlanRefusal> EditorController::Impl::replanChartFretEntry(
+    const ChartFretEntry& entry) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || entry.keys.empty())
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+    if (entry.began_as_insert)
+    {
+        common::core::ChartNote note;
+        note.position = entry.keys.front().position;
+        note.string = entry.keys.front().string;
+        note.fret = entry.value;
+        return planInsertNote(*arrangement->chart, session().song().tempo_map, std::move(note));
+    }
+    return planRetypeFrets(
+        *arrangement->chart,
+        session().song().tempo_map,
+        entry.base_notes,
+        entry.value,
+        /*set_exact=*/true);
+}
+
+// The uniform settle: commit the pending entry's plan when it holds one (ONE undo entry for the
+// whole typed value), apply nothing on NoChange (a valid no-op), discard on Invalid (the
+// previous values were never touched, so there is nothing to restore). Every action and intent
+// runs this first — the prologue is what keeps the stored plan from ever going stale — and the
+// window wake runs it at timeout. Undo is deliberately not special: settling first means Ctrl+Z
+// on a valid pending value commits it and then undoes it, which is honest, because the value
+// really was a valid edit.
+void EditorController::Impl::settleChartFretEntry()
+{
+    if (!m_chart_fret_entry.has_value())
+    {
+        return;
+    }
+    ChartFretEntry entry = std::move(*m_chart_fret_entry);
+    m_chart_fret_entry.reset();
+    ++m_chart_fret_entry_wake;
+    if (entry.plan.has_value())
+    {
+        // An insert selects the planted note — the caret stays armed on it, so the next digit
+        // retypes it, the same post-state the old immediate insert left. A retype rides the
+        // default selection follow.
+        static_cast<void>(applyChartEditPlan(
+            std::move(*entry.plan),
+            entry.began_as_insert ? std::optional<std::vector<ChartNoteKey>>{entry.keys}
+                                  : std::nullopt));
+    }
+    updateView();
+}
+
+// Drops the pending entry without committing — context teardown and the Esc invalid rung,
+// where committing would author into a dying session or keep exactly the value Esc rejects.
+void EditorController::Impl::discardChartFretEntry()
+{
+    if (!m_chart_fret_entry.has_value())
+    {
+        return;
+    }
+    m_chart_fret_entry.reset();
+    ++m_chart_fret_entry_wake;
+    updateView();
+}
+
+// Stores the entry as the live pending state and schedules its window wake.
+void EditorController::Impl::armChartFretEntry(ChartFretEntry entry)
+{
+    m_chart_fret_entry = std::move(entry);
+    ++m_chart_fret_entry_wake;
+    scheduleChartFretEntryWake();
+    updateView();
+}
+
+// Schedules the settle at the window's end. The wake validates two things: its stamp (a settle,
+// discard, or re-arm since scheduling makes it stale) and the injected clock, which is the
+// authority over the scheduler — a scheduler that fires early (the tests' immediate scheduler
+// runs delayed work synchronously) finds the window not yet elapsed and no-ops WITHOUT
+// rescheduling, because every arm schedules its own wake and a rescheduling wake would spin
+// under a synchronous scheduler.
+void EditorController::Impl::scheduleChartFretEntryWake()
+{
+    const std::uint64_t stamp = m_chart_fret_entry_wake;
+    static_cast<void>(m_message_thread_scheduler.callAfterDelay(
+        std::chrono::milliseconds{g_fret_entry_window_ms}, safeCallback([this, stamp] {
+            if (!m_chart_fret_entry.has_value() || stamp != m_chart_fret_entry_wake)
+            {
+                return;
+            }
+            if (m_now_milliseconds() - m_chart_fret_entry->armed_ms < g_fret_entry_window_ms)
+            {
+                return;
+            }
+            settleChartFretEntry();
+        })));
 }
 
 // Fresh insert: with no selection, the typed digit becomes a note at the armed empty caret.
@@ -3128,40 +3159,29 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
         // typed-value editor (routed in the view), never a fret insert.
         return;
     }
-    common::core::ChartNote note;
-    note.position = caret->position;
-    note.string = caret->string;
-    note.fret = digit;
-    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan =
-        planInsertNote(*arrangement->chart, session().song().tempo_map, note);
-    if (!plan.has_value())
+    ChartFretEntry entry{
+        .value = digit,
+        .began_as_insert = true,
+        .keys = {ChartNoteKey{.position = caret->position, .string = caret->string}},
+        .armed_ms = now_ms,
+    };
+    entry.plan = replanChartFretEntry(entry);
+    if (chartFretValueExtendable(digit))
     {
+        armChartFretEntry(std::move(entry));
         return;
     }
-    const ChartNoteKey key{.position = note.position, .string = note.string};
-    if (!applyChartEditPlan(std::move(plan), std::vector<ChartNoteKey>{key}))
-    {
-        return;
-    }
-    if (digit * 10 <= common::core::g_max_fret)
-    {
-        m_chart_fret_entry = ChartFretEntry{
-            .value = digit,
-            .last_keystroke_ms = now_ms,
-            .base_notes = {},
-            .keys = {key},
-            .began_as_insert = true,
-            // The insert's own plan is the burst record `applyChartEditPlan` just wrote, which is
-            // where the widen reads it from.
-            .pushed = true,
-            .history_position = m_undo_history.snapshot().position,
-        };
-    }
+    // An immediate digit is a pending entry that settles in the same keystroke.
+    m_chart_fret_entry = std::move(entry);
+    settleChartFretEntry();
 }
 
-// Fresh retype: capture the selection's pre-entry values first so a later widen still
-// restores them, apply the digit as its own undo entry, and open the window only while a
-// second digit could still fit under the fret cap.
+// Fresh retype: capture the selection's pre-entry values as the replan base, plan the typed
+// digit in FULL — the pending box and its red state read the outcome, so even a refused digit
+// visibly does something — then arm the window for a digit a second digit could extend, or
+// settle in the same keystroke for one it could not. An Invalid provisional digit still arms:
+// under a capo every playable fret's first digit alone refuses, and the window is what keeps
+// the two-digit target reachable.
 void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t now_ms)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -3169,39 +3189,22 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     {
         return;
     }
-    std::vector<common::core::ChartNote> base_notes = chartNotesForKeys(chartSelection().notes());
-    const std::vector<ChartNoteKey> keys = chartSelection().notes();
-    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan = planRetypeFrets(
-        *arrangement->chart, session().song().tempo_map, base_notes, digit, /*set_exact=*/true);
-    // A refused first digit (a sub-capo target, or a scrape's start stilled against its first
-    // path position) still arms the entry window: the digit applies nothing, but the widen
-    // replans the two-digit value from the same pre-entry base, so every in-range multi-digit
-    // target stays reachable — under a capo, every playable fret would otherwise be untypable
-    // because its first digit alone always refuses.
-    // Whether the digit PUSHED is what the widen needs, because a pushing entry owns the burst
-    // record and reverses it to reconstruct the pre-entry stream — however much that plan touched —
-    // while a refused one has applied nothing to reverse.
-    bool pushed = false;
-    if (plan.has_value() && !plan->removed.empty())
+    ChartFretEntry entry{
+        .value = digit,
+        .began_as_insert = false,
+        .keys = chartSelection().notes(),
+        .base_notes = chartNotesForKeys(chartSelection().notes()),
+        .armed_ms = now_ms,
+    };
+    entry.plan = replanChartFretEntry(entry);
+    if (chartFretValueExtendable(digit))
     {
-        pushed = applyChartEditPlan(std::move(plan));
+        armChartFretEntry(std::move(entry));
+        return;
     }
-    if (digit * 10 <= common::core::g_max_fret)
-    {
-        m_chart_fret_entry = ChartFretEntry{
-            .value = digit,
-            .last_keystroke_ms = now_ms,
-            .base_notes = std::move(base_notes),
-            .keys = keys,
-            .began_as_insert = false,
-            .pushed = pushed,
-            .history_position = m_undo_history.snapshot().position,
-        };
-    }
-    else
-    {
-        m_chart_fret_entry.reset();
-    }
+    // An immediate digit is a pending entry that settles in the same keystroke.
+    m_chart_fret_entry = std::move(entry);
+    settleChartFretEntry();
 }
 
 // The full note values behind a sorted key set, in chart order — the one selection-snapshot
@@ -3232,6 +3235,8 @@ std::vector<common::core::ChartNote> EditorController::Impl::chartNotesForKeys(
 // refused by the planner, never clamped.
 void EditorController::Impl::onChartFretShiftRequested(int direction)
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty() || direction == 0)
@@ -3267,6 +3272,8 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
 // clamps to the minimum-sustain-distance margin before the next onset on any string.
 void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool fine)
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty() || direction == 0)
@@ -3373,6 +3380,8 @@ bool EditorController::Impl::reverseTechniqueToggleWindow(
 
 void EditorController::Impl::onChartLegatoToggleRequested()
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty())
@@ -3440,6 +3449,8 @@ void EditorController::Impl::onChartLegatoToggleRequested()
 // names.
 void EditorController::Impl::onChartLeftTapRequested()
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty())
@@ -3460,6 +3471,8 @@ void EditorController::Impl::onChartLeftTapRequested()
 // undo/redo replay exactly and the revision bump rebuilds every projection.
 void EditorController::Impl::onChartPickSlideToggleRequested()
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty())
@@ -3510,6 +3523,8 @@ void EditorController::Impl::toggleChartNoteFlag(
     const ChartNoteFlag which, std::optional<std::vector<ChartNoteKey>>& window,
     const std::string_view noun)
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty())
@@ -3577,6 +3592,8 @@ void EditorController::Impl::toggleChartEmphasis(
     const common::core::NoteEmphasis target, std::optional<std::vector<ChartNoteKey>>& window,
     const std::string_view noun)
 {
+    // The pending fret entry settles first (the uniform prologue).
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
         chartSelection().empty())
@@ -3662,10 +3679,21 @@ bool EditorController::Impl::consumeChartEscapeRung()
         return true;
     }
 
+    // An INVALID pending fret value claims its own rung (user ruling): Esc cancels the PROBLEM,
+    // so the value discards and the caret survives for an immediate retype. A VALID pending
+    // value is not a cancellable thing — it falls through to the caret rung below and commits
+    // on the way through the uniform settle, because a value you typed is a value you meant.
+    if (m_chart_fret_entry.has_value() && !m_chart_fret_entry->plan.has_value() &&
+        m_chart_fret_entry->plan.error() == ChartPlanRefusal::Invalid)
+    {
+        discardChartFretEntry();
+        return true;
+    }
+
     if (armedChartCaret() != nullptr)
     {
+        settleChartFretEntry();
         dissolveChartCaretInPlace();
-        m_chart_fret_entry.reset();
         disarmTechniqueToggleWindows();
         return true;
     }
@@ -3707,6 +3735,10 @@ bool EditorController::Impl::consumeChartEscapeRung()
 // regardless, because the document writer serializes the resolved form.
 bool EditorController::Impl::settleChartLegato()
 {
+    // The fret entry settles FIRST at every settle point the sweep owns: commit the typed value,
+    // then flatten the claims it broke. Riding the sweep's own call sites is what makes the
+    // pending entry's prologue complete without a second site list to keep in step.
+    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() ||
         m_undo_history.hasPendingTransition())
@@ -3779,12 +3811,13 @@ bool EditorController::Impl::settleChartLegato()
         // undo step.
         pushUndoEntry(std::make_unique<ChartNotesEdit>(*settled));
     }
-    // A sweep that commits anything closes BOTH coalescing windows: a fold changes the top entry's
-    // content without moving the history position, so an armed window's proof would otherwise still
-    // pass and reverse or widen a plan that no longer exists.
+    // A sweep that commits anything closes the technique toggle windows: a fold changes the top
+    // entry's content without moving the history position, so an armed window's proof would
+    // otherwise still pass and reverse a plan that no longer exists. The pending fret entry
+    // needs no closing here — it settled at this function's head, before the sweep judged the
+    // chart.
     m_chart_notes_top.reset();
     disarmTechniqueToggleWindows();
-    m_chart_fret_entry.reset();
     updateView();
     return true;
 }
@@ -3871,6 +3904,13 @@ void EditorController::Impl::runAction(EditorAction::Action action)
     if (!isBusy())
     {
         flushPendingPluginEdits("plugin_edit.action_dispatch");
+        // The uniform settle prologue: every gated action settles the pending fret entry first
+        // — commit if valid, discard if invalid — so no action ever runs against a half-typed
+        // value. Deliberately BEFORE the availability gate: Undo on a valid pending value must
+        // commit it and then undo it (the ruled behavior), which requires the commit to land
+        // before undo availability is judged. Digits are refused while busy, so no entry can
+        // exist on the busy branch.
+        settleChartFretEntry();
     }
 
     if (!prepareAction(action_id))
@@ -4700,6 +4740,42 @@ EditorViewState EditorController::Impl::deriveViewState() const
             // The Alt-hover insert ghost publishes verbatim: it is already resolved to seconds +
             // string, and is set only while Alt hovers an insertable empty slot (else absent).
             state.chart_edit.insert_ghost = m_chart_insert_ghost;
+            // The pending fret entry: a retype's box rides the affected heads (indices into the
+            // same projection instance the selection resolves against), an insert entry carries
+            // its slot, where no head exists yet. Text and validity publish from the entry's own
+            // plan — NoChange stays valid, because a no-op is not a refusal and must not read
+            // red.
+            if (m_chart_fret_entry.has_value())
+            {
+                ChartPendingFretViewState pending;
+                pending.text = std::to_string(m_chart_fret_entry->value);
+                pending.valid = m_chart_fret_entry->plan.has_value() ||
+                                m_chart_fret_entry->plan.error() != ChartPlanRefusal::Invalid;
+                if (m_chart_fret_entry->began_as_insert && !m_chart_fret_entry->keys.empty())
+                {
+                    const ChartNoteKey& slot = m_chart_fret_entry->keys.front();
+                    pending.insert_seconds =
+                        caretTimeBounds(session().song().tempo_map, slot.position).seconds;
+                    pending.insert_string = slot.string;
+                }
+                else
+                {
+                    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+                    for (std::size_t index = 0; index < notes.size(); ++index)
+                    {
+                        if (std::ranges::binary_search(
+                                m_chart_fret_entry->keys,
+                                ChartNoteKey{
+                                    .position = notes[index].position,
+                                    .string = notes[index].string,
+                                }))
+                        {
+                            pending.notes.push_back(index);
+                        }
+                    }
+                }
+                state.chart_edit.pending_fret = std::move(pending);
+            }
         }
     }
     else

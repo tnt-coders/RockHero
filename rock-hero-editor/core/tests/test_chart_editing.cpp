@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/editor/core/testing/deferring_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
 namespace rock_hero::editor::core
@@ -1256,16 +1257,27 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     REQUIRE(state != nullptr);
     const std::size_t entries_before = state->undo_history.labels.size();
 
+    // The first digit is PROVISIONAL: the chart holds nothing of it, no entry pushes, and the
+    // pending state carries the typed text over the selected head, valid (white, not red).
     controller.onChartFretDigitTyped(1);
     const auto* chart = chartOrNull(controller);
-    CHECK(chart->notes[0].fret == 1);
+    CHECK(chart->notes[0].fret == 3);
+    CHECK(state->undo_history.labels.size() == entries_before);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    if (state->chart_edit.pending_fret.has_value())
+    {
+        CHECK(state->chart_edit.pending_fret->text == "1");
+        CHECK(state->chart_edit.pending_fret->valid);
+        CHECK(state->chart_edit.pending_fret->notes == std::vector<std::size_t>{0});
+    }
 
-    // The second digit inside the window widens the SAME undo entry: one action, fret 12.
+    // The second digit combines and SETTLES: one action, fret 12, pending gone.
     controller.onChartFretDigitTyped(2);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 12);
     CHECK(state->undo_history.labels.size() == entries_before + 1);
     CHECK(state->undo_label == std::optional<std::string>{"Set Fret 12"});
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
 
     // The selection stays on the retyped note under its unchanged key.
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
@@ -1275,12 +1287,323 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 3);
 
-    // An interleaved edit kills the window: the next digit starts a fresh value.
+    // An interleaved verb settles the pending value FIRST (the uniform prologue): "2" commits
+    // as its own entry before the sustain grows, and the next digit starts a fresh value —
+    // provisional again, committed here by the caret step's own prologue.
     controller.onChartFretDigitTyped(2);
     controller.onChartSustainAdjustRequested(1, false);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 2);
     controller.onChartFretDigitTyped(3);
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 3);
+}
+
+// The pending window itself, driven exactly like production: a deferring scheduler holds the
+// wake and an injected clock decides when the window has elapsed. Pins the three wake laws: it
+// settles once the clock agrees, an early delivery no-ops (the clock is the authority, not the
+// scheduler), and a wake left behind by a settled entry is stale and cannot double-commit.
+TEST_CASE("EditorController pending digit settles on its window wake", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    testing::DeferringMessageThreadScheduler scheduler;
+    std::uint32_t now_ms = 1000;
+    EditorController::Services services =
+        controllerServices(nullEditorSettings(), immediateTaskRunner(), scheduler);
+    services.now_milliseconds = [&now_ms] { return now_ms; };
+    EditorController controller{
+        audioPorts(transport, audio),
+        services,
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    // Drain anything the load itself scheduled, so the pumps below deliver exactly the fret
+    // window's wake.
+    static_cast<void>(scheduler.runDelayed());
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    controller.onChartFretDigitTyped(2);
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 3);
+    CHECK(state->undo_history.labels.size() == entries_before);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+
+    SECTION("the wake settles once the window has elapsed")
+    {
+        now_ms += 751;
+        CHECK(scheduler.runDelayed() == 1);
+        chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 2);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+        CHECK(state->undo_label == std::optional<std::string>{"Set Fret 2"});
+        CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+
+        controller.onUndoRequested();
+        CHECK(chartOrNull(controller)->notes[0].fret == 3);
+    }
+    SECTION("an early wake no-ops and the value still commits at the next intent")
+    {
+        CHECK(scheduler.runDelayed() == 1);
+        chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 3);
+        CHECK(state->chart_edit.pending_fret.has_value());
+
+        controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+        CHECK(chartOrNull(controller)->notes[0].fret == 2);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+    }
+    SECTION("a stale wake after a second digit cannot double-commit")
+    {
+        controller.onChartFretDigitTyped(3);
+        chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 23);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+
+        now_ms += 751;
+        CHECK(scheduler.runDelayed() == 1);
+        chart = chartOrNull(controller);
+        CHECK(chart->notes[0].fret == 23);
+        CHECK(state->undo_history.labels.size() == entries_before + 1);
+    }
+}
+
+// The red half of the pending model: a provisional digit whose plan the gate refuses paints
+// invalid, applies nothing while pending, and DISCARDS at its window — the previous values were
+// never touched, so there is nothing to restore. The same capo that refuses the single digit is
+// why the window exists at all: the two-digit target it feeds is legal and must stay typable.
+TEST_CASE("EditorController discards an invalid pending digit at its window", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    testing::DeferringMessageThreadScheduler scheduler;
+    std::uint32_t now_ms = 1000;
+    EditorController::Services services =
+        controllerServices(nullEditorSettings(), immediateTaskRunner(), scheduler);
+    services.now_milliseconds = [&now_ms] { return now_ms; };
+    EditorController controller{
+        audioPorts(transport, audio),
+        services,
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    common::core::Chart capo_chart = makeTestChart();
+    capo_chart.tuning.capo = 2;
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart)));
+    static_cast<void>(scheduler.runDelayed());
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    // "2" targets a fret the capo covers: Invalid, drawn red, nothing applied.
+    controller.onChartFretDigitTyped(2);
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 3);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    if (state->chart_edit.pending_fret.has_value())
+    {
+        CHECK(state->chart_edit.pending_fret->text == "2");
+        CHECK_FALSE(state->chart_edit.pending_fret->valid);
+    }
+
+    // The window elapses: the invalid value discards — no edit, no entry, previous value stands.
+    now_ms += 751;
+    CHECK(scheduler.runDelayed() == 1);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 3);
+    CHECK(state->undo_history.labels.size() == entries_before);
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+
+    // The refused first digit is exactly what keeps 23 typable: the second digit combines and
+    // commits the legal two-digit value as one entry.
+    controller.onChartFretDigitTyped(2);
+    controller.onChartFretDigitTyped(3);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 23);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+}
+
+// Esc's rung is claimed by an INVALID pending value only: it cancels the problem, so the value
+// discards and the caret survives for an immediate retype (user ruling).
+TEST_CASE("EditorController Esc discards an invalid pending value, keeps caret", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    common::core::Chart capo_chart = makeTestChart();
+    capo_chart.tuning.capo = 2;
+    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart)));
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    controller.onChartFretDigitTyped(2);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+
+    controller.onChartEscapePressed();
+    CHECK(chartOrNull(controller)->notes[0].fret == 3);
+    CHECK(state->undo_history.labels.size() == entries_before);
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    // The caret survives the discard for an immediate retype.
+    CHECK(state->chart_edit.caret.has_value());
+}
+
+// A VALID pending value is not a cancellable thing: Esc falls through to the caret rung and the
+// value commits on the way through the uniform settle — a value you typed is a value you meant.
+TEST_CASE("EditorController Esc commits a valid pending value via the caret rung", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    controller.onChartFretDigitTyped(2);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+
+    controller.onChartEscapePressed();
+    CHECK(chartOrNull(controller)->notes[0].fret == 2);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
+    // The caret rung consumed the press: the marker dissolved with the value committed.
+    CHECK_FALSE(state->chart_edit.caret.has_value());
+}
+
+// Undo is NOT special (user ruling): the uniform prologue settles first, so Ctrl+Z on a valid
+// pending value commits it and then undoes it — the value appears and is removed, with a redo
+// entry left behind, because the value really was a valid edit.
+TEST_CASE("EditorController undo settles a pending value then undoes it", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    controller.onChartFretDigitTyped(2);
+    controller.onUndoRequested();
+    CHECK(chartOrNull(controller)->notes[0].fret == 3);
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+
+    // The redo entry left behind IS the committed value.
+    controller.onRedoRequested();
+    CHECK(chartOrNull(controller)->notes[0].fret == 2);
+}
+
+// A pending INSERT plants nothing until it settles: the chart gains no note while the value is
+// provisional, and the settle applies one insert carrying the combined value — selected, caret
+// armed on it, one undo entry that removes the whole thing.
+TEST_CASE("EditorController pending insert plants nothing until it settles", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    testing::DeferringMessageThreadScheduler scheduler;
+    std::uint32_t now_ms = 1000;
+    EditorController::Services services =
+        controllerServices(nullEditorSettings(), immediateTaskRunner(), scheduler);
+    services.now_milliseconds = [&now_ms] { return now_ms; };
+    EditorController controller{
+        audioPorts(transport, audio),
+        services,
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    static_cast<void>(scheduler.runDelayed());
+
+    // The empty caret at measure 4 beat 1 (x = 120 is 6.0s) on string 1.
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
+
+    controller.onChartFretDigitTyped(2);
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes.size() == 3);
+    CHECK(state->undo_history.labels.size() == entries_before);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
+    if (state->chart_edit.pending_fret.has_value())
+    {
+        CHECK(state->chart_edit.pending_fret->text == "2");
+        CHECK(state->chart_edit.pending_fret->notes.empty());
+        CHECK(state->chart_edit.pending_fret->insert_seconds.has_value());
+        CHECK(state->chart_edit.pending_fret->insert_string == 1);
+    }
+
+    now_ms += 751;
+    CHECK(scheduler.runDelayed() == 1);
+    chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == 4);
+    CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 4, .beat = 1});
+    CHECK(chart->notes[3].fret == 2);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{3});
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+
+    controller.onUndoRequested();
+    CHECK(chartOrNull(controller)->notes.size() == 3);
 }
 
 // Two-digit entry across a note another note connects to. Nothing is repaired mid-burst any more —
@@ -1343,23 +1666,28 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
     // repair that rewrote the note's tail or node.
     const common::core::ChartNote claim_bytes = chartOrNull(controller)->notes[1];
 
-    SECTION("two digits inside the window are one entry, and the mark follows each value")
+    SECTION("two digits settle as one entry, and the mark follows the committed value")
     {
-        // The 5-to-3-to-2 story: retyping the predecessor under the claim RE-PROJECTS it. The
-        // note's bytes never change — the claim is still exactly the claim the author wrote — and
-        // only the direction it reads back as moves, from a pull-off to a hammer-on.
+        // Mid-entry the chart is UNTOUCHED — the pending model's whole point: the claim never
+        // re-projects through a half-typed value (the flicker the old model painted), because no
+        // half-typed value ever reaches the chart. The provisional "1" lives only in the pending
+        // state.
         controller.onChartFretDigitTyped(1);
         const auto* chart = chartOrNull(controller);
         REQUIRE(chart->notes.size() == 2);
-        CHECK(chart->notes[0].fret == 1);
+        CHECK(chart->notes[0].fret == 9);
         CHECK(chart->notes[1] == claim_bytes);
-        CHECK(resolution(1) == common::core::LegatoMotion::Hammer);
-        // The armed caret's selection is still exactly the note under it, which is what keeps the
-        // window open for the next digit.
+        CHECK(resolution(1) == common::core::LegatoMotion::Pull);
+        REQUIRE(state->chart_edit.pending_fret.has_value());
+        if (state->chart_edit.pending_fret.has_value())
+        {
+            CHECK(state->chart_edit.pending_fret->text == "1");
+        }
+        // The armed caret's selection is still exactly the note under it.
         CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
-        // The second digit widens the SAME entry to fret 12, replanning from the reversed pre-entry
-        // stream, and the claim reads back as the pull-off again.
+        // The second digit combines to 12 and SETTLES as one entry; the claim's bytes never
+        // change and its direction re-projects against the committed value only.
         controller.onChartFretDigitTyped(2);
         chart = chartOrNull(controller);
         CHECK(chart->notes[0].fret == 12);
@@ -3014,10 +3342,10 @@ TEST_CASE("EditorController settles at every ruled selection event", "[core][cha
     CHECK(state->undo_history.labels.size() == entries_before + 1);
 }
 
-// A transport seek is a settle event that does NOT touch the selection or the caret's fret entry:
-// disarmChartMarker leaves the multi-digit window armed and the seek keeps the note selection, so
-// the sweep is reached with the window live and its history position unmoved — the one sequence
-// where closing that window is the sweep's own job.
+// A transport seek settles the pending fret entry through the action gate's uniform prologue:
+// the typed value commits as its own entry BEFORE the seek's settle sweep judges the chart, so
+// the sweep folds the claim it broke into that very entry. This is the old model's paused-seek
+// bug made unrepresentable — a seek can no longer leave a half-typed window armed.
 TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[core][chart]")
 {
     FakeTransport transport;
@@ -3045,23 +3373,28 @@ TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[
     REQUIRE(state != nullptr);
     const std::size_t entries_before = state->undo_history.labels.size();
 
-    // Typing 2 makes the middle note's fret equal the claim's, so nothing connects any more — and
-    // arms the window, because a second digit still fits under the fret cap.
+    // Typing 2 is PROVISIONAL: the chart is untouched, the claim still connects, and nothing
+    // has pushed. The value lives in the pending state only.
     controller.onChartFretDigitTyped(2);
-    CHECK(note(1).fret == 2);
+    CHECK(note(1).fret == 7);
     CHECK(note(2).attack == common::core::NoteAttack::Legato);
-    REQUIRE(state->undo_history.labels.size() == entries_before + 1);
+    CHECK(state->undo_history.labels.size() == entries_before);
+    REQUIRE(state->chart_edit.pending_fret.has_value());
 
-    // The seek settles. The fold rewrites the retype's entry in place, so the history POSITION is
-    // unchanged and every proof the armed window checks still passes.
+    // The seek settles: the prologue commits fret 2 first, which breaks the claim, and the
+    // seek's own sweep then folds the flatten into that entry — one entry for both.
     controller.onTimelineSeekRequested(common::core::TimePosition{1.0});
+    CHECK(note(1).fret == 2);
     CHECK(note(2).attack == common::core::NoteAttack::Pick);
     CHECK(state->undo_history.labels.size() == entries_before + 1);
+    CHECK_FALSE(state->chart_edit.pending_fret.has_value());
     REQUIRE_FALSE(state->chart_edit.selected_notes.empty());
 
-    // So the next digit must start a FRESH value: fret 3, not the widened 23. A surviving window
-    // would replan the whole entry from a pre-entry stream the fold has already replaced.
+    // The next digit starts a FRESH value — provisional again, committed by a second seek's
+    // prologue: fret 3, never the widened 23.
     controller.onChartFretDigitTyped(3);
+    CHECK(note(1).fret == 2);
+    controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
     CHECK(note(1).fret == 3);
     CHECK(state->undo_history.labels.size() == entries_before + 2);
 

@@ -174,12 +174,28 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void deleteChartSelection();
     void onSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
-    // The typing rule's three flows, split from the digit dispatcher: widening the in-flight
-    // multi-digit entry (false = not widenable, the digit falls through to a fresh flow),
-    // inserting at the armed empty caret, and retyping the selection.
-    bool widenChartFretEntry(int digit, std::uint32_t now_ms);
+    // Defined with its state below; forward-declared so armChartFretEntry can take it by value.
+    struct ChartFretEntry;
+    // The typing rule's three flows, split from the digit dispatcher: combining into the pending
+    // entry (false = no live entry claimed the digit — an expired one settled and the digit
+    // falls through to a fresh flow), starting an insert entry at the armed empty caret, and
+    // starting a retype entry over the selection.
+    bool combineChartFretEntry(int digit, std::uint32_t now_ms);
     void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
     void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
+    // The pending entry's lifecycle. Settle is the uniform prologue: commit the plan when it
+    // holds one (one undo entry), apply nothing on NoChange, discard on Invalid — every action
+    // and intent calls it first, which is the whole reason the stored plan can never go stale.
+    // Discard drops the entry without committing (context teardown, the Esc invalid rung). Arm
+    // stores a fresh entry and schedules its wake; the wake settles the entry when the injected
+    // clock agrees the window has elapsed.
+    void settleChartFretEntry();
+    void discardChartFretEntry();
+    void armChartFretEntry(ChartFretEntry entry);
+    void scheduleChartFretEntryWake();
+    // One authority for what a pending entry would apply, run in full on every keystroke.
+    [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> replanChartFretEntry(
+        const ChartFretEntry& entry) const;
     // The full note values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
         const std::vector<ChartNoteKey>& keys) const;
@@ -774,34 +790,44 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // hovers an insertable empty slot. Published verbatim into the chart-edit view state.
     std::optional<ChartInsertGhostViewState> m_chart_insert_ghost{};
 
-    // In-flight multi-digit fret entry: the value typed so far, the tick of its last keystroke,
-    // the pre-entry note values (so the widened undo entry still restores the originals), the
-    // selection keys it retypes, whether an undo entry was pushed (a first digit matching every
-    // fret is a no-op that pushes nothing), and the history position the window is valid at. A
-    // second digit inside the window widens the entry in place (replaceTop), so typing "2 then
-    // 3" retypes to fret 23 and undoes as ONE action.
-    //
-    // The entry deliberately keeps NO copy of the plan it applied: when it pushed, that plan is
-    // `m_chart_notes_top` below and the widen reads it there. A refused first digit pushes nothing,
-    // which is the whole reason `pushed` and the position stay here — a non-pushing window still
-    // has to prove nothing else has happened, and has nothing to reverse.
+    // The in-flight PENDING multi-digit fret entry (the W3 pending model): the typed value is
+    // provisional and the chart holds NOTHING of it — nothing commits until the entry settles
+    // (a second digit, the window timeout, or any other action's settle prologue), and an entry
+    // whose plan is Invalid discards, leaving the previous values untouched. The stored plan is
+    // exactly what a settle would apply, replanned in FULL on every keystroke; it cannot go
+    // stale because everything that could invalidate it (another edit, a selection change,
+    // undo/redo) settles this entry first. That one invariant is what deleted the old model's
+    // machinery: no mid-entry mutation means no plan reversal, no replaceTop swap, no
+    // history-position proofs, and no half-typed value a surface could ever show.
     struct ChartFretEntry
     {
         int value{};
-        std::uint32_t last_keystroke_ms{};
-        std::vector<common::core::ChartNote> base_notes{};
-        std::vector<ChartNoteKey> keys{};
-        // Set when the entry began as a caret insert: widening re-plans the insert with the
-        // combined fret so the entry stays ONE insert (undo removes the note), never
-        // degrading into a retype that would strand it.
+        // Set when the entry began on an empty armed caret: settling applies ONE insert carrying
+        // the combined fret (undo removes the note); otherwise settling retypes `keys` from
+        // `base_notes`. The pending head is drawn at `keys.front()` in that case.
         bool began_as_insert{false};
-        // True when this entry's own plan is the history top — so the burst record below is ITS
-        // plan, which widening REVERSES to reconstruct the pre-entry stream exactly, including
-        // anything the plan touched beyond the typed notes.
-        bool pushed{false};
-        std::size_t history_position{};
+        std::vector<ChartNoteKey> keys{};
+        std::vector<common::core::ChartNote> base_notes{};
+        // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
+        // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
+        // for, and what the entry box's red text reads. Defaulted to NoChange rather than
+        // std::expected's value-state default, which would be an empty-but-valid plan.
+        std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan{
+            std::unexpected{ChartPlanRefusal::NoChange}
+        };
+        // Tick of the arming keystroke: the injected clock is the authority for the window, so
+        // a wake that fires early (an immediate test scheduler) no-ops instead of settling.
+        std::uint32_t armed_ms{};
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
+
+    // Monotonic stamp of the LIVE wake for the pending entry above. Every arm bumps it and
+    // schedules a wake carrying the new value, so a wake whose stamp no longer matches — the
+    // entry settled, discarded, or re-armed since — is stale and no-ops. Wakes never
+    // reschedule: at the current fret cap a second digit always ends the entry, so the newest
+    // wake is always the one that matters, and a no-reschedule wake cannot spin under a
+    // synchronous test scheduler.
+    std::uint64_t m_chart_fret_entry_wake{0};
 
     // The chart-notes entry this burst pushed, and the history position holding it. Three verbs
     // read it: the settle sweep folds its flatten into this entry (replaceTop) so the edit and the
@@ -1175,6 +1201,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Non-owning reference to the active task runner.
     IEditorTaskRunner& m_task_runner;
+
+    // Non-owning reference to the message-thread scheduler, for the pending fret entry's window
+    // wake. The busy workflow above holds its own reference to the same scheduler; this one
+    // exists because the fret window is not a busy operation and must not ride busy policy.
+    IMessageThreadScheduler& m_message_thread_scheduler;
 
     // Declared near the end so callback registration is detached before controller state dies.
     common::audio::ScopedListener<common::audio::ITransport, common::audio::ITransport::Listener>
