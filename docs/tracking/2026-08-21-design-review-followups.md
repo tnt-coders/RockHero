@@ -70,6 +70,18 @@ it.
 
 ## Tier 2 — performance, measured by reading, not yet by a build
 
+**First measurement 2026-08-21 (`14a8daf4`):** the game's per-frame trace now carries
+`content_cpu_ns` (clock sample through update and render encoding, before the submit), so the
+budget is readable from a `--dev` log. RelWithDebInfo, the densest local chart (3,883 notes, 67
+sections), 4,000 frames at 144 Hz (6.94 ms period) AT REST at song time 0: p50 0.07 ms, p99
+0.19 ms, max 0.57 ms. The playback reading — the one items 6–8 are about — is still owed: the
+game's device policy keeps the saved ASIO interface and closes JUCE's substitute when it is
+absent, and playback starts on Space, so an unattended run has no song clock. To take it: connect
+the interface, `rock-hero.exe --dev --dev-package <pkg> --smoke-frames 6000`, press Space, and
+read `content_cpu_ns` per frame from `%APPDATA%\Rock Hero\Rock Hero Game.log` (the worst
+one-second window, not the mean, is the number that matters). Nothing below should be tuned
+before that reading exists.
+
 6. **Per-frame allocation and whole-song scans in `draw()`** — the full inventory is now in
    `backlog.md` under "Per-frame allocation in the render path" (re-verified 2026-08-21): ~30
    unreserved furniture vectors per frame, a per-ribbon-SEGMENT column vector, five per-note
