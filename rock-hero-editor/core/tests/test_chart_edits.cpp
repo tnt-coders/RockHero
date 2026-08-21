@@ -1210,6 +1210,23 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
     CHECK(shifted.error() == ChartPlanRefusal::Invalid);
 }
 
+// An open string cannot slide, so retyping a slid note to 0 refuses whole — and the refusal is
+// Invalid, the kind the pending entry paints red instead of silently no-oping.
+TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
+{
+    common::core::ChartNote slide =
+        makeNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
+    slide.slides = {common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {std::move(slide)};
+
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), chart.notes, 0, /*set_exact=*/true);
+    REQUIRE_FALSE(plan.has_value());
+    CHECK(plan.error() == ChartPlanRefusal::Invalid);
+}
+
 // The stilled-scrape refusal is scrape-only: a pitched slide's equal-fret segment is the legal
 // hold-then-glide encoding the importer emits, so retyping a pitched start onto its first
 // waypoint's fret is a legitimate correction and must pass, not refuse.

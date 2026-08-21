@@ -276,6 +276,14 @@ ChartNote executableChartNote(ChartNote note)
         note.slides.clear();
         note.slide_out.reset();
     }
+    // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or trail-off
+    // is shed whole. The scrape keeps its path — whether its start is a stop or pick travel is
+    // deliberately unruled (W9-J), and the path is unpitched gesture geometry either way.
+    if (note.attack != NoteAttack::PickSlide && note.fret == 0)
+    {
+        note.slides.clear();
+        note.slide_out.reset();
+    }
     return note;
 }
 
@@ -357,6 +365,20 @@ std::expected<void, ChartError> validateChartNoteAlone(
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
             .message = "fret must be 0 or above the capo at " + positionText(note.position),
+        }};
+    }
+    // An open string cannot slide — nothing is pressed to travel, and the capo'd open is no
+    // different (the capo does not move) — so a glide or trail-off from fret 0 describes the
+    // unexecutable. The scrape is deliberately excluded: whether its start names a stop or pick
+    // travel is an open ruling (W9-J), and its path is unpitched gesture geometry either way.
+    // The shed (\ref executableChartNote) drops the same path, so import repairs what this gate
+    // refuses.
+    if (note.attack != NoteAttack::PickSlide && note.fret == 0 &&
+        (!note.slides.empty() || note.slide_out.has_value()))
+    {
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "an open string cannot slide at " + positionText(note.position),
         }};
     }
     // A struck note needs somewhere to land (E4), asked of the one authority for that question so

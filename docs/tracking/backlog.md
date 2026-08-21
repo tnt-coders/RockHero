@@ -296,10 +296,12 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   player navigates blind. Also one heap `std::format` per entry per frame. Windowing the rows adds
   code, but a fixed-height screen genuinely cannot state an unbounded list. (Plan 26's own
   follow-up notes the same gap; this is the doing-entry.)
-- **CONFIRMED: `slide_state_at` returns no slide state when `note.fret <= 0`** and the rules do
-  not refuse open-string slides, so an open-string note with waypoints draws a straight tail while
-  its waypoint furniture still draws at the waypoint frets. Also every dev-session hot reload calls
-  `camera.reset()`, so each save snaps the camera.
+- ~~CONFIRMED: `slide_state_at` returns no slide state when `note.fret <= 0` and the rules do
+  not refuse open-string slides~~ — **rules half FIXED 2026-08-20** (user rule: an open string
+  cannot slide — nothing is pressed to travel): `validateChartNoteAlone` refuses a fret-0 glide
+  or trail-off and `executableChartNote` sheds the path, scrapes excluded pending W9-J, so the
+  form `slide_state_at` ignores can no longer exist in a valid chart. Still open from the same
+  entry: every dev-session hot reload calls `camera.reset()`, so each save snaps the camera.
 
 ### Editor UI
 

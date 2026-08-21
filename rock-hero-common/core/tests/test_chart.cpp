@@ -912,6 +912,38 @@ TEST_CASE("Chart rules enforce the technique compatibility matrix", "[core][char
         return validateChartNotes(notes, tuning, tempo_map);
     };
 
+    SECTION("an open string cannot slide")
+    {
+        // Nothing is pressed to travel, so a fret-0 glide or trail-off refuses (user rule
+        // 2026-08-20), and the shed drops the path whole — which is what lets import repair the
+        // form this gate refuses. The scrape is excluded pending W9-J's stop-or-travel ruling.
+        ChartNote open_slide = make_note(1, 1, 0);
+        open_slide.sustain = Fraction{1};
+        open_slide.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}};
+        CHECK_FALSE(validate({open_slide}).has_value());
+        const ChartNote shed_slide = executableChartNote(open_slide);
+        CHECK(shed_slide.slides.empty());
+        CHECK(validate({shed_slide}).has_value());
+
+        ChartNote open_exit = make_note(1, 1, 0);
+        open_exit.sustain = Fraction{1};
+        open_exit.slide_out = SlideOut{.offset = Fraction{1}, .fret = 5};
+        CHECK_FALSE(validate({open_exit}).has_value());
+        CHECK_FALSE(executableChartNote(open_exit).slide_out.has_value());
+
+        // The capo'd open is no different: the capo does not move.
+        ChartNote capo_open = make_note(1, 1, 0);
+        capo_open.sustain = Fraction{1};
+        capo_open.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}};
+        CHECK_FALSE(validate({capo_open}, 2).has_value());
+
+        // A fretted glide is untouched.
+        ChartNote fretted = make_note(1, 1, 3);
+        fretted.sustain = Fraction{1};
+        fretted.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}};
+        CHECK(validate({fretted}).has_value());
+    }
+
     SECTION("either tapping attack needs a place to strike")
     {
         // Both attacks that strike from nowhere are bound, and both rules read one note: an open

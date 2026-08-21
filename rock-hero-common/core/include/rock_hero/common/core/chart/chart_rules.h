@@ -203,6 +203,11 @@ grazes, so it names no position the note's own fret does not already give and as
 damped string cannot make. It is shed with its attack, since a pinch carrying no node is missing
 data rather than shed technique.
 
+A slide from the OPEN string sheds the same way (user rule 2026-08-20): nothing is pressed to
+travel, so a fret-0 glide or trail-off describes the unexecutable and the path drops whole. The
+scrape is the exclusion — whether its start names a stop or pick travel is deliberately unruled
+(W9-J), and its path is unpitched gesture geometry either way.
+
 The earlier ranking here had the node outrank the deadening and un-deaden the note, on the grounds
 that keeping the deadening "would silence a note the score named precisely" — which mistook a
 position for a pitch. The palm flag never enters any of this: it says where the picking hand is
