@@ -148,12 +148,11 @@ keep in step. The history position IS
 the proof of ownership: any other push, undo, or redo moves the cursor and retires the record.
 
 The fret widen was the third reader only from 2026-08-11 (review fix F4): it had kept its own
-`ChartFretEntry::applied_plan`, the same fact re-stated, hand-synchronized at three sites. It now
-keeps just a `pushed` flag — "the record is MY push" — which is not redundant with the record: a
-first digit the planner refuses still arms the window and has pushed nothing to reverse. A widen that
-finds itself pushed with no record retires the window instead of guessing, which makes the sweep's
-own `m_chart_fret_entry.reset()` the ruled behaviour rather than the only thing standing between a
-committing fold and a widen against a plan that no longer exists.
+`ChartFretEntry::applied_plan`, the same fact re-stated, hand-synchronized at three sites, and then
+for a while just a `pushed` flag. Both are gone: the W3 pending model (2026-08-20) never pushes a
+provisional value at all — the typed value is replanned in full per keystroke and commits ONCE when
+the entry settles — so the widen has nothing to reverse and the fret entry is no longer a reader of
+the toggle record.
 
 ## `Shift+T`
 

@@ -62,6 +62,7 @@ override. Everything else is Part B.
    model; wire it through `setSelection` / the marker helpers, never by assigning fields
    directly.
 10. **Tests.** Editor-core gesture tests drive the pointer intents directly (see
-    `test_chart_editing.cpp`, `test_editor_controller_tone_automation.cpp` for the idiom:
-    synthesize Down/Drag/Up events, assert plan effects, ghost visibility, undo round-trip).
+    `test_chart_editing.cpp` over the shared `chart_editing_fixture.h`, and
+    `test_editor_controller_tone_automation.cpp`, for the idiom: synthesize Down/Drag/Up events,
+    assert plan effects, ghost visibility, undo round-trip).
     UI wiring tests assert the component forwards events with correct geometry.

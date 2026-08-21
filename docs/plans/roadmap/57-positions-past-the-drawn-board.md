@@ -2,6 +2,13 @@
 
 **Status:** Decision-gated (G57-BOARD, 57-Q1..Q4). Nothing executable until 57-Q1 is measured.
 
+**Partly moot since 2026-08-20:** `g_max_fret` fell to 24 and `g_highway_fret_count` now derives
+from it, so the plain-fret half below (frets 25–30) is no longer representable and resolution A is
+already taken for frets. Only the NODE half remains open: a harmonic node still runs to
+`g_max_harmonic_node` (48), and `highwayDrawnSoundingPosition` holds it at the board's edge. The
+table and the candidate resolutions are kept as written for the record; read "fret 25–30" as
+history.
+
 **Authored** 2026-08-10, out of the deep code review. An interim fix shipped the same day; this plan
 is the real resolution.
 

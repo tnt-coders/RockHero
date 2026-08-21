@@ -15,10 +15,13 @@ single draw function — are where restatements still accrete, and each has a na
 ## Tier 1 — structural, deletes real code, needs a go-ahead
 
 **Progress (2026-08-21, later the same day, with the user's go-ahead):** items 1, 2, 3, and 4
-are DONE (`fb815d9a` the slice, `091b8ee8` the toggles, `59f0cd94` the action routing, and the
-W9-B fold that follows); item 5 (`draw()`) remains. Item 9 was fixed inside the fold: nothing is
-ruled about displaying a pinch's right-hand node — both surfaces today show only its left-hand
-stop, so the lane now gives a pinch the ordinary fretted head the board already gave it.
+are DONE (`fb815d9a` the slice, `091b8ee8` the toggles, `59f0cd94` the action routing,
+`483067c4` the W9-B fold); item 5 (`draw()`) remains. Tier 3: items 9, 10, 11, 12, 14, 15, 17, 18,
+19, and 20 are DONE in the commits that follow the fold; items 13 and 16 were investigated and
+carry verdicts in place below rather than code. Tier 2 is unmeasured still. Item 9's fix rode the
+fold: nothing is ruled about displaying a pinch's right-hand node — both surfaces today show only
+its left-hand stop, so the lane now gives a pinch the ordinary fretted head the board already gave
+it.
 
 1. **Route the chart intents through `runAction` / `EditorAction`.** The editor has one action
    funnel with availability gating, busy-supersede policy, logging, and the pending-entry
@@ -106,6 +109,22 @@ stop, so the lane now gives a pinch the ordinary fretted head the board already 
     closed.** A note exactly on a span's end blocks growth in one and counts as span-held in the
     other. Harmless today (the held extension at the boundary is zero length) but a third
     statement of "does this span cover this position" — give it one name.
+    **VERDICT 2026-08-21: do NOT unify; the boundary conventions differ because the span's END
+    is overloaded upstream, and that is the real finding.** The GP importer closes a span at its
+    notated ring trimmed to the margin before the next posture, *floored at its own last strum*
+    (`gp_chart_builder.cpp`, `close_span`), with an exact-adjacency fallback that ends a crowded
+    span *on the next posture's first onset*. So a note sitting exactly on a span end is
+    sometimes the span's own last strum and sometimes the next posture's first — no single
+    open/closed convention is right for both. Each reader then asks a different question and its
+    convention is correct for it: the hold rule (closed) gives a span-end group a zero hold, so
+    its closedness never extends anything; the repeat classifier (closed, in seconds) must
+    include a handshape's last strum or drops it from repeat treatment (a bug it already fixed
+    once); and `sustainGrowthLimit` (half-open) must let a span-end note BLOCK growth, because
+    when that note is the next posture's first strum a tail growing across it would ring into the
+    next chord. Forcing one predicate would break one of the three. The simplification that would
+    make one convention correct is upstream: spans as half-open intervals whose last strum lies
+    strictly inside (the importer would then never floor a span onto its last strum), which is a
+    40-Q format/import policy decision for the user, not a drive-by.
 14. **`planMoveNotes`' comment says a move off the grid is "refused, never clamped"; `advanceGridPosition`
     clamps to measure 1 beat 1**, so a lone note dragged left past bar 1 is silently repositioned.
     Either refuse when the destination clamps or correct the comment.
@@ -119,6 +138,20 @@ stop, so the lane now gives a pinch the ordinary fretted head the board already 
     lines under a tempo change between two bracketing lines. The walker's lattice should be
     `snapGridPosition`; the seconds metric is the legitimately different part. Cost is real (the
     walker also produces ranked visible lines) — a decision, not a drive-by.
+    **MEASURED 2026-08-21; not warranted now, pinned instead.** Blast radius: the walker is ~250
+    lines of the 508-line `tempo_grid_geometry.cpp` behind 8 public functions and a 601-line
+    suite, with 20 including files; its incremental integer stepping is the grid perf fix's hot
+    path (`visibleTempoGridLines`). The two metrics are both correct for their question — a
+    click snaps to the nearest line ON SCREEN (seconds), a caret steps to the nearest line in
+    MUSIC (beats) — and the only other difference by reading is the terminal clamp (the walker
+    stops at the terminal anchor, `snapGridPosition` does not; the caret is bounded separately by
+    `caretTimeBounds`). What must never differ is which lines EXIST, and that is now a maintained
+    test: "Grid stepping and click snapping agree on the lattice" walks the stepper's lattice
+    across a meter change, an odd meter, and a tempo change with a step that divides no measure
+    (3/16), and holds the walker to the same lines, midpoint by midpoint. If the lattice ever
+    changes shape (swing, tuplet grids), unify then — the shape would be one `gridLineAfter` /
+    `gridLineAtOrBefore` primitive in grid arithmetic that both the snap and the walker's advance
+    read.
 17. **`package_description.cpp` parses a chart for the library index without validating or
     normalizing it** — display metadata only today, but a second reader with a different bar.
 18. **Leftover one-line restatements**: `attack == NoteAttack::PickSlide` open-coded at ~14 sites

@@ -32,11 +32,13 @@ where a field's comment records a deliberate tuning away from it: X is the fret 
 at x = 0, Y is the string axis with the board surface at y = 0, and Z is the time axis with the
 hit line at z = 0 and future notes at positive Z.
 
-The highway has no magic numbers scattered through its renderer: tuning it is edits to this one
-header. The struct holds every *independently authored* constant; the free functions below it
-hold the exact relationships derived from those constants — a tail's width, a bend's lift, the
-whole-neck focus spot — so a derived value can never drift from the constant it is defined
-against.
+The struct holds every independently authored constant the scene model, the camera, and the
+renderer SHARE — the board's geometry, which every consumer must agree on; the free functions
+below it hold the exact relationships derived from those constants — a tail's width, a bend's
+lift, the whole-neck focus spot — so a derived value can never drift from the constant it is
+defined against. A single render pass's own proportions, alphas, and timings (an attack line's
+length, a glow's reach, a fade's duration) live beside that pass in the renderer, where only it
+reads them; nothing outside the renderer may depend on one of those.
 
 Shared by the game highway and the editor 3D preview; render backends consume these through the
 headless scene model and camera only.
