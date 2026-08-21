@@ -1,15 +1,26 @@
+#include "highway/highway_atlas.h"
+#include "highway/structural_art.h"
+#include "tab/plectrum_outline.h"
+
+#include <algorithm>
 #include <array>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
+#include <cstddef>
 #include <cstdlib>
+#include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
+#include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
+#include <span>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -1037,6 +1048,130 @@ TEST_CASE("Tab paint core heads a pinch at its fretted stop", "[ui][tab-paint]")
     const double harmonic_row = rowCoverage(image, lane_y - 8, harmonic_x, harmonic_x + 15);
     CHECK(std::abs(pinch_row - plain_row) < 0.5);
     CHECK(plain_row - harmonic_row > 3.0);
+}
+
+// The plectrum table is a hand-kept copy of a measurement of the shipped note atlas, which is the
+// one shape of constant that drifts silently when art is rebaked. This re-measures the pick-slide
+// cell's 0.5-coverage contour from the committed bytes and holds every interior row of the table
+// to it, so a rebake that moves the silhouette fails here instead of leaving the lane's head
+// disagreeing with the board's.
+TEST_CASE("The plectrum table matches the shipped pick-slide art", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::File art = juce::File{ROCK_HERO_TEXTURES_DIR}.getChildFile(
+        std::string{common::core::highwayTextureFileName(common::core::HighwayTexture::Notes)});
+    REQUIRE(art.existsAsFile());
+    juce::MemoryBlock bytes;
+    REQUIRE(art.loadFileAsData(bytes));
+    const std::expected<juce::Image, StructuralArtError> decoded = decodeStructuralArtPng(
+        std::span{static_cast<const std::byte*>(bytes.getData()), bytes.getSize()});
+    REQUIRE(decoded.has_value());
+    if (!decoded.has_value())
+    {
+        return;
+    }
+
+    // The pick-slide cell, addressed exactly as the atlas layout addresses it.
+    const int cell_size = decoded->getWidth() / g_head_atlas_columns;
+    REQUIRE(cell_size >= 16);
+    const int x0 = (g_head_cell_pick_slide % g_head_atlas_columns) * cell_size;
+    const int y0 = (g_head_cell_pick_slide / g_head_atlas_columns) * cell_size;
+    REQUIRE(y0 + cell_size <= decoded->getHeight());
+    const juce::Image::BitmapData bitmap{*decoded, juce::Image::BitmapData::readOnly};
+    // Coverage is the B channel of the structural scheme; sample i owns [i - 0.5, i + 0.5].
+    const auto coverage = [&](const int x, const int y) {
+        return static_cast<double>(bitmap.getPixelColour(x0 + x, y0 + y).getFloatBlue());
+    };
+    // The interpolated position along one row where coverage falls back below 0.5, scanned from
+    // the right — the contour's right edge on that row. Empty when the row carries no art.
+    const auto right_crossing = [&](const int y) -> std::optional<double> {
+        for (int x = cell_size - 1; x > 0; --x)
+        {
+            const double here = coverage(x, y);
+            const double left = coverage(x - 1, y);
+            if (left >= 0.5 && here < 0.5)
+            {
+                return (x - 1) + (left - 0.5) / (left - here);
+            }
+        }
+        return std::nullopt;
+    };
+    const auto left_crossing = [&](const int y) -> std::optional<double> {
+        for (int x = 0; x + 1 < cell_size; ++x)
+        {
+            const double here = coverage(x, y);
+            const double right = coverage(x + 1, y);
+            if (here < 0.5 && right >= 0.5)
+            {
+                return x + (0.5 - here) / (right - here);
+            }
+        }
+        return std::nullopt;
+    };
+    // The silhouette's box at the 0.5 line: its top and bottom from the centre column's crossings,
+    // its width from the widest row. The table's extent unit is the box HEIGHT, its origin the
+    // box centre — the same construction the table documents.
+    const int center_column = cell_size / 2;
+    std::optional<double> top;
+    std::optional<double> bottom;
+    for (int y = 1; y < cell_size; ++y)
+    {
+        const double above = coverage(center_column, y - 1);
+        const double here = coverage(center_column, y);
+        if (!top.has_value() && above < 0.5 && here >= 0.5)
+        {
+            top = (y - 1) + (0.5 - above) / (here - above);
+        }
+        if (top.has_value() && above >= 0.5 && here < 0.5)
+        {
+            bottom = (y - 1) + (above - 0.5) / (above - here);
+        }
+    }
+    REQUIRE(top.has_value());
+    REQUIRE(bottom.has_value());
+    const double height = *bottom - *top;
+    const double center_y = (*top + *bottom) / 2.0;
+    double widest_left = static_cast<double>(cell_size);
+    double widest_right = 0.0;
+    for (int y = 0; y < cell_size; ++y)
+    {
+        if (const auto left = left_crossing(y); left.has_value())
+        {
+            widest_left = std::min(widest_left, *left);
+        }
+        if (const auto right = right_crossing(y); right.has_value())
+        {
+            widest_right = std::max(widest_right, *right);
+        }
+    }
+    const double center_x = (widest_left + widest_right) / 2.0;
+    // The aspect the table documents: the art is 0.9395 as wide as it is tall.
+    CHECK((widest_right - widest_left) / height == Catch::Approx(0.9395).margin(0.01));
+
+    // Every interior row of the table against the contour, interpolated between the two texel
+    // rows bracketing the table point's height. The two end points sit on the box's top and
+    // bottom edges, where the contour has no row to read, and are pinned by the box itself.
+    for (const juce::Point<float>& point : g_plectrum_half_outline)
+    {
+        if (std::abs(point.y) > 0.49f)
+        {
+            continue;
+        }
+        CAPTURE(point.x, point.y);
+        const double row = center_y + (static_cast<double>(point.y) * height);
+        const int row_below = static_cast<int>(std::floor(row));
+        const std::optional<double> lower = right_crossing(row_below);
+        const std::optional<double> upper = right_crossing(row_below + 1);
+        REQUIRE(lower.has_value());
+        REQUIRE(upper.has_value());
+        const double weight = row - row_below;
+        const double crossing = (*lower * (1.0 - weight)) + (*upper * weight);
+        const double measured_x = (crossing - center_x) / height;
+        // Two thirds of a texel at the atlas's cell size. This row-interpolating tracer sits
+        // within 0.011 of the table's own tracer on the committed art (measured 2026-08-21), and
+        // a rebake that reshapes the silhouette moves its edges by whole texels (0.03 and up).
+        CHECK(measured_x == Catch::Approx(static_cast<double>(point.x)).margin(0.02));
+    }
 }
 
 // A scrape's tail is a PLAIN ribbon and every turnaround wears the note's own head.

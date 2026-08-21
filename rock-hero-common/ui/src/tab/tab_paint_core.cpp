@@ -2,6 +2,7 @@
 
 #include "highway/highway_emphasis_styles.h"
 #include "string_colors/string_color_palette.h"
+#include "tab/plectrum_outline.h"
 
 #include <algorithm>
 #include <array>
@@ -145,7 +146,6 @@ enum class Ink : std::uint8_t
     TailEdge,    // sustain border: the authority's bright x0.66 tail, brightened
     Accent,      // accent glow: ring brightened, hue-preserving
 
-    HeadBacking,   // the head's outermost layer, which melts into the dark lane
     Digit,         // fret numbers, on the head and on the floating chips
     TechniqueLine, // slide diagonals and the bend polyline
     VibratoSine,   // the sine riding a tail
@@ -181,7 +181,7 @@ constexpr float g_ghost_ground{static_cast<float>(g_ghost_alpha)};
 // the per-string entries match common::ui::StringLaneStyle one for one.
 struct StringStyle
 {
-    std::array<juce::Colour, static_cast<std::size_t>(Ink::Count)> inks;
+    std::array<juce::Colour, static_cast<std::size_t>(Ink::Count)> inks{};
 
     [[nodiscard]] juce::Colour operator[](const Ink ink) const
     {
@@ -201,27 +201,27 @@ struct StringStyle
     // it). The edge keeps the authority's derivation untouched: it carries string identity and
     // says the note rings, and keeping it bright is what lets the fill go this dark.
     explicit StringStyle(const StringLaneStyle& style)
-        : inks{
-              juce::Colour{style.lane},
-              juce::Colour{style.border_inner},
-              juce::Colour{style.inner},
-              juce::Colour{style.linked_inner},
-              juce::Colour{style.linked_inner},
-              juce::Colour{style.tail_edge},
-              juce::Colour{style.accent},
-              g_note_background_color,
-              juce::Colours::white,
-              juce::Colours::white,
-              g_vibrato_sine_color,
-              g_mute_border_color,
-              g_palm_mute_inner_color,
-              g_plate_rim,
-              juce::Colours::black,
-              juce::Colours::white,
-          }
     {
-        // An ink the list forgot would be default-constructed — fully transparent — and would
-        // then draw NOTHING, silently, wherever it was used. No real ink is transparent, so
+        // Assigned by enumerator, never by position: a positional list agreed with the enum only
+        // by hand, and reordering either would have swapped two inks without a word from the
+        // compiler — the omission check below sees a hole, not a swap.
+        set(Ink::Lane, juce::Colour{style.lane});
+        set(Ink::BorderInner, juce::Colour{style.border_inner});
+        set(Ink::Inner, juce::Colour{style.inner});
+        set(Ink::LinkedInner, juce::Colour{style.linked_inner});
+        set(Ink::Tail, juce::Colour{style.linked_inner});
+        set(Ink::TailEdge, juce::Colour{style.tail_edge});
+        set(Ink::Accent, juce::Colour{style.accent});
+        set(Ink::Digit, juce::Colours::white);
+        set(Ink::TechniqueLine, juce::Colours::white);
+        set(Ink::VibratoSine, g_vibrato_sine_color);
+        set(Ink::MuteBorder, g_mute_border_color);
+        set(Ink::PalmMuteInner, g_palm_mute_inner_color);
+        set(Ink::PlateRim, g_plate_rim);
+        set(Ink::PlateDark, juce::Colours::black);
+        set(Ink::PlateLight, juce::Colours::white);
+        // An ink never assigned stays default-constructed — fully transparent — and would then
+        // draw NOTHING, silently, wherever it was used. No real ink is transparent, so
         // transparency is a sound sentinel for "never filled in", and this turns the one hazard
         // of an array-shaped palette into a debug failure instead of a mark that vanishes.
         assert(
@@ -234,8 +234,7 @@ struct StringStyle
     // Quiet on THIS surface means leaning toward the lane's own ground, not translucency — the
     // ruling and its evidence sit with the weight above. Applied to EVERY ink at one weight, so a
     // mark added later is quiet by construction rather than by remembering to quiet it, and no
-    // ink can drift out of step with its neighbours. Ink::HeadBacking is self-correcting: the
-    // ground leaned toward the ground is the ground.
+    // ink can drift out of step with its neighbours.
     [[nodiscard]] StringStyle ghosted(const float ground) const
     {
         StringStyle quiet = *this;
@@ -244,6 +243,12 @@ struct StringStyle
             ink = ink.interpolatedWith(g_note_background_color, ground);
         }
         return quiet;
+    }
+
+private:
+    void set(const Ink ink, const juce::Colour colour)
+    {
+        inks.at(static_cast<std::size_t>(ink)) = colour;
     }
 };
 
@@ -958,46 +963,6 @@ constexpr float g_plectrum_digit_raise = 0.1154f;
 {
     return shape == HeadShape::Plectrum ? g_plectrum_digit_raise * size : 0.0f;
 }
-
-// Half of the plectrum silhouette, measured off the pick-slide cell of the shipped note atlas
-// (g_head_cell_pick_slide) at its 0.5-coverage line — the same level the atlas's own
-// fracture is pinned to — in units of the head's extent, with the silhouette's box center at the
-// origin.
-//
-// Only the RIGHT half is stored, as the chain from the blunt top edge's right corner down to the
-// tip. The art is mirror-symmetric to the last measured sample (every boundary sample's mirror
-// lands on another sample, worst distance 0.000000 px), so mirroring this chain at draw time makes
-// the two sides exact by construction instead of asking two authored halves to agree.
-//
-// The x values carry the aspect. The cell measures 31.000 x 32.997 px at that level, so scaling
-// BOTH axes by the extent fits the silhouette's HEIGHT to the extent and leaves its width at
-// 0.9395 of it, the art's own proportion. The head therefore stands exactly as tall as the round
-// head it replaces and 6% narrower, which leaves the lane's vertical collision budget alone.
-//
-// A rounded triangle is not a substitute for the table: the silhouette keeps widening for nine
-// rows below its topmost ink, and its widest row sits 0.1515 of the height ABOVE the box center,
-// so its mass is upper-heavy in a way no three-corner rounded triangle reproduces. Sixteen points
-// hold the measured outline to 0.0898 px at a 25 px note height and 0.0449 px at 12.
-constexpr std::array<juce::Point<float>, 16> g_plectrum_half_outline{
-    juce::Point<float>{0.03031f, -0.50000f}, // the blunt top edge's right corner
-    juce::Point<float>{0.12122f, -0.49511f},
-    juce::Point<float>{0.24245f, -0.46738f},
-    juce::Point<float>{0.33336f, -0.43214f},
-    juce::Point<float>{0.36367f, -0.40898f},
-    // NOLINTNEXTLINE(modernize-use-std-numbers) — a measured coordinate that happens to sit
-    // within the check's tolerance of log10(e).
-    juce::Point<float>{0.43366f, -0.33332f},
-    juce::Point<float>{0.46071f, -0.27271f},
-    juce::Point<float>{0.46821f, -0.24240f},
-    juce::Point<float>{0.46974f, -0.15148f}, // widest row
-    juce::Point<float>{0.46054f, -0.09087f},
-    juce::Point<float>{0.40451f, 0.03035f},
-    juce::Point<float>{0.31390f, 0.18188f},
-    juce::Point<float>{0.25008f, 0.27280f},
-    juce::Point<float>{0.08321f, 0.45463f},
-    juce::Point<float>{0.03031f, 0.49559f},
-    juce::Point<float>{0.00000f, 0.50000f}, // the tip, on the mirror axis
-};
 
 // Builds the plectrum outline as a closed path at one extent: down the measured right half from
 // the top edge's right corner to the tip, then back up its mirror image, so the two sides cannot

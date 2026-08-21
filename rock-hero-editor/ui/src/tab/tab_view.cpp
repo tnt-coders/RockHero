@@ -254,11 +254,7 @@ void TabView::paint(juce::Graphics& g)
     const int displayed_count =
         common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
     const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
-        bounds,
-        m_visible_timeline,
-        displayed_count,
-        m_tab->string_count,
-        common::ui::TabLaneStyle{});
+        bounds, m_visible_timeline, displayed_count, m_tab->string_count);
     common::ui::paintTabLane(g, metrics, *m_tab, m_prefix_max_end_seconds);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
@@ -320,7 +316,7 @@ void TabView::paint(juce::Graphics& g)
     if (const std::optional<juce::Rectangle<float>> square = caretSquare(metrics))
     {
         const float size = square->getWidth();
-        g.setColour(juce::Colours::white.withAlpha(0.7f));
+        g.setColour(editorTheme().lane_overlay);
         g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
     }
 
@@ -334,7 +330,7 @@ void TabView::paint(juce::Graphics& g)
         const float size = metrics.note_height;
         const float center_x = metrics.x(m_edit.insert_ghost->seconds);
         const float center_y = metrics.laneY(m_edit.insert_ghost->string);
-        g.setColour(juce::Colours::white.withAlpha(0.7f));
+        g.setColour(editorTheme().lane_overlay);
         g.drawEllipse(
             center_x - size / 2.0f, center_y - size / 2.0f, size, size, overlayRingStroke(size));
     }

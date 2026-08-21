@@ -41,7 +41,14 @@ struct ArrangementDescription
     /*! \brief Package-relative chart document reference; empty when the arrangement has none. */
     std::string chart_ref;
 
-    /*! \brief Tuning peeked from the chart entry; absent without a chart or on a chart warning. */
+    /*!
+    \brief Tuning peeked from the chart entry; absent without a chart or on a chart warning.
+
+    Peeked STRUCTURALLY: the chart entry is parsed, never normalized or judged against the chart
+    rules, which need the song's tempo map and are the loader's job (\ref readRockSongPackage).
+    The tuning is the one chart fact a peek reports, and no rule ever rewrites it, so the peek and
+    the load agree on it — but a present tuning is not a promise that the chart will load.
+    */
     std::optional<ArrangementTuningDescription> tuning;
 
     /*! \brief True when the arrangement's referenced backing audio entry exists in the archive. */

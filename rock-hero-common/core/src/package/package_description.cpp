@@ -95,6 +95,8 @@ void describeArrangement(
             description.warnings.emplace_back(
                 "chart entry is missing from the archive: " + arrangement.chart_ref);
         }
+        // A structural parse only — the peek reports the tuning, which no rule rewrites, and
+        // leaves normalizing and judging the chart to the loader (see the tuning field's doc).
         else if (const auto chart = parseChartDocument(*chart_text); !chart.has_value())
         {
             description.warnings.emplace_back(

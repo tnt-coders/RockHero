@@ -87,6 +87,16 @@ struct EditorTheme
     juce::Colour accent{0xff87cefa};
 
     /*!
+    \brief Editor furniture drawn OVER the tab lane's notation: the armed caret's square and the
+    Alt-hover insert ghost's ring.
+
+    Translucent white so the notation reads through it and it stays visible over every string
+    color; the two overlays share one ink because they are the same kind of thing — where the
+    next edit lands — told apart by shape alone (square for the caret, round for the note-to-be).
+    */
+    juce::Colour lane_overlay{0xb3ffffff};
+
+    /*!
     \brief Invalid-state ink: a provisional value that cannot apply (the pending fret entry's
     red text).
 
