@@ -775,7 +775,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The Alt-hover insert ghost, resolved to its rendered seconds+string (never a musical
     // operation acts on it — it is recomputed wholesale each hover), present only while Alt
     // hovers an insertable empty slot. Published verbatim into the chart-edit view state.
-    std::optional<ChartInsertGhostViewState> m_chart_insert_ghost{};
+    std::optional<ChartSlotViewState> m_chart_insert_ghost{};
 
     // The in-flight PENDING multi-digit fret entry (the W3 pending model): the typed value is
     // provisional and the chart holds NOTHING of it — nothing commits until the entry settles
@@ -788,13 +788,22 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // history-position proofs, and no half-typed value a surface could ever show.
     struct ChartFretEntry
     {
+        // An entry begun on an empty armed caret: settling applies ONE insert carrying the
+        // combined fret at the slot (undo removes the note), and the pending box draws there.
+        struct InsertAt
+        {
+            ChartNoteKey slot{};
+        };
+        // An entry begun over the selection: settling retypes `keys` from `base_notes`, the
+        // pre-entry values, so a widened value never compounds on its own earlier digit.
+        struct Retype
+        {
+            std::vector<ChartNoteKey> keys{};
+            std::vector<common::core::ChartNote> base_notes{};
+        };
+
         int value{};
-        // Set when the entry began on an empty armed caret: settling applies ONE insert carrying
-        // the combined fret (undo removes the note); otherwise settling retypes `keys` from
-        // `base_notes`. The pending head is drawn at `keys.front()` in that case.
-        bool began_as_insert{false};
-        std::vector<ChartNoteKey> keys{};
-        std::vector<common::core::ChartNote> base_notes{};
+        std::variant<InsertAt, Retype> target{};
         // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than

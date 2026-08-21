@@ -12,6 +12,7 @@
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -350,28 +351,34 @@ void TabView::paint(juce::Graphics& g)
         const bool invalid = !m_edit.pending_fret->valid;
         const juce::Colour ink = invalid ? editorTheme().invalid : editorTheme().primary_text;
         const juce::String text{m_edit.pending_fret->text};
-        for (const std::size_t index : m_edit.pending_fret->notes)
+        if (const auto* const notes =
+                std::get_if<std::vector<std::size_t>>(&m_edit.pending_fret->at))
         {
-            if (index >= m_tab->notes.size())
+            for (const std::size_t index : *notes)
             {
-                continue;
+                if (index >= m_tab->notes.size())
+                {
+                    continue;
+                }
+                const common::core::NoteViewState& note = m_tab->notes[index];
+                const common::ui::TabNoteLayout layout =
+                    common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
+                common::ui::paintTabPendingEntryBox(
+                    g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
             }
-            const common::core::NoteViewState& note = m_tab->notes[index];
-            const common::ui::TabNoteLayout layout =
-                common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
-            common::ui::paintTabPendingEntryBox(
-                g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
         }
-        if (m_edit.pending_fret->insert_seconds.has_value() &&
-            m_edit.pending_fret->insert_string >= 1 &&
-            m_edit.pending_fret->insert_string <= m_tab->string_count)
+        else if (
+            const auto* const slot =
+                std::get_if<core::ChartSlotViewState>(&m_edit.pending_fret->at);
+            slot != nullptr && slot->string >= 1 && slot->string <= m_tab->string_count
+        )
         {
             common::ui::paintTabPendingEntryBox(
                 g,
                 metrics,
                 nullptr,
-                metrics.x(*m_edit.pending_fret->insert_seconds),
-                metrics.laneY(m_edit.pending_fret->insert_string),
+                metrics.x(slot->seconds),
+                metrics.laneY(slot->string),
                 text,
                 invalid,
                 ink,

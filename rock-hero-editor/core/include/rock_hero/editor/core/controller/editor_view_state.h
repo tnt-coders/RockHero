@@ -30,6 +30,7 @@
 #include <rock_hero/editor/core/transport/transport_view_state.h>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -404,31 +405,32 @@ struct ChartCaretViewState
 };
 
 /*!
-\brief The Alt-held insert ghost's rendered position over an empty grid slot.
+\brief An empty grid slot resolved for drawing: where an insert would land.
 
-While Alt is held over an insertable empty slot the lane draws a hollow white ring where an
-Alt+click would plant a fret-0 note — the neutral-create verb's mouse form (§9b), the chart
-sibling of the automation lane's on-curve insert ghost. Published only when the ring would be
-honest: absent over occupied slots (where the press keeps its select meaning and an insert
-would no-op), so the affordance never advertises an action it would not perform (§7). Stored in
-seconds like the caret so the lane maps it through the same visible-timeline convention.
+Two overlays draw at one. The Alt-held insert ghost (\ref ChartEditViewState::insert_ghost): while
+Alt is held over an insertable empty slot the lane draws a hollow white ring where an Alt+click
+would plant a fret-0 note — the neutral-create verb's mouse form (§9b), the chart sibling of the
+automation lane's on-curve insert ghost, published only when the ring would be honest (absent over
+occupied slots, where the press keeps its select meaning), so the affordance never advertises an
+action it would not perform (§7). And the pending fret box of an entry begun on an empty caret
+(\ref ChartPendingFretViewState), which draws at the slot because no head exists there yet. Stored
+in seconds like the caret so the lane maps it through the same visible-timeline convention.
 */
-struct ChartInsertGhostViewState
+struct ChartSlotViewState
 {
-    /*! \brief Ghost position in seconds on the arrangement timeline. */
+    /*! \brief Slot position in seconds on the arrangement timeline. */
     double seconds{};
 
-    /*! \brief One-based string lane the ghost note would land on. */
+    /*! \brief One-based string lane the slot is on. */
     int string{};
 
     /*!
-    \brief Compares two insert-ghost states by their stored values.
+    \brief Compares two slot states by their stored values.
     \param lhs Left-hand state.
     \param rhs Right-hand state.
     \return True when both states store equal values.
     */
-    friend bool operator==(
-        const ChartInsertGhostViewState& lhs, const ChartInsertGhostViewState& rhs)
+    friend bool operator==(const ChartSlotViewState& lhs, const ChartSlotViewState& rhs)
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
     }
@@ -448,15 +450,14 @@ box disappearing IS the settle becoming visible.
 */
 struct ChartPendingFretViewState
 {
-    /*! \brief Ascending indices of the affected notes in the tab projection's note order; empty
-    for an insert entry, whose slot the insert fields below carry. */
-    std::vector<std::size_t> notes{};
+    /*!
+    \brief Where the box draws: over each affected head — ascending indices into the tab
+    projection's note order, a retype entry — or at the empty slot an insert entry began on.
 
-    /*! \brief Insert-entry slot position in seconds, absent for a retype entry. */
-    std::optional<double> insert_seconds{};
-
-    /*! \brief One-based string lane of the insert slot; meaningful only with insert_seconds. */
-    int insert_string{0};
+    One alternative or the other, never both and never neither: the entry itself began either on
+    the selection or on an empty caret, and the two cases carry different data.
+    */
+    std::variant<std::vector<std::size_t>, ChartSlotViewState> at{};
 
     /*! \brief The provisional value exactly as typed. */
     std::string text{};
@@ -467,9 +468,9 @@ struct ChartPendingFretViewState
     /*!
     \brief Compares two pending-entry states by their stored values.
 
-    Defaulted on purpose: the one floating member is reached through std::optional, whose own
-    comparison does the compare inside a library header, so the float-equal warning cannot fire
-    (the ChartNote precedent in coding-conventions.md).
+    Defaulted on purpose: the one floating member is reached through the slot alternative's own
+    comparison, so the float-equal warning cannot fire here (the ChartNote precedent in
+    coding-conventions.md).
 
     \param lhs Left-hand state.
     \param rhs Right-hand state.
@@ -512,7 +513,7 @@ struct ChartEditViewState
     the caret's square so the two furniture kinds never read as one. Absent whenever an Alt+click
     would not insert (no Alt, over a note, or while playing), so the ring never lies.
     */
-    std::optional<ChartInsertGhostViewState> insert_ghost{};
+    std::optional<ChartSlotViewState> insert_ghost{};
 
     /*! \brief The pending fret entry, present exactly while a typed value is provisional. */
     std::optional<ChartPendingFretViewState> pending_fret{};

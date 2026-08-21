@@ -306,14 +306,14 @@ void EditorController::Impl::insertChartNoteAt(
 // pushes no view rebuild, so per-pixel hover stays cheap.
 void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& event)
 {
-    std::optional<ChartInsertGhostViewState> ghost;
+    std::optional<ChartSlotViewState> ghost;
     if (event.modifiers.alt && !isBusy() && !m_transport.state().playing)
     {
         if (const auto placement = chartPlacementAt(event);
             placement.has_value() && !chartSlotOccupied(placement->first, placement->second))
         {
             const common::core::TempoMap& tempo_map = session().song().tempo_map;
-            ghost = ChartInsertGhostViewState{
+            ghost = ChartSlotViewState{
                 .seconds = tempo_map.secondsAtNote(
                     placement->first.measure, placement->first.beat, placement->first.offset),
                 .string = placement->second,
@@ -1375,22 +1375,27 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> EditorController::Impl::repl
     const ChartFretEntry& entry) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || entry.keys.empty())
+    if (arrangement == nullptr || !arrangement->chart.has_value())
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    if (entry.began_as_insert)
+    if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
     {
         common::core::ChartNote note;
-        note.position = entry.keys.front().position;
-        note.string = entry.keys.front().string;
+        note.position = insert->slot.position;
+        note.string = insert->slot.string;
         note.fret = entry.value;
         return planInsertNote(*arrangement->chart, session().song().tempo_map, std::move(note));
+    }
+    const auto& retype = std::get<ChartFretEntry::Retype>(entry.target);
+    if (retype.keys.empty())
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
     }
     return planRetypeFrets(
         *arrangement->chart,
         session().song().tempo_map,
-        entry.base_notes,
+        retype.base_notes,
         entry.value,
         /*set_exact=*/true);
 }
@@ -1418,9 +1423,9 @@ void EditorController::Impl::settleChartFretEntry()
         // default selection follow. Bound before the call so the move and the sibling read never
         // share one argument list.
         std::optional<std::vector<ChartNoteKey>> select_exactly;
-        if (entry.began_as_insert)
+        if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
         {
-            select_exactly = entry.keys;
+            select_exactly = std::vector<ChartNoteKey>{insert->slot};
         }
         static_cast<void>(applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)));
     }
@@ -1512,8 +1517,10 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
     }
     ChartFretEntry entry{
         .value = digit,
-        .began_as_insert = true,
-        .keys = {ChartNoteKey{.position = caret->position, .string = caret->string}},
+        .target =
+            ChartFretEntry::InsertAt{
+                .slot = ChartNoteKey{.position = caret->position, .string = caret->string},
+            },
         .armed_ms = now_ms,
     };
     entry.plan = replanChartFretEntry(entry);
@@ -1535,9 +1542,11 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     }
     ChartFretEntry entry{
         .value = digit,
-        .began_as_insert = false,
-        .keys = chartSelection().notes(),
-        .base_notes = chartNotesForKeys(chartSelection().notes()),
+        .target =
+            ChartFretEntry::Retype{
+                .keys = chartSelection().notes(),
+                .base_notes = chartNotesForKeys(chartSelection().notes()),
+            },
         .armed_ms = now_ms,
     };
     entry.plan = replanChartFretEntry(entry);

@@ -2611,17 +2611,21 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 pending.text = std::to_string(m_chart_fret_entry->value);
                 pending.valid = m_chart_fret_entry->plan.has_value() ||
                                 m_chart_fret_entry->plan.error() != ChartPlanRefusal::Invalid;
-                if (m_chart_fret_entry->began_as_insert && !m_chart_fret_entry->keys.empty())
+                if (const auto* const insert =
+                        std::get_if<Impl::ChartFretEntry::InsertAt>(&m_chart_fret_entry->target))
                 {
-                    const ChartNoteKey& slot = m_chart_fret_entry->keys.front();
-                    pending.insert_seconds =
-                        caretTimeBounds(session().song().tempo_map, slot.position).seconds;
-                    pending.insert_string = slot.string;
+                    pending.at = ChartSlotViewState{
+                        .seconds =
+                            caretTimeBounds(session().song().tempo_map, insert->slot.position)
+                                .seconds,
+                        .string = insert->slot.string,
+                    };
                 }
                 else
                 {
-                    pending.notes =
-                        noteIndicesForKeys(arrangement->chart->notes, m_chart_fret_entry->keys);
+                    pending.at = noteIndicesForKeys(
+                        arrangement->chart->notes,
+                        std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target).keys);
                 }
                 state.chart_edit.pending_fret = std::move(pending);
             }

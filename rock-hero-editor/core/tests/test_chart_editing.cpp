@@ -2,6 +2,7 @@
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/editor/core/testing/deferring_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -383,7 +384,7 @@ TEST_CASE("EditorController publishes the Alt insert ghost honestly", "[core][ch
     controller.onChartPointerMove(pointerEvent(200.0f, 100.0f, ChartPointerModifiers{.alt = true}));
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    const ChartInsertGhostViewState* insert_ghost = insertGhostOrNull(state->chart_edit);
+    const ChartSlotViewState* insert_ghost = insertGhostOrNull(state->chart_edit);
     REQUIRE(insert_ghost != nullptr);
     CHECK(insert_ghost->seconds == Catch::Approx(10.0));
     CHECK(insert_ghost->string == 4);
@@ -1293,7 +1294,9 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     {
         CHECK(state->chart_edit.pending_fret->text == "1");
         CHECK(state->chart_edit.pending_fret->valid);
-        CHECK(state->chart_edit.pending_fret->notes == std::vector<std::size_t>{0});
+        CHECK(
+            state->chart_edit.pending_fret->at ==
+            decltype(state->chart_edit.pending_fret->at){std::vector<std::size_t>{0}});
     }
 
     // The second digit combines and SETTLES: one action, fret 12, pending gone.
@@ -1653,9 +1656,10 @@ TEST_CASE("EditorController pending insert plants nothing until it settles", "[c
     if (state->chart_edit.pending_fret.has_value())
     {
         CHECK(state->chart_edit.pending_fret->text == "2");
-        CHECK(state->chart_edit.pending_fret->notes.empty());
-        CHECK(state->chart_edit.pending_fret->insert_seconds.has_value());
-        CHECK(state->chart_edit.pending_fret->insert_string == 1);
+        const auto* const slot =
+            std::get_if<ChartSlotViewState>(&state->chart_edit.pending_fret->at);
+        REQUIRE(slot != nullptr);
+        CHECK(slot->string == 1);
     }
 
     CHECK(pending.scheduler.runDelayed() == 1);
