@@ -52,10 +52,6 @@ ChartNote savedChartNote(const ChartNote& note)
 
 int releasedFret(const ChartNote& note)
 {
-    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value())
-    {
-        return note.slide_out->fret;
-    }
     return note.slides.empty() ? note.fret : note.slides.back().fret;
 }
 

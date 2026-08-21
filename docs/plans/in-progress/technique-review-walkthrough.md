@@ -292,14 +292,43 @@ item ships, mark it and name the commit.
   model, before W9-D's glyph choice hardens, and before the W9-B fold freezes the shared element
   types — a fold that bakes today's `{offset, fret}` waypoint into the shared view state would have
   to be reopened.
-- [x] **W14 — A legato claim after a DEAD note is unjustified — RULED and SHIPPED 2026-08-20,
-  recorded as E26.** Built exactly as sketched below: one clause in `resolveLegato`, the new
-  section in the relational matrix suite (both motions, the sub-bound gap, palm-muted stays
-  ordinary, E24's converse untouched, the tap stands, the sweep flattens), and an editor test
-  pinning the X round-trip both inside the window and across a settle. No toggle code was
-  written. Two knock-ons recorded the same day: it dissolves the E25 plan's §6.5 conflict (a
-  dead predecessor's tail no longer enters any claim's answer, so the muted-tail trim has no
-  legato knock-on left), and it revises D7's "derives across fully-muted predecessors" half.
+- [x] **W14 — Legato after a DEAD note, and after a SCRAPE — RULED, SHIPPED, HALF-REVERSED, and
+  SETTLED 2026-08-20.** Three rulings in one day, recorded in order because the reversal is
+  the lesson:
+  1. **Morning — E26, dead predecessor disqualified.** Built as proposed below (one resolver
+     clause; the sweep and the X toggle window did the rest untouched; `2fab2100`).
+  2. **Afternoon — E26 REVERSED.** The user's own second look: the muted cluck "FEELS like a
+     hammer-on to play", and the worry was user confusion. The finding behind the feeling was
+     worse than confusion: the GP importer maps every hopo destination to a `Legato` claim, so
+     E26 turned every imported "dead note → h" — the standard muted-scratch-then-hammer of
+     funk rhythm guitar — into a **picked** note, and did the same to the successor of any
+     note deadened with X. The physics premise was also wrong: the hammering finger supplies
+     the energy in every hammer-on; a dead note lacks a sounding pitch to connect from, not
+     the ability to be hammered from. And the 3D highway draws a `LeftTap` and a hammer
+     identically, so the distinction bought the player nothing. The clause, its tests and its
+     doc rows were deleted; D7's muted half stands.
+  3. **The hold question, settled as "the bound is the rule".** The user then asked the real
+     question: E25 means a dead note carries no tail, so once W4 ships a dead predecessor can
+     justify a claim only inside the kept-sustain bound (a quarter note) — "feels wrong", yet
+     a distance exception "runs into other issues because the next note could be too far
+     away to be practical". Two clean shapes were put up: **(A)** keep E25 and accept the bound
+     as the uniform rule every note obeys (past a quarter note, show me the hold; a dead note
+     cannot, so the far strike is a `LeftTap` or a pick — zero code), or **(B)** reverse E25
+     so a dead note's tail means "the hand stays on the damped stop" (uniform hold, W4
+     deleted entirely — but tails on dead notes in both views, which the game can never
+     judge). **RULED: A.** Anything else is a second hold rule. Consequence: the E25 plan's
+     §6.5 knock-on is live again and its reconciliation is now ruled with it; the watch item
+     retired under E26 is reinstated with the ruled remedy.
+  4. **E27 — scrape predecessor disqualified, SHIPPED.** The half of the user's afternoon
+     message that stood on its own grounds: a scrape's "released fret" is the PICK's position,
+     not a finger's, so nothing waits at its end to release or continue from — D7's
+     pull-from-a-scrape was only ever authorable by treating the slide-out's end as a released
+     finger, and that was the fiction. One resolver clause, and a net deletion: `releasedFret`
+     lost its scrape branch (the resolver was its only reader) and the `H` assist's
+     gesture-carrier guard lost its `PickSlide` clause (a scrape never reaches it). D7's
+     scrape half is revised; the trail-off guard stays and is now tested on its own.
+  The original E26 proposal, kept for the record because its mechanics (sweep + toggle window,
+  no new code) were correct even though the rule was not —
   Original proposal: A hammer-on or pull-off carries the predecessor's energy
   into the next note; a dead note's string is not ringing, so there is nothing to carry, and the
   legitimate "hammer from nowhere" after a dead note is the fretting hand's own strike — the
@@ -810,19 +839,22 @@ shipped technique verbs.
   and no notation source writes the gesture. Reopens only on real chart evidence.
 - [x] **D7 — E5: derivation vs validity — CLOSED 2026-08-09, simpler than every draft.** The
   user's second look used the D5 evidence against the first proposal and won: muted legato is
-  *common* vocabulary (funk/R&B, bass especially), so plain `H` ~~derives across fully-muted
-  predecessors normally~~ — requiring a modifier for the common case would surprise exactly the
-  charts that use it most. **The muted-predecessor half was REVISED 2026-08-20 (W14/E26):** a
-  dead predecessor justifies nothing — the cluck AFTER a dead note is the fretting hand's own
-  strike, `LeftTap`, not a carried hammer — while the muted hammer INTO a dead note (E24) and
-  the no-modifier `H` stand. The final shape:
-  - **Validity (E5):** pull needs a same-string predecessor whose released fret is higher (a
+  *common* vocabulary (funk/R&B, bass especially), so plain `H` **derives across fully-muted
+  predecessors normally** — requiring a modifier for the common case would surprise exactly the
+  charts that use it most. (Disqualifying the dead predecessor was tried as E26 on 2026-08-20
+  and reversed the same day — see W14; this half STANDS, bounded by the hold test alone.) **The
+  scrape half was REVISED 2026-08-20 as E27:** a scrape's released fret is the pick's position,
+  not a finger's, so a scrape predecessor justifies nothing and the derivation-vs-validity gap
+  below closed by making the two agree. The final shape as originally ruled:
+  - **Validity (E5):** pull needs a same-string predecessor whose released fret is higher ~~(a
     scrape's released fret is its slide-out's). Scrape predecessors are valid — pull-from-a-scrape
     "CAN be done" (user), authoring-only since Guitar Pro cannot write it (the earlier
-    import-fidelity claim was wrong). Fret-hand-harmonic predecessors stay forbidden (E19).
-  - **Derivation (`H`):** infers across ordinary, muted, and tapped predecessors alike; the one
+    import-fidelity claim was wrong)~~ — scrape predecessors are disqualified since E27.
+    Fret-hand-harmonic predecessors stay forbidden (E19).
+  - **Derivation (`H`):** infers across ordinary, muted, and tapped predecessors alike; ~~the one
     thing it never *creates* is legato from a scrape predecessor — the single
-    derivation-vs-validity gap. Uniform at every selection size (which rejected the single-note
+    derivation-vs-validity gap~~ (closed by E27: the resolver refuses the scrape, so there is
+    no gap). Uniform at every selection size (which rejected the single-note
     exception and the three-press cycle: uniform-scope law, and the toggle contract that a second
     press undoes the first).
   - **No `Shift+H`.** A keybind for one marginal case is unwarranted until proven needed (user);
@@ -1132,12 +1164,11 @@ shipped technique verbs.
        display needs no "is this a slide" branch. The tremolo band and a slide diagonal already
        coexist on one tail (the band's always-covered core is the plain span), so nothing new is
        needed there.
-    3. ~~**Muted legato is thereby bounded to the sub-bound window, with ZERO new code**~~ —
-       **superseded 2026-08-20 by W14/E26**, which disqualifies a dead predecessor outright at
-       any gap; the hold no longer enters that question. The original reasoning, kept for the
-       record: a plain muted note cannot carry a tail, so past the kept-sustain bound its hold
-       can never reach and D13 refuses it, while inside the bound nothing is proven and E24
-       applies untouched.
+    3. **Muted legato is thereby bounded to the sub-bound window, with ZERO new code** — a plain
+       muted note cannot carry a tail, so past the kept-sustain bound its hold can never reach
+       and D13 refuses it, while inside the bound nothing is proven and E24 applies untouched.
+       (Re-affirmed 2026-08-20 as THE rule after E26's same-day reversal — see W14 — and a
+       distance exception for dead notes was rejected: there is no principled distance.)
        That is where muted legato actually lives (clucks are sixteenths, not two-beat gestures),
        and past the bound the user's own reading is that a silently-held hand "may read odd."
        **This retracts the sounding-vs-fretted hold split recommended earlier**: with E25 in

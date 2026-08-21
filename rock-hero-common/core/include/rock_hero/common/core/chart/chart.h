@@ -735,8 +735,9 @@ hand is damping it, so the board's own axis ignores which hand that is.
 releases from.
 
 A note that glided hands over its last pitched waypoint, not its onset fret (a 5→7 slide releases
-from 7); a scrape hands over its slide-out's end, the travel's terminus. An unpitched trail-off on
-an ordinary note is already a release, so the last pitched position still rules.
+from 7). An unpitched trail-off is already a release, so the last pitched position still rules.
+Meaningful only for a note a finger actually stops: a scrape's travel is the pick's position, which
+is why the connection resolver disqualifies a scrape before ever asking this.
 
 \param note Note whose end position is read.
 

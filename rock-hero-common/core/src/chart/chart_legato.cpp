@@ -22,10 +22,14 @@ LegatoMotion resolveLegato(
     {
         return LegatoMotion::Hammer;
     }
-    // A dead predecessor is disqualified on the `dead` flag alone: a palm-muted string still rings
-    // and can hand its energy over, and a note carrying both mutes already sounds as dead. The
-    // saved form is what is read, so a scrape's latent mute never reaches this test (E2 strips it).
-    if (predecessor == nullptr || predecessor->dead || fretHandHarmonic(*predecessor) ||
+    // A scrape is disqualified by its attack: its travel is the PICK's position on the string, so
+    // there is no fretting finger at its end to release or to continue from — the note after a
+    // scrape is picked. A dead predecessor is deliberately NOT disqualified (ruled and reversed the
+    // same day, 2026-08-20): its finger is on the stop, and the muted cluck that follows is a
+    // hammer or pull like any other; what bounds it is the hold test below, since a dead note
+    // carries no tail to prove a hold past the kept-sustain bound.
+    if (predecessor == nullptr || predecessor->attack == NoteAttack::PickSlide ||
+        fretHandHarmonic(*predecessor) ||
         !predecessorHoldReaches(
             predecessor->position, predecessor_effective_sustain, note.position, tempo_map))
     {

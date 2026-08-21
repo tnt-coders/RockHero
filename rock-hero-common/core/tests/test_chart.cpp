@@ -1219,12 +1219,15 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         gliding_source.slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 7}};
         CHECK(resolve_claim({gliding_source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
 
-        // A scrape hands over its slide-out's end: pulling from a gesture is authorable.
+        // A scrape's travel is the PICK's position, not a finger's, so nothing waits at its end to
+        // release or continue from: the note after a scrape is picked, whichever way the frets
+        // fall (user ruling 2026-08-20). The hold reaches here, so the attack alone decides.
         ChartNote scrape_source = make_note(1, 1, 12);
         scrape_source.sustain = Fraction{3, 4};
         scrape_source.attack = NoteAttack::PickSlide;
         scrape_source.slide_out = SlideOut{.offset = Fraction{3, 4}, .fret = 7};
-        CHECK(resolve_claim({scrape_source, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
+        CHECK(resolve_claim({scrape_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+        CHECK(resolve_claim({scrape_source, claim_at(2, 1, 9)}) == LegatoMotion::Unjustified);
     }
 
     SECTION("a pull-off can neither sound nor release a harmonic")
@@ -1255,57 +1258,37 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         CHECK(resolve_claim({harmonic_source, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
     }
 
-    SECTION("a dead predecessor justifies neither motion: it has no energy to hand over")
+    SECTION("a dead predecessor is ordinary, and the hold test alone bounds the muted cluck")
     {
-        // A hammer-on or pull-off carries the ringing predecessor into the next note; a deadened
-        // string is not ringing. Both directions, and the hold is irrelevant — the tails here
-        // reach the margin so nothing but the deadening is under test.
+        // Its finger is on the stop, so the muted hammer or pull that follows is a connection
+        // like any other (ruled, reversed and settled 2026-08-20: disqualifying it turned every
+        // imported cluck into a picked note). What bounds it is that a dead note carries no tail
+        // to prove a hold: inside the kept-sustain bound nothing is proven either way, so the
+        // sixteenth or eighth cluck resolves in both directions.
         ChartNote dead_above = make_note(1, 1, 9);
         dead_above.dead = true;
-        dead_above.sustain = Fraction{3, 4};
-        CHECK(resolve_claim({dead_above, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+        ChartNote close_claim = claim_at(1, 1, 5);
+        close_claim.position.offset = Fraction{1, 2};
+        CHECK(resolve_claim({dead_above, close_claim}) == LegatoMotion::Pull);
 
         ChartNote dead_below = make_note(1, 1, 3);
         dead_below.dead = true;
-        dead_below.sustain = Fraction{3, 4};
-        CHECK(resolve_claim({dead_below, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+        CHECK(resolve_claim({dead_below, close_claim}) == LegatoMotion::Hammer);
 
-        // Nor does the sub-bound gap rescue it: under the bound the hold is unproven, but the
-        // deadening is stated.
-        ChartNote close_claim = claim_at(1, 1, 5);
-        close_claim.position.offset = Fraction{1, 2};
-        CHECK(resolve_claim({dead_above, close_claim}) == LegatoMotion::Unjustified);
+        // At the bound a bare predecessor is a proven release, dead or not — a strike a quarter
+        // note after a muted scratch is a fresh one, which is the left-hand tap's statement. The
+        // bound is the rule; there is no dead-note exception in either direction.
+        CHECK(resolve_claim({dead_above, claim_at(2, 1, 5)}) == LegatoMotion::Unjustified);
+        ChartNote left_tap = make_note(2, 1, 5);
+        left_tap.attack = NoteAttack::LeftTap;
+        CHECK(resolve_claim({dead_above, left_tap}) == LegatoMotion::Hammer);
 
-        // The `dead` flag alone: a palm-muted predecessor rings, so it hands over as any note does.
-        ChartNote palm_muted = make_note(1, 1, 9);
-        palm_muted.palm_mute = true;
-        palm_muted.sustain = Fraction{3, 4};
-        CHECK(resolve_claim({palm_muted, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
-
-        // The other direction is untouched: a ringing predecessor still justifies a claim ON a
-        // dead note — the muted hammer of E24.
+        // And a claim ON a dead note from a ringing predecessor — the muted hammer of E24.
         ChartNote source = make_note(1, 1, 3);
         source.sustain = Fraction{3, 4};
         ChartNote dead_claim = claim_at(2, 1, 5);
         dead_claim.dead = true;
         CHECK(resolve_claim({source, dead_claim}) == LegatoMotion::Hammer);
-
-        // The legitimate strike after a dead note is the fretting hand's own, which reads no
-        // predecessor: the left-hand tap stands.
-        ChartNote left_tap = make_note(2, 1, 5);
-        left_tap.attack = NoteAttack::LeftTap;
-        CHECK(resolve_claim({dead_above, left_tap}) == LegatoMotion::Hammer);
-
-        // And the settle sweep is the normalization: a claim after a dead note flattens to the
-        // pick it plays as, while the tap beside it is never touched.
-        ChartNote dead_other = make_note(3, 2, 4);
-        dead_other.dead = true;
-        ChartNote tap_after_dead = make_note(4, 2, 6);
-        tap_after_dead.attack = NoteAttack::LeftTap;
-        std::vector<ChartNote> swept{dead_above, claim_at(2, 1, 5), dead_other, tap_after_dead};
-        CHECK(sweepUnjustifiedLegato(swept, {}, tempo_map).size() == 1);
-        CHECK(swept[1].attack == NoteAttack::Pick);
-        CHECK(swept[3].attack == NoteAttack::LeftTap);
     }
 
     SECTION("a claim needs its predecessor still held")
@@ -1362,31 +1345,43 @@ TEST_CASE("Chart legato claims resolve against their predecessor", "[core][chart
         CHECK(resolve_claim({muted_low, muted_high, claim}, covering) == LegatoMotion::Unjustified);
     }
 
-    SECTION("resolutions judge the SAVED form, so a scrape's latent node changes nothing")
+    SECTION("resolutions judge the SAVED form, so a scrape's latent mute changes nothing")
     {
-        // E2 forbids a node on any saved scrape, so a node found on one is purely the in-memory
-        // latent the attack toggle preserves. Reading it as a fretting-hand touch made the release
-        // question answerable two ways for one note — the in-memory stream refusing what the saved
-        // stream allowed — which silently downgraded a pull D7 rules valid.
-        ChartNote latent_scrape = make_note(1, 1, 0);
+        // E2 forbids a mute on any saved scrape, so a dead flag found on one is purely the
+        // in-memory latent the attack toggle preserves. Reading it would make a chord's hold
+        // answerable two ways for one chart: in memory the group below reads all-dead, and so
+        // choked, where the saved chart reads it as held — which silently downgraded the claim
+        // the span justifies for the scrape's chord-mate.
+        ChartNote dead_low = make_note(1, 1, 9);
+        dead_low.dead = true;
+        ChartNote latent_scrape = make_note(1, 2, 0);
         latent_scrape.attack = NoteAttack::PickSlide;
+        latent_scrape.dead = true;
         latent_scrape.sustain = Fraction{1};
-        latent_scrape.harmonic_node = 12.0;
         latent_scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 7};
-        CHECK_FALSE(fretHandHarmonic(latent_scrape));
+        CHECK_FALSE(savedChartNote(latent_scrape).dead);
+        const std::vector<ChartShape> covering{ChartShape{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .sustain = Fraction{2},
+            .chord = 0,
+        }};
 
-        // The exclusion is about the ATTACK owning the node, not about having a slide-out: the same
-        // note as an ordinary open-string harmonic is still a fret-hand harmonic.
+        // Both forms answer the same way, which is the whole point of resolving the saved stream:
+        // the latent mute is stripped before the hold table reads the group.
+        CHECK(
+            resolve_claim({dead_low, latent_scrape, claim_at(2, 1, 5)}, covering) ==
+            LegatoMotion::Pull);
+        CHECK(
+            resolve_claim({dead_low, savedChartNote(latent_scrape), claim_at(2, 1, 5)}, covering) ==
+            LegatoMotion::Pull);
+
+        // The fret-hand harmonic predicate keeps the same discipline for a scrape's latent node:
+        // the exclusion is about the ATTACK owning the node, not about having a slide-out.
+        latent_scrape.harmonic_node = 12.0;
+        CHECK_FALSE(fretHandHarmonic(latent_scrape));
         ChartNote natural = make_note(1, 1, 0);
         natural.harmonic_node = 12.0;
         CHECK(fretHandHarmonic(natural));
-
-        // Both forms now answer the same way, which is the whole point of resolving the saved
-        // stream: the latent node is stripped before the walk reads the predecessor.
-        CHECK(resolve_claim({latent_scrape, claim_at(2, 1, 5)}) == LegatoMotion::Pull);
-        CHECK(
-            resolve_claim({savedChartNote(latent_scrape), claim_at(2, 1, 5)}) ==
-            LegatoMotion::Pull);
     }
 
     SECTION("a left-hand tap resolves to the hammer motion with no predecessor at all")

@@ -228,9 +228,9 @@ statement, and both surfaces read the motion back through the same resolver.
 The assist authors the missing half of a claim rather than demanding it first: when the
 predecessor's hold stops short of the onset, its tail grows to the margin point in the SAME plan,
 but only when that makes the claim resolve and only within `sustainGrowthLimit`, so the assist can
-never author what a manual drag could not reach. It skips a gesture-carrying predecessor — a scrape,
-or any note with a slide-out — because that tail is the gesture's authored window, not slack to
-spend.
+never author what a manual drag could not reach. It skips a trail-off predecessor — any note with a
+slide-out — because that tail is the gesture's authored window, not slack to spend. (A scrape needs
+no such guard: the resolver disqualifies it outright, so its hold is never the only blocker.)
 
 \param chart Chart the plan is built against.
 \param tempo_map Tempo map the plan resolves distances through.

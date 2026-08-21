@@ -278,6 +278,23 @@ imported `chart.shapes`. **Trigger**: §5's slice 3 builds member-tail adjustmen
 learns the same span-sibling exemption, since §5 says member tails may legally ring past
 sibling onsets inside a shared span.
 
+### A muted-tail trim would flatten legato claims corpus-wide — trigger: W4/E25 builds the trim
+
+Recorded by the legato ruling of 2026-08-11 (`docs/plans/in-progress/legato-final-spec.md`,
+sequencing note). Today a fully muted note's tail counts at its stored length for the connection
+hold test, so a claim depending on such a tail resolves and stands. W4/E25's signed-but-unbuilt
+rule trims muted tails; the moment that lands, every dependent claim in the corpus stops resolving
+and the load-time settle sweep flattens them all on open. (Briefly retired on 2026-08-20 under
+E26, which would have made a dead predecessor justify nothing at any gap; E26 was reversed the same
+day and the bound re-affirmed as the rule, so the knock-on is live — see walkthrough W14.)
+**Trigger**: W4/E25's muted-tail trim is implemented. **Remedy, RULED 2026-08-20** (superseding the
+original "run the trim as an editor plan operation", which the load-normalizes-never-refuses policy
+rules out): the W4 build reports the flattened claims in the same one-shot open-time notice as the
+trims, each with positions; the session opens dirty; the file is untouched until the user saves.
+Nothing is silent, and "reversible" is answered by the untouched file rather than by undo. Retire
+this item in the W4 change set. Design: `docs/plans/in-progress/e25-muted-tail-implementation.md`
+§6.5 and §6.7.
+
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong
@@ -523,47 +540,6 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ---
 
 ## Retired
-
-### ~~A muted-tail trim would flatten legato claims corpus-wide~~ — RETIRED 2026-08-20
-
-**The hazard was removed at its root, by a different ruling than the trigger named.** Recorded
-by the legato ruling of 2026-08-11: a fully muted note's tail counted at its stored length for the
-connection hold test, so a claim depending on such a tail resolved and stood, and W4/E25's
-muted-tail trim would have broken every such claim corpus-wide, silently, on open. The remedy
-recorded was to run the trim as an editor plan operation so the flatten rode its undo entry.
-
-Resolved on 2026-08-20 by **E26** (walkthrough W14): a dead predecessor justifies no connection at
-all — a deadened string has no energy to hand over, and the strike after a dead note is the
-`LeftTap`. With that clause in `resolveLegato`, a dead note's tail no longer enters any claim's
-answer, so the E25 trim has no legato knock-on left to guard against. The corpus-wide flatten
-this item feared does happen — through E26 rather than the trim — and it rides the load sweep's
-existing conversions channel exactly as the load policy ruled the same day
-(`docs/plans/in-progress/e25-muted-tail-implementation.md` §4, §6.7): every flattened claim is
-reported with its position, the session opens dirty, and the file is untouched until the user
-saves — which answers "visible and reversible" without an undo entry. The recorded remedy was
-also superseded on its own terms: load normalizes and never refuses, so an editor-verb-only
-repair would have left the package read either refusing or admitting an invalid chart.
-
-### ~~The pick slide lost its deliberate over-coverage in the family shrink~~ — RETIRED 2026-08-18
-
-**Trigger FIRED and the remedy applied the same week it was opened.** The 2026-08-15 family
-shrink (`c463230f`) took every technique symbol to 85% of its authored height, costing the pick
-slide the over-coverage that is its whole design law — the mark covers the head's own footprint,
-which is why a scrape wears the plectrum alone with no X beneath it. The user accepted it on
-sight with the reservation recorded here, then read the atlas again on 2026-08-18 and reopened
-it (*"Pick slide used to be larger... I may want to go back to what it was when it was even
-bigger"*).
-
-Resolved by restoring the size rather than ramping toward it. Measured history: the mark carried
-**31.000 x 32.997 tx (1.524 x the head's solid height)** from 2026-08-06 (`f33757d1`) until the
-shrink cut it to 26.43 x 28.05, shipping at 1.274x after the marks-final recentring. It is now
-baked at **1.5 x the head's solid height, 31.149 x 32.966 tx**, which lands within 0.034 tx of
-that historical height — the restore the remedy called for. The 1.57x figure this item quoted
-was computed against the head's 21-texel solid-pixel rectangle; by the 50%-contour measure the
-same art was 1.524x against the head as then measured (21.66 tx) and is 1.502x against today's
-21.976 tx — three bases, one art, which is why the restore's target was stated as the round 1.5
-against the current measure. Details, the rejected 1.90x proposal and the measured overlap costs are in
-`docs/plans/in-progress/highway-note-art-state.md`.
 
 ### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
 

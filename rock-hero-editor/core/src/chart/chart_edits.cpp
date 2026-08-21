@@ -588,14 +588,12 @@ ChartLegatoPlan planSetLegato(
             const common::core::LegatoMotion if_held =
                 common::core::resolveLegato(asked, predecessor, distance, tempo_map);
             hold_was_the_only_blocker = if_held != common::core::LegatoMotion::Unjustified;
-            // A gesture carrier's tail is its authored window, not slack to spend: reshaping a
-            // scrape's travel or a trail-off's exit to buy a connection would rewrite the gesture.
-            // The connection itself stays legal — the resolver reads the RELEASED fret, so a pull
-            // off a scrape resolves — it just has to be authored by dragging that tail.
-            const bool gesture_carrier =
-                predecessor->attack == common::core::NoteAttack::PickSlide ||
-                predecessor->slide_out.has_value();
-            if (hold_was_the_only_blocker && !gesture_carrier)
+            // A trail-off's tail is its authored exit window, not slack to spend: reshaping it to
+            // buy a connection would rewrite the gesture. The connection itself stays legal — the
+            // resolver reads the RELEASED fret — it just has to be authored by dragging that tail.
+            // (A scrape never reaches here: the resolver disqualifies it outright, so its hold is
+            // never the only blocker.)
+            if (hold_was_the_only_blocker && !predecessor->slide_out.has_value())
             {
                 const common::core::TimeSignatureChange signature =
                     tempo_map.timeSignatureAt(predecessor->position.measure);

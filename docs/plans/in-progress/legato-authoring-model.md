@@ -397,15 +397,14 @@ over — the sweep judges the whole stream and knows nothing about verbs.
 | Retype either fret to equal/invert (including the wheel fret shift) | yes |
 | Retype N to fret 0 without a node | **depends on which value N holds, and the split is the model working**: a `LeftTap` is stranded (nothing to strike), which is intra-note, so `finalizePlan` flattens it immediately; a `Legato` may be untouched, because a pull-off ONTO an open string is ordinary — it stops resolving only if the predecessor is now equal or lower |
 | Insert between (typed digit, Alt+click, Insert) | yes |
-| `planSetAttack(PickSlide)` on the predecessor | yes: the released fret becomes the slide-out's — a claim that stays justified survives, an inverted one stops resolving |
+| `planSetAttack(PickSlide)` on the predecessor | yes: a scrape predecessor justifies nothing (E27, 2026-08-20 — its travel is the pick's position), so the claim after it stops resolving |
 | Harmonic verb: node set on the predecessor (E19) or on N (E12); node cleared on a fret-0 note | yes, three cells |
 | Phase 6 L-merge (absorbed note changes which note is the predecessor) | yes |
 | Phase 6 split | **no** — the tail keeps the fret, which is why the rule is value-based rather than identity-based |
 | Phase 7 waypoint edits changing the predecessor's last waypoint fret | yes, under released-fret semantics |
 | Paste / range move / range delete (plan 52) | reduce to the classes above |
 | Sustain edits | **yes since D13** — the predecessor's hold is part of the answer past the kept-sustain bound |
-| Bend, vibrato, tremolo, accent, palm-mute edits | no — none enters the answer (a palm-muted predecessor still rings) |
-| Dead-note edits on the predecessor | **yes since E26 (2026-08-20)** — a dead predecessor justifies nothing, so deadening one breaks the claim after it; the settle sweep flattens it, and the X toggle window round-trips it like any technique window |
+| Bend, vibrato, tremolo, accent, mute edits | no — none enters the answer (a fully-muted predecessor is still a press; E26 briefly said otherwise on 2026-08-20 and was reversed the same day) |
 | Tuning capo/cent edits | no; a future string-count edit reduces to move-off-string |
 | Undo/redo themselves | **never** — they replay stored plans and bypass the planners, which is required for exactness |
 

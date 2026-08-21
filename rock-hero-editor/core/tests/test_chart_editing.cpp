@@ -2756,9 +2756,9 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
 {
     // String 1 carries a bare predecessor four beats before its note — past the kept-sustain
     // bound, so no claim resolves until the assist authors the connection; string 2 an
-    // open string for changing the selection. String 3 repeats the string-1 shape with a SCRAPE as
-    // the predecessor — the same missing hold, but a tail the assist is forbidden to spend — and
-    // sits later in the stream so the indices above stay put.
+    // open string for changing the selection. String 3 repeats the string-1 shape with a
+    // TRAIL-OFF as the predecessor — the same missing hold, but a tail the assist is forbidden to
+    // spend — and sits later in the stream so the indices above stay put.
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
@@ -2788,12 +2788,8 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .string = 3,
             .fret = 9,
             .sustain = common::core::Fraction{1},
-            .attack = common::core::NoteAttack::PickSlide,
             .bend = {},
-            .slides = {common::core::SlideWaypoint{
-                .offset = common::core::Fraction{1, 2},
-                .fret = 3,
-            }},
+            .slides = {},
             .slide_out = common::core::SlideOut{.offset = common::core::Fraction{1}, .fret = 12},
         },
         common::core::ChartNote{
@@ -2877,19 +2873,20 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     }
 
     // The assist writes a tail, and a tail is sometimes a gesture's own authored window. Where it
-    // is, the verb declines rather than reshaping it: a scrape's travel and a trail-off's exit are
-    // data the author placed, and spending them to buy a connection would silently rewrite the
-    // sound. The connection itself stays authorable — the resolver reads the released fret, so a
-    // pull off a scrape is legal — but only by dragging the tail out by hand first.
+    // is, the verb declines rather than reshaping it: a trail-off's exit is data the author
+    // placed, and spending it to buy a connection would silently rewrite the sound. The connection
+    // itself stays authorable — the resolver reads the released fret, so a pull off the last
+    // pitched stop is legal — but only by dragging the tail out by hand first.
     SECTION("the assist never spends a gesture carrier's tail")
     {
         click(controller, 160.0f, 140.0f);
         controller.onChartLegatoToggleRequested();
 
-        // Nothing changed at all: no claim, no growth, and the scrape's own geometry intact.
+        // Nothing changed at all: no claim, no growth, and the trail-off's own geometry intact.
         CHECK(note(4).attack == common::core::NoteAttack::Pick);
         CHECK(note(3).sustain == common::core::Fraction{1});
-        CHECK(note(3).attack == common::core::NoteAttack::PickSlide);
+        REQUIRE(note(3).slide_out.has_value());
+        CHECK(note(3).slide_out->fret == 12);
 
         // An all-skipped press leaves nothing behind at all: no undo entry, and no dialog either
         // (the skip count travels on the planner's return, not through the error seam).
@@ -3488,67 +3485,6 @@ TEST_CASE("EditorController closes the fret-entry window on a settling seek", "[
     CHECK(note(2).attack == common::core::NoteAttack::Pick);
     controller.onUndoRequested();
     CHECK(note(1).fret == 7);
-    CHECK(note(2).attack == common::core::NoteAttack::Legato);
-}
-
-// Deadening a note breaks the claim after it (a dead string has no energy to hand over), and the
-// dead-note toggle round-trips that the way every technique window does: nothing new was written
-// for it. Inside the window the second X reverses the entry before any settle could flatten the
-// claim; across a settle the flatten folds into the X entry itself, so one undo restores both.
-TEST_CASE("EditorController dead-note toggle round-trips the claim it breaks", "[core][chart]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    REQUIRE(
-        loadChartArrangement(controller, project_services, audio, {}, makeBreakableClaimChart()));
-
-    const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
-        return controller.session().currentArrangement()->chart->notes[index];
-    };
-
-    click(controller, 40.0f, 220.0f);
-    const EditorViewState* state = stateOrNull(view.last_state);
-    REQUIRE(state != nullptr);
-    const std::size_t entries_before = state->undo_history.labels.size();
-    const common::core::ChartNote original = note(1);
-
-    // X deadens the middle note. The selection has not moved, so no settle has run: the claim
-    // after it still stands in memory even though nothing justifies it any more.
-    controller.onChartDeadNoteToggleRequested();
-    CHECK(note(1).dead);
-    CHECK(note(2).attack == common::core::NoteAttack::Legato);
-    CHECK(state->undo_history.labels.size() == entries_before + 1);
-
-    // X again inside the window reverses the entry exactly — the claim was never flattened.
-    controller.onChartDeadNoteToggleRequested();
-    CHECK(note(1) == original);
-    CHECK(note(2).attack == common::core::NoteAttack::Legato);
-    CHECK(state->undo_history.labels.size() == entries_before);
-
-    // Deaden it again, then move the selection: the settle flattens the claim and folds the
-    // flatten into the X entry, so the history still holds ONE entry for the burst.
-    controller.onChartDeadNoteToggleRequested();
-    click(controller, 80.0f, 220.0f);
-    CHECK(note(1).dead);
-    CHECK(note(2).attack == common::core::NoteAttack::Pick);
-    CHECK(state->undo_history.labels.size() == entries_before + 1);
-    REQUIRE_FALSE(state->undo_history.labels.empty());
-    CHECK(state->undo_history.labels.back() == "Dead Note");
-
-    // One undo restores the deadening and the claim together.
-    controller.onUndoRequested();
-    CHECK(note(1) == original);
     CHECK(note(2).attack == common::core::NoteAttack::Legato);
 }
 

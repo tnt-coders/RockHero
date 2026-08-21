@@ -1748,11 +1748,32 @@ TEST_CASE(
         }
     }
 
-    SECTION("a gesture-carrying predecessor's tail is never reshaped")
+    SECTION("a trail-off predecessor's tail is never reshaped")
     {
-        // A scrape's travel window and a trail-off's exit are authored gesture geometry, so the
-        // assist refuses to spend them even though the connection itself would be legal (the
-        // resolver reads the RELEASED fret, so a pull off a scrape resolves once the hold reaches).
+        // A trail-off's exit is authored gesture geometry, so the assist refuses to spend it even
+        // though the connection itself would be legal (the resolver reads the RELEASED fret, so a
+        // pull off the last pitched stop resolves once the hold reaches). The hold IS the only
+        // blocker here, which is exactly what the skip reason reports.
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            makeNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
+            makeNote({.measure = 1, .beat = 3}, 1, 5),
+        };
+        chart.notes[0].slide_out =
+            common::core::SlideOut{.offset = common::core::Fraction{1}, .fret = 12};
+        const ChartLegatoPlan planned =
+            planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
+        CHECK_FALSE(planned.plan.has_value());
+        CHECK(planned.skipped == 1);
+        CHECK(planned.reason == ChartLegatoSkip::PredecessorReleased);
+    }
+
+    SECTION("a scrape predecessor connects to nothing, however its hold reaches")
+    {
+        // A scrape's travel is the pick's position, not a finger's, so the resolver disqualifies
+        // it outright: the press skips for the connection, not the hold, and no held-enough tail
+        // could change that — which is why the scrape never reaches the assist's guard at all.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
@@ -1763,7 +1784,7 @@ TEST_CASE(
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
         CHECK(planned.skipped == 1);
-        CHECK(planned.reason == ChartLegatoSkip::PredecessorReleased);
+        CHECK(planned.reason == ChartLegatoSkip::NoConnection);
     }
 }
 

@@ -29,10 +29,19 @@ mute) and a dragged muted slide. `Palm` is untouched — palm-muted notes ring.
 ("ANY note marked dead regardless of other techniques it carries should not be able to carry a note
 tail"), was shown that E25 already exists with the two exceptions, and confirmed the signed version
 stands. Keeping them matters beyond taste: D16 records that they are what make a muted tail *always*
-mean noise-or-travel (so the display needs no conditional) and what makes the display's all-muted
-span carve-out correct rather than a bug. (They also once bounded muted legato to the sub-bound
-window; E26 superseded that on 2026-08-20 — a dead predecessor justifies nothing at any gap.)
-Dropping them re-opens D13 and E24.
+mean noise-or-travel (so the display needs no conditional), what bounds muted legato to the
+sub-bound window with zero new code, and what makes the display's all-muted span carve-out correct
+rather than a bug. Dropping them re-opens D13 and E24.
+
+**The bound was re-affirmed as THE rule on 2026-08-20** (walkthrough W14), after a same-day detour:
+disqualifying a dead predecessor outright (E26) was built and reversed because it turned every
+imported muted cluck into a picked note. The user then asked the real question — a dead note has no
+tail, so past the bound it can never prove a hold; is that an exception waiting to happen? — and
+ruled no: the bound is the same hold test every note obeys, a strike a quarter note or more after a
+muted scratch is a fresh one (the `LeftTap`'s statement), and a distance exception has no principled
+distance. The one alternative with no exception either — reversing E25 so a dead tail means "the
+hand stays on the damped stop", which would delete this whole plan — was put up and rejected: it
+puts tails on dead notes in both views, and those are the only tails the game could never judge.
 
 ---
 
@@ -193,17 +202,14 @@ hold-scoring question, not a chart one.
 >   and deferring a durable surface to W3's channel. GP import keeps its counted convention:
 >   import converts wholesale, while a load shed edits saved work, which earns specificity.
 
-## 6.5. ~~LATE CONFLICT~~ — the legato-flatten watch item — DISSOLVED 2026-08-20 by W14/E26
+## 6.5. The legato-flatten knock-on — RULED 2026-08-20 with the load design
 
-**Resolution.** E26 (a dead predecessor justifies no connection, shipped the same day) removes
-the hazard at its root: a dead note's tail no longer enters any claim's answer, so trimming it
-cannot change what any claim resolves to. The muted-tail trim has NO legato knock-on left, and
-the reconciliation proposed below is moot. The corpus-wide flatten the watch item feared did
-happen — through E26 rather than the trim — and it rides the load sweep's existing conversions
-channel exactly as the ruled load policy prescribes (§4, §6.7): reported, session dirty, file
-untouched until save. The watch item is retired with that recorded. The original analysis is
-kept below for the record.
-
+**Status.** Live, and settled. (It was briefly recorded as dissolved by E26 — a dead predecessor
+justifying nothing — until E26 was reversed the same afternoon; see walkthrough W14.) With the
+bound re-affirmed as the rule, the trim DOES have a legato knock-on, and the user ruled the
+reconciliation below along with option A: the flatten is reported in the one open-time notice
+beside the trims, the session opens dirty, the file is untouched until save, and the watch item is
+retired when this plan ships. The original analysis:
 
 `docs/tracking/watch-items.md` ("A muted-tail trim would flatten legato claims corpus-wide —
 trigger: W4/E25 builds the trim", recorded 2026-08-11) fires on this exact work, and its recorded
@@ -218,7 +224,7 @@ an editor plan operation riding one undo entry, "never as a silent conversion in
 That remedy imagined a world where the validator refuses and a migration tool repairs. Today's
 rulings chose the other world: load normalizes and can never refuse, so the trim MUST live in the
 load shed — an editor-verb-only trim would leave the package read either refusing (bricking, the
-thing Q2 forbids) or admitting an invalid chart. The reconciliation to put to the user:
+thing Q2 forbids) or admitting an invalid chart. The reconciliation, RULED with option A:
 
 - Keep the signed load design unchanged.
 - Extend the Q4 notice to cover the knock-on: the settle sweep already returns the set it
