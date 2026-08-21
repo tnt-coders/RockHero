@@ -8,6 +8,7 @@
 #include <compare>
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart.h>
+#include <span>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -118,11 +119,23 @@ private:
 };
 
 /*!
-\brief Resolves selected note keys to indices in the chart's sorted note stream.
+\brief Resolves sorted note keys to indices in the chart's sorted note stream.
 
-Chart notes are sorted by (position, string) and the tab projection preserves that order one to
-one, so the returned indices address the projection's notes directly. Keys that no longer match
-a chart note resolve to nothing and are skipped.
+THE key resolution: chart notes are sorted by (position, string) and the tab projection preserves
+that order one to one, so the returned indices address the projection's notes directly, and one
+linear merge answers every key. Keys that no longer match a chart note resolve to nothing and are
+skipped. Every other key-to-note question (\ref selectedNoteIndices, \ref notesForKeys) is this
+merge read a different way — it used to be written three times.
+
+\param notes Chart note stream sorted by (position, string).
+\param keys Keys to resolve, sorted-unique in chart order.
+\return Ascending indices of the notes the keys still name.
+*/
+[[nodiscard]] std::vector<std::size_t> noteIndicesForKeys(
+    const std::vector<common::core::ChartNote>& notes, std::span<const ChartNoteKey> keys);
+
+/*!
+\brief Resolves a selection's note keys to indices in the chart's sorted note stream.
 
 \param notes Chart note stream sorted by (position, string).
 \param selection Selection whose keys are resolved.
@@ -130,6 +143,16 @@ a chart note resolve to nothing and are skipped.
 */
 [[nodiscard]] std::vector<std::size_t> selectedNoteIndices(
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection);
+
+/*!
+\brief Copies the notes that sorted keys still name, in chart order.
+
+\param notes Chart note stream sorted by (position, string).
+\param keys Keys to resolve, sorted-unique in chart order.
+\return The named notes, in stream order; keys naming nothing are skipped.
+*/
+[[nodiscard]] std::vector<common::core::ChartNote> notesForKeys(
+    const std::vector<common::core::ChartNote>& notes, std::span<const ChartNoteKey> keys);
 
 /*!
 \brief Collects the keys of every note sharing one onset — the chord unit of the containment

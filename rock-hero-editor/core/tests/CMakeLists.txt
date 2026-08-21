@@ -23,6 +23,7 @@ add_executable(
     test_chart_editing.cpp
     test_chart_edits.cpp
     test_chart_hit_testing.cpp
+    test_chart_navigation.cpp
     test_deferred_project_action_state.cpp
     test_editor_action_availability.cpp
     test_editor_audio_config_store.cpp

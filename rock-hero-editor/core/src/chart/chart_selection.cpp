@@ -74,13 +74,13 @@ bool ChartSelection::empty() const noexcept
 }
 
 // Both sequences share the (position, string) order, so one linear merge resolves every key.
-std::vector<std::size_t> selectedNoteIndices(
-    const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection)
+std::vector<std::size_t> noteIndicesForKeys(
+    const std::vector<common::core::ChartNote>& notes, const std::span<const ChartNoteKey> keys)
 {
     std::vector<std::size_t> indices;
-    indices.reserve(selection.notes().size());
+    indices.reserve(keys.size());
     std::size_t note_index = 0;
-    for (const ChartNoteKey& key : selection.notes())
+    for (const ChartNoteKey& key : keys)
     {
         while (note_index < notes.size() &&
                ChartNoteKey{
@@ -98,6 +98,25 @@ std::vector<std::size_t> selectedNoteIndices(
         }
     }
     return indices;
+}
+
+std::vector<std::size_t> selectedNoteIndices(
+    const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection)
+{
+    return noteIndicesForKeys(notes, selection.notes());
+}
+
+std::vector<common::core::ChartNote> notesForKeys(
+    const std::vector<common::core::ChartNote>& notes, const std::span<const ChartNoteKey> keys)
+{
+    std::vector<common::core::ChartNote> named;
+    const std::vector<std::size_t> indices = noteIndicesForKeys(notes, keys);
+    named.reserve(indices.size());
+    for (const std::size_t index : indices)
+    {
+        named.push_back(notes[index]);
+    }
+    return named;
 }
 
 // Chart notes are sorted by (position, string), so an onset group is one contiguous run.

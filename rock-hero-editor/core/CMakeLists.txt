@@ -10,8 +10,11 @@ target_sources(
             src/audio_device/audio_device_handlers.cpp
             src/chart/chart_edits.cpp
             src/chart/chart_edits.h
+            src/chart/chart_handlers.cpp
             src/chart/chart_hit_testing.cpp
             src/chart/chart_hit_testing.h
+            src/chart/chart_navigation.cpp
+            src/chart/chart_navigation.h
             src/chart/pick_slide_defaults.cpp
             src/chart/pick_slide_defaults.h
             src/chart/chart_selection.cpp
