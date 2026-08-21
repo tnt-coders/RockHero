@@ -14,10 +14,11 @@ single draw function — are where restatements still accrete, and each has a na
 
 ## Tier 1 — structural, deletes real code, needs a go-ahead
 
-**Progress (2026-08-21, later the same day, with the user's go-ahead):** items 1, 2, and 3 are
-DONE (`fb815d9a` the slice, `091b8ee8` the toggles, and the action routing commit that follows);
-item 4 (W9-B) and item 5 (`draw()`) remain, and the pinch head shape (item 9) was ruled a
-RECTANGLE on both surfaces.
+**Progress (2026-08-21, later the same day, with the user's go-ahead):** items 1, 2, 3, and 4
+are DONE (`fb815d9a` the slice, `091b8ee8` the toggles, `59f0cd94` the action routing, and the
+W9-B fold that follows); item 5 (`draw()`) remains. Item 9 was fixed inside the fold: nothing is
+ruled about displaying a pinch's right-hand node — both surfaces today show only its left-hand
+stop, so the lane now gives a pinch the ordinary fretted head the board already gave it.
 
 1. **Route the chart intents through `runAction` / `EditorAction`.** The editor has one action
    funnel with availability gating, busy-supersede policy, logging, and the pending-entry

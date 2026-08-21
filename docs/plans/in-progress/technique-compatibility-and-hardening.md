@@ -899,7 +899,8 @@ confirmed — *"tap and pinch harmonic cannot be executed together."*
 
 **Retracted:** an earlier revision of this document called it a cross-surface *gap* that 2D does not
 carry the node. That was wrong. 2D's axes are **time and string** — there is no fretboard axis to
-place a node on, so the concept does not apply there and `TabNoteView` omitting it is correct.
+place a node on, so the concept does not apply there; the shared `NoteViewState` carries the
+node for both surfaces and the lane simply does not anchor to it.
 3D has a fret axis, which is why the node positions the head there.
 
 **What 2D needs instead is to report the node as a NUMBER** (user, 2026-08-07): the drawn fret number

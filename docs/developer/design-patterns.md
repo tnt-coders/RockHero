@@ -248,7 +248,8 @@ painting never does musical math.
 
 Recurring: `tone_track_projection`, `tone_automation_projection`,
 `input_calibration_projection` (editor core), `library_entry_projection` (game core),
-`highway_projection` and `tab_projection` (common core — each feeds its renderer in both
+`chart_projection` and `highway_projection` (common core — the shared scene and the board's
+extension of it, each feeding its renderer in both
 products; tab promoted by plan 30 Phase 1). Projections are where headless tests live; write one
 for anything a view will draw.
 
@@ -258,6 +259,17 @@ View-state structs are dumb PODs with defaulted `operator==`
 (`transport_view_state.h` is the smallest exemplar); the controller's `deriveViewState()`
 composes the aggregate `EditorViewState`, and components consume their slice via
 `setState(const core::XyzViewState&)`, repainting on change. No component computes policy.
+
+The rule reaches INSIDE a view state: the element types a view state is built from are view state
+too, named `*ViewState` and never `*View` (`NoteViewState`, `SlideViewState`, `FhpViewState` in
+`chart_view_state.h`), and when two surfaces draw one domain fact they share the element type
+AND the one producer that fills it — `ChartViewState` from `makeChartViewState` is rendered by the
+2D lane as is and composed by `HighwayViewState` as `chart`. Per-surface differences live in the
+painters as READS of shared fields (`linkedWaypoint`, the lane's head shape), never as per-surface
+fields; a parallel `*View` type for the other surface is the defect W9-B removed. A defaulted
+`operator==` is only right when the struct has no float member of its own: one that does is
+hand-written with `std::is_eq(a <=> b)`, or CI's `-Wfloat-equal` rejects it (a float reached
+through `std::optional` or `std::vector` is not diagnosed, so a default there is correct).
 
 ## Listener / intent
 

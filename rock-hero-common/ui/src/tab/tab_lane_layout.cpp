@@ -53,7 +53,11 @@ float TabLaneGeometry::x(double seconds) const noexcept
 // Vertical lane center for a chart string, accounting for extra user lanes below the chart.
 float TabLaneGeometry::laneY(int chart_string) const noexcept
 {
-    return tabLaneCenterY(chart_string + extra_lanes, displayed_count, bounds_y, bounds_height);
+    return tabLaneCenterY(
+        common::core::displayedLane(chart_string, extra_lanes),
+        displayed_count,
+        bounds_y,
+        bounds_height);
 }
 
 TabLaneGeometry makeTabLaneGeometry(

@@ -6,7 +6,7 @@
 #pragma once
 
 #include <cstddef>
-#include <rock_hero/common/core/tab/tab_view_state.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 
 namespace rock_hero::common::ui

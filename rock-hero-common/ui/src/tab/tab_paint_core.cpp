@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <vector>
 
@@ -344,13 +345,13 @@ struct LabelChip
 // The note head sounding on this string exactly at the span start, or nullptr when the string is
 // silent there. That head is what the centred posture digit contends with; its ATTACK decides
 // which hand produced it and its FRET whether the posture is already stated.
-[[nodiscard]] const common::core::TabNoteView* headAtSpanStart(
-    const common::core::TabViewState& tab, double span_start_seconds, int chart_string)
+[[nodiscard]] const common::core::NoteViewState* headAtSpanStart(
+    const common::core::ChartViewState& tab, double span_start_seconds, int chart_string)
 {
     // The same question every same-instant test on either surface asks — are these two chart
     // times one moment — so it reads the one named tolerance rather than restating the number.
     constexpr double tolerance = common::core::g_onset_match_epsilon;
-    const auto onset = &common::core::TabNoteView::start_seconds;
+    const auto onset = &common::core::NoteViewState::start_seconds;
     for (auto it = std::ranges::lower_bound(
              tab.notes, span_start_seconds - tolerance, std::ranges::less{}, onset);
          it != tab.notes.end() && it->start_seconds <= span_start_seconds + tolerance;
@@ -366,7 +367,7 @@ struct LabelChip
 
 struct ArpeggioBracket
 {
-    common::core::TabArpeggioNoteView note;
+    common::core::ShapeStringViewState note;
     // The span start in pixels: the bracket pair's center, and the head's own column.
     float center_x{};
     // The resolved digit box, plus the fact that placed it: whether this string's posture was
@@ -408,7 +409,8 @@ void drawStringLines(
         const auto right = static_cast<float>(clip.getRight());
         for (const ArpeggioBracket& bracket : brackets)
         {
-            if (bracket.note.string + metrics.extra_lanes != displayed_string)
+            if (common::core::displayedLane(bracket.note.string, metrics.extra_lanes) !=
+                displayed_string)
             {
                 continue;
             }
@@ -756,11 +758,11 @@ void drawAccentTailGlow(
 // mark riding the tail, clipped against arpeggio brackets where the body is not.
 void drawNoteTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, double hold_end_seconds, float onset_x, float center_y)
+    const common::core::NoteViewState& note, double hold_end_seconds, float onset_x, float center_y)
 {
     // The DISPLAY hold end, not the stored sustain: a sustainless member of a strum under a
-    // hand-shape span is held for the span (TabViewState::display_hold_ends), and the tail is what
-    // says so. Every other note's hold end is its own sustain end, so this is one expression.
+    // hand-shape span is held for the span (ChartViewState::display_hold_ends), and the tail is
+    // what says so. Every other note's hold end is its own sustain end, so this is one expression.
     const float end_x = metrics.x(hold_end_seconds);
     const float length = end_x - onset_x;
     if (length <= 0.0f)
@@ -853,7 +855,7 @@ struct TailInterior
 // against the arpeggio brackets while the ribbon shows through them untouched.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, double hold_end_seconds, float onset_x, float center_y)
+    const common::core::NoteViewState& note, double hold_end_seconds, float onset_x, float center_y)
 {
     const float length = metrics.x(hold_end_seconds) - onset_x;
     if (!note.vibrato || length <= 0.0f)
@@ -912,12 +914,18 @@ enum class HeadShape : std::uint8_t
     Plectrum
 };
 
-// Picks the silhouette naming this note's kind. The harmonic diamond takes precedence over the
-// scrape's plectrum only so the mapping is total: no note can ask for both, since a pinch and a
-// scrape are two values of one attack and the chart rules reject a scrape carrying a node.
-[[nodiscard]] HeadShape headShapeFor(const common::core::TabNoteView& note)
+// Picks the silhouette naming this note's kind. The diamond names a head that SOUNDS at a node —
+// the same sounding rule the highway's node head asks (highwayNodeHead) and the head text below
+// labels by, so the shape and the label can never disagree. A pinch's node lies off the neck where
+// the thumb grazes, and both surfaces today draw only a pinch's fretted stop, so it wears the
+// ordinary head; how the right-hand node will be shown is an open question. The diamond takes
+// precedence over the scrape's plectrum only so the mapping is total: no note can ask for both,
+// since a pinch and a scrape are two values of one attack and the chart rules reject a scrape
+// carrying a node.
+[[nodiscard]] HeadShape headShapeFor(const common::core::NoteViewState& note)
 {
-    if (note.harmonic_node.has_value())
+    if (common::core::soundingPositionAt(note.harmonic_node, note.attack, note.fret, note.fret)
+            .at_node)
     {
         return HeadShape::Diamond;
     }
@@ -1097,7 +1105,7 @@ constexpr float g_technique_line_thickness = 2.0f;
 // end, exactly as Charter labels unpitched slides.
 void drawSlideLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, float onset_x, float center_y,
+    const common::core::NoteViewState& note, float onset_x, float center_y,
     std::vector<LabelChip>& slide_labels)
 {
     if (note.slides.empty())
@@ -1114,7 +1122,7 @@ void drawSlideLines(
     float from_x = onset_x + metrics.note_height / 4.0f;
     int previous_fret = note.fret;
     std::size_t leg = 0;
-    for (const common::core::TabSlideView& waypoint : note.slides)
+    for (const common::core::SlideViewState& waypoint : note.slides)
     {
         // Every junction insets its endpoint by one stroke width, which opens a hairline gap
         // between consecutive diagonals so a multi-waypoint glide reads as separate legs. The LAST
@@ -1142,7 +1150,8 @@ void drawSlideLines(
         // A junction that carries a continuation head shows its fret ON the head, so the chip
         // would be the same number twice. Only an unpitched END keeps the chip: a trail-off and a
         // scrape's terminal have no head, because nothing lands where the string is released.
-        if (waypoint.unpitched && !waypoint.linked && metrics.draw_text)
+        if (waypoint.unpitched && !common::core::linkedWaypoint(note, waypoint) &&
+            metrics.draw_text)
         {
             const float label_y = upward ? span.top - metrics.note_height / 3.0f
                                          : span.bottom + metrics.note_height / 3.0f;
@@ -1178,12 +1187,12 @@ void drawSlideLines(
 // traveled fret is stated, replacing the chip that used to float above the line.
 void drawSlideWaypointHeads(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, float center_y)
+    const common::core::NoteViewState& note, float center_y)
 {
     const HeadShape shape = headShapeFor(note);
-    for (const common::core::TabSlideView& waypoint : note.slides)
+    for (const common::core::SlideViewState& waypoint : note.slides)
     {
-        if (!waypoint.linked)
+        if (!common::core::linkedWaypoint(note, waypoint))
         {
             continue;
         }
@@ -1218,8 +1227,8 @@ void drawSlideWaypointHeads(
 // point (white text on the string's lane color darkened twice).
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, const double end_seconds, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips)
+    const common::core::NoteViewState& note, const double end_seconds, float onset_x,
+    float center_y, std::vector<LabelChip>& bend_chips)
 {
     if (note.bend.empty())
     {
@@ -1245,7 +1254,7 @@ void drawBendLines(
     const float end_x = metrics.x(end_seconds);
     juce::Point<float> last{onset_x, bend_y(0.0)};
     g.setColour(style[Ink::TechniqueLine]);
-    for (const common::core::TabBendPointView& point : note.bend)
+    for (const common::core::BendPointViewState& point : note.bend)
     {
         const juce::Point<float> to{metrics.x(point.seconds), bend_y(point.semitones)};
         g.drawLine(last.x, last.y, to.x, to.y, line_thickness);
@@ -1548,7 +1557,7 @@ constexpr float g_chip_letter_clearance = 1.0f;
 // hammer-on needs the correction below, because only its lowest ink stops short of its box.
 void drawAttackIcon(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, float center_x, float center_y)
+    const common::core::NoteViewState& note, float center_x, float center_y)
 {
     // The apex sits at (corner_x - width/2, corner_y) and the corner is tuck from the head's
     // center on both axes, so putting the apex on the rim is solving
@@ -1676,7 +1685,7 @@ void drawAttackIcon(
 // pinch-harmonic edge line, mute icon, fret number, then the attack icon.
 void drawNoteHead(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::TabNoteView& note, float onset_x, float center_y)
+    const common::core::NoteViewState& note, float onset_x, float center_y)
 {
     const float size = metrics.headSize();
     const HeadShape shape = headShapeFor(note);
@@ -1765,7 +1774,7 @@ void drawNoteHead(
 // read as an ugly wall of color). The template name, when present, rides the host's name-chip
 // band (the editor's timeline ruler), not the lane itself.
 void drawShapeSpan(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabShapeView& shape)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ShapeViewState& shape)
 {
     const float start_x = metrics.x(shape.start_seconds);
     const float end_x = metrics.x(shape.end_seconds);
@@ -1797,7 +1806,7 @@ void drawShapeSpan(
 // fret; a wider or narrower placement spells out its full inclusive range ("3-7") because the
 // unusual span is exactly what the player needs to see.
 void drawFhpMarker(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabFhpView& fhp)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::FhpViewState& fhp)
 {
     if (!metrics.draw_text)
     {
@@ -1861,7 +1870,7 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 // Rationale lives on the declaration in tab_paint_core.h. The silhouette comes from headShapeFor,
 // the same authority the drawn head uses, which is the whole point of exporting this.
 void strokeTabNoteHeadOutline(
-    juce::Graphics& g, const common::core::TabNoteView& note, const float center_x,
+    juce::Graphics& g, const common::core::NoteViewState& note, const float center_x,
     const float center_y, const float extent, const float stroke_thickness)
 {
     const float half = extent / 2.0f;
@@ -1892,7 +1901,7 @@ void strokeTabNoteHeadOutline(
 // full pop and the PLATE POLARITY FLIP itself signals invalid even in full monochrome — the
 // same glance mechanism the mute plate-flip design established.
 void paintTabPendingEntryBox(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView* note,
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState* note,
     const float center_x, const float center_y, const juce::String& text, const bool light_plate,
     const juce::Colour text_color, const juce::Colour border_color)
 {
@@ -1919,7 +1928,7 @@ void paintTabPendingEntryBox(
 }
 
 // Rationale lives on the declaration in tab_paint_core.h.
-juce::String tabNoteHeadText(const common::core::TabNoteView& note, const int fret_at_head)
+juce::String tabNoteHeadText(const common::core::NoteViewState& note, const int fret_at_head)
 {
     const common::core::SoundingPosition sounding =
         common::core::soundingPositionAt(note.harmonic_node, note.attack, note.fret, fret_at_head);
@@ -1944,7 +1953,7 @@ juce::Colour tabShapeMarkColor(bool arpeggio)
 // Base color for a chart string, accounting for extra user lanes below the chart.
 juce::Colour TabLaneMetrics::baseColor(int chart_string) const
 {
-    return tabStringColor(chart_string + extra_lanes, displayed_count);
+    return tabStringColor(common::core::displayedLane(chart_string, extra_lanes), displayed_count);
 }
 
 TabLaneMetrics makeTabLaneMetrics(
@@ -1981,7 +1990,7 @@ TabLaneMetrics makeTabLaneMetrics(
 // sustain tails with their slide and bend lines, arpeggio posture brackets, note heads with
 // technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabViewState& tab,
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
     const std::vector<double>& prefix_max_end_seconds)
 {
     // Heads and icons extend a fixed pixel slack around their onset, so the visible span grows
@@ -2019,14 +2028,14 @@ void paintTabLane(
     // the span start; the rails pass cannot, because a span that began earlier still covers the
     // window and nothing orders spans by end — its exact first index would need a prefix maximum of
     // span ends, the way the notes have one.
-    const auto shape_start = &common::core::TabShapeView::start_seconds;
+    const auto shape_start = &common::core::ShapeViewState::start_seconds;
     const auto shapes_end =
         std::ranges::upper_bound(tab.shapes, span_end, std::ranges::less{}, shape_start);
 
     // Every visible bracket, resolved once: the lane lines hide inside each one so the "[ fret ]"
     // marks read on a clean background, and the bracket pass draws the identical rectangles.
     std::vector<ArpeggioBracket> brackets;
-    for (const common::core::TabShapeView& shape : std::ranges::subrange{
+    for (const common::core::ShapeViewState& shape : std::ranges::subrange{
              std::ranges::lower_bound(tab.shapes, span_start, std::ranges::less{}, shape_start),
              shapes_end
          })
@@ -2043,15 +2052,16 @@ void paintTabLane(
         int span_digit_width = 0;
         if (metrics.draw_text)
         {
-            for (const common::core::TabArpeggioNoteView& note : shape.arpeggio_notes)
+            for (const common::core::ShapeStringViewState& note : shape.strings)
             {
                 span_digit_width = std::max(
                     span_digit_width, textWidth(metrics.fret_font, juce::String{note.fret}));
             }
         }
-        for (const common::core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
+        for (const common::core::ShapeStringViewState& arpeggio_note : shape.strings)
         {
-            const int displayed = arpeggio_note.string + metrics.extra_lanes;
+            const int displayed =
+                common::core::displayedLane(arpeggio_note.string, metrics.extra_lanes);
             if (displayed < 1 || displayed > metrics.displayed_count)
             {
                 continue;
@@ -2060,7 +2070,7 @@ void paintTabLane(
             const int digit_width =
                 metrics.draw_text ? textWidth(metrics.fret_font, juce::String{arpeggio_note.fret})
                                   : 0;
-            const common::core::TabNoteView* const head =
+            const common::core::NoteViewState* const head =
                 headAtSpanStart(tab, shape.start_seconds, arpeggio_note.string);
             bool side_slot = false;
 
@@ -2112,7 +2122,7 @@ void paintTabLane(
 
     drawStringLines(g, metrics, clip, brackets);
 
-    for (const common::core::TabShapeView& shape :
+    for (const common::core::ShapeViewState& shape :
          std::ranges::subrange{tab.shapes.begin(), shapes_end})
     {
         if (shape.end_seconds >= span_start)
@@ -2133,7 +2143,7 @@ void paintTabLane(
     // Tails first so heads always cover their own tail starts (Charter's noteTails layer).
     for (std::size_t index = first; index < last; ++index)
     {
-        const common::core::TabNoteView& note = tab.notes[index];
+        const common::core::NoteViewState& note = tab.notes[index];
         if (tab.display_hold_ends[index] < span_start)
         {
             continue;
@@ -2303,7 +2313,7 @@ void paintTabLane(
 
     for (std::size_t index = first; index < last; ++index)
     {
-        const common::core::TabNoteView& note = tab.notes[index];
+        const common::core::NoteViewState& note = tab.notes[index];
         if (tab.display_hold_ends[index] < span_start)
         {
             continue;
@@ -2355,8 +2365,8 @@ void paintTabLane(
 
     // Each marker shows at its own position and they ascend in time, so the visible ones are one
     // bounded slice rather than a walk of the whole song's placements.
-    const auto fhp_seconds = &common::core::TabFhpView::seconds;
-    for (const common::core::TabFhpView& fhp : std::ranges::subrange{
+    const auto fhp_seconds = &common::core::FhpViewState::seconds;
+    for (const common::core::FhpViewState& fhp : std::ranges::subrange{
              std::ranges::lower_bound(
                  tab.fret_hand_positions, span_start, std::ranges::less{}, fhp_seconds),
              std::ranges::upper_bound(

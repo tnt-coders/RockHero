@@ -45,9 +45,9 @@ TEST_CASE("Highway tail taper anchors both ends", "[core][highway][tail]")
 // point is a prebend at the onset itself.
 TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway][tail]")
 {
-    const std::vector<HighwayBendPointView> bend{
-        HighwayBendPointView{.seconds = 11.0, .semitones = 2.0},
-        HighwayBendPointView{.seconds = 12.0, .semitones = 1.0},
+    const std::vector<BendPointViewState> bend{
+        BendPointViewState{.seconds = 11.0, .semitones = 2.0},
+        BendPointViewState{.seconds = 12.0, .semitones = 1.0},
     };
 
     CHECK(highwayBendSemitonesAt(bend, 10.0, 10.0) == Catch::Approx(0.0));
@@ -66,9 +66,9 @@ TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway]
     CHECK(highwayBendSemitonesAt({}, 10.0, 11.0) == Catch::Approx(0.0));
 
     // A prebend (first point at the onset) anchors the start value instead of ramping from zero.
-    const std::vector<HighwayBendPointView> prebend{
-        HighwayBendPointView{.seconds = 10.0, .semitones = 1.0},
-        HighwayBendPointView{.seconds = 12.0, .semitones = 1.0},
+    const std::vector<BendPointViewState> prebend{
+        BendPointViewState{.seconds = 10.0, .semitones = 1.0},
+        BendPointViewState{.seconds = 12.0, .semitones = 1.0},
     };
     CHECK(highwayBendSemitonesAt(prebend, 10.0, 10.0) == Catch::Approx(1.0));
     CHECK(highwayBendSemitonesAt(prebend, 10.0, 11.0) == Catch::Approx(1.0));
@@ -82,9 +82,9 @@ TEST_CASE("Highway bend curve flows through same-direction points", "[core][high
     // Uniform two-stage rise 0 -> 1 -> 2: the Fritsch–Carlson tangent at the middle point is
     // the secant slope 1, giving Hermite values 0.375 / 1.625 at the segment midpoints (the
     // flat-shelf smoothstep would give 0.5 / 1.5 with a dead stop at 11.0).
-    const std::vector<HighwayBendPointView> rise{
-        HighwayBendPointView{.seconds = 11.0, .semitones = 1.0},
-        HighwayBendPointView{.seconds = 12.0, .semitones = 2.0},
+    const std::vector<BendPointViewState> rise{
+        BendPointViewState{.seconds = 11.0, .semitones = 1.0},
+        BendPointViewState{.seconds = 12.0, .semitones = 2.0},
     };
     CHECK(highwayBendSemitonesAt(rise, 10.0, 10.5) == Catch::Approx(0.375));
     CHECK(highwayBendSemitonesAt(rise, 10.0, 11.0) == Catch::Approx(1.0));
@@ -104,10 +104,10 @@ TEST_CASE("Highway bend curve flows through same-direction points", "[core][high
     }
 
     // A GP-style plateau between two rises stays exactly flat inside the plateau.
-    const std::vector<HighwayBendPointView> plateau{
-        HighwayBendPointView{.seconds = 11.0, .semitones = 1.0},
-        HighwayBendPointView{.seconds = 11.5, .semitones = 1.0},
-        HighwayBendPointView{.seconds = 12.5, .semitones = 2.0},
+    const std::vector<BendPointViewState> plateau{
+        BendPointViewState{.seconds = 11.0, .semitones = 1.0},
+        BendPointViewState{.seconds = 11.5, .semitones = 1.0},
+        BendPointViewState{.seconds = 12.5, .semitones = 2.0},
     };
     CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.1) == Catch::Approx(1.0));
     CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.25) == Catch::Approx(1.0));
@@ -334,15 +334,15 @@ TEST_CASE("Highway vibrato runs at one fixed rate", "[core][highway][tail]")
 // stay sorted and deduplicated.
 TEST_CASE("Highway tail sample times include control points", "[core][highway][tail]")
 {
-    HighwayNoteView note;
+    NoteViewState note;
     note.start_seconds = 10.0;
     note.end_seconds = 14.0;
     note.bend = {
-        HighwayBendPointView{.seconds = 11.3, .semitones = 1.0},
-        HighwayBendPointView{.seconds = 9.0, .semitones = 0.5},  // outside: dropped
-        HighwayBendPointView{.seconds = 15.0, .semitones = 0.0}, // outside: dropped
+        BendPointViewState{.seconds = 11.3, .semitones = 1.0},
+        BendPointViewState{.seconds = 9.0, .semitones = 0.5},  // outside: dropped
+        BendPointViewState{.seconds = 15.0, .semitones = 0.0}, // outside: dropped
     };
-    note.slides = {HighwaySlideView{.seconds = 12.7, .fret = 7, .unpitched = false}};
+    note.slides = {SlideViewState{.seconds = 12.7, .fret = 7, .unpitched = false}};
 
     const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {}, 256);
 
@@ -359,7 +359,7 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
 
     // An empty span yields no samples; a control point landing on a uniform sample dedupes.
     CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5, {}, 256).empty());
-    note.bend = {HighwayBendPointView{.seconds = 12.0, .semitones = 1.0}};
+    note.bend = {BendPointViewState{.seconds = 12.0, .semitones = 1.0}};
     note.slides.clear();
     const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {}, 256);
     CHECK(std::ranges::count(deduped, 12.0) == 1);
@@ -370,7 +370,7 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
 // alone would round every apex and alias the wave at this tooth spacing.
 TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][highway][tail]")
 {
-    HighwayNoteView note;
+    NoteViewState note;
     note.start_seconds = 10.0;
     note.end_seconds = 11.0;
 
@@ -406,7 +406,7 @@ TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][hig
 // a long teethed open tail reached nearly twice the cap.
 TEST_CASE("Highway tail sample times hold the cap as one budget", "[core][highway][tail]")
 {
-    HighwayNoteView note;
+    NoteViewState note;
     note.start_seconds = 10.0;
     note.end_seconds = 20.0;
 

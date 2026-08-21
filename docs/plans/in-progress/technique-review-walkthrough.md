@@ -398,6 +398,26 @@ the options with the agent's recommendation.
   on the render path; if a genuine per-surface field ever appears, compose extras beside the
   shared core at that point. Sequencing: fold before W10's build, so the split-tail law touches
   one projection.
+  **SHIPPED 2026-08-21, one step further than ruled.** Building it showed the ruled shape still
+  had two aggregates restating one field list: every field of `TabViewState` was a field of
+  `HighwayViewState`, so the core IS the tab's state. The shipped shape: `ChartViewState`
+  (`chart/chart_view_state.h` — `NoteViewState`, `SlideViewState`, `BendPointViewState`,
+  `ShapeViewState`, `ShapeStringViewState`, `FhpViewState`, plus `display_hold_ends`, capo, and
+  the tuning's string count) produced once by `makeChartViewState`
+  (`chart/chart_projection.cpp`); the lane renders it directly, and `HighwayViewState` composes
+  it as `chart` beside sections, tap onsets, chord groups, beats, and camera zones. `tab/` left
+  `common/core` with it. Two consequences the fold forced, each a correctness condition of a
+  shared core rather than an extra: (1) the highway no longer bakes display padding into note
+  strings — the scene carries chart strings on both surfaces and each renderer maps them to lanes
+  per frame through `displayedStringCount` / `displayedLane`, the same two functions; (2) the
+  placement ramps moved into the shared producer (`FhpViewState::ramp_seconds`), because when the
+  hand starts moving is a chart fact, and the one margin rule both it and the tap light rise read
+  is now `marginBefore` in grid arithmetic. `linked` is the read `linkedWaypoint(note, waypoint)`;
+  the shape posture list is one `strings` on both surfaces (the lane reads an arpeggio's); the
+  per-note agreement test became "the highway composes the chart projection unchanged". The
+  review's item 9 rode along: 2D's head shape now asks the same sounding rule as 3D's node head,
+  so a pinch wears its fretted head on both surfaces (nothing about the right-hand node's display
+  is ruled — both surfaces show only a pinch's left-hand half today).
 - [x] **W9-C — What does an arpeggio bracket's `sounded` mean? RULED 2026-08-13, reframed: it was
   never a musical claim.** The brackets always draw — they state the POSTURE, the fretting hand's
   placement, which is their whole job — heads render in the normal note pass, and the flag gates

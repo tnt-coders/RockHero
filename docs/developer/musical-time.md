@@ -76,7 +76,7 @@ Two performance mechanisms matter when querying it:
   non-decreasing positions in amortized constant time, bit-identical to the random-access query.
 
 The flow every feature follows: charts author `GridPosition` → a projection resolves seconds
-through the `TempoMap` once (`highway_projection.cpp` and `tab_projection.cpp` both walk a
+through the `TempoMap` once (`chart_projection.cpp` and `highway_projection.cpp` both walk a
 `ForwardBeatTimeCursor`) → renderers consume seconds only and never do musical math per frame.
 
 # Who owns tempo truth (and the one-way mirror)

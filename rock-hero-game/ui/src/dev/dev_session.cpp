@@ -122,7 +122,7 @@ std::optional<common::core::HighwayViewState> DevSession::reload(const std::chro
     RH_LOG_INFO(
         "game.dev",
         "chart hot-reload applied notes={} sections={} song_time_s={:.3f}",
-        state->notes.size(),
+        state->chart.notes.size(),
         state->sections.size(),
         clockSnapshotAt(now).position.seconds);
     return state;
@@ -241,7 +241,7 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         RH_LOG_INFO(
             "game.highway",
             "dev package loaded notes={} beats={} sections={} lefty={}",
-            state.notes.size(),
+            state.chart.notes.size(),
             state.beats.size(),
             state.sections.size(),
             m_lefty);

@@ -213,7 +213,7 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 // Applies the current tab projection and lane-count preference; the projection pointer only
 // changes when the displayed arrangement changes, so pointer identity gates the index rebuild.
 void TabView::setState(
-    std::shared_ptr<const common::core::TabViewState> tab, int minimum_displayed_strings)
+    std::shared_ptr<const common::core::ChartViewState> tab, int minimum_displayed_strings)
 {
     const bool tab_changed = tab != m_tab;
     const bool lanes_changed = minimum_displayed_strings != m_minimum_displayed_strings;
@@ -277,7 +277,7 @@ void TabView::paint(juce::Graphics& g)
         {
             continue;
         }
-        const common::core::TabNoteView& note = m_tab->notes[index];
+        const common::core::NoteViewState& note = m_tab->notes[index];
         const common::ui::TabNoteLayout layout =
             common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
         g.setColour(accent);
@@ -356,7 +356,7 @@ void TabView::paint(juce::Graphics& g)
             {
                 continue;
             }
-            const common::core::TabNoteView& note = m_tab->notes[index];
+            const common::core::NoteViewState& note = m_tab->notes[index];
             const common::ui::TabNoteLayout layout =
                 common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
             common::ui::paintTabPendingEntryBox(

@@ -47,7 +47,7 @@ constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
 // The memoized projection deriveViewState pushed is exactly what the lane painted, so pointer
 // events resolve against it; null while no chart is displayed.
-const common::core::TabViewState* EditorController::Impl::displayedTabProjection() const
+const common::core::ChartViewState* EditorController::Impl::displayedTabProjection() const
 {
     return m_tab_view_state.get();
 }
@@ -437,7 +437,7 @@ std::vector<EditorController::Impl::AutomationLaneRow> EditorController::Impl::
 std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl::chartPlacementAt(
     const ChartPointerEvent& event) const
 {
-    const common::core::TabViewState* const tab = displayedTabProjection();
+    const common::core::ChartViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0 || event.geometry.lane_height <= 0.0f)
     {
         return std::nullopt;
@@ -587,7 +587,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     // The pending fret entry settles first (the uniform prologue): a click that starts a drag
     // on the very note being retyped must not race a half-typed value.
     settleChartFretEntry();
-    const common::core::TabViewState* const tab = displayedTabProjection();
+    const common::core::ChartViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0 || isBusy())
     {
         return;
@@ -731,7 +731,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     // following an Alt-drag clears here.
     m_chart_insert_ghost.reset();
 
-    const common::core::TabViewState* const tab = displayedTabProjection();
+    const common::core::ChartViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0)
     {
         updateView();
@@ -884,7 +884,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
 {
     const ChartStepDirection direction = action.direction;
     const bool measure = action.measure;
-    const common::core::TabViewState* const tab = displayedTabProjection();
+    const common::core::ChartViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0)
     {
         return;
@@ -962,7 +962,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
 void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCaret& action)
 {
     const ChartCaretJump target = action.target;
-    const common::core::TabViewState* const tab = displayedTabProjection();
+    const common::core::ChartViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0)
     {
         return;
@@ -1043,7 +1043,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
 {
     const TimeSelectionExtent extent = action.extent;
     const ChartStepDirection direction = action.direction;
-    const common::core::TabViewState* const tab = displayedTabProjection();
+    const common::core::ChartViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0)
     {
         return;

@@ -5,13 +5,14 @@
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
-#include <rock_hero/common/core/tab/tab_projection.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
@@ -123,12 +124,12 @@ namespace
     };
 }
 
-// The ONE chart both surfaces project, carrying every fact their view types share: a strummed
-// chord under a hand-shape span, a sustained note with a bend point and a pitched glide, a
-// natural harmonic on a fractional node over a capo, a palm mute, a tremolo, a vibrato, an
-// accent, a hammer-on with the pull-off that releases it, an arpeggio span, two fret-hand
-// placements, and a pick slide with a turnaround plus its required unpitched terminal. Each
-// technique sits on its own note so a projection that drops one cannot hide behind another.
+// A chart carrying every fact the shared scene holds: a strummed chord under a hand-shape span, a
+// sustained note with a bend point and a pitched glide, a natural harmonic on a fractional node
+// over a capo, a palm mute, a tremolo, a vibrato, an accent, a hammer-on with the pull-off that
+// releases it, an arpeggio span, two fret-hand placements, and a pick slide with a turnaround plus
+// its required unpitched terminal. Each technique sits on its own note so a composition that
+// dropped one could not hide behind another.
 [[nodiscard]] Chart makeAgreementChart()
 {
     Chart chart;
@@ -321,29 +322,28 @@ TEST_CASE("Highway projection carries the tuning's capo", "[core][highway]")
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.tuning.capo = 2;
     arrangement.chart = std::move(chart);
-    CHECK(makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {}).capo == 2);
+    CHECK(makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {}).chart.capo == 2);
 }
 
-// Absolute anchors for the board's own resolution: onsets, sustain ends, and intra-note payload
-// offsets against the 4/4 default map. That the 2D lane resolves the same inputs to the same
-// seconds is a separate claim, pinned mechanically by the agreement case below.
+// Absolute anchors for the board's resolution: onsets, sustain ends, and intra-note payload
+// offsets against the 4/4 default map, read through the composed chart scene.
 TEST_CASE("Highway projection resolves chart positions to seconds", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     const HighwayViewState state =
         makeHighwayViewState(makeArrangementWithChart(), tempo_map, makeHighwaySections(), {});
 
-    CHECK(state.string_count == 6);
-    REQUIRE(state.notes.size() == 4);
+    CHECK(state.chart.string_count == 6);
+    REQUIRE(state.chart.notes.size() == 4);
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
-    CHECK(state.notes[0].start_seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.notes[0].end_seconds == Catch::Approx(5.0 * beat));
-    CHECK(state.notes[1].start_seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.notes[1].end_seconds == Catch::Approx(state.notes[1].start_seconds));
+    CHECK(state.chart.notes[0].start_seconds == Catch::Approx(4.0 * beat));
+    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(5.0 * beat));
+    CHECK(state.chart.notes[1].start_seconds == Catch::Approx(4.0 * beat));
+    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(state.chart.notes[1].start_seconds));
 
-    const HighwayNoteView& sliding = state.notes[2];
+    const NoteViewState& sliding = state.chart.notes[2];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
     CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
     REQUIRE(sliding.bend.size() == 1);
@@ -355,7 +355,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     // The between-fret harmonic node survives projection untouched, and its presence is what
     // makes the note a harmonic now.
-    const HighwayNoteView& harmonic = state.notes[3];
+    const NoteViewState& harmonic = state.chart.notes[3];
     CHECK(harmonic.attack == NoteAttack::Pick);
     REQUIRE(harmonic.harmonic_node.has_value());
     if (harmonic.harmonic_node.has_value())
@@ -364,24 +364,24 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
         CHECK(nodeIsOnNeck(harmonic.attack));
     }
 
-    REQUIRE(state.shapes.size() == 2);
-    CHECK(state.shapes[0].name == "F5");
-    CHECK_FALSE(state.shapes[0].arpeggio);
-    CHECK(state.shapes[1].arpeggio);
+    REQUIRE(state.chart.shapes.size() == 2);
+    CHECK(state.chart.shapes[0].name == "F5");
+    CHECK_FALSE(state.chart.shapes[0].arpeggio);
+    CHECK(state.chart.shapes[1].arpeggio);
     // Posture entries carry the template's frets and fingerings (only strings in the posture).
-    REQUIRE(state.shapes[0].strings.size() == 3);
-    CHECK(state.shapes[0].strings[0].string == 1);
-    CHECK(state.shapes[0].strings[0].fret == 1);
-    CHECK(state.shapes[0].strings[0].finger == 1);
-    CHECK(state.shapes[0].strings[2].string == 3);
-    CHECK(state.shapes[0].strings[2].fret == 3);
-    CHECK(state.shapes[0].strings[2].finger == 4);
+    REQUIRE(state.chart.shapes[0].strings.size() == 3);
+    CHECK(state.chart.shapes[0].strings[0].string == 1);
+    CHECK(state.chart.shapes[0].strings[0].fret == 1);
+    CHECK(state.chart.shapes[0].strings[0].finger == 1);
+    CHECK(state.chart.shapes[0].strings[2].string == 3);
+    CHECK(state.chart.shapes[0].strings[2].fret == 3);
+    CHECK(state.chart.shapes[0].strings[2].finger == 4);
 
-    REQUIRE(state.fret_hand_positions.size() == 1);
-    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
+    REQUIRE(state.chart.fret_hand_positions.size() == 1);
+    CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
     // No slide lands on this placement, so it morphs over the shared minimum-sustain-distance
     // margin (1/16 whole note — a quarter beat in 4/4).
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
 
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
@@ -392,334 +392,81 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.sections[0].name == "VERSE");
 }
 
-// The two surfaces may never disagree about the same chart fact, so one chart is projected both
-// ways and every shared field is compared. Prose in a comment is what this used to be, while the
-// two fixtures drifted onto different charts — leaving no chart in the tree projected twice, and a
-// divergence with nowhere to show up.
-TEST_CASE("Tab and highway projections agree on every shared chart fact", "[core][highway][tab]")
+// The board draws the same chart scene the lane draws because it COMPOSES the one projection, not
+// because a second projection happens to agree with it. This pins that composition: the scene
+// inside the highway state is the chart projection verbatim — no lane shift, no dropped field —
+// over a chart that exercises every shared fact, with the board's own structure derived beside it.
+TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][chart]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
     const Chart chart = makeAgreementChart();
-    // A fixture that rotted into an illegal chart would have the two surfaces agreeing about
-    // something no document can contain, so its legality is a precondition of the comparison.
+    // A fixture that rotted into an illegal chart would pin a scene no document can contain, so
+    // its legality is a precondition.
     REQUIRE(validateChartRules(chart, tempo_map).has_value());
 
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = chart;
-    const TabViewState flat = makeTabViewState(arrangement, tempo_map);
-    // No display padding and no sections: the padding default is what the game ships and what the
-    // editor's tab lane matches, and sections are song-level furniture the lane never draws.
-    const HighwayViewState board = makeHighwayViewState(arrangement, tempo_map, {}, {});
+    const ChartViewState scene = makeChartViewState(arrangement, tempo_map);
+    // A display minimum wider than the chart, to prove the scene is never padded in the projection:
+    // the renderer maps chart strings onto displayed lanes per frame.
+    const HighwayViewState board = makeHighwayViewState(
+        arrangement, tempo_map, {}, HighwayDisplayOptions{.minimum_string_count = 8});
 
-    CHECK(flat.string_count == board.string_count);
-    CHECK(flat.capo == board.capo);
-    CHECK(flat.capo == 2);
+    CHECK(board.chart == scene);
+    CHECK(board.options.minimum_string_count == 8);
 
-    REQUIRE(flat.notes.size() == chart.notes.size());
-    REQUIRE(board.notes.size() == chart.notes.size());
-    REQUIRE(flat.display_hold_ends.size() == flat.notes.size());
-    REQUIRE(board.display_hold_ends.size() == board.notes.size());
-
-    // Non-vacuity: the field loop below would pass just as happily comparing defaults, so every
-    // technique the two view types share has to be present in what was actually projected.
-    const auto any_note = [&flat](const auto& carries) {
-        return std::ranges::any_of(flat.notes, carries);
+    // Non-vacuity: the equality above would pass just as happily over an empty scene, so every
+    // technique the fixture carries has to be present in what was projected.
+    REQUIRE(scene.notes.size() == chart.notes.size());
+    REQUIRE(scene.display_hold_ends.size() == scene.notes.size());
+    CHECK(scene.capo == 2);
+    const auto any_note = [&scene](const auto& carries) {
+        return std::ranges::any_of(scene.notes, carries);
     };
-    CHECK(any_note([](const TabNoteView& note) { return note.palm_mute; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.dead; }));
-    // And the combination, which is the state neither surface could be handed before: a collapse
-    // back onto one mute axis would still satisfy the two checks above.
-    CHECK(any_note([](const TabNoteView& note) { return note.palm_mute && note.dead; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.tremolo; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.vibrato; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.emphasis == NoteEmphasis::Accent; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.emphasis == NoteEmphasis::Ghost; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.harmonic_node.has_value(); }));
-    CHECK(any_note([](const TabNoteView& note) { return !note.bend.empty(); }));
-    CHECK(any_note([](const TabNoteView& note) { return !note.slides.empty(); }));
-    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::Legato; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.attack == NoteAttack::PickSlide; }));
-    // Both resolutions are present, which is what makes the per-note comparison below meaningful:
-    // one stored claim resolves up and the other down, so a projection that dropped the resolution
-    // could not pass.
-    CHECK(any_note([](const TabNoteView& note) { return note.legato == LegatoMotion::Hammer; }));
-    CHECK(any_note([](const TabNoteView& note) { return note.legato == LegatoMotion::Pull; }));
+    CHECK(any_note([](const NoteViewState& note) { return note.palm_mute && note.dead; }));
+    CHECK(any_note([](const NoteViewState& note) { return note.tremolo; }));
+    CHECK(any_note([](const NoteViewState& note) { return note.vibrato; }));
+    CHECK(
+        any_note([](const NoteViewState& note) { return note.emphasis == NoteEmphasis::Accent; }));
+    CHECK(any_note([](const NoteViewState& note) { return note.emphasis == NoteEmphasis::Ghost; }));
+    CHECK(any_note([](const NoteViewState& note) { return note.harmonic_node.has_value(); }));
+    CHECK(any_note([](const NoteViewState& note) { return !note.bend.empty(); }));
+    CHECK(any_note([](const NoteViewState& note) { return note.attack == NoteAttack::PickSlide; }));
+    CHECK(any_note([](const NoteViewState& note) { return note.legato == LegatoMotion::Hammer; }));
+    CHECK(any_note([](const NoteViewState& note) { return note.legato == LegatoMotion::Pull; }));
+    REQUIRE(scene.shapes.size() == 2);
+    CHECK_FALSE(scene.shapes[0].arpeggio);
+    CHECK(scene.shapes[1].arpeggio);
+    CHECK(scene.shapes[1].strings.size() == 3);
+    CHECK(scene.fret_hand_positions.size() == 2);
 
-    for (std::size_t index = 0; index < flat.notes.size(); ++index)
-    {
-        CAPTURE(index);
-        const TabNoteView& flat_note = flat.notes[index];
-        const HighwayNoteView& board_note = board.notes[index];
-        // Exact, not Approx: both projections put the same grid position through the same
-        // tempo-map call, so any tolerance would accept precisely the drift this case exists to
-        // catch. WithinULP(x, 0) matches the identical bit pattern and prints both values.
-        CHECK_THAT(
-            flat_note.start_seconds, Catch::Matchers::WithinULP(board_note.start_seconds, 0));
-        CHECK_THAT(flat_note.end_seconds, Catch::Matchers::WithinULP(board_note.end_seconds, 0));
-        // The board resolves displayed-lane padding inside the projection while the lane resolves
-        // it up in the UI layer. With no padding configured — what both surfaces ship with — the
-        // string numbers are the chart's own on both sides, so they must match exactly.
-        CHECK(flat_note.string == board_note.string);
-        CHECK(flat_note.fret == board_note.fret);
-        CHECK(flat_note.attack == board_note.attack);
-        // The resolved motion is a READ of the chart, not per-surface data: a claim resolving to a
-        // hammer-on on the board is a hammer-on in the lane, or the two surfaces would draw
-        // different music from one file.
-        CHECK(flat_note.legato == board_note.legato);
-        CHECK(flat_note.palm_mute == board_note.palm_mute);
-        CHECK(flat_note.dead == board_note.dead);
-        // The span-implied hold, resolved from the same authority on both sides (W9-A).
-        CHECK_THAT(
-            flat.display_hold_ends[index],
-            Catch::Matchers::WithinULP(board.display_hold_ends[index], 0));
-        // Compared as optionals, exactly as both view types' own operator== compares this field.
-        CHECK(flat_note.harmonic_node == board_note.harmonic_node);
-        CHECK(flat_note.vibrato == board_note.vibrato);
-        CHECK(flat_note.tremolo == board_note.tremolo);
-        CHECK(flat_note.emphasis == board_note.emphasis);
-
-        REQUIRE(flat_note.bend.size() == board_note.bend.size());
-        for (std::size_t point = 0; point < flat_note.bend.size(); ++point)
-        {
-            CAPTURE(point);
-            CHECK_THAT(
-                flat_note.bend[point].seconds,
-                Catch::Matchers::WithinULP(board_note.bend[point].seconds, 0));
-            CHECK_THAT(
-                flat_note.bend[point].semitones,
-                Catch::Matchers::WithinULP(board_note.bend[point].semitones, 0));
-        }
-
-        // One leg list per surface, the slide-out flattened onto the end of both.
-        REQUIRE(flat_note.slides.size() == board_note.slides.size());
-        for (std::size_t leg = 0; leg < flat_note.slides.size(); ++leg)
-        {
-            CAPTURE(leg);
-            CHECK_THAT(
-                flat_note.slides[leg].seconds,
-                Catch::Matchers::WithinULP(board_note.slides[leg].seconds, 0));
-            CHECK(flat_note.slides[leg].fret == board_note.slides[leg].fret);
-            CHECK(flat_note.slides[leg].unpitched == board_note.slides[leg].unpitched);
-        }
-    }
-
-    // The one shared-note field only the lane carries: `linked` decides whether a junction draws a
-    // continuation head, a 2D notation question with no board counterpart — the rail runs through
-    // the junction either way. So it is asserted on the tab side alone, in both its states: the
-    // scrape's turnaround is a continuation, its terminal is where the pick leaves.
-    const TabNoteView& scrape = flat.notes.front();
+    // The continuation rule is a READ of the scene, shared by construction: the scrape's turnaround
+    // continues the gesture, its terminal is where the pick leaves.
+    const NoteViewState& scrape = scene.notes.front();
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
     REQUIRE(scrape.slides.size() == 2);
-    CHECK(scrape.slides[0].linked);
-    CHECK_FALSE(scrape.slides[1].linked);
+    CHECK(linkedWaypoint(scrape, scrape.slides[0]));
+    CHECK_FALSE(linkedWaypoint(scrape, scrape.slides[1]));
 
-    REQUIRE(flat.shapes.size() == chart.shapes.size());
-    REQUIRE(board.shapes.size() == chart.shapes.size());
-    for (std::size_t index = 0; index < flat.shapes.size(); ++index)
-    {
-        CAPTURE(index);
-        const TabShapeView& flat_shape = flat.shapes[index];
-        const HighwayShapeView& board_shape = board.shapes[index];
-        CHECK_THAT(
-            flat_shape.start_seconds, Catch::Matchers::WithinULP(board_shape.start_seconds, 0));
-        CHECK_THAT(flat_shape.end_seconds, Catch::Matchers::WithinULP(board_shape.end_seconds, 0));
-        CHECK(flat_shape.name == board_shape.name);
-        CHECK(flat_shape.arpeggio == board_shape.arpeggio);
-    }
-    // Both treatments are present, so the arrival flag is not agreeing against a constant.
-    CHECK(flat.shapes[0].name == "G#5");
-    CHECK_FALSE(flat.shapes[0].arpeggio);
-    CHECK(flat.shapes[1].name == "D5");
-    CHECK(flat.shapes[1].arpeggio);
-
-    // Both surfaces read one posture out of one template and each adds the fact its own notation
-    // needs — the lane which entries SOUND at the bracket start, the board which FINGER holds
-    // them — so only the strings and frets are a shared fact. Only an arpeggio brackets in 2D, so
-    // the lane leaves the chord-box span's list empty while the board fills it for the fingering
-    // panel regardless.
-    CHECK(flat.shapes[0].arpeggio_notes.empty());
-    CHECK(board.shapes[0].strings.size() == 3);
-    REQUIRE_FALSE(flat.shapes[1].arpeggio_notes.empty());
-    REQUIRE(flat.shapes[1].arpeggio_notes.size() == board.shapes[1].strings.size());
-    for (std::size_t entry = 0; entry < flat.shapes[1].arpeggio_notes.size(); ++entry)
-    {
-        CAPTURE(entry);
-        CHECK(flat.shapes[1].arpeggio_notes[entry].string == board.shapes[1].strings[entry].string);
-        CHECK(flat.shapes[1].arpeggio_notes[entry].fret == board.shapes[1].strings[entry].fret);
-    }
-
-    // Placements agree on where the hand arrives and what it covers; the board additionally
-    // derives the eased approach (ramp_seconds, unpitched_ramp), which the static 2D marker has
-    // no counterpart for.
-    REQUIRE(flat.fret_hand_positions.size() == chart.fret_hand_positions.size());
-    REQUIRE(board.fret_hand_positions.size() == chart.fret_hand_positions.size());
-    REQUIRE_FALSE(flat.fret_hand_positions.empty());
-    for (std::size_t index = 0; index < flat.fret_hand_positions.size(); ++index)
-    {
-        CAPTURE(index);
-        const TabFhpView& flat_fhp = flat.fret_hand_positions[index];
-        const HighwayFhpView& board_fhp = board.fret_hand_positions[index];
-        CHECK_THAT(flat_fhp.seconds, Catch::Matchers::WithinULP(board_fhp.seconds, 0));
-        CHECK(flat_fhp.fret == board_fhp.fret);
-        CHECK(flat_fhp.width == board_fhp.width);
-    }
-
-    // Board-only structure with no 2D counterpart at all — beat bars, camera framing zones, and
-    // the picking-hand light the scrape drives — so its absence from the lane is not a
-    // disagreement about anything.
+    // Board-only structure with no 2D counterpart — beat bars, camera framing zones, and the
+    // picking-hand light the scrape drives — derived beside the scene, never inside it.
     CHECK_FALSE(board.beats.empty());
     CHECK_FALSE(board.camera_zone_starts.empty());
     CHECK(board.tap_onsets.size() == 1);
 }
 
-// The displayed-string minimum (the editor's "show at least N strings") raises the lane count and
-// shifts every note and posture string into the padded range, so the shared palette anchors the
-// chart's strings exactly as the 2D tab does. The game leaves it at zero (no shift).
-TEST_CASE("Highway projection pads the displayed string count", "[core][highway]")
+// The displayed-string minimum (the editor's "show at least N strings") is a lane-mapping question
+// both surfaces answer per frame through the same two functions; the padding lanes sit below the
+// chart's strings, so a chart string lands `extra_lanes` higher than its unpadded lane.
+TEST_CASE("Displayed lanes pad below the chart's strings", "[core][highway][tab]")
 {
-    const TempoMap tempo_map = makeHighwayTempoMap();
-
-    // Chart has six strings; ask for eight displayed lanes → a shift of two.
-    const HighwayViewState padded = makeHighwayViewState(
-        makeArrangementWithChart(),
-        tempo_map,
-        {},
-        HighwayDisplayOptions{.minimum_string_count = 8});
-    CHECK(padded.string_count == 8);
-    REQUIRE(padded.notes.size() == 4);
-    // Chart strings 1 and 2 (the chord at measure 2) become displayed lanes 3 and 4.
-    CHECK(padded.notes[0].string == 3);
-    CHECK(padded.notes[1].string == 4);
-    // Posture entries shift with the notes so brackets and fingering stay on the same lanes.
-    REQUIRE(padded.shapes[0].strings.size() == 3);
-    CHECK(padded.shapes[0].strings[0].string == 3);
-    CHECK(padded.shapes[0].strings[2].string == 5);
-
-    // A minimum at or below the chart count leaves everything unshifted.
-    const HighwayViewState unshifted = makeHighwayViewState(
-        makeArrangementWithChart(),
-        tempo_map,
-        {},
-        HighwayDisplayOptions{.minimum_string_count = 4});
-    CHECK(unshifted.string_count == 6);
-    CHECK(unshifted.notes[0].string == 1);
-}
-
-// Ramp derivation for the hand window: a placement landing exactly on a pitched waypoint's grid
-// position ramps over that glide segment (slide-locked), ordinary placements morph over the
-// shared minimum-sustain-distance margin, crowded placements shorten against the previous
-// arrival instead of overlapping it, and an unpitched slide-out never slide-matches a placement.
-TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
-{
-    const TempoMap tempo_map = makeHighwayTempoMap();
-    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
-
-    Arrangement arrangement = makeArrangementWithChart();
-    Chart* const chart_ptr = chartOrNull(arrangement);
-    REQUIRE(chart_ptr != nullptr);
-    Chart& chart = *chart_ptr;
-    // A sustained note whose tail trails off unpitched: a placement on its end rides the
-    // trail-off's own segment with the unpitched curve, so the window travels exactly with the
-    // drawn rail.
-    chart.notes.push_back(
-        ChartNote{
-            .position = GridPosition{.measure = 4, .beat = 3},
-            .string = 5,
-            .fret = 5,
-            .sustain = Fraction{1},
-            .bend = {},
-            .slides = {},
-            .slide_out = SlideOut{.offset = Fraction{1}, .fret = 12},
-        });
-    chart.fret_hand_positions = {
-        // Ordinary move: the margin morph (a quarter beat in 4/4).
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
-        // Crowded: a sixteenth of a beat after the previous arrival — closer than the margin —
-        // so the morph shortens against it.
-        FretHandPosition{
-            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}},
-            .fret = 2,
-            .width = 4,
-        },
-        // Exactly on the fixture's pitched waypoint (3:1+1/2 advanced by its two-beat offset):
-        // slide-locked to the glide segment.
-        FretHandPosition{
-            .position = GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}},
-            .fret = 6,
-            .width = 4,
-        },
-        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): the margin
-        // morph, arriving with the release, never the whole-sustain segment.
-        FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9, .width = 4},
-    };
-
-    const HighwayViewState state = makeHighwayViewState(arrangement, tempo_map, {}, {});
-    REQUIRE(state.fret_hand_positions.size() == 4);
-
-    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
-
-    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
-
-    // The glide starts at the note onset (8.5 beats) and lands at the waypoint (10.5 beats).
-    CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));
-    CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
-
-    // A placement on an unpitched trail-off's end rides that trail-off's OWN segment, exactly as a
-    // pitched glide does, and carries the unpitched family so the window eases with the same curve
-    // the rail is drawn with. The trail-off's segment runs from the note's onset (14 beats) to its
-    // end (15 beats) because the note carries no pitched waypoints ahead of it; before this the
-    // placement morphed over the metrical margin instead, leaving the window stationary for most of
-    // the drawn glide and then sprinting to catch up.
-    CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
-    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK(state.fret_hand_positions[3].unpitched_ramp);
-    // The pitched glide above keeps the pitched family.
-    CHECK_FALSE(state.fret_hand_positions[2].unpitched_ramp);
-}
-
-// An equal-fret waypoint is a HOLD, not a glide: nothing travels across it, so a placement landing
-// on one must take the short margin morph rather than a ramp spanning the held stretch. Holds are
-// how a slide notated on a tied continuation records where it leaves from, so tying their span to
-// the window made the hand drift across the whole tied group to arrive at a fret it never left —
-// sighted at fret 11 of measure 50 of the acceptance song.
-TEST_CASE("Highway projection gives a hold waypoint the margin morph", "[core][highway]")
-{
-    const TempoMap tempo_map = makeHighwayTempoMap();
-    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
-    Arrangement arrangement = makeArrangementWithChart();
-    Chart* const chart_ptr = chartOrNull(arrangement);
-    REQUIRE(chart_ptr != nullptr);
-    Chart& chart = *chart_ptr;
-    // Four beats of held fret 5, then a one-beat glide up to fret 9: the hold pins the pitch at
-    // beat 4 and the travel happens only over the final beat.
-    chart.notes.push_back(
-        ChartNote{
-            .position = GridPosition{.measure = 2, .beat = 1},
-            .string = 5,
-            .fret = 5,
-            .sustain = Fraction{4},
-            .bend = {},
-            .slides = {
-                SlideWaypoint{.offset = Fraction{3}, .fret = 5},
-                SlideWaypoint{.offset = Fraction{4}, .fret = 9},
-            },
-        });
-    chart.fret_hand_positions = {
-        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 4}, .fret = 5, .width = 4},
-        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 9, .width = 4},
-    };
-
-    const HighwayViewState state = makeHighwayViewState(arrangement, tempo_map, {}, {});
-    REQUIRE(state.fret_hand_positions.size() == 2);
-
-    // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the margin.
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
-    CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
-    // The real glide that follows still rides its own one-beat segment.
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
-    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
+    // Six chart strings shown in eight lanes: a shift of two.
+    CHECK(displayedStringCount(6, 8) == 8);
+    CHECK(displayedLane(1, 8 - 6) == 3);
+    CHECK(displayedLane(6, 8 - 6) == 8);
+    // A minimum at or below the chart count adds no lanes and shifts nothing.
+    CHECK(displayedStringCount(6, 4) == 6);
+    CHECK(displayedLane(1, 6 - 6) == 1);
 }
 
 // The beat list covers the whole song grid up to the terminal anchor with correct downbeat
@@ -800,10 +547,10 @@ TEST_CASE("Highway projection is empty without a chart", "[core][highway]")
 
     const HighwayViewState state =
         makeHighwayViewState(arrangement, makeHighwayTempoMap(), makeHighwaySections(), {});
-    CHECK(state.string_count == 0);
-    CHECK(state.notes.empty());
-    CHECK(state.shapes.empty());
-    CHECK(state.fret_hand_positions.empty());
+    CHECK(state.chart.string_count == 0);
+    CHECK(state.chart.notes.empty());
+    CHECK(state.chart.shapes.empty());
+    CHECK(state.chart.fret_hand_positions.empty());
     CHECK(state.beats.empty());
     CHECK(state.camera_zone_starts.empty());
     REQUIRE(state.sections.size() == 1);
@@ -854,9 +601,9 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
 // span drop out through the prefix maximum, and notes starting after the span end are excluded.
 TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
 {
-    std::vector<HighwayNoteView> notes;
+    std::vector<NoteViewState> notes;
     const auto add_note = [&notes](double start, double end) {
-        HighwayNoteView note;
+        NoteViewState note;
         note.start_seconds = start;
         note.end_seconds = end;
         notes.push_back(std::move(note));
@@ -867,7 +614,7 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
     add_note(10.0, 11.0);
 
     const std::vector<double> prefix_max =
-        makeSustainPrefixMax(notes | std::views::transform(&HighwayNoteView::end_seconds));
+        makeSustainPrefixMax(notes | std::views::transform(&NoteViewState::end_seconds));
     REQUIRE(prefix_max.size() == 4);
     CHECK(prefix_max[2] == Catch::Approx(5.0));
 
@@ -892,10 +639,10 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
 // the floor labels and the dotted-fret suppression read.
 TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
 {
-    std::vector<HighwayNoteView> notes;
+    std::vector<NoteViewState> notes;
     const auto add_note =
         [&notes](double start, std::optional<double> node, NoteAttack attack, int fret) {
-            HighwayNoteView note;
+            NoteViewState note;
             note.start_seconds = start;
             note.end_seconds = start + 0.1;
             note.harmonic_node = node;
@@ -951,33 +698,33 @@ TEST_CASE("Highway display hold ends resolve the effective sustains", "[core][hi
     const HighwayViewState state =
         makeHighwayViewState(arrangement, map, {}, HighwayDisplayOptions{});
 
-    REQUIRE(state.display_hold_ends.size() == state.notes.size());
-    REQUIRE(state.notes.size() == 2);
+    REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
+    REQUIRE(state.chart.notes.size() == 2);
     // Struck at 2.0 seconds with no sustain of their own, so both heads stay pinned until the span
     // ends at 4.0 seconds.
-    CHECK(state.notes[0].end_seconds == Catch::Approx(2.0));
-    CHECK(state.display_hold_ends[0] == Catch::Approx(4.0));
-    CHECK(state.display_hold_ends[1] == Catch::Approx(4.0));
+    CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
+    CHECK(state.chart.display_hold_ends[0] == Catch::Approx(4.0));
+    CHECK(state.chart.display_hold_ends[1] == Catch::Approx(4.0));
 
     // W9-A: the 2D lane resolves the same rule from the same authority, so one chart's tails end at
     // the same second on both surfaces. The lane drew bare heads with zero-width tails here until
     // the two were unified.
-    const TabViewState lane = makeTabViewState(arrangement, map);
+    const ChartViewState lane = makeChartViewState(arrangement, map);
     REQUIRE(lane.display_hold_ends.size() == lane.notes.size());
-    REQUIRE(lane.notes.size() == state.notes.size());
+    REQUIRE(lane.notes.size() == state.chart.notes.size());
     for (std::size_t index = 0; index < lane.notes.size(); ++index)
     {
         CAPTURE(index);
         CHECK_THAT(
             lane.display_hold_ends[index],
-            Catch::Matchers::WithinULP(state.display_hold_ends[index], 0));
+            Catch::Matchers::WithinULP(state.chart.display_hold_ends[index], 0));
     }
 
     // Which is what keeps a span-held strum inside the visible range for as long as it is drawn.
-    const std::vector<double> prefix_max = makeSustainPrefixMax(state.display_hold_ends);
+    const std::vector<double> prefix_max = makeSustainPrefixMax(state.chart.display_hold_ends);
     REQUIRE(prefix_max.size() == 2);
     CHECK(prefix_max[1] == Catch::Approx(4.0));
-    const auto visible = visibleEventRange(state.notes, prefix_max, 3.5, 3.9);
+    const auto visible = visibleEventRange(state.chart.notes, prefix_max, 3.5, 3.9);
     CHECK(visible.first == 0);
     CHECK(visible.second == 2);
 }
@@ -988,9 +735,9 @@ TEST_CASE("Highway display hold ends resolve the effective sustains", "[core][hi
 // shared onset epsilon.
 TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
 {
-    std::vector<HighwayNoteView> notes;
+    std::vector<NoteViewState> notes;
     const auto add_note = [&notes](double start, int fret, NoteAttack attack = NoteAttack::Pick) {
-        HighwayNoteView note;
+        NoteViewState note;
         note.start_seconds = start;
         note.end_seconds = start;
         note.fret = fret;
@@ -1050,7 +797,7 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
 // higher lit normally while the open-string one lit nowhere.
 TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[core][highway]")
 {
-    HighwayNoteView tap;
+    NoteViewState tap;
     tap.start_seconds = 1.0;
     tap.end_seconds = 1.0;
     tap.string = 3;
@@ -1072,7 +819,7 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
 
     // An ordinary open string with no node still has nowhere to light, so the guard still holds
     // where it was meant to.
-    HighwayNoteView open_tap = tap;
+    NoteViewState open_tap = tap;
     open_tap.harmonic_node.reset();
     CHECK(makeHighwayTapOnsets({open_tap}, std::vector<double>(1, 0.0)).empty());
 }
@@ -1082,10 +829,10 @@ TEST_CASE("Highway tap onsets light an open-string tap harmonic at its node", "[
 // with the glide, and an unpitched trail-off releases the light from the last pitched station.
 TEST_CASE("Highway tap onsets carry the light path through glides", "[core][highway]")
 {
-    std::vector<HighwayNoteView> notes;
+    std::vector<NoteViewState> notes;
 
     // Held tap: sounding from 1.0 to 2.0 at fret 12, no glide.
-    HighwayNoteView held;
+    NoteViewState held;
     held.start_seconds = 1.0;
     held.end_seconds = 2.0;
     held.fret = 12;
@@ -1093,24 +840,24 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     notes.push_back(held);
 
     // Tapped slide: fret 12 at 3.0 gliding to fret 15 at 4.0 (the sustain end).
-    HighwayNoteView sliding;
+    NoteViewState sliding;
     sliding.start_seconds = 3.0;
     sliding.end_seconds = 4.0;
     sliding.fret = 12;
     sliding.attack = NoteAttack::Tap;
-    sliding.slides = {HighwaySlideView{.seconds = 4.0, .fret = 15, .unpitched = false}};
+    sliding.slides = {SlideViewState{.seconds = 4.0, .fret = 15, .unpitched = false}};
     notes.push_back(sliding);
 
     // Tapped slide with an unpitched trail-off: the pitched glide ends at 6.0; the trail to 6.5
     // is already releasing pressure, so the light must not follow it.
-    HighwayNoteView trailing;
+    NoteViewState trailing;
     trailing.start_seconds = 5.0;
     trailing.end_seconds = 6.5;
     trailing.fret = 10;
     trailing.attack = NoteAttack::Tap;
     trailing.slides = {
-        HighwaySlideView{.seconds = 6.0, .fret = 13, .unpitched = false},
-        HighwaySlideView{.seconds = 6.5, .fret = 8, .unpitched = true},
+        SlideViewState{.seconds = 6.0, .fret = 13, .unpitched = false},
+        SlideViewState{.seconds = 6.5, .fret = 8, .unpitched = true},
     };
     notes.push_back(trailing);
 
@@ -1160,9 +907,9 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
 // onset's release — a dense run keeps its per-tap dips.
 TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "[core][highway]")
 {
-    std::vector<HighwayNoteView> notes;
+    std::vector<NoteViewState> notes;
     const auto add_tap = [&notes](double start, double end, int fret) {
-        HighwayNoteView note;
+        NoteViewState note;
         note.start_seconds = start;
         note.end_seconds = end;
         note.fret = fret;
@@ -1217,8 +964,8 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     arrangement.chart = std::move(chart);
 
     const HighwayViewState state = makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {});
-    REQUIRE(state.notes.size() == 1);
-    const HighwayNoteView& view = state.notes.front();
+    REQUIRE(state.chart.notes.size() == 1);
+    const NoteViewState& view = state.chart.notes.front();
     CHECK(view.attack == NoteAttack::PickSlide);
     CHECK_FALSE(view.palm_mute);
     CHECK_FALSE(view.dead);
@@ -1245,19 +992,19 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(light.path[2].unpitched);
     // The FHP on the waypoint's grid position ramps by the quarter-beat margin morph (0.125s at
     // the default tempo), not by the scrape leg's span back to the onset (which would be 0.25s).
-    REQUIRE(state.fret_hand_positions.size() == 1);
-    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
+    REQUIRE(state.chart.fret_hand_positions.size() == 1);
+    CHECK(state.chart.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
 }
 
 namespace
 {
 
 // A sustainless note for chord-group cases; onset equals end so nothing reads as held.
-[[nodiscard]] HighwayNoteView chordNote(
+[[nodiscard]] NoteViewState chordNote(
     const double onset, const int string, const int fret,
     const NoteAttack attack = NoteAttack::Pick)
 {
-    HighwayNoteView note;
+    NoteViewState note;
     note.start_seconds = onset;
     note.end_seconds = onset;
     note.string = string;
@@ -1269,29 +1016,29 @@ namespace
 // The two mutes as composable marks rather than parameters, so a row of chord members reads as the
 // music it describes instead of as a row of bare booleans — and the both-muted member, which is
 // the whole point of two independent flags, is just the two marks applied together.
-[[nodiscard]] HighwayNoteView palmMuted(HighwayNoteView note)
+[[nodiscard]] NoteViewState palmMuted(NoteViewState note)
 {
     note.palm_mute = true;
     return note;
 }
 
-[[nodiscard]] HighwayNoteView deadened(HighwayNoteView note)
+[[nodiscard]] NoteViewState deadened(NoteViewState note)
 {
     note.dead = true;
     return note;
 }
 
 // A strummed-shape span holding the given posture, entries ascending by string.
-[[nodiscard]] HighwayShapeView chordShape(
+[[nodiscard]] ShapeViewState chordShape(
     const double start, const double end, const std::vector<std::pair<int, int>>& posture)
 {
-    HighwayShapeView shape;
+    ShapeViewState shape;
     shape.start_seconds = start;
     shape.end_seconds = end;
     shape.arpeggio = false;
     for (const auto& [string, fret] : posture)
     {
-        shape.strings.push_back(HighwayShapeStringView{.string = string, .fret = fret});
+        shape.strings.push_back(ShapeStringViewState{.string = string, .fret = fret});
     }
     return shape;
 }
@@ -1303,16 +1050,16 @@ namespace
 // light 17 -> 21 — never 17 -> 9, the stop path the head does not draw.
 TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][highway]")
 {
-    HighwayNoteView note;
+    NoteViewState note;
     note.start_seconds = 1.0;
     note.end_seconds = 2.0;
     note.string = 1;
     note.fret = 5;
     note.attack = NoteAttack::Tap;
     note.harmonic_node = 17.0;
-    note.slides = {HighwaySlideView{.seconds = 2.0, .fret = 9, .unpitched = false}};
+    note.slides = {SlideViewState{.seconds = 2.0, .fret = 9, .unpitched = false}};
 
-    const std::vector<HighwayNoteView> notes{note};
+    const std::vector<NoteViewState> notes{note};
     const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes, {0.0});
 
     REQUIRE(onsets.size() == 1);
@@ -1326,7 +1073,7 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
 // commonality, and each note indexes its own group.
 TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]")
 {
-    std::vector<HighwayNoteView> notes{
+    std::vector<NoteViewState> notes{
         chordNote(1.0, 1, 3),
         palmMuted(chordNote(1.0, 2, 5)),
         chordNote(1.0, 3, 5, NoteAttack::Tap),
@@ -1358,7 +1105,7 @@ TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]
 // wears both marks stacked rather than picking one.
 TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highway]")
 {
-    const auto mutesOf = [](std::vector<HighwayNoteView> notes) {
+    const auto mutesOf = [](std::vector<NoteViewState> notes) {
         const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
         REQUIRE(grouping.groups.size() == 1);
         const HighwayChordGroupView& group = grouping.groups.front();
@@ -1395,7 +1142,7 @@ TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highw
 TEST_CASE("Highway chord groups fold emphasis loud-wins, quiet-unanimous", "[core][highway]")
 {
     const auto groupEmphasis = [](const std::vector<NoteEmphasis>& members) {
-        std::vector<HighwayNoteView> notes;
+        std::vector<NoteViewState> notes;
         notes.reserve(members.size());
         for (std::size_t index = 0; index < members.size(); ++index)
         {
@@ -1426,9 +1173,9 @@ TEST_CASE("Highway chord groups fold emphasis loud-wins, quiet-unanimous", "[cor
 TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
-    const std::vector<HighwayShapeView> shapes{chordShape(1.0, 3.0, posture)};
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
     const double epsilon_below = 1.0 - (g_onset_match_epsilon / 2.0);
-    std::vector<HighwayNoteView> notes{
+    std::vector<NoteViewState> notes{
         chordNote(epsilon_below, 1, 3),
         chordNote(epsilon_below, 2, 5),
         chordNote(2.0, 1, 3),
@@ -1454,9 +1201,9 @@ TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core
 TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
-    const std::vector<HighwayShapeView> shapes{chordShape(1.0, 3.0, posture)};
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
     const auto grouped = [&](const LegatoMotion motion) {
-        std::vector<HighwayNoteView> notes{
+        std::vector<NoteViewState> notes{
             chordNote(1.0, 1, 3),
             chordNote(1.0, 2, 5),
             chordNote(2.0, 1, 3),
@@ -1482,7 +1229,7 @@ TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[co
 // third recorded regression (Charter blanks every dead chug; this board does not).
 TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core][highway]")
 {
-    std::vector<HighwayNoteView> restating{
+    std::vector<NoteViewState> restating{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         deadened(chordNote(2.0, 1, 3)),
@@ -1493,7 +1240,7 @@ TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core
     CHECK(restated.groups[1].all_dead);
     CHECK(restated.groups[1].box_only);
 
-    std::vector<HighwayNoteView> fresh{
+    std::vector<NoteViewState> fresh{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         deadened(chordNote(2.0, 1, 7)),
@@ -1506,7 +1253,7 @@ TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core
 
     // The palm resting on the strings does not stop a dead chug being one: the chug rule reads the
     // dead flag alone, so a both-muted restatement blanks exactly as the plain dead one does.
-    std::vector<HighwayNoteView> palmed{
+    std::vector<NoteViewState> palmed{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         palmMuted(deadened(chordNote(2.0, 1, 3))),
@@ -1527,8 +1274,8 @@ TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core
 TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][highway]")
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
-    const std::vector<HighwayShapeView> shapes{chordShape(1.0, 2.5, posture)};
-    std::vector<HighwayNoteView> notes{
+    const std::vector<ShapeViewState> shapes{chordShape(1.0, 2.5, posture)};
+    std::vector<NoteViewState> notes{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         chordNote(2.0, 1, 3),

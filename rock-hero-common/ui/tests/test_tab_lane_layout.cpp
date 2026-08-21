@@ -146,8 +146,8 @@ TEST_CASE("Tab lane geometry maps time and strings to pixels", "[ui][tab-layout]
 // maximum of sustain ends, aligned with the note order, and the query consumes it.
 TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][tab-layout]")
 {
-    const std::vector<common::core::TabNoteView> notes{
-        common::core::TabNoteView{
+    const std::vector<common::core::NoteViewState> notes{
+        common::core::NoteViewState{
             .start_seconds = 1.0,
             .end_seconds = 9.0,
             .string = 1,
@@ -155,7 +155,7 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
             .bend = {},
             .slides = {},
         },
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 2.0,
             .end_seconds = 2.5,
             .string = 4,
@@ -163,7 +163,7 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
             .bend = {},
             .slides = {},
         },
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 12.0,
             .end_seconds = 12.0,
             .string = 6,
@@ -190,7 +190,7 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
 {
     const TabLaneGeometry geometry = makeReferenceGeometry();
 
-    const common::core::TabNoteView sustained{
+    const common::core::NoteViewState sustained{
         .start_seconds = 5.0,
         .end_seconds = 10.0,
         .string = 1,
@@ -223,7 +223,7 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
     CHECK(layout.tail.contains(150.0f, 220.0f));
 
     // A note without a sustain has an empty tail rectangle that contains nothing.
-    const common::core::TabNoteView plain{
+    const common::core::NoteViewState plain{
         .start_seconds = 5.0,
         .end_seconds = 5.0,
         .string = 1,

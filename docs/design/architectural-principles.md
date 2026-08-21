@@ -206,12 +206,14 @@ boundary (test-only targets), which is exactly what namespaces are for.
 song, arrangement, difficulty, audio assets and their normalization metadata), `timeline/`
 (musical time — time value types, the tempo map, and the exact rational type for grid-relative
 positions; the same feature name the editor libraries use), `chart/` (the playable chart model —
-notes, chord templates, tuning, techniques), `tone/` (tone-catalog and automation value types),
-`package/` (song-package persistence — archive IO, package IDs, workspace paths, and their
-errors), `session/` (the editable workspace session composing song, arrangement, and timeline
-state), and the renderer scene models `tab/` and `highway/` (each feeding its shared view in
-both products). Mechanisms with no
-feature (logging, JSON, path bridging, cancellation, application identity) live in `shared/`.
+notes, chord templates, tuning, techniques — and its seconds-resolved scene, `ChartViewState`,
+which both renderers draw), `tone/` (tone-catalog and automation value types), `package/`
+(song-package persistence — archive IO, package IDs, workspace paths, and their errors),
+`session/` (the editable workspace session composing song, arrangement, and timeline state), and
+`highway/` (the 3D board's scene model, composing the chart scene beside the structure only the
+board draws, feeding its shared view in both products; the 2D lane renders the chart scene
+directly, so it has no scene folder of its own). Mechanisms with no feature (logging, JSON, path
+bridging, cancellation, application identity) live in `shared/`.
 `common/core` has no facade, so its root holds no files.
 
 ## Library Roots Hold Folders Only

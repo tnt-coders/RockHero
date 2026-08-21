@@ -1177,7 +1177,7 @@ TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
-    auto tab = std::make_shared<common::core::TabViewState>();
+    auto tab = std::make_shared<common::core::ChartViewState>();
     tab->string_count = 6;
     state.tab = std::move(tab);
     view.setState(state);
@@ -1200,10 +1200,10 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state = makeLoadedEditorState(20.0);
-    auto tab = std::make_shared<common::core::TabViewState>();
+    auto tab = std::make_shared<common::core::ChartViewState>();
     tab->string_count = 6;
     tab->notes = {
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 1.0,
             .end_seconds = 1.0,
             .string = 1,

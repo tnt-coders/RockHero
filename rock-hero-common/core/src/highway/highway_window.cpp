@@ -14,7 +14,7 @@ namespace
 
 // Fret-line extent of one settled placement: the window covers frets [fret, fret + width - 1],
 // so its edges sit on lines fret - 1 and fret + width - 1.
-[[nodiscard]] HighwayHandWindow settledWindow(const HighwayFhpView& fhp) noexcept
+[[nodiscard]] HighwayHandWindow settledWindow(const FhpViewState& fhp) noexcept
 {
     return HighwayHandWindow{
         .low_line = static_cast<double>(fhp.fret - 1),
@@ -28,7 +28,7 @@ namespace
 // Per-frame consumers call this per element (and tails per sample), so the logarithmic bound
 // matters on long charts.
 HighwayHandWindow highwayHandWindowAt(
-    const std::vector<HighwayFhpView>& fret_hand_positions, const double seconds) noexcept
+    const std::vector<FhpViewState>& fret_hand_positions, const double seconds) noexcept
 {
     // The reference nut window applies only to chartless boards. With placements, the first
     // one's window already holds before its arrival: the song's opening scroll shows where the
@@ -39,7 +39,7 @@ HighwayHandWindow highwayHandWindowAt(
         return HighwayHandWindow{.low_line = 0.0, .high_line = 4.0};
     }
     const auto next = std::ranges::upper_bound(
-        fret_hand_positions, seconds, std::ranges::less{}, [](const HighwayFhpView& fhp) {
+        fret_hand_positions, seconds, std::ranges::less{}, [](const FhpViewState& fhp) {
             return fhp.seconds;
         });
     const HighwayHandWindow previous =

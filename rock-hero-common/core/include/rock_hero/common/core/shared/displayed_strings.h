@@ -38,4 +38,22 @@ string-color palette, so the two surfaces drawing one chart must get the same nu
     return std::max(chart_string_count, minimum_displayed_strings);
 }
 
+/*!
+\brief Maps a chart string onto the lane it is displayed in.
+
+The padding lanes sit BELOW the chart's strings — the chart's strings keep the top of the
+displayed range — so a chart string lands `extra_lanes` above where it would sit unpadded. Both
+surfaces lay out through this one statement of which end the padding goes on; the chart scene
+itself (\ref ChartViewState) never carries a shifted string.
+
+\param chart_string One-based chart string, counted from the lowest-pitched string.
+\param extra_lanes Displayed lanes beyond the chart's own count: \ref displayedStringCount minus
+       the chart's string count.
+\return One-based displayed lane, counted from the lowest lane.
+*/
+[[nodiscard]] constexpr int displayedLane(const int chart_string, const int extra_lanes) noexcept
+{
+    return chart_string + extra_lanes;
+}
+
 } // namespace rock_hero::common::core

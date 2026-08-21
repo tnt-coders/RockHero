@@ -6,6 +6,7 @@ include(Catch)
 add_executable(
     rock_hero_common_core_tests
     test_chart.cpp
+    test_chart_projection.cpp
     test_session.cpp
     test_song.cpp
     test_arrangement.cpp
@@ -18,7 +19,6 @@ add_executable(
     test_highway_projection.cpp
     test_highway_tail.cpp
     test_highway_window.cpp
-    test_tab_projection.cpp
     test_tempo_map.cpp
     test_tone_track_rules.cpp
     test_tone_track_edits.cpp

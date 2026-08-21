@@ -10,10 +10,10 @@ namespace rock_hero::common::ui
 namespace
 {
 
-[[nodiscard]] common::core::HighwayNoteView noteWith(
+[[nodiscard]] common::core::NoteViewState noteWith(
     const common::core::NoteAttack attack, const common::core::LegatoMotion motion)
 {
-    common::core::HighwayNoteView note;
+    common::core::NoteViewState note;
     note.string = 1;
     note.fret = 5;
     note.attack = attack;
@@ -73,7 +73,7 @@ TEST_CASE("Highway tech head follows the drawn marks", "[ui][highway]")
 
     // The other two clauses, so the connection one cannot be masking them: a dead note and a
     // scrape's unpitched travel.
-    common::core::HighwayNoteView dead =
+    common::core::NoteViewState dead =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     dead.dead = true;
     CHECK(highwayTechHead(dead));
@@ -81,12 +81,12 @@ TEST_CASE("Highway tech head follows the drawn marks", "[ui][highway]")
     // Keyed on the dead flag ALONE. A palm mute is still a pitched note, so it leaves the head
     // standard; a note carrying both sounds dead, so it takes the dead base and its palm marker
     // stacks over that.
-    common::core::HighwayNoteView palm =
+    common::core::NoteViewState palm =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     palm.palm_mute = true;
     CHECK_FALSE(highwayTechHead(palm));
 
-    common::core::HighwayNoteView both = dead;
+    common::core::NoteViewState both = dead;
     both.palm_mute = true;
     CHECK(highwayTechHead(both));
 
@@ -95,7 +95,7 @@ TEST_CASE("Highway tech head follows the drawn marks", "[ui][highway]")
 
     // A node head is deliberately NOT a tech head anymore: it wears its own round base, which
     // outranks the darkening.
-    common::core::HighwayNoteView artificial_harmonic =
+    common::core::NoteViewState artificial_harmonic =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     artificial_harmonic.harmonic_node = 17.0;
     CHECK_FALSE(highwayTechHead(artificial_harmonic));
@@ -110,28 +110,28 @@ TEST_CASE("Highway node head follows the drawn sounding position", "[ui][highway
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified)));
 
     // A picked harmonic's head sits on its node.
-    common::core::HighwayNoteView artificial_harmonic =
+    common::core::NoteViewState artificial_harmonic =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     artificial_harmonic.harmonic_node = 17.0;
     CHECK(highwayNodeHead(artificial_harmonic));
 
     // A tap harmonic strikes the node directly, so its head sits there too — the placement rule
     // ignores which hand owns the node, unlike the fretting-hand predicates.
-    common::core::HighwayNoteView tap_harmonic =
+    common::core::NoteViewState tap_harmonic =
         noteWith(common::core::NoteAttack::Tap, common::core::LegatoMotion::Unjustified);
     tap_harmonic.harmonic_node = 12.0;
     CHECK(highwayNodeHead(tap_harmonic));
 
     // A pinch's node is the picking hand's graze over the body; its head stays on the stop and
     // keeps the family rectangle.
-    common::core::HighwayNoteView pinch =
+    common::core::NoteViewState pinch =
         noteWith(common::core::NoteAttack::Pinch, common::core::LegatoMotion::Unjustified);
     pinch.harmonic_node = 17.0;
     CHECK_FALSE(highwayNodeHead(pinch));
 
     // A node past the drawn board still draws AS a node (capped to the last fret), so it keeps
     // the round base.
-    common::core::HighwayNoteView far_node =
+    common::core::NoteViewState far_node =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     far_node.harmonic_node = 40.0;
     CHECK(highwayNodeHead(far_node));
@@ -147,7 +147,7 @@ TEST_CASE("Highway head marks stack in override order", "[ui][highway]")
     // Deliberately synthetic: every rung at once, which is also the provable maximum a head can
     // wear. No chart need produce this note — the case exists to pin the ladder, and pinning it
     // needs all five rungs present at the same time.
-    common::core::HighwayNoteView loaded =
+    common::core::NoteViewState loaded =
         noteWith(common::core::NoteAttack::Tap, common::core::LegatoMotion::Hammer);
     loaded.palm_mute = true;
     loaded.harmonic_node = 12.0;
@@ -176,14 +176,14 @@ TEST_CASE("Highway head marks stack in override order", "[ui][highway]")
 // head, and slap on an open string.
 TEST_CASE("Highway dead X draws over every other head mark", "[ui][highway]")
 {
-    common::core::HighwayNoteView legato_dead =
+    common::core::NoteViewState legato_dead =
         noteWith(common::core::NoteAttack::Legato, common::core::LegatoMotion::Pull);
     legato_dead.dead = true;
     CHECK(
         cellsOf(highwayHeadMarks(legato_dead)) ==
         std::vector<int>{g_head_cell_legato, g_head_cell_full_mute});
 
-    common::core::HighwayNoteView slap_dead =
+    common::core::NoteViewState slap_dead =
         noteWith(common::core::NoteAttack::Slap, common::core::LegatoMotion::Unjustified);
     slap_dead.dead = true;
     CHECK(
@@ -197,7 +197,7 @@ TEST_CASE("Highway dead X draws over every other head mark", "[ui][highway]")
 // even when handed a view that carries the flags anyway.
 TEST_CASE("Highway scrape wears its pick mark alone", "[ui][highway]")
 {
-    common::core::HighwayNoteView scrape =
+    common::core::NoteViewState scrape =
         noteWith(common::core::NoteAttack::PickSlide, common::core::LegatoMotion::Hammer);
     scrape.palm_mute = true;
     scrape.dead = true;
@@ -209,12 +209,12 @@ TEST_CASE("Highway scrape wears its pick mark alone", "[ui][highway]")
 // made by different hands, and the attack slot can only hold one of them.
 TEST_CASE("Highway harmonic rung takes the pinch cell or the node cell", "[ui][highway]")
 {
-    common::core::HighwayNoteView pinch =
+    common::core::NoteViewState pinch =
         noteWith(common::core::NoteAttack::Pinch, common::core::LegatoMotion::Unjustified);
     pinch.harmonic_node = 17.0;
     CHECK(cellsOf(highwayHeadMarks(pinch)) == std::vector<int>{g_head_cell_pinch_harmonic});
 
-    common::core::HighwayNoteView natural =
+    common::core::NoteViewState natural =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Unjustified);
     natural.harmonic_node = 12.0;
     CHECK(cellsOf(highwayHeadMarks(natural)) == std::vector<int>{g_head_cell_harmonic});
@@ -225,7 +225,7 @@ TEST_CASE("Highway harmonic rung takes the pinch cell or the node cell", "[ui][h
 // re-derived this from the mark's position in the list would get it wrong.
 TEST_CASE("Highway head marks carry their own roll behavior", "[ui][highway]")
 {
-    common::core::HighwayNoteView note =
+    common::core::NoteViewState note =
         noteWith(common::core::NoteAttack::Tap, common::core::LegatoMotion::Pull);
     note.palm_mute = true;
     note.harmonic_node = 12.0;
@@ -244,7 +244,7 @@ TEST_CASE("Highway head marks carry their own roll behavior", "[ui][highway]")
     CHECK_FALSE(stack.marks.at(0).flipped);
     CHECK_FALSE(stack.marks.at(3).flipped);
 
-    common::core::HighwayNoteView hammer =
+    common::core::NoteViewState hammer =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Hammer);
     REQUIRE(highwayHeadMarks(hammer).count == 1);
     CHECK_FALSE(highwayHeadMarks(hammer).marks.at(0).flipped);

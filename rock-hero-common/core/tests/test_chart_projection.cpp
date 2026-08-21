@@ -1,7 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/song/arrangement.h>
-#include <rock_hero/common/core/tab/tab_projection.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 
 namespace rock_hero::common::core
@@ -14,6 +14,14 @@ namespace
 [[nodiscard]] TempoMap makeTempoMap()
 {
     return TempoMap::defaultMap(TimeDuration{16.0});
+}
+
+// Nullable-pointer view of the arrangement's optional chart, mirroring the editor harness's
+// chartOrNull: the parameter-passed optional lets clang-tidy's unchecked-optional-access track
+// the guard, which it cannot do across a Catch2 REQUIRE.
+[[nodiscard]] Chart* chartOrNull(Arrangement& arrangement)
+{
+    return arrangement.chart.has_value() ? &*arrangement.chart : nullptr;
 }
 
 [[nodiscard]] Arrangement makeArrangementWithChart()
@@ -110,26 +118,26 @@ namespace
 
 } // namespace
 
-// The capo rides the projection so the lane can indicate the string floor (roadmap 25-Q6).
-TEST_CASE("Tab projection carries the tuning's capo", "[core][tab]")
+// The capo rides the projection so a surface can indicate the string floor (roadmap 25-Q6).
+TEST_CASE("Chart projection carries the tuning's capo", "[core][chart]")
 {
     Arrangement arrangement;
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.tuning.capo = 2;
     arrangement.chart = std::move(chart);
-    CHECK(makeTabViewState(arrangement, makeTempoMap()).capo == 2);
+    CHECK(makeChartViewState(arrangement, makeTempoMap()).capo == 2);
 }
 
-TEST_CASE("Tab projection resolves chart positions to seconds", "[core][tab]")
+TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
-    const TabViewState state = makeTabViewState(makeArrangementWithChart(), tempo_map);
+    const ChartViewState state = makeChartViewState(makeArrangementWithChart(), tempo_map);
 
     CHECK(state.string_count == 6);
     REQUIRE(state.notes.size() == 5);
-    // Sized like the notes because the paint core indexes it by note index; its values are the
-    // span-hold rule's, pinned against the board's in test_highway_projection.
+    // Sized like the notes because both painters index it by note index; its values are the
+    // span-hold rule's, pinned below.
     CHECK(state.display_hold_ends.size() == state.notes.size());
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
@@ -139,7 +147,7 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[core][tab]")
     CHECK(state.notes[1].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.notes[1].end_seconds == Catch::Approx(state.notes[1].start_seconds));
 
-    const TabNoteView& sliding = state.notes[2];
+    const NoteViewState& sliding = state.notes[2];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
     CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
     REQUIRE(sliding.bend.size() == 1);
@@ -150,42 +158,45 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[core][tab]")
     CHECK(sliding.slides[0].fret == 9);
     // A waypoint at exactly the sustain end reads as a glide-end, not a continuation, so no
     // linked head renders at the tail tip.
-    CHECK_FALSE(sliding.slides[0].linked);
+    CHECK_FALSE(linkedWaypoint(sliding, sliding.slides[0]));
 
     // The shift glide ends at the sustain end, the minimum sustain distance before the re-picked
     // fret-8 landing; the segment is not linked (the landing's own head renders there).
-    const TabNoteView& shift_slider = state.notes[3];
+    const NoteViewState& shift_slider = state.notes[3];
     REQUIRE(shift_slider.slides.size() == 1);
     CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.75 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
-    CHECK_FALSE(shift_slider.slides[0].linked);
+    CHECK_FALSE(linkedWaypoint(shift_slider, shift_slider.slides[0]));
     CHECK(shift_slider.end_seconds == Catch::Approx(12.75 * beat));
 
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].name == "F5");
     CHECK_FALSE(state.shapes[0].arpeggio);
-    CHECK(state.shapes[0].arpeggio_notes.empty());
     CHECK(state.shapes[1].arpeggio);
 
-    // The arpeggio start brackets the whole held posture. String 4 is struck right at the bracket
-    // start and strings 2 and 5 are not, and the entries are identical either way: a posture
-    // states where the fretting hand is, never what sounds there, so the projection asks the
-    // notes nothing.
-    REQUIRE(state.shapes[1].arpeggio_notes.size() == 3);
-    CHECK(state.shapes[1].arpeggio_notes[0] == TabArpeggioNoteView{.string = 2, .fret = 5});
-    CHECK(state.shapes[1].arpeggio_notes[1] == TabArpeggioNoteView{.string = 4, .fret = 7});
-    CHECK(state.shapes[1].arpeggio_notes[2] == TabArpeggioNoteView{.string = 5, .fret = 8});
+    // Every span carries its whole held posture, chord box and arpeggio alike: which entries a
+    // surface draws is the painter's business (the lane brackets an arpeggio's, the board's
+    // fingering panel reads them all). String 4 is struck right at the arpeggio's bracket start
+    // and strings 2 and 5 are not, and the entries are identical either way: a posture states
+    // where the fretting hand is, never what sounds there, so the projection asks the notes
+    // nothing.
+    REQUIRE(state.shapes[0].strings.size() == 3);
+    CHECK(state.shapes[0].strings[0] == ShapeStringViewState{.string = 1, .fret = 1, .finger = 1});
+    REQUIRE(state.shapes[1].strings.size() == 3);
+    CHECK(state.shapes[1].strings[0] == ShapeStringViewState{.string = 2, .fret = 5, .finger = 1});
+    CHECK(state.shapes[1].strings[1] == ShapeStringViewState{.string = 4, .fret = 7, .finger = 3});
+    CHECK(state.shapes[1].strings[2] == ShapeStringViewState{.string = 5, .fret = 8, .finger = 4});
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
 }
 
-TEST_CASE("Tab projection is empty without a chart", "[core][tab]")
+TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
 {
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart.reset();
 
-    const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
+    const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     CHECK(state.string_count == 0);
     CHECK(state.notes.empty());
     CHECK(state.display_hold_ends.empty());
@@ -197,7 +208,7 @@ TEST_CASE("Tab projection is empty without a chart", "[core][tab]")
 // the same string restruck twice inside it. The lane draws a ribbon to `display_hold_ends`, so an
 // uncapped span hold put string 1's tail straight under the later heads and out the far side — a
 // picture 40-Q2-B guarantees no stored sustain can produce.
-TEST_CASE("Tab projection caps a span hold at the next same-string onset", "[core][tab]")
+TEST_CASE("Chart projection caps a span hold at the next same-string onset", "[core][chart]")
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -226,7 +237,7 @@ TEST_CASE("Tab projection caps a span hold at the next same-string onset", "[cor
 
     // 120 BPM 4/4: a beat is half a second, so the span runs 0.0s to 2.0s and the later string-1
     // onsets sit at 0.5s and 1.0s.
-    const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
+    const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(state.display_hold_ends.size() == 4);
     // String 1's member stops where the string is struck again, never at the span's end.
     CHECK(state.display_hold_ends[0] == Catch::Approx(0.5));
@@ -237,9 +248,9 @@ TEST_CASE("Tab projection caps a span hold at the next same-string onset", "[cor
     CHECK(state.display_hold_ends[3] == Catch::Approx(1.0));
 }
 
-// The pick-slide seam: latent overridden techniques never reach the view, and the path renders
-// unpitched with no linked continuation heads.
-TEST_CASE("Tab projection suppresses pick-slide latents", "[core][tab]")
+// The pick-slide seam: latent overridden techniques never reach the view, and the path is
+// unpitched end to end.
+TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -261,9 +272,9 @@ TEST_CASE("Tab projection suppresses pick-slide latents", "[core][tab]")
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
+    const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(state.notes.size() == 1);
-    const TabNoteView& view = state.notes.front();
+    const NoteViewState& view = state.notes.front();
     CHECK(view.attack == NoteAttack::PickSlide);
     CHECK_FALSE(view.palm_mute);
     CHECK_FALSE(view.dead);
@@ -276,12 +287,129 @@ TEST_CASE("Tab projection suppresses pick-slide latents", "[core][tab]")
     // note's plectrum shape), while the terminal is where the pick leaves and only its chip
     // marks the position.
     REQUIRE(view.slides.size() == 2);
-    for (const TabSlideView& leg : view.slides)
+    for (const SlideViewState& leg : view.slides)
     {
         CHECK(leg.unpitched);
     }
-    CHECK(view.slides[0].linked);
-    CHECK_FALSE(view.slides[1].linked);
+    CHECK(linkedWaypoint(view, view.slides[0]));
+    CHECK_FALSE(linkedWaypoint(view, view.slides[1]));
+}
+
+// Ramp derivation for the fretting hand's approach: a placement landing exactly on a pitched
+// waypoint's grid position ramps over that glide segment (slide-locked), ordinary placements morph
+// over the shared minimum-sustain-distance margin, crowded placements shorten against the previous
+// arrival instead of overlapping it, and an unpitched slide-out never slide-matches a placement.
+TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+
+    Arrangement arrangement = makeArrangementWithChart();
+    Chart* const chart_ptr = chartOrNull(arrangement);
+    REQUIRE(chart_ptr != nullptr);
+    Chart& chart = *chart_ptr;
+    // A sustained note whose tail trails off unpitched: a placement on its end rides the
+    // trail-off's own segment with the unpitched curve, so the window travels exactly with the
+    // drawn rail.
+    chart.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 3},
+            .string = 5,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .bend = {},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{1}, .fret = 12},
+        });
+    chart.fret_hand_positions = {
+        // Ordinary move: the margin morph (a quarter beat in 4/4).
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
+        // Crowded: a sixteenth of a beat after the previous arrival — closer than the margin —
+        // so the morph shortens against it.
+        FretHandPosition{
+            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}},
+            .fret = 2,
+            .width = 4,
+        },
+        // Exactly on the fixture's pitched waypoint (3:1+1/2 advanced by its two-beat offset):
+        // slide-locked to the glide segment.
+        FretHandPosition{
+            .position = GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}},
+            .fret = 6,
+            .width = 4,
+        },
+        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): the margin
+        // morph, arriving with the release, never the whole-sustain segment.
+        FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9, .width = 4},
+    };
+
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.fret_hand_positions.size() == 4);
+
+    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+
+    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
+
+    // The glide starts at the note onset (8.5 beats) and lands at the waypoint (10.5 beats).
+    CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));
+    CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
+
+    // A placement on an unpitched trail-off's end rides that trail-off's OWN segment, exactly as a
+    // pitched glide does, and carries the unpitched family so the window eases with the same curve
+    // the rail is drawn with. The trail-off's segment runs from the note's onset (14 beats) to its
+    // end (15 beats) because the note carries no pitched waypoints ahead of it; before this the
+    // placement morphed over the metrical margin instead, leaving the window stationary for most of
+    // the drawn glide and then sprinting to catch up.
+    CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
+    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK(state.fret_hand_positions[3].unpitched_ramp);
+    // The pitched glide above keeps the pitched family.
+    CHECK_FALSE(state.fret_hand_positions[2].unpitched_ramp);
+}
+
+// An equal-fret waypoint is a HOLD, not a glide: nothing travels across it, so a placement landing
+// on one must take the short margin morph rather than a ramp spanning the held stretch. Holds are
+// how a slide notated on a tied continuation records where it leaves from, so tying their span to
+// the window made the hand drift across the whole tied group to arrive at a fret it never left —
+// sighted at fret 11 of measure 50 of the acceptance song.
+TEST_CASE("Chart projection gives a hold waypoint the margin morph", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+    Arrangement arrangement = makeArrangementWithChart();
+    Chart* const chart_ptr = chartOrNull(arrangement);
+    REQUIRE(chart_ptr != nullptr);
+    Chart& chart = *chart_ptr;
+    // Four beats of held fret 5, then a one-beat glide up to fret 9: the hold pins the pitch at
+    // beat 4 and the travel happens only over the final beat.
+    chart.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 5,
+            .fret = 5,
+            .sustain = Fraction{4},
+            .bend = {},
+            .slides = {
+                SlideWaypoint{.offset = Fraction{3}, .fret = 5},
+                SlideWaypoint{.offset = Fraction{4}, .fret = 9},
+            },
+        });
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 4}, .fret = 5, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 9, .width = 4},
+    };
+
+    const ChartViewState state = makeChartViewState(arrangement, tempo_map);
+    REQUIRE(state.fret_hand_positions.size() == 2);
+
+    // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the margin.
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+    CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
+    // The real glide that follows still rides its own one-beat segment.
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
 } // namespace rock_hero::common::core

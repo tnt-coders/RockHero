@@ -174,8 +174,9 @@ playing). With no chart the lane is pointer-transparent. The yielding component 
 overlay*, whose `hitTest` returns false wherever a pass-through predicate — installed in
 `editor_view.cpp`, asking `TabView::wantsPointerAt` first — declines the point. Its data is a
 seconds-resolved projection built once
-per edit in **common/core** (`tab/tab_projection.cpp`,
-`common::core::makeTabViewState(arrangement, tempo_map)` — promoted from editor/core by plan 30
+per edit in **common/core** (`chart/chart_projection.cpp`,
+`common::core::makeChartViewState(arrangement, tempo_map)` — the ONE chart scene both surfaces
+draw since W9-B's fold on 2026-08-21; promoted from editor/core by plan 30
 Phase 1 so the game's 2D tab view shares the same scene model), so painting never queries musical
 positions. Because sustains overlap, it keeps a prefix-max index
 of note end times and binary-searches the visible note range each paint instead of scanning the
@@ -221,7 +222,7 @@ is deliberately single-sourced:
   The chart stores absolute frets with 0 meaning the capo'd open string, so nothing else in the
   drawn content says where the string floor sits. Crude first treatment (roadmap 25-Q6).
 - **The beside-head legato triangle comes from the note's RESOLVED motion**, never from a stored
-  direction: `TabNoteView::legato` is a `LegatoMotion` the projection got from `chartResolutions`,
+  direction: `NoteViewState::legato` is a `LegatoMotion` the projection got from `chartResolutions`,
   and the painter simply points the triangle down for `Hammer` and up for `Pull`. `Unjustified`
   draws nothing, so a claim the chart cannot justify is pixel-identical to a plain pick —
   deliberately, per `docs/plans/in-progress/legato-authoring-model.md`. Nothing in the paint core

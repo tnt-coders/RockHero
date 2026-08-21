@@ -68,7 +68,7 @@ only when there are no placements at all.
 \return Fractional window extent at the time.
 */
 [[nodiscard]] HighwayHandWindow highwayHandWindowAt(
-    const std::vector<HighwayFhpView>& fret_hand_positions, double seconds) noexcept;
+    const std::vector<FhpViewState>& fret_hand_positions, double seconds) noexcept;
 
 /*!
 \brief Returns how deeply the window contains a fret line, as [0, 1] coverage.

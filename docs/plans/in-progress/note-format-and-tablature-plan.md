@@ -11,7 +11,8 @@
 Status: IMPLEMENTED 2026-07-06. The format (slice 1), the read-only tab lane (slice 2), and the
 full technique/chord/FHP rendering (slice 3) all shipped: chart domain model and document IO in
 `rock-hero-common/core/chart/`, package wiring through `Arrangement`/`rock_song_package_format`,
-the seconds-resolved `TabViewState` projection in editor-core, and the `TabView` overlay in the
+the seconds-resolved `ChartViewState` projection (now `makeChartViewState` in common/core, shared
+with the 3D highway since W9-B), and the `TabView` overlay in the
 waveform lane with the View menu's Show Waveform toggle and Tablature Strings selector (both
 app-wide persisted settings). The 39-package source corpus carries linked charts and loads
 through the production reader. A Guitar Pro importer also shipped (File > Import accepts .gp):

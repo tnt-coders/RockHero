@@ -11,7 +11,7 @@ never drift from the rendered pixels: every drawn ribbon is clickable and nothin
 
 #include <cstddef>
 #include <optional>
-#include <rock_hero/common/core/tab/tab_view_state.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <vector>
 
@@ -32,7 +32,7 @@ to the note whose tail rectangle contains the point, nearest onset first.
 \return Index of the hit note in the projection's note order, or empty for an empty-lane point.
 */
 [[nodiscard]] std::optional<std::size_t> chartNoteHitIndex(
-    const common::core::TabViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
+    const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
     float y);
 
 /*!
@@ -47,7 +47,7 @@ to the note whose tail rectangle contains the point, nearest onset first.
 \return Ascending indices of boxed notes in the projection's note order.
 */
 [[nodiscard]] std::vector<std::size_t> chartNoteIndicesInBox(
-    const common::core::TabViewState& tab, const common::ui::TabLaneGeometry& geometry, float left,
-    float top, float right, float bottom);
+    const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
+    float left, float top, float right, float bottom);
 
 } // namespace rock_hero::editor::core

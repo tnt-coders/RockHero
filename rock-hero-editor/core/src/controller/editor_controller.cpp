@@ -42,13 +42,13 @@
 #include <rock_hero/common/audio/shared/scoped_listener.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
-#include <rock_hero/common/core/tab/tab_projection.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -2507,7 +2507,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             }
         }
 
-        // The tab projection resolves thousands of positions to seconds, so it is memoized per
+        // The chart projection resolves thousands of positions to seconds, so it is memoized per
         // displayed arrangement and chart revision: the arrangement id keys which chart is shown,
         // and the session's chart revision (bumped by every mutable chart acquisition) keys its
         // edit state, so chart edits invalidate without any explicit notification path. The 3D
@@ -2517,13 +2517,13 @@ EditorViewState EditorController::Impl::deriveViewState() const
                                          m_tab_chart_revision != session().chartRevision();
         if (arrangement_changed)
         {
-            m_tab_view_state = std::make_shared<const common::core::TabViewState>(
-                common::core::makeTabViewState(*arrangement, state.tempo_map));
+            m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
+                common::core::makeChartViewState(*arrangement, state.tempo_map));
         }
-        // The 3D projection bakes in the displayed-string minimum (the shared palette must anchor
-        // exactly as the 2D tab's), so it rebuilds on an arrangement change OR a minimum change —
-        // the tab, which pads in the view, needs neither. Lowest-pitched string on top is the 3D
-        // default (recorded in plan 25).
+        // The highway state carries the display options the renderer applies per frame (the
+        // displayed-string minimum among them — the scene itself is never padded), so it is
+        // republished on an arrangement change OR a minimum change. Lowest-pitched string on top
+        // is the 3D default (recorded in plan 25).
         if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
         {
             m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(

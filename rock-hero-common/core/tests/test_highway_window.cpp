@@ -28,19 +28,19 @@ namespace
 
 // Two placements: an instant arrival at fret 3, then a ramped move to a wider fret-8 window
 // (lines 7-13) whose two-second ramp starts at 4.0.
-[[nodiscard]] std::vector<HighwayFhpView> makePlacements()
+[[nodiscard]] std::vector<FhpViewState> makePlacements()
 {
     return {
-        HighwayFhpView{.seconds = 2.0, .fret = 3, .width = 4, .ramp_seconds = 0.0},
-        HighwayFhpView{.seconds = 6.0, .fret = 8, .width = 6, .ramp_seconds = 2.0},
+        FhpViewState{.seconds = 2.0, .fret = 3, .width = 4, .ramp_seconds = 0.0},
+        FhpViewState{.seconds = 6.0, .fret = 8, .width = 6, .ramp_seconds = 2.0},
     };
 }
 
 // The same move with the arriving placement's ramp marked unpitched, so the two ease families can
 // be compared over identical geometry rather than against a second hand-written fixture.
-[[nodiscard]] std::vector<HighwayFhpView> makeUnpitchedPlacements()
+[[nodiscard]] std::vector<FhpViewState> makeUnpitchedPlacements()
 {
-    std::vector<HighwayFhpView> placements = makePlacements();
+    std::vector<FhpViewState> placements = makePlacements();
     placements.back().unpitched_ramp = true;
     return placements;
 }
@@ -53,7 +53,7 @@ namespace
 // instant. The nut window applies only to chartless boards.
 TEST_CASE("Hand window holds settled extents outside ramps", "[core][highway][window]")
 {
-    const std::vector<HighwayFhpView> placements = makePlacements();
+    const std::vector<FhpViewState> placements = makePlacements();
 
     CHECK(highwayHandWindowAt({}, 5.0) == HighwayHandWindow{.low_line = 0.0, .high_line = 4.0});
     CHECK(
@@ -78,7 +78,7 @@ TEST_CASE("Hand window holds settled extents outside ramps", "[core][highway][wi
 // mechanism and the border leaves and rejoins the settled edges tangentially.
 TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window]")
 {
-    const std::vector<HighwayFhpView> placements = makePlacements();
+    const std::vector<FhpViewState> placements = makePlacements();
 
     // Ramp start is exact: at 4.0 the window has not yet moved.
     const HighwayHandWindow at_start = highwayHandWindowAt(placements, 4.0);
@@ -93,8 +93,8 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
 
     // The first placement never sweeps in from the nut window: its own window pre-holds, so a
     // ramp on the first placement degenerates to no motion.
-    const std::vector<HighwayFhpView> opening{
-        HighwayFhpView{.seconds = 1.0, .fret = 5, .width = 4, .ramp_seconds = 1.0},
+    const std::vector<FhpViewState> opening{
+        FhpViewState{.seconds = 1.0, .fret = 5, .width = 4, .ramp_seconds = 1.0},
     };
     const HighwayHandWindow opening_mid = highwayHandWindowAt(opening, 0.5);
     CHECK(opening_mid.low_line == Catch::Approx(4.0));
@@ -107,7 +107,7 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
 // window reads it.
 TEST_CASE("Hand window eases an unpitched ramp with the release curve", "[core][highway][window]")
 {
-    const std::vector<HighwayFhpView> placements = makeUnpitchedPlacements();
+    const std::vector<FhpViewState> placements = makeUnpitchedPlacements();
 
     // Ramp start: the release curve is zero at zero progress, so the previous window still holds.
     const HighwayHandWindow at_start = highwayHandWindowAt(placements, 4.0);

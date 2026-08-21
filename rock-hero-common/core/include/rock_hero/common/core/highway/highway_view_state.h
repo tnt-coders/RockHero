@@ -13,7 +13,7 @@
 #include <limits>
 #include <optional>
 #include <ranges>
-#include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <string>
@@ -36,9 +36,9 @@ struct HighwayDisplayOptions
     \brief Minimum number of string lanes to display, padding the chart's own string count.
 
     The editor mirrors the 2D tab's "show at least N strings" setting so the 3D preview shows the
-    same lanes; when this exceeds the chart's string count the extra empty lanes appear and every
-    note/posture string index is shifted into the padded lane range (see makeHighwayViewState).
-    Zero (the game default) leaves the chart's string count untouched.
+    same lanes. Resolved by the renderer per frame through \ref displayedStringCount and
+    \ref displayedLane — the same two functions the tab lane's geometry resolves it through — so
+    the chart scene underneath stays one chart fact. Zero (the game default) adds no lanes.
     */
     int minimum_string_count{0};
 
@@ -51,185 +51,6 @@ struct HighwayDisplayOptions
     friend constexpr bool operator==(
         const HighwayDisplayOptions& lhs, const HighwayDisplayOptions& rhs) noexcept = default;
 };
-
-/*! \brief One bend curve point resolved to an absolute timeline second. */
-struct HighwayBendPointView
-{
-    /*! \brief Absolute timeline position of this curve point. */
-    double seconds{0.0};
-
-    /*! \brief Bend amount in semitones at this point. */
-    double semitones{0.0};
-
-    /*!
-    \brief Compares two bend points by their stored fields.
-    \param lhs Left-hand point.
-    \param rhs Right-hand point.
-    \return True when both points store equal values.
-    */
-    friend constexpr bool operator==(
-        const HighwayBendPointView& lhs, const HighwayBendPointView& rhs) noexcept
-    {
-        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on a
-        // floating member, which is why every float-bearing view here is spelled out. Exact
-        // equality is intended; the ordering query expresses it warning-free with identical
-        // semantics (NaN compares unequal either way).
-        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.semitones <=> rhs.semitones);
-    }
-};
-
-/*! \brief One slide waypoint resolved to an absolute timeline second. */
-struct HighwaySlideView
-{
-    /*! \brief Absolute timeline position the glide reaches its target fret. */
-    double seconds{0.0};
-
-    /*! \brief Target fret reached at this waypoint. */
-    int fret{0};
-
-    /*!
-    \brief True when this waypoint is unpitched travel rather than a pitched arrival.
-
-    NOT "the glide trails off here" — see \ref TabSlideView::unpitched, which carries the same rule
-    for the 2D lane and drifted into the same wrong wording. A pick slide's every waypoint carries
-    this, because a scrape's whole path is unpitched travel.
-    */
-    bool unpitched{false};
-
-    /*!
-    \brief Compares two slide waypoints by their stored fields.
-    \param lhs Left-hand waypoint.
-    \param rhs Right-hand waypoint.
-    \return True when both waypoints store equal values.
-    */
-    friend constexpr bool operator==(
-        const HighwaySlideView& lhs, const HighwaySlideView& rhs) noexcept
-    {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.unpitched == rhs.unpitched;
-    }
-};
-
-/*! \brief One sounding note resolved to timeline seconds for highway rendering. */
-struct HighwayNoteView
-{
-    /*! \brief Absolute onset position. */
-    double start_seconds{0.0};
-
-    /*! \brief Absolute end of the sustain; equals start_seconds when there is no sustain. */
-    double end_seconds{0.0};
-
-    /*!
-    \brief One-based displayed string lane, counted from the lowest-pitched lane.
-
-    Equals the chart string when no display padding applies (HighwayDisplayOptions::
-    minimum_string_count of zero, the game default); when the projection pads to a larger
-    displayed lane count it is the chart string shifted into the padded range.
-    */
-    int string{1};
-
-    /*!
-    \brief Fret sounded; zero is the open string — or a natural harmonic, whose position lives in
-    \ref harmonic_node instead. Ask \ref openString rather than testing this against zero.
-    */
-    int fret{0};
-
-    /*! \brief How the onset is produced. */
-    NoteAttack attack{NoteAttack::Pick};
-
-    /*!
-    \brief What this note's connection claim resolves to (\ref resolveLegato).
-
-    The chart stores a claim and never a direction, so the drawn hammer-on or pull-off cell can only
-    come from here. `Unjustified` is not a state of its own on the board: a claim nothing justifies
-    draws exactly what the plain pick beside it draws, which is why no cue exists and why every
-    attack outside \ref legatoClaimable leaves this at its default.
-    */
-    LegatoMotion legato{LegatoMotion::Unjustified};
-
-    /*! \brief True when the picking hand's palm damps the string (`ChartNote::palm_mute`). */
-    bool palm_mute{false};
-
-    /*! \brief True when the string is deadened into an unpitched click (`ChartNote::dead`). */
-    bool dead{false};
-
-    /*!
-    \brief Harmonic node in fret units, and the assertion that this note is a harmonic.
-
-    Mirrors `ChartNote::harmonic_node`, carrying the chart's exact node point (the 3.2 / 2.7 /
-    5.8 family) so the highway places the harmonic head at the true node instead of the fret
-    middle. Every harmonic carries one, a pinch included (rule-enforced) — but a pinch's node
-    lies off the neck where the thumb grazes, so ask `nodeIsOnNeck` before anchoring to it; a
-    pinch draws at its fret.
-    */
-    std::optional<double> harmonic_node{};
-
-    /*! \brief True when the note is played with vibrato. */
-    bool vibrato{false};
-
-    /*! \brief True when the note is tremolo picked. */
-    bool tremolo{false};
-
-    /*! \brief How hard the note is struck relative to its neighbours. */
-    NoteEmphasis emphasis{NoteEmphasis::Normal};
-
-    /*! \brief Bend curve points in ascending time order; empty when not bent. */
-    std::vector<HighwayBendPointView> bend;
-
-    /*! \brief Slide waypoints in ascending time order; empty when the note does not slide. */
-    std::vector<HighwaySlideView> slides;
-
-    /*!
-    \brief Compares two note views by their stored fields.
-    \param lhs Left-hand note view.
-    \param rhs Right-hand note view.
-    \return True when both views store equal values.
-    */
-    friend bool operator==(const HighwayNoteView& lhs, const HighwayNoteView& rhs)
-    {
-        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
-               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
-               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
-               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
-               lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend &&
-               lhs.slides == rhs.slides;
-    }
-};
-
-/*!
-\brief True when nothing stops OR touches the string: a genuine open string.
-
-Fret zero alone cannot answer this — a natural harmonic (and a tap harmonic on an open string)
-also stores fret 0, with the node carrying its position, and rendering one as an open string
-erased the harmonic from the board outright: every renderer decision between the open-string
-treatment (the hand-window bar, the window-spanning tail band, the faded tail edge) and the
-fretted treatment must ask this instead of testing `fret == 0`.
-
-\param note Note to classify.
-\return True when the note is an open string with no harmonic node.
-*/
-[[nodiscard]] inline bool openString(const HighwayNoteView& note) noexcept
-{
-    return note.fret == 0 && !note.harmonic_node.has_value();
-}
-
-/*!
-\brief The fret slot the note's fretting hand occupies on the drawn board.
-
-\ref fretFor through the mirrored fields: a natural harmonic's finger stands on the node, so its
-slot is the fret CONTAINING the node (the ceil law chart.h derives), while every other note's slot
-is its own fret. This is what fret-aligned furniture — the onset span line, the hit-glow fret
-lines — aligns to; the head itself keeps the node's exact fractional position.
-
-\param note Note to place.
-\return Fret slot of the fretting hand; zero for a true open string.
-*/
-[[nodiscard]] inline int fretFor(const HighwayNoteView& note)
-{
-    return fretFor(note.fret, note.harmonic_node, note.attack);
-}
 
 /*!
 \brief Where a note sounds on the DRAWN 3D board, in fret units.
@@ -260,7 +81,7 @@ is why this function exists at all.
 \return Where to draw, with a node held inside the board.
 */
 [[nodiscard]] inline SoundingPosition highwayDrawnSoundingPosition(
-    const HighwayNoteView& note, int fret_at_point)
+    const NoteViewState& note, int fret_at_point)
 {
     SoundingPosition sounding =
         soundingPositionAt(note.harmonic_node, note.attack, note.fret, fret_at_point);
@@ -270,66 +91,6 @@ is why this function exists at all.
     }
     return sounding;
 }
-
-/*! \brief What the hand holds on one string under a shape span (fingering-panel data). */
-struct HighwayShapeStringView
-{
-    /*! \brief One-based displayed string lane (padded like HighwayNoteView::string). */
-    int string{1};
-
-    /*! \brief Fret held on the string; zero is the open string. */
-    int fret{0};
-
-    /*! \brief Finger holding the fret (0 thumb, 1-4 index through pinky); empty when unknown. */
-    std::optional<int> finger{};
-
-    /*!
-    \brief Compares two posture entries by their stored fields.
-    \param lhs Left-hand entry.
-    \param rhs Right-hand entry.
-    \return True when both entries store equal values.
-    */
-    friend constexpr bool operator==(
-        const HighwayShapeStringView& lhs, const HighwayShapeStringView& rhs) noexcept = default;
-};
-
-/*! \brief One hand-posture span resolved to timeline seconds for highway rendering. */
-struct HighwayShapeView
-{
-    /*! \brief Absolute start of the span. */
-    double start_seconds{0.0};
-
-    /*! \brief Absolute end of the span. */
-    double end_seconds{0.0};
-
-    /*! \brief Chord template display name; may be empty for unnamed shapes. */
-    std::string name;
-
-    /*!
-    \brief True when the span's notes arrive sequentially (arpeggio treatment) rather than
-    together (chord box). Derived at projection time from the notes under the span start.
-    */
-    bool arpeggio{false};
-
-    /*!
-    \brief Posture entries from the shape's chord template, lowest string first; empty when the
-    template is unknown. Drives the fingering panel and the arpeggio brackets.
-    */
-    std::vector<HighwayShapeStringView> strings;
-
-    /*!
-    \brief Compares two shape views by their stored fields.
-    \param lhs Left-hand shape view.
-    \param rhs Right-hand shape view.
-    \return True when both views store equal values.
-    */
-    friend bool operator==(const HighwayShapeView& lhs, const HighwayShapeView& rhs)
-    {
-        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.name == rhs.name &&
-               lhs.arpeggio == rhs.arpeggio && lhs.strings == rhs.strings;
-    }
-};
 
 /*! \brief One station along a tapping-hand light path: the tapped fret extent at an instant. */
 struct HighwayTapLightStation
@@ -544,54 +305,6 @@ struct HighwayChordGrouping
         default;
 };
 
-/*! \brief One fret-hand position marker resolved to a timeline second. */
-struct HighwayFhpView
-{
-    /*! \brief Absolute position the hand arrives at this placement. */
-    double seconds{0.0};
-
-    /*! \brief Lowest fret under the index finger. */
-    int fret{1};
-
-    /*! \brief Fret span covered by the hand. */
-    int width{4};
-
-    /*!
-    \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
-
-    Derived at projection time: a placement landing exactly on a slide waypoint — pitched glide or
-    unpitched trail-off end alike — ramps over that glide's own segment so the window travels with
-    the drawn rail, and every other placement morphs over the minimum-sustain-distance margin
-    (shortened when placements crowd closer than the ramp).
-    */
-    double ramp_seconds{0.0};
-
-    /*!
-    \brief True when \ref ramp_seconds spans an UNPITCHED glide, so the window eases with the
-    unpitched release curve instead of the pitched one.
-
-    The window follows whatever the rail draws, and the two families are different functions of
-    progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve left the
-    window and the rail sharing only their endpoints. Note the consequence: the unpitched curve
-    arrives at full travel with nonzero slope, so the window stops abruptly at the release — which
-    is exactly what the drawn rail does at the same instant.
-    */
-    bool unpitched_ramp{false};
-
-    /*!
-    \brief Compares two fret-hand position views by their stored fields.
-    \param lhs Left-hand view.
-    \param rhs Right-hand view.
-    \return True when both views store equal values.
-    */
-    friend constexpr bool operator==(const HighwayFhpView& lhs, const HighwayFhpView& rhs) noexcept
-    {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.width == rhs.width && std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) &&
-               lhs.unpitched_ramp == rhs.unpitched_ramp;
-    }
-};
-
 /*! \brief One beat bar on the board, resolved to a timeline second. */
 struct HighwayBeatView
 {
@@ -645,7 +358,7 @@ struct HighwaySectionView
 };
 
 /*!
-\brief Seconds-resolved chart content for one arrangement's 3D highway.
+\brief The 3D highway's frame content: the shared chart scene plus the board-only structure.
 
 Built once per chart and shared immutably by the game highway and the editor 3D preview:
 positions are resolved through the tempo map at projection time so rendering never queries
@@ -654,53 +367,19 @@ per-frame time.
 */
 struct HighwayViewState
 {
-    /*!
-    \brief Number of string lanes DISPLAYED; zero means no chart is loaded.
-
-    Not the chart's own string count whenever display padding applies: this is
-    \ref displayedStringCount over the chart's tuning and
-    \ref HighwayDisplayOptions::minimum_string_count, so it can exceed the tuning's size and must
-    NOT be used to index the tuning. \ref HighwayNoteView::string is shifted into this same padded
-    range, which is what keeps the shared string-color palette anchored as the 2D lane anchors it.
-    */
-    int string_count{0};
-
-    /*!
-    \brief Capo fret from the chart tuning; 0 means no capo.
-
-    Carried so the board can draw the capo and its dead zone: the chart stores absolute frets
-    with 0 meaning the capo'd open string, so without this the neck below the capo looks like
-    ordinary playable board.
-    */
-    int capo{0};
-
-    /*! \brief Display-mapping flags the projection was built with. */
+    /*! \brief Display-mapping flags the renderer applies; the projection never reads them. */
     HighwayDisplayOptions options{};
 
-    /*! \brief Sounding notes in ascending onset order. */
-    std::vector<HighwayNoteView> notes;
-
-    /*! \brief Hand-posture spans in ascending start order. */
-    std::vector<HighwayShapeView> shapes;
-
     /*!
-    \brief Per-note display hold end in seconds, one entry per \ref notes entry.
+    \brief The chart scene, exactly as the 2D lane draws it (\ref makeChartViewState).
 
-    The note's own sustain end, except that a sustainless member of a two-or-more onset group under
-    a covering hand-shape span is held for the span — a strum's heads stay pinned at the hit line
-    while the posture is held, instead of vanishing the instant they are struck. A fully dead group
-    is choked rather than held and keeps its own end.
-
-    Resolved here from \ref chartEffectiveSustains, the ONE authority for that rule, rather than
-    recomputed in seconds. It used to be computed twice, once in beats for the chart rules and once
-    in seconds for the board, and both copies carried the same defect — a long span shadowed by a
-    short one that started inside it silently lost its hold — and were fixed separately. That is the
-    whole argument for resolving the beats answer instead of restating it.
-
-    Feeds the visible-range prefix maximum, so a span-held strum stays in range for as long as it is
-    drawn.
+    Composed rather than restated so the two surfaces cannot drift on a shared chart fact. Its
+    strings are CHART strings and its string count the tuning's: the displayed-lane padding
+    \ref HighwayDisplayOptions::minimum_string_count asks for is resolved by the renderer per
+    frame (\ref displayedLane), exactly as the tab lane resolves it in its geometry, which is what
+    keeps the shared string-color palette anchored the same way on both surfaces.
     */
-    std::vector<double> display_hold_ends;
+    ChartViewState chart;
 
     /*!
     \brief Tapping-hand onsets in ascending order, derived from the notes' picking-hand-at-the-neck
@@ -719,11 +398,11 @@ struct HighwayViewState
     */
     std::vector<HighwayChordGroupView> chord_groups;
 
-    /*! \brief Each note's index into \ref chord_groups, sized and ordered like \ref notes. */
+    /*!
+    \brief Each note's index into \ref chord_groups, sized and ordered like
+    \ref ChartViewState::notes.
+    */
     std::vector<std::size_t> note_group;
-
-    /*! \brief Fret-hand position markers in ascending order. */
-    std::vector<HighwayFhpView> fret_hand_positions;
 
     /*! \brief Every beat of the song grid in ascending order, downbeats marked. */
     std::vector<HighwayBeatView> beats;
@@ -745,9 +424,9 @@ struct HighwayViewState
     Non-empty whenever there is anything to frame, and the camera depends on that: it has a
     single scan path, so an empty list reads as one unbounded zone and would frame the entire
     timeline at once. The invariant holds because zones derive from measure downbeats and any
-    chart yields at least beat 0, while an arrangement with no chart fills neither these nor
-    \ref notes and \ref fret_hand_positions. Keep it that way — a state carrying content but no
-    zone starts is not a supported shape, and nothing diagnoses it.
+    chart yields at least beat 0, while an arrangement with no chart fills neither these nor the
+    \ref chart scene. Keep it that way — a state carrying content but no zone starts is not a
+    supported shape, and nothing diagnoses it.
     */
     std::vector<double> camera_zone_starts;
 
@@ -787,13 +466,13 @@ tap onset's release.
 \return Tap onsets in ascending time order, each with at least one path station.
 */
 [[nodiscard]] inline std::vector<HighwayTapOnsetView> makeHighwayTapOnsets(
-    const std::vector<HighwayNoteView>& notes, const std::vector<double>& note_rise_seconds)
+    const std::vector<NoteViewState>& notes, const std::vector<double>& note_rise_seconds)
 {
     // A member's hand position at an instant: its own fret before any glide, linear between
     // its path waypoints, and the last station afterwards. A trail-off's unpitched terminal is
     // a release and never moves the light; a scrape's unpitched waypoints ARE the hand's
     // travel.
-    const auto member_fret_at = [](const HighwayNoteView& note, const double seconds) {
+    const auto member_fret_at = [](const NoteViewState& note, const double seconds) {
         const bool scrape = note.attack == NoteAttack::PickSlide;
         double previous_seconds = note.start_seconds;
         // Where the note SOUNDS, not its stop: a tap harmonic strikes its node, and on an open
@@ -801,7 +480,7 @@ tap onset's release.
         // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off
         // the board while the head it belongs to is held at the edge.
         double previous_fret = highwayDrawnSoundingPosition(note, note.fret).position;
-        for (const HighwaySlideView& waypoint : note.slides)
+        for (const SlideViewState& waypoint : note.slides)
         {
             if ((waypoint.unpitched && !scrape) || waypoint.fret <= 0)
             {
@@ -827,12 +506,12 @@ tap onset's release.
     // When the member's hand leaves: the last pitched waypoint when an unpitched trail-off
     // follows (the release is already underway), otherwise the sustain end — which for a
     // scrape is the path's end, where the pick lifts.
-    const auto member_release_at = [](const HighwayNoteView& note) {
+    const auto member_release_at = [](const NoteViewState& note) {
         if (note.attack != NoteAttack::PickSlide && !note.slides.empty() &&
             note.slides.back().unpitched)
         {
             double last_pitched = note.start_seconds;
-            for (const HighwaySlideView& waypoint : note.slides)
+            for (const SlideViewState& waypoint : note.slides)
             {
                 if (!waypoint.unpitched && waypoint.fret > 0)
                 {
@@ -845,7 +524,7 @@ tap onset's release.
     };
 
     std::vector<HighwayTapOnsetView> onsets;
-    std::vector<const HighwayNoteView*> taps;
+    std::vector<const NoteViewState*> taps;
     std::vector<double> station_times;
     std::vector<double> scrape_times;
     for (std::size_t index = 0; index < notes.size();)
@@ -861,7 +540,7 @@ tap onset's release.
         taps.clear();
         for (std::size_t member = index; member < group_end; ++member)
         {
-            const HighwayNoteView& note = notes[member];
+            const NoteViewState& note = notes[member];
             // Judged on where the note SOUNDS, so an open-string tap HARMONIC lights its node. The
             // guard exists to keep a malformed chart from putting a light off the board, and the
             // sounding position is what has to be on the board — reading `fret` instead dropped the
@@ -895,10 +574,10 @@ tap onset's release.
             station_times.clear();
             scrape_times.clear();
             station_times.push_back(onset);
-            for (const HighwayNoteView* const tap : taps)
+            for (const NoteViewState* const tap : taps)
             {
                 hold_end = std::max(hold_end, member_release_at(*tap));
-                for (const HighwaySlideView& waypoint : tap->slides)
+                for (const SlideViewState& waypoint : tap->slides)
                 {
                     if ((!waypoint.unpitched || tap->attack == NoteAttack::PickSlide) &&
                         waypoint.fret > 0)
@@ -971,7 +650,7 @@ whatever window a renderer happens to be drawing.
 \return Groups in ascending onset order, plus each note's group index.
 */
 [[nodiscard]] inline HighwayChordGrouping makeHighwayChordGroups(
-    const std::vector<HighwayNoteView>& notes, const std::vector<HighwayShapeView>& shapes)
+    const std::vector<NoteViewState>& notes, const std::vector<ShapeViewState>& shapes)
 {
     HighwayChordGrouping grouping;
     grouping.note_group.assign(notes.size(), 0);
@@ -1009,7 +688,7 @@ whatever window a renderer happens to be drawing.
         bool all_ghosted = true;
         for (std::size_t member = index; member < group_end; ++member)
         {
-            const HighwayNoteView& note = notes[member];
+            const NoteViewState& note = notes[member];
             if (!rightHandOnset(note.attack))
             {
                 ++group.fretting_hand_count;
@@ -1036,7 +715,7 @@ whatever window a renderer happens to be drawing.
         index = group_end;
     }
 
-    const auto posture_matches = [](const HighwayShapeView& shape,
+    const auto posture_matches = [](const ShapeViewState& shape,
                                     const std::vector<std::pair<int, int>>& frets) {
         if (shape.strings.empty() || shape.strings.size() != frets.size())
         {
@@ -1064,7 +743,7 @@ whatever window a renderer happens to be drawing.
         bool any_marks = false;
         for (std::size_t member = group.first; member < group.first + group.count; ++member)
         {
-            const HighwayNoteView& note = notes[member];
+            const NoteViewState& note = notes[member];
             has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
                         note.tremolo || !note.bend.empty() || !note.slides.empty();
             // What is DRAWN, not what is stored: inside the connection family the mark is the
@@ -1118,8 +797,8 @@ whatever window a renderer happens to be drawing.
         {
             continue;
         }
-        const HighwayShapeView* shape = nullptr;
-        for (const HighwayShapeView& candidate : shapes)
+        const ShapeViewState* shape = nullptr;
+        for (const ShapeViewState& candidate : shapes)
         {
             // Tolerance so a shape starting on the same grid position as the chord (resolved a
             // rounding epsilon later) is still selected rather than skipped.
@@ -1236,11 +915,11 @@ as they are to posture derivation.
         time.
 */
 [[nodiscard]] inline std::vector<HighwayNodeSeries> makeHighwayNodeSeries(
-    const std::vector<HighwayNoteView>& notes)
+    const std::vector<NoteViewState>& notes)
 {
     std::vector<HighwayNodeSeries> series;
     std::optional<double> established_node;
-    for (const HighwayNoteView& note : notes)
+    for (const NoteViewState& note : notes)
     {
         if (rightHandOnset(note.attack))
         {

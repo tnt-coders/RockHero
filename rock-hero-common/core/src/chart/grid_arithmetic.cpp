@@ -76,6 +76,14 @@ GridPosition advanceGridPosition(const TempoMap& tempo_map, GridPosition positio
     return GridPosition{.measure = measure, .beat = beat, .offset = offset};
 }
 
+GridPosition marginBefore(const TempoMap& tempo_map, const GridPosition position)
+{
+    const TimeSignatureChange signature = tempo_map.timeSignatureAt(position.measure);
+    const Fraction margin = minimumSustainDistanceBeats(signature.denominator);
+    return advanceGridPosition(
+        tempo_map, position, Fraction{-margin.numerator, margin.denominator});
+}
+
 // The global beat axis makes the whole-beat part a plain index difference; song-scale indexes fit
 // int comfortably, so the narrowing into Fraction's int terms is safe.
 Fraction beatDistance(const TempoMap& tempo_map, GridPosition from, GridPosition to)

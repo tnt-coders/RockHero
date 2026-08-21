@@ -161,11 +161,11 @@ HighwayCameraTarget makeHighwayCameraTarget(
     double low_line = 0.0;
     double high_line = metrics.camera_reference_span;
     const auto after_now = std::ranges::upper_bound(
-        state.fret_hand_positions, now_seconds, std::ranges::less{}, &HighwayFhpView::seconds);
-    if (!state.fret_hand_positions.empty())
+        state.chart.fret_hand_positions, now_seconds, std::ranges::less{}, &FhpViewState::seconds);
+    if (!state.chart.fret_hand_positions.empty())
     {
         const auto active =
-            after_now == state.fret_hand_positions.begin() ? after_now : after_now - 1;
+            after_now == state.chart.fret_hand_positions.begin() ? after_now : after_now - 1;
         low_line = static_cast<double>(active->fret - 1);
         high_line = static_cast<double>(active->fret + active->width - 1);
     }
@@ -191,10 +191,10 @@ HighwayCameraTarget makeHighwayCameraTarget(
                                                          : std::numeric_limits<double>::infinity();
 
     const auto scan_begin = std::ranges::lower_bound(
-        state.fret_hand_positions, window_start, std::ranges::less{}, &HighwayFhpView::seconds);
-    for (auto it = scan_begin; it != state.fret_hand_positions.end(); ++it)
+        state.chart.fret_hand_positions, window_start, std::ranges::less{}, &FhpViewState::seconds);
+    for (auto it = scan_begin; it != state.chart.fret_hand_positions.end(); ++it)
     {
-        const HighwayFhpView& fhp = *it;
+        const FhpViewState& fhp = *it;
         if (fhp.seconds >= horizon)
         {
             break;
@@ -212,10 +212,10 @@ HighwayCameraTarget makeHighwayCameraTarget(
     // note framed for its zone stays framed once consumed, which is the point of zone
     // quantization: the target rests instead of narrowing note by note.
     const auto note_begin = std::ranges::lower_bound(
-        state.notes, window_start, std::ranges::less{}, &HighwayNoteView::start_seconds);
-    for (auto it = note_begin; it != state.notes.end(); ++it)
+        state.chart.notes, window_start, std::ranges::less{}, &NoteViewState::start_seconds);
+    for (auto it = note_begin; it != state.chart.notes.end(); ++it)
     {
-        const HighwayNoteView& note = *it;
+        const NoteViewState& note = *it;
         if (note.start_seconds >= horizon)
         {
             break; // notes ascend by onset, so nothing later is in the scan window
@@ -250,7 +250,7 @@ HighwayCameraTarget makeHighwayCameraTarget(
         // framing must cover every neck position the path reaches, not just the start.
         if (note.attack == NoteAttack::PickSlide)
         {
-            for (const HighwaySlideView& waypoint : note.slides)
+            for (const SlideViewState& waypoint : note.slides)
             {
                 if (waypoint.fret <= 0)
                 {

@@ -11,7 +11,7 @@ namespace rock_hero::common::ui
 // drawNoteTail takes one — a span-held strum member is drawn past its stored sustain, and a
 // rectangle built from `end_seconds` would leave that ribbon unclickable.
 TabNoteLayout tabNoteLayout(
-    const TabLaneGeometry& geometry, const common::core::TabNoteView& note,
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
     const double hold_end_seconds) noexcept
 {
     TabNoteLayout layout;

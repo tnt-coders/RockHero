@@ -11,8 +11,8 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
-#include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -683,7 +683,7 @@ struct EditorViewState
     state copy shares one instance. Null when the arrangement has no chart. Pointer identity
     stands in for content equality in view-state comparisons, matching the rebuild rule.
     */
-    std::shared_ptr<const common::core::TabViewState> tab{};
+    std::shared_ptr<const common::core::ChartViewState> tab{};
 
     /*! \brief Chart-editing selection and marquee overlays for the tablature lane. */
     ChartEditViewState chart_edit{};

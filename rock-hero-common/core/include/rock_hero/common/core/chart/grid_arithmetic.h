@@ -194,6 +194,20 @@ with a zero offset. Positions past the terminal anchor keep extending — signat
     const TempoMap& tempo_map, GridPosition position, Fraction beats);
 
 /*!
+\brief The grid position one minimum-sustain-distance margin before a position, at its meter.
+
+The shared arrival rule: where the fretting hand begins its morph toward a placement at
+`position` when no glide carries it there, and where the picking hand's light begins its rise
+toward an onset there. Both ramps read this one function rather than composing the margin
+themselves, so they cannot drift apart. Clamped at the grid origin like \ref advanceGridPosition.
+
+\param tempo_map Tempo map supplying the meter at `position` and the beat axis.
+\param position Valid grid position the margin is measured back from.
+\return The position one margin earlier.
+*/
+[[nodiscard]] GridPosition marginBefore(const TempoMap& tempo_map, GridPosition position);
+
+/*!
 \brief Measures the signed exact beat distance from one grid position to another.
 
 The inverse of advanceGridPosition: advancing `from` by the returned distance reaches `to`

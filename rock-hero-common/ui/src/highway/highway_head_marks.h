@@ -93,7 +93,7 @@ the head sits, and the technique markers still stack over it.
 \param note Projected note whose head is being drawn.
 \return True when the diamond node base applies.
 */
-[[nodiscard]] inline bool highwayNodeHead(const common::core::HighwayNoteView& note)
+[[nodiscard]] inline bool highwayNodeHead(const common::core::NoteViewState& note)
 {
     return common::core::highwayDrawnSoundingPosition(note, note.fret).at_node;
 }
@@ -116,7 +116,7 @@ palm marker stacks over that. A palm mute on its own leaves the head light — i
 \param note Projected note whose head is being drawn.
 \return True when the technique base cell applies.
 */
-[[nodiscard]] constexpr bool highwayTechHead(const common::core::HighwayNoteView& note) noexcept
+[[nodiscard]] constexpr bool highwayTechHead(const common::core::NoteViewState& note) noexcept
 {
     return note.dead || highwayLegatoCell(note.legato) != HighwayLegatoCell::None ||
            note.attack == common::core::NoteAttack::PickSlide;
@@ -199,8 +199,7 @@ ignores the flag and draws every mark upright.
 \param note Projected note whose head is being drawn.
 \return The marks in draw order; empty when the head wears none.
 */
-[[nodiscard]] inline HighwayHeadMarkStack highwayHeadMarks(
-    const common::core::HighwayNoteView& note)
+[[nodiscard]] inline HighwayHeadMarkStack highwayHeadMarks(const common::core::NoteViewState& note)
 {
     HighwayHeadMarkStack stack;
     const auto add = [&stack](const int cell, const bool rides_roll, const bool flipped = false) {

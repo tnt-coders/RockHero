@@ -200,7 +200,7 @@ value) and at the last point, whose value then holds.
 \return Bend amount in semitones; zero when the curve is empty.
 */
 [[nodiscard]] double highwayBendSemitonesAt(
-    std::span<const HighwayBendPointView> bend, double onset_seconds, double seconds) noexcept;
+    std::span<const BendPointViewState> bend, double onset_seconds, double seconds) noexcept;
 
 /*!
 \brief Returns whether a note's bend lift points downward on a displayed lane.
@@ -297,7 +297,7 @@ accent batch it fed could exceed the 16-bit index budget and drop the whole grou
         the span is empty.
 */
 [[nodiscard]] std::vector<double> makeHighwayTailSampleTimes(
-    const HighwayNoteView& note, double from_seconds, double to_seconds, std::size_t uniform_count,
+    const NoteViewState& note, double from_seconds, double to_seconds, std::size_t uniform_count,
     std::span<const double> extra_times, std::size_t sample_cap);
 
 } // namespace rock_hero::common::core

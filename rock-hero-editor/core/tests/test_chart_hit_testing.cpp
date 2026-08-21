@@ -13,12 +13,12 @@ namespace
 
 // Two overlapping sustains on string 1 (bottom lane) and a short note on string 2 whose head
 // sits on top of the first sustain's tail span.
-[[nodiscard]] common::core::TabViewState makeTabState()
+[[nodiscard]] common::core::ChartViewState makeTabState()
 {
-    common::core::TabViewState state;
+    common::core::ChartViewState state;
     state.string_count = 6;
     state.notes = {
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 2.0,
             .end_seconds = 10.0,
             .string = 1,
@@ -26,7 +26,7 @@ namespace
             .bend = {},
             .slides = {},
         },
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 5.0,
             .end_seconds = 8.0,
             .string = 1,
@@ -34,7 +34,7 @@ namespace
             .bend = {},
             .slides = {},
         },
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 6.0,
             .end_seconds = 6.0,
             .string = 2,
@@ -45,7 +45,7 @@ namespace
     };
     // Nothing here is span-held, so every display hold end is the note's own — the projection's
     // ordinary case, and the sizing every query asserts.
-    for (const common::core::TabNoteView& note : state.notes)
+    for (const common::core::NoteViewState& note : state.notes)
     {
         state.display_hold_ends.push_back(note.end_seconds);
     }
@@ -74,7 +74,7 @@ namespace
 // Heads win over tails, and overlapping candidates resolve to the nearest onset.
 TEST_CASE("Chart hit testing resolves heads tails and overlaps", "[core][chart]")
 {
-    const common::core::TabViewState tab = makeTabState();
+    const common::core::ChartViewState tab = makeTabState();
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
     // The first note's head at (40, 220).
@@ -100,7 +100,7 @@ TEST_CASE("Chart hit testing resolves heads tails and overlaps", "[core][chart]"
 // Hit testing keeps resolving at zoom extremes: a crowded narrow lane and a sparse wide one.
 TEST_CASE("Chart hit testing survives zoom extremes", "[core][chart]")
 {
-    const common::core::TabViewState tab = makeTabState();
+    const common::core::ChartViewState tab = makeTabState();
 
     // At 80px for 20 seconds (4 px/s) heads overlap heavily; the nearest onset still wins and
     // out-of-band points still miss.
@@ -120,10 +120,10 @@ TEST_CASE("Chart hit testing survives zoom extremes", "[core][chart]")
 // against `end_seconds` left every drawn pixel of it dead.
 TEST_CASE("Chart hit testing follows the display hold ends", "[core][chart]")
 {
-    common::core::TabViewState tab;
+    common::core::ChartViewState tab;
     tab.string_count = 6;
     tab.notes = {
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 2.0,
             .end_seconds = 2.0,
             .string = 1,
@@ -151,7 +151,7 @@ TEST_CASE("Chart hit testing follows the display hold ends", "[core][chart]")
 // The marquee query returns notes whose heads intersect the box, in ascending order.
 TEST_CASE("Chart hit testing collects notes inside a marquee box", "[core][chart]")
 {
-    const common::core::TabViewState tab = makeTabState();
+    const common::core::ChartViewState tab = makeTabState();
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
     const std::vector<std::size_t> both_strings =

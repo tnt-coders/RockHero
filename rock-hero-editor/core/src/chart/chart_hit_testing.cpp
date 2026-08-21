@@ -16,7 +16,7 @@ namespace
 // Candidate index window for a lane-local x, widened by the head slack the paint core uses so
 // heads whose centers sit just outside the probed instant are still candidates.
 [[nodiscard]] std::pair<std::size_t, std::size_t> candidateRange(
-    const common::core::TabViewState& tab, const common::ui::TabLaneGeometry& geometry,
+    const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
     float left_x, float right_x)
 {
     const double duration = geometry.visible_timeline.duration().seconds;
@@ -39,7 +39,7 @@ namespace
 } // namespace
 
 std::optional<std::size_t> chartNoteHitIndex(
-    const common::core::TabViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
+    const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
     float y)
 {
     // Both passes index display_hold_ends by note index, like the paint core's tail pass.
@@ -93,8 +93,8 @@ std::optional<std::size_t> chartNoteHitIndex(
 }
 
 std::vector<std::size_t> chartNoteIndicesInBox(
-    const common::core::TabViewState& tab, const common::ui::TabLaneGeometry& geometry, float left,
-    float top, float right, float bottom)
+    const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,
+    float left, float top, float right, float bottom)
 {
     assert(tab.display_hold_ends.size() == tab.notes.size());
     const auto [first, last] = candidateRange(tab, geometry, left, right);

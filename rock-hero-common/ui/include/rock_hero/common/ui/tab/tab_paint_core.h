@@ -12,7 +12,7 @@ each host supplies only bounds, timeline mapping, and state.
 
 #include <cstddef>
 #include <juce_graphics/juce_graphics.h>
-#include <rock_hero/common/core/tab/tab_view_state.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <vector>
@@ -69,7 +69,8 @@ fret at the junctions).
        fret at a linked junction.
 \return Head text, never empty.
 */
-[[nodiscard]] juce::String tabNoteHeadText(const common::core::TabNoteView& note, int fret_at_head);
+[[nodiscard]] juce::String tabNoteHeadText(
+    const common::core::NoteViewState& note, int fret_at_head);
 
 /*!
 \brief Returns the vertical center of one string lane inside JUCE component bounds.
@@ -149,7 +150,7 @@ left every pick slide wearing a circular ring around a plectrum once the scrape 
 \param stroke_thickness Outline thickness in pixels.
 */
 void strokeTabNoteHeadOutline(
-    juce::Graphics& g, const common::core::TabNoteView& note, float center_x, float center_y,
+    juce::Graphics& g, const common::core::NoteViewState& note, float center_x, float center_y,
     float extent, float stroke_thickness);
 
 /*!
@@ -184,7 +185,7 @@ exactly where the committed one will land.
 \param border_color Box border: the host's editor accent.
 */
 void paintTabPendingEntryBox(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView* note,
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState* note,
     float center_x, float center_y, const juce::String& text, bool light_plate,
     juce::Colour text_color, juce::Colour border_color);
 
@@ -206,7 +207,7 @@ head slack, so hosts repaint partial regions (tile strips, dirty rectangles) cor
        is drawn past its stored end and would otherwise be culled out of the visible range.
 */
 void paintTabLane(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabViewState& tab,
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
     const std::vector<double>& prefix_max_end_seconds);
 
 } // namespace rock_hero::common::ui

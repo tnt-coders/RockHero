@@ -31,7 +31,7 @@ double highwayTailTaper(const double progress, const double taper_fraction) noex
 }
 
 double highwayBendSemitonesAt(
-    const std::span<const HighwayBendPointView> bend, const double onset_seconds,
+    const std::span<const BendPointViewState> bend, const double onset_seconds,
     const double seconds) noexcept
 {
     if (bend.empty())
@@ -156,7 +156,7 @@ double highwayTremoloEnvelope(const double cycles, const double end_cycles) noex
 }
 
 std::vector<double> makeHighwayTailSampleTimes(
-    const HighwayNoteView& note, const double from_seconds, const double to_seconds,
+    const NoteViewState& note, const double from_seconds, const double to_seconds,
     const std::size_t uniform_count, const std::span<const double> extra_times,
     const std::size_t sample_cap)
 {
@@ -168,14 +168,14 @@ std::vector<double> makeHighwayTailSampleTimes(
     // The exact times first, so the uniform grid can be budgeted against what they leave.
     std::vector<double> times;
     times.reserve(sample_cap + note.bend.size() + note.slides.size() + extra_times.size());
-    for (const HighwayBendPointView& point : note.bend)
+    for (const BendPointViewState& point : note.bend)
     {
         if (point.seconds > from_seconds && point.seconds < to_seconds)
         {
             times.push_back(point.seconds);
         }
     }
-    for (const HighwaySlideView& waypoint : note.slides)
+    for (const SlideViewState& waypoint : note.slides)
     {
         if (waypoint.seconds > from_seconds && waypoint.seconds < to_seconds)
         {

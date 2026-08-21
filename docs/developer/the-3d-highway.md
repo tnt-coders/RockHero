@@ -190,7 +190,7 @@ law: the open-string bar carries no harmonic or pinch cell, while 2D gives a fre
 diamond and node — tracked with the note-view unification watch item rather than papered over.
 
 The **connection mark** obeys the same division. No direction is stored in the chart, so the cell a
-hammer-on or pull-off gets comes from the note's RESOLVED `LegatoMotion` (`HighwayNoteView::legato`,
+hammer-on or pull-off gets comes from the note's RESOLVED `LegatoMotion` (`NoteViewState::legato`,
 from the shared `chartResolutions` pass), the identical value the 2D triangle points itself by — one
 authority, two idioms, and a claim the chart cannot justify draws like the plain pick it sounds like
 on both surfaces.

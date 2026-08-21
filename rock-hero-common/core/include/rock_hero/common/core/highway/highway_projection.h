@@ -15,21 +15,24 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief Resolves an arrangement's chart to highway view content through the tempo map.
+\brief Resolves an arrangement to highway view content: the shared chart scene plus the board's
+own structure.
 
-Mirrors the editor's tab projection discipline so both products read identical seconds for
-identical inputs. Build once per chart load and share the result immutably: the camera and every
-drawer are pure functions of the returned state plus per-frame time.
+The chart scene comes from \ref makeChartViewState, the one projection both surfaces share, so the
+board and the tab lane read identical seconds for identical inputs by construction. On top of it
+this derives what only the board draws: section labels, the picking-hand light onsets, the onset
+groups and their repeat classification, the beat grid, and the camera framing zones. Build once
+per chart load and share the result immutably: the camera and every drawer are pure functions of
+the returned state plus per-frame time.
 
 \param arrangement Arrangement whose loaded chart is projected; an absent chart yields an empty
-       state.
+       scene.
 \param tempo_map Tempo map resolving musical positions to seconds.
 \param sections Song-structure section markers, resolved into the state's section list even when
        the arrangement has no chart.
-\param options Display mapping baked into the state: the lefty mirror, the string-order invert, and
-       the minimum string count — that last one is not a flag and has the widest consequence, since
-       padding to more lanes than the chart uses shifts every note and posture string index into the
-       padded range and sets \ref HighwayViewState::string_count above the tuning's size.
+\param options Display mapping carried to the renderer: the lefty mirror, the string-order invert,
+       and the minimum string count. None of them changes the projected scene — padding and
+       reflection are resolved per frame.
 \return Seconds-resolved highway content for rendering.
 */
 [[nodiscard]] HighwayViewState makeHighwayViewState(

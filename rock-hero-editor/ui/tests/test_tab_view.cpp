@@ -18,12 +18,12 @@ namespace
 {
 
 // Builds a projection with three notes: a long sustain, a short note inside it, and a late note.
-[[nodiscard]] std::shared_ptr<const common::core::TabViewState> makeTabState()
+[[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeTabState()
 {
-    common::core::TabViewState state;
+    common::core::ChartViewState state;
     state.string_count = 6;
     state.notes = {
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 1.0,
             .end_seconds = 9.0,
             .string = 1,
@@ -31,7 +31,7 @@ namespace
             .bend = {},
             .slides = {},
         },
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 2.0,
             .end_seconds = 2.5,
             .string = 4,
@@ -39,7 +39,7 @@ namespace
             .bend = {},
             .slides = {},
         },
-        common::core::TabNoteView{
+        common::core::NoteViewState{
             .start_seconds = 12.0,
             .end_seconds = 12.0,
             .string = 6,
@@ -52,7 +52,7 @@ namespace
     // of the stored end (a span-held chord member draws held while storing no sustain). No spans
     // here, so each note's drawn end is its own.
     state.display_hold_ends = {9.0, 2.5, 12.0};
-    return std::make_shared<const common::core::TabViewState>(std::move(state));
+    return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
 
 // Running maximum of the fixture's DISPLAY hold ends, matching TabView's internal index.

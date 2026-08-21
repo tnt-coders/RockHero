@@ -9,7 +9,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/tab/tab_view_state.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -199,7 +199,7 @@ public:
     \param minimum_displayed_strings User minimum lane count; zero means match the chart.
     */
     void setState(
-        std::shared_ptr<const common::core::TabViewState> tab, int minimum_displayed_strings);
+        std::shared_ptr<const common::core::ChartViewState> tab, int minimum_displayed_strings);
 
     /*!
     \brief Draws the visible notes and sustains onto the lane.
@@ -246,7 +246,7 @@ private:
     void publishCaretMask();
 
     // Seconds-resolved tab projection shared with the controller; null without a chart.
-    std::shared_ptr<const common::core::TabViewState> m_tab{};
+    std::shared_ptr<const common::core::ChartViewState> m_tab{};
 
     // Chart-editing overlay state (selection indices, marquee) pushed by the editor.
     core::ChartEditViewState m_edit{};
