@@ -240,6 +240,50 @@ namespace
         {
             return "ResolveToneImportPrompt";
         }
+        case EditorAction::Id::StepChartCaret:
+        {
+            return "StepChartCaret";
+        }
+        case EditorAction::Id::JumpChartCaret:
+        {
+            return "JumpChartCaret";
+        }
+        case EditorAction::Id::ExtendTimeSelection:
+        {
+            return "ExtendTimeSelection";
+        }
+        case EditorAction::Id::MoveSelection:
+        {
+            return "MoveSelection";
+        }
+        case EditorAction::Id::DeleteSelection:
+        {
+            return "DeleteSelection";
+        }
+        case EditorAction::Id::InsertAtCaret:
+        {
+            return "InsertAtCaret";
+        }
+        case EditorAction::Id::TypeChartFretDigit:
+        {
+            return "TypeChartFretDigit";
+        }
+        case EditorAction::Id::ShiftChartFrets:
+        {
+            return "ShiftChartFrets";
+        }
+        case EditorAction::Id::AdjustChartSustain:
+        {
+            return "AdjustChartSustain";
+        }
+        case EditorAction::Id::ToggleChartTechnique:
+        {
+            return "ToggleChartTechnique";
+        }
+        case EditorAction::Id::SetChartLeftTap:
+        {
+            return "SetChartLeftTap";
+        }
     }
 
     return "Unknown";
@@ -294,6 +338,17 @@ namespace
             case EditorAction::Id::ImportToneFile:
             case EditorAction::Id::ExportToneFile:
             case EditorAction::Id::ResolveToneImportPrompt:
+            case EditorAction::Id::StepChartCaret:
+            case EditorAction::Id::JumpChartCaret:
+            case EditorAction::Id::ExtendTimeSelection:
+            case EditorAction::Id::MoveSelection:
+            case EditorAction::Id::DeleteSelection:
+            case EditorAction::Id::InsertAtCaret:
+            case EditorAction::Id::TypeChartFretDigit:
+            case EditorAction::Id::ShiftChartFrets:
+            case EditorAction::Id::AdjustChartSustain:
+            case EditorAction::Id::ToggleChartTechnique:
+            case EditorAction::Id::SetChartLeftTap:
             {
                 return "input-calibration-prompt";
             }
@@ -392,6 +447,32 @@ namespace
         case EditorAction::Id::ResolveToneImportPrompt:
         {
             return "no-tone-import-prompt";
+        }
+        case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::JumpChartCaret:
+        case EditorAction::Id::ExtendTimeSelection:
+        {
+            return conditions.has_chart ? "transport-playing" : "no-chart";
+        }
+        case EditorAction::Id::MoveSelection:
+        case EditorAction::Id::DeleteSelection:
+        {
+            return "no-loaded-arrangement";
+        }
+        case EditorAction::Id::InsertAtCaret:
+        {
+            return conditions.has_loaded_arrangement ? "no-armed-caret" : "no-loaded-arrangement";
+        }
+        case EditorAction::Id::TypeChartFretDigit:
+        {
+            return "no-chart";
+        }
+        case EditorAction::Id::ShiftChartFrets:
+        case EditorAction::Id::AdjustChartSustain:
+        case EditorAction::Id::ToggleChartTechnique:
+        case EditorAction::Id::SetChartLeftTap:
+        {
+            return conditions.has_chart ? "no-chart-selection" : "no-chart";
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
@@ -895,53 +976,53 @@ void EditorController::onChartPointerExit()
 
 void EditorController::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
 {
-    m_impl->onChartCaretStepRequested(direction, measure);
+    m_impl->runAction(EditorAction::StepChartCaret{.direction = direction, .measure = measure});
 }
 
 void EditorController::onChartCaretJumpRequested(ChartCaretJump target)
 {
-    m_impl->onChartCaretJumpRequested(target);
+    m_impl->runAction(EditorAction::JumpChartCaret{.target = target});
 }
 
 void EditorController::onTimeSelectionExtendRequested(
     TimeSelectionExtent extent, ChartStepDirection direction)
 {
-    m_impl->onTimeSelectionExtendRequested(extent, direction);
+    m_impl->runAction(EditorAction::ExtendTimeSelection{.extent = extent, .direction = direction});
 }
 
 void EditorController::onSelectionMoveRequested(ChartStepDirection direction, bool fine)
 {
-    m_impl->onSelectionMoveRequested(direction, fine);
+    m_impl->runAction(EditorAction::MoveSelection{.direction = direction, .fine = fine});
 }
 
 void EditorController::onSelectionDeleteRequested()
 {
-    m_impl->onSelectionDeleteRequested();
+    m_impl->runAction(EditorAction::DeleteSelection{});
 }
 
 void EditorController::onChartFretDigitTyped(int digit)
 {
-    m_impl->onChartFretDigitTyped(digit);
+    m_impl->runAction(EditorAction::TypeChartFretDigit{.digit = digit});
 }
 
 void EditorController::onChartFretShiftRequested(int direction)
 {
-    m_impl->onChartFretShiftRequested(direction);
+    m_impl->runAction(EditorAction::ShiftChartFrets{.direction = direction});
 }
 
 void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
 {
-    m_impl->onChartSustainAdjustRequested(direction, fine);
+    m_impl->runAction(EditorAction::AdjustChartSustain{.direction = direction, .fine = fine});
 }
 
 void EditorController::onChartTechniqueToggleRequested(const ChartTechnique technique)
 {
-    m_impl->onChartTechniqueToggleRequested(technique);
+    m_impl->runAction(EditorAction::ToggleChartTechnique{.technique = technique});
 }
 
 void EditorController::onChartLeftTapRequested()
 {
-    m_impl->onChartLeftTapRequested();
+    m_impl->runAction(EditorAction::SetChartLeftTap{});
 }
 
 void EditorController::onChartEscapePressed()
@@ -1017,7 +1098,7 @@ void EditorController::onToneAutomationPointSelectRequested(
 
 void EditorController::onNeutralInsertRequested()
 {
-    m_impl->onNeutralInsertRequested();
+    m_impl->runAction(EditorAction::InsertAtCaret{});
 }
 
 void EditorController::onToneAutomationLaneCaretRequested(
@@ -1672,8 +1753,12 @@ void EditorController::Impl::runAction(EditorAction::Action action)
         // value. Deliberately BEFORE the availability gate: Undo on a valid pending value must
         // commit it and then undo it (the ruled behavior), which requires the commit to land
         // before undo availability is judged. Digits are refused while busy, so no entry can
-        // exist on the busy branch.
-        settleChartFretEntry();
+        // exist on the busy branch. The one exemption is the digit itself, which EXTENDS the
+        // entry rather than settling it; this is the whole site list, so no verb can miss it.
+        if (!std::holds_alternative<EditorAction::TypeChartFretDigit>(action))
+        {
+            settleChartFretEntry();
+        }
     }
 
     if (!prepareAction(action_id))
@@ -2113,7 +2198,18 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
         .has_plugin_insert_capacity = m_signal_chain.hasInsertCapacity(),
         .has_loaded_plugins = m_signal_chain.hasPlugins(),
+        .has_chart = hasLoadedChart(),
+        .transport_playing = transport_state.playing,
+        .has_chart_selection = !chartSelection().empty(),
+        .has_armed_caret = armedChartCaret() != nullptr,
     };
+}
+
+// Answers the "is there a chart to edit" question the chart verbs' availability reads.
+bool EditorController::Impl::hasLoadedChart() const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    return arrangement != nullptr && arrangement->chart.has_value();
 }
 
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final

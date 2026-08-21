@@ -92,7 +92,7 @@ Exemplars, each the *only* home of its rule:
 - `gridStepBeats` / `adjacentTempoGridPosition`
   (`editor/core/include/.../timeline/tempo_grid_geometry.h`) — the one keyboard grid-step
   primitive behind both the chart caret step and the automation-lane nudge.
-- `chartPlacementAt(...)` (`editor/core/src/controller/editor_controller.cpp`) — the single
+- `chartPlacementAt(...)` (`editor/core/src/chart/chart_handlers.cpp`) — the single
   chart placement seam: caret arm, Alt-insert, and the insert ghost share one snap + occupancy
   judgement, so the ghost can never preview a placement the click would refuse.
 - `setSelection(...)` (`editor_controller_impl.h`) — the one non-chart selection-assignment
@@ -176,7 +176,7 @@ and why are things the planner already knew, so carrying them costs no second pa
 predicate to keep in step. (Nothing displays them yet — the editor has no non-modal notice channel —
 and that is the point of the shape: the payload waits in the planner's return rather than being
 recomputed when the channel arrives.) Recurring: `planLanePointAtCaret` →
-`plantLanePoint` (`editor_controller.cpp`), and the game's `library_scan_plan.h` (a pure
+`plantLanePoint` (`tone_handlers.cpp`), and the game's `library_scan_plan.h` (a pure
 planner that diffs the cached index and returns a deterministic action list, no IO). Reach for
 it when a mutation needs undo, a truthful preview, or side-effect-free tests.
 
@@ -196,7 +196,7 @@ rather than clamping to a legal partial result — a fret shift at the cap, a mo
 a section jump with no section. *Navigation* is the deliberate exception: caret motion clamps
 and re-arms in place. The split keeps mutations predictable (nothing half-applies) while keys
 never feel dead. Exemplars: the "refuses the whole plan, never clamps" contracts in
-`chart_edits.h` and the refused-move comments across `editor_controller.cpp`.
+`chart_edits.h` and the refused-move comments across `chart_handlers.cpp`.
 
 ## Typed boundary errors {#patterns_typed_errors}
 
@@ -336,9 +336,10 @@ Rapid repeated input folds into one committed value and **one undo entry** inste
 The multi-digit fret entry does it with a PENDING model (the W3 design): the typed value is
 provisional, replanned in full on every keystroke, and nothing reaches the chart until the entry
 settles — a second digit, the millisecond window elapsing (`g_fret_entry_window_ms`,
-`editor_controller.cpp`), or any other action's settle prologue (`settleChartFretEntry`, called
-at the action gate, at `settleChartLegato`'s head, and at each direct chart verb head). One
-commit, one entry, no mid-entry mutation to reverse. The engine's plugin dirty tracking settles
+`chart_handlers.cpp`), or any other action's settle prologue (`settleChartFretEntry`, called
+at the `runAction` gate for every action but the digit itself, at `settleChartLegato`'s head,
+and at the pointer gestures' `armChartCaret` funnel). One commit, one entry, no mid-entry
+mutation to reverse. The engine's plugin dirty tracking settles
 state transactions behind a quiet debounce in the same spirit
 (`plugin_dirty_tracking.cpp`). Reach for the pending shape when a burst of inputs is
 one user gesture — the undo rule is one entry per gesture, not per event, and a value that has

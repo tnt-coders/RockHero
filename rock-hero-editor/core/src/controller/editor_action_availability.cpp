@@ -38,6 +38,18 @@ namespace
         case EditorAction::Id::ImportToneFile:
         case EditorAction::Id::ExportToneFile:
         case EditorAction::Id::ResolveToneImportPrompt:
+        // The chart verbs edit the project the calibration prompt is parked over.
+        case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::JumpChartCaret:
+        case EditorAction::Id::ExtendTimeSelection:
+        case EditorAction::Id::MoveSelection:
+        case EditorAction::Id::DeleteSelection:
+        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::TypeChartFretDigit:
+        case EditorAction::Id::ShiftChartFrets:
+        case EditorAction::Id::AdjustChartSustain:
+        case EditorAction::Id::ToggleChartTechnique:
+        case EditorAction::Id::SetChartLeftTap:
         {
             return true;
         }
@@ -124,6 +136,17 @@ namespace
             case EditorAction::Id::ImportToneFile:
             case EditorAction::Id::ExportToneFile:
             case EditorAction::Id::ResolveToneImportPrompt:
+            case EditorAction::Id::StepChartCaret:
+            case EditorAction::Id::JumpChartCaret:
+            case EditorAction::Id::ExtendTimeSelection:
+            case EditorAction::Id::MoveSelection:
+            case EditorAction::Id::DeleteSelection:
+            case EditorAction::Id::InsertAtCaret:
+            case EditorAction::Id::TypeChartFretDigit:
+            case EditorAction::Id::ShiftChartFrets:
+            case EditorAction::Id::AdjustChartSustain:
+            case EditorAction::Id::ToggleChartTechnique:
+            case EditorAction::Id::SetChartLeftTap:
             {
                 return false;
             }
@@ -243,6 +266,37 @@ namespace
         {
             return conditions.has_tone_import_prompt;
         }
+        // The caret moves are paused-only: arming requires a paused transport (armed implies
+        // paused is structural), and play clears the chart selection.
+        case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::JumpChartCaret:
+        case EditorAction::Id::ExtendTimeSelection:
+        {
+            return conditions.has_chart && !conditions.transport_playing;
+        }
+        // The editor-wide selection verbs dispatch on the selection's kind, lane points included,
+        // and the lane branches are reachable while playing; each verb reads its operand itself.
+        case EditorAction::Id::MoveSelection:
+        case EditorAction::Id::DeleteSelection:
+        {
+            return conditions.has_loaded_arrangement;
+        }
+        case EditorAction::Id::InsertAtCaret:
+        {
+            return conditions.has_loaded_arrangement && conditions.has_armed_caret;
+        }
+        // A digit inserts at an armed caret or retypes the selection; which, the verb decides.
+        case EditorAction::Id::TypeChartFretDigit:
+        {
+            return conditions.has_chart;
+        }
+        case EditorAction::Id::ShiftChartFrets:
+        case EditorAction::Id::AdjustChartSustain:
+        case EditorAction::Id::ToggleChartTechnique:
+        case EditorAction::Id::SetChartLeftTap:
+        {
+            return conditions.has_chart && conditions.has_chart_selection;
+        }
     }
 
     return false;
@@ -299,6 +353,17 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ImportToneFile:
         case EditorAction::Id::ExportToneFile:
         case EditorAction::Id::ResolveToneImportPrompt:
+        case EditorAction::Id::StepChartCaret:
+        case EditorAction::Id::JumpChartCaret:
+        case EditorAction::Id::ExtendTimeSelection:
+        case EditorAction::Id::MoveSelection:
+        case EditorAction::Id::DeleteSelection:
+        case EditorAction::Id::InsertAtCaret:
+        case EditorAction::Id::TypeChartFretDigit:
+        case EditorAction::Id::ShiftChartFrets:
+        case EditorAction::Id::AdjustChartSustain:
+        case EditorAction::Id::ToggleChartTechnique:
+        case EditorAction::Id::SetChartLeftTap:
         {
             return false;
         }

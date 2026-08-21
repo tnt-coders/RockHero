@@ -39,7 +39,7 @@ funnel because flattening a claim to a plain pick can violate no rule; see the p
 - Capture the before-state **before** mutating, and push exactly one entry per user gesture.
   Multi-digit fret typing is one gesture by construction: the typed value stays PENDING —
   nothing reaches the chart until the entry settles — so the whole number commits as one entry
-  with no splice (the W3 pending model; `settleChartFretEntry`, `editor_controller.cpp`).
+  with no splice (the W3 pending model; `settleChartFretEntry`, `chart_handlers.cpp`).
   A toggle whose second press provably reverses its own first press (the legato toggle window)
   applies the entry's inverse and removes it via `EditorUndoHistory::dropTop`, so the pair
   leaves no trace. Both splices refuse when the top entry is the reachable clean state — the file
@@ -48,7 +48,7 @@ funnel because flattening a claim to a plain pick can violate no rule; see the p
   toggle's reversal becomes its own inverse entry (the tail still comes back, the session stays
   correctly dirty), and the legato settle sweep pushes its flatten rather than folding it.
 - The **legato settle sweep** is the one edit that arrives with no user gesture of its own, so its
-  commit shape is decided by where the cursor sits (`settleChartLegato`, `editor_controller.cpp`):
+  commit shape is decided by where the cursor sits (`settleChartLegato`, `chart_handlers.cpp`):
   on top of history it FOLDS into the burst's own chart-notes entry via `replaceTop`, so one Ctrl+Z
   restores the edit and the claim it broke together; with no such entry it PUSHES its own (at
   top-of-stack a push truncates nothing); at a mid-stack resting point — reachable only through

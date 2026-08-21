@@ -179,6 +179,50 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ResolveToneImportPrompt;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::StepChartCaret>)
+    {
+        return EditorAction::Id::StepChartCaret;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::JumpChartCaret>)
+    {
+        return EditorAction::Id::JumpChartCaret;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ExtendTimeSelection>)
+    {
+        return EditorAction::Id::ExtendTimeSelection;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::MoveSelection>)
+    {
+        return EditorAction::Id::MoveSelection;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::DeleteSelection>)
+    {
+        return EditorAction::Id::DeleteSelection;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::InsertAtCaret>)
+    {
+        return EditorAction::Id::InsertAtCaret;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::TypeChartFretDigit>)
+    {
+        return EditorAction::Id::TypeChartFretDigit;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ShiftChartFrets>)
+    {
+        return EditorAction::Id::ShiftChartFrets;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::AdjustChartSustain>)
+    {
+        return EditorAction::Id::AdjustChartSustain;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ToggleChartTechnique>)
+    {
+        return EditorAction::Id::ToggleChartTechnique;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SetChartLeftTap>)
+    {
+        return EditorAction::Id::SetChartLeftTap;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

@@ -12,6 +12,8 @@
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/editor/core/chart/chart_pointer.h>
+#include <rock_hero/editor/core/chart/chart_technique.h>
 #include <rock_hero/editor/core/controller/editor_action_id.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
@@ -591,6 +593,91 @@ struct EditorAction
         ToneImportDecision decision;
     };
 
+    /*! \brief Step the chart caret one grid line, string, or measure (the arrow keys). */
+    struct StepChartCaret
+    {
+        /*! \brief Which way the caret steps. */
+        ChartStepDirection direction{};
+
+        /*! \brief True to jump a measure instead of one grid step. */
+        bool measure{};
+    };
+
+    /*! \brief Leap the chart caret to a derived musical position (Home/End, PageUp/Down). */
+    struct JumpChartCaret
+    {
+        /*! \brief The destination family. */
+        ChartCaretJump target{};
+    };
+
+    /*! \brief Extend or create the grid-locked time selection by one unit (Shift+arrows). */
+    struct ExtendTimeSelection
+    {
+        /*! \brief The unit the focus edge moves by. */
+        TimeSelectionExtent extent{};
+
+        /*! \brief Left for earlier, Right for later. */
+        ChartStepDirection direction{};
+    };
+
+    /*!
+    \brief Nudge the editor-wide selection one step (Alt+arrows) on whichever surface holds it.
+    */
+    struct MoveSelection
+    {
+        /*! \brief Which way the selection moves. */
+        ChartStepDirection direction{};
+
+        /*! \brief True for the 1/960-beat (or 0.001 value) precision tier. */
+        bool fine{};
+    };
+
+    /*! \brief Delete the editor-wide selection, whatever its kind. */
+    struct DeleteSelection
+    {
+    };
+
+    /*! \brief The Insert key's neutral create at an armed empty caret slot. */
+    struct InsertAtCaret
+    {
+    };
+
+    /*! \brief Type one digit into the chart's fret entry. */
+    struct TypeChartFretDigit
+    {
+        /*! \brief The digit typed, 0 to 9. */
+        int digit{};
+    };
+
+    /*! \brief Shift every selected note's fret by one, shape-preserving. */
+    struct ShiftChartFrets
+    {
+        /*! \brief +1 up the neck, -1 down. */
+        int direction{};
+    };
+
+    /*! \brief Grow or shrink the selection's sustains by one grid or fine step. */
+    struct AdjustChartSustain
+    {
+        /*! \brief +1 to grow, -1 to shrink. */
+        int direction{};
+
+        /*! \brief True for the 1/960-beat fine step. */
+        bool fine{};
+    };
+
+    /*! \brief Set or clear one technique across the chart selection. */
+    struct ToggleChartTechnique
+    {
+        /*! \brief The technique to toggle. */
+        ChartTechnique technique{};
+    };
+
+    /*! \brief Set the chart selection to the left-hand tap attack. */
+    struct SetChartLeftTap
+    {
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
 
@@ -615,7 +702,9 @@ struct EditorAction
         InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
         SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
-        ResolveToneImportPrompt>;
+        ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
+        DeleteSelection, InsertAtCaret, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
+        ToggleChartTechnique, SetChartLeftTap>;
 };
 
 /*!

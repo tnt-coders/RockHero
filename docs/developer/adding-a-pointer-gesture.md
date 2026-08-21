@@ -34,8 +34,8 @@ override. Everything else is Part B.
    `ToneAutomationPointerModifiers` (`.../tone/tone_automation_pointer.h`) — and check the
    meaning against the one-meaning-per-modifier law before binding it.
 2. **Phase handlers.** Dispatch inside the surface's `on...PointerDown/Drag/Up/Move/Exit`
-   handlers in `editor_controller.cpp`. Down re-resolves the hit and arms the gesture; Move
-   drives affordances only. The Doxygen on `i_editor_controller.h`'s pointer methods is the
+   handlers in the surface's `*_handlers.cpp` (`chart_handlers.cpp`, `tone_handlers.cpp`). Down
+   re-resolves the hit and arms the gesture; Move drives affordances only. The Doxygen on `i_editor_controller.h`'s pointer methods is the
    policy contract — update it with the new behavior.
 3. **Freeze at Down.** A drag verb needs a frozen-at-press struct (`ChartPointerGesture`,
    `ToneAutomationDrag` in `editor_controller_impl.h`): capture the model rows/points and the

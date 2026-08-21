@@ -142,6 +142,41 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Resolve the tone-import automation-drop confirmation. */
     ResolveToneImportPrompt,
+
+    /*! \brief Step the chart caret one grid line, string, or measure (the arrow keys). */
+    StepChartCaret,
+
+    /*! \brief Leap the chart caret to a derived musical position (Home/End, PageUp/Down). */
+    JumpChartCaret,
+
+    /*! \brief Extend or create the grid-locked time selection by one unit (Shift+arrows). */
+    ExtendTimeSelection,
+
+    /*!
+    \brief Nudge the editor-wide selection one step (Alt+arrows) on whichever surface holds it.
+    */
+    MoveSelection,
+
+    /*! \brief Delete the editor-wide selection, whatever its kind. */
+    DeleteSelection,
+
+    /*! \brief The Insert key's neutral create at an armed empty caret slot. */
+    InsertAtCaret,
+
+    /*! \brief Type one digit into the chart's fret entry. */
+    TypeChartFretDigit,
+
+    /*! \brief Shift every selected note's fret by one, shape-preserving. */
+    ShiftChartFrets,
+
+    /*! \brief Grow or shrink the selection's sustains by one grid or fine step. */
+    AdjustChartSustain,
+
+    /*! \brief Set or clear one technique across the chart selection. */
+    ToggleChartTechnique,
+
+    /*! \brief Set the chart selection to the left-hand tap attack. */
+    SetChartLeftTap,
 };
 
 } // namespace rock_hero::editor::core

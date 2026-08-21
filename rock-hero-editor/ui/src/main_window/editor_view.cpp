@@ -226,6 +226,17 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::ImportToneFile:
             case core::EditorActionId::ExportToneFile:
             case core::EditorActionId::ResolveToneImportPrompt:
+            case core::EditorActionId::StepChartCaret:
+            case core::EditorActionId::JumpChartCaret:
+            case core::EditorActionId::ExtendTimeSelection:
+            case core::EditorActionId::MoveSelection:
+            case core::EditorActionId::DeleteSelection:
+            case core::EditorActionId::InsertAtCaret:
+            case core::EditorActionId::TypeChartFretDigit:
+            case core::EditorActionId::ShiftChartFrets:
+            case core::EditorActionId::AdjustChartSustain:
+            case core::EditorActionId::ToggleChartTechnique:
+            case core::EditorActionId::SetChartLeftTap:
             {
                 return "Save your tone before continuing?";
             }
@@ -290,6 +301,17 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::ImportToneFile:
         case core::EditorActionId::ExportToneFile:
         case core::EditorActionId::ResolveToneImportPrompt:
+        case core::EditorActionId::StepChartCaret:
+        case core::EditorActionId::JumpChartCaret:
+        case core::EditorActionId::ExtendTimeSelection:
+        case core::EditorActionId::MoveSelection:
+        case core::EditorActionId::DeleteSelection:
+        case core::EditorActionId::InsertAtCaret:
+        case core::EditorActionId::TypeChartFretDigit:
+        case core::EditorActionId::ShiftChartFrets:
+        case core::EditorActionId::AdjustChartSustain:
+        case core::EditorActionId::ToggleChartTechnique:
+        case core::EditorActionId::SetChartLeftTap:
         {
             return "Save changes before continuing?";
         }

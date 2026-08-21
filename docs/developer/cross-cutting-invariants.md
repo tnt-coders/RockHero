@@ -38,8 +38,8 @@ exactly one undo entry. Edits that recreate plugins must report it via
 **Copy dispatched state by value before a re-entrant dispatch.** *(Editor-only.)* A controller
 intent that reads the live selection or marker variant and then runs an action dispatch must
 copy the alternative it read **by value** first — the dispatch can replace the very variant the
-reference borrowed from, leaving it dangling mid-call (`onSelectionMoveRequested` and its
-siblings in `editor_controller.cpp` are the exemplars). Generally: never pass a reference into
+reference borrowed from, leaving it dangling mid-call (`EditorAction::MoveSelection` and its
+siblings in `chart_handlers.cpp` are the exemplars). Generally: never pass a reference into
 variant-held state across a call that may reassign the variant.
 
 **A render memo must key every input.** *(Editor-only.)* Vblank-cadence derivations that

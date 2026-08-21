@@ -130,8 +130,15 @@ shapes, plus the unshifted `=` convenience alias) — see the key-shape note und
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
 Alt+Shift+arrows, digits, Delete, Insert, and Esc are registered commands like everything
-else, but they are not editor *actions*. Their `perform` cases route to dedicated controller
-intents —
+else. Their `perform` cases route to dedicated controller intents, and since 2026-08-21 every
+one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
+`JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
+`TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
+`SetChartLeftTap`) — so path (b) is path (a) with a different trigger: the availability policy
+owns the busy gate, the chart/transport/selection preconditions, and the logging, and
+`runAction`'s prologue settles the pending fret entry for all of them (the digit alone is exempt,
+since it extends the entry). What stays per-verb is reading its own operand. Esc remains a direct
+ladder because its first rung is the invalid pending value itself. The intents —
 `onChartCaretStepRequested`, `onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
 PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
 `onTimeSelectionExtendRequested` (Shift+ the same navigation family: grid, measure, section,

@@ -74,6 +74,18 @@ struct ActionConditions
 
     /*! \brief True when the live rig has loaded plugin instances. */
     bool has_loaded_plugins{false};
+
+    /*! \brief True when the current arrangement carries a chart. */
+    bool has_chart{false};
+
+    /*! \brief True while the transport plays; the chart caret verbs are paused-only. */
+    bool transport_playing{false};
+
+    /*! \brief True when the editor-wide selection holds chart notes. */
+    bool has_chart_selection{false};
+
+    /*! \brief True when the chart caret is armed on some slot, string or lane. */
+    bool has_armed_caret{false};
 };
 
 /*!

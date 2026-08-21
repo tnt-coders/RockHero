@@ -880,14 +880,12 @@ void EditorController::Impl::stepCaretRow(const ChartCaret& caret, bool up, int 
 // modifier (the Guitar Pro jump) — and Up/Down move across strings. Every move re-derives
 // the selection from what sits under the caret. Inert while playing: arming requires a
 // paused transport (armed ⟹ paused is structural).
-void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
+void EditorController::Impl::performActionImpl(const EditorAction::StepChartCaret& action)
 {
-    // The pending fret entry settles first (the uniform prologue): stepping away from a typed
-    // value commits it, so "1, arrow, 2" authors 1 then 2, never 12 — the old model's
-    // dissolved-caret widen bug is unrepresentable here.
-    settleChartFretEntry();
+    const ChartStepDirection direction = action.direction;
+    const bool measure = action.measure;
     const common::core::TabViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || isBusy() || m_transport.state().playing)
+    if (tab == nullptr || tab->string_count <= 0)
     {
         return;
     }
@@ -961,10 +959,11 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
 // armed caret yet the jump measures from the paused cursor and lands on the remembered string. A
 // section jump with no section in that direction is refused, not clamped, in line with every other
 // refused move. Inert while playing — arming requires a paused transport.
-void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
+void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCaret& action)
 {
+    const ChartCaretJump target = action.target;
     const common::core::TabViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || isBusy() || m_transport.state().playing)
+    if (tab == nullptr || tab->string_count <= 0)
     {
         return;
     }
@@ -1040,11 +1039,12 @@ void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
 // B). A Grid or Section extend with nothing further that way refuses (the focus stays), and a
 // refused first press creates no range. Inert while playing; Up/Down are ignored (the span is
 // full-height).
-void EditorController::Impl::onTimeSelectionExtendRequested(
-    TimeSelectionExtent extent, ChartStepDirection direction)
+void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSelection& action)
 {
+    const TimeSelectionExtent extent = action.extent;
+    const ChartStepDirection direction = action.direction;
     const common::core::TabViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || isBusy() || m_transport.state().playing)
+    if (tab == nullptr || tab->string_count <= 0)
     {
         return;
     }
@@ -1139,12 +1139,10 @@ void EditorController::Impl::onTimeSelectionExtendRequested(
 // dispatches on its kind exactly like the Delete dispatch. With no selection at all, an armed
 // caret on an empty lane slot turns the arrow into create-then-nudge (grab the curve and pull
 // in one keystroke); every other combination is a silent no-op.
-void EditorController::Impl::onSelectionMoveRequested(ChartStepDirection direction, bool fine)
+void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection& action)
 {
-    if (isBusy())
-    {
-        return;
-    }
+    const ChartStepDirection direction = action.direction;
+    const bool fine = action.fine;
     // The handlers below run full action dispatches that may reassign the selection variant or
     // the marker; the dispatched value is copied here so no handler ever holds a reference into
     // the object it (or a reentrant view callback) might replace. The lane branches are
@@ -1177,8 +1175,6 @@ void EditorController::Impl::onSelectionMoveRequested(ChartStepDirection directi
 // selection stays put, matching refuse-not-clamp everywhere else.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bool fine)
 {
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
@@ -1239,11 +1235,8 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bo
 // Deletes the selected notes as one compound undo entry; the selection empties with them.
 void EditorController::Impl::deleteChartSelection()
 {
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty())
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
         return;
     }
@@ -1256,12 +1249,8 @@ void EditorController::Impl::deleteChartSelection()
 // slot — a fret-0 note on a string row, an on-curve point on a lane row — and nothing else ever
 // happens: occupied slots, selections, and the passive state are no-ops, so Insert never mutates
 // existing objects.
-void EditorController::Impl::onNeutralInsertRequested()
+void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret&)
 {
-    if (isBusy())
-    {
-        return;
-    }
     const ChartCaret* const caret = armedChartCaret();
     if (caret == nullptr)
     {
@@ -1276,19 +1265,16 @@ void EditorController::Impl::onNeutralInsertRequested()
         return;
     }
 
-    // String row. The pending fret entry settles FIRST, because it may plant the very slot this
-    // verb would — in which case the typed value IS the insert and this press has nothing left to
-    // do. Only an armed EMPTY slot inserts, asked of the chart after the settle rather than of the
-    // selection before it. Then the keyboard form of the same verb Alt+click performs, through the
-    // same planting function.
-    settleChartFretEntry();
-    const ChartCaret* const settled = armedChartCaret();
-    if (settled == nullptr || settled->lane.has_value() ||
-        chartSlotOccupied(settled->position, settled->string))
+    // String row. The action gate's prologue has already settled the pending fret entry, which
+    // may have planted the very slot this verb would — in which case the typed value IS the insert
+    // and this press has nothing left to do. So only an armed EMPTY slot inserts, asked of the
+    // chart now rather than of the selection before the settle. Then the keyboard form of the same
+    // verb Alt+click performs, through the same planting function.
+    if (chartSlotOccupied(caret->position, caret->string))
     {
         return;
     }
-    const ChartCaret armed = *settled;
+    const ChartCaret armed = *caret;
     insertChartNoteAt(armed.position, armed.string, 0);
 }
 
@@ -1296,12 +1282,8 @@ void EditorController::Impl::onNeutralInsertRequested()
 // whatever kind it holds. This is dispatch on the variant's alternative, not the retired
 // automation-point → chart → tone-region precedence ladder — once two live selections became
 // unrepresentable, there is nothing to disambiguate.
-void EditorController::Impl::onSelectionDeleteRequested()
+void EditorController::Impl::performActionImpl(const EditorAction::DeleteSelection&)
 {
-    if (isBusy())
-    {
-        return;
-    }
     // Copied for the same aliasing reason as the move dispatch: the delete replays a points
     // edit through a full action dispatch, which must never read back through the variant.
     if (const AutomationPointSelection* const point = selectedAutomationPoint())
@@ -1327,11 +1309,10 @@ void EditorController::Impl::onSelectionDeleteRequested()
 // settle prologue). A first digit no second digit could extend within the fret cap needs no
 // window and settles in the same keystroke, so only a leading 1 or 2 waits at the 24-fret cap.
 // The flows live in their own helpers below; this dispatcher only orders them.
-void EditorController::Impl::onChartFretDigitTyped(int digit)
+void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFretDigit& action)
 {
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() || digit < 0 ||
-        digit > 9)
+    const int digit = action.digit;
+    if (digit < 0 || digit > 9)
     {
         return;
     }
@@ -1579,13 +1560,11 @@ std::vector<common::core::ChartNote> EditorController::Impl::chartNotesForKeys(
 // Shifts every selected note's fret by one (Alt+Shift+wheel), shape-preserving by
 // construction; a shift pushing the lowest fret below zero or the highest past the cap is
 // refused by the planner, never clamped.
-void EditorController::Impl::onChartFretShiftRequested(int direction)
+void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFrets& action)
 {
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
+    const int direction = action.direction;
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty() || direction == 0)
+    if (arrangement == nullptr || !arrangement->chart.has_value() || direction == 0)
     {
         return;
     }
@@ -1609,13 +1588,13 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
 // Grows or shrinks the selection's sustains by one grid step — or one 1/960-beat fine step,
 // the uniform Ctrl precision tier on the extent verbs — as one compound undo entry; growth
 // clamps to the minimum-sustain-distance margin before the next onset on any string.
-void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool fine)
+void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSustain& action)
 {
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
+    const int direction = action.direction;
+    const bool fine = action.fine;
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty() || direction == 0)
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty() ||
+        direction == 0)
     {
         return;
     }
@@ -1720,13 +1699,11 @@ bool EditorController::Impl::reverseTechniqueToggleWindow(const ChartTechnique t
 // an accent overwrote, neither of which the plain apply-or-clear law could put back. Every
 // technique is one row of chartTechniqueLaw; the legato claim shares the window and the contract
 // but plans through the resolver, so it branches to its own law once the shared prologue has run.
-void EditorController::Impl::onChartTechniqueToggleRequested(const ChartTechnique technique)
+void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTechnique& action)
 {
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
+    const ChartTechnique technique = action.technique;
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty())
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
         return;
     }
@@ -1825,13 +1802,10 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartNoteKey>& 
 // the rule authority, so the open string with no node (E4's boundary) is skipped, a pinch's
 // bridge-side graze refuses to re-hand, and a tap harmonic's strike point carries into the form E13
 // names.
-void EditorController::Impl::onChartLeftTapRequested()
+void EditorController::Impl::performActionImpl(const EditorAction::SetChartLeftTap&)
 {
-    // The pending fret entry settles first (the uniform prologue).
-    settleChartFretEntry();
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty())
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
         return;
     }

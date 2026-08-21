@@ -153,27 +153,27 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerUp(const ChartPointerEvent& event);
     void onChartPointerMove(const ChartPointerEvent& event);
     void onChartPointerExit();
-    void onChartCaretStepRequested(ChartStepDirection direction, bool measure);
+    void performActionImpl(const EditorAction::StepChartCaret& action);
     // Caret leap to a derived musical position (Home/End, PageUp/Down): resolves an absolute or
     // section-relative destination from the tempo map and song sections and arms the caret there,
     // keeping its row. Refuses (stays put) when a section jump has no section in that direction.
-    void onChartCaretJumpRequested(ChartCaretJump target);
+    void performActionImpl(const EditorAction::JumpChartCaret& action);
     // Extends/creates the grid-locked time selection by one unit (Shift+arrows): moves the range's
     // focus edge one `extent` in `direction` (or anchors on the marker and extends on the first
     // press), dissolving any object selection and demoting the marker to passive. Reuses the shared
     // caret navigation destinations so the range edge and the caret never drift on the same motion.
-    void onTimeSelectionExtendRequested(TimeSelectionExtent extent, ChartStepDirection direction);
+    void performActionImpl(const EditorAction::ExtendTimeSelection& action);
     // The one selection-move intent (Alt+arrows): dispatches on the editor-wide selection's
     // kind — automation point, chart notes — and falls back to create-then-nudge at an armed
     // empty lane caret slot. `fine` selects the 1/960-beat tier on the time axis (and the
     // 0.001 value tier on lanes) — the uniform precision escape hatch, both surfaces.
-    void onSelectionMoveRequested(ChartStepDirection direction, bool fine);
+    void performActionImpl(const EditorAction::MoveSelection& action);
     void moveChartSelection(ChartStepDirection direction, bool fine);
     // The chart branch of the unified Delete dispatch (Impl-private since the per-surface
     // public intent retired with the precedence ladder).
     void deleteChartSelection();
-    void onSelectionDeleteRequested();
-    void onChartFretDigitTyped(int digit);
+    void performActionImpl(const EditorAction::DeleteSelection& action);
+    void performActionImpl(const EditorAction::TypeChartFretDigit& action);
     // Defined with its state below; forward-declared so armChartFretEntry can take it by value.
     struct ChartFretEntry;
     // The typing rule's three flows, split from the digit dispatcher: combining into the pending
@@ -202,10 +202,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The full note values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
         const std::vector<ChartNoteKey>& keys) const;
-    void onChartFretShiftRequested(int direction);
-    void onChartSustainAdjustRequested(int direction, bool fine);
-    void onChartTechniqueToggleRequested(ChartTechnique technique);
-    void onChartLeftTapRequested();
+    void performActionImpl(const EditorAction::ShiftChartFrets& action);
+    void performActionImpl(const EditorAction::AdjustChartSustain& action);
+    void performActionImpl(const EditorAction::ToggleChartTechnique& action);
+    void performActionImpl(const EditorAction::SetChartLeftTap& action);
     // The body both mute verbs share, so the uniform-scope law and the toggle window are written
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.
@@ -649,6 +649,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             }));
     }
     [[nodiscard]] bool hasLoadedArrangement() const;
+    [[nodiscard]] bool hasLoadedChart() const;
     [[nodiscard]] bool shouldShowLiveRigLoadProgress() const;
     [[nodiscard]] bool hasUnsavedChanges() const noexcept;
     [[nodiscard]] bool canStopTransport(const common::audio::TransportState& transport_state) const;
@@ -975,7 +976,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The Insert key's neutral create: a fret-0 note at an armed empty string slot, an
     // on-curve point at an armed empty lane slot; a no-op on occupied slots, with a selection,
     // or while passive — Insert never mutates existing objects.
-    void onNeutralInsertRequested();
+    void performActionImpl(const EditorAction::InsertAtCaret& action);
 
     // Inserts an on-curve point at an armed lane caret's slot (the Insert dispatch for lane
     // rows); a no-op when a point already sits there.

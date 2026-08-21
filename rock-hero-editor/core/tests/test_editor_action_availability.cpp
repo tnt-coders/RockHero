@@ -248,4 +248,58 @@ TEST_CASE("Faulted session blocks editing and saving", "[core][editor-action]")
     CHECK_FALSE(isActionAvailable(ActionId::ResolveUnsavedChangesPrompt, conditions));
 }
 
+// The chart verbs run through the one action gate (2026-08-21), so their preconditions are rows
+// of this policy rather than guards copied into each verb: busy refuses them all, the caret moves
+// are paused-only, the selection verbs need chart notes selected, the Insert key an armed caret.
+TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][editor-action]")
+{
+    ActionConditions conditions{.has_project = true, .has_loaded_arrangement = true};
+
+    // No chart: nothing chart-shaped is available, but the editor-wide selection verbs are.
+    CHECK_FALSE(isActionAvailable(ActionId::StepChartCaret, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::JumpChartCaret, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
+    CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertAtCaret, conditions));
+
+    conditions.has_chart = true;
+
+    CHECK(isActionAvailable(ActionId::StepChartCaret, conditions));
+    CHECK(isActionAvailable(ActionId::JumpChartCaret, conditions));
+    CHECK(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
+    CHECK(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
+    // The selection verbs wait for a chart selection.
+    CHECK_FALSE(isActionAvailable(ActionId::ShiftChartFrets, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::AdjustChartSustain, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetChartLeftTap, conditions));
+
+    conditions.has_chart_selection = true;
+    CHECK(isActionAvailable(ActionId::ShiftChartFrets, conditions));
+    CHECK(isActionAvailable(ActionId::AdjustChartSustain, conditions));
+    CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK(isActionAvailable(ActionId::SetChartLeftTap, conditions));
+
+    conditions.has_armed_caret = true;
+    CHECK(isActionAvailable(ActionId::InsertAtCaret, conditions));
+
+    // The caret moves are paused-only; the edits on a selection are not gated on the transport
+    // because play clears the chart selection structurally.
+    conditions.transport_playing = true;
+    CHECK_FALSE(isActionAvailable(ActionId::StepChartCaret, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::JumpChartCaret, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
+    CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+
+    // Busy refuses every chart verb, and none of them takes over a busy operation.
+    conditions.busy = true;
+    CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartTechnique));
+}
+
 } // namespace rock_hero::editor::core
