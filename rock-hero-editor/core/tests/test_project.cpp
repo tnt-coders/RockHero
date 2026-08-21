@@ -239,11 +239,12 @@ void writeMinimalProjectPackage(const std::filesystem::path& path)
 // pick. The audio asset already holds exactly the normalization the test analyzer produces, so
 // nothing in the audio half of the load can convert anything and the conversion flag isolates the
 // chart's own settle.
-void writeChartedProjectPackage(const std::filesystem::path& path, const std::string& attack)
+// `note_properties` is appended verbatim inside the one note's object, after its fret.
+void writeChartedProjectPackage(
+    const std::filesystem::path& path, const std::string& note_properties)
 {
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
-    const std::string attack_property =
-        attack.empty() ? std::string{} : R"(, "attack": ")" + attack + '"';
+    const std::string attack_property = note_properties;
     writeArchive(
         path,
         std::vector{
@@ -520,7 +521,7 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
 
     SECTION("a claim nothing justifies loads as a plain pick and opens dirty")
     {
-        writeChartedProjectPackage(path, "legato");
+        writeChartedProjectPackage(path, R"(, "attack": "legato")");
 
         Project project;
         FakeAnalyzeAudio fake_analyze;
@@ -552,6 +553,37 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
         // makes the flag above attributable to the chart alone.
         CHECK(fake_analyze.invocations.size() == 1);
         CHECK_FALSE(project.songConvertedOnLoad());
+        CHECK(project.loadConversions().empty());
+    }
+
+    SECTION("a chart written under older rules is normalized, and the project carries the report")
+    {
+        // A dead note with a plain tail was legal before E25 shipped (2026-08-20). The load trims
+        // it instead of refusing the project, and what it trimmed travels with the Project so the
+        // controller can show it once at open — the report IS the repair's honesty.
+        writeChartedProjectPackage(path, R"(, "sustain": "1", "dead": true)");
+
+        Project project;
+        FakeAnalyzeAudio fake_analyze;
+        const auto result = project.load(path, {}, fake_analyze.function());
+
+        REQUIRE(result.has_value());
+        REQUIRE(result->arrangements.size() == 1);
+        REQUIRE(result->arrangements.front().chart.has_value());
+        if (result->arrangements.front().chart.has_value())
+        {
+            const common::core::Chart& chart = *result->arrangements.front().chart;
+            REQUIRE(chart.notes.size() == 1);
+            CHECK(chart.notes.front().dead);
+            CHECK(chart.notes.front().sustain == common::core::Fraction{});
+        }
+        CHECK(project.songConvertedOnLoad());
+        REQUIRE(project.loadConversions().size() == 1);
+        CHECK(project.loadConversions().front().arrangement == 0);
+        CHECK(
+            project.loadConversions().front().conversion.repair ==
+            common::core::ChartRepair::MutedTail);
+        CHECK(project.loadConversions().front().conversion.where == "1:2 string 1");
     }
 }
 

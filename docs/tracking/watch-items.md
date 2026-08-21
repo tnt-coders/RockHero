@@ -278,23 +278,6 @@ imported `chart.shapes`. **Trigger**: §5's slice 3 builds member-tail adjustmen
 learns the same span-sibling exemption, since §5 says member tails may legally ring past
 sibling onsets inside a shared span.
 
-### A muted-tail trim would flatten legato claims corpus-wide — trigger: W4/E25 builds the trim
-
-Recorded by the legato ruling of 2026-08-11 (`docs/plans/in-progress/legato-final-spec.md`,
-sequencing note). Today a fully muted note's tail counts at its stored length for the connection
-hold test, so a claim depending on such a tail resolves and stands. W4/E25's signed-but-unbuilt
-rule trims muted tails; the moment that lands, every dependent claim in the corpus stops resolving
-and the load-time settle sweep flattens them all on open. (Briefly retired on 2026-08-20 under
-E26, which would have made a dead predecessor justify nothing at any gap; E26 was reversed the same
-day and the bound re-affirmed as the rule, so the knock-on is live — see walkthrough W14.)
-**Trigger**: W4/E25's muted-tail trim is implemented. **Remedy, RULED 2026-08-20** (superseding the
-original "run the trim as an editor plan operation", which the load-normalizes-never-refuses policy
-rules out): the W4 build reports the flattened claims in the same one-shot open-time notice as the
-trims, each with positions; the session opens dirty; the file is untouched until the user saves.
-Nothing is silent, and "reversible" is answered by the untouched file rather than by undo. Retire
-this item in the W4 change set. Design: `docs/plans/in-progress/e25-muted-tail-implementation.md`
-§6.5 and §6.7.
-
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong
@@ -540,6 +523,21 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ---
 
 ## Retired
+
+### ~~A muted-tail trim would flatten legato claims corpus-wide~~ — RETIRED 2026-08-20
+
+**Trigger FIRED: W4/E25 shipped, with the ruled remedy.** Recorded by the legato ruling of
+2026-08-11: a fully muted note's tail counted at its stored length for the connection hold test, so
+the muted-tail trim would break every dependent claim corpus-wide, silently, on open. The remedy as
+first recorded — run the trim as an editor plan operation so the flatten rode its undo entry — was
+superseded by the load policy ruled 2026-08-20 (load normalizes and never refuses, so the trim had
+to live in the normalizer), and the knock-on is handled the way that policy prescribes:
+`normalizeChart` runs the settle sweep as its LAST stage over the trimmed stream, every flattened
+claim is reported beside every trimmed tail in the one-shot open notice with its position, the
+session opens dirty, and the file is untouched until the user saves. Nothing is silent, which was
+this item's real complaint; "reversible" is answered by the untouched file rather than by undo.
+Pinned by the normalizer's own test ("the whole chart normalizes in one call, with the settle
+sweep last"). Design: `docs/plans/in-progress/e25-muted-tail-implementation.md` §6.5 and §6.7.
 
 ### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
 

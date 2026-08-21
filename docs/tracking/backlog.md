@@ -135,16 +135,13 @@ rest, each verified against the code, each a fix rather than a question unless m
   attack token is a read error — so every package written before that date now fails to load for this
   reason too, whether or not it carried a harmonic. Same remedy, same tripwire; warn the user before
   they open an old project.
-  **Four rule tightenings widened it again (2026-08-20)** — these refuse at `validateChartRules`,
-  so an affected project fails to OPEN (editor and game alike): the fret cap fell from 30 to 24
-  (any note, waypoint, exit, template, or FHP window the old importer clamped to 25–30, and FHP
-  windows generated near the old cap); an open string can neither depart nor arrive a slide
-  (imported legato glides from/to an open string); and every fret a slide gesture names now sits
-  at or above `capo + 1` (an imported scrape under capo ≥ 3 whose default terminal sat at fret 3,
-  any turnaround or exit on a capo'd fret). Same remedy — re-import from the GP source, which the
-  importer now produces in valid form. The durable fix is W4's load normalization with the Q2
-  amendment recorded in `e25-muted-tail-implementation.md` §6.6, after which a rule change can
-  repair-and-warn at load instead of refusing.
+  **Four rule tightenings briefly widened it again on 2026-08-20, and W4 closed that class the
+  same day:** the fret cap (30 → 24), the open-string slide rules, the `capo + 1` slide floors,
+  and E25's muted tail are all REPAIRS of the one normalizer now, so a project saved under the
+  older rules opens, is repaired, reports what changed and where in a one-shot notice, and opens
+  dirty — it no longer refuses. Only the two token-level breaks above (old harmonic keys, old
+  attack tokens) still refuse, because a reader cannot repair a key it does not recognize without
+  guessing; those keep their re-import remedy and their tripwire.
   **The converter's own conversion notes need re-verifying before you trust them** (2026-08-10): the
   two recorded here — every natural harmonic gains a node equal to its touched fret (1960 of them in
   the packages measured), and pinch harmonics import as plain picks (5 notes corpus-wide, so a
@@ -308,9 +305,10 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   follow-up notes the same gap; this is the doing-entry.)
 - ~~CONFIRMED: `slide_state_at` returns no slide state when `note.fret <= 0` and the rules do
   not refuse open-string slides~~ — **rules half FIXED 2026-08-20** (user rule: an open string
-  cannot slide — nothing is pressed to travel): `validateChartNoteAlone` refuses a fret-0 glide
-  or trail-off and `executableChartNote` sheds the path, scrapes excluded pending W9-J, so the
-  form `slide_state_at` ignores can no longer exist in a valid chart. Still open from the same
+  cannot slide — nothing is pressed to travel): the normalizer (`normalizeChartNote`) drops a
+  fret-0 glide or trail-off and the validator asks that fixpoint — a scrape's start lifts above
+  the capo instead (W9-J) — so the form `slide_state_at` ignores can no longer exist in a valid
+  chart. Still open from the same
   entry: every dev-session hot reload calls `camera.reset()`, so each save snaps the camera.
 
 ### Editor UI

@@ -79,10 +79,10 @@ conversion. This section is deliberately written as numbered rules so a behavior
 made by editing a rule here and re-aligning the code
 (`gp_chart_builder.cpp` — `normalizeImportedSustains`, `generateFretHandPositions`,
 `resolveSlideIns` (rule 16's scoops), and `resolveSlideOutExits` (rule 9's trail-off rides and
-rule 13's exit fret), closing with the shared `executableChartNote` shed and
-`sweepUnjustifiedLegato` (rule 26), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
-only: `.rock` imports and editor-authored charts are never rewritten beyond the settle sweep every
-load path runs.
+rule 13's exit fret), closing with the one chart normalizer `normalizeChart` (rule 26), all covered
+by `test_gp_song_importer.cpp`). Rules 1–25 apply to GP import only; rule 26 is the normalizer
+every load path runs — `.rock` imports and saved projects go through exactly the same function, so
+a chart written under older rules is repaired and reported rather than refused.
 
 **Sustain policy** (GP notates every note at its full duration; a chart only shows deliberate
 sustains):
@@ -480,19 +480,26 @@ differently):
     dropped (the lane does not exist); a fret past the last one, once shifted by the capo, is
     pulled back to `g_max_fret`; a track declaring more than eight courses loses the extra ones.
     Each reduction is counted and named in the import log.
-26. **Each note sheds what it cannot execute, then the stream's connection claims are settled.** The
-    per-note shed is `executableChartNote`, which lives beside the rules it satisfies in
-    `chart_rules` — a list kept in the importer drifted from the list there twice, and a dead note
-    carrying a bend reached validation intact and failed a whole import. It covers exactly what a
-    single note can be made to obey by *dropping* something, ranked by how much of the note each
-    fact determines: a harmonic's node outranks the mute, which outranks bend and vibrato. E4's
-    strike requirement is decided earlier, the moment a note's node is known (`nothingToStrike`),
-    because the chord-shape and hand-window passes read the attack and must not shape a song around
-    a tap that cannot survive. The relational half is then `sweepUnjustifiedLegato`, run as the last
-    step of the build — the same sweep every load path and every settle point runs, so a chart is
-    never born carrying a claim its own notes contradict. It runs last because it reads the finished
-    stream: released frets after the slide chains (rules 13-15), holds after the sustain trim, spans
-    after posture derivation. Guitar Pro's hammer-on/pull-off destinations import as the `Legato`
+26. **The finished chart goes through the one normalizer, `normalizeChart`.** It lives beside the
+    rules it satisfies in `chart_rules` — a list kept in the importer drifted from the list there
+    twice, and a dead note carrying a bend reached validation intact and failed a whole import — and
+    it is the same function the package reader runs on every load, so import and load cannot
+    drift. Per note (`normalizeChartNote`, in stage order): the board ceiling clamps a fret,
+    waypoint, or exit; the capo floor lifts a scrape's start and every exit and drops a waypoint;
+    the technique exclusions fire — **the deadening wins outright** (a dead note drops its bend and
+    vibrato and keeps its node, which is positional; the dead pinch alone loses its harmonic, since
+    its node lies off the neck), a tap harmonic drops its tremolo, a fret-hand harmonic drops its
+    payload, an open string drops its slide; a strike with nowhere to land becomes a pick; a scrape
+    that no longer travels becomes the pick it sounds like; and last, a dead note's plain tail is
+    trimmed (E25). Then templates clamp and hand windows fit onto the board. E4's strike requirement
+    is ALSO decided earlier, the moment a note's node is known (`flattenStrandedStrike`), because
+    the chord-shape and hand-window passes read the attack and must not shape a song around a tap
+    that cannot survive. The relational half, `sweepUnjustifiedLegato`, is the normalizer's last
+    stage — the same sweep every settle point runs — so a chart is never born carrying a claim its
+    own notes contradict. It runs last because it reads the finished stream: released frets after
+    the slide chains (rules 13-15), holds after the sustain trim, spans after posture derivation.
+    The importer counts the repairs by rule in its log; the editor's open shows them once with
+    positions. Guitar Pro's hammer-on/pull-off destinations import as the `Legato`
     claim and nothing more — the score says the notes connect but not which way, which is exactly
     what the claim says — so the junk flags real scores carry (a mark with nothing before it, or
     with a predecessor at the same stop) are what this sweep converts, counted in the import log.

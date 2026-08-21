@@ -719,8 +719,15 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
     return automation;
 }
 
+// The arrangements a song document names, plus everything their charts had to be normalized by.
+struct ReadArrangements
+{
+    std::vector<Arrangement> arrangements;
+    std::vector<SongPackageConversion> conversions;
+};
+
 // Reads arrangements from song-document entries into project-owned core values.
-[[nodiscard]] std::expected<std::vector<Arrangement>, SongPackageError> readArrangements(
+[[nodiscard]] std::expected<ReadArrangements, SongPackageError> readArrangements(
     const std::filesystem::path& directory, const juce::var& song_document,
     const std::unordered_map<std::string, AudioAsset>& audio_assets, const TempoMap& tempo_map)
 {
@@ -733,8 +740,8 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
         }};
     }
 
-    std::vector<Arrangement> arrangements;
-    arrangements.reserve(static_cast<std::size_t>(arrangements_json.size()));
+    ReadArrangements read;
+    read.arrangements.reserve(static_cast<std::size_t>(arrangements_json.size()));
     std::set<std::string> arrangement_ids;
 
     const juce::Array<juce::var>* const arrangement_array = arrangements_json.getArray();
@@ -827,6 +834,18 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                     "chart document is invalid: " + loaded_chart.error().message,
                 }};
             }
+            // Normalize BEFORE anything else sees the chart, so a rule change repairs-and-reports
+            // instead of bricking a saved project: the parsed form exists only here, and memory
+            // never holds it. What the validator still refuses afterwards is structural — a file
+            // that is corrupt, not out of date.
+            for (ChartConversion& conversion : normalizeChart(*loaded_chart, tempo_map))
+            {
+                read.conversions.push_back(
+                    SongPackageConversion{
+                        .arrangement = read.arrangements.size(),
+                        .conversion = std::move(conversion),
+                    });
+            }
             if (const auto chart_rules = validateChartRules(*loaded_chart, tempo_map);
                 !chart_rules.has_value())
             {
@@ -853,7 +872,7 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
             return std::unexpected{std::move(tones.error())};
         }
 
-        arrangements.push_back(
+        read.arrangements.push_back(
             Arrangement{
                 .id = *id,
                 .part = *part,
@@ -868,7 +887,7 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
             });
     }
 
-    return arrangements;
+    return read;
 }
 
 // Reports whether a ZIP entry is a directory marker.
@@ -1100,31 +1119,13 @@ std::expected<SongPackageRead, SongPackageError> readRockSongPackageDirectory(
     song.metadata = readSongDocumentMetadata(song_document);
     song.tempo_map = std::move(*tempo_map);
     song.sections = std::move(*sections);
-    song.arrangements = std::move(*arrangements);
-
-    // Every load settles every chart it opens, so no consumer downstream — editor, game, or test —
-    // ever holds a connection claim the chart does not justify. Loading is the last of the three
-    // places the sweep runs, and the only one where the conversion is news the caller may need to
-    // act on: it means memory no longer equals disk.
-    std::vector<std::string> conversions;
-    for (Arrangement& arrangement : song.arrangements)
-    {
-        if (!arrangement.chart.has_value())
-        {
-            continue;
-        }
-        Chart& chart = *arrangement.chart;
-        std::vector<std::string> flattened =
-            sweepUnjustifiedLegato(chart.notes, chart.shapes, song.tempo_map);
-        conversions.insert(
-            conversions.end(),
-            std::make_move_iterator(flattened.begin()),
-            std::make_move_iterator(flattened.end()));
-    }
+    song.arrangements = std::move(arrangements->arrangements);
 
     return std::expected<SongPackageRead, SongPackageError>{
         std::in_place,
-        SongPackageRead{.song = std::move(song), .conversions = std::move(conversions)}
+        SongPackageRead{
+            .song = std::move(song), .conversions = std::move(arrangements->conversions)
+        }
     };
 }
 

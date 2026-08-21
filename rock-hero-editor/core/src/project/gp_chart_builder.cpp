@@ -2271,9 +2271,8 @@ void resolveSlideOutExits(
         // cannot survive validation. It needs no context at all, which is why it can be decided
         // this early where the relational settle cannot. Nothing later can fix it either: the
         // legato sweep never touches a local claim, exactly because no neighbour can withdraw one.
-        if (common::core::nothingToStrike(note))
+        if (common::core::flattenStrandedStrike(note))
         {
-            note.attack = NoteAttack::Pick;
             ++strikeless_taps;
         }
 
@@ -2681,35 +2680,26 @@ void resolveSlideOutExits(
         chart.notes.push_back(std::move(entry.note));
     }
 
-    // Import is a commit point, so the chart leaves here already obeying the technique matrix: each
-    // note sheds what it cannot execute. The shed lives beside the rules in `chart_rules`, because
-    // a list of them kept here drifted from the list there twice — a dead note carrying a bend or a
-    // vibrato reached validation intact and failed the WHOLE song's import.
-    int notes_shed = 0;
-    for (ChartNote& note : chart.notes)
+    // Import is a commit point, so the chart leaves here in its normal form through the ONE
+    // normalizer every load path calls: each note sheds what it cannot execute, every range is
+    // brought onto the board, and the settle sweep runs last over the finished stream — released
+    // frets after every slide chain, holds after the sustain trim, spans after the posture
+    // derivation. The rules live beside their repairs in `chart_rules`, because a list of them
+    // kept here drifted from the list there twice, and a dead note carrying a bend then reached
+    // validation intact and failed the WHOLE song's import. Counted by rule rather than listed,
+    // like every other import conversion: an import converts wholesale, and a position list for
+    // a dense score would be hundreds of lines.
+    std::map<common::core::ChartRepair, int> repairs_by_rule;
+    for (const common::core::ChartConversion& conversion :
+         common::core::normalizeChart(chart, tempo_map))
     {
-        ChartNote executable = common::core::executableChartNote(note);
-        notes_shed += executable == note ? 0 : 1;
-        note = std::move(executable);
+        ++repairs_by_rule[conversion.repair];
     }
-    if (notes_shed > 0)
+    for (const auto& [repair, count] : repairs_by_rule)
     {
         notes.push_back(
-            std::to_string(notes_shed) +
-            " notes shed techniques they cannot execute (bend, vibrato, slide, tremolo, or mute)");
-    }
-    // The settle sweep, run at import completion like every other load path: a hopo mark the score
-    // carries with nothing before it, or with a predecessor at the same stop, is junk rather than
-    // data, and the note it rides plays as the pick it sounds like. Runs last because it reads the
-    // finished stream — released frets after every slide chain, holds after the sustain trim, spans
-    // after the posture derivation. Counted rather than listed, like every other import conversion.
-    const std::size_t flattened =
-        common::core::sweepUnjustifiedLegato(chart.notes, chart.shapes, tempo_map).size();
-    if (flattened > 0)
-    {
-        notes.push_back(
-            std::to_string(flattened) +
-            " legato marks had nothing to connect to and read as plain picks");
+            std::to_string(count) + (count == 1 ? " note: " : " notes: ") +
+            std::string{common::core::chartRepairText(repair)});
     }
 
     return chart;

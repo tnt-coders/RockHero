@@ -571,6 +571,35 @@ When adding a new closed family, name which axis grows and pick accordingly; whe
 existing family, follow its established side. Do not convert one to the other for stylistic
 symmetry.
 
+# Domain Invariants: One Normalizer, Normalize-or-Refuse
+
+Where a domain has rules its data must obey — the chart technique matrix is the exemplar — memory
+holds only data in its **normal form**, and every path that mutates or admits data is
+**normalize-or-refuse through one authority**:
+
+- **One normalizer owns every repairable rule.** The repair policy (clamp, lift, drop, demote, trim)
+  is stated exactly once, as that function. Exemplar: `normalizeChart` and its per-element
+  authority `normalizeChartNote` in `common/core/chart/chart_rules.h`.
+- **The validator is structural refusals plus the fixpoint.** It refuses only what no repair can
+  express without inventing data, and otherwise asks one question: *is this already its own normal
+  form?* A rule is never restated as a refusal beside its repair — that is the rule-stated-twice
+  defect, and it has produced live bugs every time it recurred.
+- **Admission paths normalize and report.** A loader or importer calls the normalizer before anything
+  else sees the data, reports what it changed and where, and leaves the source untouched; a rule
+  change therefore repairs-and-reports instead of bricking saved work. Refusal remains for the
+  structural residue only.
+- **Editing paths refuse at the gate.** A plan whose candidate is not a fixpoint is refused, so an
+  invalid state is unrepresentable while editing. The one exception is a repair that is the edit's
+  *own* consequence (a tap stranded by its own fret edit, a tail on the note the edit just deadened),
+  and that repair is the normalizer's stage, called by the gate — never a second rule.
+- **Writers refuse what readers would.** The serializer validates the document form before
+  emitting, so no path can write a file the next open refuses; in a correct build that gate never
+  fires, and when it does it has caught a defect.
+
+The shape to distrust is a second pass "beside" the normalizer — a tuning-aware range pass next to a
+technique shed, an importer clamp kept as a guarantee the validator also states. Each is a
+restatement that must agree by hand. Generalize the one authority instead.
+
 # Async Choreography
 
 Editor-side asynchronous work uses exactly three idioms. Pick the matching one; do not invent a

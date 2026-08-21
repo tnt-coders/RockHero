@@ -1,6 +1,6 @@
 /*!
 \file chart_rules.h
-\brief Structural validation rules for chart documents.
+\brief The chart rules: their one normalizer, and the validator that asks its fixpoint.
 */
 
 #pragma once
@@ -10,6 +10,8 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -164,62 +166,193 @@ had none and which both projections then paid for every shape on every chart rev
 [[nodiscard]] std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_map);
 
 /*!
-\brief The note with every technique it cannot execute stripped off.
+\brief The repair a chart normalization applied — one value per rule the normalizer owns.
 
-For importers, which must not lose a whole song to one contradictory note. The editor's planners
-take the opposite policy on purpose — they refuse the edit, because an author who asked for the
-impossible should be told — but an imported score is not an author's request, and a bend on a note
-the same score marks dead has already told us it is junk.
-
-Lives beside the rules it satisfies so a new incompatibility cannot be written without its shed
-here in view. It covers exactly the rules a single note can be made to obey by DROPPING something:
-range violations are the importer's own clamping, a missing pinch node is data to supply rather
-than technique to remove, and nothing relational belongs here at all — a connection claim nothing
-justifies is not a technique to shed but a claim that resolves to a plain pick (\ref resolveLegato),
-which is why the importer runs \ref sweepUnjustifiedLegato at completion instead. The tap landing
-rule is not among these either, for the opposite reason: it reads only the note itself — an open
-string with no node has nowhere to strike — so it belongs to the one-note half and is enforced in
-\ref validateChartNoteAlone, which means a builder must not produce that note rather than expecting
-a shed here.
-
-Which side loses is settled by whether the loser still says something true. **The deadening wins
-outright**: it describes what the string actually does, and nothing paired with it survives as a
-pitch. What differs is what the loser BECOMES.
-
-A harmonic node SURVIVES the deadening (user ruling 2026-08-18) because it stops being a pitch and
-goes on being a POSITION — a player can hold a harmonic's shape while damping, and the node then
-says where the hand is rather than what rings. That is not a special case but the reading this
-model already applies to a dead note's own `fret`, which nothing strips, and which \ref fretFor
-resolves through the node for exactly this reason. The note stays dead, so detection and scoring
-see percussive, and the node keeps placing the hand.
-
-A bend or a vibrato does NOT survive, because it has no second reading: it modulates a pitch, the
-dead note has none, and unlike a node it says nothing about where the hand is. So it is dropped.
-
-Which sorts the PINCH with the bend rather than with its fellow harmonics, and shows the test is
-really "does a hand stand on it" rather than "is it a harmonic": a pinch's node is the one that
-lies off the neck (\ref rock_hero::common::core::nodeIsOnNeck), recording where the picking thumb
-grazes, so it names no position the note's own fret does not already give and asks for a squeal a
-damped string cannot make. It is shed with its attack, since a pinch carrying no node is missing
-data rather than shed technique.
-
-A slide from the OPEN string sheds the same way (user rule 2026-08-20): nothing is pressed to
-travel, so a fret-0 glide or trail-off describes the unexecutable and the path drops whole. The
-scrape is the exclusion for a different reason: its start is floored above the capo as a RANGE
-rule the importer and the toggle verb guarantee (every fret a slide gesture names sits at or
-above the first playable fret, the ruling that closed W9-J), and shedding a scrape's path would
-leave it without its required terminal — no repair at all.
-
-The earlier ranking here had the node outrank the deadening and un-deaden the note, on the grounds
-that keeping the deadening "would silence a note the score named precisely" — which mistook a
-position for a pitch. The palm flag never enters any of this: it says where the picking hand is
-rather than what the string sounds, so nothing it can be paired with contradicts it.
-
-\param note Note as a source described it.
-
-\return The note reduced to what a player can actually execute.
+The kinds exist so a load can report WHAT it changed and where, grouped by rule, and so an import
+can count by rule the way it always has. The user-facing sentence for each lives in
+\ref chartRepairText, the one place those words are spelled.
 */
-[[nodiscard]] ChartNote executableChartNote(ChartNote note);
+enum class ChartRepair : std::uint8_t
+{
+    /*! \brief A bend or vibrato left a dead note: it sounds no pitch to modulate. */
+    DeadNoteModulation,
+    /*! \brief A dead note's pinch harmonic became a plain pick: a damped string cannot squeal. */
+    DeadPinch,
+    /*! \brief Tremolo left a tap harmonic: the damping finger leaves, so nothing holds the node. */
+    TapHarmonicTremolo,
+    /*! \brief A bend, vibrato, or slide left a fret-hand harmonic: a touch presses nothing. */
+    FretHandHarmonicPayload,
+    /*! \brief A slide left an open string: nothing is pressed to travel. */
+    OpenStringSlide,
+    /*! \brief A tap with nowhere to strike became a plain pick (E4). */
+    StrandedStrike,
+    /*! \brief A dead note's plain tail was trimmed to nothing (E25). */
+    MutedTail,
+    /*! \brief A fret, slide position, or hand window past the last fret clamped onto the board. */
+    FretPastBoard,
+    /*! \brief A slide position or hand window on or below the capo was lifted above it. */
+    FretBelowCapo,
+    /*! \brief A pick slide whose path no longer travels became a plain pick. */
+    StilledScrape,
+    /*! \brief A legato claim nothing justifies was recorded as the plain pick it plays as. */
+    UnjustifiedLegato
+};
+
+/*!
+\brief One repair the normalizer applied, and where.
+
+\ref ChartRepair names the rule; `where` names the element in the words a charter can find it by —
+a note's grid position and string, a hand position's grid position, a template's index. The two
+travel together so a load notice can group by rule and list positions, which is what makes a
+normalizing load honest rather than silent.
+*/
+struct ChartConversion
+{
+    /*! \brief The rule that fired. */
+    ChartRepair repair{};
+
+    /*! \brief The element it fired on, as display text. */
+    std::string where;
+};
+
+/*!
+\brief The user-facing sentence for a repair kind.
+
+\param repair Repair kind.
+
+\return A complete sentence naming the rule and what the repair did, with no position.
+*/
+[[nodiscard]] std::string_view chartRepairText(ChartRepair repair);
+
+/*!
+\brief One conversion as a log or notice line: the rule's sentence and the element it fired on.
+
+\param conversion Conversion to render.
+
+\return The sentence from \ref chartRepairText followed by " at <where>".
+*/
+[[nodiscard]] std::string chartConversionText(const ChartConversion& conversion);
+
+/*!
+\brief Flattens an attack that strikes from nowhere onto a plain pick when nothing is there to
+strike (E4).
+
+The one repair for \ref nothingToStrike, spelled once so the three places that apply it — the
+normalizer, the editor's plan finalize (an edit to a note's own fret can strand its tap), and the
+importer's early pass (the shape and hand-window passes read the attack, so it cannot wait) — can
+never disagree about what the repaired note becomes.
+
+\param note Note to repair in place.
+
+\return True when the attack was flattened.
+*/
+[[nodiscard]] bool flattenStrandedStrike(ChartNote& note);
+
+/*!
+\brief Trims a dead note's plain tail to nothing (E25).
+
+A dead note does not ring, so a tail on one is silence pretending to be sound — unless something
+keeps making noise or travelling: tremolo (a chug) or a slide payload (a dragged mute). Those keep
+their tails. Spelled once because the editor applies it INSIDE a plan as the edit's own
+consequence (pressing X on a held note trims the tail rather than refusing the press over a tail
+that means nothing once the note is dead; the toggle window restores it exactly), while the
+normalizer applies it to everything a load or import brings in.
+
+\param note Note to repair in place.
+
+\return True when a tail was trimmed.
+*/
+[[nodiscard]] bool trimMutedTail(ChartNote& note);
+
+/*!
+\brief Repairs every rule one note can be made to obey on its own, in place; reports which fired.
+
+The per-note authority of the chart normalizer (\ref normalizeChart), and the fixpoint the per-note
+validator asks: a note is valid exactly when this changes nothing. That is what keeps every rule
+stated ONCE — the repair policy (clamp, lift, drop, demote, trim) is written here and nowhere
+else, and the validator never restates a rule as a refusal beside it.
+
+What it owns: the board and capo ranges (a fret, waypoint, or exit past the last fret clamps
+onto it; a scrape's start or any exit on or below the capo lifts above it; a waypoint on or below
+the capo is dropped); the technique exclusions (a dead note's modulation, the dead pinch, the
+tap harmonic's tremolo, a fret-hand harmonic's payload, an open string's slide); the stranded
+strike (\ref flattenStrandedStrike); a pick slide whose path no longer travels after all of that,
+which becomes the plain pick it sounds like; and last — so the tap-harmonic arm can clear the
+tremolo that was a tail's justification first — the muted tail (\ref trimMutedTail).
+
+What it deliberately does NOT own stays a refusal in \ref validateChartNoteAlone, because no
+repair can express it without inventing data: a string the tuning lacks, a negative fret or
+sustain, a node off the string or behind its stop, a pinch without its node, a pressed note on a
+capo'd fret, a scrape without its terminal. And nothing relational belongs here: a connection claim
+nothing justifies is not a technique to shed but a claim that resolves to a plain pick
+(\ref resolveLegato), which is why \ref normalizeChart ends with \ref sweepUnjustifiedLegato
+instead.
+
+Which side loses when two techniques contradict is settled by whether the loser still says
+something true. The deadening wins outright: a bend or vibrato has no second reading once the
+pitch is gone, so it drops, but a harmonic node SURVIVES the deadening (user ruling 2026-08-18)
+because it stops being a pitch and goes on being a POSITION — exactly how a dead note's own
+`fret` already reads. The pinch is the one harmonic the deadening takes with it, because its node
+lies off the neck (\ref nodeIsOnNeck) and so survives as neither pitch nor hand position; attack
+and node go together, since a pinch carrying no node is missing data rather than shed technique.
+
+One pass reaches the fixpoint: every stage reads only what earlier stages have already settled,
+so applying this twice changes nothing the second time.
+
+\param note Note to normalize in place.
+\param tuning Tuning the note plays under; supplies the capo.
+
+\return The repairs that fired, in stage order; empty when the note was already normal.
+*/
+[[nodiscard]] std::vector<ChartRepair> normalizeChartNote(
+    ChartNote& note, const ChartTuning& tuning);
+
+/*!
+\brief Clamps a chord template's frets onto the board, in place.
+
+\param chord_template Template to normalize.
+
+\return The repairs that fired; empty when the template was already normal.
+*/
+[[nodiscard]] std::vector<ChartRepair> normalizeChordTemplate(ChordTemplate& chord_template);
+
+/*!
+\brief Fits a fret-hand window onto the playable board, in place.
+
+The window's width shrinks to the frets above the capo when it is wider than that, its index
+finger lifts above the capo, and the whole window slides down until it fits under the last fret —
+in that order, so the ceiling can never push it back below the capo.
+
+\param position Hand position to normalize.
+\param tuning Tuning the hand plays under; supplies the capo.
+
+\return The repairs that fired; empty when the window already fit.
+*/
+[[nodiscard]] std::vector<ChartRepair> normalizeFretHandPosition(
+    FretHandPosition& position, const ChartTuning& tuning);
+
+/*!
+\brief Brings a whole chart to its normal form, in place, and reports every repair with its place.
+
+THE one normalizer: every path that brings a chart into memory — the package reader and the
+Guitar Pro importer — calls this and nothing else, so the two cannot drift, and the validator
+that follows refuses only what no repair can express. It applies \ref normalizeChartNote to every
+note, \ref normalizeChordTemplate to every template, and \ref normalizeFretHandPosition to every
+hand position, then settles the relational claims with \ref sweepUnjustifiedLegato — last,
+because a trimmed tail can be the hold a neighbour's claim depended on, and the claim must be
+judged against the stream as it will actually stand.
+
+A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
+reports the conversions (the editor opens the session dirty and shows them once; the importer
+counts them), and the file is untouched until the user saves.
+
+\param chart Chart to normalize in place.
+\param tempo_map Song tempo map, for the connection hold test.
+
+\return Every repair applied, with the element it touched; empty when the chart was already
+        normal, which is what callers test to know whether memory still equals disk.
+*/
+[[nodiscard]] std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_map);
 
 /*!
 \brief Validates every rule a single note can break on its own.
@@ -229,6 +362,13 @@ what range each field may hold, where a node may lie relative to its stop) and a
 NEIGHBOURS (a waypoint may not sit on a later onset of its string). This is the first half, and
 \ref validateChartNotes calls it per note before applying the second — so a rule written here is
 enforced by every consumer at once.
+
+Two halves, and only the first is a list of refusals: the structural rules no repair can express
+(a string the tuning lacks, a negative fret or sustain, a node off the string or behind its stop, a
+pinch without its node, a pressed note on a capo'd fret, a position off the grid), and then the
+FIXPOINT — the note must already equal its own normal form (\ref normalizeChartNote). Every other
+rule a note can break on its own is stated once, as that normalizer's repair, and enforced here
+for free; nothing is restated as a refusal beside it.
 
 Split out because an editor verb that applies to the derivable SUBSET of a selection needs exactly
 this question per note: the whole-stream gate refuses an entire plan when one note is ineligible, so
@@ -274,18 +414,17 @@ this paragraph — a summary here drifts, and this one did, describing "positive
 is the normal encoding for a note with no sustain (\ref ChartNote::sustain) and only a NEGATIVE
 sustain is refused.
 
-Broadly: a usable tuning; template arrays matching the string count; notes sorted by
-(position, string) with no duplicate onsets, on valid grid positions, with strings and frets in
-range; non-negative sustains; slide offsets strictly positive, ascending, and within the sustain;
-bend offsets non-negative, ascending, and within the sustain; shape spans positive, sorted, and
-referencing existing templates; sorted fret-hand positions whose window fits the neck; capo
-floors; harmonic-node range, beyond-the-stop, and neck-ceiling bounds; pinch-requires-a-node;
-dead-note exclusions; the tap landing rule (both tapping attacks); tap-harmonic tremolo; the
-fret-hand-harmonic slide, bend, and vibrato exclusions; the cent-offset bound;
-and, on pick-slide notes, no pitched techniques (a saved scrape carries none — the writer omits
-the in-memory overrides; emphasis is a scrape's own dynamics) plus the required unpitched slide-out
-terminal exactly at the sustain and an always-traveling path (consecutive neck positions, the
-start fret included, must strictly differ — a scrape cannot sit still).
+Broadly, the structural half: a usable tuning and the cent-offset bound; template arrays matching
+the string count, with no template fret on a capo'd fret; notes sorted by (position, string) with
+no duplicate onsets, on valid grid positions; strings in range; non-negative frets and sustains;
+slide and bend offsets ascending within the sustain, and no waypoint on a later onset of its own
+string; shape spans positive, sorted, and referencing existing templates; sorted fret-hand
+positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;
+pinch-requires-a-node; on pick-slide notes, no pitched techniques (a saved scrape carries none — the
+writer omits the in-memory overrides) and the required unpitched slide-out terminal exactly at the
+sustain. Then the fixpoint half, stated once each as a repair of the normalizer: every note, chord
+template, and hand position must already equal its own normal form (\ref normalizeChartNote,
+\ref normalizeChordTemplate, \ref normalizeFretHandPosition).
 
 \param chart Chart to validate.
 \param tempo_map Song tempo map the chart's positions must lie on.

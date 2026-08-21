@@ -327,11 +327,8 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     return Json::numberText(value);
 }
 
-[[nodiscard]] std::string noteLine(const ChartNote& in_memory_note)
+[[nodiscard]] std::string noteLine(const ChartNote& note)
 {
-    // The saved form is the one seam between memory and document: latent overrides never reach
-    // the file, and the editor's plan gate validates exactly this form.
-    const ChartNote note = savedChartNote(in_memory_note);
     std::string line = R"({ "position": ")" + formatGridPositionToken(note.position) + '"';
     line += ", \"string\": " + std::to_string(note.string);
     line += ", \"fret\": " + std::to_string(note.fret);
@@ -601,15 +598,13 @@ std::expected<Chart, ChartError> readChartDocument(const std::filesystem::path& 
     return parseChartDocument(chart_file.loadFileAsString().toStdString());
 }
 
-std::string chartDocumentText(const Chart& chart, const TempoMap& tempo_map)
+namespace
 {
-    // The written stream is the RESOLVED one: an unjustifiable claim leaves as the pick it plays
-    // as, so the invariant holds for every file without any history involvement at write time (the
-    // memory-richer-than-file philosophy the scrape latents already use). In memory the claim
-    // survives, so re-justifying it later is a neighbour edit rather than a re-authoring.
-    std::vector<ChartNote> resolved_notes = chart.notes;
-    static_cast<void>(sweepUnjustifiedLegato(resolved_notes, chart.shapes, tempo_map));
 
+// Renders a chart already in its document form (documentChart): every note in saved form, every
+// claim settled. Nothing here converts, so the text is exactly the chart it is handed.
+[[nodiscard]] std::string renderChartDocument(const Chart& chart)
+{
     std::string text = "{\n  \"formatVersion\": 1,\n";
 
     text += R"(  "tuning": { "strings": [)";
@@ -644,7 +639,7 @@ std::string chartDocumentText(const Chart& chart, const TempoMap& tempo_map)
         line += " }";
         return line;
     });
-    append_array("notes", resolved_notes, noteLine);
+    append_array("notes", chart.notes, noteLine);
     append_array("shapes", chart.shapes, [](const ChartShape& shape) {
         return R"({ "position": ")" + formatGridPositionToken(shape.position) +
                R"(", "sustain": ")" + formatBeatFractionToken(shape.sustain) + R"(", "chord": )" +
@@ -671,17 +666,52 @@ std::string chartDocumentText(const Chart& chart, const TempoMap& tempo_map)
     return text;
 }
 
+} // namespace
+
+Chart documentChart(const Chart& chart, const TempoMap& tempo_map)
+{
+    // The document stream is the RESOLVED, SAVED one: an unjustifiable claim leaves as the pick it
+    // plays as, and a latent override never reaches the file — the memory-richer-than-file design,
+    // applied at the one seam between the two. In memory the claim survives, so re-justifying it
+    // later is a neighbour edit rather than a re-authoring.
+    Chart document = chart;
+    static_cast<void>(sweepUnjustifiedLegato(document.notes, document.shapes, tempo_map));
+    for (ChartNote& note : document.notes)
+    {
+        note = savedChartNote(note);
+    }
+    return document;
+}
+
+std::string chartDocumentText(const Chart& chart, const TempoMap& tempo_map)
+{
+    return renderChartDocument(documentChart(chart, tempo_map));
+}
+
 std::expected<void, ChartError> writeChartDocument(
     const std::filesystem::path& file, const Chart& chart, const TempoMap& tempo_map)
 {
+    // The writer refuses to emit a document the reader would refuse: memory is valid by
+    // construction (load normalizes, the edit verbs refuse), so this never fires unless a verb let
+    // something through — in which case it has caught a defect, and persisting the file would
+    // only move the failure to the next open.
+    const Chart document = documentChart(chart, tempo_map);
+    if (auto valid = validateChartRules(document, tempo_map); !valid.has_value())
+    {
+        return std::unexpected{ChartError{
+            .code = valid.error().code,
+            .message = "the chart would not load back (an edit let an invalid note through; "
+                       "please report this): " +
+                       valid.error().message,
+        }};
+    }
     const juce::File chart_file = juceFileFromPath(file);
     if (!chart_file.getParentDirectory().createDirectory())
     {
         return std::unexpected{malformed(
             "could not create the chart document directory: " + file.string())};
     }
-    if (!chart_file.replaceWithText(
-            juce::String::fromUTF8(chartDocumentText(chart, tempo_map).c_str())))
+    if (!chart_file.replaceWithText(juce::String::fromUTF8(renderChartDocument(document).c_str())))
     {
         return std::unexpected{malformed("could not write the chart document: " + file.string())};
     }

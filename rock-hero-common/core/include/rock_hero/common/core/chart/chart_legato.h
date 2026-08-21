@@ -8,9 +8,9 @@
 #include <cstddef>
 #include <limits>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <string>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -143,9 +143,9 @@ backward search per note.
 
 The one relational mutation in the system, and stateless: it judges only the stream it is handed, so
 there is no window state, no flagged notes, and no proofs to keep. The editor runs it at every
-settle event, the reader at load, and the document writer before emitting — which is what makes the
-invariant `Unjustified` cannot survive a settle or reach a file hold everywhere at once instead of
-per call site.
+settle event, the chart normalizer (\ref normalizeChart) as its last stage on every load and
+import, and the document writer before emitting — which is what makes the invariant `Unjustified`
+cannot survive a settle or reach a file hold everywhere at once instead of per call site.
 
 A `LeftTap` is never touched: its claim is local, so nothing can withdraw it.
 
@@ -158,10 +158,11 @@ no flatten can create or destroy another note's justification.
 \param shapes Hand-posture spans the notes play under, for the hold test.
 \param tempo_map Song tempo map supplying the beat axis.
 
-\return One human-readable conversion note per flattened claim, in note order; empty when the stream
-        already satisfied the invariant, which is what callers test to know whether it changed.
+\return One \ref ChartRepair::UnjustifiedLegato conversion per flattened claim, in note order, each
+        naming the claim's position and string; empty when the stream already satisfied the
+        invariant, which is what callers test to know whether it changed.
 */
-[[nodiscard]] std::vector<std::string> sweepUnjustifiedLegato(
+[[nodiscard]] std::vector<ChartConversion> sweepUnjustifiedLegato(
     std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
     const TempoMap& tempo_map);
 

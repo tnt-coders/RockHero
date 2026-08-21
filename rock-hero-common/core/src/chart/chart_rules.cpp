@@ -5,9 +5,12 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
+#include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -165,9 +168,10 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         for (const std::optional<int>& fret : chord_template.frets)
         {
             // Postures obey the capo floor exactly like notes: 0 is the capo'd open string, and
-            // the frets the capo covers do not exist to hold.
-            if (fret.has_value() &&
-                (*fret < 0 || *fret > g_max_fret || (*fret != 0 && *fret <= chart.tuning.capo)))
+            // the frets the capo covers do not exist to hold. Neither a negative fret nor one on
+            // a capo'd fret has a repair that is not invented data, so both stay refusals; the
+            // board ceiling is the normalizer's clamp, asked as the fixpoint below.
+            if (fret.has_value() && (*fret < 0 || (*fret != 0 && *fret <= chart.tuning.capo)))
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidTemplate,
@@ -175,6 +179,16 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                         "chord template fret is out of range: template " + std::to_string(index),
                 }};
             }
+        }
+        ChordTemplate normal = chord_template;
+        if (const std::vector<ChartRepair> repairs = normalizeChordTemplate(normal);
+            !repairs.empty())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidTemplate,
+                .message = std::string{chartRepairText(repairs.front())} + ": template " +
+                           std::to_string(index),
+            }};
         }
     }
 
@@ -202,19 +216,25 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     const FretHandPosition* previous_fhp = nullptr;
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
-        // The hand cannot sit below the capo (the window's index-finger fret starts above it, which
-        // subsumes the fret-1 floor for every capo), and the WHOLE window must fit on the neck —
-        // bounding only its index finger let a wide hand run off the end, which is the very thing
-        // the node's neck ceiling exists to prevent for a harmonic. The individual bounds run
-        // before the window sum so junk input cannot overflow it: with both operands already inside
-        // [1, g_max_fret], the sum stays far from the integer edge.
-        if (fhp.fret <= chart.tuning.capo || fhp.width < 1 || fhp.fret > g_max_fret ||
-            fhp.width > g_max_fret || fhp.fret + fhp.width - 1 > g_max_fret ||
-            !isValidGridPosition(fhp.position, tempo_map))
+        // A window of no width and a position off the grid have no repair; where the window SITS
+        // is the normalizer's fit (above the capo, under the last fret, the whole width on the
+        // board), asked as the fixpoint.
+        if (fhp.width < 1 || !isValidGridPosition(fhp.position, tempo_map))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidFretHandPosition,
                 .message = "fret-hand position is invalid at " + positionText(fhp.position),
+            }};
+        }
+        FretHandPosition normal = fhp;
+        if (const std::vector<ChartRepair> repairs =
+                normalizeFretHandPosition(normal, chart.tuning);
+            !repairs.empty())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidFretHandPosition,
+                .message = std::string{chartRepairText(repairs.front())} + " at " +
+                           positionText(fhp.position),
             }};
         }
         if (previous_fhp != nullptr && fhp.position < previous_fhp->position)
@@ -236,57 +256,309 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     return std::expected<void, ChartError>{};
 }
 
-ChartNote executableChartNote(ChartNote note)
+std::string_view chartRepairText(const ChartRepair repair)
 {
-    // The DEADENING outranks the harmonic (user ruling 2026-08-18, reversing the earlier reading
-    // that a node names a pitch and so must un-deaden the note). A player can hold a harmonic's
-    // position while damping the strings, and the node is then POSITIONAL — it says where the
-    // hand is, not what rings — so the note stays dead and detection scores it percussive. That
-    // is already how the rest of this model reads a dead note: it keeps its FRET, and fretFor()
-    // resolves a node to the hand's slot. What a dead note still cannot carry is pitch
-    // MODULATION, because a bend or a vibrato needs a pitch to act on and has no positional
-    // reading of its own. The palm flag is untouched either way — a palm-muted harmonic is
-    // ordinary, and nothing here is deciding what the note sounds like.
-    if (note.dead)
+    switch (repair)
+    {
+        case ChartRepair::DeadNoteModulation:
+        {
+            return "a dead note sounds no pitch, so its bend or vibrato was dropped";
+        }
+        case ChartRepair::DeadPinch:
+        {
+            return "a damped string cannot squeal, so a dead pinch harmonic became a plain pick";
+        }
+        case ChartRepair::TapHarmonicTremolo:
+        {
+            return "a tap harmonic cannot be tremolo picked, so its tremolo was dropped";
+        }
+        case ChartRepair::FretHandHarmonicPayload:
+        {
+            return "a fret-hand harmonic presses nothing, so its bend, vibrato, or slide was "
+                   "dropped";
+        }
+        case ChartRepair::OpenStringSlide:
+        {
+            return "an open string cannot slide, so its slide was dropped";
+        }
+        case ChartRepair::StrandedStrike:
+        {
+            return "a tap with nothing to strike became a plain pick";
+        }
+        case ChartRepair::MutedTail:
+        {
+            return "a dead note rings nothing, so its plain tail was trimmed (tremolo or a slide "
+                   "keeps one)";
+        }
+        case ChartRepair::FretPastBoard:
+        {
+            return "a position past the last fret was clamped onto the board";
+        }
+        case ChartRepair::FretBelowCapo:
+        {
+            return "a slide position or hand window on or below the capo was lifted above it";
+        }
+        case ChartRepair::StilledScrape:
+        {
+            return "a pick slide that no longer travels became a plain pick";
+        }
+        case ChartRepair::UnjustifiedLegato:
+        {
+            return "a legato mark had nothing to connect to and reads as a plain pick";
+        }
+    }
+    return "chart repaired";
+}
+
+std::string chartConversionText(const ChartConversion& conversion)
+{
+    return std::string{chartRepairText(conversion.repair)} + " at " + conversion.where;
+}
+
+bool flattenStrandedStrike(ChartNote& note)
+{
+    if (!nothingToStrike(note))
+    {
+        return false;
+    }
+    note.attack = NoteAttack::Pick;
+    return true;
+}
+
+bool trimMutedTail(ChartNote& note)
+{
+    // The two things that keep a dead string making noise or travelling are what keep its tail:
+    // repeated raking, or a dragged mute. A scrape always carries a slide-out, so a scrape with a
+    // latent dead flag in memory is never trimmed — which is what lets the editor apply this to
+    // the in-memory note rather than the saved form.
+    if (!note.dead || note.tremolo || !note.slides.empty() || note.slide_out.has_value() ||
+        note.sustain.numerator <= 0)
+    {
+        return false;
+    }
+    note.sustain = Fraction{};
+    return true;
+}
+
+std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& tuning)
+{
+    std::vector<ChartRepair> repairs;
+    const auto fired = [&repairs](const ChartRepair repair) { repairs.push_back(repair); };
+
+    // 1. The board ceiling. Clamps before floors and before the travel test, so those read final
+    //    values; a waypoint is clamped rather than dropped because it still names real travel.
+    bool past_board = note.fret > g_max_fret;
+    note.fret = std::min(note.fret, g_max_fret);
+    for (SlideWaypoint& waypoint : note.slides)
+    {
+        past_board = past_board || waypoint.fret > g_max_fret;
+        waypoint.fret = std::min(waypoint.fret, g_max_fret);
+    }
+    if (note.slide_out.has_value() && note.slide_out->fret > g_max_fret)
+    {
+        past_board = true;
+        note.slide_out->fret = g_max_fret;
+    }
+    if (past_board)
+    {
+        fired(ChartRepair::FretPastBoard);
+    }
+
+    // 2. The capo floor for every fret a slide gesture names (user ruling 2026-08-20, closing
+    //    W9-J): a scrape's start and every exit lift to the first playable fret, because the pick
+    //    travels the sounding string and a "scrape at the nut" is no scrape; a waypoint on or
+    //    below the floor is dropped, since a pitched stop there is nothing pressed. A pressed
+    //    NOTE on a capo'd fret is not repaired here: no lift can know the pitch the author meant,
+    //    so it stays a refusal.
+    const int floor = tuning.capo + 1;
+    bool below_capo = false;
+    if (note.attack == NoteAttack::PickSlide && note.fret < floor)
+    {
+        below_capo = true;
+        note.fret = floor;
+    }
+    const std::size_t waypoints_before = note.slides.size();
+    std::erase_if(
+        note.slides, [floor](const SlideWaypoint& waypoint) { return waypoint.fret < floor; });
+    below_capo = below_capo || note.slides.size() != waypoints_before;
+    if (note.slide_out.has_value() && note.slide_out->fret < floor)
+    {
+        below_capo = true;
+        note.slide_out->fret = floor;
+    }
+    if (below_capo)
+    {
+        fired(ChartRepair::FretBelowCapo);
+    }
+
+    // 3. The technique exclusions. The DEADENING outranks the harmonic (user ruling 2026-08-18): a
+    //    player can hold a harmonic's shape while damping, and the node then says where the hand
+    //    is rather than what rings — exactly how a dead note's own FRET already reads — so the
+    //    note stays dead and keeps its node. What it cannot keep is pitch MODULATION, which has
+    //    no positional reading. The palm flag is untouched throughout: it says where the picking
+    //    hand is, never what the string sounds.
+    if (note.dead && (!note.bend.empty() || note.vibrato))
     {
         note.bend.clear();
         note.vibrato = false;
+        fired(ChartRepair::DeadNoteModulation);
     }
-    // The pinch is the one harmonic the deadening does take with it, because its node is off the
-    // neck and so survives as neither pitch nor hand position (\ref validateChartNoteAlone).
-    // Attack and node go together: shedding the node alone would leave a pinch carrying none,
-    // which is missing DATA rather than shed technique, and this function only ever drops.
+    // The pinch is the one harmonic the deadening takes with it: its node lies off the neck and
+    // so survives as neither pitch nor hand position. Attack and node go together, because a
+    // pinch carrying no node is missing DATA rather than shed technique.
     if (note.dead && note.harmonic_node.has_value() && !nodeIsOnNeck(note.attack))
     {
         note.attack = NoteAttack::Pick;
         note.harmonic_node.reset();
+        fired(ChartRepair::DeadPinch);
     }
     // A tap harmonic's damping finger leaves the string, so nothing holds the node under
     // re-picking.
-    if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value())
+    if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value() && note.tremolo)
     {
         note.tremolo = false;
+        fired(ChartRepair::TapHarmonicTremolo);
     }
     // A fret-hand harmonic touches its node with nothing pressed: there is no press to bend,
     // shake, or carry anywhere, and moving the touch off the node just stops the harmonic.
-    if (fretHandHarmonic(note))
+    if (fretHandHarmonic(note) &&
+        (!note.bend.empty() || note.vibrato || !note.slides.empty() || note.slide_out.has_value()))
     {
         note.bend.clear();
         note.vibrato = false;
         note.slides.clear();
         note.slide_out.reset();
+        fired(ChartRepair::FretHandHarmonicPayload);
     }
     // An open string cannot slide: nothing is pressed to travel, so a fret-0 glide or trail-off
-    // is shed whole. The scrape keeps its path: a scrape's start is floored above the capo as a
-    // RANGE rule the importer and the toggle verb guarantee (shedding the path would leave a
-    // scrape without its required terminal, which is no repair), so a fret-0 scrape never
-    // reaches the shed from a source this project controls.
-    if (note.attack != NoteAttack::PickSlide && note.fret == 0)
+    // is dropped whole. A scrape never reaches this — its start was floored above.
+    if (note.attack != NoteAttack::PickSlide && note.fret == 0 &&
+        (!note.slides.empty() || note.slide_out.has_value()))
     {
         note.slides.clear();
         note.slide_out.reset();
+        fired(ChartRepair::OpenStringSlide);
     }
-    return note;
+
+    // 4. A strike from nowhere needs somewhere to land.
+    if (flattenStrandedStrike(note))
+    {
+        fired(ChartRepair::StrandedStrike);
+    }
+
+    // 5. A scrape keeps traveling or it is no scrape: after the clamps, floors, and drops above,
+    //    consecutive neck positions — start, turnarounds, exit — must strictly differ. A scrape
+    //    without its terminal at all is missing data and stays a refusal, so only a present exit
+    //    is judged. Demoted to the plain pick it sounds like, with its path cleared.
+    if (note.attack == NoteAttack::PickSlide && note.slide_out.has_value())
+    {
+        int previous_fret = note.fret;
+        bool stilled = false;
+        for (const SlideWaypoint& waypoint : note.slides)
+        {
+            stilled = stilled || waypoint.fret == previous_fret;
+            previous_fret = waypoint.fret;
+        }
+        if (stilled || note.slide_out->fret == previous_fret)
+        {
+            note.attack = NoteAttack::Pick;
+            note.slides.clear();
+            note.slide_out.reset();
+            fired(ChartRepair::StilledScrape);
+        }
+    }
+
+    // 6. The muted tail, last: the tap-harmonic arm above can clear the tremolo that was a
+    //    tail's only justification, and the stilled-scrape demotion can clear the slide payload
+    //    that was, so the trim must read the note as it now stands.
+    if (trimMutedTail(note))
+    {
+        fired(ChartRepair::MutedTail);
+    }
+    return repairs;
+}
+
+std::vector<ChartRepair> normalizeChordTemplate(ChordTemplate& chord_template)
+{
+    bool past_board = false;
+    for (std::optional<int>& fret : chord_template.frets)
+    {
+        if (fret.has_value() && *fret > g_max_fret)
+        {
+            past_board = true;
+            fret = g_max_fret;
+        }
+    }
+    return past_board ? std::vector<ChartRepair>{ChartRepair::FretPastBoard}
+                      : std::vector<ChartRepair>{};
+}
+
+std::vector<ChartRepair> normalizeFretHandPosition(
+    FretHandPosition& position, const ChartTuning& tuning)
+{
+    // The playable board is what lies above the capo; a window wider than that cannot fit
+    // anywhere, so the width shrinks first and the two placements below then always succeed.
+    const int floor = tuning.capo + 1;
+    const int playable = g_max_fret - tuning.capo;
+    bool past_board = position.width > playable;
+    position.width = std::min(position.width, playable);
+    const bool below_capo = position.fret < floor;
+    position.fret = std::max(position.fret, floor);
+    // The whole window must fit under the last fret: bounding only the index finger let a wide
+    // hand run off the end. With the width already inside the playable board, this never pushes
+    // the finger back below the floor.
+    if (position.fret + position.width - 1 > g_max_fret)
+    {
+        past_board = true;
+        position.fret = g_max_fret - position.width + 1;
+    }
+    std::vector<ChartRepair> repairs;
+    if (past_board)
+    {
+        repairs.push_back(ChartRepair::FretPastBoard);
+    }
+    if (below_capo)
+    {
+        repairs.push_back(ChartRepair::FretBelowCapo);
+    }
+    return repairs;
+}
+
+std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_map)
+{
+    std::vector<ChartConversion> conversions;
+    const auto record =
+        [&conversions](const std::vector<ChartRepair>& repairs, const std::string& where) {
+            for (const ChartRepair repair : repairs)
+            {
+                conversions.push_back(ChartConversion{.repair = repair, .where = where});
+            }
+        };
+    for (ChartNote& note : chart.notes)
+    {
+        record(
+            normalizeChartNote(note, chart.tuning),
+            positionText(note.position) + " string " + std::to_string(note.string));
+    }
+    for (std::size_t index = 0; index < chart.templates.size(); ++index)
+    {
+        record(normalizeChordTemplate(chart.templates[index]), "template " + std::to_string(index));
+    }
+    for (FretHandPosition& position : chart.fret_hand_positions)
+    {
+        record(
+            normalizeFretHandPosition(position, chart.tuning),
+            "hand position " + positionText(position.position));
+    }
+    // The relational settle runs LAST, against the stream as it will actually stand: a trimmed
+    // tail may have been the hold a neighbour's claim depended on.
+    std::vector<ChartConversion> flattened =
+        sweepUnjustifiedLegato(chart.notes, chart.shapes, tempo_map);
+    conversions.insert(
+        conversions.end(),
+        std::make_move_iterator(flattened.begin()),
+        std::make_move_iterator(flattened.end()));
+    return conversions;
 }
 
 double harmonicNodeCeiling(const ChartNote& note)
@@ -301,9 +573,10 @@ std::expected<void, ChartError> validateChartNoteAlone(
 {
     // The model's cap bounds the string domain as much as the tuning does. validateChartRules
     // refuses a wider tuning outright; a direct caller that passes one has no string past the cap
-    // this rule set can speak about.
+    // this rule set can speak about. A fret past the board is NOT refused here — it is the
+    // normalizer's clamp, asked as the fixpoint at the end.
     const int string_count = std::min(static_cast<int>(tuning.strings.size()), g_max_chart_strings);
-    if (note.string < 1 || note.string > string_count || note.fret < 0 || note.fret > g_max_fret ||
+    if (note.string < 1 || note.string > string_count || note.fret < 0 ||
         !isValidGridPosition(note.position, tempo_map))
     {
         return std::unexpected{ChartError{
@@ -360,101 +633,28 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "pinch harmonic must carry its node at " + positionText(note.position),
         }};
     }
-    // The capo is the string's floor: 0 means the capo'd open string, and the frets it
-    // covers do not exist to play. A SCRAPE has no open form (user ruling 2026-08-20, closing
-    // W9-J): every fret a slide gesture names — a scrape's start, its turnarounds, and every
-    // slide-out's exit — sits at or above the first playable fret, because the pick travels
-    // the sounding string and a "scrape at the nut" is no scrape. So a scrape's start is
-    // floored like a pressed stop, with no fret-0 carve-out.
-    if (note.fret <= tuning.capo && (note.fret != 0 || note.attack == NoteAttack::PickSlide))
+    // The capo is the string's floor: 0 means the capo'd open string, and the frets it covers
+    // do not exist to play. A pressed note on one has no repair that is not an invented pitch,
+    // so it stays a refusal; a SCRAPE's start on one is the normalizer's lift (a scrape has no
+    // open form — user ruling 2026-08-20, closing W9-J), asked as the fixpoint below.
+    if (note.fret != 0 && note.fret <= tuning.capo && note.attack != NoteAttack::PickSlide)
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
             .message = "fret must be 0 or above the capo at " + positionText(note.position),
         }};
     }
-    // An open string cannot slide — nothing is pressed to travel, and the capo'd open is no
-    // different (the capo does not move) — so a glide or trail-off from fret 0 describes the
-    // unexecutable. The shed (\ref executableChartNote) drops the same path, so import repairs
-    // what this gate refuses. (A fret-0 scrape never reaches here: the floor above refuses it.)
-    if (note.fret == 0 && (!note.slides.empty() || note.slide_out.has_value()))
+    // Everything else a note can break on its own is a repair the normalizer owns, so the rule
+    // is asked exactly once: the note must already be its own normal form.
+    ChartNote normal = note;
+    if (const std::vector<ChartRepair> repairs = normalizeChartNote(normal, tuning);
+        !repairs.empty())
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "an open string cannot slide at " + positionText(note.position),
-        }};
-    }
-    // A struck note needs somewhere to land (E4), asked of the one authority for that question so
-    // the refusal here and the two flattens that repair it can never disagree.
-    if (nothingToStrike(note))
-    {
-        return std::unexpected{ChartError{
-            .code = ChartErrorCode::InvalidNote,
-            .message = "tapped note needs a place to strike at " + positionText(note.position),
-        }};
-    }
-    // A dead note sounds no pitch, so it excludes pitch MODULATION: a bend or a vibrato needs a
-    // pitch to act on. POSITION-valued payloads all stay legal, and since 2026-08-18 that
-    // includes a HARMONIC NODE ON THE NECK (user ruling): a player can hold a harmonic's shape
-    // while damping, and the node then says where the hand is rather than what rings — exactly
-    // how this model already reads a dead note's own FRET, which nothing strips. Slides and the
-    // slide-out were always legal for the same reason. Asked of the dead flag alone, never of the
-    // pair: a note that is also palm muted sounds exactly as dead, and a palm mute on its own
-    // sounds pitched.
-    if (note.dead && (!note.bend.empty() || note.vibrato))
-    {
-        return std::unexpected{ChartError{
-            .code = ChartErrorCode::InvalidNote,
-            .message = "a dead note sounds no pitch, so it cannot carry a bend or vibrato at " +
+            .message = std::string{chartRepairText(repairs.front())} + " at " +
                        positionText(note.position),
         }};
-    }
-    // The one node that does NOT survive the deadening is the node OFF the neck, which today is
-    // the pinch's alone. What earns every other node its place on a dead note is that a hand is
-    // standing on it, so it goes on naming a position once the pitch is gone; a pinch's node
-    // instead records where the picking thumb grazes, which names no hand position the fret does
-    // not already give and asks for a squeal a damped string cannot make. That leaves it
-    // describing the unexecutable, exactly as the tremolo tap harmonic below does. Asked of
-    // `nodeIsOnNeck` rather than of `Pinch`, so this and the placement rules cannot drift apart
-    // if another off-neck harmonic is ever added.
-    if (note.dead && note.harmonic_node.has_value() && !nodeIsOnNeck(note.attack))
-    {
-        return std::unexpected{ChartError{
-            .code = ChartErrorCode::InvalidNote,
-            .message = "a damped string cannot squeal, so a dead note cannot be a pinch harmonic "
-                       "at " +
-                       positionText(note.position),
-        }};
-    }
-    // A tap harmonic's damping finger leaves the string, so nothing holds the node under
-    // re-picking and the harmonic dies; tremolo therefore describes the unexecutable.
-    if (note.attack == NoteAttack::Tap && note.harmonic_node.has_value() && note.tremolo)
-    {
-        return std::unexpected{ChartError{
-            .code = ChartErrorCode::InvalidNote,
-            .message = "a tap harmonic cannot be tremolo picked at " + positionText(note.position),
-        }};
-    }
-    // A fret-hand harmonic touches its node with nothing pressed, so nothing can slide,
-    // bend, or oscillate — moving the touch off the node just stops the harmonic. A harmonic
-    // over a real stop (fret > 0) is the picking-hand-damped family and bends normally.
-    if (fretHandHarmonic(note))
-    {
-        if (!note.slides.empty() || note.slide_out.has_value())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message = "a fret-hand harmonic cannot slide at " + positionText(note.position),
-            }};
-        }
-        if (!note.bend.empty() || note.vibrato)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNote,
-                .message =
-                    "a fret-hand harmonic cannot bend or vibrato at " + positionText(note.position),
-            }};
-        }
     }
     return std::expected<void, ChartError>{};
 }
@@ -466,7 +666,8 @@ std::expected<void, ChartError> validateChartNotes(
     for (const ChartNote& note : notes)
     {
         // Every rule a note can break on its own, asked of the one authority for them rather than
-        // restated here. What remains below is only what reads a note's NEIGHBOURS.
+        // restated here. What remains below is only what reads a note's NEIGHBOURS, plus the
+        // payload geometry no repair can express.
         if (auto alone = validateChartNoteAlone(note, tuning, tempo_map); !alone.has_value())
         {
             return alone;
@@ -505,28 +706,14 @@ std::expected<void, ChartError> validateChartNotes(
         previous_offset = Fraction{0};
         for (const SlideWaypoint& waypoint : note.slides)
         {
+            // Where a waypoint sits in TIME has no repair; where it sits on the NECK is the
+            // normalizer's (the board clamp and the capo floor), already asked per note.
             if (waypoint.offset <= previous_offset || waypoint.offset > note.sustain ||
-                waypoint.fret < 0 || waypoint.fret > g_max_fret)
+                waypoint.fret < 0)
             {
                 return std::unexpected{ChartError{
                     .code = ChartErrorCode::InvalidNotePayload,
                     .message = "slide waypoints must ascend within the sustain at " +
-                               positionText(note.position),
-                }};
-            }
-            // Every fret a slide gesture names sits at or above the first playable fret (user
-            // ruling 2026-08-20): a pitched glide's stops are PRESSED positions, and a scrape's
-            // turnarounds are pick travel along the sounding string, so neither may name the
-            // open string or a capo'd fret — a glide cannot arrive at fret 0 because nothing is
-            // pressed there to arrive with (sliding down toward the nut is the unpitched
-            // trail-off, which is what the importer degrades such a glide to), and a scrape at
-            // the nut is no scrape.
-            if (waypoint.fret <= tuning.capo)
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidNotePayload,
-                    .message = "a slide waypoint cannot sit on the open string or a capo'd fret "
-                               "at " +
                                positionText(note.position),
                 }};
             }
@@ -557,9 +744,8 @@ std::expected<void, ChartError> validateChartNotes(
 
         // A slide-out owns its geometry and must stay ordered like any payload.
         const SlideOut* const slide_out = slideOutOrNull(note);
-        if (slide_out != nullptr &&
-            (slide_out->offset <= previous_offset || slide_out->offset > note.sustain ||
-             slide_out->fret < 0 || slide_out->fret > g_max_fret))
+        if (slide_out != nullptr && (slide_out->offset <= previous_offset ||
+                                     slide_out->offset > note.sustain || slide_out->fret < 0))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidNotePayload,
@@ -567,25 +753,12 @@ std::expected<void, ChartError> validateChartNotes(
                            positionText(note.position),
             }};
         }
-        // The exit is unpitched travel, but it is travel along the SOUNDING string: a
-        // trail-off or a scrape's terminal exits at or above the first playable fret (user
-        // ruling 2026-08-20), the same floor every other fret a slide gesture names obeys. The
-        // importer has always floored its exits there; this is the model saying so.
-        if (slide_out != nullptr && slide_out->fret <= tuning.capo)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNotePayload,
-                .message = "slide-out must exit above the capo at " + positionText(note.position),
-            }};
-        }
 
         // A SAVED pick-slide note carries no pitched technique — the document writer omits them
         // (the in-memory override design, chart.h) — so a document that does is hand-made or a
         // bug and fails loudly; emphasis is a scrape's own dynamics and passes. The gesture is
         // the required unpitched slide-out terminal, exactly at the sustain (nothing rings past
-        // a scrape), plus optional turnaround waypoints; the whole path keeps traveling
-        // (consecutive neck positions strictly differ, the start fret included — a scrape
-        // cannot sit still, unlike note slides, whose equal-fret segments are holds).
+        // a scrape). That the path keeps traveling is the normalizer's demotion, already asked.
         if (note.attack == NoteAttack::PickSlide)
         {
             // Stated as a FIXPOINT rather than by listing the overridden fields: a saved note must
@@ -608,27 +781,6 @@ std::expected<void, ChartError> validateChartNotes(
                     .code = ChartErrorCode::InvalidPickSlide,
                     .message = "pick slide must end in a slide-out exactly at the sustain at " +
                                positionText(note.position),
-                }};
-            }
-            int previous_fret = note.fret;
-            for (const SlideWaypoint& waypoint : note.slides)
-            {
-                if (waypoint.fret == previous_fret)
-                {
-                    return std::unexpected{ChartError{
-                        .code = ChartErrorCode::InvalidPickSlide,
-                        .message =
-                            "pick-slide path must keep traveling at " + positionText(note.position),
-                    }};
-                }
-                previous_fret = waypoint.fret;
-            }
-            if (slide_out->fret == previous_fret)
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidPickSlide,
-                    .message =
-                        "pick-slide path must keep traveling at " + positionText(note.position),
                 }};
             }
         }

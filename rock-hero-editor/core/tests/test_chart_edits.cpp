@@ -195,19 +195,11 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                         subject,
                                     };
 
-                                    // Exactly the import's own sequence: shed what the note cannot
-                                    // execute, flatten a strike with nowhere to land, then settle
-                                    // the claims the finished stream cannot justify.
-                                    for (common::core::ChartNote& note : chart.notes)
-                                    {
-                                        note = common::core::executableChartNote(note);
-                                        if (common::core::nothingToStrike(note))
-                                        {
-                                            note.attack = common::core::NoteAttack::Pick;
-                                        }
-                                    }
-                                    static_cast<void>(common::core::sweepUnjustifiedLegato(
-                                        chart.notes, chart.shapes, tempo_map));
+                                    // Exactly the import's own step: the one normalizer, which
+                                    // repairs what the note cannot execute and then settles the
+                                    // claims the finished stream cannot justify.
+                                    static_cast<void>(
+                                        common::core::normalizeChart(chart, tempo_map));
 
                                     ++combinations;
                                     shed_or_repaired += chart.notes[1] == subject ? 0 : 1;
@@ -1062,6 +1054,65 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
     {
         CHECK_FALSE(note->palm_mute);
         CHECK(note->dead);
+    }
+}
+
+// E25 inside the verbs: a dead note carries no plain tail, and the tail goes WITH the press that
+// deadens the note (or removes the tremolo that justified it) rather than the press being refused
+// over a tail that means nothing once the note is dead. The trim is the plan's own consequence, so
+// it rides the same undo entry, and growing a dead note's tail by hand simply changes nothing.
+TEST_CASE(
+    "planSetNoteFlag trims a dead note's plain tail as the edit's consequence", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    // measure 3 / string 1 carries a two-beat tail in the fixture.
+    constexpr std::size_t held = 2;
+    REQUIRE(chart.notes[held].sustain.numerator > 0);
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    SECTION("X on a held note deadens it and trims the tail in one entry")
+    {
+        const auto dead =
+            planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
+        REQUIRE(dead.has_value());
+        if (dead.has_value())
+        {
+            REQUIRE(dead->inserted.size() == 1);
+            CHECK(dead->inserted.front().dead);
+            CHECK(dead->inserted.front().sustain == common::core::Fraction{});
+            applyAndValidate(chart, tempo_map, *dead);
+        }
+
+        // Growing the dead note's tail afterwards is inert, not refused: the plan trims what it
+        // grew, so the diff is empty.
+        const auto grown = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{1});
+        REQUIRE_FALSE(grown.has_value());
+        CHECK(grown.error() == ChartPlanRefusal::NoChange);
+    }
+
+    SECTION("a tremolo'd dead note keeps its tail until the tremolo goes")
+    {
+        chart.notes[held].tremolo = true;
+        const auto dead =
+            planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
+        REQUIRE(dead.has_value());
+        if (dead.has_value())
+        {
+            REQUIRE(dead->inserted.size() == 1);
+            CHECK(dead->inserted.front().sustain == chart.notes[held].sustain);
+            applyAndValidate(chart, tempo_map, *dead);
+        }
+        const auto plain = planSetNoteFlag(
+            chart, tempo_map, keys, ChartNoteFlag::Tremolo, false, "Remove Tremolo");
+        REQUIRE(plain.has_value());
+        if (plain.has_value())
+        {
+            REQUIRE(plain->inserted.size() == 1);
+            CHECK_FALSE(plain->inserted.front().tremolo);
+            CHECK(plain->inserted.front().sustain == common::core::Fraction{});
+            applyAndValidate(chart, tempo_map, *plain);
+        }
     }
 }
 

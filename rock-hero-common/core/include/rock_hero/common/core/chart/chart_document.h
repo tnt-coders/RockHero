@@ -34,16 +34,27 @@ the rules that need grid context.
 [[nodiscard]] std::expected<Chart, ChartError> readChartDocument(const std::filesystem::path& file);
 
 /*!
+\brief The chart as its document holds it: every note in saved form, every claim settled.
+
+The ONE seam between memory and file. Memory is richer than the file on purpose — a scrape keeps
+its latent overrides so the attack toggle can restore them, and a `Legato` claim the chart does not
+justify survives mid-burst so a neighbour edit can re-justify it — and this is where both are
+resolved: latents are stripped (\ref savedChartNote) and unjustifiable claims leave as the plain
+picks they play as (\ref sweepUnjustifiedLegato). Stated once so the renderer, the writer's
+refusal gate, and any reader of "what will the file say" cannot disagree. That is why the tempo
+map is a parameter — the claim is only decidable on the beat axis its hold test measures.
+
+\param chart Chart in memory.
+\param tempo_map Song tempo map the chart's positions lie on.
+\return The chart exactly as a document would hold it.
+*/
+[[nodiscard]] Chart documentChart(const Chart& chart, const TempoMap& tempo_map);
+
+/*!
 \brief Renders a chart document as JSON text in the canonical one-entry-per-line layout.
 
-Writes the RESOLVED form of every note, which is what makes the file-level invariant
-unconditional: a `Legato` claim the chart does not justify serializes as the plain pick it plays as
-(\ref sweepUnjustifiedLegato), so no written document can carry an unjustifiable claim regardless of
-which verb, importer, or save path produced the chart. That is why the tempo map is a parameter —
-the claim is only decidable on the beat axis its hold test measures — and it is a parameter rather
-than each caller's own sweep so no write path can forget.
-
-Latent in-memory overrides are stripped by the same seam the display reads (\ref savedChartNote).
+Renders \ref documentChart, so no written document can carry an unjustifiable claim or a latent
+override regardless of which verb, importer, or save path produced the chart.
 
 \param chart Chart to render.
 \param tempo_map Song tempo map the chart's positions lie on.
@@ -53,9 +64,15 @@ Latent in-memory overrides are stripped by the same seam the display reads (\ref
 
 /*!
 \brief Writes a chart document file, creating parent directories as needed.
+
+Refuses to write a document the reader would refuse: the document form is validated first
+(\ref validateChartRules), and a failure is returned as the typed rule error rather than written.
+Memory is valid by construction — load normalizes and the edit verbs refuse — so this gate never
+fires in a correct build; when it does it has caught a verb defect, and the message says so.
+
 \param file Native path of the chart document.
 \param chart Chart to write.
-\param tempo_map Song tempo map the chart's positions lie on; see \ref chartDocumentText.
+\param tempo_map Song tempo map the chart's positions lie on; see \ref documentChart.
 \return Empty success, or a typed failure.
 */
 [[nodiscard]] std::expected<void, ChartError> writeChartDocument(

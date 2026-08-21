@@ -1,4 +1,5 @@
 #include "controller/editor_controller_impl.h"
+#include "project/load_notice.h"
 #include "shared/editor_controller_logging.h"
 
 #include <cassert>
@@ -346,6 +347,20 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
     finishBusyOperation();
+
+    // A load that had to normalize a chart says so ONCE, after the busy overlay is gone and the
+    // restored view is showing: what changed, where, and that the file is untouched until a save.
+    // Never a prompt before the fact — an un-normalized chart has nowhere to go — and never
+    // silent, which is the whole point of repairing instead of refusing.
+    if (m_project.has_value())
+    {
+        const std::string notice =
+            loadConversionNoticeText(session().song(), m_project->loadConversions());
+        if (!notice.empty())
+        {
+            reportNotice("Chart updated to the current rules", notice);
+        }
+    }
 }
 
 // Imports a song source after any current project-replacement prompt has been satisfied. Same

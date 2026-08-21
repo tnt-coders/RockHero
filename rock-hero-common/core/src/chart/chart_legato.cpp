@@ -101,7 +101,7 @@ ChartResolutions chartResolutions(
     return resolutions;
 }
 
-std::vector<std::string> sweepUnjustifiedLegato(
+std::vector<ChartConversion> sweepUnjustifiedLegato(
     std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
 {
     // Nothing can flatten unless some note actually claims a connection, and this runs at EVERY
@@ -115,7 +115,7 @@ std::vector<std::string> sweepUnjustifiedLegato(
         return {};
     }
     const ChartResolutions resolutions = chartResolutions(notes, shapes, tempo_map);
-    std::vector<std::string> conversions;
+    std::vector<ChartConversion> conversions;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
@@ -126,8 +126,11 @@ std::vector<std::string> sweepUnjustifiedLegato(
         }
         note.attack = NoteAttack::Pick;
         conversions.push_back(
-            "legato at " + formatGridPositionToken(note.position) + " on string " +
-            std::to_string(note.string) + " has nothing to connect to; recorded as a plain pick");
+            ChartConversion{
+                .repair = ChartRepair::UnjustifiedLegato,
+                .where = formatGridPositionToken(note.position) + " string " +
+                         std::to_string(note.string),
+            });
     }
     return conversions;
 }

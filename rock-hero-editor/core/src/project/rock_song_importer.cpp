@@ -44,12 +44,17 @@ std::expected<common::core::Song, SongImportError> RockSongImporter::importSong(
         }};
     }
 
-    // Conversion notes are diagnostics, not failures — and a native package written by this editor
-    // never carries any, because the document writer serializes the resolved form. A third-party or
-    // hand-made file can, so they are logged the way the Guitar Pro importer logs its own.
-    for (const std::string& note : imported_song->conversions)
+    // Conversions are diagnostics, not failures — and a native package written by this editor
+    // under today's rules never carries any, because the writer refuses anything but the normal
+    // form. A file written under older rules, or a third-party or hand-made one, can; they are
+    // logged the way the Guitar Pro importer logs its own.
+    for (const common::core::SongPackageConversion& conversion : imported_song->conversions)
     {
-        RH_LOG_INFO("editor.import", "rock package import: {}", note);
+        RH_LOG_INFO(
+            "editor.import",
+            "rock package import: arrangement {}: {}",
+            conversion.arrangement,
+            common::core::chartConversionText(conversion.conversion));
     }
 
     return std::expected<common::core::Song, SongImportError>{

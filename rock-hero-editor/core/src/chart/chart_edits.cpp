@@ -236,8 +236,25 @@ void normalizeSustainOverlaps(
     return plan;
 }
 
+// The two repairs a plan carries with it rather than refusing over, and the only two: an attack
+// that STRIKES from nowhere needs somewhere to land (E4), and a dead note carries no plain tail
+// (E25). Both ride the entry that produced them because the truth each repairs is the note's OWN —
+// retyping a tap down to the open string leaves nothing to strike, and deadening a held note
+// leaves a tail that means nothing — so refusing instead would make the edit fail for a reason the
+// user never asked about, and for E25 would refuse X on every held note in an imported chart.
+// Every OTHER rule the normalizer owns stays a refusal, because its repair would discard authored
+// data the user did not touch. Stated once, asked twice: by the flag and emphasis verbs' per-note
+// eligibility tests (so a held note is eligible for X rather than skipped) and by finalizePlan
+// over the whole candidate (so no verb can forget). The attack verb asks only the trim, since
+// for it the attack is the intent and a stranded strike is a note to skip.
+void repairOwnTruths(common::core::ChartNote& note)
+{
+    static_cast<void>(common::core::flattenStrandedStrike(note));
+    static_cast<void>(common::core::trimMutedTail(note));
+}
+
 // Finalizes a candidate stream: restores (position, string) order, applies the 40-Q2-B overlap
-// normalization and the intra-note flatten, gates the result through the whole technique matrix,
+// normalization and the two in-plan repairs, gates the result through the whole technique matrix,
 // and diffs against the current stream. The gate is what makes authoring an invalid chart
 // impossible by construction — a plan whose candidate the document reader would reject refuses
 // here, for every present and future verb, with no per-verb guard to forget. It validates the SAVED
@@ -250,21 +267,14 @@ void normalizeSustainOverlaps(
 {
     std::ranges::sort(candidate, keyLess);
     normalizeSustainOverlaps(candidate, tempo_map);
-    // The in-plan flatten, and the only one: an attack that STRIKES from nowhere needs somewhere to
-    // land (E4), and an edit to a note's own fret can strand it — retyping a tap or a left-hand tap
-    // down to the open string leaves nothing to strike. Flattening rides the entry that stranded
-    // it, because the truth it repairs is the note's OWN: refusing the plan instead would make a
-    // fret edit fail for a reason the user never asked about. Relational truths deliberately do not
-    // repair here (see planSettleLegato): mid-burst a claim the chart cannot justify simply plays
-    // as the pick it sounds like, and the burst stays one undo step. Sweeping the whole candidate
-    // needs no record of which notes the plan touched, because a note the plan left alone already
-    // passed this gate.
+    // The in-plan repairs (repairOwnTruths). Relational truths deliberately do not repair here
+    // (see planSettleLegato): mid-burst a claim the chart cannot justify simply plays as the pick
+    // it sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no
+    // record of which notes the plan touched, because a note the plan left alone already passed
+    // this gate.
     for (common::core::ChartNote& note : candidate)
     {
-        if (common::core::nothingToStrike(note))
-        {
-            note.attack = common::core::NoteAttack::Pick;
-        }
+        repairOwnTruths(note);
     }
     // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
     // by the writer, so validating the in-memory values would refuse charts the document accepts.
@@ -720,6 +730,11 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
             const int stop = note.fret > 0 ? note.fret : chart.tuning.capo;
             retyped.harmonic_node = static_cast<double>(stop) + 12.0;
         }
+        // Only the tail trim rides THIS verb's eligibility, never the strike flatten: here the
+        // attack IS what the user asked for, so a strike with nowhere to land (an open-string
+        // pinch re-handed to the fretting hand) is a note to skip, not one to quietly retype as a
+        // pick. The flatten belongs to the verbs where the attack is secondary — a fret edit.
+        static_cast<void>(common::core::trimMutedTail(retyped));
         if (attack != common::core::NoteAttack::PickSlide &&
             !common::core::validateChartNoteAlone(retyped, chart.tuning, tempo_map).has_value())
         {
@@ -829,7 +844,9 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
         // asked of the note as it would be WRITTEN, so a mixed selection applies to what CAN take
         // the mute and leaves the rest alone. That rule is what refuses `dead` wherever a
         // technique needs the pitch it removes — a bend, a vibrato, a pinch's squeal — and what
-        // a palm mute always passes.
+        // a palm mute always passes. Asked AFTER the plan's own repairs, so a held note is
+        // eligible for X — its tail goes with the press — rather than skipped over the tail.
+        repairOwnTruths(muted);
         if (!common::core::validateChartNoteAlone(muted, chart.tuning, tempo_map).has_value())
         {
             continue;
@@ -875,6 +892,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
             continue;
         }
         // Eligible-subset skip, exactly as the mute and attack verbs do it.
+        repairOwnTruths(struck);
         if (!common::core::validateChartNoteAlone(struck, chart.tuning, tempo_map).has_value())
         {
             continue;

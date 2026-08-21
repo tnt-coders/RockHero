@@ -38,6 +38,18 @@ public:
     virtual void showError(const std::string& message) = 0;
 
     /*!
+    \brief Presents a one-shot informational notice the user dismisses.
+
+    The sibling of \ref showError for news that is not a failure — an open that had to normalize a
+    chart says what it changed and where. One-shot like an error, and deliberately not a view-state
+    field: the notice belongs to the moment of the open, not to the durable render state.
+
+    \param title Short window title naming the event.
+    \param message User-facing notice body; may span several lines.
+    */
+    virtual void showNotice(const std::string& title, const std::string& message) = 0;
+
+    /*!
     \brief Runs a callback after the busy overlay has painted once.
 
     Message-thread-only operations that would otherwise block repaint can use this fence after

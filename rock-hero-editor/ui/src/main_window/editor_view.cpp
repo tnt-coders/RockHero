@@ -792,6 +792,13 @@ void EditorView::showError(const std::string& message)
         this, "Could not complete request", juce::String::fromUTF8(message.c_str()));
 }
 
+// Presents controller-reported news that is not a failure as a one-shot dialog.
+void EditorView::showNotice(const std::string& title, const std::string& message)
+{
+    showThemedInfoBox(
+        this, juce::String::fromUTF8(title.c_str()), juce::String::fromUTF8(message.c_str()));
+}
+
 // Defers message-thread-only work until BusyOverlay has actually rendered the busy state.
 void EditorView::runAfterBusyOverlayPainted(std::function<void()> callback)
 {

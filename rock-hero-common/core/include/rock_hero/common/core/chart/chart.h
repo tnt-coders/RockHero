@@ -596,9 +596,9 @@ so a node found on a scrape is purely the in-memory latent the attack toggle pre
 override contract), and reading it as a fretting-hand touch made two things go wrong at once — the
 connection resolver refused to release from a scrape while the SAVED stream it is contracted to
 judge (where the node is stripped) says there is nothing to refuse, so a pull the released-fret
-semantics rule valid silently resolved to nothing; and the importer's shed pass stripped the
-scrape's REQUIRED slide-out terminal, producing a
-chart that E2 then rejected on re-read. `Tap` is NOT excluded — an open-string tap harmonic has
+semantics rule valid silently resolved to nothing; and the normalizer's fret-hand-harmonic stage
+stripped the scrape's REQUIRED slide-out terminal, producing a chart that E2 then rejected on
+re-read. `Tap` is NOT excluded — an open-string tap harmonic has
 nothing pressed either, which is exactly what those rules test. Contrast `fretFor`'s node branch,
 which additionally excludes `Tap` because the hand-placement question cares which HAND owns the
 node, not whether a stop is pressed.

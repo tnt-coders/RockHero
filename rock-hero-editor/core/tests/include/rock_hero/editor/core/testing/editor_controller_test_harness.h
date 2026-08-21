@@ -104,6 +104,12 @@ public:
         shown_errors.push_back(message);
     }
 
+    // Records one-shot notices so tests can assert what an open told the user.
+    void showNotice(const std::string& title, const std::string& message) override
+    {
+        shown_notices.push_back(ShownNotice{.title = title, .message = message});
+    }
+
     // Runs or stores a busy-overlay paint fence callback for controller tests.
     void runAfterBusyOverlayPainted(std::function<void()> callback) override
     {
@@ -163,6 +169,16 @@ public:
 
     // One-shot error messages reported through the transient view-effect channel.
     std::vector<std::string> shown_errors{};
+
+    // One recorded notice: what showNotice() was handed.
+    struct ShownNotice
+    {
+        std::string title;
+        std::string message;
+    };
+
+    // Every one-shot notice shown, in order.
+    std::vector<ShownNotice> shown_notices{};
 
     // Durable state that was current when each one-shot error was shown.
     std::vector<std::optional<EditorViewState>> states_seen_at_errors{};

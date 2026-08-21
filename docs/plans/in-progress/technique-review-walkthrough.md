@@ -152,8 +152,13 @@ item ships, mark it and name the commit.
     mid-entry legato flicker the user worried about is then gone by construction rather than
     tuned. Do not preview the repaired neighbour in the overlay, though the plan is in hand:
     that would re-import the flicker as chrome.
-- [ ] **W4 — Implement E25's muted-tail rules (D16 below; SIGNED, unbuilt).** The ruling is done;
-  what remains is code, in three parts: the validation rule (a `Full`-muted note's sustain requires
+- [x] **W4 — Implement E25's muted-tail rules (D16 below) — SHIPPED 2026-08-20** as the one
+  normalizer (`normalizeChart`), with the validator
+  reduced to structural refusals plus the fixpoint, the writer refusing what the reader
+  would, and the one-shot open notice naming every repair and its place — see
+  `e25-muted-tail-implementation.md` for the full design record and the principle now in
+  `architectural-principles.md`. The legato knock-on (§6.5) rides the same notice. The original
+  entry: the ruling is done; what remains is code, in three parts: the validation rule (a `Full`-muted note's sustain requires
   `tremolo` or a slide payload), the import normalization that zeroes such a sustain so a re-read
   cannot refuse the chart, and the noise-idiom tail display. Blocks nothing but touches W1, E10,
   E24 and the display; build before the lock/break work so the tail rules are stated once.

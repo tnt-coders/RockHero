@@ -7,6 +7,7 @@
 
 #include <expected>
 #include <filesystem>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/package/song_package_error.h>
 #include <rock_hero/common/core/song/song.h>
 #include <string>
@@ -16,26 +17,42 @@ namespace rock_hero::common::core
 {
 
 /*!
-\brief A completed package read: the song, plus everything the load had to convert to get it.
+\brief One repair a load applied to one arrangement's chart, and which arrangement.
+
+The arrangement index is what lets a notice name the part a position belongs to when a song has
+more than one chart.
+*/
+struct SongPackageConversion
+{
+    /*! \brief Index into \ref Song::arrangements of the chart that was repaired. */
+    std::size_t arrangement{};
+
+    /*! \brief The repair and where it fired. */
+    ChartConversion conversion;
+};
+
+/*!
+\brief A completed package read: the song, plus everything the load had to normalize to get it.
 
 Two fields rather than one because a load is not always a pure function of the file: the reader
-settles every chart it opens (\ref sweepUnjustifiedLegato), so a document carrying a connection
-claim its own notes do not justify loads as the plain pick it plays as. That is a difference between
-memory and disk, and the editor is required to notice it — an open that converted anything leaves
-the session dirty.
+brings every chart it opens to its normal form (\ref normalizeChart) before anything else sees it,
+so a document that an older rule set accepted loads as the chart today's rules make of it, and a
+connection claim its own notes do not justify loads as the plain pick it plays as. Each is a
+difference between memory and disk, and the editor is required to notice it — an open that
+converted anything leaves the session dirty and tells the user what changed and where.
 
-In practice the channel is almost always empty: every document the project writes is already
-resolved by construction (\ref chartDocumentText), so only a hand-made or third-party file converts
-anything.
-The game discards it for exactly that reason, and can never see an unresolved claim.
+In practice the channel is empty except right after a rule change: every document the project
+writes is already normal by construction (the writer refuses anything else), so only a file written
+under older rules, or a hand-made or third-party one, converts anything. The game discards the
+channel for exactly that reason, and can never see an abnormal chart.
 */
 struct SongPackageRead
 {
-    /*! \brief The song as loaded, with every chart settled. */
+    /*! \brief The song as loaded, every chart in normal form. */
     Song song;
 
-    /*! \brief Human-readable notes for what the load converted; empty on a clean read. */
-    std::vector<std::string> conversions;
+    /*! \brief Every repair the load applied, with arrangement and place; empty on a clean read. */
+    std::vector<SongPackageConversion> conversions;
 };
 
 /*!

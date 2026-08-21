@@ -10,11 +10,13 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/song/audio_normalization.h>
+#include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/editor/core/project/i_song_importer.h>
 #include <rock_hero/editor/core/project/project_error.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -147,19 +149,33 @@ public:
     /*!
     \brief Reports whether the most recent load changed the song it read.
 
-    One flag for every reason a load can leave memory ahead of the file — repaired backing-audio
-    normalization metadata, and connection claims the chart no longer justifies, flattened by the
-    reader's settle sweep. They are one question, not two: either answer means the session is dirty
-    the moment it opens, and splitting them would need two callers to agree by hand.
+    One answer for every reason a load can leave memory ahead of the file — repaired backing-audio
+    normalization metadata, and every chart repair the reader's normalizer applied. They are one
+    question, not two: either means the session is dirty the moment it opens, and splitting them
+    would need two callers to agree by hand. Derived from the two sources rather than stored beside
+    them, so it cannot disagree with \ref loadConversions.
 
     \return True when the load changed something that should be persisted on save.
     */
     [[nodiscard]] bool songConvertedOnLoad() const noexcept;
 
+    /*!
+    \brief Every chart repair the most recent load applied, with its arrangement and place.
+
+    The material for the one-shot notice the controller shows at open: a rule change
+    repairs-and-reports rather than bricking a project, and this is the report. Empty after a clean
+    load and again after a save, when memory and file agree once more.
+
+    \return The load's chart conversions, in arrangement order.
+    */
+    [[nodiscard]] const std::vector<common::core::SongPackageConversion>& loadConversions()
+        const noexcept;
+
 private:
     std::filesystem::path m_path;
     std::filesystem::path m_workspace_directory;
-    bool m_song_converted_on_load{false};
+    bool m_audio_normalized_on_load{false};
+    std::vector<common::core::SongPackageConversion> m_load_conversions;
 };
 
 } // namespace rock_hero::editor::core

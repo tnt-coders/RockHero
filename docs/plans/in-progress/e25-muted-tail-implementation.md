@@ -1,7 +1,16 @@
 # E25 Muted Tails — Implementation Design (W4)
 
-**Status: rule SIGNED, implementation design SIGNED 2026-08-20 (all four questions ruled),
-implementation NOT STARTED. One late conflict to resolve first — see §6.5.**
+**Status: SHIPPED 2026-08-20.** Built exactly as ruled below, as the one normalizer
+(`normalizeChart` / `normalizeChartNote` in `chart_rules.h`): the technique drops, the board and
+capo range repairs, the stranded strike, the stilled-scrape demotion, and E25's muted-tail trim are
+one function with the settle sweep as its last stage; the validator is structural refusals plus the
+fixpoint; the package reader and the GP importer both call it and nothing else; the document
+writer refuses what the reader would; the editor's plans carry the two own-truth repairs (E4, E25)
+and refuse everything else; and an open that normalized anything shows the one-shot notice
+(`loadConversionNoticeText`, `IEditorView::showNotice`) naming each rule and its places, opens
+dirty, and leaves the file untouched until a save. The principle is codified in
+`docs/design/architectural-principles.md` ("Domain Invariants: One Normalizer, Normalize-or-Refuse").
+What follows is the design record that produced it.
 
 The rule itself was signed 2026-08-09 as E25 (ruling D16) and needs no revisiting. What this
 document holds is the *implementation* design, opened 2026-08-20, paused mid-discussion, and

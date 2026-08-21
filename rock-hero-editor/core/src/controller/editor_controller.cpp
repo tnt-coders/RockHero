@@ -4880,6 +4880,16 @@ void EditorController::Impl::reportError(const std::string& message)
     }
 }
 
+// Shows a one-shot notice when a view is attached; news with no view to tell is simply dropped,
+// exactly as an error is.
+void EditorController::Impl::reportNotice(const std::string& title, const std::string& message)
+{
+    if (m_view != nullptr)
+    {
+        m_view->showNotice(title, message);
+    }
+}
+
 // Answers the "has loading committed a usable arrangement" question used by intent gates.
 bool EditorController::Impl::hasLoadedArrangement() const
 {

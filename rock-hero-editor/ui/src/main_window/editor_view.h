@@ -139,6 +139,7 @@ public:
     \param message User-facing error message.
     */
     void showError(const std::string& message) override;
+    void showNotice(const std::string& title, const std::string& message) override;
 
     /*!
     \brief Runs a callback after the busy overlay paints.

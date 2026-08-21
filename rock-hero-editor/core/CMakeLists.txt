@@ -48,6 +48,8 @@ target_sources(
             src/project/gp_score_parser.h
             src/project/gp_song_importer.cpp
             src/project/gp_song_importer.h
+            src/project/load_notice.cpp
+            src/project/load_notice.h
             src/project/project.cpp
             src/project/project_error.cpp
             src/project/project_handlers.cpp

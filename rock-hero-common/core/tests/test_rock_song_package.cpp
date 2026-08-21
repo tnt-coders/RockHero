@@ -1602,21 +1602,30 @@ TEST_CASE(
     Song song = makeSong(source_audio);
     song.arrangements.front().chart_ref = chart_ref;
     // Write the package first with a valid chart, then corrupt the chart file in place so the
-    // failure exercises the read-side rule validation.
+    // failure exercises the read-side rule validation. The corruption has to be written as raw
+    // text: the writer itself now refuses a document the reader would refuse.
     Chart valid_chart = invalid_chart;
     valid_chart.notes[0].position.beat = 1;
     REQUIRE(writeFixtureChart(package_directory / chart_ref, valid_chart).has_value());
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
-    REQUIRE(writeFixtureChart(package_directory / chart_ref, invalid_chart).has_value());
+    CHECK_FALSE(writeFixtureChart(package_directory / chart_ref, invalid_chart).has_value());
+    writeTextFile(
+        package_directory / chart_ref,
+        R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
+        R"( "notes": [ { "position": "1:9", "string": 3, "fret": 5 } ] })");
 
+    // A position off the grid is structural — no repair can express it — so the load refuses
+    // exactly as before the normalizer existed.
     const auto loaded = readSong(package_directory);
     REQUIRE_FALSE(loaded.has_value());
     CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
-// A hand-made scrape whose path sits still passes the writer verbatim (the writer sanitizes
-// nothing) and must fail loudly at the read-side rules gate.
-TEST_CASE("Rock song package read rejects a non-traveling pick slide", "[core][rock-song-package]")
+// A hand-made scrape whose path sits still is not a file to refuse but a note to repair: the load
+// normalizes it into the plain pick it sounds like, reports the repair with its place, and the
+// session it opens is dirty. The writer refuses to produce the form, so it is written as raw text.
+TEST_CASE(
+    "Rock song package read normalizes a non-traveling pick slide", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
@@ -1647,11 +1656,32 @@ TEST_CASE("Rock song package read rejects a non-traveling pick slide", "[core][r
     // Corrupt in place: the terminal lands on the start fret, so the scrape sits still.
     Chart still_chart = scrape_chart;
     still_chart.notes[0].slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 12};
-    REQUIRE(writeFixtureChart(package_directory / chart_ref, still_chart).has_value());
+    const auto refused = writeFixtureChart(package_directory / chart_ref, still_chart);
+    REQUIRE_FALSE(refused.has_value());
+    // The writer's refusal names the defect class and the rule, because in a correct build it
+    // can only mean a verb let something through.
+    CHECK(refused.error().message.find("would not load back") != std::string::npos);
+    CHECK(refused.error().message.find("no longer travels") != std::string::npos);
+    writeTextFile(
+        package_directory / chart_ref,
+        R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
+        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/2",)"
+        R"( "attack": "pickSlide", "slideOut": { "offset": "1/2", "fret": 12 } } ] })");
 
-    const auto loaded = readSong(package_directory);
-    REQUIRE_FALSE(loaded.has_value());
-    CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE(loaded.has_value());
+    REQUIRE(loaded->conversions.size() == 1);
+    CHECK(loaded->conversions.front().arrangement == 0);
+    CHECK(loaded->conversions.front().conversion.repair == ChartRepair::StilledScrape);
+    CHECK(loaded->conversions.front().conversion.where == "1:1 string 1");
+    REQUIRE(loaded->song.arrangements.front().chart.has_value());
+    if (loaded->song.arrangements.front().chart.has_value())
+    {
+        const ChartNote& repaired = loaded->song.arrangements.front().chart->notes.at(0);
+        CHECK(repaired.attack == NoteAttack::Pick);
+        CHECK_FALSE(repaired.slide_out.has_value());
+        CHECK(repaired.sustain == Fraction{1, 2});
+    }
 }
 
 TEST_CASE(

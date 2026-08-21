@@ -622,6 +622,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearActiveArrangementBestEffort(std::string_view context);
     void updateView();
     void reportError(const std::string& message);
+    void reportNotice(const std::string& title, const std::string& message);
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the
