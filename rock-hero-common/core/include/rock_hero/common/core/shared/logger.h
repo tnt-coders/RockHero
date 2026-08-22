@@ -222,6 +222,16 @@ struct Logger
     [[nodiscard]] static bool isStarted() noexcept;
 
     /*!
+    \brief The rotating log file the running backend writes, for text that points a user at it.
+
+    Empty before \ref init, after \ref shutdown, or when the backend was started without a file
+    sink — callers phrase around an empty path rather than printing it.
+
+    \return The configured log file path, or an empty path when there is none.
+    */
+    [[nodiscard]] static std::filesystem::path logFile();
+
+    /*!
     \brief Pre-allocates realtime queue storage for the current thread.
 
     Call this from the target thread before it enters a realtime callback. This only prepares the

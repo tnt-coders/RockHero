@@ -6,6 +6,7 @@
 #include <cmath>
 #include <initializer_list>
 #include <optional>
+#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
@@ -354,8 +355,8 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     // silent, which is the whole point of repairing instead of refusing.
     if (m_project.has_value())
     {
-        const std::string notice =
-            loadConversionNoticeText(session().song(), m_project->loadConversions());
+        const std::string notice = loadConversionNoticeText(
+            session().song(), m_project->loadConversions(), common::core::Logger::logFile());
         if (!notice.empty())
         {
             reportNotice("Chart updated to the current rules", notice);

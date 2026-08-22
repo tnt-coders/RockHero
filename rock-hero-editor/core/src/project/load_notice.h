@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/song/song.h>
 #include <string>
@@ -16,23 +17,26 @@ namespace rock_hero::editor::core
 /*!
 \brief Builds the notice an open shows when the load normalized something.
 
-A rule change repairs-and-reports instead of bricking a project, and this is the report: grouped
-by arrangement (named by its part, and only when the song has more than one) and then by rule, each
-rule followed by the positions it fired on. The list per rule is capped so a dense chart cannot
-produce a dialog taller than the screen; the full list is always in the log, and the text says so
-when it has cut anything. It closes by stating what the user most needs to know — the file is
-unchanged until they save — because a trimmed tail that was meant as tremolo is recoverable only
-while that is true.
+A rule change repairs-and-reports instead of bricking a project, and this is the report — kept
+to a glance on purpose (user ruling 2026-08-21: the per-position listing was far too noisy for a
+dialog). It says how many notes were updated, names each rule with its count (per arrangement,
+by part, only when the song has more than one), states what the user most needs to know — the
+file is unchanged until they save, because a trimmed tail that was meant as tremolo is recoverable
+only while that is true — and points at the log, where every position was already written in
+full when the package loaded.
 
 Pure text, so a test can pin the wording without a view.
 
 \param song The song as loaded; supplies the arrangement parts the notice names.
 \param conversions Every repair the load applied, from \ref common::core::SongPackageRead.
+\param log_file Where the per-position details are; an empty path phrases the pointer without
+       one (a test, or a backend started without a file sink).
 
 \return The notice body; empty when there were no conversions.
 */
 [[nodiscard]] std::string loadConversionNoticeText(
     const common::core::Song& song,
-    const std::vector<common::core::SongPackageConversion>& conversions);
+    const std::vector<common::core::SongPackageConversion>& conversions,
+    const std::filesystem::path& log_file);
 
 } // namespace rock_hero::editor::core

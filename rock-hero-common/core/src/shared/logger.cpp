@@ -82,6 +82,10 @@ struct LoggingState
     // Runtime severity floor from Logger::Config, applied to every logger handed out. Atomic
     // because category loggers can first be requested from worker threads.
     std::atomic<quill::LogLevel> default_level = quill::LogLevel::Info;
+
+    // The file sink's path, kept so user-facing text can say where the details went. Written
+    // under sinks_mutex with the sinks and read the same way; empty without a file sink.
+    std::filesystem::path log_file;
 };
 
 [[nodiscard]] LoggingState& loggingState()
@@ -270,6 +274,10 @@ std::expected<void, LoggerError> Logger::init(const Config& config)
     }
 
     installSinks(std::move(sinks));
+    {
+        const std::scoped_lock lock{state.sinks_mutex};
+        state.log_file = config.log_file;
+    }
     state.default_level.store(toQuillLevel(config.default_level), std::memory_order_release);
     state.phase.store(BackendPhase::Running, std::memory_order_release);
 
@@ -306,6 +314,17 @@ void Logger::shutdown()
 bool Logger::isStarted() noexcept
 {
     return loggingState().phase.load(std::memory_order_acquire) == BackendPhase::Running;
+}
+
+std::filesystem::path Logger::logFile()
+{
+    LoggingState& state = loggingState();
+    if (state.phase.load(std::memory_order_acquire) != BackendPhase::Running)
+    {
+        return {};
+    }
+    const std::scoped_lock lock{state.sinks_mutex};
+    return state.log_file;
 }
 
 // Pre-allocates the bounded realtime frontend queue for the current thread.
