@@ -30,7 +30,13 @@
   (off-grid / 1/960 fine).
 - **Clicking an existing object** → `Ctrl` = **TOGGLE** selection membership.
 
-`Alt` = the authoring gate (input mutates). `Shift` = range / extend / axis-lock. The **time
+`Alt` = the authoring gate (input mutates). Holding it *alone* mutates nothing and instead
+**reveals what it authors**: every visible note in the 2D chart lane outlines its ACTUAL ring — the
+stored duration `Alt`+wheel edits, which the presented tail may have trimmed or dropped — and
+releasing snaps back (stage B of `docs/plans/in-progress/note-sustain-model.md`, shipped
+2026-08-22). Global while held, never selection-scoped.
+
+`Shift` = range / extend / axis-lock. The **time
 selection** is **always grid-locked** — keyboard *and* pointer, never finer than the display grid
 (decision B, 2026-07-19; this **amends plan 47**, dropping its `Ctrl`-off-grid range endpoints).
 
@@ -158,6 +164,7 @@ likely subsumes that one too by the same argument.
 | **Edge-drag extent** | `✗` — chart sustain is `Alt`+wheel | `—` (no extent) | resize region | Live (tone) · chart uses `Alt`+wheel |
 | **Drag from empty (marquee)** | marquee select | marquee (scheduled) `✚` | `✗` | Live chart · `✚` lanes |
 | **`Alt`+drag from empty** | insert + place note | insert + place point | split + drag boundary | Live |
+| **`Alt` held (no gesture)** | reveal every visible note's **actual ring** (2D lane outline) | `✗` | `✗` | Live 2026-08-22 (chart only) |
 | **`Alt`+wheel** | duration (sustain / span) | `✗` | `✗` | Live (chart only) |
 | **`Ctrl+Alt`+wheel** | **fine** duration | `✗` | `✗` | Live (chart only) |
 | **`Shift+Alt`+wheel** | fret shift ±1 | `✗` | `✗` | Live (chart only) |

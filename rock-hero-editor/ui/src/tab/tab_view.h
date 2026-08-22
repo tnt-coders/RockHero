@@ -134,6 +134,25 @@ public:
     void setEditState(core::ChartEditViewState edit);
 
     /*!
+    \brief Turns the actual-ring reveal on or off; repaints only when the state changes.
+
+    While it is on, every visible note additionally outlines the ring the string ACTUALLY sounds
+    for (\ref common::core::ChartViewState::actual_end_seconds) over the presented tail this lane
+    draws. The editor holds it on for as long as the Alt key is — the sustain gesture's own
+    modifier — so the length being authored is visible while it is authored, and releasing snaps
+    the lane back to the presented picture.
+
+    A held state, not a mode: nothing here latches, and the editor re-samples the live key state
+    at every point a change could have gone unseen — its modifier callback, focus gain, and
+    pointer motion anywhere in its window — so a release nothing delivered cannot strand the
+    outlines on. The key itself is the shell's business — this lane, like everything headless
+    below it, knows only the state.
+
+    \param revealed True while the reveal modifier is held.
+    */
+    void setActualRingReveal(bool revealed);
+
+    /*!
     \brief Reports whether the lane wants the pointer at a lane-local position.
 
     The cursor overlay's pass-through predicate queries this: with a chart displayed the lane
@@ -228,7 +247,8 @@ public:
     [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
 
 private:
-    // Rebuilds the prefix-maximum sustain-end table after the projection changes.
+    // Rebuilds the prefix-maximum end tables (presented tails, actual rings) after the projection
+    // changes.
     void rebuildVisibilityIndex();
 
     // The armed caret square's rectangle under the given metrics, when one should draw: the
@@ -263,6 +283,11 @@ private:
     // Last caret mask handed to the sink, so a republish only fires on an actual change.
     std::optional<juce::Range<float>> m_published_caret_mask{};
 
+    // True while the reveal modifier is held, so paint adds every visible note's actual-ring
+    // outline. Not part of ChartEditViewState: the controller never learns of it, because which
+    // key is down is a fact about this window and nothing headless may branch on it.
+    bool m_actual_ring_reveal{false};
+
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
 
@@ -271,6 +296,11 @@ private:
 
     // Running maximum of note end times, aligned with the projection's note order.
     std::vector<double> m_prefix_max_end_seconds{};
+
+    // The same running maximum over the notes' ACTUAL ring ends, which the reveal culls by: a
+    // ring outlasting its presented tail must stay in visible range for exactly as long as its
+    // outline is drawn, and the table above stops at the tails.
+    std::vector<double> m_prefix_max_actual_end_seconds{};
 };
 
 } // namespace rock_hero::editor::ui

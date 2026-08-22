@@ -183,6 +183,55 @@ public:
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
 
     /*!
+    \brief Re-samples the Alt key into the tab lane's actual-ring reveal.
+
+    Alt is already the chart's authoring gate — it is what the sustain wheel gesture rides — so
+    holding it is what shows the ring being authored: while it is down every visible note in the
+    2D lane outlines its actual duration over the presented tail. Nothing below this view learns
+    of the key; the reveal is a UI fact and the editor core never sees it.
+
+    JUCE routes this event to the component under the mouse pointer, falling back to the focused
+    one when the pointer is over none, and `Component`'s own implementation forwards it up the
+    parent chain — so this override hears Alt from anywhere inside the editor window whose widgets
+    forward (`ComponentPeer::handleModifierKeysChange`, `Component::modifierKeysChanged`). It
+    keeps forwarding for the same reason: it observes the modifier, it never consumes it.
+
+    It does not read \p modifiers, and it is not the only sampler. No modifier callback can be
+    trusted as a feed: a widget may override this one WITHOUT forwarding (`juce::Slider` does),
+    and a release during Alt+Tab is delivered to another application entirely. So the key state
+    has one authority — `juce::ComponentPeer::getCurrentModifiersRealtime`, which asks the
+    operating system rather than returning what this window last saw — and this override,
+    \ref focusGained, and \ref mouseMove all sample it.
+
+    \param modifiers Modifier keys as JUCE saw them; forwarded on rather than read.
+    */
+    void modifierKeysChanged(const juce::ModifierKeys& modifiers) override;
+
+    /*!
+    \brief Re-samples the live Alt state when the editor takes keyboard focus.
+
+    A release delivered while another application had the keyboard never reaches this window, so
+    without this the reveal would stay on after an Alt+Tab away and back.
+
+    \param cause Why the focus changed; the resync is unconditional.
+    */
+    void focusGained(FocusChangeType cause) override;
+
+    /*!
+    \brief Re-samples the live Alt state on pointer motion anywhere in the editor window.
+
+    The constructor registers this view as a mouse listener for every nested child, so this fires
+    wherever the pointer sits rather than only over this view's own background. It is what closes
+    the swallow \ref modifierKeysChanged describes: `Component::internalModifierKeysChanged`
+    fabricates a mouse move on EVERY modifier change, so a transition a widget ate still produces
+    an event this view sees. A pointer returning from another window of this application, whose
+    parent chain terminates before this view, produces one too.
+
+    \param event Mouse event delivered by JUCE; the reveal reads the key state, not the event.
+    */
+    void mouseMove(const juce::MouseEvent& event) override;
+
+    /*!
     \brief Returns the top-level editor menu names.
     \return Menu names shown by the menu bar.
     */
@@ -251,6 +300,21 @@ private:
     // returns false when no chart selection is active or the wheel is not a selection verb.
     bool dispatchSelectionWheel(
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel);
+
+    // Reads whether Alt is physically down and hands the answer to the tab lane's actual-ring
+    // reveal. This is the ONE authority for that answer, because JUCE offers no reliable
+    // window-wide notification of a modifier's state: a widget under the pointer can swallow
+    // modifierKeysChanged, and a release during Alt+Tab is delivered to another application
+    // entirely. So every callback that could follow a change samples this rather than trusting
+    // what it was handed — the modifier callback, focus gain, and pointer motion anywhere in the
+    // window, which JUCE fabricates on every modifier change.
+    //
+    // getCurrentModifiersRealtime, not the cached ModifierKeys::currentModifiers: only the
+    // realtime query asks the operating system, and it is the peer's own seam, so one line is
+    // true on all three platforms (Windows GetAsyncKeyState, macOS NSEvent modifierFlags, Linux
+    // the X server). The cached value happens to be refreshed before focus gain on Windows and is
+    // not on macOS, which is exactly the kind of per-OS difference the seam exists to absorb.
+    void syncActualRingReveal();
 
     // Opens the asynchronous project package chooser and forwards accepted selections.
     void showOpenChooser();

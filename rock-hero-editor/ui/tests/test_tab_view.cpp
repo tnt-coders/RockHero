@@ -17,7 +17,9 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-// Builds a projection with three notes: a long sustain, a short note inside it, and a late note.
+// Builds a projection with three notes: a long sustain, a short note inside it, and a late note
+// the presentation rules left tail-less — its ACTUAL ring runs a second past its bare head, which
+// is the gap the Alt reveal exists to show.
 [[nodiscard]] std::shared_ptr<const common::core::ChartViewState> makeTabState()
 {
     common::core::ChartViewState state;
@@ -48,6 +50,9 @@ namespace
             .slides = {},
         },
     };
+    // One entry per note, as the projection guarantees. The first two rings are exactly their
+    // presented tails; the last one outlasts a head that draws no tail at all.
+    state.actual_end_seconds = {9.0, 2.5, 13.0};
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
 
@@ -335,6 +340,106 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     juce::Graphics plain_graphics{plain_image};
     view.paint(plain_graphics);
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
+}
+
+// The Alt reveal: while it is held every visible note also outlines the ring the string actually
+// sounds for. A note the presentation rules left tail-less shows ink out at its actual end and
+// nothing there once the reveal drops; a note whose two ends coincide is outlined all the same,
+// over its own tail, which is the statement "this is the whole ring".
+TEST_CASE("TabView reveals each note's actual ring while held", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeTabState(), 0);
+
+    // 20 seconds across 200 px, six lanes down 120 px: 10 px per second, and the tail envelope on
+    // the TOP lane (string 6, centre y = 10.5) spans rows 6 through 14.
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    const juce::Image hidden = render();
+    view.setActualRingReveal(true);
+    const juce::Image revealed = render();
+
+    // The late note presents no tail, so its ring (12.0s to 13.0s, x = 120 to 130) reaches the
+    // screen only through the reveal. Probed on the outline's right edge, well clear of the head,
+    // which is 14.3 px wide about x = 120 and so stops at x = 127.
+    CHECK(hidden.getPixelAt(129, 12).getARGB() == 0);
+    CHECK(revealed.getPixelAt(129, 12).getARGB() != 0);
+
+    // The long sustain's ring and its presented tail coincide, and the outline is drawn anyway —
+    // over the tail's own top rail on the bottom lane (string 1, centre y = 110.5, envelope top
+    // row 106), so the pixel changes rather than appearing.
+    CHECK(hidden.getPixelAt(50, 106).getARGB() != 0);
+    CHECK(revealed.getPixelAt(50, 106) != hidden.getPixelAt(50, 106));
+
+    // Releasing snaps back: the reveal is a held state, never a mode that latches.
+    view.setActualRingReveal(false);
+    const juce::Image released = render();
+    CHECK(released.getPixelAt(129, 12).getARGB() == 0);
+}
+
+// The reveal culls against its OWN prefix maximum, over the actual ring ends — which is the whole
+// reason a second table exists. Here a note's presented tail ends long before the visible window
+// while its ring reaches well into it, so the notation's table (which stops at the tails) puts the
+// note out of range and only the actual-ends table keeps it. Swap the two tables at the reveal's
+// cull and this case is the one that notices.
+TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    common::core::ChartViewState state;
+    state.string_count = 6;
+    state.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .end_seconds = 3.0,
+            .string = 6,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    state.actual_end_seconds = {12.0};
+
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    // The window opens at 10 s. Widened by the paint core's glyph slack (75 px, here 3.75 s) the
+    // visible span still starts at 6.25 s, past the presented end at 3.0 s and far short of the
+    // ring's 12.0 s.
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{10.0},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(std::make_shared<const common::core::ChartViewState>(std::move(state)), 0);
+
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    // 10 seconds across 200 px: 20 px per second, so the ring ends at x = 40 and its outline's
+    // right edge fills column 39, on the top lane (string 6, envelope rows 6 through 14). The head
+    // sits at x = -160, off the left edge, so nothing but the reveal can put ink there.
+    CHECK(render().getPixelAt(39, 12).getARGB() == 0);
+
+    view.setActualRingReveal(true);
+    CHECK(render().getPixelAt(39, 12).getARGB() != 0);
 }
 
 // The controller-published armed caret renders as a white square outline on its empty slot

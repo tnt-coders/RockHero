@@ -4,6 +4,7 @@
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -28,6 +29,18 @@ namespace
 {
     return std::max(1.0f, head_size / 15.0f) * 1.5f;
 }
+
+// Stroke of the actual-ring reveal's outline: a hairline, deliberately outside the ring family
+// above. Those mark ONE object each and are sized to straddle its edge; the reveal draws on every
+// visible note at once, so its weight is the whole of what keeps a lane full of outlines reading
+// as an annotation over the notation rather than as more notation. The marquee's border is the
+// same hairline for the same reason.
+constexpr float g_actual_ring_reveal_stroke{1.0f};
+
+// How far the reveal's outline sits under the furniture ink it shares. The caret square and the
+// insert ghost are the loudest marks on the lane by design and each states one slot; an outline on
+// every visible note at that weight would bury what it is annotating.
+constexpr float g_actual_ring_reveal_dim{0.5f};
 
 } // namespace
 
@@ -83,6 +96,20 @@ void TabView::setEditState(core::ChartEditViewState edit)
     // The overlay carries the caret; push its fresh mask now so the paused column's cut-out
     // changes in the same synchronous pass as the drawn square, never a frame behind it.
     publishCaretMask();
+}
+
+// Holds or releases the actual-ring reveal. A repaint only on a genuine change, because the
+// editor re-asserts the current modifier state on every modifier event and on focus gain, so most
+// calls say what the lane already shows.
+void TabView::setActualRingReveal(bool revealed)
+{
+    if (revealed == m_actual_ring_reveal)
+    {
+        return;
+    }
+
+    m_actual_ring_reveal = revealed;
+    repaint();
 }
 
 // With a chart displayed the lane claims its whole band — while paused a click arms the caret
@@ -260,6 +287,63 @@ void TabView::paint(juce::Graphics& g)
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
+
+    // The actual-ring reveal (Alt held): every visible note also gets the ring the string really
+    // sounds for outlined, which the presented tail below it may have trimmed, floored, or
+    // dropped to nothing. Drawn for EVERY visible note, not only where the two ends differ — an
+    // outline landing exactly on a drawn tail is the statement "this is the whole ring", and a
+    // mark that appeared only on disagreement would leave the reader unable to tell agreement
+    // from a reveal that is simply off.
+    //
+    // Its ink is the theme's lane_overlay, halved. Editor furniture reads through EditorTheme,
+    // the editor's one color seam; the lane's own quieting authority (the paint core's Ink set
+    // leaned toward the lane ground) belongs to the NOTATION, is private to that core, and is not
+    // a palette chrome may borrow. Within the theme this joins the caret square and the insert
+    // ghost rather than the accent, for two reasons: the accent means "selected", and a mark in
+    // it on every visible note would read as a lane-wide selection; and this outline belongs to
+    // the same Alt family the insert ghost does — what the next edit acts on.
+    //
+    // Drawn first of the overlays so the selection ring and the caret stay above it: it is the
+    // quietest mark here and by far the most numerous.
+    if (m_actual_ring_reveal)
+    {
+        // One entry per note is the projection's contract (chart_view_state.h); the reveal
+        // indexes the notes and their rings together.
+        assert(m_tab->actual_end_seconds.size() == m_tab->notes.size());
+
+        // The paint core's own visible window, asked rather than restated, so an outline cannot
+        // survive a repaint the note under it did not. The cull runs against the ACTUAL ends,
+        // which is what the second prefix maximum exists for.
+        const common::core::TimeRange span = common::ui::tabVisibleSpan(metrics, g.getClipBounds());
+        const auto [first, last] = common::core::visibleEventRange(
+            m_tab->notes, m_prefix_max_actual_end_seconds, span.start.seconds, span.end.seconds);
+        g.setColour(editorTheme().lane_overlay.withMultipliedAlpha(g_actual_ring_reveal_dim));
+        for (std::size_t index = first; index < last; ++index)
+        {
+            const double actual_end_seconds = m_tab->actual_end_seconds[index];
+            if (actual_end_seconds < span.start.seconds)
+            {
+                continue;
+            }
+
+            // The onset column and the tail's vertical envelope come from the layout the paint
+            // core draws with, so the outline traces exactly where a tail of this length would
+            // sit; only the far edge is the reveal's own. A note presenting no tail still has the
+            // envelope here — tabNoteLayout empties the tail's WIDTH, never its span — which is
+            // what lets the two cases share one geometry.
+            const common::ui::TabNoteLayout layout =
+                common::ui::tabNoteLayout(metrics, m_tab->notes[index]);
+            const float end_x = metrics.x(actual_end_seconds);
+            g.drawRect(
+                juce::Rectangle<float>{
+                    layout.onset_x,
+                    layout.tail.y,
+                    std::max(0.0f, end_x - layout.onset_x),
+                    layout.tail.height,
+                },
+                g_actual_ring_reveal_stroke);
+        }
+    }
 
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the
@@ -453,14 +537,22 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(
     return juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size};
 }
 
-// Rebuilds the prefix-maximum sustain-end table after the projection changes.
+// Rebuilds both prefix-maximum end tables after the projection changes.
 void TabView::rebuildVisibilityIndex()
 {
-    // Built from the notes' own presented ends, which is exactly what the lane draws: the
-    // span-implied hold that outlasts them belongs to the 3D board, and indexing it here would
-    // keep notes in range that this surface stopped drawing at their tails.
+    // The notation's table is built from the notes' own presented ends, which is exactly what the
+    // lane draws: the span-implied hold that outlasts them belongs to the 3D board, and indexing
+    // it here would keep notes in range that this surface stopped drawing at their tails.
+    //
+    // The reveal's is the same running maximum over the ACTUAL rings, and it is a second table
+    // rather than a widened first one because the two culls answer different questions: an
+    // outline that reaches past its tail must stay in range while it is drawn, and the notation
+    // must NOT keep a note in range for a length it no longer draws.
     m_prefix_max_end_seconds =
         m_tab == nullptr ? std::vector<double>{} : common::core::makeSustainPrefixMax(m_tab->notes);
+    m_prefix_max_actual_end_seconds =
+        m_tab == nullptr ? std::vector<double>{}
+                         : common::core::makeSustainPrefixMax(m_tab->actual_end_seconds);
 }
 
 } // namespace rock_hero::editor::ui

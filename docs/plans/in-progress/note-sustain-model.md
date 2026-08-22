@@ -1,7 +1,7 @@
 # Note sustain model — actual durations stored, presentation derived
 
-**Status:** In progress on branch `note-sustain-experiment`. Stage A building 2026-08-21; stages
-B–D are decided only after A is sighted.
+**Status:** In progress on branch `note-sustain-experiment`. Stage A built 2026-08-21 (A1–A3 plus
+D1); stage B built 2026-08-22. Stages C and D remain undecided.
 
 **Authored** 2026-08-21 out of the span-end discussion (review item 13), the short-tail hole the
 user found in the 2D lane, and the MIDI-playback requirement.
@@ -256,8 +256,20 @@ corpus-wide.
   core and the layout manifest, and `display_hold_ends` becomes the 3D board's field alone. It
   retired the watch item on the two surfaces' holds diverging: with no 2D hold there is nothing
   left to diverge.
-- **B** — the editor's Alt reveal: while Alt is held every visible note draws its actual ring as a
-  dimmed outline; release snaps back to the presented form.
+- **B — done 2026-08-22.** The editor's Alt reveal: while Alt is held every visible note in the 2D
+  lane outlines its actual ring at tail height; release snaps back to the presented form. The ring
+  rides the projection as `ChartViewState::actual_end_seconds`, derived beside `display_hold_ends`
+  from the SAVED notes — the editor's field alone, because scored is the presented form (ruling 4),
+  and `NoteViewState` deliberately does not gain it. The outline is editor furniture drawn after
+  the shared paint core, like the selection ring, and reuses `tabNoteLayout`'s tail span so it
+  traces where a tail of that length would sit. `paintTabLane`'s visible-span rule moved out to the
+  exported `tabVisibleSpan` so the reveal culls through the same widened clip the notation does,
+  against its own prefix maximum over the actual ends. The held key has ONE authority
+  (`ComponentPeer::getCurrentModifiersRealtime`) sampled by three callbacks, not a modifier
+  callback trusted as a feed: JUCE delivers `modifierKeysChanged` to the component under the
+  pointer and `juce::Slider` overrides it without forwarding, so a release over the output fader
+  would otherwise strand the outlines on with Alt physically up (corrected 2026-08-22 — focus gain
+  alone never covered that, only the Alt+Tab case).
 - **C** — shape spans derived from the notes (rule 12 as today: a posture starts at a ≥2-note
   onset, ringing notes join); `shapes` leaves the format.
 - **D** — sighting experiments behind diagnostics toggles: a 3D floor band for the actual ring.
@@ -314,3 +326,19 @@ corpus-wide.
    change, caret move, any other edit, undo/redo, a committing settle, a save); the next step then
    opens a fresh gesture from the current rings. Both verbs share ONE window field
    (`m_chart_verb_window`, a variant), because at most one can ever be armed.
+9. **The reveal's outline is FURNITURE INK, not string ink** (ruled 2026-08-22 while building
+   stage B, which left the choice open). It draws in `EditorTheme::lane_overlay` at half alpha —
+   the translucent white the armed caret square and the Alt insert ghost already share — rather
+   than in a dimmed version of the note's own string colour. Three reasons, in order of weight.
+   The lane's quieting authority (`Ink` leaned toward the lane ground by `ghosted`) is the
+   NOTATION's and is private to the paint core; dimming a string colour in the editor would be a
+   second statement of how this surface quiets ink, which is the exact defect class the model is
+   clearing out — and exporting the notation palette so chrome could borrow it would breach the
+   rule that editor furniture never enters the paint core. The accent is spoken for: it means
+   "selected", and a mark in it on every visible note would read as a lane-wide selection. And the
+   string identity the ink would carry is already carried by the lane the outline sits in, so it
+   would buy nothing. The reveal therefore joins the Alt family it belongs to — what the next edit
+   acts on — told apart from its siblings by shape, as they are from each other: a square for the
+   caret, a ring for the note-to-be, a tail-height rectangle for the ring being authored. It draws
+   at a fraction of their alpha because it marks every visible note at once where they mark one
+   slot; the stroke is the marquee's hairline for the same reason.

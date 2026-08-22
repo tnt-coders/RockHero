@@ -1954,22 +1954,16 @@ TabLaneMetrics makeTabLaneMetrics(
     return metrics;
 }
 
-// Draws the visible chart content in Charter's layer order: string lines, hand-shape spans,
-// sustain tails with their slide and bend lines, arpeggio posture brackets, note heads with
-// technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
-void paintTabLane(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_end_seconds)
+// The visible time span: the clip, held to the lane's own bounds and widened by the pixel slack
+// heads and icons reach around their onset. The clip is intersected here so a host drawing the
+// lane inside a larger component cannot have that component's other columns read as visible time.
+common::core::TimeRange tabVisibleSpan(
+    const TabLaneMetrics& metrics, juce::Rectangle<int> clip_bounds)
 {
-    // Heads and icons extend a fixed pixel slack around their onset, so the visible span grows
-    // by that slack before the visibility queries. The clip is held to the lane bounds first: the
-    // lane occupies only its own bounds, so a host drawing it inside a larger component must not
-    // have that component's other columns read as visible time or carry lane lines.
-    // Stated as a precondition in the header and divided by immediately below.
-    assert(tab.string_count > 0);
+    // Divided by immediately below, exactly as makeTabLaneMetrics divides by it.
     assert(metrics.bounds.getWidth() > 0);
 
-    const juce::Rectangle<int> clip = g.getClipBounds().getIntersection(metrics.bounds);
+    const juce::Rectangle<int> clip = clip_bounds.getIntersection(metrics.bounds);
     const double duration = metrics.visible_timeline.duration().seconds;
     const double seconds_per_pixel = duration / static_cast<double>(metrics.bounds.getWidth());
     const double slack_seconds =
@@ -1977,10 +1971,37 @@ void paintTabLane(
     // Clip columns relative to the lane's left edge, which is where x() measures time from.
     const int clip_from = clip.getX() - metrics.bounds.getX();
     const int clip_to = clip.getRight() - metrics.bounds.getX();
-    const double span_start = metrics.visible_timeline.start.seconds +
-                              static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds;
-    const double span_end = metrics.visible_timeline.start.seconds +
-                            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds;
+    return common::core::TimeRange{
+        .start =
+            common::core::TimePosition{
+                metrics.visible_timeline.start.seconds +
+                static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds
+            },
+        .end = common::core::TimePosition{
+            metrics.visible_timeline.start.seconds +
+            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds
+        },
+    };
+}
+
+// Draws the visible chart content in Charter's layer order: string lines, hand-shape spans,
+// sustain tails with their slide and bend lines, arpeggio posture brackets, note heads with
+// technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
+void paintTabLane(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
+    const std::vector<double>& prefix_max_end_seconds)
+{
+    // Stated as a precondition in the header; the lane lines below index by string.
+    assert(tab.string_count > 0);
+
+    // The clip held to the lane's own bounds: the lane occupies only those bounds, so a host
+    // drawing it inside a larger component must not have that component's other columns carry
+    // lane lines. The visible SPAN widens it further by the glyph slack — one rule, shared with
+    // every host that culls chrome alongside this notation.
+    const juce::Rectangle<int> clip = g.getClipBounds().getIntersection(metrics.bounds);
+    const common::core::TimeRange span = tabVisibleSpan(metrics, clip);
+    const double span_start = span.start.seconds;
+    const double span_end = span.end.seconds;
 
     // Bracket geometry shared by the string-line gaps below and the bracket pass further
     // down; the values depend only on the lane metrics, not on the individual note.

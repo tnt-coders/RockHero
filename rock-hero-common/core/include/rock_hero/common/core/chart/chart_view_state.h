@@ -422,6 +422,29 @@ struct ChartViewState
     */
     std::vector<double> display_hold_ends;
 
+    /*!
+    \brief Per-note ACTUAL ring end in seconds — the editor's, one entry per \ref notes entry.
+
+    How long the string really sounds: each saved note's `ChartNote::sustain` resolved through
+    the tempo map, before the presentation rules trim it to the margin, floor it on payload, or
+    drop it outright (\ref presentedChartNotes). Strictly later than the onset for every note, by
+    the stored form's positive-sustain invariant — unlike \ref NoteViewState::end_seconds, which
+    equals the onset wherever no tail is presented.
+
+    **Read by the editor's Alt reveal alone.** While Alt is held the 2D lane outlines every
+    visible note's actual ring, so the length the sustain verbs author is visible while it is
+    being authored (Alt is that gesture's own modifier). No game surface reads it and none may:
+    **scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4), and asking
+    a player to hold a note for a length nothing ever drew is exactly what that ruling forbids.
+
+    It sits here rather than on \ref NoteViewState deliberately. That struct is the presented form
+    end to end — every field of it describes what is drawn — and a second, undrawn end inside it
+    would hand every reader two lengths to choose between, which is the guess the whole model
+    exists to delete. A parallel array keeps the presented note indivisible and makes the actual
+    ring something a surface has to reach for on purpose.
+    */
+    std::vector<double> actual_end_seconds;
+
     /*! \brief Hand-posture spans in ascending start order. */
     std::vector<ShapeViewState> shapes;
 

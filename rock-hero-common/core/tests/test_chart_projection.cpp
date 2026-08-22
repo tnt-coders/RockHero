@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -196,6 +197,40 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
 }
 
+// The ACTUAL ring rides the projection beside the presented tail, resolved from the SAVED note
+// rather than the presented one. The editor's Alt reveal is its only reader — no game surface may
+// have it, because scored is the presented form (note-sustain-model.md ruling 4) — and it is
+// sized like the notes because the reveal indexes both by note index.
+TEST_CASE("Chart projection carries each note's actual ring", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const ChartViewState state = makeChartViewState(makeArrangementWithChart(), tempo_map);
+
+    REQUIRE(state.notes.size() == 5);
+    REQUIRE(state.actual_end_seconds.size() == state.notes.size());
+
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+
+    // Where no rule trims the ring, the two ends coincide — which the reveal draws all the same,
+    // as the statement "this is the whole ring".
+    CHECK(state.actual_end_seconds[0] == Catch::Approx(5.0 * beat));
+    CHECK(state.notes[0].end_seconds == Catch::Approx(5.0 * beat));
+    CHECK(state.actual_end_seconds[2] == Catch::Approx(10.5 * beat));
+    CHECK(state.notes[2].end_seconds == Catch::Approx(10.5 * beat));
+
+    // The last note is a lone eighth with no technique, so rule 3 presents it no tail at all: the
+    // lane draws a bare head there and the ring the string really sounds for exists only here.
+    // That gap is the whole reason the reveal exists.
+    //
+    // Bit-exact, not tolerant: a tail-less note's end IS its onset, assigned across rather than
+    // recomputed, so the two doubles must be the same value. Approx's relative epsilon would pass
+    // a resolver change that recomputed the end from the beat position and landed a hair away,
+    // which is exactly the invariant this line exists to hold.
+    CHECK_THAT(
+        state.notes[4].end_seconds, Catch::Matchers::WithinULP(state.notes[4].start_seconds, 0));
+    CHECK(state.actual_end_seconds[4] == Catch::Approx(13.125 * beat));
+}
+
 TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
 {
     Arrangement arrangement = makeArrangementWithChart();
@@ -205,6 +240,7 @@ TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
     CHECK(state.string_count == 0);
     CHECK(state.notes.empty());
     CHECK(state.display_hold_ends.empty());
+    CHECK(state.actual_end_seconds.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
 }

@@ -59,6 +59,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     std::map<GridPosition, SlideRamp> slide_ramp_starts;
     state.notes.reserve(presented_notes.size());
     state.display_hold_ends.reserve(presented_notes.size());
+    state.actual_end_seconds.reserve(presented_notes.size());
     for (std::size_t note_index = 0; note_index < presented_notes.size(); ++note_index)
     {
         const ChartNote& note = presented_notes[note_index];
@@ -74,6 +75,11 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
+        // The ACTUAL ring, read off the SAVED note the presented one above was derived from — the
+        // only place in the projection that reaches past presentation, and the editor's Alt reveal
+        // is its only consumer (ruling 4: what a game surface scores is the presented form).
+        state.actual_end_seconds.push_back(tempo_map.secondsAtGlobalBeatPosition(
+            onset_beat + resolutions.saved_notes[note_index].sustain.toDouble()));
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;

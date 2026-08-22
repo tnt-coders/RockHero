@@ -200,7 +200,7 @@ own rules — `tab_view.h` points at the shared declarations instead, because a 
 the rule it forwards gives the reader two descriptions to reconcile and no compiler to catch the
 drift.
 
-Five notation rules inside the paint core are worth knowing before touching a head, because each
+Six notation rules inside the paint core are worth knowing before touching a head, because each
 is deliberately single-sourced:
 
 - **The head silhouette names the note's kind**, never which hand produced it (a present mark's
@@ -257,6 +257,50 @@ the identical shape — phase never depends on where generation began — and ea
 run outward onto its own vertex spacing, so the rasterized result is *identical* rather than merely
 similar. At full zoom a held tremolo chord would otherwise cost tens of thousands of off-screen
 vertices every frame. A test pins that a tail looks the same however the repaint is clipped.
+
+**The Alt reveal** is how the length you cannot see becomes visible while you author it. The lane
+draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is
+invisible wherever presentation trimmed or dropped it. Hold `Alt` and every *visible* note also
+gets that ring outlined at tail height, from its onset to
+`ChartViewState::actual_end_seconds[index]`; release and the lane snaps back. It is global while
+held, not selection-scoped: the question it answers ("what is really ringing here") is about the
+passage, not about the selection. `Alt` is the key because `Alt` is already the authoring gate —
+you see the ring while you are the one changing it.
+
+Four things about it are deliberate:
+
+- **Every visible note, not only the disagreeing ones.** An outline landing exactly on a drawn
+  tail *is* the statement "this is the whole ring"; a mark that appeared only on disagreement
+  would leave a reader unable to tell agreement from a reveal that is simply off.
+- **The data is editor-only, and the projection says so.** `actual_end_seconds` rides
+  `ChartViewState` beside `display_hold_ends`, resolved from the SAVED note rather than the
+  presented one. No game surface reads it and none may — **scored = presented**
+  (`docs/plans/in-progress/note-sustain-model.md` ruling 4) — and `NoteViewState` deliberately
+  does *not* gain the field: that struct is the presented form end to end, and a second undrawn
+  end inside it would hand every reader two lengths to choose between.
+- **The outline is editor furniture, so it never enters the paint core.** It is drawn in
+  `TabView::paint` after `paintTabLane`, exactly like the selection ring, in
+  `EditorTheme::lane_overlay` at half alpha — the ink the caret square and the insert ghost
+  already share, because the reveal belongs to the same `Alt` family (what the next edit acts on)
+  and because a mark in the *accent* on every visible note would read as a lane-wide selection.
+  Its rectangle comes from `tabNoteLayout`'s tail span, so it traces exactly where a tail of that
+  length would sit rather than restating the tail geometry; only the far edge is its own.
+- **It culls through the paint core's own window.** `tabVisibleSpan(metrics, clip)` is exported
+  from `tab_paint_core.h` for precisely this — host chrome that must cull by the same widened
+  clip the notation does — and `TabView` keeps a *second* prefix-maximum table over the actual
+  ends, because a ring outlasting its tail has to stay in range for as long as its outline is
+  drawn while the notation must not keep a note in range for a length it no longer draws.
+
+The key itself never reaches the editor core. `EditorView::syncActualRingReveal` asks the OS
+whether `Alt` is down and hands the answer to `TabView::setActualRingReveal`, which repaints only
+on a change. No JUCE callback reliably reports a held modifier, so that one authority —
+`juce::ComponentPeer::getCurrentModifiersRealtime()`, the realtime query rather than the cached
+modifier state — is sampled by every callback that could follow a change: `modifierKeysChanged`,
+`focusGained` (the `Alt`+Tab release, delivered to another application), and `mouseMove` registered
+for all nested children. That last one is not belt-and-braces: a `juce::Slider` under the pointer
+overrides `modifierKeysChanged` without forwarding, so the transition never reaches `EditorView` at
+all, and only the mouse move JUCE fabricates on every modifier change gets there.
+\ref guide_keyboard has the general shape.
 
 ## Tone track — `ToneTrackView`
 

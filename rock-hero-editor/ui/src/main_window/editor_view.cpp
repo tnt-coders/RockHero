@@ -351,6 +351,11 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 {
     setWantsKeyboardFocus(true);
 
+    // Mouse events from every nested child, not just this view's own background: the actual-ring
+    // reveal re-samples the Alt key on pointer motion, which is the only notification left when a
+    // widget under the pointer swallows modifierKeysChanged (see syncActualRingReveal).
+    addMouseListener(this, /*wantsEventsForAllNestedChildComponents=*/true);
+
     // Register the keybind registry: every command's info (name, category, default chords,
     // enablement) comes from this target, and the manager's key mapping set becomes the single
     // chord-to-command matcher — the owning window attaches it as a key listener. Watching the
@@ -1032,6 +1037,37 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
         return;
     }
     juce::Component::mouseWheelMove(event, wheel);
+}
+
+// Asks the operating system whether Alt is down and hands the answer to the lane; the lane
+// repaints only on a change, so re-asserting the same state costs nothing. Every sampler below
+// goes through here — see the header for why the key state is read rather than taken from
+// whatever a callback was handed.
+void EditorView::syncActualRingReveal()
+{
+    m_tab_view.setActualRingReveal(juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown());
+}
+
+// Keeps forwarding after sampling: this view observes the modifier rather than consuming it, and
+// JUCE's own implementation is what carries the event on up the parent chain.
+void EditorView::modifierKeysChanged(const juce::ModifierKeys& modifiers)
+{
+    syncActualRingReveal();
+    juce::Component::modifierKeysChanged(modifiers);
+}
+
+// A release delivered while another application held the keyboard — Alt+Tab, the ordinary way
+// that happens — never reached this window at all.
+void EditorView::focusGained(FocusChangeType)
+{
+    syncActualRingReveal();
+}
+
+// The sampler for transitions no modifier callback delivers here: one swallowed by a widget under
+// the pointer, or one that happened while the pointer was over another window of this app.
+void EditorView::mouseMove(const juce::MouseEvent&)
+{
+    syncActualRingReveal();
 }
 
 // Creates the preview window on first use, then shows or hides it; hiding suspends the render
