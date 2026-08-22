@@ -577,7 +577,7 @@ struct TailCenterline
     return centerline;
 }
 
-// A plain sustain's centreline: the tail span's own middle, straight from the onset to the hold
+// A plain sustain's centreline: the tail span's own middle, straight from the onset to the tail's
 // end. It is the DEGENERATE tremolo band — one segment, no swing — which is what lets the ribbon
 // and the halo take one rule each instead of one per tail kind. Every downstream expression
 // collapses to the straight-band form on it: the halo's per-segment gradient becomes the vertical
@@ -763,12 +763,15 @@ void drawAccentTailGlow(
 // mark riding the tail, clipped against arpeggio brackets where the body is not.
 void drawNoteTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, double hold_end_seconds, float onset_x, float center_y)
+    const common::core::NoteViewState& note, float onset_x, float center_y)
 {
-    // The DISPLAY hold end, not the stored sustain: a sustainless member of a strum under a
-    // hand-shape span is held for the span (ChartViewState::display_hold_ends), and the tail is
-    // what says so. Every other note's hold end is its own sustain end, so this is one expression.
-    const float end_x = metrics.x(hold_end_seconds);
+    // The PRESENTED tail and nothing else, so a note that presents none draws none — including a
+    // chugged member of a strum a hand-shape span holds, which the span-implied hold
+    // (ChartViewState::display_hold_ends) does extend on the 3D board. This lane says the same
+    // thing in its own idiom: the chord box over the strum already states how long the posture is
+    // fretted, and a ribbon under every chug restated it in the one mark that means "this string
+    // is still ringing".
+    const float end_x = metrics.x(note.end_seconds);
     const float length = end_x - onset_x;
     if (length <= 0.0f)
     {
@@ -860,9 +863,9 @@ struct TailInterior
 // against the arpeggio brackets while the ribbon shows through them untouched.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, double hold_end_seconds, float onset_x, float center_y)
+    const common::core::NoteViewState& note, float onset_x, float center_y)
 {
-    const float length = metrics.x(hold_end_seconds) - onset_x;
+    const float length = metrics.x(note.end_seconds) - onset_x;
     if (!note.vibrato || length <= 0.0f)
     {
         return;
@@ -1192,8 +1195,8 @@ void drawSlideWaypointHeads(
 // point (white text on the string's lane color darkened twice).
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, const double end_seconds, float onset_x,
-    float center_y, std::vector<LabelChip>& bend_chips)
+    const common::core::NoteViewState& note, float onset_x, float center_y,
+    std::vector<LabelChip>& bend_chips)
 {
     if (note.bend.empty())
     {
@@ -1214,9 +1217,9 @@ void drawBendLines(
     };
 
     const juce::Colour chip_background = charterDarker(charterDarker(style[Ink::Lane]));
-    // The flat run ends where the DISPLAY hold ends — a span-held member's ribbon runs past its
-    // stored sustain, and the polyline it rides must reach the same end.
-    const float end_x = metrics.x(end_seconds);
+    // The flat run ends where the ribbon it rides does: the note's presented tail, read from the
+    // note itself so the polyline cannot outlast the tail under it.
+    const float end_x = metrics.x(note.end_seconds);
     juce::Point<float> last{onset_x, bend_y(0.0)};
     g.setColour(style[Ink::TechniqueLine]);
     for (const common::core::BendPointViewState& point : note.bend)
@@ -1965,8 +1968,6 @@ void paintTabLane(
     // Stated as a precondition in the header and divided by immediately below.
     assert(tab.string_count > 0);
     assert(metrics.bounds.getWidth() > 0);
-    // The tail pass indexes display_hold_ends by note index with no per-frame bounds check.
-    assert(tab.display_hold_ends.size() == tab.notes.size());
 
     const juce::Rectangle<int> clip = g.getClipBounds().getIntersection(metrics.bounds);
     const double duration = metrics.visible_timeline.duration().seconds;
@@ -2109,7 +2110,7 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
-        if (tab.display_hold_ends[index] < span_start)
+        if (note.end_seconds < span_start)
         {
             continue;
         }
@@ -2122,7 +2123,7 @@ void paintTabLane(
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
 
-        drawNoteTail(g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
+        drawNoteTail(g, metrics, style, note, onset_x, center_y);
 
         // The TECHNIQUE marks riding the tail — slide diagonals, bend curves, the vibrato sine —
         // clip against every arpeggio bracket on this string: a posture mark states where the hand
@@ -2164,18 +2165,9 @@ void paintTabLane(
                         });
                 }
             }
-            drawVibratoSine(
-                g, metrics, style, note, tab.display_hold_ends[index], onset_x, center_y);
+            drawVibratoSine(g, metrics, style, note, onset_x, center_y);
             drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
-            drawBendLines(
-                g,
-                metrics,
-                style,
-                note,
-                tab.display_hold_ends[index],
-                onset_x,
-                center_y,
-                bend_chips);
+            drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
         }
     }
 
@@ -2279,7 +2271,7 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = tab.notes[index];
-        if (tab.display_hold_ends[index] < span_start)
+        if (note.end_seconds < span_start)
         {
             continue;
         }

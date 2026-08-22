@@ -198,7 +198,7 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .bend = {},
         .slides = {},
     };
-    const TabNoteLayout layout = tabNoteLayout(geometry, sustained, sustained.end_seconds);
+    const TabNoteLayout layout = tabNoteLayout(geometry, sustained);
 
     // Onset at 5s across 20s of 400px is x = 100; string 1 is the bottom lane center, 220, on that
     // row's centre.
@@ -222,8 +222,11 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
     CHECK(layout.tail.height == Catch::Approx(span.bottom - span.top));
     CHECK(layout.tail.contains(150.0f, 220.0f));
 
-    // A note without a sustain has an empty tail rectangle that contains nothing.
-    const common::core::NoteViewState plain{
+    // A note presenting no tail has an empty tail rectangle that contains nothing — the case a
+    // chugged member of a strum under a hand-shape span is in. Its span-implied hold is the 3D
+    // board's business and is not an input here, so nothing can make this rectangle claim pixels
+    // the lane never drew.
+    const common::core::NoteViewState chug{
         .start_seconds = 5.0,
         .end_seconds = 5.0,
         .string = 1,
@@ -231,16 +234,12 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .bend = {},
         .slides = {},
     };
-    const TabNoteLayout plain_layout = tabNoteLayout(geometry, plain, plain.end_seconds);
-    CHECK_THAT(plain_layout.tail.width, Catch::Matchers::WithinULP(0.0f, 0));
-    CHECK_FALSE(plain_layout.tail.contains(100.0f, 220.0f));
-
-    // A span-held strum member stores no sustain but is DRAWN to its display hold end, so the tail
-    // rectangle follows the ribbon rather than the stored value — the divergence that made a drawn
-    // ribbon unclickable.
-    const TabNoteLayout held_layout = tabNoteLayout(geometry, plain, 10.0);
-    CHECK(held_layout.tail.width == Catch::Approx(100.0f));
-    CHECK(held_layout.tail.contains(150.0f, 220.0f));
+    const TabNoteLayout chug_layout = tabNoteLayout(geometry, chug);
+    CHECK_THAT(chug_layout.tail.width, Catch::Matchers::WithinULP(0.0f, 0));
+    CHECK_FALSE(chug_layout.tail.contains(100.0f, 220.0f));
+    CHECK_FALSE(chug_layout.tail.contains(150.0f, 220.0f));
+    // The head is untouched by any of that: the note is still there to click.
+    CHECK(chug_layout.head.contains(100.0f, 220.0f));
 }
 
 } // namespace rock_hero::common::ui

@@ -372,7 +372,7 @@ struct HighwayViewState
     HighwayDisplayOptions options{};
 
     /*!
-    \brief The chart scene, exactly as the 2D lane draws it (\ref makeChartViewState).
+    \brief The chart scene both surfaces share (\ref makeChartViewState).
 
     Composed rather than restated so the two surfaces cannot drift on a shared chart fact. Its
     strings are CHART strings and its string count the tuning's: the displayed-lane padding

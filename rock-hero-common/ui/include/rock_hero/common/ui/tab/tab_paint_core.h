@@ -199,12 +199,12 @@ head slack, so hosts repaint partial regions (tile strips, dirty rectangles) cor
 
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
-\param tab Seconds-resolved tab projection; string_count must be positive and display_hold_ends
-       must be sized like notes — tails are drawn to the DISPLAY hold end, so the two travel
-       together.
-\param prefix_max_end_seconds Running maximum of `tab.display_hold_ends`
-       (common::core::makeSustainPrefixMax), not of the notes' own sustain ends: a span-held strum
-       is drawn past its stored end and would otherwise be culled out of the visible range.
+\param tab Seconds-resolved tab projection; string_count must be positive. Every tail is drawn to
+       its own note's presented end (NoteViewState::end_seconds); the span-implied hold
+       (ChartViewState::display_hold_ends) is the 3D board's and is not read here.
+\param prefix_max_end_seconds Running maximum of the notes' presented ends
+       (common::core::makeSustainPrefixMax over `tab.notes`) — the same stop the tails are drawn
+       to, so nothing on screen can be culled out of the visible range.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,

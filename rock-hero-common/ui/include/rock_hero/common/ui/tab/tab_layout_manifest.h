@@ -45,9 +45,9 @@ Hit testing resolves pointer positions against these rectangles instead of dupli
 geometry: the values derive from the same TabLaneGeometry the paint core draws with, so clicks
 and pixels can never drift apart. The head rectangle bounds the layered head shape (Charter
 draws heads one pixel larger than the note height so they get a center pixel on the string
-line); the tail rectangle spans the sustain bar between the onset and the DISPLAY hold end
-(ChartViewState::display_hold_ends, which a span-held strum member is drawn to), and is empty for
-notes the lane draws no tail for.
+line); the tail rectangle spans the sustain bar between the onset and the note's presented end
+(NoteViewState::end_seconds), and is empty for notes the lane draws no tail for — which is every
+note presenting none, including a chugged member of a span-held strum.
 */
 struct TabNoteLayout
 {
@@ -69,15 +69,15 @@ struct TabNoteLayout
 
 /*!
 \brief Computes the pixel layout of one note under the given lane geometry.
+
+The rectangles are the DRAWN, clickable extent of the note: the note carries the only stop either
+the layout or the paint core reads, so every drawn ribbon is hit-testable and nothing undrawn is.
+
 \param geometry Lane geometry the paint core draws with.
-\param note Seconds-resolved note to lay out.
-\param hold_end_seconds The note's display hold end (ChartViewState::display_hold_ends entry) — the
-       same stop the paint core's tail pass draws to, so every drawn ribbon is hit-testable and
-       nothing undrawn is.
+\param note Seconds-resolved note to lay out; its presented end is where the tail rectangle stops.
 \return Per-note layout in the lane bounds' pixel space.
 */
 [[nodiscard]] TabNoteLayout tabNoteLayout(
-    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
-    double hold_end_seconds) noexcept;
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
 } // namespace rock_hero::common::ui

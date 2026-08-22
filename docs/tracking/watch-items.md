@@ -144,7 +144,19 @@ two note views are field-for-field identical, the bend views identical, and the 
 one field. **Trigger**: fired (2026-08-10), as above. **Remedy**: ruled FOLD 2026-08-13 (W9-B)
 and built 2026-08-21 — see the retirement note above.
 
-### A span-held strum's hold ends earlier in 3D than in 2D — trigger: a charter reports the two surfaces disagreeing about a chord's hold
+### ~~A span-held strum's hold ends earlier in 3D than in 2D~~ — RETIRED 2026-08-22 (D1)
+
+**The other half of the comparison is gone.** The note-sustain model's D1 commit moved the 2D lane
+onto each note's PRESENTED tail (`NoteViewState::end_seconds`) for drawing, layout, hit testing and
+culling, so it draws no hold ribbon at all: the chord box over the strum already states how long the
+posture is fretted, and a ribbon under every chug restated it in the one mark that means "this
+string is still ringing". With no 2D hold to compare, the board's clamp cannot end earlier than one.
+`display_hold_ends` is now the board's field alone — documented as such on `ChartViewState`, which
+is where the division is stated once — and `hold_cap_seconds` is board-only presentation by
+construction rather than by acceptance, so the remedy's question ("fact about the chart, or
+board-only presentation?") is answered by the ruling rather than left open.
+
+The record below is kept for the audit trail; every defect it names was real and is fixed.
 
 (W9-B's fold shipped 2026-08-21 and did not touch this: the hold END is one shared datum, but how
 each painter draws up to it is still its own pass.)
@@ -167,17 +179,13 @@ subsumes that bound in any normalized chart, and `predecessorHoldReaches` reads 
 rather than the hold at all), and the layout manifest takes the same hold end the paint pass draws
 to.
 
-**What remains is the original entry's subject, correctly scoped**: the *clamp* on top of the shared
-hold is still board-only. The renderer draws a sustainless span member as a head pinned at the hit
-line and ends that pin at `std::min(display_hold_ends[i], group.hold_cap_seconds)`
+**What remained, until D1, was the original entry's subject, correctly scoped**: the *clamp* on top
+of the shared hold is board-only. The renderer draws a sustainless span member as a head pinned at
+the hit line and ends that pin at `std::min(display_hold_ends[i], group.hold_cap_seconds)`
 (`highway_renderer.cpp`, the head-anchor block) — the cap being the next note-showing strum's onset,
 because a re-shown chord takes over the pinned display. That strum can land before the string is
-restruck, and there the board's pin ends while the lane's ribbon continues. Accepted for now: it is a
-play-time display handoff with no 2D counterpart (the tab has no pinned head). **Trigger**: a report
-that the two surfaces disagree about a chord's hold, or W9-B's note-view unification landing —
-whichever comes first. **Remedy**: decide whether that handoff is a *fact* about the chart (then it
-belongs in the shared projection, resolved once for both surfaces) or board-only presentation (then say
-so in `hold_cap_seconds`' own doc comment and retire this item).
+restruck, and there the board's pin ended while the lane's ribbon continued. The lane no longer
+draws that ribbon, so nothing is left to reconcile.
 
 ## 3D highway camera
 

@@ -253,6 +253,13 @@ stay derived. **The W9-A divergence is closed display-side:** the tab lane carri
 `display_hold_ends` resolved from the same hold authority (`chartHolds`) the highway resolves
 `HighwayViewState::display_hold_ends` from, so both surfaces draw one chart the same way.
 
+**Superseded on the 2D side, 2026-08-22 (note-sustain model ruling 3, stage D1):** the lane no
+longer draws a hold ribbon at all — it draws, lays out, hit-tests and culls by each note's
+presented tail, and a chugged span member wears a bare head, because the chord box over the strum
+already states how long the posture is fretted. The hold is the board's pinned head. What survives
+of W9-A is its actual content: one authority, resolved once, spent per surface in that surface's
+idiom.
+
 **And the derived hold is bounded like a stored one (2026-08-11, review fix F2).** Unifying the two
 surfaces first shipped it uncapped, which made the lane draw a ribbon to the span's end whatever sat
 in between: a sustainless chord under a four-beat span with the same string restruck at beats 2 and 3
@@ -264,7 +271,7 @@ note's own ACTUAL ring, which normalization already holds inside that bound, so 
 hold once instead of twice. Neither cap can change `predecessorHoldReaches`, which reads the stored
 ring directly. Hit testing was the other half — `tabNoteLayout` took the note's `end_seconds` while
 the paint pass drew to `display_hold_ends`, so every span-extended ribbon was drawn and unclickable;
-the manifest now takes the same hold end the paint pass does.
+since D1 both read the note's presented end, so there is no second value to keep in step.
 
 ## Tail lock
 

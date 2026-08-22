@@ -275,8 +275,7 @@ void TabView::paint(juce::Graphics& g)
             continue;
         }
         const common::core::NoteViewState& note = m_tab->notes[index];
-        const common::ui::TabNoteLayout layout =
-            common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
+        const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
         g.setColour(accent);
         common::ui::strokeTabNoteHeadOutline(
             g,
@@ -357,8 +356,7 @@ void TabView::paint(juce::Graphics& g)
                     continue;
                 }
                 const common::core::NoteViewState& note = m_tab->notes[index];
-                const common::ui::TabNoteLayout layout =
-                    common::ui::tabNoteLayout(metrics, note, m_tab->display_hold_ends[index]);
+                const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
                 common::ui::paintTabPendingEntryBox(
                     g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
             }
@@ -458,11 +456,11 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(
 // Rebuilds the prefix-maximum sustain-end table after the projection changes.
 void TabView::rebuildVisibilityIndex()
 {
-    // Built from the DISPLAY hold ends, not the notes' own sustain ends: a span-held strum is drawn
-    // past its stored end, and a shorter index would cull it out of the visible range mid-tail.
-    m_prefix_max_end_seconds = m_tab == nullptr
-                                   ? std::vector<double>{}
-                                   : common::core::makeSustainPrefixMax(m_tab->display_hold_ends);
+    // Built from the notes' own presented ends, which is exactly what the lane draws: the
+    // span-implied hold that outlasts them belongs to the 3D board, and indexing it here would
+    // keep notes in range that this surface stopped drawing at their tails.
+    m_prefix_max_end_seconds =
+        m_tab == nullptr ? std::vector<double>{} : common::core::makeSustainPrefixMax(m_tab->notes);
 }
 
 } // namespace rock_hero::editor::ui

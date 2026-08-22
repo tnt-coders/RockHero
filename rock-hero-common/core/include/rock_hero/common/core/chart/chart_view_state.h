@@ -97,8 +97,8 @@ struct NoteViewState
     \brief Absolute end of the presented tail; equals start_seconds when no tail is presented.
 
     The DRAWN and scored length, never the stored ring: a sub-quarter chug rings for its eighth and
-    presents nothing, and a note under a hand-shape span may still be held past this
-    (\ref ChartViewState::display_hold_ends).
+    presents nothing. This is the whole of what the 2D lane draws; the 3D board additionally pins a
+    span-held strum's heads past it (\ref ChartViewState::display_hold_ends).
     */
     double end_seconds{0.0};
 
@@ -395,14 +395,21 @@ struct ChartViewState
     std::vector<NoteViewState> notes;
 
     /*!
-    \brief Per-note display hold end in seconds, one entry per \ref notes entry.
+    \brief Per-note hold end in seconds — the 3D board's, one entry per \ref notes entry.
 
-    How long the player keeps the string down, which is not what the tail draws: the note's
-    presented end, except that a member of a two-or-more onset group under a covering hand-shape
-    span whose presented tail is empty is held for its ACTUAL ring, capped at the span's end and at
-    its own string's next onset — the strum's heads stay pinned at the hit line while the posture
-    is held, instead of vanishing the instant it is struck. A fully dead group is choked rather
-    than held and keeps its own end.
+    How long a pinned head lasts: the note's presented end, except that a member of a two-or-more
+    onset group under a covering hand-shape span whose presented tail is empty is held for its
+    ACTUAL ring, capped at the span's end and at its own string's next onset — the strum's heads
+    stay pinned at the hit line while the posture is held, instead of vanishing the instant it is
+    struck. A fully dead group is choked rather than held and keeps its own end.
+
+    **The 2D lane does not read this.** It draws, lays out, hit-tests and culls by each note's
+    presented tail (\ref NoteViewState::end_seconds) alone, so the ribbons under sub-quarter chugs
+    are simply absent there — the chord box over the strum already states how long the posture is
+    fretted, and a ribbon repeating that used the one mark that means "this string is still
+    ringing" to say something else. The board has no chord box, so pinning the heads is how it
+    states the same fact (ruling 3 of `docs/plans/in-progress/note-sustain-model.md`). One chart,
+    one hold, two idioms.
 
     Resolved here from \ref chartHolds, the ONE authority for that rule, rather than recomputed in
     seconds: it used to be computed twice, once in beats for the chart rules and once in seconds
@@ -410,8 +417,8 @@ struct ChartViewState
     that started inside it silently lost its hold — and were fixed separately. That is the whole
     argument for resolving the beats answer instead of restating it.
 
-    Feeds each surface's visible-range prefix maximum, so a span-held strum stays in range for as
-    long as it is drawn.
+    Feeds the board's visible-range prefix maximum, so a pinned strum stays in range for as long
+    as it is held.
     */
     std::vector<double> display_hold_ends;
 

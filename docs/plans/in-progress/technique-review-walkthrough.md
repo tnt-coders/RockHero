@@ -367,8 +367,12 @@ the options with the agent's recommendation.
   third implementation appeared. Each surface still spends the value in its own idiom (a 2D ribbon
   against a pinned 3D head), which is lawful. **One residual, recorded as a watch item rather than
   closed here:** the board additionally clamps its pin with `HighwayChordGroupViewState::hold_cap_seconds`
-  and 2D has no cap, so a span covering two strums ends the drawn hold earlier in 3D. The original
-  question and its options follow.
+  and 2D has no cap, so a span covering two strums ends the drawn hold earlier in 3D.
+  **The 2D half was re-ruled 2026-08-22** (note-sustain model ruling 3, stage D1): the answer to
+  "is a span-held strum notation" stands, but the lane states it as the CHORD BOX rather than as a
+  ribbon, and draws every tail to the note's presented end. `display_hold_ends` is the board's field
+  alone, which retired the watch item above — with no 2D hold, the two surfaces cannot disagree
+  about one. The original question and its options follow.
   The rule that a sustainless note
   in a two-or-more onset group under a hand-shape span is held for the whole span is implemented for
   the highway (`chartEffectiveSustains`, resolved into `HighwayViewState::display_hold_ends` — it was

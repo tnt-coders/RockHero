@@ -135,10 +135,12 @@ note as rules 1 through 3 leave it:
 /*!
 \brief Resolves each note's HELD length: how long the player keeps the string down.
 
-The 3D board pins a head for this length and the 2D lane culls ranges by it, and it is not the
-same question as what the tail draws. A chugged riff under a hand-shape span presents no tails at
-all — every ring is shorter than the kept-sustain bound — yet the shape is what tells the player
-to keep holding it, so the hold outlives the picture.
+The 3D board pins a head for this length, and it is not the same question as what a tail draws. A
+chugged riff under a hand-shape span presents no tails at all — every ring is shorter than the
+kept-sustain bound — yet the shape is what tells the player to keep holding it, so the hold
+outlives the picture. The 2D lane spends none of this: it draws, lays out, hit-tests and culls by
+each note's presented tail alone, because its chord box already states the posture's length
+(`docs/plans/in-progress/note-sustain-model.md`, ruling 3).
 
 `holds[i]` is the presented tail's end, except for a member of a 2+ onset group under a covering
 shape span, not all dead, whose PRESENTED tail is empty: that member holds for its ACTUAL ring,

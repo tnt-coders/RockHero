@@ -195,17 +195,20 @@ from the shared `chartResolutions` pass), the identical value the 2D triangle po
 authority, two idioms, and a claim the chart cannot justify draws like the plain pick it sounds like
 on both surfaces.
 
-The **span-implied hold** is the one place the idioms still differ in substance,
-so it is worth knowing before touching either. Both view states carry `display_hold_ends` resolved
-from the same `chartHolds` authority (that unification is what closed the recorded W9-A
-divergence), and that authority caps the hold at the note's own ACTUAL ring — which 40-Q2-B already
-holds inside the next onset on its string, so neither surface can draw a hold through a later head.
-Each then spends the bounded value differently: 2D draws a tail ribbon to that end, while the board
-draws no tail for a sustainless strum and instead **pins the head at the hit line** until the hold
-ends. The board additionally clamps that pin with `HighwayChordGroupViewState::hold_cap_seconds` — the
-next note-showing strum's onset, because a re-shown chord takes over the pinned display — and 2D has
-no such cap, so a strum taken over before its string is restruck ends the drawn hold earlier in 3D
-than in 2D. Recorded as a watch item, not a decided asymmetry.
+The **span-implied hold** is the board's alone, which is worth knowing before touching either
+surface. `ChartViewState::display_hold_ends` is resolved from the `chartHolds` authority and rides
+the projection both surfaces read, but only the highway spends it: for a strum a hand-shape span
+holds it draws no tail and instead **pins the head at the hit line** until the hold ends. The 2D
+lane draws every tail to the note's own presented end and nothing further, so those chugs wear bare
+heads there — its chord box already states how long the posture is fretted, and a ribbon repeating
+that read as sustain (ruled 2026-08-22,
+`docs/plans/in-progress/note-sustain-model.md` ruling 3). Per-surface idiom for one fact again: one
+hold, a pinned head here and a chord box there. The authority caps the hold at the note's own ACTUAL
+ring — which 40-Q2-B already holds inside the next onset on its string, so the board cannot pin a
+head through a later one — and the renderer clamps its pin further with
+`HighwayChordGroupViewState::hold_cap_seconds`, the next note-showing strum's onset, because a
+re-shown chord takes over the pinned display. That clamp is board-only presentation with no 2D
+counterpart to diverge from.
 
 # Two visual paths: chart visuals vs screen-space overlays
 

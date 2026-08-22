@@ -94,7 +94,7 @@ trimmed encoding — are deleted, and the resolver reads the predecessor's store
 hammer-on exactly as before; a note followed by a rest no longer does, and the settle sweep
 flattens that claim at load and reports it.
 
-## The hold (3D pinned heads, 2D range culling)
+## The hold (3D pinned heads)
 
 `holds[i]` is the presented end, except that a member of a 2+ onset group under a covering
 shape span whose presented tail is empty holds for its actual ring, capped at the span's end. An
@@ -109,12 +109,16 @@ handing it the presented stream, so it extends exactly the members presentation 
 each answer at the stored ring. The rule is composed over, never restated; the span engine is
 private to `chart_presentation.cpp` now that nothing resolves holds from a trimmed stored form.
 
-The cap is a real change of value, though, not a rename, and it is the same change the 2D ribbons
-show on the other surface: today's hold is the span's remainder whatever the strum rang for, so a
-chugged chord under a long shape shortens from the span's end to its own eighth, and the 3D board
-pins its heads for that much less. That is the intended reading — the shape says the hand stays
-down, the ring says how long the string sounds — but it must be counted in the stage-A report
-rather than described as a no-op.
+The cap is a real change of value, though, not a rename: today's hold is the span's remainder
+whatever the strum rang for, so a chugged chord under a long shape shortens from the span's end to
+its own eighth, and the 3D board pins its heads for that much less. That is the intended reading —
+the shape says the hand stays down, the ring says how long the string sounds — but it must be
+counted in the stage-A report rather than described as a no-op.
+
+Since D1 the hold is the BOARD's alone. The 2D lane draws, lays out, hit-tests and culls by each
+note's presented tail, so a chug under a span wears a bare head there: the chord box already states
+how long the posture is fretted, and repeating that as a ribbon spent the one mark that means "this
+string is still ringing". The board, having no chord box, pins the heads to say the same thing.
 
 ## What the importer keeps deciding (meaning, not presentation)
 
@@ -143,8 +147,9 @@ residuals, each counted in the stage-A report:
 - An on-beat grace that delays only some members of a strum leaves the other members presented in
   full rather than margin-trimmed (their ring strictly passes the fabricated onset).
 - Claims after a rest flatten under strict adjacency.
-- The 2D lane's derived sub-quarter hold ribbons disappear, and a chug's 3D pinned head shortens
-  from its shape span's end to its own ring — the one intended visible change, on both surfaces.
+- The 2D lane's derived sub-quarter hold ribbons disappear (D1's commit; the lane stops reading the
+  hold at all), and a chug's 3D pinned head shortens from its shape span's end to its own ring
+  (stage A) — the one intended visible change, on both surfaces.
 
 Two more the A1 review measured, both from the same root — the presented rules partition and bind
 on the SOUNDING position because the saved form is all they have, where the import policy read each
@@ -246,7 +251,11 @@ corpus-wide.
   migrated); A3 readers (projection on presented, `display_hold_ends` on holds, the shared arrival
   rule `chartShapeArrivals` on presented as well, resolver strict; golden diff); A4 editor verbs
   (growth clamps at adjacency, shrink refuses zero, insert default one grid step, assist to the
-  onset); D1 the 2D ribbon change as its own commit.
+  onset); **D1 done 2026-08-22** — the 2D lane draws, lays out, hit-tests and culls by each note's
+  presented tail (`NoteViewState::end_seconds`), the hold parameters are deleted from the paint
+  core and the layout manifest, and `display_hold_ends` becomes the 3D board's field alone. It
+  retired the watch item on the two surfaces' holds diverging: with no 2D hold there is nothing
+  left to diverge.
 - **B** — the editor's Alt reveal: while Alt is held every visible note draws its actual ring as a
   dimmed outline; release snaps back to the presented form.
 - **C** — shape spans derived from the notes (rule 12 as today: a posture starts at a ≥2-note

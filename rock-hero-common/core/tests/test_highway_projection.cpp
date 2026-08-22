@@ -727,9 +727,12 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     CHECK(state.chart.display_hold_ends[2] == Catch::Approx(4.0));
     CHECK(state.chart.display_hold_ends[3] == Catch::Approx(4.0));
 
-    // W9-A: the 2D lane resolves the same rule from the same authority, so one chart's tails end at
-    // the same second on both surfaces. The lane drew bare heads with zero-width tails here until
-    // the two were unified.
+    // One authority, resolved identically for either surface: the 2D projection answers the same
+    // seconds. What differs is how each SPENDS it — the board pins the heads here, while the lane
+    // draws every tail to the note's presented end and so draws none for these chugs at all (the
+    // chord box over the strum is what states the posture there). That division is ruling 3 of
+    // `docs/plans/in-progress/note-sustain-model.md`; the lane's side is pinned in the tab paint
+    // core's own suite.
     const ChartViewState lane = makeChartViewState(arrangement, map);
     REQUIRE(lane.display_hold_ends.size() == lane.notes.size());
     REQUIRE(lane.notes.size() == state.chart.notes.size());
@@ -739,11 +742,14 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
         CHECK_THAT(
             lane.display_hold_ends[index],
             Catch::Matchers::WithinULP(state.chart.display_hold_ends[index], 0));
+        // And the hold genuinely outlasts the tail on every one of them, which is the whole reason
+        // the two surfaces can read the same field and draw different lengths.
+        CHECK(lane.display_hold_ends[index] > lane.notes[index].end_seconds);
     }
 
-    // Which is what keeps a span-held strum inside the visible range for as long as it is drawn: a
-    // window opening AFTER the late pair's onset still has to include it, because the span holds
-    // its heads to 4.0.
+    // And the board's visible-range index is built from the holds, so a pinned strum stays in range
+    // for as long as it is held: a window opening AFTER the late pair's onset still has to include
+    // it, because the span holds its heads to 4.0.
     const std::vector<double> prefix_max = makeSustainPrefixMax(state.chart.display_hold_ends);
     REQUIRE(prefix_max.size() == 4);
     CHECK(prefix_max[3] == Catch::Approx(4.0));

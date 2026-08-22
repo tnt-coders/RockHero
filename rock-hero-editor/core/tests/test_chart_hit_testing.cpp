@@ -44,12 +44,6 @@ namespace
             .slides = {},
         },
     };
-    // Nothing here is span-held, so every display hold end is the note's own — the projection's
-    // ordinary case, and the sizing every query asserts.
-    for (const common::core::NoteViewState& note : state.notes)
-    {
-        state.display_hold_ends.push_back(note.end_seconds);
-    }
     return state;
 }
 
@@ -116,10 +110,11 @@ TEST_CASE("Chart hit testing survives zoom extremes", "[core][chart]")
     CHECK_FALSE(chartNoteHitIndex(tab, wide, 700.0f, 220.0f).has_value());
 }
 
-// Hit testing consumes the DISPLAY hold ends the paint core draws to, not the notes' own sustain
-// ends: a span-held strum member stores no sustain yet draws a full ribbon, and resolving clicks
-// against `end_seconds` left every drawn pixel of it dead.
-TEST_CASE("Chart hit testing follows the display hold ends", "[core][chart]")
+// Hit testing consumes the notes' PRESENTED tails, which is exactly the ink the paint core lays
+// down: every drawn ribbon is clickable and nothing undrawn is. A chugged member of a strum a
+// hand-shape span holds presents no tail — the 3D board pins its head for the posture instead —
+// so this lane offers nothing along the string to click, however long that hold runs.
+TEST_CASE("Chart hit testing follows the presented tails", "[core][chart]")
 {
     common::core::ChartViewState tab;
     tab.string_count = 6;
@@ -133,17 +128,19 @@ TEST_CASE("Chart hit testing follows the display hold ends", "[core][chart]")
             .slides = {},
         },
     };
+    // The board's hold for that chug, to 8s (x = 160). Nothing below may spend it.
+    tab.display_hold_ends = {8.0};
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
-    // Stored sustain only: the bare head is the whole affordance, and a point out along the string
-    // hits nothing.
-    tab.display_hold_ends = {2.0};
+    // The bare head is the whole affordance: every point out along the string hits nothing, right
+    // through where the hold reaches.
     CHECK(chartNoteHitIndex(tab, geometry, 40.0f, 220.0f) == std::size_t{0});
     CHECK_FALSE(chartNoteHitIndex(tab, geometry, 130.0f, 220.0f).has_value());
+    CHECK_FALSE(chartNoteHitIndex(tab, geometry, 155.0f, 220.0f).has_value());
 
-    // Span-held to 8s (x = 160): the ribbon the lane draws is now clickable along its whole length,
-    // and still stops where it is drawn to.
-    tab.display_hold_ends = {8.0};
+    // Give the same note a presented tail to 8s and the drawn ribbon is clickable along its whole
+    // length, stopping where the ink does.
+    tab.notes[0].end_seconds = 8.0;
     CHECK(chartNoteHitIndex(tab, geometry, 130.0f, 220.0f) == std::size_t{0});
     CHECK(chartNoteHitIndex(tab, geometry, 155.0f, 220.0f) == std::size_t{0});
     CHECK_FALSE(chartNoteHitIndex(tab, geometry, 200.0f, 220.0f).has_value());
