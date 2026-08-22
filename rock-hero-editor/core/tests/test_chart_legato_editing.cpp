@@ -573,9 +573,11 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
 
     SECTION("a settle at a mid-stack resting point defers instead of rewriting history")
     {
-        // Two shrinks, each its own entry (the sustain verb does not coalesce), so undo lands
-        // between them.
+        // Two shrinks with another verb between them, so they are two entries rather than one
+        // gesture and undo lands between them: a duration run coalesces into a single entry, and
+        // the verb in the middle is what ends the first run.
         controller.onChartSustainAdjustRequested(-1, false);
+        controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
         controller.onChartSustainAdjustRequested(-1, false);
         CHECK(note(0).sustain == common::core::Fraction{2});
         const std::size_t entries_after_edits = state->undo_history.labels.size();

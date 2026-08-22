@@ -144,7 +144,10 @@ PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
 `onTimeSelectionExtendRequested` (Shift+ the same navigation family: grid, measure, section,
 and chart-bound extends of the grid-locked `TimeSelection` — the range edge reuses the caret's
 shared destination helpers, so the two can never drift on the same motion),
-`onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction, fine)`,
+`onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction, fine)` (THE duration verb —
+a run of presses is one GESTURE: the steps accumulate into a single delta, the selection re-plans
+from the rings the run started at, and the whole run stays one undo entry, ruled 2026-08-22; see
+\ref guide_undo),
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, accent, ghost, pick slide,

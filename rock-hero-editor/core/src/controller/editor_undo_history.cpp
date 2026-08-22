@@ -79,6 +79,11 @@ bool EditorUndoHistory::hasReachableCleanMarker() const noexcept
     return m_clean_marker_state == CleanMarkerState::Reachable;
 }
 
+bool EditorUndoHistory::isAtCleanState() const noexcept
+{
+    return m_clean_marker_state == CleanMarkerState::Reachable && m_clean_position == m_position;
+}
+
 std::optional<std::string> EditorUndoHistory::undoLabel() const
 {
     if (!canUndo())
@@ -159,8 +164,7 @@ EditorUndoTransitionResult EditorUndoHistory::replaceTop(std::unique_ptr<IEdit> 
     // the "top" is history the user already walked away from. A reachable clean marker AT the
     // top also refuses: the saved state was produced by the entry being replaced, and widening
     // it would make "return to clean" restore different content than the file holds.
-    if (edit == nullptr || m_entries.empty() || m_position != m_entries.size() ||
-        (m_clean_marker_state == CleanMarkerState::Reachable && m_clean_position == m_position))
+    if (edit == nullptr || m_entries.empty() || m_position != m_entries.size() || isAtCleanState())
     {
         return nonCommitFailure(EditorUndoFailureCode::PreflightRejected);
     }
@@ -192,8 +196,7 @@ EditorUndoTransitionResult EditorUndoHistory::dropTop()
     // while the cursor sits on it, and never while it is the reachable clean state — the saved
     // file holds what this entry produced, so erasing it would make "return to clean" restore
     // different content than the file holds.
-    if (m_entries.empty() || m_position != m_entries.size() ||
-        (m_clean_marker_state == CleanMarkerState::Reachable && m_clean_position == m_position))
+    if (m_entries.empty() || m_position != m_entries.size() || isAtCleanState())
     {
         return nonCommitFailure(EditorUndoFailureCode::PreflightRejected);
     }

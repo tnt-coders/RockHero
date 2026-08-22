@@ -40,13 +40,20 @@ funnel because flattening a claim to a plain pick can violate no rule; see the p
   Multi-digit fret typing is one gesture by construction: the typed value stays PENDING —
   nothing reaches the chart until the entry settles — so the whole number commits as one entry
   with no splice (the W3 pending model; `settleChartFretEntry`, `chart_handlers.cpp`).
-  A toggle whose second press provably reverses its own first press (the legato toggle window)
+  A toggle whose second press provably reverses its own first press (the technique toggle window)
   applies the entry's inverse and removes it via `EditorUndoHistory::dropTop`, so the pair
-  leaves no trace. Both splices refuse when the top entry is the reachable clean state — the file
-  holds what that entry produced, so rewriting or erasing it would make "return to clean" restore
-  content the file does not have. A verb that must still act there pushes instead: the legato
-  toggle's reversal becomes its own inverse entry (the tail still comes back, the session stays
-  correctly dirty), and the legato settle sweep pushes its flatten rather than folding it.
+  leaves no trace. A run of duration steps is one gesture the same way, but by REPLACEMENT: each
+  step re-plans the whole selection from the rings the run started at and swaps the entry via
+  `replaceTop`, so however many keys were pressed, one entry describes start → now and one Ctrl+Z
+  undoes the run (`performActionImpl(AdjustChartSustain)`, ruled 2026-08-22 — before it, every
+  step was its own entry) — and a run whose delta nets back to zero ends at `dropTop` like the
+  toggle, since an entry describing nothing is a dead Ctrl+Z on a document reported modified that
+  is byte-identical to the file. All three splices refuse when the top entry is the reachable clean
+  state — the file holds what that entry produced, so rewriting or erasing it would make "return to
+  clean" restore content the file does not have. A verb that must still act there pushes instead:
+  the technique toggle's reversal becomes its own inverse entry (the tail still comes back, the
+  session stays correctly dirty), a duration step opens a new gesture from the saved rings, and the
+  legato settle sweep pushes its flatten rather than folding it.
 - The **legato settle sweep** is the one edit that arrives with no user gesture of its own, so its
   commit shape is decided by where the cursor sits (`settleChartLegato`, `chart_handlers.cpp`):
   on top of history it FOLDS into the burst's own chart-notes entry via `replaceTop`, so one Ctrl+Z

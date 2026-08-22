@@ -355,6 +355,20 @@ public:
     \return True when markClean() ran and its position is still reachable. */
     [[nodiscard]] bool hasReachableCleanMarker() const noexcept;
 
+    /*!
+    \brief Reports whether the cursor sits exactly on the state the file holds.
+
+    The one condition behind both splices: \ref replaceTop and \ref dropTop refuse when it is true
+    of the newest entry, because rewriting or erasing the entry that produced the saved state would
+    make "return to clean" restore content the file does not have. It is public because the callers
+    that must do something ELSE rather than take a refusal have to ask before they mutate anything —
+    the technique toggle pushes its reversal as its own entry, and the duration gesture treats a
+    save as the commit point it is and opens a new gesture on the next step.
+
+    \return True when a reachable clean marker sits at the current history position.
+    */
+    [[nodiscard]] bool isAtCleanState() const noexcept;
+
     /*! \brief Returns the label of the entry that would be undone next.
     \return Entry label, or empty when nothing can be undone. */
     [[nodiscard]] std::optional<std::string> undoLabel() const;

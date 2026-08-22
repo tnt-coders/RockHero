@@ -106,6 +106,12 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 
 *(The `Ctrl+Alt+↑/↓` row is your example, now explicit: bound on lanes, unbound on the highway.)*
 
+*(The two sustain rows are ONE verb and one gesture: held or repeated, the presses accumulate into
+a single delta, the whole selection re-plans from the rings the run started at, and the run stays
+one undo entry — grid and fine steps mixing freely inside it. Ruled 2026-08-22;
+`docs/plans/in-progress/note-sustain-model.md` ruling 8. The `Alt`+wheel duration rows below are
+the same verb through the pointer.)*
+
 ## Payload entry
 
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |

@@ -156,25 +156,54 @@ rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
 /*!
-\brief Plans adjusting the keyed notes' sustains by an exact beat delta.
+\brief Plans the keyed notes' sustains at one accumulated gesture delta, recomputed from the rings
+the gesture started at.
 
-Every note rings, so there is no empty ring to shrink to: a step that would take a note's sustain
-to zero or below is refused for THAT note and the rest of the selection still moves (a pick slide
-floors at the minimum gesture window instead, its path re-terminating onto the changed tail —
-shrink compresses the final point, growth rides it out). Growth clamps at exact adjacency with the
-next onset on the note's own string (40-Q2-B, \ref common::core::sustainBoundOf), which is the
-model's one bound on a ring; payload points beyond a shortened sustain are clipped with it.
+The duration verb is a GESTURE (user ruling 2026-08-22), not a run of independent steps: the caller
+accumulates every step into ONE `beat_delta`, and every keyed note is recomputed as its PRE-GESTURE
+ring plus that delta. That is what makes the verb symmetric — each note moves by the same delta from
+where it started, so whatever shape the selection's tails had is preserved in both directions, a
+member pinned at its own bound on the way out rejoins the others exactly where it left them on the
+way back, and nothing blocks anything else: a passage of different-length tails can all be pushed as
+far as each one can go. Stepping from the LIVE ring instead is what cannot do that — a clamp or a
+floor would become the next step's starting value, and the selection would come back a different
+shape than it went out.
 
-\param chart Chart being edited.
+`base` is the stream the gesture started from. Each keyed note's pre-gesture ring is read from it,
+and the returned plan is diffed against it, so the plan always describes start → now and can replace
+the entry the gesture's first step pushed. On a gesture's first step `base` IS `chart.notes` and the
+result is an ordinary one-step edit.
+
+Two rules bound the recomputed ring, and neither carries anything over from a previous step:
+
+- Growth clamps at exact adjacency with the next onset on the note's own string (40-Q2-B,
+  \ref common::core::sustainBoundOf), the model's one bound on a ring. A note pinned there reports
+  the bound for every delta past it.
+- Every note rings, so there is no empty ring to shrink to: a note whose start + delta is not
+  positive keeps the ring it CURRENTLY has — read from `chart`, not from `base`, because the value
+  on screen is the one that holds — and rejoins the delta as soon as start + delta is positive
+  again. A scrape floors at the minimum gesture window instead, its path re-terminating onto the
+  changed tail (shrink compresses the final point, growth rides it out).
+
+Payload beyond a shortened ring is clipped with it, out of the PRE-GESTURE payload, so growing back
+restores what an earlier step's shrink clipped away.
+
+\param chart Chart being edited, live: the ring bounds, and the ring a floored note holds.
 \param tempo_map Tempo map supplying the beat axis.
+\param base Stream the gesture started from: the pre-gesture rings, and the stream the plan is
+diffed against.
 \param keys Notes whose sustains change, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
-\param beat_delta Signed exact beat delta.
-\return The plan; NoChange when nothing changes, Invalid when the gate refuses the result.
+\param beat_delta The gesture's whole accumulated delta, signed.
+\return The plan the gesture's entry should hold; NoChange when the accumulated delta puts every
+        ring back where `base` had it, which means the gesture describes no edit at all — the
+        caller's answer is to RETIRE the entry it pushed rather than replace it with one that
+        describes nothing; Invalid when the gate refuses the result.
 */
 [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta);
+    const std::vector<common::core::ChartNote>& base, const std::vector<ChartNoteKey>& keys,
+    common::core::Fraction beat_delta);
 
 /*! \brief Why an `H` press left a selected note as it found it. */
 enum class ChartLegatoSkip : std::uint8_t

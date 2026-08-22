@@ -293,3 +293,24 @@ corpus-wide.
    ring of an accented sub-quarter note changes nothing drawn (the accent glow is the staccato
    read), a shorter default would flatten a hammer-on the charter marked after it, and playback
    can honour the accent itself when it exists rather than the duration storing a convention.
+8. **The duration verb is a GESTURE** (ruled 2026-08-22, shipped the same day). A run of steps —
+   grid or the Ctrl fine tier, mixed freely — accumulates into ONE `Fraction` delta, and every
+   selected note is recomputed as its PRE-GESTURE ring plus that delta: clamped up at its own
+   string's `sustainBoundOf`, and holding the ring it currently has when start + delta is not
+   positive (there is no empty ring; it rejoins the moment start + delta is positive again). The
+   user's reason is symmetry: every note moves by the same delta from where it started, so whatever
+   shape the selection's tails had comes back intact and nothing blocks anything else — a chord
+   member pinned at its bound on the way out rejoins its neighbours exactly where it left them,
+   where per-step clamping baked the clamp into the next step's starting value and shrank the chord
+   asymmetrically. It also fixes the second half of the same defect: the run is ONE undo entry
+   rather than one per keypress. The first step pushes it, every later one replaces it
+   (`replaceTop`), so the entry always describes start → now, and the pre-gesture values need no
+   snapshot because that entry reversed IS the pre-gesture stream (the settle fold's method). A run
+   whose delta nets back to zero has nothing left to describe, so its entry is DROPPED and the chart
+   walked back (`dropTop`, the technique toggle's own ending): an entry describing nothing is a dead
+   Ctrl+Z on a document reported modified that is byte-identical to the saved file. The
+   gesture is live under the technique toggle's own proofs — the selection unchanged, and the burst
+   record still owning the history top — and ends wherever the toggle window ends (selection
+   change, caret move, any other edit, undo/redo, a committing settle, a save); the next step then
+   opens a fresh gesture from the current rings. Both verbs share ONE window field
+   (`m_chart_verb_window`, a variant), because at most one can ever be armed.

@@ -126,14 +126,20 @@ enum class StrandedStrikeRepair : std::uint8_t
 
 // Finalizes a candidate stream: restores (position, string) order, applies the 40-Q2-B overlap
 // normalization and the one in-plan repair, gates the result through the whole technique matrix,
-// and diffs against the current stream. The gate is what makes authoring an invalid chart
-// impossible by construction — a plan whose candidate the document reader would reject refuses
-// here, for every present and future verb, with no per-verb guard to forget. It validates the SAVED
-// form, because a scrape's latent overrides are legal in memory and stripped by the writer.
+// and diffs against `base`. The gate is what makes authoring an invalid chart impossible by
+// construction — a plan whose candidate the document reader would reject refuses here, for every
+// present and future verb, with no per-verb guard to forget. It validates the SAVED form, because a
+// scrape's latent overrides are legal in memory and stripped by the writer.
 // The two emptinesses are distinct on purpose: the gate's refusal is Invalid, an empty diff is
 // NoChange — conflating them is what made every refusal in the editor silent.
+//
+// `base` is the stream the plan is expressed against, which is `chart.notes` for every verb that
+// edits from what it finds. The sustain gesture is the exception, and the reason the base is a
+// parameter rather than read off `chart`: its plan must describe the whole gesture, so it is diffed
+// against the stream the gesture started from while the ring rules still judge the live chart.
 [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<common::core::ChartNote>& base,
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
@@ -160,7 +166,7 @@ enum class StrandedStrikeRepair : std::uint8_t
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    std::optional<ChartNotesEditPlan> plan = diffNotes(chart.notes, candidate, label);
+    std::optional<ChartNotesEditPlan> plan = diffNotes(base, candidate, label);
     if (!plan.has_value())
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
@@ -220,7 +226,7 @@ template <typename Write>
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
 } // namespace
@@ -243,7 +249,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planInsertNote(
         return keyOf(existing) == keyOf(note);
     });
     candidate.push_back(std::move(note));
-    return finalizePlan(chart, tempo_map, std::move(candidate), "Insert Note");
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
 }
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planDeleteNotes(
@@ -268,7 +274,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planDeleteNotes(
     }
     const std::string label =
         deleted == 1 ? std::string{"Delete Note"} : "Delete " + std::to_string(deleted) + " Notes";
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planMoveNotes(
@@ -335,7 +341,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planMoveNotes(
     }
 
     candidate.insert(candidate.end(), moved.begin(), moved.end());
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planRetypeFrets(
@@ -389,74 +395,73 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planRetypeFrets(
             }
         }
     }
-    return finalizePlan(chart, tempo_map, std::move(candidate), label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta)
+    const std::vector<common::core::ChartNote>& base, const std::vector<ChartNoteKey>& keys,
+    const common::core::Fraction beat_delta)
 {
-    if (keys.empty() || beat_delta.numerator == 0)
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-
+    // The candidate starts from the LIVE stream because a floored note keeps the ring it currently
+    // has; every note the delta does reach is then rebuilt WHOLE from its pre-gesture value, which
+    // is also what restores payload an earlier step's shrink clipped away.
     std::vector<common::core::ChartNote> candidate = chart.notes;
-    bool changed = false;
     for (common::core::ChartNote& note : candidate)
     {
         if (!std::ranges::binary_search(keys, keyOf(note)))
         {
             continue;
         }
-        common::core::Fraction next_sustain = note.sustain + beat_delta;
+        const auto start = std::ranges::lower_bound(base, keyOf(note), {}, keyOf);
+        if (start == base.end() || keyOf(*start) != keyOf(note))
+        {
+            continue;
+        }
+        common::core::ChartNote stepped = *start;
+        stepped.sustain = start->sustain + beat_delta;
         // A scrape needs somewhere to travel: its sustain floors at the minimum gesture window
-        // (the path re-terminates onto the shrunk tail via the payload clip).
-        if (common::core::isScrape(note.attack) &&
-            next_sustain < common::core::g_minimum_slide_window)
+        // (the path re-terminates onto the shrunk tail via the payload clip). That floor is always
+        // positive, so a scrape never reaches the hold below.
+        if (common::core::isScrape(stepped.attack) &&
+            stepped.sustain < common::core::g_minimum_slide_window)
         {
-            next_sustain = common::core::g_minimum_slide_window;
+            stepped.sustain = common::core::g_minimum_slide_window;
         }
-        // Every note rings for some length, so there is no empty ring to shrink to: a step that
-        // would reach zero is refused for THIS note (the others in the selection still shrink)
-        // rather than clamped, because clamping would silently author a duration the model has no
-        // encoding for. Deleting the note is the verb for removing it.
-        if (next_sustain.numerator <= 0)
+        // Every note rings for some length, so there is no empty ring to shrink to: a note the
+        // delta would take to zero or below keeps the ring it currently has — the live value the
+        // candidate was seeded with — rather than being clamped to some invented floor, and
+        // rejoins the gesture the moment start + delta is positive again. Deleting the note is the
+        // verb for removing it.
+        if (stepped.sustain.numerator <= 0)
         {
             continue;
         }
-        // The one bound on a ring (40-Q2-B): a tail may grow to exact adjacency with the next
-        // onset on its OWN string and no further, because a re-strike stops the ring. The margin
-        // that used to bind growth against ANY string was the DRAWN tail's spacing rule, which
-        // presentation now owns; the stored ring has no reason to stop short of the string's own
-        // next head. A tail already at or past the bound refuses to grow rather than shrinking to
-        // it.
-        if (beat_delta.numerator > 0)
-        {
-            const std::optional<common::core::Fraction> bound =
+        // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next onset
+        // on its OWN string and no further, because a re-strike stops the ring. The margin that
+        // used to bind growth against ANY string was the DRAWN tail's spacing rule, which
+        // presentation now owns. Clamping the recomputed value needs no direction test and no
+        // memory of the previous step — a note pinned at its bound reports the bound for every
+        // delta past it, and leaves it the moment start + delta falls back inside. The clamp can
+        // never SHORTEN a note below where the gesture found it: normalizeSustainOverlaps holds
+        // every stored ring inside this same bound, so `start` is already at most the bound.
+        if (const std::optional<common::core::Fraction> bound =
                 common::core::sustainBoundOf(chart.notes, note, tempo_map);
-            if (bound.has_value() && *bound < next_sustain)
-            {
-                next_sustain = note.sustain < *bound ? *bound : note.sustain;
-            }
-        }
-        if (next_sustain == note.sustain)
+            bound.has_value() && *bound < stepped.sustain)
         {
-            continue;
+            stepped.sustain = *bound;
         }
-        note.sustain = next_sustain;
-        common::core::clipPayloadsToSustain(note);
-        changed = true;
+        common::core::clipPayloadsToSustain(stepped);
+        note = std::move(stepped);
     }
-    if (!changed)
-    {
-        return std::unexpected{ChartPlanRefusal::NoChange};
-    }
-    return finalizePlan(
-        chart,
-        tempo_map,
-        std::move(candidate),
-        beat_delta.numerator > 0 ? "Grow Sustain" : "Shrink Sustain");
+
+    // The label states the gesture's NET direction, because the entry it goes on describes the
+    // whole gesture rather than its last step. A zero delta needs no name of its own: it recomputes
+    // every keyed note to the ring `base` already holds, so the finalize below refuses it as
+    // NoChange and the caller retires the gesture's entry instead of labelling one that describes
+    // nothing.
+    const std::string_view label = beat_delta.numerator > 0 ? "Grow Sustain" : "Shrink Sustain";
+    return finalizePlan(chart, tempo_map, base, std::move(candidate), label);
 }
 
 // Claims a connection for every selected note the resolver justifies one for. Which note to connect
@@ -585,7 +590,7 @@ ChartLegatoPlan planSetLegato(
         // empty exactly like an all-skipped press, so the press falls through to its clear
         // meaning — the behavior this verb always had. The skip channel, not the plan's absence,
         // is this planner's feedback payload.
-        if (auto plan = finalizePlan(chart, tempo_map, std::move(candidate), label);
+        if (auto plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
             plan.has_value())
         {
             outcome.plan = std::move(*plan);

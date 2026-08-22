@@ -210,8 +210,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.
     void toggleChartLegato(const std::vector<ChartNoteKey>& keys);
-    void disarmTechniqueToggleWindow() noexcept;
+    void disarmChartVerbWindow() noexcept;
+    // The proof every coalescing window rests on, written once for both verbs: the window's
+    // selection is still the live one, and the entry it names is still the history top this burst
+    // pushed. Any push, undo, or redo moves the cursor and retires the record, so the position IS
+    // the ownership proof.
+    [[nodiscard]] bool chartVerbWindowHolds(const std::vector<ChartNoteKey>& armed_keys) const;
     [[nodiscard]] bool reverseTechniqueToggleWindow(ChartTechnique technique);
+    // The accumulated delta of the duration gesture this press continues, or nullopt when the
+    // press starts one. Adds the fold's own precondition to the shared proof: a save mid-gesture
+    // makes the entry the file's clean state, which replaceTop refuses to rewrite, so the gesture
+    // ends there and the next step starts a fresh one from the saved values.
+    [[nodiscard]] std::optional<common::core::Fraction> liveChartSustainGestureDelta() const;
+    // Ends a gesture whose accumulated delta describes no edit at all: takes its entry back out of
+    // the history (dropTop) and walks the chart to the stream that entry was applied to, so a run
+    // that nets to zero leaves neither a dead undo step nor a modified document identical to the
+    // saved file.
+    void retireChartSustainGesture(const ChartNotesEditPlan& applied);
     void onChartEscapePressed();
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
     // consumed it (true = a rung consumed the press).
@@ -839,22 +854,40 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
 
-    // The technique verbs' toggle windows (the legato plan's ruling 4, extended to the scrape
-    // 2026-08-18): while the selection still matches and the record above still owns the history
-    // top, a second press REVERSES that entry exactly, tails an assist grew included — a true
-    // ON/OFF toggle rather than a do/undo pair. Once either proof fails (selection changed, any
-    // edit, undo/redo, a committing settle), the window is dead and the verb means its ordinary
-    // law; grown tails then stay and Ctrl+Z is the revert.
+    // What the next press of the verb that armed the window needs to know: the technique a second
+    // press would reverse (the legato plan's ruling 4, extended to the scrape 2026-08-18), or the
+    // duration gesture's accumulated delta (user ruling 2026-08-22).
+    struct ChartTechniqueToggle
+    {
+        ChartTechnique technique{};
+    };
+
+    struct ChartSustainGesture
+    {
+        common::core::Fraction delta{};
+    };
+
+    // The chart verbs' coalescing window over the entry m_chart_notes_top names: while the
+    // selection still matches and that record still owns the history top, the next press of the
+    // SAME verb continues what the last one started instead of stacking a second entry — a
+    // technique toggle REVERSES its entry exactly (tails an assist grew included, a true ON/OFF
+    // toggle rather than a do/undo pair), and a duration step re-plans the whole gesture from one
+    // accumulated delta and replaces the entry. Once either proof fails (selection changed, caret
+    // moved, any other edit, undo/redo, a committing settle), the window is dead and the next
+    // press means its verb's ordinary law starting from the current values; grown tails then stay
+    // and Ctrl+Z is the revert.
     //
     // ONE window, because at most one can ever be armed: every arming runs after
     // applyChartEditPlan, which disarms, so eight per-verb fields encoded a one-of-eight state and
-    // needed a hand-kept disarm list. The technique is what the next press is compared against.
-    struct ChartToggleWindow
+    // needed a hand-kept disarm list. Keeping the sustain gesture in the same field rather than
+    // beside it is the same argument a second time — two optionals could both be armed, which is a
+    // state no verb can produce and every disarm site would have to remember.
+    struct ChartVerbWindow
     {
-        ChartTechnique technique{};
         std::vector<ChartNoteKey> keys;
+        std::variant<ChartTechniqueToggle, ChartSustainGesture> verb{};
     };
-    std::optional<ChartToggleWindow> m_chart_toggle_window{};
+    std::optional<ChartVerbWindow> m_chart_verb_window{};
 
     // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the

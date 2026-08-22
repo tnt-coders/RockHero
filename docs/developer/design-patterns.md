@@ -166,6 +166,16 @@ separate apply step checks preconditions and swaps the change in. Undo replays t
 trips are exact by construction — and the hover ghost can run the *same* planner the click
 runs, so an affordance can never promise an edit the commit would refuse.
 
+One of the eight answers `std::optional<Plan>` instead, because for it an EMPTY plan is a real
+answer it must be able to give: `planSettleLegato`'s flatten can exactly cancel the burst it is
+diffed against, and the caller still has to commit that — walking the chart back to the plan's base
+is what removes the claim. Its `nullopt` therefore carries the one thing left that is not a plan
+(the sweep found nothing to flatten), where collapsing the empty diff into `NoChange` would have
+told the caller to do nothing. Every other planner, `planAdjustSustain` included, keeps the
+`expected` shape: a gesture whose accumulated delta puts every ring back where it started needs no
+plan to describe it, because the answer to `NoChange` there is to take the gesture's undo entry back
+out — not to commit an entry that describes nothing.
+
 Exemplar: `ChartNotesEditPlan` with the eight planners — `planInsertNote` / `planDeleteNotes` /
 `planMoveNotes` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` /
 `planSettleLegato` —
@@ -183,11 +193,15 @@ it when a mutation needs undo, a truthful preview, or side-effect-free tests.
 Every chart-note planner builds a candidate stream and funnels it through the shared finalize
 (`finalizePlan` in `chart_edits.cpp`): sort, sustain-overlap normalization, the intra-note strike
 flatten, then the technique-matrix gate — `validateChartNotes` run on the candidate's *saved* form
-(`savedChartNote`), refusing the whole plan on any violation. A new planner must end there too;
-skipping the funnel is how a verb authors a chart the document reader would reject. Relational
-truths deliberately do NOT repair in the funnel: a connection claim the chart cannot justify plays as
-the pick it sounds like until the settle sweep (`planSettleLegato`) flattens it in one batch at the
-burst's end, which is what keeps a burst one undo step.
+(`savedChartNote`), refusing the whole plan on any violation — and finally the diff against the
+stream the plan is expressed against. That stream is a parameter rather than `chart.notes` for one
+verb's sake: the sustain gesture judges the LIVE chart (the ring bounds, and the ring a floored note
+holds) while its plan must describe the whole gesture, so it is diffed against the stream the
+gesture started from. A new planner must end at the funnel too; skipping it is how a verb authors a
+chart the document reader would reject. Relational truths deliberately do NOT repair in the funnel:
+a connection claim the chart cannot justify plays as the pick it sounds like until the settle sweep
+(`planSettleLegato`) flattens it in one batch at the burst's end, which is what keeps a burst one
+undo step.
 
 ## Refuse, never clamp (edits)
 
@@ -357,16 +371,34 @@ state transactions behind a quiet debounce in the same spirit
 one user gesture — the undo rule is one entry per gesture, not per event, and a value that has
 not settled is chrome, never chart.
 
-The legato toggle's window remains **proof-based rather than timed** — its second press proves
-the burst is still its own from the armed keys plus the history position, so any interleaved
-edit, undo, or redo retires it without teardown discipline. It reads the shared record of what
-the burst pushed (`m_chart_notes_top`: the plan, and the position that proves it is still the
-top), which is also what the legato settle sweep folds into — and that sharing is what forces
-the rule **a sweep that commits anything closes the toggle windows**: a fold changes the top
-entry's content without moving the history position, so an armed proof would otherwise still
-pass and reverse a plan that no longer exists. The fret entry needs none of those proofs: it
-settles before anything that could invalidate it runs, which is the pending model's whole
-bargain.
+The chart verbs' window (`m_chart_verb_window`, `editor_controller_impl.h`) remains **proof-based
+rather than timed** — the next press proves the burst is still its own from the armed keys plus the
+history position (`chartVerbWindowHolds`), so any interleaved edit, undo, or redo retires it without
+teardown discipline. It reads the shared record of what the burst pushed (`m_chart_notes_top`: the
+plan, and the position that proves it is still the top), which is also what the legato settle sweep
+folds into — and that sharing is what forces the rule **a sweep that commits anything closes the
+window**: a fold changes the top entry's content without moving the history position, so an armed
+proof would otherwise still pass and act on a plan that no longer exists. The fret entry needs none
+of those proofs: it settles before anything that could invalidate it runs, which is the pending
+model's whole bargain.
+
+**ONE window carries both verbs that use it**, as a variant of what the next press needs
+(`{keys, variant<ChartTechniqueToggle, ChartSustainGesture>}`), because at most one can ever be
+armed: every arming runs after `applyChartEditPlan`, which disarms. Two optionals could both be
+armed — a state no verb can produce, and one every disarm site would have to remember. What each
+alternative does with the proof differs, and that is the point of keeping the proof outside them:
+
+- **The technique toggle** REVERSES its entry exactly, tails an assist grew included, and drops it
+  (`dropTop`) so the pair leaves no trace.
+- **The duration gesture** (user ruling 2026-08-22) accumulates every step into one `Fraction`
+  delta, re-plans the whole selection from the rings the gesture STARTED at, and REPLACES its entry
+  (`replaceTop`) so one entry always describes start → now. The start values need no snapshot: the
+  entry's own plan, reversed, IS the pre-gesture stream — the settle sweep's method, reused.
+  Recomputing from the start rather than stepping the live ring is what makes the verb symmetric,
+  so a chord member pinned at its own bound rejoins its neighbours exactly where it left them.
+  A delta that nets back to zero ends at the toggle's ending instead: there is nothing left to
+  describe, so the entry is DROPPED and the chart walked back, because an entry describing nothing
+  is a dead Ctrl+Z on a document reported modified that is identical to the saved file.
 
 # Asynchrony and lifetime patterns
 

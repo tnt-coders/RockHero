@@ -75,7 +75,7 @@ void EditorController::Impl::clearChartEditingState()
     discardChartFretEntry();
     clearSelection();
     m_chart_gesture.reset();
-    disarmTechniqueToggleWindow();
+    disarmChartVerbWindow();
     m_chart_notes_top.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
     // position is the position, and nothing is armed until the first click or arrow (the
@@ -139,7 +139,7 @@ void EditorController::Impl::setSelection(EditorSelection selection)
     // expressed against the outgoing selection, and a value you typed is a value you meant.
     settleChartFretEntry();
     m_selection = std::move(selection);
-    disarmTechniqueToggleWindow();
+    disarmChartVerbWindow();
     static_cast<void>(settleChartLegato());
 }
 
@@ -239,9 +239,10 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
     // that settled only after moving the marker (the End key once did) left the caret at the
     // destination with the selection on the slot it left.
     settleChartFretEntry();
-    // A caret move is a commit point for the technique toggle windows: a press after it means the
-    // verb's ordinary law, never a reversal of the entry the window remembers.
-    disarmTechniqueToggleWindow();
+    // A caret move is a commit point for the chart verbs' coalescing window: a press after it
+    // means the verb's ordinary law — never a reversal of the entry the window remembers, and
+    // never a continuation of the duration gesture it was accumulating.
+    disarmChartVerbWindow();
     m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartNoteKey key{.position = position, .string = string};
     if (chartSlotOccupied(position, string))
@@ -510,7 +511,7 @@ bool EditorController::Impl::applyChartEditPlan(
     // discard rather than commit — this plan was computed without knowledge of the pending one,
     // so committing both here could preflight-collide.
     discardChartFretEntry();
-    disarmTechniqueToggleWindow();
+    disarmChartVerbWindow();
 
     // The selection follows the edit: retyped/moved/inserted notes stay selected under their
     // new keys, deleted notes drop out (their keys no longer resolve).
@@ -1598,10 +1599,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         /*set_exact=*/false)));
 }
 
-// Grows or shrinks the selection's sustains by one grid step — or one 1/960-beat fine step,
-// the uniform Ctrl precision tier on the extent verbs — as one compound undo entry. What the
-// planner does with the step is its own (planAdjustSustain): growth clamps at exact adjacency with
-// the next onset on the note's OWN string, and a shrink that would reach zero is refused per note.
+// Grows or shrinks the selection's rings by one grid step — or one 1/960-beat fine step, the
+// uniform Ctrl precision tier on the extent verbs — as ONE GESTURE (user ruling 2026-08-22): every
+// step of a run adds to a single accumulated delta, the whole selection is re-planned from the
+// rings the gesture STARTED at, and the run stays one undo entry that always describes start → now.
+// That is what makes the verb symmetric: a chord member pinned at its own bound on the way out
+// rejoins its neighbours exactly where it left them on the way back, instead of each step baking
+// the clamp into the next step's starting value.
+//
+// The gesture is live while the shared window proof holds (the same selection, and the burst record
+// still owning the history top), so it ends at every commit point the technique toggle ends at —
+// and a press after any of them starts a new gesture from the current values. The step arithmetic
+// and the ring rules are the planner's alone (planAdjustSustain).
 void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSustain& action)
 {
     const int direction = action.direction;
@@ -1616,18 +1625,173 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     const common::core::GridPosition reference = chartSelection().notes().front().position;
     const common::core::Fraction step =
         fine ? common::core::Fraction{1, 960} : chartGridStepBeats(reference);
-    const common::core::Fraction delta =
+    const common::core::Fraction signed_step =
         direction > 0 ? step : common::core::Fraction{-step.numerator, step.denominator};
-    static_cast<void>(applyChartEditPlan(planAdjustSustain(
-        *arrangement->chart, session().song().tempo_map, chartSelection().notes(), delta)));
+    // Grid and fine steps mix freely inside one gesture: both are just terms of the same exact
+    // rational, which is the whole reason the delta is a Fraction rather than a step count.
+    const std::optional<common::core::Fraction> live_delta = liveChartSustainGestureDelta();
+    const common::core::Fraction delta =
+        live_delta.value_or(common::core::Fraction{}) + signed_step;
+    // Bound once as a pointer so every read below is provably behind the has_value check, the
+    // shape this file uses wherever an optional's guarantee has to survive intervening calls. A
+    // live delta and the burst record are present together — the delta's own proofs demand the
+    // record — so this pointer is exactly "a gesture is running".
+    ChartNotesTopEntry* const burst =
+        live_delta.has_value() && m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
+
+    // The stream the gesture started from. Mid-gesture it is reconstructed by reversing exactly
+    // what the top entry applied — the settle fold's own method, and the reason the gesture keeps
+    // no snapshot of its own: that entry already holds the pre-gesture values, so a second copy
+    // could only disagree with it.
+    std::vector<common::core::ChartNote> base = arrangement->chart->notes;
+    if (burst != nullptr)
+    {
+        common::core::Chart pre_gesture = *arrangement->chart;
+        if (!applyChartNotesChange(pre_gesture, burst->plan.inserted, burst->plan.removed)
+                 .has_value())
+        {
+            reportError("Could not apply chart edit: " + burst->plan.label);
+            return;
+        }
+        base = std::move(pre_gesture.notes);
+    }
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan = planAdjustSustain(
+        *arrangement->chart, session().song().tempo_map, base, chartSelection().notes(), delta);
+    if (!plan.has_value())
+    {
+        // Invalid is the gate refusing the result, so this step never happened: the delta is not
+        // accumulated, and a running gesture keeps the entry and the delta it had.
+        //
+        // NoChange is the gesture standing exactly where it started — every ring already at its
+        // bound on a first step, or a run that netted back to zero — so it describes no edit at
+        // all. A first step then arms nothing, and the next press in the other direction starts
+        // from the current rings rather than paying back a delta that never moved anything; a
+        // running gesture RETIRES the entry it pushed, because an entry describing nothing is a
+        // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
+        if (plan.error() == ChartPlanRefusal::NoChange && burst != nullptr)
+        {
+            retireChartSustainGesture(burst->plan);
+        }
+        return;
+    }
+
+    if (burst == nullptr)
+    {
+        if (!applyChartEditPlan(std::move(plan)))
+        {
+            return;
+        }
+    }
+    else
+    {
+        // The history entry is swapped BEFORE the model moves, the settle fold's discipline: the
+        // two states must never disagree, and liveChartSustainGestureDelta's proofs are exactly
+        // replaceTop's own preconditions, so a refusal here is a logic error reported with the
+        // chart untouched rather than left between two entries.
+        if (m_undo_history.replaceTop(std::make_unique<ChartNotesEdit>(*plan)).status !=
+            EditorUndoTransitionStatus::Applied)
+        {
+            reportError("Could not apply chart edit: " + plan->label);
+            return;
+        }
+        common::core::Chart* const chart = m_session.currentChart();
+        // Walk the live chart back to the pre-gesture stream and then to the re-planned one, so
+        // the state the top entry describes is exactly the state the chart holds.
+        if (chart == nullptr ||
+            !applyChartNotesChange(*chart, burst->plan.inserted, burst->plan.removed).has_value() ||
+            !applyChartNotesChange(*chart, plan->removed, plan->inserted).has_value())
+        {
+            reportError("Could not apply chart edit: " + plan->label);
+            return;
+        }
+        // The burst record follows the entry it names, or the next step would reverse a plan the
+        // history no longer holds.
+        burst->plan = std::move(*plan);
+        updateView();
+    }
+
+    // Both paths arm the same window: the live selection, and the delta the next step accumulates
+    // into. Read back from the selection rather than carried across the apply, so the keys are
+    // always the ones the next press will compare against.
+    m_chart_verb_window = ChartVerbWindow{
+        .keys = chartSelection().notes(),
+        .verb = ChartSustainGesture{.delta = delta},
+    };
 }
 
-// Disarms the technique toggle window. Called from each COMMIT point — a selection change, a
-// caret move, an edit, undo/redo, a settling sweep — so a press after any of them means the verb's
-// ordinary law instead of a reversal.
-void EditorController::Impl::disarmTechniqueToggleWindow() noexcept
+// Disarms whichever verb's coalescing window is armed. Called from each COMMIT point — a selection
+// change, a caret move, an edit, undo/redo, a settling sweep — so a press after any of them means
+// the verb's ordinary law: a technique toggle that sets or clears rather than reversing, and a
+// duration step that starts a new gesture from the current rings.
+void EditorController::Impl::disarmChartVerbWindow() noexcept
 {
-    m_chart_toggle_window.reset();
+    m_chart_verb_window.reset();
+}
+
+// The proof both windows rest on, so neither verb restates it: the armed selection is still the
+// live one, and the burst record still owns the history top. Any other push, undo, or redo moves
+// the cursor and retires the record, which is why no verb keeps a plan of its own to agree with
+// that record by hand.
+bool EditorController::Impl::chartVerbWindowHolds(const std::vector<ChartNoteKey>& armed_keys) const
+{
+    return m_chart_notes_top.has_value() && armed_keys == chartSelection().notes() &&
+           m_undo_history.snapshot().position == m_chart_notes_top->history_position;
+}
+
+// The gesture a duration step continues, or nullopt when the press starts one.
+//
+// Beyond the shared proof it asks the fold's own precondition: a save mid-gesture makes the entry
+// the file's clean state, and replaceTop refuses to rewrite that (widening it would make "return to
+// clean" restore different content than the file holds). So a save ENDS the gesture, exactly like
+// any other commit point, and the next step opens a fresh one from the saved rings.
+std::optional<common::core::Fraction> EditorController::Impl::liveChartSustainGestureDelta() const
+{
+    if (!m_chart_verb_window.has_value() || !chartVerbWindowHolds(m_chart_verb_window->keys))
+    {
+        return std::nullopt;
+    }
+    const auto* const gesture = std::get_if<ChartSustainGesture>(&m_chart_verb_window->verb);
+    if (gesture == nullptr || m_undo_history.isAtCleanState())
+    {
+        return std::nullopt;
+    }
+    return gesture->delta;
+}
+
+// Ends a duration gesture that describes nothing, by taking back the entry its first step pushed
+// and walking the chart back to the stream that entry was applied to. What a run netting to zero
+// has to leave behind: an entry describing nothing is a dead Ctrl+Z, and it would report the
+// document modified while it is byte-identical to the saved file.
+//
+// This is the technique toggle's own "the pair leaves no trace" mechanism (dropTop). It needs no
+// clean-state alternative, which that verb does need, because a save ends the gesture BEFORE a step
+// can reach here — liveChartSustainGestureDelta refuses at the clean state, so a live gesture and
+// dropTop's preconditions are the same thing.
+//
+// applied: the plan the entry holds, which is why the record naming it is retired last.
+void EditorController::Impl::retireChartSustainGesture(const ChartNotesEditPlan& applied)
+{
+    // The history moves BEFORE the model, this file's discipline everywhere: the two states must
+    // never disagree, and a live gesture is exactly dropTop's precondition, so a refusal here is a
+    // logic error reported with the chart untouched.
+    if (m_undo_history.dropTop().status != EditorUndoTransitionStatus::Applied)
+    {
+        reportError("Could not apply chart edit: " + applied.label);
+        return;
+    }
+    common::core::Chart* const chart = m_session.currentChart();
+    if (chart == nullptr ||
+        !applyChartNotesChange(*chart, applied.inserted, applied.removed).has_value())
+    {
+        reportError("Could not apply chart edit: " + applied.label);
+        return;
+    }
+    // The entry both the record and the window name is gone, so both go with it: the next press
+    // opens a fresh gesture from rings that ARE the pre-gesture rings. (Between the drop and here
+    // the record is already inert — every reader proves ownership by the history position first.)
+    m_chart_notes_top.reset();
+    disarmChartVerbWindow();
+    updateView();
 }
 
 // The technique verbs' toggle window (D14 ruling 4), shared by every verb that has one rather than
@@ -1636,19 +1800,22 @@ void EditorController::Impl::disarmTechniqueToggleWindow() noexcept
 // including tails an assist grew, which a verb's own clear law could never restore.
 //
 // ALWAYS disarms, reversal or not: a press whose proofs fail commits the previous entry, which is
-// what makes the window end at the next selection change or caret move.
+// what makes the window end at the next selection change or caret move. A window the DURATION verb
+// armed disarms here too, for the same reason — a technique press is another verb, so the gesture
+// it interrupts is over.
 //
 // technique: the verb pressed now; only a press of the technique that armed the window reverses.
 // Returns true when this press was consumed by a reversal, so the caller must not plan.
 bool EditorController::Impl::reverseTechniqueToggleWindow(const ChartTechnique technique)
 {
-    if (!m_chart_toggle_window.has_value())
+    if (!m_chart_verb_window.has_value())
     {
         return false;
     }
-    const ChartToggleWindow window = std::move(*m_chart_toggle_window);
-    m_chart_toggle_window.reset();
-    if (window.technique != technique)
+    const ChartVerbWindow window = std::move(*m_chart_verb_window);
+    m_chart_verb_window.reset();
+    const auto* const toggle = std::get_if<ChartTechniqueToggle>(&window.verb);
+    if (toggle == nullptr || toggle->technique != technique)
     {
         return false;
     }
@@ -1657,13 +1824,11 @@ bool EditorController::Impl::reverseTechniqueToggleWindow(const ChartTechnique t
         "Revert " + (technique == ChartTechnique::Legato
                          ? std::string{"Legato"}
                          : std::string{chartTechniqueLaw(technique).noun});
-    const EditorUndoHistorySnapshot history = m_undo_history.snapshot();
     // Bound once so every read below is provably behind the has_value check, the shape this file
     // uses wherever an optional's guarantee has to survive intervening calls.
     const ChartNotesTopEntry* const burst =
         m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
-    if (burst == nullptr || armed_keys != chartSelection().notes() ||
-        history.position != burst->history_position)
+    if (burst == nullptr || !chartVerbWindowHolds(armed_keys))
     {
         return false;
     }
@@ -1677,7 +1842,7 @@ bool EditorController::Impl::reverseTechniqueToggleWindow(const ChartTechnique t
     // to clean" a lie. The reversal still happens — the toggle stays genuine and the grown tail
     // comes back — but as its own inverse entry, which leaves the session correctly dirty
     // (ruled 2026-08-11).
-    const bool clean_entry = history.clean_position == burst->history_position;
+    const bool clean_entry = m_undo_history.isAtCleanState();
     m_chart_notes_top.reset();
     if (clean_entry)
     {
@@ -1743,7 +1908,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
     if (applyChartEditPlan(
             law.plan(*arrangement->chart, session().song().tempo_map, keys, !all_carry, label)))
     {
-        m_chart_toggle_window = ChartToggleWindow{.technique = technique, .keys = keys};
+        m_chart_verb_window = ChartVerbWindow{
+            .keys = keys,
+            .verb = ChartTechniqueToggle{.technique = technique},
+        };
     }
 }
 
@@ -1768,8 +1936,10 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartNoteKey>& 
     {
         if (applyChartEditPlan(std::move(*planned.plan)))
         {
-            m_chart_toggle_window =
-                ChartToggleWindow{.technique = ChartTechnique::Legato, .keys = keys};
+            m_chart_verb_window = ChartVerbWindow{
+                .keys = keys,
+                .verb = ChartTechniqueToggle{.technique = ChartTechnique::Legato},
+            };
         }
         return;
     }
@@ -1795,8 +1965,10 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartNoteKey>& 
         // The clear press arms the window too: reversing it restores the exact previous mix.
         if (applyChartEditPlan(std::move(clear_plan)))
         {
-            m_chart_toggle_window =
-                ChartToggleWindow{.technique = ChartTechnique::Legato, .keys = keys};
+            m_chart_verb_window = ChartVerbWindow{
+                .keys = keys,
+                .verb = ChartTechniqueToggle{.technique = ChartTechnique::Legato},
+            };
         }
         return;
     }
@@ -1887,7 +2059,7 @@ bool EditorController::Impl::consumeChartEscapeRung()
     {
         settleChartFretEntry();
         dissolveChartCaretInPlace();
-        disarmTechniqueToggleWindow();
+        disarmChartVerbWindow();
         return true;
     }
 
@@ -1950,7 +2122,7 @@ bool EditorController::Impl::settleChartLegato()
     // tracking (a `bool` carrying it is not).
     const ChartNotesEditPlan* const burst =
         m_chart_notes_top.has_value() && m_chart_notes_top->history_position == history.position &&
-                history.clean_position != history.position
+                !m_undo_history.isAtCleanState()
             ? &m_chart_notes_top->plan
             : nullptr;
 
@@ -2004,13 +2176,13 @@ bool EditorController::Impl::settleChartLegato()
         // undo step.
         pushUndoEntry(std::make_unique<ChartNotesEdit>(*settled));
     }
-    // A sweep that commits anything closes the technique toggle windows: a fold changes the top
-    // entry's content without moving the history position, so an armed window's proof would
-    // otherwise still pass and reverse a plan that no longer exists. The pending fret entry
-    // needs no closing here — it settled at this function's head, before the sweep judged the
-    // chart.
+    // A sweep that commits anything closes the chart verbs' window: a fold changes the top entry's
+    // content without moving the history position, so an armed window's proof would otherwise
+    // still pass — and the next press would reverse a plan that no longer exists, or re-plan a
+    // duration gesture against a stream the flatten has moved. The pending fret entry needs no
+    // closing here — it settled at this function's head, before the sweep judged the chart.
     m_chart_notes_top.reset();
-    disarmTechniqueToggleWindow();
+    disarmChartVerbWindow();
     updateView();
     return true;
 }

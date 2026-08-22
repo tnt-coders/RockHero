@@ -142,8 +142,10 @@ pixel-identical by design.
 **One record, three readers — a simplification the spec did not ask for.** The spec named a
 `ChartLegatoToggleEntry`; what shipped keeps the *plan* once, in `m_chart_notes_top`
 (`ChartNotesTopEntry{plan, history_position}`), and the toggle window stores only the armed keys
-(since 2026-08-21 the ONE `m_chart_toggle_window{technique, keys}` every technique verb shares,
-because at most one window can ever be armed). The settle sweep folds into that record and the
+(since 2026-08-21 the ONE window every technique verb shares, because at most one can ever be
+armed — since 2026-08-22 `m_chart_verb_window{keys, variant<ChartTechniqueToggle,
+ChartSustainGesture>}`, the duration gesture having joined it on the same argument). The settle
+sweep folds into that record and the
 toggle reverses it — the multi-digit fret widen was a third reader until the pending model deleted
 it — so no two verbs can disagree about what the burst did, because there is no second copy to
 keep in step. The history position IS
@@ -192,9 +194,9 @@ so **every file ever written satisfies the invariant unconditionally**, with no 
 write time — the same memory-richer-than-file philosophy the scrape latents already use.
 
 **A sweep that commits anything — fold or push — closes both coalescing windows** (the fret entry
-and the toggle window); a sweep that finds nothing leaves them armed. A fold changes entry content
-without moving the history position, so an armed window's proof would otherwise pass and reverse or
-widen a plan that no longer exists.
+and the verb window, whichever verb armed it); a sweep that finds nothing leaves them armed. A fold
+changes entry content without moving the history position, so an armed window's proof would
+otherwise pass and reverse, widen, or re-plan a plan that no longer exists.
 
 Which of the two it was is asked of the SWEEP, not of the diff (2026-08-11, review fix F5).
 `planSettleLegato` reports exactly one emptiness — "the sweep found nothing to flatten" — and the plan
