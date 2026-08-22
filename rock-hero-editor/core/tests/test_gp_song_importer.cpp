@@ -15,6 +15,7 @@
 #include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/archive_io.h>
@@ -176,6 +177,19 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return g_missing_chart;
 }
 
+// What the surfaces DRAW from an imported chart. Import stores the ACTUAL ring durations Guitar
+// Pro notated, so a test pinning what a note looks like — the readability the import policy used
+// to bake in — asks the presentation rules for it (chart_presentation.h, which owns those rules
+// and is tested on its own in common/core; these assertions pin the importer's output THROUGH
+// them, not the rules themselves).
+[[nodiscard]] std::vector<common::core::ChartNote> presentedNotesOf(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
+{
+    return common::core::presentedChartNotes(
+        common::core::chartResolutions(chart.notes, chart.shapes, tempo_map).saved_notes,
+        tempo_map);
+}
+
 // Finds the generated fret-hand position at an exact grid position, or null. The slide tests use
 // this to assert the slide-driven hand move rather than the whole generated track, whose shape is
 // the phrase-aware generator's own concern (generateFretHandPositions in gp_chart_builder.cpp).
@@ -238,43 +252,48 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.tuning.capo == 2);
 
     REQUIRE(chart.notes.size() == 5);
+    const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
 
     // Quarter palm mute on the low string, notated at capo-relative fret 3 and stored at the
-    // absolute 5 (the fixture has a CAPO AT 2, and GP's frame is capo-relative). Its notated
-    // one-beat tail trims to 3/4 against the next onset one beat later (minimum-sustain-distance
-    // margin 1/4 in 4/4) and KEEPS that trimmed tail: the drop rule reads the notated length,
-    // and a full beat notated is a deliberate sustain.
+    // absolute 5 (the fixture has a CAPO AT 2, and GP's frame is capo-relative). It STORES its
+    // notated one-beat ring; what it draws is 3/4, trimmed against the next onset one beat later
+    // (minimum-sustain-distance margin 1/4 in 4/4), and it keeps that drawn tail because a full
+    // beat notated is a deliberate sustain.
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[0].string == 1);
     CHECK(chart.notes[0].fret == 5);
     CHECK(chart.notes[0].palm_mute);
     CHECK_FALSE(chart.notes[0].dead);
-    CHECK(chart.notes[0].sustain == Fraction{3, 4});
+    CHECK(chart.notes[0].sustain == Fraction{1});
+    CHECK(presented[0].sustain == Fraction{3, 4});
 
     // Legato destination that shift-slides into the next note: an ordinary pitched waypoint
-    // glides to the landing (absolute fret 9), ending the minimum sustain distance (1/16 whole
-    // note — a quarter beat in 4/4) before the landing's onset, and the sustain ends at the
-    // glide end. The score says the notes connect but not which way, which is exactly what the
-    // stored claim says — no direction is imported.
+    // glides to the landing (absolute fret 9) and ARRIVES the minimum sustain distance (1/16
+    // whole note — a quarter beat in 4/4) before the landing's onset. The string rings on to that
+    // landing, which re-picks it, so the stored ring is the whole half-beat gap while the drawn
+    // tail stops at the arrival. The score says the notes connect but not which way, which is
+    // exactly what the stored claim says — no direction is imported.
     CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
     CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
     REQUIRE(chart.notes[1].slides.size() == 1);
     CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
     CHECK(chart.notes[1].slides[0].fret == 9);
     CHECK_FALSE(chart.notes[1].slide_out.has_value());
-    CHECK(chart.notes[1].sustain == Fraction{1, 4});
+    CHECK(chart.notes[1].sustain == Fraction{1, 2});
+    CHECK(presented[1].sustain == Fraction{1, 4});
 
     CHECK(
         chart.notes[2].position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     CHECK(chart.notes[2].fret == 9);
 
-    // The tie chain merges into one note whose sustain crosses the barline: onset 1:3, a
-    // quarter in bar one plus a half in bar two makes four notated beats. The ring only
-    // reaches — never crosses — the changed onset at 2:3, so it is no held ring and the
-    // minimum-distance trim applies like any other tail (policy rule 1 holds).
+    // The tie chain merges into one note whose ring crosses the barline: onset 1:3, a quarter in
+    // bar one plus a half in bar two makes four notated beats, all four stored. The ring only
+    // reaches — never crosses — the changed onset at 2:3, so it is no deliberate hold and the
+    // drawn tail keeps the margin before it like any other.
     CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
     CHECK(chart.notes[3].string == 2);
-    CHECK(chart.notes[3].sustain == Fraction{15, 4});
+    CHECK(chart.notes[3].sustain == Fraction{4});
+    CHECK(presented[3].sustain == Fraction{15, 4});
     CHECK(chart.notes[3].vibrato);
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs. Bound to
@@ -353,14 +372,16 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[2].position == GridPosition{.measure = 1, .beat = 3});
 
-    // The origin keeps its connection claim and carries the junction waypoint; its sustain extends
-    // through the landing's notated end (one beat), then the minimum-distance trim takes it to
-    // 3/4 — floored above the waypoint, so the glide still reaches fret 9.
+    // The origin keeps its connection claim and carries the junction waypoint; its ring extends
+    // through the landing's notated end, so it STORES the whole beat, and the drawn tail keeps
+    // the margin before the next onset — floored above the waypoint, so the glide still reaches
+    // fret 9.
     const common::core::ChartNote& origin = chart.notes[1];
     CHECK(origin.position == GridPosition{.measure = 1, .beat = 2});
     CHECK(origin.fret == 7);
     CHECK(origin.attack == common::core::NoteAttack::Legato);
-    CHECK(origin.sustain == Fraction{3, 4});
+    CHECK(origin.sustain == Fraction{1});
+    CHECK(presentedNotesOf(chart, song->tempo_map)[1].sustain == Fraction{3, 4});
     REQUIRE(origin.slides.size() == 1);
     CHECK(origin.slides[0].offset == Fraction{1, 2});
     CHECK(origin.slides[0].fret == 9);
@@ -409,11 +430,18 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     const auto* const slide_out = common::core::slideOutOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
     CHECK(slide_out->fret == 3);
-    // The trail-off is not a protected payload (rule 2 carve-out): its
-    // notated half-beat end trims back with the sustain to the minimum-sustain-distance margin
-    // before the fret-9 onset.
-    CHECK(slide_out->offset == Fraction{1, 4});
-    CHECK(chart.notes[1].sustain == Fraction{1, 4});
+    // The stored gesture ends at the note's own half-beat ring. The trail-off is not protected
+    // payload, so what is DRAWN compresses back with the tail to the minimum-sustain-distance
+    // margin before the fret-9 onset — and that drawn end is what the hand exit below rides.
+    CHECK(slide_out->offset == Fraction{1, 2});
+    CHECK(chart.notes[1].sustain == Fraction{1, 2});
+    const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
+    REQUIRE(presented[1].slide_out.has_value());
+    if (presented[1].slide_out.has_value())
+    {
+        CHECK(presented[1].slide_out->offset == Fraction{1, 4});
+    }
+    CHECK(presented[1].sustain == Fraction{1, 4});
 
     // The natural walk is untouched by the gesture (no rule-9 drag), but the exit pass dips
     // the window with the trail-off — the fret-3 exit pulls the anchor down at the compressed
@@ -473,13 +501,21 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     CHECK(landing.slides.front().fret == 9);
     CHECK(landing.position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
 
-    // With no fabricated head in the gap, the half-beat trail-off compresses the plain
-    // margin before the notated onset — the two gestures stay clear of each other.
+    // With no fabricated head in the gap, the half-beat trail-off DRAWS the plain margin before
+    // the notated onset — the two gestures stay clear of each other — while the note itself
+    // stores the ring it was notated with.
     const common::core::ChartNote& dip = chart.notes[1];
     const auto* const slide_out = common::core::slideOutOrNull(dip);
     REQUIRE(slide_out != nullptr);
-    CHECK(slide_out->offset == Fraction{1, 4});
-    CHECK(dip.sustain == Fraction{1, 4});
+    CHECK(slide_out->offset == Fraction{1, 2});
+    CHECK(dip.sustain == Fraction{1, 2});
+    const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
+    REQUIRE(presented[1].slide_out.has_value());
+    if (presented[1].slide_out.has_value())
+    {
+        CHECK(presented[1].slide_out->offset == Fraction{1, 4});
+    }
+    CHECK(presented[1].sustain == Fraction{1, 4});
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -813,16 +849,20 @@ TEST_CASE(
     // (the fret-3 tie continuation merged away).
     REQUIRE(chart.notes.size() == 5);
 
-    // The tied 6: its continuation merged in (sustain through the chord) and the continuation's
-    // shift-slide flags folded into the merged note (rule 15). A hold waypoint pins fret 6
-    // until the chord where the sliding segment was notated, then the glide waypoint runs to
-    // its fret-2 landing, ending the minimum sustain distance before the landing onset (rule 13)
-    // — the tail continues INTO the chord and up to the glide end.
+    // The tied 6: its continuation merged in (the ring runs through the chord) and the
+    // continuation's shift-slide flags folded into the merged note (rule 15). A hold waypoint
+    // pins fret 6 until the chord where the sliding segment was notated, then the glide waypoint
+    // ARRIVES the minimum sustain distance before the landing onset (rule 13). The string itself
+    // rings until that landing re-picks it, so two beats are stored — and because the ring runs
+    // strictly past the chord it crosses, it is a deliberate hold that presents whole rather than
+    // stopping at the arrival.
     const common::core::ChartNote& tied = chart.notes[0];
+    const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
     CHECK(tied.position == GridPosition{.measure = 1, .beat = 1});
     CHECK(tied.string == 2);
     CHECK(tied.fret == 6);
-    CHECK(tied.sustain == Fraction{7, 4});
+    CHECK(tied.sustain == Fraction{2});
+    CHECK(presented[0].sustain == Fraction{2});
     REQUIRE(tied.slides.size() == 2);
     CHECK(tied.slides[0].offset == Fraction{1});
     CHECK(tied.slides[0].fret == 6);
@@ -839,7 +879,8 @@ TEST_CASE(
     REQUIRE(eight.slides.size() == 1);
     CHECK(eight.slides[0].offset == Fraction{3, 4});
     CHECK(eight.slides[0].fret == 4);
-    CHECK(eight.sustain == Fraction{3, 4});
+    CHECK(eight.sustain == Fraction{1});
+    CHECK(presented[2].sustain == Fraction{3, 4});
 
     // Both landings keep their own onsets (and heads) inside the beat-3 chord.
     CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
@@ -936,9 +977,9 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     REQUIRE(posture.fingers.size() == 6);
     CHECK_FALSE(posture.fingers[0].has_value());
 
-    // Both strums merge into one span from 1:1 toward the eighth strum's notated end at
-    // 1:2+1/2, trimmed to the minimum sustain distance before the closing fret-7 onset there
-    // (rule 12a) — even though the sustain policy dropped the notes' own tails.
+    // Both strums merge into one span from 1:1 toward the eighth strum's ring end at 1:2+1/2,
+    // trimmed to the minimum sustain distance before the closing fret-7 onset there (rule 12a) —
+    // even though presentation draws no tail on either strum.
     REQUIRE(chart.shapes.size() == 1);
     CHECK(chart.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.shapes.front().sustain == Fraction{5, 4});
@@ -1016,10 +1057,11 @@ TEST_CASE("Guitar Pro import splits chord spans on articulation changes", "[core
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// A tie-merged tail that stops at a changed onset trims like any other (the old blanket tie
-// exemption is gone — only rings crossing the next onset hold); the trimmed tail is over a
-// beat, so the effect-free drop rule leaves it in place.
-TEST_CASE("Guitar Pro import trims tie-merged sustains at a changed onset", "[core][gp-import]")
+// The tie merge is the importer's canonical producer of a long ACTUAL ring, and it does not
+// depend on the chain carrying a technique: strip the vibrato and the four beats are still stored
+// whole. What that ring draws is the presentation rules' business — 15/4 here, the margin before
+// the changed onset — and it survives the effect-free drop because four beats is a sustain.
+TEST_CASE("Guitar Pro import merges a tie chain into one four-beat ring", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_sustain_keep_test";
@@ -1029,7 +1071,7 @@ TEST_CASE("Guitar Pro import trims tie-merged sustains at a changed onset", "[co
     std::filesystem::create_directories(workspace);
 
     // Removing the vibrato from the tie-chain origin makes the merged four-beat note
-    // effect-free; it still trims to the margin and keeps the beat-plus remainder.
+    // effect-free.
     const std::string gpif = fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "");
     const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
 
@@ -1040,7 +1082,8 @@ TEST_CASE("Guitar Pro import trims tie-merged sustains at a changed onset", "[co
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
     REQUIRE(chart.notes.size() == 5);
     CHECK_FALSE(chart.notes[3].vibrato);
-    CHECK(chart.notes[3].sustain == Fraction{15, 4});
+    CHECK(chart.notes[3].sustain == Fraction{4});
+    CHECK(presentedNotesOf(chart, song->tempo_map)[3].sustain == Fraction{15, 4});
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -1297,11 +1340,6 @@ namespace
 
 } // namespace
 
-// The sustain hold semantics (policy rule 1): every tail that merely
-// reaches the next onset trims to the minimum sustain distance — ties and repeated chords included
-// — while a ring notated strictly past the next onset is a deliberate hold and stays whole.
-// Repeated chords keep their held reading through the merged shape span, which derives from
-// notated pre-trim durations, so the box continues while the tails keep the gap.
 // Guitar Pro states the two mutes as independent note properties, and so does the chart now: a
 // dead string inside a palm-muted chord carries BOTH marks and must import with both flags. The
 // single mute axis this replaced had to pick one, and it dropped the palm.
@@ -1337,7 +1375,11 @@ TEST_CASE("Guitar Pro import carries both mutes independently", "[core][gp-impor
     CHECK_FALSE(chart.notes[3].dead);
 }
 
-TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[core][gp-import]")
+// What the importer STORES under repeated and held chords: each strum's own notated ring, and the
+// spans derived over them. The tail rules those rings draw through belong to core
+// (test_chart_presentation.cpp); the presented values here pin that this chart reaches them.
+TEST_CASE(
+    "Guitar Pro import stores whole rings under repeated and held chords", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
@@ -1358,14 +1400,18 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 4);
-        CHECK(chart.notes[0].sustain == Fraction{7, 4});
-        CHECK(chart.notes[1].sustain == Fraction{7, 4});
-        // One merged span from the first strum through the last strum's notated end.
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(chart.notes[1].sustain == Fraction{2});
+        const std::vector<common::core::ChartNote> presented =
+            presentedNotesOf(chart, built->tempo_map);
+        CHECK(presented[0].sustain == Fraction{7, 4});
+        CHECK(presented[1].sustain == Fraction{7, 4});
+        // One merged span from the first strum through the last strum's ring.
         REQUIRE(chart.shapes.size() == 1);
         CHECK(chart.shapes[0].sustain == Fraction{4});
     }
 
-    SECTION("a changed chord trims the tails the same way but splits the span")
+    SECTION("a changed chord rings the same way but splits the span")
     {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -1380,29 +1426,9 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 4);
-        CHECK(chart.notes[0].sustain == Fraction{7, 4});
-        CHECK(chart.notes[1].sustain == Fraction{7, 4});
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(chart.notes[1].sustain == Fraction{2});
         CHECK(chart.shapes.size() == 2);
-    }
-
-    SECTION("a tie-merged chord reaching a changed onset trims like any other")
-    {
-        GpScore score = makeLinearScore(1, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {chordBeat(Fraction{1, 4}, 5, 7, true, false),
-                     chordBeat(Fraction{1, 4}, 5, 7, false, true),
-                     chordBeat(Fraction{1, 2}, 3, 5, false, false)}
-                }
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 4);
-        CHECK(chart.notes[0].sustain == Fraction{7, 4});
-        CHECK(chart.notes[1].sustain == Fraction{7, 4});
     }
 
     SECTION("a ring notated across voices past the next onset is held whole")
@@ -1707,10 +1733,14 @@ TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
         CHECK(chart.notes[1].emphasis == common::core::NoteEmphasis::Normal);
         CHECK(chart.notes[2].emphasis == common::core::NoteEmphasis::Normal);
         CHECK(chart.notes[3].emphasis == common::core::NoteEmphasis::Normal);
-        // Strokes normalize to sustainless like any hand-charted sixteenth run, the final
-        // stroke's sub-margin tail included.
-        CHECK(chart.notes[0].sustain == Fraction{});
-        CHECK(chart.notes[3].sustain == Fraction{});
+        // Each stroke stores its own sixteenth of ring; drawn, the run presents as plain heads
+        // like any hand-charted sixteenth run, the final stroke's sub-margin tail included.
+        CHECK(chart.notes[0].sustain == Fraction{1, 4});
+        CHECK(chart.notes[3].sustain == Fraction{1, 4});
+        const std::vector<common::core::ChartNote> presented =
+            presentedNotesOf(chart, built->tempo_map);
+        CHECK(presented[0].sustain == Fraction{});
+        CHECK(presented[3].sustain == Fraction{});
     }
 
     SECTION("a ghosted tremolo beat ghosts only its first stroke")
@@ -1997,78 +2027,23 @@ TEST_CASE(
     }
 }
 
-// Policy rule 3: the sub-beat drop decision belongs to the notated strum, not the single string.
-// Runs in 4/4, where the minimum sustain distance is a quarter beat.
-TEST_CASE("Guitar Pro import keeps a chord's tails together", "[core][gp-import]")
+// What the importer STORES for a note carrying a technique: the whole notated ring and the whole
+// curve mapped onto it, nothing clipped. The presented values beside them are how far that
+// information survives the margin — rule 2's arithmetic, which core owns and tests on its own; the
+// point here is that the import's synthesized geometry reaches it intact. Runs in 4/4, where the
+// margin is a quarter beat.
+TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
-    SECTION("a chord's unbent partner keeps a tail beside its bent one")
-    {
-        // Both strings of the double stop ring from one stroke, so the plain partner keeps its
-        // margin-trimmed tail instead of losing it to the sub-beat drop rule while the bent
-        // string shows a lone tail. The lengths differ because only one string carries the bend:
-        // rule 2 decides each tail's length per string, rule 3 only shares the keep-or-drop
-        // verdict.
-        GpScore score = makeLinearScore(1, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {beatOf(
-                         Fraction{1, 8},
-                         {bentNote(0, 5, 50.0, 100.0, 50.0, 100.0),
-                          GpNote{.string = 1, .fret = 7, .harmonic_type = ""}}),
-                     noteBeat(Fraction{1, 8}, 3, 2)}
-                }
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 3);
-        CHECK(chart.notes[0].string == 1);
-        CHECK(chart.notes[0].sustain == Fraction{1, 2});
-        CHECK(chart.notes[1].string == 2);
-        CHECK(chart.notes[1].sustain == Fraction{1, 4});
-    }
-
-    SECTION("a strum with nothing to say still loses every tail")
-    {
-        // The companion case: no member carries a technique and the notated ring is sub-beat, so
-        // the whole strum drops its tails and renders as plain heads.
-        GpScore score = makeLinearScore(1, syncs);
-        score.tracks[0].bars.push_back(
-            GpBar{
-                .voices = {
-                    {chordBeat(Fraction{1, 8}, 5, 7, false, false), noteBeat(Fraction{1, 8}, 3, 4)}
-                }
-            });
-
-        const auto built = buildGpSong(score);
-        REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 3);
-        CHECK(chart.notes[0].sustain == Fraction{});
-        CHECK(chart.notes[1].sustain == Fraction{});
-    }
-}
-
-// Policy rule 2: carrying a technique is not an exemption from the minimum sustain distance. The
-// margin yields only to payload that CHANGES something, and only as far as that change reaches.
-// Runs in 4/4, where the margin is a quarter beat.
-TEST_CASE("Guitar Pro import trims technique tails to their last information", "[core][gp-import]")
-{
-    const std::vector<GpSyncPoint> syncs{
-        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
-    };
-
-    SECTION("a bend plateau running to the notated end does not exempt the tail from the margin")
+    SECTION("a bend plateau running to the ring's end presents no longer for it")
     {
         // The curve reaches two semitones a quarter beat in and then holds that value to the
-        // notated end. The plateau is not information, so the one-beat tail trims to the margin
-        // before the next onset and the redundant final point leaves with it.
+        // notated end. Both points are stored on the whole one-beat ring; the plateau is not
+        // information, so the drawn tail keeps only the margin before the next onset and the
+        // redundant final point leaves with it.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -2082,18 +2057,23 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{3, 4});
-        REQUIRE(chart.notes[0].bend.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        REQUIRE(chart.notes[0].bend.size() == 3);
         CHECK(chart.notes[0].bend[0].offset == Fraction{});
         CHECK(chart.notes[0].bend[1].offset == Fraction{1, 4});
         CHECK(chart.notes[0].bend[1].semitones == Catch::Approx(2.0));
+        CHECK(chart.notes[0].bend[2].offset == Fraction{1});
+        const std::vector<common::core::ChartNote> presented =
+            presentedNotesOf(chart, built->tempo_map);
+        CHECK(presented[0].sustain == Fraction{3, 4});
+        CHECK(presented[0].bend.size() == 2);
     }
 
-    SECTION("a bend change inside the trimmed region extends the tail to exactly that change")
+    SECTION("a bend change inside the trimmed region extends the tail to that change")
     {
         // The destination lands at 95% of a two-beat note — past the margin limit of 7/4 — so
-        // the tail overrides the margin, but only out to the change itself, not to the notated
-        // end at two beats.
+        // the drawn tail overrides the margin, but only out to the change itself, not to the
+        // stored end at two beats.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -2107,16 +2087,17 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{19, 10});
+        CHECK(chart.notes[0].sustain == Fraction{2});
         REQUIRE(chart.notes[0].bend.size() == 3);
         CHECK(chart.notes[0].bend.back().offset == Fraction{19, 10});
         CHECK(chart.notes[0].bend.back().semitones == Catch::Approx(2.0));
+        CHECK(presentedNotesOf(chart, built->tempo_map)[0].sustain == Fraction{19, 10});
     }
 
-    SECTION("a change landing exactly at the margin truncates there and keeps its information")
+    SECTION("a change landing exactly at the margin truncates there, information intact")
     {
-        // 87.5% of two beats is 7/4 — precisely the margin limit. The tail ends there with the
-        // bend's full information intact.
+        // 87.5% of two beats is 7/4 — precisely the margin limit. The drawn tail ends there with
+        // the bend's full information intact.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -2130,17 +2111,19 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{7, 4});
+        CHECK(chart.notes[0].sustain == Fraction{2});
         REQUIRE(chart.notes[0].bend.size() == 3);
         CHECK(chart.notes[0].bend.back().offset == Fraction{7, 4});
         CHECK(chart.notes[0].bend.back().semitones == Catch::Approx(2.0));
+        CHECK(presentedNotesOf(chart, built->tempo_map)[0].sustain == Fraction{7, 4});
     }
 
     SECTION("a trailing equal-fret hold waypoint holds no tail open")
     {
         // A legato slide onto the same fret is a hold, not a glide: it pins a pitch the note is
-        // already sounding, so it cannot override the margin. The tail trims and the waypoint
-        // leaves with it (the hold-versus-glide distinction the 3D hand window also reads).
+        // already sounding, so it cannot override the margin. The merge stores the whole ring and
+        // its hold waypoint; the drawn tail trims and the waypoint leaves with it (the
+        // hold-versus-glide distinction the 3D hand window also reads).
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -2156,16 +2139,21 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].fret == 5);
-        CHECK(chart.notes[0].sustain == Fraction{7, 8});
-        CHECK(chart.notes[0].slides.empty());
+        CHECK(chart.notes[0].sustain == Fraction{9, 8});
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides[0].fret == 5);
+        const std::vector<common::core::ChartNote> presented =
+            presentedNotesOf(chart, built->tempo_map);
+        CHECK(presented[0].sustain == Fraction{7, 8});
+        CHECK(presented[0].slides.empty());
     }
 
-    SECTION("a scrape's terminal still sits exactly at its trimmed sustain")
+    SECTION("a scrape's terminal sits exactly at its sustain, stored and presented")
     {
         // The scrape's path is gesture geometry, so the trim compresses its terminal with the
         // tail rather than flooring on it — and the pick-slide rule that the slide-out IS the
-        // sustain end still holds afterward. R is a half beat here, exactly 2d, so the gesture
-        // still yields the full margin.
+        // sustain end holds on both sides of the derivation. R is a half beat here, exactly 2d,
+        // so the gesture still yields the full margin.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -2180,11 +2168,19 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
-        CHECK(chart.notes[0].sustain == Fraction{1, 4});
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
         const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
         REQUIRE(terminal != nullptr);
         CHECK(terminal->offset == chart.notes[0].sustain);
         CHECK(terminal->fret != chart.notes[0].fret);
+        const std::vector<common::core::ChartNote> presented =
+            presentedNotesOf(chart, built->tempo_map);
+        CHECK(presented[0].sustain == Fraction{1, 4});
+        REQUIRE(presented[0].slide_out.has_value());
+        if (presented[0].slide_out.has_value())
+        {
+            CHECK(presented[0].slide_out->offset == presented[0].sustain);
+        }
     }
 }
 
@@ -2194,19 +2190,37 @@ TEST_CASE("Guitar Pro import trims technique tails to their last information", "
 // line is already inside the window, so it halves its distance to the onset — the exception the
 // spacing rule sanctions, since the gesture is literally defined in there. Runs in 4/4, where the
 // minimum sustain distance is a quarter beat.
-TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core][gp-import]")
+TEST_CASE("Guitar Pro import shows a crowded scrape squished against its gap", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
     // The scrape's notated span always equals R here, so the gesture merely REACHES the next
-    // onset — a span notated past it would be a deliberate hold and keep its full length.
+    // onset — a span notated past it would be a deliberate hold and keep its full length. The
+    // import stores that whole span with its terminal at the end; the numbers each section pins
+    // are the DRAWN ones, where the leg rule has done its crunching.
     const auto crowded_scrape = [&syncs](const Fraction span) {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{.voices = {{carrierBeat(span, {pickSlideCarrier(64)}), noteBeat(span, 3, 2)}}});
         return buildGpSong(score);
+    };
+    // The gesture as the surfaces draw it, with the invariant every case shares asserted once:
+    // a scrape's terminal sits exactly at its sustain, before and after the derivation alike.
+    const auto squished_scrape = [](const auto& built) {
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        const auto* const stored_terminal = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(stored_terminal != nullptr);
+        CHECK(stored_terminal->offset == chart.notes[0].sustain);
+        std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, built->tempo_map);
+        REQUIRE(presented[0].slide_out.has_value());
+        if (presented[0].slide_out.has_value())
+        {
+            CHECK(presented[0].slide_out->offset == presented[0].sustain);
+        }
+        return std::move(presented[0]);
     };
 
     SECTION("room above twice the margin still yields the full margin")
@@ -2214,12 +2228,8 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         // R = one beat, comfortably above 2d: the gap is the whole quarter-beat margin.
         const auto built = crowded_scrape(Fraction{1, 4});
         REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{3, 4});
-        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
-        REQUIRE(terminal != nullptr);
-        CHECK(terminal->offset == chart.notes[0].sustain);
+        CHECK(built->arrangements.front().chart.notes[0].sustain == Fraction{1});
+        CHECK(squished_scrape(built).sustain == Fraction{3, 4});
     }
 
     SECTION("room exactly at the conflict threshold still pays the full margin")
@@ -2229,13 +2239,14 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         // window. Nothing is crunched because nothing conflicts.
         const auto built = crowded_scrape(Fraction{3, 32});
         REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{1, 8});
-        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
-        REQUIRE(terminal != nullptr);
-        CHECK(terminal->offset == chart.notes[0].sustain);
-        CHECK(terminal->fret != chart.notes[0].fret);
+        CHECK(built->arrangements.front().chart.notes[0].sustain == Fraction{3, 8});
+        const common::core::ChartNote scrape = squished_scrape(built);
+        CHECK(scrape.sustain == Fraction{1, 8});
+        REQUIRE(scrape.slide_out.has_value());
+        if (scrape.slide_out.has_value())
+        {
+            CHECK(scrape.slide_out->fret != scrape.fret);
+        }
     }
 
     SECTION("room above the threshold pays the margin whole rather than sharing it")
@@ -2245,12 +2256,8 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         // affordable. The margin is paid whole and the leg takes 3/16.
         const auto built = crowded_scrape(Fraction{7, 64});
         REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{3, 16});
-        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
-        REQUIRE(terminal != nullptr);
-        CHECK(terminal->offset == chart.notes[0].sustain);
+        CHECK(built->arrangements.front().chart.notes[0].sustain == Fraction{7, 16});
+        CHECK(squished_scrape(built).sustain == Fraction{3, 16});
     }
 
     SECTION("room equal to the margin halves it, the worked example")
@@ -2261,12 +2268,8 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         // window.
         const auto built = crowded_scrape(Fraction{1, 16});
         REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{1, 8});
-        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
-        REQUIRE(terminal != nullptr);
-        CHECK(terminal->offset == chart.notes[0].sustain);
+        CHECK(built->arrangements.front().chart.notes[0].sustain == Fraction{1, 4});
+        CHECK(squished_scrape(built).sustain == Fraction{1, 8});
     }
 
     SECTION("the tightest room still keeps a gap, because halving always leaves one")
@@ -2278,13 +2281,14 @@ TEST_CASE("Guitar Pro import squishes a crowded scrape against its gap", "[core]
         // rather than costing anything. The path still ends exactly at the sustain.
         const auto built = crowded_scrape(Fraction{1, 32});
         REQUIRE(built.has_value());
-        const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{1, 16});
-        const auto* const terminal = common::core::slideOutOrNull(chart.notes[0]);
-        REQUIRE(terminal != nullptr);
-        CHECK(terminal->offset == chart.notes[0].sustain);
-        CHECK(terminal->fret != chart.notes[0].fret);
+        CHECK(built->arrangements.front().chart.notes[0].sustain == Fraction{1, 8});
+        const common::core::ChartNote scrape = squished_scrape(built);
+        CHECK(scrape.sustain == Fraction{1, 16});
+        REQUIRE(scrape.slide_out.has_value());
+        if (scrape.slide_out.has_value())
+        {
+            CHECK(scrape.slide_out->fret != scrape.fret);
+        }
     }
 }
 
@@ -2320,13 +2324,21 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         CHECK(scrape.fret == 17);
         CHECK_FALSE(scrape.palm_mute);
         CHECK_FALSE(scrape.dead);
-        // The terminal sits at the sustain, which keeps the ordinary quarter-beat margin
-        // before the fret-8 onset one beat later.
+        // The terminal sits at the sustain, on both sides of the derivation: stored across the
+        // carrier's whole notated beat, drawn back to the ordinary quarter-beat margin before the
+        // fret-8 onset one beat later.
         const auto* const terminal = common::core::slideOutOrNull(scrape);
         REQUIRE(terminal != nullptr);
-        CHECK(terminal->offset == Fraction{3, 4});
+        CHECK(terminal->offset == Fraction{1});
         CHECK(terminal->fret == 3);
-        CHECK(scrape.sustain == Fraction{3, 4});
+        CHECK(scrape.sustain == Fraction{1});
+        const common::core::ChartNote presented = presentedNotesOf(chart, built->tempo_map)[1];
+        REQUIRE(presented.slide_out.has_value());
+        CHECK(presented.sustain == Fraction{3, 4});
+        if (presented.slide_out.has_value())
+        {
+            CHECK(presented.slide_out->offset == Fraction{3, 4});
+        }
         CHECK(chart.notes[0].fret == 5);
         CHECK(chart.notes[2].fret == 8);
     }
@@ -2449,7 +2461,7 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
 
     SECTION("a note tail keeps the sustain margin before a scrape onset")
     {
-        // A two-beat note trims its tail to the quarter-beat margin before the scrape's onset,
+        // A two-beat note draws its tail to the quarter-beat margin before the scrape's onset,
         // exactly as it would before any note.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
@@ -2464,7 +2476,8 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
-        CHECK(chart.notes[0].sustain == Fraction{7, 4});
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(presentedNotesOf(chart, built->tempo_map)[0].sustain == Fraction{7, 4});
     }
 
     SECTION("a scrape notated ringing past a later onset stays a deliberate hold")
@@ -2654,10 +2667,140 @@ TEST_CASE("Guitar Pro import places grace notes against their principal", "[core
         CHECK(chart.notes[2].fret == 8);
         CHECK(chart.notes[2].position.beat == 2);
         CHECK(chart.notes[2].position.offset == Fraction{});
-        // The grace lead sounds inside the fret-5 note's notated tail, but a fabricated onset
-        // cannot make that ring a deliberate hold: the tail trims against the grace's sounding
-        // beat (7/8 minus the 1/4 margin) and, notated a full beat, keeps the trimmed tail.
-        CHECK(chart.notes[0].sustain == Fraction{5, 8});
+        // The ornament is played in the preceding note's time, so the fret-5 quarter STOPS at
+        // the grace's onset rather than ringing under it: seven eighths of a beat, ending exactly
+        // where the ornament starts.
+        CHECK(chart.notes[0].sustain == Fraction{7, 8});
+    }
+
+    SECTION("a before-beat grace steals its lead from the beat before it")
+    {
+        // The steal is the BEAT's, not the string's: both members of the preceding beat end at
+        // the ornament's onset even though the grace is on a third string of its own, which is
+        // what keeps this distinct from the same-string clamp.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {beatOf(
+                         Fraction{1, 4},
+                         {GpNote{.string = 0, .fret = 5, .harmonic_type = ""},
+                          GpNote{.string = 2, .fret = 9, .harmonic_type = ""}}),
+                     graceBeat(GpGracePlacement::BeforeBeat, 7, 1),
+                     noteBeat(Fraction{1, 4}, 8, 3)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].string == 1);
+        CHECK(chart.notes[0].sustain == Fraction{7, 8});
+        CHECK(chart.notes[1].string == 3);
+        CHECK(chart.notes[1].sustain == Fraction{7, 8});
+        // The ornament itself lands one thirty-second ahead of its principal, which is the onset
+        // the two rings above now end on.
+        CHECK(chart.notes[2].string == 2);
+        CHECK(chart.notes[2].position.offset == Fraction{7, 8});
+    }
+
+    SECTION("a tied predecessor shortened by the steal still merges past the principal")
+    {
+        // The tie merge keys on the tie flag, not on adjacency, so shortening the origin to the
+        // ornament's onset cannot break the chain: the merged note rings through the grace and on
+        // past the principal it is tied to, and presents as the deliberate hold it is.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat held = noteBeat(Fraction{1, 4}, 5);
+        held.notes[0].tie_origin = true;
+        GpBeat principal = noteBeat(Fraction{1, 4}, 5);
+        principal.notes[0].tie_destination = true;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{held, graceBeat(GpGracePlacement::BeforeBeat, 7, 1), principal}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].string == 1);
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(presentedNotesOf(chart, built->tempo_map)[0].sustain == Fraction{2});
+    }
+
+    SECTION("a run of two before-beat graces steals back to the FIRST ornament")
+    {
+        // The run's leads stack backward from the principal, so the beat before it ends where the
+        // run STARTS, not where its last ornament does — the boundary case the arithmetic exists
+        // for.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 5),
+                     graceBeat(GpGracePlacement::BeforeBeat, 7),
+                     graceBeat(GpGracePlacement::BeforeBeat, 9),
+                     noteBeat(Fraction{1, 4}, 8)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        // Two thirty-second leads: the ornaments sound at 3/4 and 7/8 of the beat, and the quarter
+        // before them stops at 3/4 rather than at the second ornament.
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.offset == Fraction{3, 4});
+        CHECK(chart.notes[2].fret == 9);
+        CHECK(chart.notes[2].position.offset == Fraction{7, 8});
+        CHECK(chart.notes[3].fret == 8);
+        CHECK(chart.notes[3].position.beat == 2);
+    }
+
+    SECTION("a bend on a stolen ring is clipped, not squeezed into it")
+    {
+        // Guitar Pro states bend points as percentages of the NOTATED duration, so the curve is
+        // laid out over the whole quarter and then loses the part the ornament took. Squeezing it
+        // into the shortened ring would move every point and state a curve nobody wrote.
+        GpBeat bent;
+        bent.duration_whole = Fraction{1, 4};
+        bent.notes = {GpNote{
+            .string = 0,
+            .fret = 5,
+            .harmonic_type = "",
+            .bend = GpBend{
+                .origin_value = 0.0,
+                .middle_value = 50.0,
+                .destination_value = 100.0,
+                .origin_offset = 0.0,
+                .middle_offset1 = 50.0,
+                .middle_offset2 = 50.0,
+                .destination_offset = 100.0,
+            }
+        }};
+
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {bent, graceBeat(GpGracePlacement::BeforeBeat, 7), noteBeat(Fraction{1, 4}, 8)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].sustain == Fraction{7, 8});
+        // The half-way point keeps the offset the score wrote it at; the destination point sat
+        // past the stolen lead and leaves with it.
+        REQUIRE(chart.notes[0].bend.size() == 2);
+        CHECK(chart.notes[0].bend[0].offset == Fraction{});
+        CHECK(chart.notes[0].bend[0].semitones == Catch::Approx(0.0));
+        CHECK(chart.notes[0].bend[1].offset == Fraction{1, 2});
+        CHECK(chart.notes[0].bend[1].semitones == Catch::Approx(1.0));
     }
 
     SECTION("a hold notated across voices stays a hold with a grace inside it")
@@ -2677,14 +2820,13 @@ TEST_CASE("Guitar Pro import places grace notes against their principal", "[core
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 4);
-        // The half note rings strictly past the second voice's NOTATED beat-2 onset, so the
-        // deliberate cross-voice hold survives even though the grace's fabricated onset sounds
-        // earlier inside it; the fret-5 quarter under the same grace trims against the grace's
-        // sounding beat and, notated a full beat, keeps the trimmed tail.
+        // The steal is the grace's own voice's business: the first voice's half note rings on
+        // through the ornament as the deliberate cross-voice hold it is, while the fret-5 quarter
+        // sharing the grace's voice stops at the ornament's onset.
         CHECK(chart.notes[0].fret == 3);
         CHECK(chart.notes[0].sustain == Fraction{2});
         CHECK(chart.notes[1].fret == 5);
-        CHECK(chart.notes[1].sustain == Fraction{5, 8});
+        CHECK(chart.notes[1].sustain == Fraction{7, 8});
     }
 
     SECTION("an on-beat grace takes the beat and delays the principal")
@@ -3056,9 +3198,10 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
         CHECK(chart.notes[1].slides[0].fret == 8);
         CHECK(chart.notes[1].sustain == Fraction{1});
-        // No onset was fabricated, so the fret-3 tail trims the plain margin before the
-        // scoop's notated beat.
-        CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        // No onset was fabricated, so the fret-3 note stores its whole beat and draws the plain
+        // margin before the scoop's notated beat.
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        CHECK(presentedNotesOf(chart, built->tempo_map)[0].sustain == Fraction{3, 4});
         // The 5-8 window already covers the fret-6 approach, so the hand stays planted: the
         // track is exactly the natural walk, with nothing fabricated at the scoop's end.
         REQUIRE(chart.fret_hand_positions.size() == 2);
@@ -3230,21 +3373,26 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 3);
-        // The transform runs before the sustain policy, so the half-beat landing hold
-        // survives the effect-free drop (the note is a slide now) and trims only against the
-        // next onset like any tail: head ON its beat, scoop over an eighth (a quarter of the
-        // half-beat duration, floored at the minimum slide window), tail to a quarter before
-        // the fret-5 onset.
+        // The transform runs before anything reads the stream, so the landing is already a slide
+        // when the tail rules judge it: head ON its beat, scoop over an eighth (a quarter of the
+        // half-beat duration, floored at the minimum slide window), and the stored ring still the
+        // notated half beat.
         CHECK(chart.notes[1].fret == 6);
         CHECK(chart.notes[1].position.beat == 2);
         CHECK(chart.notes[1].position.offset == Fraction{});
         REQUIRE(chart.notes[1].slides.size() == 1);
         CHECK(chart.notes[1].slides[0].offset == Fraction{1, 8});
         CHECK(chart.notes[1].slides[0].fret == 8);
-        CHECK(chart.notes[1].sustain == Fraction{1, 4});
-        // No onset was fabricated: the fret-3 tail trims the plain margin before the scoop's
-        // notated beat.
-        CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        CHECK(chart.notes[1].sustain == Fraction{1, 2});
+        // No onset was fabricated: the fret-3 note stores its whole beat and draws the plain
+        // margin before the scoop's notated beat.
+        CHECK(chart.notes[0].sustain == Fraction{1});
+        const std::vector<common::core::ChartNote> presented =
+            presentedNotesOf(chart, built->tempo_map);
+        CHECK(presented[0].sustain == Fraction{3, 4});
+        // The scoop survives the effect-free drop — it is a slide now — and draws a tail down to
+        // the margin before the fret-5 onset.
+        CHECK(presented[1].sustain == Fraction{1, 4});
     }
 
     SECTION("a still hand falls back to two frets in the flag's direction")
@@ -3393,11 +3541,20 @@ TEST_CASE(
     CHECK(merged.slides[0].fret == 10);
     const auto* const slide_out = common::core::slideOutOrNull(merged);
     REQUIRE(slide_out != nullptr);
-    // One minimum slide window past the junction — never on or before it, which chart
-    // validation rejects, and never the uncompressed 5/4 end that would run past the onset.
-    CHECK(slide_out->offset == Fraction{9, 8});
-    CHECK(slide_out->offset > merged.slides.back().offset);
-    CHECK(merged.sustain == Fraction{9, 8});
+    // Stored, the gesture ends with the merged ring; drawn, it compresses to one minimum slide
+    // window past the junction — never on or before it, which chart validation rejects, and never
+    // the uncompressed 5/4 end that would run past the onset.
+    CHECK(slide_out->offset == Fraction{5, 4});
+    CHECK(merged.sustain == Fraction{5, 4});
+    const common::core::ChartNote presented = presentedNotesOf(chart, built->tempo_map)[0];
+    REQUIRE(presented.slide_out.has_value());
+    REQUIRE_FALSE(presented.slides.empty());
+    if (presented.slide_out.has_value() && !presented.slides.empty())
+    {
+        CHECK(presented.slide_out->offset == Fraction{9, 8});
+        CHECK(presented.slide_out->offset > presented.slides.back().offset);
+    }
+    CHECK(presented.sustain == Fraction{9, 8});
 }
 
 // A glide whose landing is the OPEN string has nothing pressed to arrive with (user rule
@@ -3458,10 +3615,16 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(slide_out->fret == 3);
-        // The trim compresses the trail-off to the margin before the fret-3 onset, and the
-        // exit placement lands exactly on that compressed end so the window rides the gesture
-        // into the fret-3 arrival.
-        CHECK(slide_out->offset == Fraction{3, 4});
+        // The gesture is stored at the note's own beat-long ring; what it DRAWS compresses to the
+        // margin before the fret-3 onset, and the exit placement lands exactly on that drawn end
+        // so the window rides the gesture into the fret-3 arrival.
+        CHECK(slide_out->offset == Fraction{1});
+        const common::core::ChartNote drawn = presentedNotesOf(chart, built->tempo_map)[0];
+        REQUIRE(drawn.slide_out.has_value());
+        if (drawn.slide_out.has_value())
+        {
+            CHECK(drawn.slide_out->offset == Fraction{3, 4});
+        }
         REQUIRE(chart.fret_hand_positions.size() == 3);
         CHECK(chart.fret_hand_positions[0].fret == 8);
         CHECK(
@@ -3489,7 +3652,13 @@ TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-im
         const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
         REQUIRE(slide_out != nullptr);
         CHECK(slide_out->fret == 5);
-        CHECK(slide_out->offset == Fraction{3, 4});
+        CHECK(slide_out->offset == Fraction{1});
+        const common::core::ChartNote drawn = presentedNotesOf(chart, built->tempo_map)[0];
+        REQUIRE(drawn.slide_out.has_value());
+        if (drawn.slide_out.has_value())
+        {
+            CHECK(drawn.slide_out->offset == Fraction{3, 4});
+        }
         REQUIRE(chart.fret_hand_positions.size() == 3);
         CHECK(chart.fret_hand_positions[0].fret == 3);
         CHECK(

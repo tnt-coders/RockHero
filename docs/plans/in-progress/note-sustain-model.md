@@ -109,12 +109,17 @@ rather than described as a no-op.
 ## What the importer keeps deciding (meaning, not presentation)
 
 Tie merges and legato merges (the canonical long actual durations), grace leads and on-beat shifts
-(sounding truth), the scrape gesture's path, the shift-slide arrival waypoint at `gap − margin`
-(synthesis: GP states no arrival time), the slide-in scoop window, dead notes, open-string floors.
-It stops trimming, dropping, clipping payload, and writing the arrival window into the sustain. It
-runs the same-string clamp early (a re-strike stops the ring) and feeds its two presentation-riding
-passes — hand-placement generation at trail-off ends, and shape-span derivation — the presented
-notes, so their outputs do not change in stage A.
+(sounding truth, including the before-beat steal), the scrape gesture's path, the shift-slide
+arrival waypoint at `gap − margin` (synthesis: GP states no arrival time), the slide-in scoop
+window, dead notes, open-string floors. It stops trimming, dropping, clipping payload, and
+ASSIGNING the arrival window to the sustain. Synthesis may still GROW a ring too short to carry the
+waypoint it just fabricated — payload has to lie inside the ring, and the note sounds while it
+travels — but never shorten one; growing to the landing instead would be inventing a ring the
+source never notated, and would turn every such origin into a rule-1 deliberate hold wherever
+another string sounds inside the gap. It runs the same-string clamp after every pass that can
+lengthen a ring (a re-strike stops the ring) and feeds its two presentation-riding passes —
+hand-placement generation at trail-off ends, and shape-span derivation — the presented notes, so
+their outputs do not change in stage A.
 
 ## Accepted deviations from pixel identity, measured
 
@@ -123,7 +128,8 @@ pre-change saved form and in the post-change presented form; the diff is the pro
 residuals, each counted in the stage-A report:
 
 - A grace note's own lead-length tail (≈60 ms) no longer presents: its principal binds it at the
-  sounding position, which the notated grouping used to exempt.
+  sounding position, which the notated grouping used to exempt. Its hold goes with it (9 notes
+  measured at A2).
 - An on-beat grace that delays only some members of a strum leaves the other members presented in
   full rather than margin-trimmed (their ring strictly passes the fabricated onset).
 - Claims after a rest flatten under strict adjacency.
@@ -150,6 +156,51 @@ event's NOTATED beat. Ruled 2026-08-21:
   grace keeps its own), and an on-beat grace splits the delayed member out of its strum. Both are
   the sounding grouping, which is the only one the stored form has, and the grace's own head
   separates it from the chord on both surfaces; counted in the stage-A report.
+
+Two more the A2 golden diff measured, ruled 2026-08-22:
+
+- **A quarter note before a graced beat loses its tail (57 notes in 5 of 113 songs).** The grace
+  steal leaves it ringing 7/8 of a beat, under rule 3's kept bound, where the import policy read
+  the notated quarter and kept a 5/8 tail. Accepted: the ring is the truth and rule 3 is doing what
+  it states; dropping the steal reintroduces the ring-through-the-grace defect and exempting stolen
+  leads from the bound states the rule twice. The cost is BOTH surfaces, not 2D tail ink alone: 19
+  of the 57 sit under no covering shape span, so nothing re-extends them and the 3D pinned head
+  goes with the tail; the other 38 keep their span's hold. Flagged for the sighting: a quarter
+  before a grace with no tail beside quarters that keep theirs may read as an error in a melodic
+  line, and on the highway 19 of them stop being pinned at all.
+- **A tie-merged shift-slide origin crossing another string's onset presents to its landing (2
+  notes in 1 song).** Its stored ring reaches the landing that re-picks it; that ring runs strictly
+  past an intervening onset on another string, so rule 1 presents it whole and the tail runs the
+  last margin into the landing's head instead of stopping at the arrival waypoint (the waypoint
+  itself is unmoved). The same rule as any cross-voice hold; accepted.
+
+The rest of the A2 diff, for the record (113 songs, 245,866 notes, 22,218 spans):
+
+- **Fret-hand positions are byte-identical** in every arrangement of every song, and **span
+  geometry** — every span's position and sustain — is byte-identical too.
+- **Three chord TEMPLATES merged**, in one song, in each of its three arrangements (54→51, 53→50,
+  48→45 distinct postures), so four to nine spans per arrangement now draw a chord box with one
+  string FEWER. The cause is the grace steal, not a grown ring: a note the steal ends exactly on
+  an ornament's onset is no longer ringing THROUGH it (the ring-through test is strict), so its
+  string leaves the posture and that posture becomes equal to a neighbouring one. Traced case: a
+  legato-attacked open string ending exactly on a before-beat grace's onset used to fold fret 0
+  into that grace's posture, which is what made it distinct from the identical two-string posture
+  on the next beat. Accepted for the same reason the steal is — the string genuinely stopped
+  sounding there.
+- **3,146 holds change in 50 songs.** 2,775 shorten and 29 end — the intended A1 hold cap, the
+  fourth deviation above — and 10 lengthen, the shift-slide case above.
+- **342 of those hold changes are a defect, not a deviation.** A DEAD note inside a live chord
+  under a covering span loses its pinned head entirely, because `normalizeChart` still applies
+  E25 to the STORED ring (7,835 notes ship with `sustain` zero, and every one of them is dead)
+  and the hold caps at that zero. That contradicts ruling 5 and the positive-sustain invariant.
+  A3 moves E25 out of `normalizeChartNote`; this residual is to be RE-MEASURED there, not signed
+  off here.
+- **One sus drop, in one song, is unexplained.** An open string storing a half-beat ring, alone at
+  its position, which the import policy gave a quarter-beat tail. Under the presented rules the
+  drop is correct by inspection (a sub-quarter ring, no technique, no partner and no hold), and
+  neither the clamp nor the grace machinery is involved: that arrangement contains no grace at
+  all, and the no-clamp control dump is byte-identical to the shipped one. What earned the note a
+  tail under the notated-strum key could not be reconstructed from the dumps.
 
 ## Stages
 
@@ -180,3 +231,18 @@ event's NOTATED beat. Ruled 2026-08-21:
    the stored form exists to carry, and the cap would be one more bound stated in three places for
    a value no surface shows. The same-string clamp is the only bound on any note's sustain.
 6. Insert default = one grid step, clamped at the next onset on the string. Rule 12 unchanged.
+7. **Proposed 2026-08-21, awaiting the user's confirmation — the lossy-source default.** A
+   converted package from the commercial source format stores no duration for a note the charter
+   did not mark as held. The plan puts the one unavoidable guess at that import, in the external
+   converter: *a source note with no sustain rings to the next onset on ANY string, capped at half
+   the kept-sustain bound; a note with a sustain rings for it.* Any string, not its own: rule 1
+   presents a ring running strictly past the first binding onset in full, so a chug defaulting to
+   its own string's re-strike would draw through every alternating-string riff. Capped strictly
+   below the kept bound: a default landing exactly on a quarter would earn a tail under rule 3
+   that the source never showed. Consequence to accept with eyes open: the source's sub-quarter
+   holds stop drawing, because presentation is one rule for every chart where the package path
+   used to skip the Guitar Pro rules. Folds into the stale-package re-export (task #78).
+   No accent exception: charters of that format often read an accent as staccato, but the stored
+   ring of an accented sub-quarter note changes nothing drawn (the accent glow is the staccato
+   read), a shorter default would flatten a hammer-on the charter marked after it, and playback
+   can honour the accent itself when it exists rather than the duration storing a convention.

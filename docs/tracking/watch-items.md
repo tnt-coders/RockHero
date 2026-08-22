@@ -206,17 +206,19 @@ from motion timing, still open.
 
 ### A payload-driven sustain extension can manufacture a deliberate hold — trigger: a real chart at 64th-note density where a slide-bearing note reads as held across the next onset
 
-The hold exemption in `normalizeImportedSustains` (rule 1) asks whether the sustain rings past the
-next NOTATED onset, and it reads the sustain *after* slide resolution. But `resolveSlideIns` and the
-slide-out window can **extend** a sustain, floored at `g_minimum_slide_window`. If that extension is
-what carries the ring past the next notated onset, importer-fabricated geometry witnesses a
-"deliberate hold" — exactly what rule 1 already refuses to let a grace lead do, since the source
-never notated a hold there.
+The hold exemption (rule 1, now `presentedChartNotes` in `chart_presentation.h`) asks whether the
+stored ring runs past the next onset. The importer's `resolveSlideIns` and slide-out synthesis can
+**extend** a stored ring, floored at `g_minimum_slide_window`. If that extension is what carries the
+ring past the next onset, importer-fabricated geometry witnesses a "deliberate hold" the source
+never notated.
 
 Accepted for now because it needs sub-1/8-beat spacing (64ths) to reach, and no corpus case has been
 seen. The fix is not local: it means threading the source's pre-resolution notated ring through to
 the hold check, which touches the slide, arpeggio-arrival and FHP paths that all read that ring.
 Found 2026-08-06 while narrowing the trim's payload floor; deliberately left alone in that change.
+Re-aimed 2026-08-22 when the tail rules moved to the read side (stage A2): the item survives the
+move intact, and the grace-lead protection it used to cite is gone — binding is now decided on the
+sounding position, which the note-sustain-model plan lists as an accepted deviation.
 
 Two smaller relatives of the same family, also left: `hasSustainTechnique` tests
 `!note.slides.empty()`, so a trailing equal-fret hold still exempts a note from the *drop* rule when

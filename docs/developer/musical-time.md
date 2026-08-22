@@ -69,8 +69,10 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
 
 # Presentation: stored durations vs drawn ones (`chart/chart_presentation.h`)
 
-*In flux — the module exists and is tested, but no reader consumes it yet (stage A1 of
-`docs/plans/in-progress/note-sustain-model.md`; A2 moves the importer onto it and A3 the readers).*
+*In flux — the Guitar Pro importer now stores actual rings and reads this module for the two passes
+that ride readability, but the painters, hit testing and the legato resolver still read
+`ChartNote::sustain` directly (stages A1 and A2 of
+`docs/plans/in-progress/note-sustain-model.md`; A3 moves the readers).*
 
 The model being built here is simple to state: `ChartNote::sustain` is the **actual** duration the
 string rings — Guitar Pro's notated duration at import, what the editor's verbs author — and what a

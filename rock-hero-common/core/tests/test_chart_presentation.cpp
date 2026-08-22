@@ -348,6 +348,35 @@ TEST_CASE("Rule 3 decides one tail verdict for a whole onset group", "[core][cha
     CHECK(presented[8] == Fraction{1});
 }
 
+// Rules 2 and 3 meet on one strum: the keep-or-drop verdict is the GROUP's, the length is each
+// string's own. Without this pairing a double stop whose bent string earns the tail would either
+// show a lone tail beside an unsounded-looking partner (verdict per string) or stretch the
+// partner's tail to the bent one's length (length shared). Ported from the import policy's own
+// suite, which is where it was pinned before the rules moved here.
+TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    std::vector<ChartNote> saved = {
+        note(at(1, 1), 1, Fraction{1, 2}),
+        note(at(1, 1), 2, Fraction{1, 2}, 7),
+        note(at(1, 1, Fraction{1, 2}), 3, Fraction{1, 2}, 2),
+    };
+    // A curve that keeps rising to the ring's end: its last CHANGE is the final point, so rule 2
+    // floors the trim there.
+    saved[0].bend = {
+        BendPoint{.offset = Fraction{}, .semitones = 0.0},
+        BendPoint{.offset = Fraction{1, 2}, .semitones = 2.0},
+    };
+
+    const std::vector<Fraction> presented = presentedSustains(saved, map);
+    REQUIRE(presented.size() == saved.size());
+    // Half a beat is under the kept-sustain bound, so only the bend earns this strum its tails —
+    // and it earns them for the plain partner too.
+    CHECK(presented[0] == Fraction{1, 2});
+    // The partner's own length is the margin before the next onset, not the bent string's.
+    CHECK(presented[1] == Fraction{1, 4});
+}
+
 // Rule 4 (E25) reads the note as the earlier rules leave it: a dead string rings nothing, so a
 // plain tail on one is silence pretending to be sound — while tremolo (a chug) or a slide payload
 // (a dragged mute) keeps it making noise or travelling and keeps its tail.

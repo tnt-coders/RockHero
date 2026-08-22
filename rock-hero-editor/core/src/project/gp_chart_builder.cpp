@@ -37,33 +37,37 @@ using common::core::NoteAttack;
 using common::core::NoteEmphasis;
 using common::core::SlideWaypoint;
 
-// The tail helpers this import policy shares with the presentation rules in core
-// (chart_presentation.h), which now state the same policy on the read side: one set of questions
-// decides what a trim may keep and what a surface may draw, so the importer asks the shared
-// authority rather than carrying a private twin of it.
+// The payload helpers the importer's synthesis shares with the presentation rules in core
+// (chart_presentation.h): one set of questions decides where a fabricated gesture may land and
+// what a surface may draw, so the importer asks the shared authority rather than carrying a
+// private twin of it.
 using common::core::clipPayloadsTo;
 using common::core::g_minimum_slide_window;
-using common::core::hasSustainTechnique;
 using common::core::keptStrictlyAfterLastWaypoint;
 using common::core::lastChangingPayloadOffset;
 
-// One note event on the global rational beat axis, before tie merging.
+// One note event on the global rational beat axis, before tie merging. The grid position is
+// derived from `global_beat` where a note needs one rather than carried beside it: the two are one
+// fact in two coordinate systems, and gridPositionForGlobalBeat is the conversion.
 struct NoteEvent
 {
-    Fraction global_beat{}; // onset on the global beat axis
-    int measure{1};
-    int beat{1};               // one-based beat within the measure
-    Fraction offset{};         // sub-beat offset within [0, 1)
-    Fraction duration_beats{}; // duration in the onset measure's beat unit
+    Fraction global_beat{};    // onset on the global beat axis
+    Fraction duration_beats{}; // how long the string rings, in the onset measure's beat unit
     GpNote source;
     bool tremolo{false};
 
-    // The beat the source NOTATED this event at: the principal's onset for every event of a
-    // beat, even when a grace lead or an on-beat shift makes it sound earlier or later. The
-    // sustain normalization binds tails only to separately notated onsets, so fabricated onset
-    // positions can neither bind a chord-mate's tail nor fake a deliberate hold.
-    Fraction notated_beat{};
+    // How much ring a following before-beat grace run stole from this event (rule 17). Guitar Pro
+    // states a bend's points as PERCENTAGES of the NOTATED duration, so the curve is mapped over
+    // the ring plus this and then clipped back to the ring — squeezing it into the shortened ring
+    // would state a curve nobody wrote.
+    Fraction stolen_lead{};
 };
+
+// What the source notated for an event: what the string rings plus whatever an ornament stole.
+[[nodiscard]] Fraction notatedDuration(const NoteEvent& event)
+{
+    return event.duration_beats + event.stolen_lead;
+}
 
 // Per-measure grid facts derived from the master bars once.
 struct MeasureGrid
@@ -88,7 +92,8 @@ struct MeasureGrid
 }
 
 // The minimum-sustain-distance margin at a position's measure — the ONE statement of the
-// margin-per-note rule every trim, span close, glide window, and lead derives from. Note
+// margin-per-note rule the importer's span close and synthesized glide windows derive from (the
+// presentation rules ask common/core for the same constant on the read side). Note
 // positions always index the grid: collectEvents clamps bar indexes into it and
 // gridPositionForGlobalBeat looks measures up from it, so no defensive clamp is needed here.
 [[nodiscard]] Fraction sustainMarginAt(const MeasureGrid& grid, const GridPosition& position)
@@ -480,7 +485,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 }
 
 // Spells out tremolo-picked beats as their individual strokes BEFORE event collection, so the
-// strokes flow through positions, grace attachment, ties, and sustain trims exactly like
+// strokes flow through positions, grace attachment, ties, and the tail rules exactly like
 // hand-notated notes (the charting standard reserves the chart's `tremolo` for unmeasured
 // noise, and Guitar Pro's tremolo is measured — the mark carries a precise stroke duration).
 // Strokes re-pick: every stroke clears tie_destination, so a tie INTO the beat releases its
@@ -583,10 +588,13 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 
 // Collects the timed note events of one track across bars and voices. Grace beats take no time
 // from the bar; each run attaches to the next sounding beat in its voice (the principal). A
-// before-beat grace sounds a thirty-second-note lead ahead of the principal; an on-beat grace
-// sounds on the principal's position and delays the principal notes on its strings by the same
-// lead (Guitar Pro's two grace placements). A lead shrinks to half the available gap when the
-// neighboring onset sits closer than the full leads, and graces with no room at all are dropped.
+// before-beat grace sounds a thirty-second-note lead ahead of the principal and STEALS that lead
+// from the beat before it — Guitar Pro plays the ornament in the preceding note's time, so every
+// event of the voice's previous sounding beat that would still be ringing at the run's first onset
+// ends there instead. An on-beat grace sounds on the principal's position and delays the principal
+// notes on its strings by the same lead (Guitar Pro's two grace placements). A lead shrinks to
+// half the available gap when the neighboring onset sits closer than the full leads, and graces
+// with no room at all are dropped.
 [[nodiscard]] std::vector<NoteEvent> collectEvents(
     const GpTrack& track, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
@@ -606,29 +614,33 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         }
     }
 
-    const auto emit_note = [&events, &grid](
+    const auto emit_note = [&events](
                                const GpNote& source,
                                const bool tremolo,
                                const Fraction global,
-                               const Fraction duration,
-                               const Fraction notated) {
-        const GridPosition position = gridPositionForGlobalBeat(grid, global);
+                               const Fraction duration) {
         NoteEvent event;
-        event.measure = position.measure;
-        event.beat = position.beat;
-        event.offset = position.offset;
         event.duration_beats = duration;
         event.global_beat = global;
         event.source = source;
         event.tremolo = tremolo;
-        event.notated_beat = notated;
         events.push_back(std::move(event));
+    };
+
+    // The voice's previous sounding beat: where it landed, and the contiguous run of events it
+    // pushed. A before-beat grace needs both — the onset floors the available gap, and the events
+    // are what the run's lead is stolen from.
+    struct SoundingBeat
+    {
+        Fraction onset{};
+        std::size_t first_event{0};
+        std::size_t event_count{0};
     };
 
     // Grace runs and conflict neighbors persist across bar lines within a voice, keyed by the
     // voice's index in its bar.
     std::map<std::size_t, std::vector<const GpBeat*>> pending_graces_per_voice;
-    std::map<std::size_t, Fraction> last_onset_per_voice;
+    std::map<std::size_t, SoundingBeat> last_beat_per_voice;
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
         const auto measure_index = std::min(bar_index, grid.beats_per_measure.size() - 1);
@@ -673,6 +685,9 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 
                 const Fraction principal_global =
                     (Fraction{grid.first_global_beat[measure_index]} + onset);
+                // This beat's own events start here; they are pushed contiguously, so the range
+                // is what the NEXT beat's before-beat run steals its lead from.
+                const std::size_t beat_first_event = events.size();
                 Fraction principal_shift{};
                 std::vector<int> shifted_strings;
                 if (!pending.empty())
@@ -688,9 +703,9 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                     // the voice's previous sounding onset, or the song start when none exists.
                     if (before_count > 0)
                     {
-                        const auto last = last_onset_per_voice.find(voice_index);
-                        const Fraction floor =
-                            last != last_onset_per_voice.end() ? last->second : Fraction{0};
+                        const auto last = last_beat_per_voice.find(voice_index);
+                        const bool has_last = last != last_beat_per_voice.end();
+                        const Fraction floor = has_last ? last->second.onset : Fraction{0};
                         const Fraction gap = principal_global - floor;
                         const Fraction lead = fitLeadToGap(full_lead, gap, before_count);
                         if (lead.numerator <= 0)
@@ -699,6 +714,29 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                         }
                         else
                         {
+                            const Fraction first_onset =
+                                principal_global - (Fraction{before_count} * lead);
+                            // The run steals its lead from the beat before it: Guitar Pro sounds a
+                            // before-beat grace in the preceding note's time, so that beat's
+                            // events stop where the ornament starts rather than ringing under it.
+                            // The lead was fitted strictly inside the gap above, so every
+                            // shortened event keeps a positive duration. What was taken is
+                            // remembered rather than just subtracted, because a bend's points are
+                            // percentages of the duration the source NOTATED (`stolen_lead`).
+                            if (has_last)
+                            {
+                                for (std::size_t offset = 0; offset < last->second.event_count;
+                                     ++offset)
+                                {
+                                    NoteEvent& earlier = events[last->second.first_event + offset];
+                                    if (earlier.global_beat + earlier.duration_beats > first_onset)
+                                    {
+                                        const Fraction rings = first_onset - earlier.global_beat;
+                                        earlier.stolen_lead = notatedDuration(earlier) - rings;
+                                        earlier.duration_beats = rings;
+                                    }
+                                }
+                            }
                             int remaining = before_count;
                             for (const GpBeat* grace : pending)
                             {
@@ -714,8 +752,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                                         grace_note,
                                         grace->tremolo_stroke.numerator > 0,
                                         global,
-                                        lead,
-                                        principal_global);
+                                        lead);
                                 }
                                 --remaining;
                             }
@@ -748,8 +785,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                                         grace_note,
                                         grace->tremolo_stroke.numerator > 0,
                                         global,
-                                        lead,
-                                        principal_global);
+                                        lead);
                                     shifted_strings.push_back(grace_note.string);
                                 }
                                 ++slot;
@@ -767,10 +803,13 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                         source,
                         beat.tremolo_stroke.numerator > 0,
                         shifted ? (principal_global + principal_shift) : principal_global,
-                        shifted ? (duration_beats - principal_shift) : duration_beats,
-                        principal_global);
+                        shifted ? (duration_beats - principal_shift) : duration_beats);
                 }
-                last_onset_per_voice[voice_index] = principal_global + principal_shift;
+                last_beat_per_voice[voice_index] = SoundingBeat{
+                    .onset = principal_global + principal_shift,
+                    .first_event = beat_first_event,
+                    .event_count = events.size() - beat_first_event,
+                };
             }
         }
     }
@@ -805,288 +844,70 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     return events;
 }
 
-// Built notes plus their onset on the global beat axis (needed for tie and slide spans, and by
-// the sustain normalization that runs after both).
+// Built notes plus their onset on the global beat axis (needed for tie and slide spans). The note
+// carries everything else, including how long it rings — the builder stores ACTUAL durations, so
+// an end kept beside the sustain would be a second copy of the same fact.
 struct BuiltNote
 {
     ChartNote note;
     Fraction global_beat{};
-    Fraction end_global_beat{};
     int gp_string{0};
     int slide_flags{0};
-
-    // The beat the source notated this onset at (see NoteEvent::notated_beat). Grace machinery
-    // is the only thing that makes the sounding onset diverge (a before-beat lead, an on-beat
-    // shift): the note binds neighboring tails at its sounding beat while never faking a
-    // deliberate hold at a beat the source never notated.
-    Fraction notated_beat{};
 
     // Onset of the tied continuation the slide flags were inherited from, when they were: the
     // glide leaves from the junction, not the merged note's onset (policy rule 15).
     std::optional<Fraction> slide_from_beat;
 };
 
-// Normalizes imported sustains for chart readability (import policy). The maintained
-// plain-English spec is "GP chart normalization policy" in
-// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
-//
-// 1. A tail is trimmed to end at least the minimum-sustain-distance margin — the shared
-//    constant in grid_arithmetic.h, the same margin the editor's duration verb clamps to —
-//    before the next BINDING onset on ANY string. Binding follows the notated timeline:
-//    events sharing a notated beat (chord members, and a strum's own grace-shifted notes)
-//    never bind each other, even when grace leads stagger their sounding onsets. One hold is
-//    exempt: a tail ringing strictly past the next binding onset's NOTATED beat — merged from
-//    a tie or notated across voices — is a deliberate hold that neither this trim nor the
-//    drop rule touches (that ring is exactly what the projections' arpeggio arrival rule
-//    reads). An importer-fabricated early onset (a grace lead) binds the tail at its
-//    sounding beat but cannot witness a hold: the source never notated an onset there, so a
-//    ring past it proves nothing deliberate. Repeated chords trim like
-//    everything else: their held reading lives in the merged shape span (rule 11), which is
-//    derived from the notated pre-trim ends and already runs through every restrike.
-// 2. Carrying a technique is not an exemption from rule 1; the margin yields only to
-//    information, and only as far as the information reaches. The tail floors at the last
-//    payload point that CHANGES something — a bend point differing from its predecessor, a
-//    waypoint differing from the previous fret — and stops exactly there, never running on to
-//    the notated end (exact adjacency stays legal per 40-Q2-B, so a slide still reaches its
-//    target note). Payload that repeats what the tail already said holds nothing open: a
-//    trailing hold waypoint is a pin, not a glide, and a repeated bend value is not news, so
-//    points the trim passes leave with the tail. Whole-note techniques — vibrato, tremolo,
-//    emphasis, muting, harmonics — cannot change mid-sustain and so never override the margin at
-//    all.
-// 3. A note with no sustain-carried technique NOTATED shorter than the kept-sustain bound
-//    (g_minimum_kept_sustain_beats — shared with the legato hold test, which relies on this
-//    rule to read a missing tail as a proven release) loses its tail entirely after trimming:
-//    Guitar Pro gives every note its full notated duration, and a shorter effect-free ring
-//    reads as noise in a chart rather than as a deliberate sustain. The comparison reads the
-//    notated length, not the trimmed one: a note held to the bound or longer in the source
-//    keeps its tail even though the margin leaves it slightly shorter.
-//    The decision belongs to the NOTATED STRUM, not the single string: every string of
-//    a chord rings from one stroke, so a tail any member earned — a technique on it, a notated
-//    ring of a full beat, or rule 1's hold exemption — keeps the whole strum's tails. Deciding
-//    per string drew a lone tail on a chord's bent note beside partners that looked unsounded.
-//
-// The rules are import normalization only — the editor never rewrites spacing the user authored.
-void normalizeImportedSustains(
-    std::vector<BuiltNote>& built, const MeasureGrid& grid, std::vector<std::string>& notes)
+// Where the string stops ringing, on the global beat axis.
+[[nodiscard]] Fraction ringEndOf(const BuiltNote& entry)
 {
-    int trimmed = 0;
+    return entry.global_beat + entry.note.sustain;
+}
 
-    // Rule 3 reads each tail's NOTATED ring, so it is captured before the trim pass rewrites it,
-    // and the pass records which tails rule 1's hold exemption spared.
-    std::vector<Fraction> notated_sustain;
-    notated_sustain.reserve(built.size());
+// The stored stream lifted out of the build records: the notes exactly as they will ship. Both
+// the same-string clamp and the presentation derivation speak about a note stream, so this is
+// what they are handed. No scrape suppression is applied on the way out — the pick-slide
+// conversion already stores its carriers in saved form, and nothing later re-adds a latent mark.
+[[nodiscard]] std::vector<ChartNote> storedNotes(const std::vector<BuiltNote>& built)
+{
+    std::vector<ChartNote> notes;
+    notes.reserve(built.size());
     for (const BuiltNote& entry : built)
     {
-        notated_sustain.push_back(entry.note.sustain);
+        notes.push_back(entry.note);
     }
-    std::vector<bool> deliberate_hold(built.size(), false);
+    return notes;
+}
 
-    std::size_t group_begin = 0;
-    while (group_begin < built.size())
-    {
-        std::size_t group_end = group_begin + 1;
-        while (group_end < built.size() &&
-               built[group_end].global_beat == built[group_begin].global_beat)
-        {
-            ++group_end;
-        }
+// What the surfaces will draw from the stored stream, index-aligned with the build records. The
+// two passes that ride readability — the trail-off's hand exit and the shape spans — read this
+// rather than the actual rings behind it, so their output follows the picture the player sees.
+[[nodiscard]] std::vector<ChartNote> presentedNotes(
+    const std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
+{
+    return common::core::presentedChartNotes(storedNotes(built), tempo_map);
+}
 
-        for (std::size_t index = group_begin; index < group_end; ++index)
-        {
-            ChartNote& note = built[index].note;
-            // The next binding onset (rule 1): the first later event whose NOTATED beat differs
-            // from this note's — notationally simultaneous events (chord members, a strum's own
-            // grace-shifted notes) never bind. The tail keeps the margin before the binding
-            // onset's SOUNDING beat, but the hold exemption reads its NOTATED beat: a grace
-            // lead sounds inside an earlier ring without the source ever notating an onset
-            // there, so it must not turn that ring into a "deliberate hold".
-            // Later events can notate earlier than they sound (on-beat-shifted strum members),
-            // so the scan runs until no later event can still notate ahead of the minimum seen.
-            bool has_binding = false;
-            Fraction sounding_gap{};
-            std::optional<Fraction> notated_ahead;
-            for (std::size_t scan = group_end; scan < built.size(); ++scan)
-            {
-                if (notated_ahead.has_value() && built[scan].global_beat >= *notated_ahead)
-                {
-                    break;
-                }
-                if (built[scan].notated_beat == built[index].notated_beat)
-                {
-                    continue;
-                }
-                if (!has_binding)
-                {
-                    has_binding = true;
-                    sounding_gap = built[scan].global_beat - built[index].global_beat;
-                }
-                if (!notated_ahead.has_value() || built[scan].notated_beat < *notated_ahead)
-                {
-                    notated_ahead = built[scan].notated_beat;
-                }
-            }
-
-            // A ring held strictly past the next binding onset's notated beat is a deliberate
-            // hold (rule 1).
-            if (notated_ahead.has_value() &&
-                (*notated_ahead - built[index].global_beat) < note.sustain)
-            {
-                deliberate_hold[index] = true;
-                continue;
-            }
-            if (note.sustain.numerator > 0 && has_binding)
-            {
-                const Fraction margin = sustainMarginAt(grid, note.position);
-                const Fraction limit = sounding_gap - margin;
-                if (limit < note.sustain)
-                {
-                    Fraction target = limit.numerator < 0 ? Fraction{} : limit;
-                    // A scrape's path is DERIVED gesture geometry, synthesized from the notated
-                    // duration rather than authored, so moving its endpoint loses no
-                    // information — which is why the trim squishes the gesture instead of
-                    // flooring the tail on it the way an authored bend point does (rule 2).
-                    // The slide-out IS that gesture's terminal, and the carrier conversion
-                    // sheds bends, so this branch is the whole payload story for a scrape.
-                    //
-                    // Where the leg sits relative to the margin decides everything, and the
-                    // two cases are the whole rule. A leg that STARTS before the margin line has
-                    // room to end on it, so it does: the gap is the margin exactly, and no
-                    // spacing is given up. A leg that starts ON OR AFTER that line cannot yield
-                    // the margin at all — it is already inside the window — so it halves the
-                    // distance to the onset, which is the one split that always leaves some gap
-                    // whatever the crowding. This is the sanctioned exception: the gesture is
-                    // LITERALLY defined inside the margin, which is exactly when the spacing rule
-                    // steps aside.
-                    //
-                    // No compression floor. Both cases land strictly after the leg's start by
-                    // construction — the first by its own branch condition, the second because
-                    // half of a positive room is positive — so the payload stays ascending
-                    // without one, and a floor here could only buy leg length by spending the
-                    // spacing the rule exists to protect. g_minimum_slide_window keeps its other
-                    // job, which is SYNTHESIS: a gesture built from nothing needs a default span.
-                    // That is not this decision.
-                    if (isScrape(note.attack) && note.slide_out.has_value())
-                    {
-                        const Fraction leg_start =
-                            note.slides.empty() ? Fraction{} : note.slides.back().offset;
-                        Fraction terminal = note.slide_out->offset;
-                        if (leg_start < limit)
-                        {
-                            terminal = limit;
-                        }
-                        else if (leg_start < sounding_gap)
-                        {
-                            // Half the distance to the ONSET, not half the notated length: a leg
-                            // notated past the onset would halve to something still past it. The
-                            // hold check above already claims those notes, so this is belt and
-                            // braces against that guard ever moving.
-                            terminal = leg_start + ((sounding_gap - leg_start) * Fraction{1, 2});
-                        }
-                        // A leg starting at or beyond the onset has nothing to crunch against
-                        // (a grace lead can shift a sounding onset under a notated ring), so it
-                        // keeps its end and the assignment below only ever shortens.
-                        if (terminal < note.slide_out->offset)
-                        {
-                            note.slide_out->offset = terminal;
-                        }
-                        target = note.slide_out->offset;
-                    }
-                    else
-                    {
-                        // Rule 2: the margin yields only to information, and only as far as the
-                        // information reaches — the tail extends to the last payload point that
-                        // CHANGES something and stops exactly there, never on to the notated end.
-                        const Fraction informative = lastChangingPayloadOffset(note);
-                        if (target < informative)
-                        {
-                            target = informative;
-                        }
-                        // Trailing points the target passed present nothing new (only
-                        // non-changing ones can sit past the last changing one), so they leave
-                        // with the tail. Clipping here rather than after the assignment below
-                        // keeps the model's "payload within the sustain" invariant AND lets the
-                        // slide-out measure itself against the path that survives — a trailing
-                        // hold waypoint must not hold the gesture open through the margin. The
-                        // slide-out is deliberately not clipped here: the compression below PLACES
-                        // it rather than dropping it.
-                        clipPayloadsTo(note, target);
-                    }
-                    // The unpitched slide-out is NOT a protected payload: its end is gesture
-                    // geometry derived from the notated duration, not a musical event, so it
-                    // trims back with the tail to respect the margin. The trimmed end must stay
-                    // strictly positive and strictly after the last waypoint (the model's
-                    // ascending-payload invariant); a crowding that would crush it compresses to
-                    // the smallest legal end instead of keeping its full length — the old
-                    // keep-the-end fallback ran the gesture through the next sounding onset when
-                    // a slide-in had moved its head into the gap (the slide-out-into-slide-in
-                    // dip).
-                    if (note.slide_out.has_value() && target < note.slide_out->offset)
-                    {
-                        const Fraction compressed = keptStrictlyAfterLastWaypoint(
-                            note, std::max(target, g_minimum_slide_window));
-                        if (compressed < note.slide_out->offset)
-                        {
-                            note.slide_out->offset = compressed;
-                        }
-                        target = note.slide_out->offset;
-                    }
-                    if (target < note.sustain)
-                    {
-                        note.sustain = target;
-                        ++trimmed;
-                    }
-                }
-            }
-        }
-        group_begin = group_end;
-    }
-
-    // Rule 3, decided per notated strum: a tail any member of the strum earned keeps every
-    // member's tail, so a chord never shows one string ringing beside partners that look
-    // unsounded. Grouping is the notated beat — the same identity rule 1's binding scan uses, so
-    // grace-shifted strum members and cross-voice simultaneities count as one stroke here too.
-    std::map<Fraction, bool> strum_earned_tail;
+// The same-string clamp on the built stream (40-Q2-B): a re-strike stops the ring, so no stored
+// tail crosses the next onset on its own string. Asked of the one authority in core rather than
+// restated here, which is why the notes travel out and back — that authority speaks about a note
+// stream, not about the builder's records.
+void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
+{
+    std::vector<ChartNote> stored = storedNotes(built);
+    common::core::normalizeSustainOverlaps(stored, tempo_map);
     for (std::size_t index = 0; index < built.size(); ++index)
     {
-        // The bound in the note's own measure's beat frame — the frame its sustain is notated in.
-        const auto measure = static_cast<std::size_t>(built[index].note.position.measure - 1);
-        const int denominator = measure < grid.denominator.size() ? grid.denominator[measure] : 4;
-        const bool earned =
-            deliberate_hold[index] || hasSustainTechnique(built[index].note) ||
-            notated_sustain[index] >= common::core::minimumKeptSustainBeats(denominator);
-        const auto strum = strum_earned_tail.try_emplace(built[index].notated_beat, false).first;
-        strum->second = strum->second || earned;
-    }
-    int dropped = 0;
-    for (BuiltNote& entry : built)
-    {
-        ChartNote& note = entry.note;
-        if (note.sustain.numerator > 0 && !strum_earned_tail.at(entry.notated_beat))
-        {
-            // Nothing to clip with the tail: a strum with no earned tail carries no payload on
-            // any member (a bend or slide would have earned it).
-            note.sustain = Fraction{};
-            ++dropped;
-        }
-    }
-
-    if (trimmed > 0)
-    {
-        notes.push_back(
-            std::to_string(trimmed) + " sustains were trimmed to the minimum sustain distance");
-    }
-    if (dropped > 0)
-    {
-        notes.push_back(
-            std::to_string(dropped) + " short sustains without techniques were dropped");
+        built[index].note = std::move(stored[index]);
     }
 }
 
 // Derives chord templates and hand-posture spans from the note stream (import policy). Guitar Pro
 // scores in practice carry no handshape data (corpus chord collections are empty), so any onset
 // striking two or more strings becomes a chord posture, deduplicated into the template table, and
-// consecutive onsets holding the same posture merge into one shape span covering the strums'
-// notated (pre-trim) durations — the grouping the tab renders as a chord box over repeated strums.
+// consecutive onsets holding the same posture merge into one shape span covering the strums' own
+// rings — the grouping the tab renders as a chord box over repeated strums.
 // Tap-only onsets are transparent to the whole derivation: taps are the tapping hand, so they
 // neither form postures nor close held spans, letting a ringing chord's span cover the taps above
 // it. ANY articulation difference is a new chord: span continuity compares each string's whole note
@@ -1100,9 +921,17 @@ void normalizeImportedSustains(
 // derived (broken-chord grouping needs the corpus-informed pass). A span closed by a following
 // event trims to the minimum-sustain-distance margin before it — the same margin every other
 // element keeps (policy rule 12a). Derived templates are unnamed and unfingered.
+//
+// Articulation is read from the PRESENTED notes and span extent from the stored rings, which is
+// the split the box states: what the chord LOOKS like is what the surfaces draw (a tail the
+// presentation rules compressed carries a compressed gesture, and two strums that draw
+// identically are one box), while how far the hand keeps holding is the actual ring behind the
+// picture. Both streams are index-aligned with `built`.
 // The maintained plain-English spec is "GP chart normalization policy" in
 // docs/developer/the-project-lifecycle.md.
-void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& grid, Chart& chart)
+void deriveChordShapes(
+    const std::vector<BuiltNote>& built, const std::vector<ChartNote>& presented,
+    const MeasureGrid& grid, Chart& chart)
 {
     const std::size_t string_count = chart.tuning.strings.size();
     std::map<std::vector<std::optional<int>>, std::size_t> template_indices;
@@ -1146,10 +975,10 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             }
             if (!(open->start_beat < end) && closing_beat.has_value())
             {
-                // Exact adjacency: the crowded span ends at the earlier of its notated ring and
-                // the closing onset — both sit strictly after the span start, so the span keeps
-                // positive length even when the closer lands exactly on the notated end (a
-                // dense run of short strums).
+                // Exact adjacency: the crowded span ends at the earlier of its own ring and the
+                // closing onset — both sit strictly after the span start, so the span keeps
+                // positive length even when the closer lands exactly on the ring's end (a dense
+                // run of short strums).
                 end = std::min(open->end_beat, *closing_beat);
             }
             chart.shapes.push_back(
@@ -1162,17 +991,18 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         }
     };
 
-    // The last note sounded per string, for the ring-through rule (policy rule 12): a note
-    // whose notated tail crosses a chord's onset on an un-struck string is still sounding, so
-    // its held fret joins the derived posture — and the projections' arrival rule renders the
-    // partly-struck span as an arpeggio.
-    std::vector<const BuiltNote*> ringing(string_count, nullptr);
+    // The last note sounded per string, for the ring-through rule (policy rule 12): a note whose
+    // tail crosses a chord's onset on an un-struck string is still sounding, so its held fret
+    // joins the derived posture — and the projections' arrival rule renders the partly-struck
+    // span as an arpeggio. Indexes rather than pointers, because the posture it folds in comes
+    // from the presented stream while the ring it tests comes from the stored one.
+    std::vector<std::optional<std::size_t>> ringing(string_count);
 
     std::size_t index = 0;
     while (index < built.size())
     {
         std::size_t onset_end = index;
-        Fraction notated_end{};
+        Fraction ring_end{};
         std::vector<StringArticulation> articulation(string_count);
         std::size_t struck = 0;
         while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
@@ -1185,26 +1015,28 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
                 if (const auto string_index = static_cast<std::size_t>(note.string - 1);
                     string_index < string_count)
                 {
-                    ChartNote key = note;
+                    ChartNote key = presented[onset_end];
                     key.position = GridPosition{};
                     key.sustain = Fraction{};
                     articulation[string_index] = std::move(key);
                     ++struck;
                 }
-                if (notated_end < built[onset_end].end_global_beat)
+                if (ring_end < ringEndOf(built[onset_end]))
                 {
-                    notated_end = built[onset_end].end_global_beat;
+                    ring_end = ringEndOf(built[onset_end]);
                 }
             }
             ++onset_end;
         }
         if (struck == 0)
         {
-            // Tap-only onsets are transparent: they neither form a chord posture nor end a held
-            // one. A chord whose notated ring extends under the taps keeps its span, which the
-            // projections' arrival rule then renders as a held arpeggio — the corpus's
-            // held-shape-under-tapping case. A short-ringing chord is unaffected: its span
-            // still ends at its own notated duration, before the taps.
+            // Tap-only onsets are transparent to the GROUPING: they neither form a chord posture
+            // nor end a held one. A chord ringing under taps on other strings keeps its span,
+            // which the projections' arrival rule then renders as a held arpeggio — the corpus's
+            // held-shape-under-tapping case. Transparent to the grouping is not transparent to
+            // the ring: a tap is a real onset on its own string, so the clamp has already ended
+            // any ring there. A short-ringing chord is unaffected either way: its span still ends
+            // at its own ring, before the taps.
         }
         else if (struck >= 2)
         {
@@ -1212,11 +1044,11 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             // note's articulation folds in so span merging still compares whole notes.
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                const BuiltNote* const ring = ringing[string_index];
-                if (!articulation[string_index].has_value() && ring != nullptr &&
-                    built[index].global_beat < ring->end_global_beat)
+                const std::optional<std::size_t>& ring = ringing[string_index];
+                if (!articulation[string_index].has_value() && ring.has_value() &&
+                    built[index].global_beat < ringEndOf(built[*ring]))
                 {
-                    ChartNote key = ring->note;
+                    ChartNote key = presented[*ring];
                     key.position = GridPosition{};
                     key.sustain = Fraction{};
                     articulation[string_index] = std::move(key);
@@ -1244,9 +1076,9 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             }
             if (open.has_value() && open->articulation == articulation)
             {
-                if (open->end_beat < notated_end)
+                if (open->end_beat < ring_end)
                 {
-                    open->end_beat = notated_end;
+                    open->end_beat = ring_end;
                 }
                 open->last_strum_beat = built[index].global_beat;
             }
@@ -1258,7 +1090,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
                     .articulation = std::move(articulation),
                     .position = built[index].note.position,
                     .start_beat = built[index].global_beat,
-                    .end_beat = notated_end,
+                    .end_beat = ring_end,
                     .last_strum_beat = built[index].global_beat,
                 };
             }
@@ -1277,7 +1109,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
                 string_index < string_count &&
                 !common::core::rightHandOnset(built[member].note.attack))
             {
-                ringing[string_index] = &built[member];
+                ringing[string_index] = member;
             }
         }
         index = onset_end;
@@ -1309,7 +1141,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
             continue;
         }
         const BuiltNote& other = built[index];
-        if (!(other.global_beat <= instant && instant < other.end_global_beat))
+        if (!(other.global_beat <= instant && instant < ringEndOf(other)))
         {
             continue; // not sounding at this instant
         }
@@ -1688,8 +1520,8 @@ void upsertPlacement(
 // onset's window derives backward from the active one so the head keeps its slot, and the natural
 // window returns at the scoop's end. An open string cannot be slid into, and a start clamped onto
 // the notated fret has no travel; both count as unplaceable and stay plain. The transform runs
-// before the sustain policy, so the transformed note is a slide when the trim rules run: a slide-in
-// into a held landing keeps its hold like any notated slide.
+// before anything reads the stream, so the transformed note is already a slide when the tail rules
+// judge it: a slide-in into a held landing keeps its hold like any notated slide.
 void resolveSlideIns(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
     const MeasureGrid& grid, std::vector<std::string>& notes, const int capo)
@@ -1833,26 +1665,36 @@ void resolveSlideIns(
 // with it, and a restore placement at the next onset brings the window back for the note that
 // follows (so notes after the gesture are never stranded in the dipped window). Fabricated exits
 // yield to real placements at their instant, restores yield to anything already there, and a
-// trail-off ending at or past the next onset stays planted (no room to ride). Runs after the
-// sustain trim so the end positions are the compressed ones the chart ships.
+// trail-off ending at or past the next onset stays planted (no room to ride).
+//
+// The gesture it rides is the DRAWN one, so every question here — where the trail-off ends, which
+// fret it leaves from, whether it still clears the next onset — is asked of the presented note,
+// while the resolved exit fret is written into the stored one (presentation compresses a
+// trail-off's end but never drops it, so the stored gesture is always there to write to).
 void resolveSlideOutExits(
-    std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
-    const MeasureGrid& grid, const int capo)
+    std::vector<BuiltNote>& built, const std::vector<ChartNote>& presented,
+    std::vector<common::core::FretHandPosition>& placements, const MeasureGrid& grid,
+    const int capo)
 {
     std::vector<common::core::FretHandPosition> exit_placements;
     std::vector<common::core::FretHandPosition> restore_placements;
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         BuiltNote& entry = built[index];
-        ChartNote& note = entry.note;
+        const ChartNote& note = presented[index];
         // A scrape's slide-out is authored travel, not a trail-off exit to resolve — and the
-        // scrape never anchors the hand, so there is no placement to ride.
-        if (!note.slide_out.has_value() || isScrape(note.attack))
+        // scrape never anchors the hand, so there is no placement to ride. Both forms of the
+        // gesture are required up front: the drawn one is what the window rides, the stored one
+        // is what the resolved exit fret is written back into. They always agree — presentation
+        // compresses a trail-off's end and never drops it — so the second test costs nothing and
+        // makes the write below provably safe rather than safe by argument.
+        const common::core::SlideOut* const drawn = common::core::slideOutOrNull(note);
+        if (drawn == nullptr || !entry.note.slide_out.has_value() || isScrape(note.attack))
         {
             continue;
         }
         const int departing = note.slides.empty() ? note.fret : note.slides.back().fret;
-        const bool downward = note.slide_out->fret < departing;
+        const bool downward = drawn->fret < departing;
         const auto after = firstPlacementAfter(placements, note.position);
         if (after == placements.begin())
         {
@@ -1866,11 +1708,11 @@ void resolveSlideOutExits(
             ++next_note;
         }
         const GridPosition end_position =
-            gridPositionForGlobalBeat(grid, entry.global_beat + note.slide_out->offset);
+            gridPositionForGlobalBeat(grid, entry.global_beat + drawn->offset);
         if (!withinGrid(grid, end_position))
         {
-            // The trail-off ends past the last bar (a hold-exempt ring the trim never compressed
-            // at the very end of the score). A placement there is not a representable position,
+            // The trail-off ends past the last bar (a hold-exempt ring presentation never
+            // compressed, at the very end of the score). A placement there is not representable,
             // and fabricating one failed validation for the whole song; the gesture keeps its
             // default exit fret and the hand simply stays put, which is what happens anyway when
             // there is no room to ride.
@@ -1880,7 +1722,7 @@ void resolveSlideOutExits(
         const bool has_room = !has_next || end_position < built[next_note].note.position;
         if (has_next && !has_room)
         {
-            // The gesture reaches the next onset (a hold-exempt trail-off the trim never
+            // The gesture reaches the next onset (a hold-exempt trail-off presentation never
             // compressed, or a crush to exactly the gap): no room to ride, so the whole
             // gesture stays planted — default exit fret, no fabricated placements.
             continue;
@@ -1891,13 +1733,17 @@ void resolveSlideOutExits(
         const int delta = after == placements.end() ? 0 : after->fret - active->fret;
         const bool departs = delta != 0 && (delta < 0) == downward && has_next &&
                              !(built[next_note].note.position < after->position);
+        int exit_fret = drawn->fret;
         if (departs)
         {
             const int travel = widenedToMinimumTravel(delta, downward);
-            note.slide_out->fret = std::clamp(
+            exit_fret = std::clamp(
                 departing + travel,
                 common::core::firstPlayableFret(capo),
                 common::core::g_max_fret);
+            // The resolved fret is the note's, not the picture's: it is stored, and the presented
+            // stream is derived again from it.
+            entry.note.slide_out->fret = exit_fret;
         }
         else if (has_next)
         {
@@ -1914,10 +1760,7 @@ void resolveSlideOutExits(
         // The riding window derives from the active one by the gesture's travel, clamped to
         // keep the exit fret covered on the neck — never below the capo, where no hand can sit.
         const int anchor = windowAnchorCovering(
-            *active,
-            note.slide_out->fret - departing,
-            note.slide_out->fret,
-            common::core::firstPlayableFret(capo));
+            *active, exit_fret - departing, exit_fret, common::core::firstPlayableFret(capo));
         exit_placements.push_back(
             common::core::FretHandPosition{
                 .position = end_position,
@@ -1994,10 +1837,9 @@ void resolveSlideOutExits(
             if (open != open_note_per_string.end())
             {
                 BuiltNote& origin = built[open->second];
-                if (event_end > origin.end_global_beat)
+                if (event_end > ringEndOf(origin))
                 {
-                    origin.end_global_beat = event_end;
-                    origin.note.sustain = origin.end_global_beat - origin.global_beat;
+                    origin.note.sustain = event_end - origin.global_beat;
                 }
                 origin.note.vibrato = origin.note.vibrato || source.vibrato;
                 origin.note.tremolo = origin.note.tremolo || event.tremolo;
@@ -2005,8 +1847,15 @@ void resolveSlideOutExits(
                 {
                     const Fraction base = event.global_beat - origin.global_beat;
                     for (BendPoint point :
-                         buildBendPoints(*source.bend, event.duration_beats, notes))
+                         buildBendPoints(*source.bend, notatedDuration(event), notes))
                     {
+                        if (event.duration_beats < point.offset)
+                        {
+                            // The curve is written over the notated duration; a continuation an
+                            // ornament shortened folds in only the part that still sounds. Points
+                            // ascend, so nothing after this one survives either.
+                            break;
+                        }
                         point.offset = point.offset + base;
                         if (origin.note.bend.empty() ||
                             point.offset > origin.note.bend.back().offset)
@@ -2042,14 +1891,11 @@ void resolveSlideOutExits(
 
         BuiltNote entry;
         entry.global_beat = event.global_beat;
-        entry.end_global_beat = event_end;
         entry.gp_string = source.string;
         entry.slide_flags = source.slide_flags;
-        entry.notated_beat = event.notated_beat;
 
         ChartNote& note = entry.note;
-        note.position =
-            GridPosition{.measure = event.measure, .beat = event.beat, .offset = event.offset};
+        note.position = gridPositionForGlobalBeat(grid, event.global_beat);
         note.string = source.string + 1;
         // Guitar Pro's frets are CAPO-RELATIVE (confirmed by authored experiment: with a capo at
         // 3, an entered "1" sounds the pitch at absolute fret 4), while the chart stores absolute
@@ -2232,7 +2078,11 @@ void resolveSlideOutExits(
 
         if (source.bend.has_value())
         {
-            note.bend = buildBendPoints(*source.bend, note.sustain, notes);
+            // Guitar Pro writes the curve as percentages of the NOTATED duration, so it is laid
+            // out over that and then clipped to the ring: a note an ornament shortened loses the
+            // part of its bend that no longer sounds instead of playing the whole curve faster.
+            note.bend = buildBendPoints(*source.bend, notatedDuration(event), notes);
+            clipPayloadsTo(note, note.sustain);
         }
 
         // Duplicate onsets (two voices striking one string together) keep the first note.
@@ -2277,7 +2127,7 @@ void resolveSlideOutExits(
     // the longest notated span, because they are one gesture and the pick reaches the end of its
     // travel once. A conflicting direction at the same onset is still dropped with a report — two
     // opposed scrapes at one instant is a notation error, not a chord. The converted notes then
-    // participate in the ordinary minimum-distance trims like any note.
+    // are drawn under the ordinary minimum-distance rules like any note.
     int imported_pick_slides = 0;
     int conflicting_pick_slides = 0;
     for (std::size_t index = 0; index < built.size();)
@@ -2290,8 +2140,7 @@ void resolveSlideOutExits(
         const Fraction beat = built[index].global_beat;
         const bool upward = (built[index].slide_flags & 128) != 0;
         const auto notated_span = [](const BuiltNote& entry) {
-            const Fraction span = entry.end_global_beat - entry.global_beat;
-            return span.numerator > 0 ? span : g_minimum_slide_window;
+            return entry.note.sustain.numerator > 0 ? entry.note.sustain : g_minimum_slide_window;
         };
         // First pass over the onset: take the gesture's longest span and drop opposed directions.
         // Flags stay set here so the conversion pass can still find the survivors.
@@ -2344,7 +2193,6 @@ void resolveSlideOutExits(
                                      g_pick_slide_default_high_fret);
             note.sustain = span;
             applyDefaultPickSlidePath(note, upward, chart.tuning.capo);
-            kept.end_global_beat = kept.global_beat + span;
             ++imported_pick_slides;
         }
         index = scan;
@@ -2418,11 +2266,10 @@ void resolveSlideOutExits(
                 // Legato: the landing continues this note. Waypoint at the junction, sustain
                 // through the target's notated end, techniques folded, chain continued.
                 note.slides.push_back(SlideWaypoint{.offset = gap, .fret = next->note.fret});
-                if (entry.end_global_beat < next->end_global_beat)
+                if (ringEndOf(entry) < ringEndOf(*next))
                 {
-                    entry.end_global_beat = next->end_global_beat;
+                    note.sustain = ringEndOf(*next) - entry.global_beat;
                 }
-                note.sustain = entry.end_global_beat - entry.global_beat;
                 note.vibrato = note.vibrato || next->note.vibrato;
                 note.tremolo = note.tremolo || next->note.tremolo;
                 for (BendPoint point : next->note.bend)
@@ -2440,21 +2287,27 @@ void resolveSlideOutExits(
                 continue;
             }
 
-            // Shift: an ordinary pitched waypoint glides to the re-picked landing's fret, ending
-            // the minimum-sustain-distance margin before the landing's onset like any trimmed tail
-            // (policy rule 13); the landing keeps its own onset and head. The sustain ends at the
-            // glide end, floored at any INFORMATIVE payload the tie merge folded past it (rule 2 —
-            // a repeated bend value or a hold waypoint pins nothing) and kept strictly after the
-            // last chain waypoint (a degenerate gap glides through half of it instead).
+            // Shift: an ordinary pitched waypoint glides to the re-picked landing's fret and
+            // ARRIVES the minimum-sustain-distance margin before the landing's onset (policy rule
+            // 13); the landing keeps its own onset and head. Guitar Pro states no arrival time, so
+            // the offset is synthesized here — floored at any INFORMATIVE payload the tie merge
+            // folded past it (a repeated bend value or a hold waypoint pins nothing) and kept
+            // strictly after the last chain waypoint (a degenerate gap glides through half of it
+            // instead).
             //
-            // This trim cannot defer to normalizeImportedSustains even though that pass states the
-            // same rule: rule 1 exempts a deliberate hold from the margin trim, and a tie-merged
-            // note reaching past the next onset IS one — yet its glide must still arrive before the
-            // landing, because past that point it would be holding the landing's fret. So the two
-            // trims cover disjoint notes, and both owe the payload clip. Omitting it here refused
-            // whole songs: a note whose informative payload reached the landing left a waypoint
-            // sitting on the landing's own onset, and one whose bend values all repeat left a bend
-            // point past the shortened sustain.
+            // The arrival ends the gesture's information but not the note: the origin keeps
+            // ringing until the landing re-picks the string, so the sustain only ever GROWS to
+            // reach the arrival, and the same-string clamp is what bounds it at the landing. What
+            // the surfaces draw comes from the presentation rules, which trim this ring back to
+            // exactly this arrival — the reason the old assignment here looked like the answer.
+            //
+            // Payload past the arrival still goes, and that clip is NOT a presentation trim
+            // leaking into the importer: the arrival is where this synthesized gesture ends, and
+            // rule 2 floors a drawn tail on the last CHANGING payload point. A bend point left
+            // past the arrival would therefore re-float the drawn tail onto the landing's own
+            // onset — a pitched tail holding the landing's fret up to its head, which is exactly
+            // what the informative floor above declines to do when the information reaches the
+            // landing. What the note keeps is what the gesture can still say.
             Fraction window = gap - sustainMarginAt(grid, note.position);
             if (window.numerator <= 0)
             {
@@ -2480,11 +2333,16 @@ void resolveSlideOutExits(
                 break;
             }
             note.slides.push_back(SlideWaypoint{.offset = window, .fret = next->note.fret});
-            note.sustain = window;
+            if (note.sustain < window)
+            {
+                // A ring shorter than the glide cannot carry its own arrival waypoint; the note
+                // sounds while it travels.
+                note.sustain = window;
+            }
             clipPayloadsTo(note, window);
             if (note.slide_out.has_value() && window < note.slide_out->offset)
             {
-                // A trail-off the chain resolved earlier cannot outlive the tail it trails off
+                // A trail-off the chain resolved earlier cannot outlive the gesture it trails off
                 // from; the arrival is the gesture's end now.
                 note.slide_out.reset();
             }
@@ -2518,8 +2376,8 @@ void resolveSlideOutExits(
         }
     }
 
-    // Legato landings are no longer onsets; drop them before sustain normalization, chord
-    // derivation, and fret-hand generation see the stream.
+    // Legato landings are no longer onsets; drop them before fret-hand generation, the same-string
+    // clamp, and chord derivation see the stream.
     std::size_t write_index = 0;
     for (std::size_t index = 0; index < built.size(); ++index)
     {
@@ -2567,19 +2425,12 @@ void resolveSlideOutExits(
     }
 
     // The generator reads onsets, waypoint positions, and — for held-note detection at slide
-    // waypoints — the notated (pre-trim) sounding spans, so it runs before the sustain policy on
-    // purpose: the readability trim is a display concern, but where the fingers are planted is
-    // governed by the notated holds, so pre-trim ends are the correct "still ringing" signal for
-    // a reshape (a trimmed tail must never read as the finger lifting). Slide-in resolution needs
-    // the placements and must transform its notes into ordinary slides before normalization
-    // decides which tails a technique protects: a slide-in into a held landing keeps its hold,
-    // trimmed like any tail but never dropped as effect-free.
-    //
-    // The generator runs on the natural stream — slide-ins still plain notes at their notated
-    // positions — and the resolver then touches the placements only when a scoop's approach
-    // leaves the active window: the window dips with the scoop for exactly its duration and the
-    // natural window returns at the scoop's end; an approach the window already covers stays a
-    // planted finger gesture, like an unpitched slide.
+    // waypoints — the sounding spans, which the stored rings now simply are. It runs on the
+    // natural stream, slide-ins still plain notes at their notated positions, and the resolver
+    // then touches the placements only when a scoop's approach leaves the active window: the
+    // window dips with the scoop for exactly its duration and the natural window returns at the
+    // scoop's end; an approach the window already covers stays a planted finger gesture, like an
+    // unpitched slide.
     chart.fret_hand_positions =
         generateFretHandPositions(built, tempo_map, phrase_boundary_beats, chart.tuning.capo);
     resolveSlideIns(built, chart.fret_hand_positions, grid, notes, chart.tuning.capo);
@@ -2590,17 +2441,21 @@ void resolveSlideOutExits(
             " fret-hand positions (phrase-aware; verify)");
     }
 
-    // Runs after slide and slide-in resolution so slide-extended tails carry their payloads
-    // into the trim's payload floor.
-    normalizeImportedSustains(built, grid, notes);
+    // Every synthesis that can lengthen a ring is done, so the stored stream takes its final
+    // shape here: the same-string clamp first (a re-strike stops the ring), then the picture the
+    // surfaces will draw. The two passes below ride that picture rather than the rings behind it
+    // — a trail-off's hand exit lands where the gesture is DRAWN to end, and two strums that draw
+    // identically are one chord box.
+    clampSameStringOverlaps(built, tempo_map);
+    std::vector<ChartNote> presented = presentedNotes(built, tempo_map);
 
-    // Trail-off exits follow the hand's next move where it agrees; runs after the trim so
-    // the compressed end positions are the ones the exit placements ride.
-    resolveSlideOutExits(built, chart.fret_hand_positions, grid, chart.tuning.capo);
+    // Trail-off exits follow the hand's next move where it agrees.
+    resolveSlideOutExits(built, presented, chart.fret_hand_positions, grid, chart.tuning.capo);
 
-    // Shapes read the notated (pre-trim) note ends, so this runs on the built entries before
-    // their notes move into the chart.
-    deriveChordShapes(built, grid, chart);
+    // The exit pass resolves a trail-off's fret into the stored note, and the span articulation
+    // compares that fret, so the picture is re-derived rather than the fret being written twice.
+    presented = presentedNotes(built, tempo_map);
+    deriveChordShapes(built, presented, grid, chart);
     if (!chart.shapes.empty())
     {
         notes.push_back(
@@ -2644,7 +2499,7 @@ void resolveSlideOutExits(
     // Import is a commit point, so the chart leaves here in its normal form through the ONE
     // normalizer every load path calls: each note sheds what it cannot execute, every range is
     // brought onto the board, and the settle sweep runs last over the finished stream — released
-    // frets after every slide chain, holds after the sustain trim, spans after the posture
+    // frets after every slide chain, holds after the same-string clamp, spans after the posture
     // derivation. The rules live beside their repairs in `chart_rules`, because a list of them
     // kept here drifted from the list there twice, and a dead note carrying a bend then reached
     // validation intact and failed the WHOLE song's import. Counted by rule rather than listed,
