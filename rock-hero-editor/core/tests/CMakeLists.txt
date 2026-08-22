@@ -62,6 +62,13 @@ add_executable(
     test_project.cpp
     test_editor_settings.cpp)
 
+# Local-only soak tests (plan 23's hidden-tag pattern): `test_local_*.cpp` files are gitignored,
+# read their inputs from environment variables, and are picked up only where they exist, so a
+# developer can run a corpus sweep without anything corpus-related ever entering git or CI.
+file(GLOB rock_hero_editor_core_local_tests CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/test_local_*.cpp")
+target_sources(rock_hero_editor_core_tests PRIVATE ${rock_hero_editor_core_local_tests})
+
 # Project tests that exercise concrete importers need access to private library headers.
 target_include_directories(rock_hero_editor_core_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
