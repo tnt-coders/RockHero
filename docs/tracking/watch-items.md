@@ -150,7 +150,7 @@ and built 2026-08-21 — see the retirement note above.
 each painter draws up to it is still its own pass.)
 
 The span-implied hold itself is unified: both view states carry `display_hold_ends` resolved from
-`chartEffectiveSustains`, which is what closed the W9-A divergence on 2026-08-11.
+`chartHolds`, which is what closed the W9-A divergence on 2026-08-11.
 
 **This entry originally understated its own subject and was rewritten on 2026-08-11 after an
 independent review.** As first shipped the lane's hold was not merely *longer* than the board's, it
@@ -161,9 +161,11 @@ whole length — a picture 40-Q2-B guarantees no *stored* sustain can produce. T
 data disagrees" was the wrong test; the right one was that the derived hold had no bound the stored one
 has. Paint and hit testing had also come apart: `tabNoteLayout` built its tail rectangle from
 `note.end_seconds`, so every span-extended ribbon was drawn and unclickable. Both are fixed —
-`chartEffectiveSustains` caps the span-implied hold at the next onset on the note's own string (the
-one authority both surfaces read, and provably neutral to `predecessorHoldReaches`), and the layout
-manifest takes the same hold end the paint pass draws to.
+the hold authority caps the span-implied hold at the next onset on the note's own string (the one
+authority both surfaces read; since 2026-08-22 the note's own ACTUAL ring caps it too, which
+subsumes that bound in any normalized chart, and `predecessorHoldReaches` reads the stored ring
+rather than the hold at all), and the layout manifest takes the same hold end the paint pass draws
+to.
 
 **What remains is the original entry's subject, correctly scoped**: the *clamp* on top of the shared
 hold is still board-only. The renderer draws a sustainless span member as a head pinned at the hit
@@ -280,17 +282,17 @@ tails expecting a resize and failing (or asking for it). **Remedy**: implement t
 the standard edge-resize verb with a generous grab zone (hit-test via the shared layout
 manifest's tail rectangle), live preview, Esc cancel, single undo entry.
 
-### Min-distance span exemption vs. 40-Q2-B same-string truncation — trigger: span slice 3 builds
+### ~~Min-distance span exemption vs. 40-Q2-B same-string truncation~~ — RETIRED 2026-08-22
 
-Found by the 2026-07-18 grid-native simplification audit: `planAdjustSustain`'s §10 margin
-clamp exempts ANY-string span siblings from blocking a growing tail (span members are
-implied-held, §5), but `finalizePlan`'s 40-Q2-B normalization then truncates SAME-string
-overlaps unconditionally — clawing back for same-string chug siblings exactly what the
-exemption granted (cross-string siblings work as intended). Today this only matters for
-imported `chart.shapes`. **Trigger**: §5's slice 3 builds member-tail adjustment for real.
-**Remedy**: teach one of the two rules about spans — most likely `normalizeSustainOverlaps`
-learns the same span-sibling exemption, since §5 says member tails may legally ring past
-sibling onsets inside a shared span.
+Found by the 2026-07-18 grid-native simplification audit: `planAdjustSustain`'s margin clamp
+exempted ANY-string span siblings from blocking a growing tail, but `finalizePlan`'s 40-Q2-B
+normalization then truncated SAME-string overlaps unconditionally — clawing back for same-string
+chug siblings exactly what the exemption granted. **Both halves of the contradiction are gone**:
+the note-sustain model's stage A4 deleted the margin clamp and the span exemption with it, so the
+growth verb now grows to exact adjacency with the next onset on the note's OWN string —
+`sustainBoundOf`, the same answer `normalizeSustainOverlaps` truncates to. One rule, one authority,
+nothing to reconcile. (§5's member-tail question, if it ever builds, now asks whether a SPAN may
+outlive a member's ring, which is a hold question rather than a truncation one.)
 
 ## Highway note art
 
@@ -552,6 +554,13 @@ session opens dirty, and the file is untouched until the user saves. Nothing is 
 this item's real complaint; "reversible" is answered by the untouched file rather than by undo.
 Pinned by the normalizer's own test ("the whole chart normalizes in one call, with the settle
 sweep last"). Design: `docs/plans/in-progress/e25-muted-tail-implementation.md` §6.5 and §6.7.
+
+**Reversed at the root on 2026-08-22 (note-sustain model, stage A3):** E25 is a PRESENTATION rule
+now, so nothing trims a stored ring at all — a dead note carries the duration of its damped stroke,
+which is exactly the datum this item was worried about losing, and only the drawn tail goes. The
+knock-on the entry describes therefore cannot arise: measured over the 113-song local corpus, the
+whole move (E25 out of the stored form plus the strict-adjacency hold test) changed ZERO resolved
+legato motions.
 
 ### ~~Defaulted `operator==` over floating-point scene fields~~ — RETIRED 2026-08-10
 

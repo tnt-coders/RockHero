@@ -39,8 +39,9 @@ All other fields, D13's constants, spans, and nodes are unchanged by this model.
 
 ## Read model
 
-`resolveLegato(note, predecessor, predecessor_effective_sustain, tempo_map) → LegatoMotion` is the
-one authority, and the ONLY place a hammer-on and a pull-off are told apart. Its clauses are the
+`resolveLegato(note, predecessor, tempo_map) → LegatoMotion` is the one authority, and the ONLY
+place a hammer-on and a pull-off are told apart (the hold parameter went with the note-sustain
+model on 2026-08-22: the predecessor's stored ring IS the hold datum). Its clauses are the
 derivation table Option C settled (below), asked on every read instead of written once:
 
 | Predecessor situation | Resolution |
@@ -74,8 +75,9 @@ is editor-only by the charting-mark law (it states editor-verb behavior, never p
 
 `chartResolutions(notes, shapes, tempo_map)` answers it for a whole stream in one forward walk
 carrying the most recent note per string, and returns the per-note facts that travel together
-because they are computed together: `saved_notes` (`savedChartNote`), `effective_sustains`
-(`chartEffectiveSustains`), `legato`, and `predecessors` — the same-string predecessor index the walk
+because they are computed together: `saved_notes` (`savedChartNote`), `presented_notes` and
+`holds` (the note-sustain model's derived forms, which replaced this walk's `effective_sustains`
+on 2026-08-22), `legato`, and `predecessors` — the same-string predecessor index the walk
 established, handed out rather than kept private so the `L` toggle asks its own hypothetical against
 the same relation instead of re-deriving it with a backward scan per selected note. The tab lane, the
 highway, the gameplay build, and the package reader all consume that one pass — computed per chart
@@ -111,10 +113,10 @@ pixel-identical by design.
   attack through clear**, because `Shift+T` is the tap's sole author and plain `L` never destroys
   one. Measuring the press by what the PLAN does, rather than by what the selection already holds,
   is what keeps a rider note from stranding the toggle in apply mode forever.
-- **The assist:** for a note being set whose predecessor's effective hold does not reach, the
-  predecessor's tail grows to `(distance − margin)` in the same plan, but only when that makes the
-  claim resolve and only within `sustainGrowthLimit` — one authority with the duration verb's own
-  clamp, so the assist can never author what a manual drag could not. It SKIPS gesture-carrying
+- **The assist:** for a note being set whose predecessor's ring does not reach, that ring grows to
+  the successor's own ONSET in the same plan, but only when that makes the claim resolve — one
+  bound with the duration verb's clamp (40-Q2-B, the next onset on the string, which is this very
+  note), so the assist can never author what a manual drag could not. It SKIPS gesture-carrying
   predecessors (a scrape, or any note with a slide-out): that tail is the gesture's authored window,
   and manual drag remains the authoring path there.
 - **Counted-skip DATA, reporting deferred** (W5's second half, as amended 2026-08-11 by the
@@ -248,7 +250,7 @@ sustain 0, drawn held to the span's end). The ruled direction is that span-impli
 materialized into stored sustains — that would store a derivable datum which goes stale when the
 span changes, the exact sin this design removes. The span stays the one authored datum; member holds
 stay derived. **The W9-A divergence is closed display-side:** the tab lane carries
-`display_hold_ends` resolved from the same `chartEffectiveSustains` authority the highway resolves
+`display_hold_ends` resolved from the same hold authority (`chartHolds`) the highway resolves
 `HighwayViewState::display_hold_ends` from, so both surfaces draw one chart the same way.
 
 **And the derived hold is bounded like a stored one (2026-08-11, review fix F2).** Unifying the two
@@ -256,12 +258,13 @@ surfaces first shipped it uncapped, which made the lane draw a ribbon to the spa
 in between: a sustainless chord under a four-beat span with the same string restruck at beats 2 and 3
 drew string 1's tail through both later heads and out the far side — teeth and vibrato sine included —
 a picture 40-Q2-B guarantees no *stored* sustain can produce (`normalizeSustainOverlaps` truncates at
-the next same-string onset). `chartEffectiveSustains` now imposes that same bound on the derived hold,
-in the one authority both surfaces read rather than lane-side. The cap provably cannot change
-`predecessorHoldReaches`: the onset it measures to IS the successor whose claim reads that hold, and a
-hold reaching exactly an onset reaches it. Hit testing was the other half — `tabNoteLayout` took the
-note's `end_seconds` while the paint pass drew to `display_hold_ends`, so every span-extended ribbon
-was drawn and unclickable; the manifest now takes the same hold end the paint pass does.
+the next same-string onset). The hold authority imposes that same bound on the derived hold, in the
+one place both surfaces read rather than lane-side — and since 2026-08-22 it imposes it THROUGH the
+note's own ACTUAL ring, which normalization already holds inside that bound, so the rule reaches the
+hold once instead of twice. Neither cap can change `predecessorHoldReaches`, which reads the stored
+ring directly. Hit testing was the other half — `tabNoteLayout` took the note's `end_seconds` while
+the paint pass drew to `display_hold_ends`, so every span-extended ribbon was drawn and unclickable;
+the manifest now takes the same hold end the paint pass does.
 
 ## Tail lock
 

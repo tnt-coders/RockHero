@@ -36,17 +36,17 @@ broken file.
 Judged against the RELEASED fret — where the predecessor's finger ends, so a glide hands over its
 last waypoint — never against predecessor identity. Four things disqualify a predecessor outright:
 none exists, it is a scrape (its travel is the pick's position, so no finger waits at its end —
-user ruling 2026-08-20), it is a fret-hand harmonic (a touch holds nothing to hand over), or it is
-no longer holdable at this onset. Past the kept-sustain bound a disconnected tail is a proven
-release, which is why shrinking a tail drops the connection its neighbour claimed.
+user ruling 2026-08-20), it is a fret-hand harmonic (a touch holds nothing to hand over), or its
+ring has already stopped at this onset (\ref predecessorHoldReaches, strict adjacency). A string
+that stopped sounding is a released string, which is why shrinking a tail drops the connection its
+neighbour claimed and why a claim after a REST resolves to nothing.
 
 A dead predecessor is an ordinary one: its finger is on the stop, and the muted cluck after it is a
-hammer or pull like any other. What bounds it is the hold test alone — a dead note carries no tail
-(E25), so it can justify a claim only inside the kept-sustain bound, where nothing is proven either
-way; a strike a quarter note or more after a dead note is a fresh one, which is the `LeftTap`'s
-statement, not a connection. Ruled, reversed and settled this way on 2026-08-20, because the
-alternative — disqualifying the dead note outright — turned every imported muted cluck into a
-picked note.
+hammer or pull like any other. It is bounded by the same one test, reading the same field — a dead
+note stores the duration its damped stroke lasts (only the DRAWN tail goes, E25), so a chug chained
+to its restrike connects and a cluck the hand left long before does not. Ruled, reversed and
+settled this way on 2026-08-20, because the alternative — disqualifying the dead note outright —
+turned every imported muted cluck into a picked note.
 
 Then the released fret picks the direction: above the note is a pull-off, below it a hammer-on. A
 pull-off carries no harmonic (it releases onto a plain stopped pitch); a hammer-on needs somewhere
@@ -67,38 +67,56 @@ Deliberately unbounded in time: a hammer-on from a note eight bars back is music
 predecessor still holding is a predecessor, and the author asserting the connection is the authority
 on whether the notes connect.
 
+The predecessor's own stored ring is the hold datum, read from the note handed in: the chart states
+the actual duration the string sounds, so there is no derived length to pass alongside and no
+convention to agree with. A caller asking a HYPOTHETICAL hold (the `H` assist, which offers to
+author the ring a claim needs) asks it by handing over a predecessor carrying that ring.
+
 \param note Note whose claim is in question.
 \param predecessor Nearest earlier note on the same string, or `nullptr` when there is none.
-\param predecessor_effective_sustain That predecessor's held length, span-extended
-       (\ref chartEffectiveSustains) — a span implies its strum is held.
 \param tempo_map Song tempo map supplying the beat axis for the hold test.
 
 \return The motion the claim resolves to, or `Unjustified` when nothing justifies one.
 */
 [[nodiscard]] LegatoMotion resolveLegato(
-    const ChartNote& note, const ChartNote* predecessor, Fraction predecessor_effective_sustain,
-    const TempoMap& tempo_map);
+    const ChartNote& note, const ChartNote* predecessor, const TempoMap& tempo_map);
 
 /*!
 \brief Everything a chart revision derives per note, resolved once for every consumer.
 
-The per-note facts each surface needs and none may restate: the saved form the display and the rules
-both judge, the effective hold the span convention implies, the resolved connection motion, and the
-same-string predecessor every one of those was answered against.
-They travel together because they are computed together — the resolutions need the saved forms and
-the holds to be answered at all — and because computing them separately is exactly how the tab lane,
-the highway, the gameplay build, and the reader came to disagree about the same chart.
+The per-note facts each surface needs and none may restate: the saved form the rules judge, the
+presented form every surface DRAWS and the scorer will read, how long each note is held, the
+resolved connection motion, and the same-string predecessor every one of those was answered
+against.
+They travel together because they are computed together — the holds need both the saved and the
+presented forms to be answered at all — and because computing them separately is exactly how the
+tab lane, the highway, the gameplay build, and the reader came to disagree about the same chart.
 
 Every vector is index-parallel to the note stream it was built from. Consumed once per chart
 revision, never per frame.
 */
 struct ChartResolutions
 {
-    /*! \brief Each note in its saved form (\ref savedChartNote): in-memory latents stripped. */
+    /*!
+    \brief Each note in its saved form (\ref savedChartNote): in-memory latents stripped.
+
+    What the RULES judge, and what the presentation is derived from. Its `sustain` is the actual
+    duration the string rings, which is what the connection resolver reads and what no surface
+    draws directly.
+    */
     std::vector<ChartNote> saved_notes;
 
-    /*! \brief Each note's effective held length in beats (\ref chartEffectiveSustains). */
-    std::vector<Fraction> effective_sustains;
+    /*!
+    \brief Each note as it is DRAWN and scored (\ref presentedChartNotes).
+
+    The tail rules applied to the saved stream: what both painters, hit testing, and the future
+    scorer read (\ref NoteViewState is this form resolved to seconds). Same order and size as
+    \ref saved_notes; only tails and the payload riding them differ.
+    */
+    std::vector<ChartNote> presented_notes;
+
+    /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
+    std::vector<Fraction> holds;
 
     /*!
     \brief What each note's connection claim resolves to.
@@ -121,15 +139,15 @@ struct ChartResolutions
 };
 
 /*!
-\brief Resolves a whole note stream in one pass: saved forms, effective holds, connection motions.
+\brief Resolves a whole note stream once: saved and presented forms, holds, connection motions.
 
 One forward walk carrying the most recent note per string, which IS each note's same-string
-predecessor when it is reached, so the resolutions cost one pass over the stream rather than a
-backward search per note.
+predecessor when it is reached, so the connection motions cost one pass over the stream rather than
+a backward search per note.
 
 \param notes Note stream sorted by (position, string).
 \param shapes Hand-posture spans the notes play under; a span implies its strum is held, which the
-       hold test judges against.
+       holds resolve against.
 \param tempo_map Song tempo map supplying the beat axis.
 
 \return The per-note resolutions, index-parallel to `notes`.
@@ -150,7 +168,7 @@ cannot survive a settle or reach a file hold everywhere at once instead of per c
 A `LeftTap` is never touched: its claim is local, so nothing can withdraw it.
 
 One pass is enough, and that is a property of the resolver rather than an assumption: resolution
-reads a predecessor's released fret, node, attack class, position and hold, and flattening
+reads a predecessor's released fret, node, attack class, position and ring, and flattening
 `Legato` to `Pick` changes none of them (a scrape is never a claim, so no flatten touches one), so
 no flatten can create or destroy another note's justification.
 

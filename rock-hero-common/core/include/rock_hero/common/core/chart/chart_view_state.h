@@ -73,13 +73,33 @@ struct SlideViewState
     }
 };
 
-/*! \brief One sounding note resolved to timeline seconds for rendering. */
+/*!
+\brief One sounding note resolved to timeline seconds: the PRESENTED form of a chart note.
+
+Not the stored one. `ChartNote::sustain` is the actual duration the string rings, and what a
+surface draws is derived from it once per chart revision by \ref presentedChartNotes — the tail
+trimmed to clear the next head, floored on payload that still says something, dropped where it was
+never a deliberate sustain, absent on a dead note. Every field here comes from that derivation, so
+`end_seconds`, the bend curve, the slide waypoints and the flattened slide-out all describe the
+presented note and nothing has to trim a second time.
+
+**Scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4). When the scorer
+exists it reads this, not the chart: what the player is asked to hold is exactly what the board
+showed them. That contract is why the derivation lives in common/core rather than in a painter —
+the game must be able to reach it without a surface.
+*/
 struct NoteViewState
 {
     /*! \brief Absolute onset position. */
     double start_seconds{0.0};
 
-    /*! \brief Absolute end of the sustain; equals start_seconds when there is no sustain. */
+    /*!
+    \brief Absolute end of the presented tail; equals start_seconds when no tail is presented.
+
+    The DRAWN and scored length, never the stored ring: a sub-quarter chug rings for its eighth and
+    presents nothing, and a note under a hand-shape span may still be held past this
+    (\ref ChartViewState::display_hold_ends).
+    */
     double end_seconds{0.0};
 
     /*!
@@ -377,16 +397,18 @@ struct ChartViewState
     /*!
     \brief Per-note display hold end in seconds, one entry per \ref notes entry.
 
-    The note's own sustain end, except that a sustainless member of a two-or-more onset group under
-    a covering hand-shape span is held for the span — the strum's tails run, and its heads stay
-    pinned at the hit line, while the posture is held instead of vanishing the instant it is
-    struck. A fully dead group is choked rather than held and keeps its own end.
+    How long the player keeps the string down, which is not what the tail draws: the note's
+    presented end, except that a member of a two-or-more onset group under a covering hand-shape
+    span whose presented tail is empty is held for its ACTUAL ring, capped at the span's end and at
+    its own string's next onset — the strum's heads stay pinned at the hit line while the posture
+    is held, instead of vanishing the instant it is struck. A fully dead group is choked rather
+    than held and keeps its own end.
 
-    Resolved here from \ref chartEffectiveSustains, the ONE authority for that rule, rather than
-    recomputed in seconds: it used to be computed twice, once in beats for the chart rules and once
-    in seconds for the board, and both copies carried the same defect — a long span shadowed by a
-    short one that started inside it silently lost its hold — and were fixed separately. That is
-    the whole argument for resolving the beats answer instead of restating it.
+    Resolved here from \ref chartHolds, the ONE authority for that rule, rather than recomputed in
+    seconds: it used to be computed twice, once in beats for the chart rules and once in seconds
+    for the board, and both copies carried the same defect — a long span shadowed by a short one
+    that started inside it silently lost its hold — and were fixed separately. That is the whole
+    argument for resolving the beats answer instead of restating it.
 
     Feeds each surface's visible-range prefix maximum, so a span-held strum stays in range for as
     long as it is drawn.

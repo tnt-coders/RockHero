@@ -137,11 +137,19 @@ rest, each verified against the code, each a fix rather than a question unless m
   they open an old project.
   **Four rule tightenings briefly widened it again on 2026-08-20, and W4 closed that class the
   same day:** the fret cap (30 → 24), the open-string slide rules, the `capo + 1` slide floors,
-  and E25's muted tail are all REPAIRS of the one normalizer now, so a project saved under the
+  and (then) E25's muted tail are all REPAIRS of the one normalizer, so a project saved under the
   older rules opens, is repaired, reports what changed and where in a one-shot notice, and opens
-  dirty — it no longer refuses. Only the two token-level breaks above (old harmonic keys, old
-  attack tokens) still refuse, because a reader cannot repair a key it does not recognize without
-  guessing; those keep their re-import remedy and their tripwire.
+  dirty — it no longer refuses. The same-string ring bound (40-Q2-B, `OverlappingTail`) joined that
+  list on 2026-08-22.
+  **The note-sustain model added a THIRD token-level break on 2026-08-22:** `notes[].sustain` is
+  required and must be strictly positive, because a note's ring is now the actual duration the
+  string sounds and no repair can invent one. Every package written before that date is missing the
+  key on its tail-less notes — the old writer elided it rather than writing a zero — so a real one
+  refuses on the MISSING-key path, which is why that message (not only the positive-sustain rule's)
+  names the fix. Same remedy as the two below — re-import — and the same tripwire.
+  Only these token-level breaks refuse, because a reader cannot repair a key it does not recognize
+  (or one that was never written) without guessing; they keep their re-import remedy and their
+  tripwire.
   **The converter's own conversion notes need re-verifying before you trust them** (2026-08-10): the
   two recorded here — every natural harmonic gains a node equal to its touched fret (1960 of them in
   the packages measured), and pinch harmonics import as plain picks (5 notes corpus-wide, so a

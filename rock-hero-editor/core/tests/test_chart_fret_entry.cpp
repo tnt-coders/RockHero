@@ -675,8 +675,8 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
     FakeEditorView view;
     controller.attachView(view);
 
-    // String 1: fret 9 at measure 2 held to the margin before a legato note at fret 5 in measure 3
-    // (four beats on, minus the quarter-beat margin), so the claim resolves as a pull-off.
+    // String 1: fret 9 at measure 2 ringing exactly to a legato note at fret 5 in measure 3, four
+    // beats on, so the claim resolves as a pull-off.
     common::core::Chart chart_with_claim;
     chart_with_claim.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart_with_claim.notes = {
@@ -684,7 +684,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 9,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -692,6 +692,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = {},
             .slides = {},

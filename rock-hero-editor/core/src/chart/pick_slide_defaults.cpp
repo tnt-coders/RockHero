@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <rock_hero/common/core/chart/grid_arithmetic.h>
 
 namespace rock_hero::editor::core
 {
@@ -37,10 +36,6 @@ bool convertSlideToScrapePath(common::core::ChartNote& note)
 
 void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward, const int capo)
 {
-    if (note.sustain.numerator <= 0)
-    {
-        note.sustain = common::core::g_minimum_slide_window;
-    }
     // The low endpoint is the capo-floored one the direction chooser already reasons with, so a
     // downward scrape under a high capo terminates at the first playable fret rather than at a
     // fret the chart rules refuse.

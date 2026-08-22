@@ -53,15 +53,15 @@ TEST_CASE("Load conversion notice summarizes repairs and points at the log", "[c
     SECTION("a single arrangement counts each rule without naming the part or any place")
     {
         const std::vector<common::core::SongPackageConversion> conversions{
-            conversionAt(0, common::core::ChartRepair::MutedTail, "3:1 string 2"),
+            conversionAt(0, common::core::ChartRepair::OverlappingTail, "3:1 string 2"),
             conversionAt(0, common::core::ChartRepair::UnjustifiedLegato, "3:2 string 2"),
-            conversionAt(0, common::core::ChartRepair::MutedTail, "5:1 string 4"),
+            conversionAt(0, common::core::ChartRepair::OverlappingTail, "5:1 string 4"),
         };
         const std::string text = loadConversionNoticeText(
             songWithParts({common::core::Part::Lead}), conversions, log_file);
         CHECK(text.find("3 notes were updated") != std::string::npos);
         CHECK(text.find("The file is unchanged until you save") != std::string::npos);
-        CHECK(text.find("2 x a dead note rings nothing") != std::string::npos);
+        CHECK(text.find("2 x a re-strike stops the ring") != std::string::npos);
         CHECK(text.find("1 x a legato mark had nothing to connect to") != std::string::npos);
         // Positions belong to the log, and the notice says where that is.
         CHECK(text.find("3:1 string 2") == std::string::npos);
@@ -101,7 +101,7 @@ TEST_CASE("Load conversion notice summarizes repairs and points at the log", "[c
     SECTION("without a log file the pointer still names the log")
     {
         const std::vector<common::core::SongPackageConversion> conversions{
-            conversionAt(0, common::core::ChartRepair::MutedTail, "3:1 string 2"),
+            conversionAt(0, common::core::ChartRepair::OverlappingTail, "3:1 string 2"),
         };
         const std::string text =
             loadConversionNoticeText(songWithParts({common::core::Part::Lead}), conversions, {});

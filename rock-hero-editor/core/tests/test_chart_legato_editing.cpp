@@ -32,6 +32,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 2,
             .fret = 0,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -39,6 +40,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 3,
             .fret = 6,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -46,6 +48,7 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 7,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -171,6 +174,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 2,
             .fret = 0,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -178,6 +182,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 3,
             .fret = 0,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -185,6 +190,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 4,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -192,6 +198,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 5,
             .fret = 0,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -199,6 +206,7 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -297,8 +305,8 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
 
 TEST_CASE("EditorController legato toggle window and the connection assist", "[core][chart]")
 {
-    // String 1 carries a bare predecessor four beats before its note — past the kept-sustain
-    // bound, so no claim resolves until the assist authors the connection; string 2 an
+    // String 1 carries a predecessor four beats before its note whose ring stops long short of it,
+    // so no claim resolves until the assist authors the connection; string 2 an
     // open string for changing the selection. String 3 repeats the string-1 shape with a
     // TRAIL-OFF as the predecessor — the same missing hold, but a tail the assist is forbidden to
     // spend — and sits later in the stream so the indices above stay put.
@@ -309,6 +317,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -316,6 +325,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 2,
             .fret = 0,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -323,6 +333,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 7,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -339,6 +350,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
             .position = {.measure = 5, .beat = 1, .offset = {}},
             .string = 3,
             .fret = 7,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -369,16 +381,16 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         click(controller, 80.0f, 220.0f);
 
         // The assist: the hold was the only thing missing, so the press grows the predecessor's
-        // tail to the margin point and claims the connection in one entry.
+        // ring to the successor's onset and claims the connection in one entry.
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
-        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+        CHECK(note(0).sustain == common::core::Fraction{4});
 
         // The window (ruling 4): the second press reverses that entry exactly — the grown tail
         // included, which the clear law could never restore — and leaves no history entry.
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
-        CHECK(note(0).sustain == common::core::Fraction{});
+        CHECK(note(0).sustain == g_fixture_sustain);
         const EditorViewState* state = stateOrNull(view.last_state);
         REQUIRE(state != nullptr);
         CHECK(state->undo_label != std::optional<std::string>{"Legato"});
@@ -386,7 +398,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         // And the pair of presses keeps cycling.
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
-        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+        CHECK(note(0).sustain == common::core::Fraction{4});
     }
 
     SECTION("a selection change closes the window: the clear stands and the tail stays")
@@ -401,7 +413,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
-        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+        CHECK(note(0).sustain == common::core::Fraction{4});
 
         // And Ctrl+Z is exact where the window would have been genuine: the clear is its own entry,
         // so the first undo restores the claim with the grown tail still standing, and the second
@@ -409,10 +421,10 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         // price of the context switch, not a loss.
         controller.onUndoRequested();
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
-        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+        CHECK(note(0).sustain == common::core::Fraction{4});
         controller.onUndoRequested();
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
-        CHECK(note(0).sustain == common::core::Fraction{});
+        CHECK(note(0).sustain == g_fixture_sustain);
     }
 
     // The assist writes a tail, and a tail is sometimes a gesture's own authored window. Where it
@@ -447,7 +459,7 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
 
         controller.onUndoRequested();
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
-        CHECK(note(0).sustain == common::core::Fraction{});
+        CHECK(note(0).sustain == g_fixture_sustain);
     }
 
     SECTION("a save between the presses reverses by pushing the exact inverse")
@@ -470,14 +482,14 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
 
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
         CHECK(note(2).attack == common::core::NoteAttack::Pick);
-        CHECK(note(0).sustain == common::core::Fraction{});
+        CHECK(note(0).sustain == g_fixture_sustain);
         CHECK(state->undo_history.labels.size() == entries_after_save + 1);
         CHECK(state->undo_history.clean_position != std::optional{state->undo_history.position});
 
         // And it is exactly undoable: one Ctrl+Z puts the connection and the tail back.
         controller.onUndoRequested();
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
-        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+        CHECK(note(0).sustain == common::core::Fraction{4});
     }
 }
 
@@ -496,7 +508,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 9,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -504,6 +516,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = {},
             .slides = {},
@@ -540,7 +553,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
         // One shrink disconnects the tail. Mid-burst the claim is untouched — it simply plays as
         // the pick it sounds like.
         controller.onChartSustainAdjustRequested(-1, false);
-        CHECK(note(0).sustain == common::core::Fraction{11, 4});
+        CHECK(note(0).sustain == common::core::Fraction{3});
         CHECK(note(1).attack == common::core::NoteAttack::Legato);
         CHECK(state->undo_history.labels.size() == entries_before + 1);
 
@@ -554,7 +567,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
 
         // One undo restores the tail and the claim together.
         controller.onUndoRequested();
-        CHECK(note(0).sustain == common::core::Fraction{15, 4});
+        CHECK(note(0).sustain == common::core::Fraction{4});
         CHECK(note(1).attack == common::core::NoteAttack::Legato);
     }
 
@@ -564,12 +577,12 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
         // between them.
         controller.onChartSustainAdjustRequested(-1, false);
         controller.onChartSustainAdjustRequested(-1, false);
-        CHECK(note(0).sustain == common::core::Fraction{7, 4});
+        CHECK(note(0).sustain == common::core::Fraction{2});
         const std::size_t entries_after_edits = state->undo_history.labels.size();
 
         // Undo steps the cursor off the top, and the state it lands on still holds the claim.
         controller.onUndoRequested();
-        CHECK(note(0).sustain == common::core::Fraction{11, 4});
+        CHECK(note(0).sustain == common::core::Fraction{3});
         CHECK(note(1).attack == common::core::NoteAttack::Legato);
 
         // Esc there settles nothing: the bytes stay, the redo branch survives, and the claim simply
@@ -607,7 +620,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
 // statement was never relational to begin with.
 TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart]")
 {
-    // String 1: fret 9 held to the margin before a legato note at fret 5, so the claim resolves as
+    // String 1: fret 9 ringing right up to a legato note at fret 5, so the claim resolves as
     // a pull-off. String 2: a left-hand tap with nothing before it on its own string at all.
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -616,7 +629,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 9,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -624,6 +637,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = {},
             .slides = {},
@@ -632,6 +646,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 2,
             .fret = 7,
+            .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::LeftTap,
             .bend = {},
             .slides = {},
@@ -717,7 +732,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
 // resurrect the claim the sweep just flattened or reconstruct the wrong pre-burst stream.
 TEST_CASE("EditorController closes its coalescing windows on a committing settle", "[core][chart]")
 {
-    // String 1 climbs 3 -> 7 -> 5, each a measure apart. The first two both hold to the margin, so
+    // String 1 climbs 3 -> 7 -> 5, each a measure apart. The first two ring to their successors, so
     // the third note's claim resolves as a pull-off and a claim on the middle note would resolve as
     // a hammer-on.
     common::core::Chart chart;
@@ -727,7 +742,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
             .position = {.measure = 1, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 3,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -735,7 +750,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 7,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -743,6 +758,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = {},
             .slides = {},
@@ -841,11 +857,11 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
 namespace
 {
 
-// String 1 climbs 3 -> 7 -> 2, a measure apart, the first two held to the margin: the third note's
-// claim resolves as a pull-off, and shrinking the middle note's tail breaks it. The claim's fret is
-// 2 rather than 5 so a single typed digit can also break the claim by making the frets equal while
-// still leaving room under the fret cap for a second digit — which is what the multi-digit window
-// needs to be armed at all.
+// String 1 climbs 3 -> 7 -> 2, a measure apart, the first two ringing to their successors: the
+// third claim resolves as a pull-off, and shrinking the middle note's tail breaks it. The claim's
+// fret is 2 rather than 5 so a single typed digit can also break the claim by making the frets
+// equal while still leaving room under the fret cap for a second digit — which is what the
+// multi-digit window needs to be armed at all.
 [[nodiscard]] common::core::Chart makeBreakableClaimChart()
 {
     common::core::Chart chart;
@@ -855,7 +871,7 @@ namespace
             .position = {.measure = 1, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 3,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -863,7 +879,7 @@ namespace
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 7,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -871,6 +887,7 @@ namespace
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 2,
+            .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = {},
             .slides = {},

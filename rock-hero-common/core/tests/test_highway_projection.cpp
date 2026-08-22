@@ -72,6 +72,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
+            .sustain = Fraction{1, 8},
             .bend = {},
             .slides = {},
         },
@@ -88,6 +89,7 @@ namespace
             .position = GridPosition{.measure = 4, .beat = 1},
             .string = 3,
             .fret = 3,
+            .sustain = Fraction{1, 8},
             .harmonic_node = 3.2,
             .bend = {},
             .slides = {},
@@ -173,6 +175,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 6,
+            .sustain = Fraction{1, 8},
             .bend = {},
             .slides = {},
         },
@@ -180,6 +183,7 @@ namespace
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 3,
             .fret = 6,
+            .sustain = Fraction{1, 8},
             .bend = {},
             .slides = {},
         },
@@ -215,6 +219,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 1},
             .string = 4,
             .fret = 12,
+            .sustain = Fraction{1, 8},
             .emphasis = NoteEmphasis::Accent,
             .bend = {},
             .slides = {},
@@ -238,6 +243,7 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 3},
             .string = 6,
             .fret = 5,
+            .sustain = Fraction{1, 8},
             .palm_mute = true,
             .dead = true,
             .bend = {},
@@ -341,7 +347,9 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.chart.notes[0].start_seconds == Catch::Approx(4.0 * beat));
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(5.0 * beat));
     CHECK(state.chart.notes[1].start_seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(state.chart.notes[1].start_seconds));
+    // Rule 3's verdict is the GROUP's: its chord partner's ring reaches the kept-sustain bound, so
+    // this member draws its own eighth-of-a-beat tail rather than none.
+    CHECK(state.chart.notes[1].end_seconds == Catch::Approx(4.125 * beat));
 
     const NoteViewState& sliding = state.chart.notes[2];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
@@ -526,6 +534,7 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
                 .position = GridPosition{.measure = measure, .beat = 1},
                 .string = 1,
                 .fret = 5,
+                .sustain = Fraction{1, 8},
                 .bend = {},
                 .slides = {},
             });
@@ -667,11 +676,11 @@ TEST_CASE("Highway node series derive from the note stream", "[core][highway]")
     CHECK(series[1].end_seconds == Catch::Approx(5.0));
 }
 
-// The projection RESOLVES the span-hold rule into seconds rather than restating it: the rule's own
-// case matrix is pinned in beats beside chartEffectiveSustains, and what matters here is that the
-// resolution lands on the right second and that the result feeds the visible range. Both used to be
-// computed twice, and both copies carried the same defect.
-TEST_CASE("Highway display hold ends resolve the effective sustains", "[core][highway]")
+// The projection RESOLVES the hold rule into seconds rather than restating it: the rule's own case
+// matrix is pinned in beats beside chartHolds, and what matters here is that the resolution lands
+// on the right second and that the result feeds the visible range. Both used to be computed twice,
+// and both copies carried the same defect.
+TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]")
 {
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
@@ -681,17 +690,25 @@ TEST_CASE("Highway display hold ends resolve the effective sustains", "[core][hi
     chart.shapes = {
         ChartShape{.position = GridPosition{.measure = 1, .beat = 1}, .sustain = Fraction{8}},
     };
-    const auto strum_note = [](int string) {
+    const auto strum_note = [](int string, GridPosition position) {
         return ChartNote{
-            .position = GridPosition{.measure = 2, .beat = 1},
+            .position = position,
             .string = string,
             .fret = 5,
+            // Three quarters of a beat: under the kept-sustain bound, so the pair presents no tail
+            // and the span rule is what answers how long the hand stays down.
+            .sustain = Fraction{3, 4},
             .bend = {},
             .slides = {},
         };
     };
-    // A sustainless pair at global beat 4 (2.0 seconds), inside the span.
-    chart.notes = {strum_note(1), strum_note(2)};
+    // One chugged pair at global beat 4 (2.0 seconds) with the whole span still ahead of it, and
+    // another at global beat 7.5 (3.75 seconds), where only half a beat of span is left.
+    const GridPosition early{.measure = 2, .beat = 1};
+    const GridPosition late{.measure = 2, .beat = 4, .offset = Fraction{1, 2}};
+    chart.notes = {
+        strum_note(1, early), strum_note(2, early), strum_note(1, late), strum_note(2, late)
+    };
 
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
@@ -699,12 +716,16 @@ TEST_CASE("Highway display hold ends resolve the effective sustains", "[core][hi
         makeHighwayViewState(arrangement, map, {}, HighwayDisplayOptions{});
 
     REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
-    REQUIRE(state.chart.notes.size() == 2);
-    // Struck at 2.0 seconds with no sustain of their own, so both heads stay pinned until the span
-    // ends at 4.0 seconds.
+    REQUIRE(state.chart.notes.size() == 4);
+    // Struck at 2.0 seconds and presenting no tail, so the heads stay pinned for what the strings
+    // actually ring: three quarters of a beat, which the span outlasts.
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
-    CHECK(state.chart.display_hold_ends[0] == Catch::Approx(4.0));
-    CHECK(state.chart.display_hold_ends[1] == Catch::Approx(4.0));
+    CHECK(state.chart.display_hold_ends[0] == Catch::Approx(2.375));
+    CHECK(state.chart.display_hold_ends[1] == Catch::Approx(2.375));
+    // The late pair rings past the span's end, and the shape is what the hold is about, so the
+    // span's end at 4.0 seconds is where the heads let go.
+    CHECK(state.chart.display_hold_ends[2] == Catch::Approx(4.0));
+    CHECK(state.chart.display_hold_ends[3] == Catch::Approx(4.0));
 
     // W9-A: the 2D lane resolves the same rule from the same authority, so one chart's tails end at
     // the same second on both surfaces. The lane drew bare heads with zero-width tails here until
@@ -720,13 +741,15 @@ TEST_CASE("Highway display hold ends resolve the effective sustains", "[core][hi
             Catch::Matchers::WithinULP(state.chart.display_hold_ends[index], 0));
     }
 
-    // Which is what keeps a span-held strum inside the visible range for as long as it is drawn.
+    // Which is what keeps a span-held strum inside the visible range for as long as it is drawn: a
+    // window opening AFTER the late pair's onset still has to include it, because the span holds
+    // its heads to 4.0.
     const std::vector<double> prefix_max = makeSustainPrefixMax(state.chart.display_hold_ends);
-    REQUIRE(prefix_max.size() == 2);
-    CHECK(prefix_max[1] == Catch::Approx(4.0));
-    const auto visible = visibleEventRange(state.chart.notes, prefix_max, 3.5, 3.9);
-    CHECK(visible.first == 0);
-    CHECK(visible.second == 2);
+    REQUIRE(prefix_max.size() == 4);
+    CHECK(prefix_max[3] == Catch::Approx(4.0));
+    const auto visible = visibleEventRange(state.chart.notes, prefix_max, 3.9, 4.0);
+    CHECK(visible.first == 2);
+    CHECK(visible.second == 4);
 }
 
 // Tapping-hand onsets (right-hand-tap-lighting plan): one derived entry per onset group that

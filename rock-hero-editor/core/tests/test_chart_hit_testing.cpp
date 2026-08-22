@@ -3,6 +3,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
+#include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -176,6 +177,7 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 3,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -183,6 +185,7 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 2,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },
@@ -190,6 +193,7 @@ TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]"
             .position = {.measure = 3, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 7,
+            .sustain = g_fixture_sustain,
             .bend = {},
             .slides = {},
         },

@@ -5,9 +5,12 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 #include <string_view>
@@ -164,12 +167,20 @@ cannot drift between chart and song documents.
 
 The arrival rule shared by the highway and tab projections: a span is an arpeggio when fewer
 than two notes strike at its start, when a posture string is still ringing there without being
-re-struck (an earlier note's sustain crosses the span start on a template string with no onset
-at it), or when a picking-hand onset — a tap or a pick slide — sounds anywhere within the span. A
-strum under held content is picking around it, and a held chord under two-hand tapping is sustained
-through the taps rather than fully strummed, so the shape renders as brackets around individual
-notes instead of one strummed box. A posture string that is merely silent at the start (a partial
-strum of the shape) does not make an arpeggio.
+re-struck (an earlier note's PRESENTED tail crosses the span start on a template string with no
+onset at it), or when a picking-hand onset — a tap or a pick slide — sounds anywhere within the
+span. A strum under held content is picking around it, and a held chord under two-hand tapping is
+sustained through the taps rather than fully strummed, so the shape renders as brackets around
+individual notes instead of one strummed box. A posture string that is merely silent at the start
+(a partial strum of the shape) does not make an arpeggio.
+
+Asked of the PRESENTED stream (\ref presentedChartNotes), like every other fact a surface draws:
+the question is what still SOUNDS across the span start, and a dead string's stored ring is timing
+rather than sound — E25 is exactly the rule that takes a dead note's tail away, and it lives in
+presentation. Everything else the rule reads (positions, strings, attacks) comes through
+presentation untouched, and a ring that genuinely crosses a span start is presented whole anyway:
+a span starts at a two-note onset, so such a ring runs strictly past its own first binding onset
+and rule 1 exempts it.
 
 Answers all the shapes at once because the rule needs to look BACKWARD — to each posture string's
 most recent earlier note — and one forward cursor over the sorted notes carries exactly that with
@@ -177,11 +188,15 @@ no walking back. The remaining per-shape scans stay local to each span; what thi
 is the unbounded backward walk, which reached the first note in the song whenever a posture string
 had none and which both projections then paid for every shape on every chart revision.
 
-\param chart Chart holding the sorted note stream, shape spans, and template table.
+\param presented_notes Notes as drawn, sorted by (position, string).
+\param shapes Hand-posture spans, sorted by position.
+\param templates Chord template table the spans index.
 \param tempo_map Song tempo map, for signature-exact sustain-crossing checks.
-\return One flag per shape, in `chart.shapes` order: true where the span renders arpeggio-style.
+\return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
 */
-[[nodiscard]] std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_map);
+[[nodiscard]] std::vector<bool> chartShapeArrivals(
+    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const std::vector<ChordTemplate>& templates, const TempoMap& tempo_map);
 
 /*!
 \brief The repair a chart normalization applied — one value per rule the normalizer owns.
@@ -204,8 +219,8 @@ enum class ChartRepair : std::uint8_t
     OpenStringSlide,
     /*! \brief A tap with nowhere to strike became a plain pick (E4). */
     StrandedStrike,
-    /*! \brief A dead note's plain tail was trimmed to nothing (E25). */
-    MutedTail,
+    /*! \brief A tail ringing across the next onset on its own string was truncated (40-Q2-B). */
+    OverlappingTail,
     /*! \brief A fret, slide position, or hand window past the last fret clamped onto the board. */
     FretPastBoard,
     /*! \brief A slide position or hand window on or below the capo was lifted above it. */
@@ -267,22 +282,6 @@ never disagree about what the repaired note becomes.
 [[nodiscard]] bool flattenStrandedStrike(ChartNote& note);
 
 /*!
-\brief Trims a dead note's plain tail to nothing (E25).
-
-A dead note does not ring, so a tail on one is silence pretending to be sound — unless something
-keeps making noise or travelling: tremolo (a chug) or a slide payload (a dragged mute). Those keep
-their tails. Spelled once because the editor applies it INSIDE a plan as the edit's own
-consequence (pressing X on a held note trims the tail rather than refusing the press over a tail
-that means nothing once the note is dead; the toggle window restores it exactly), while the
-normalizer applies it to everything a load or import brings in.
-
-\param note Note to repair in place.
-
-\return True when a tail was trimmed.
-*/
-[[nodiscard]] bool trimMutedTail(ChartNote& note);
-
-/*!
 \brief Clips a note's payload back inside its own (possibly shortened) sustain.
 
 The consequence every shortening of a STORED tail owes, so the payload rule "offsets lie within
@@ -311,21 +310,50 @@ which is the normal shift-slide glide end.
 void clipPayloadsToSustain(ChartNote& note, bool end_lands_on_onset = false);
 
 /*!
-\brief Truncates every tail ringing across the next onset on its own string (40-Q2-B).
+\brief The one bound on a note's ring: how far it may sound before its string is struck again.
+
+`ChartNote::sustain` is the actual duration the string rings, and 40-Q2-B is the only thing that
+bounds it — a re-strike stops the ring, so a tail may reach the next onset on its OWN string
+exactly and never pass it (exact adjacency is what lets a slide reach its landing, and what a
+legato claim reads as a hold that still reaches). Every other length a surface shows is derived
+(\ref presentedChartNotes), never stored.
+
+Stated once here because two rules need the same answer and disagreeing would be the defect:
+\ref normalizeSustainOverlaps truncates to it, and the editor's duration verbs grow toward it.
+Everything derived from a ring inherits the bound instead of restating it — \ref chartHolds caps a
+span-implied hold at the note's own ring, which normalization already holds inside this bound.
+`note` need not be a member of `notes` — only its position and string are read, so a candidate
+placement asks the same question.
+
+\param notes Note stream sorted by (position, string).
+\param note Note whose ring is bounded.
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+
+\return The bound in beats, or nullopt when nothing later sounds on that string.
+*/
+[[nodiscard]] std::optional<Fraction> sustainBoundOf(
+    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map);
+
+/*!
+\brief Truncates every tail ringing past its \ref sustainBoundOf (40-Q2-B); reports which.
 
 A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
 adjacency stays legal, which is what lets a slide reach its landing. The truncation clips the
 payload with the tail (\ref clipPayloadsToSustain).
 
-Stated once here rather than at each producer: the editor's plan gate normalizes a candidate
-stream through this before validating it, and the importer and the loading path join it as the
-model moves to stored actual durations. A tail the rule would truncate is not a chart the
-validator accepts, so a producer that forgot the rule produced a document nothing could read.
+Stated once here rather than at each producer: \ref normalizeChart runs it on every load and
+import (reporting each truncation as \ref ChartRepair::OverlappingTail), the importer runs it after
+every pass that can lengthen a ring, and the editor's plan gate normalizes a candidate stream
+through it before validating. The returned indices exist so the load path can name the notes it
+changed; a producer that only needs the invariant ignores them.
 
 \param notes Note stream to normalize in place, sorted by (position, string).
 \param tempo_map Tempo map supplying the signature-derived beat axis.
+
+\return Indices of the notes whose tails were truncated, ascending; empty when none were.
 */
-void normalizeSustainOverlaps(std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+std::vector<std::size_t> normalizeSustainOverlaps(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
 \brief Repairs every rule one note can be made to obey on its own, in place; reports which fired.
@@ -339,14 +367,18 @@ What it owns: the board and capo ranges (a fret, waypoint, or exit past the last
 onto it; a scrape's start or any exit on or below the capo lifts above it; a waypoint on or below
 the capo is dropped); the technique exclusions (a dead note's modulation, the dead pinch, the
 tap harmonic's tremolo, a fret-hand harmonic's payload, an open string's slide); the stranded
-strike (\ref flattenStrandedStrike); a pick slide whose path no longer travels after all of that,
-which becomes the plain pick it sounds like; and last — so the tap-harmonic arm can clear the
-tremolo that was a tail's justification first — the muted tail (\ref trimMutedTail).
+strike (\ref flattenStrandedStrike); and last, a pick slide whose path no longer travels after all
+of that, which becomes the plain pick it sounds like.
+
+A dead note's tail is deliberately NOT here (E25). It is a presentation rule
+(\ref presentedChartNotes rule 4): a dead note carries its actual ring like any other — that ring
+is the timing information the legato adjacency test reads — and no surface draws it.
 
 What it deliberately does NOT own stays a refusal in \ref validateChartNoteAlone, because no
-repair can express it without inventing data: a string the tuning lacks, a negative fret or
-sustain, a node off the string or behind its stop, a pinch without its node, a pressed note on a
-capo'd fret, a scrape without its terminal. And nothing relational belongs here: a connection claim
+repair can express it without inventing data: a string the tuning lacks, a negative fret, a
+non-positive sustain, a node off the string or behind its stop, a pinch without its node, a
+pressed note on a capo'd fret, a scrape without its terminal. And nothing relational belongs here:
+a connection claim
 nothing justifies is not a technique to shed but a claim that resolves to a plain pick
 (\ref resolveLegato), which is why \ref normalizeChart ends with \ref sweepUnjustifiedLegato
 instead.
@@ -400,10 +432,11 @@ in that order, so the ceiling can never push it back below the capo.
 THE one normalizer: every path that brings a chart into memory — the package reader and the
 Guitar Pro importer — calls this and nothing else, so the two cannot drift, and the validator
 that follows refuses only what no repair can express. It applies \ref normalizeChartNote to every
-note, \ref normalizeChordTemplate to every template, and \ref normalizeFretHandPosition to every
-hand position, then settles the relational claims with \ref sweepUnjustifiedLegato — last,
-because a trimmed tail can be the hold a neighbour's claim depended on, and the claim must be
-judged against the stream as it will actually stand.
+note, bounds every ring at its own string's next onset with \ref normalizeSustainOverlaps (the
+one stream-level note rule, 40-Q2-B), applies \ref normalizeChordTemplate to every template and
+\ref normalizeFretHandPosition to every hand position, then settles the relational claims with
+\ref sweepUnjustifiedLegato — last, because a truncated tail can be the hold a neighbour's claim
+depended on, and the claim must be judged against the stream as it will actually stand.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer
@@ -427,7 +460,9 @@ NEIGHBOURS (a waypoint may not sit on a later onset of its string). This is the 
 enforced by every consumer at once.
 
 Two halves, and only the first is a list of refusals: the structural rules no repair can express
-(a string the tuning lacks, a negative fret or sustain, a node off the string or behind its stop, a
+(a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some
+length, and no repair can invent the one a chart failed to state — a node off the string or behind
+its stop, a
 pinch without its node, a pressed note on a capo'd fret, a position off the grid, a bend or slide
 payload outside its sustain or out of order, a scrape without its terminal at the sustain, a saved
 scrape still carrying a latent technique), and then the FIXPOINT — the note must already equal its
@@ -477,13 +512,13 @@ here — the hold test that wanted them belongs to the resolver.
 The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
 the structural checks over the chart's own arrays and then delegates the per-note rules to
 \ref validateChartNotes, so the authoritative list is the two functions' code rather than
-this paragraph — a summary here drifts, and this one did, describing "positive sustains" when zero
-is the normal encoding for a note with no sustain (\ref ChartNote::sustain) and only a NEGATIVE
-sustain is refused.
+this paragraph — a summary here drifts, and this one did once, describing "positive sustains" while
+zero was still the encoding for a note with no tail.
 
 Broadly, the structural half: a usable tuning and the cent-offset bound; template arrays matching
 the string count, with no template fret on a capo'd fret; notes sorted by (position, string) with
-no duplicate onsets, on valid grid positions; strings in range; non-negative frets and sustains;
+no duplicate onsets, on valid grid positions; strings in range; non-negative frets and strictly
+positive sustains;
 slide and bend offsets ascending within the sustain, and no waypoint on a later onset of its own
 string; shape spans positive, sorted, and referencing existing templates; sorted fret-hand
 positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;

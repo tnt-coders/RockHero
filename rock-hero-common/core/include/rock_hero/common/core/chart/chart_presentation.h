@@ -120,8 +120,9 @@ note as rules 1 through 3 leave it:
    any member: every string of a chord rings from one stroke, so a lone tail beside partners that
    look unsounded is a picture no strum makes. Any member earning a tail keeps every member's.
 4. **A dead note presents no tail** unless tremolo or a slide payload keeps it making noise or
-   travelling (E25). Applied through \ref trimMutedTail so the presentation rule and the editor's
-   in-plan repair cannot disagree about which dead notes still ring.
+   travelling (E25). The STORED ring is untouched — it is the timing the legato adjacency test
+   reads, and pinning a dead note at zero re-broke every claim after a muted cluck once already
+   (plan ruling 5) — so this is a presentation rule and nothing else applies it.
 
 \param saved_notes Note stream in SAVED form (\ref savedChartNote), sorted by (position, string).
 \param tempo_map Tempo map supplying the meter at each note and the exact beat axis.
@@ -141,24 +142,25 @@ to keep holding it, so the hold outlives the picture.
 
 `holds[i]` is the presented tail's end, except for a member of a 2+ onset group under a covering
 shape span, not all dead, whose PRESENTED tail is empty: that member holds for its ACTUAL ring,
-capped at the span's end and at the next onset on its own string. Reading the actual ring is the
-whole point of the model — the hold used to be INVENTED from the span because the stored duration
-had already been destroyed. An all-dead group stays choked (a dead chug is not held), as do single
-notes, which hold for exactly what they present.
+capped at the span's end. Reading the actual ring is the whole point of the model — the hold used
+to be INVENTED from the span because the stored duration had already been destroyed. An all-dead
+group stays choked (a dead chug is not held), as do single notes, which hold for exactly what they
+present.
 
-The span extension is not restated here: it is \ref chartEffectiveSustains — the one authority for
-which members a hand-shape span holds, how far, and how overlapping spans compose — asked of the
-PRESENTED stream, so it extends exactly the members presentation emptied. Everything that rule
-reads besides the tail (positions, strings, dead flags) comes through presentation untouched.
+The span extension — which members a hand-shape span holds, how far, and how overlapping spans
+compose — is this function's own engine, asked of the PRESENTED stream so it extends exactly the
+members presentation emptied. Everything it reads besides the tail (positions, strings, dead flags)
+comes through presentation untouched.
 
-The actual ring is the only cap this adds, and it is also why the same-string bound inside that
-rule cannot bite here: \ref normalizeSustainOverlaps truncates every stored tail at the next onset
-on its own string, so a normalized chart's actual ring already sits at or inside that bound. The
-bound stays as the guard for a stream that has not been normalized yet, never as a term that
-decides anything in a valid chart.
+The actual ring is the only cap this adds, and it carries 40-Q2-B with it: a derived hold running
+past a later head on its own string would draw a tail through and beyond it, which no storable
+chart can express — but \ref normalizeSustainOverlaps already truncates every stored tail at its
+\ref sustainBoundOf, so capping at the ring caps at that bound too. Stating the bound a second time
+inside the span engine could only ever agree with the first statement, so it is not stated there.
 
 Neither cap can change \ref predecessorHoldReaches: the onset a hold is capped at IS the successor
-whose claim reads it, and a hold reaching exactly that onset still reaches.
+whose claim reads it, and a hold reaching exactly that onset still reaches. (The claim reads the
+stored ring directly in any case — the hold is a display length, not a rule input.)
 
 \param saved_notes Saved notes, sorted by (position, string); read for their actual rings.
 \param presented_notes The same notes through \ref presentedChartNotes, in the same order and of

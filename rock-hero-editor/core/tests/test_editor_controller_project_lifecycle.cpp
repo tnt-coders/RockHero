@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <compare>
+#include <rock_hero/editor/core/testing/chart_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
 namespace rock_hero::editor::core
@@ -1248,8 +1249,8 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
     FakeEditorView view;
     controller.attachView(view);
 
-    // String 1: fret 9 held exactly to the margin before a legato note at fret 5 four beats later,
-    // so the claim resolves as a pull-off until its predecessor goes away.
+    // String 1: fret 9 ringing exactly to a legato note at fret 5 four beats later, so the claim
+    // resolves as a pull-off until its predecessor goes away.
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
@@ -1257,7 +1258,7 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
             .position = {.measure = 1, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 9,
-            .sustain = common::core::Fraction{15, 4},
+            .sustain = common::core::Fraction{4},
             .bend = {},
             .slides = {},
         },
@@ -1265,6 +1266,7 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,
             .fret = 5,
+            .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
             .bend = {},
             .slides = {},

@@ -1,10 +1,7 @@
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
-#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
-#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -99,107 +96,13 @@ GridPosition sustainEndPosition(const TempoMap& tempo_map, const ChartNote& note
     return advanceGridPosition(tempo_map, note.position, note.sustain);
 }
 
-// The ONE authority for this rule. The highway used to restate it in seconds and both copies
-// carried the same defect; the projection now resolves this answer instead. Only a SUSTAINLESS
-// member of a 2+ onset group under a covering span extends, and never when the whole group is
-// dead.
-std::vector<Fraction> chartEffectiveSustains(
-    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map)
-{
-    std::vector<Fraction> held;
-    held.reserve(notes.size());
-    for (const ChartNote& note : notes)
-    {
-        held.push_back(note.sustain);
-    }
-    // The next onset on each note's OWN string, so a span-implied hold obeys the same bound a
-    // stored sustain does: 40-Q2-B truncates a stored tail at the next onset on its string
-    // (normalizeSustainOverlaps), so an uncapped derived hold could draw a tail straight through
-    // and past a later head — a picture no storable chart can produce. Capping cannot change the
-    // legato hold test, which is what makes this display fix safe in the shared derivation: the
-    // note the bound is measured to IS the successor whose claim reads this hold, and a hold
-    // reaching exactly that onset still reaches it.
-    std::vector<std::size_t> next_on_string(notes.size(), notes.size());
-    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> seen_on_string{};
-    seen_on_string.fill(notes.size());
-    for (std::size_t index = notes.size(); index > 0; --index)
-    {
-        const int string = notes[index - 1].string;
-        if (string < 1 || string > g_max_chart_strings)
-        {
-            continue;
-        }
-        next_on_string[index - 1] = seen_on_string.at(static_cast<std::size_t>(string));
-        seen_on_string.at(static_cast<std::size_t>(string)) = index - 1;
-    }
-    // Both streams ascend, so one cursor consumes each span exactly once. What it has to remember
-    // is the FURTHEST point any already-started span reaches — not which span started last. Spans
-    // may overlap, and an earlier one running longer holds the same strum just as well; tracking
-    // the latest STARTING span let a long shape be shadowed by a short one that began inside it,
-    // so a held chord silently lost its extension and the legato that extension justified was
-    // repaired away. Advancing each span once here is also less work than re-advancing the
-    // remembered span at every onset group.
-    std::size_t next_shape = 0;
-    std::optional<GridPosition> covering_end;
-    for (std::size_t index = 0; index < notes.size();)
-    {
-        const GridPosition onset = notes[index].position;
-        std::size_t group_end = index + 1;
-        bool all_dead = notes[index].dead;
-        while (group_end < notes.size() && notes[group_end].position == onset)
-        {
-            all_dead = all_dead && notes[group_end].dead;
-            ++group_end;
-        }
-        while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
-        {
-            const GridPosition span_end = advanceGridPosition(
-                tempo_map, shapes[next_shape].position, shapes[next_shape].sustain);
-            if (!covering_end.has_value() || *covering_end < span_end)
-            {
-                covering_end = span_end;
-            }
-            ++next_shape;
-        }
-        if (group_end - index >= 2 && !all_dead && covering_end.has_value() &&
-            !(*covering_end < onset))
-        {
-            const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
-            for (std::size_t member = index; member < group_end; ++member)
-            {
-                if (notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
-                {
-                    continue;
-                }
-                const std::size_t next = next_on_string[member];
-                const Fraction bound = next < notes.size()
-                                           ? beatDistance(tempo_map, onset, notes[next].position)
-                                           : span_hold;
-                held[member] = span_hold < bound ? span_hold : bound;
-            }
-        }
-        index = group_end;
-    }
-    return held;
-}
-
-// The gap, the held length, and the margin all live on the predecessor's beat frame, so the whole
-// test is one exact-rational comparison. The margin reads the predecessor's measure because
-// that is the margin every trim derives (the import trim and the editor clamp alike), so a
-// legally-maximal tail always passes.
+// The gap and the ring both live on the predecessor's beat frame, so the whole test is one
+// exact-rational comparison.
 bool predecessorHoldReaches(
-    const GridPosition& predecessor, const Fraction effective_sustain, const GridPosition& onset,
+    const GridPosition& predecessor, const Fraction sustain, const GridPosition& onset,
     const TempoMap& tempo_map)
 {
-    const Fraction gap = beatDistance(tempo_map, predecessor, onset);
-    const int denominator = tempo_map.timeSignatureAt(predecessor.measure).denominator;
-    if (gap < minimumKeptSustainBeats(denominator))
-    {
-        return true;
-    }
-    const Fraction margin = minimumSustainDistanceBeats(denominator);
-    return effective_sustain + margin >= gap;
+    return sustain >= beatDistance(tempo_map, predecessor, onset);
 }
 
 // Mirrors the editor timeline grid's semantics exactly (tempo_grid_geometry.h): measure-anchored

@@ -30,7 +30,7 @@ different tempo-map paths and so land a rounding epsilon apart. They do not: the
 documented as returning bit-identical results and computes the same expression against the same
 anchor span as the plain resolver, so equal grid positions resolve to equal seconds. The oversized
 value was the sole reason the display's simultaneity rule could group notes at DISTINCT musical
-positions that the chart-side rule (chartEffectiveSustains) refuses — a divergence
+positions that the chart-side rule (the onset grouping inside `chartHolds`) refuses — a divergence
 `grid_arithmetic.h` recorded as deliberate. With the tolerance honest, the two rules agree.
 */
 inline constexpr double g_onset_match_epsilon = 1.0e-9;

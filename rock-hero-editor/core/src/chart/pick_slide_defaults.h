@@ -113,11 +113,12 @@ Leaves `fret` alone — the note's fret is the path start — clears `slides`, a
 gesture the required unpitched `slide_out` terminal: its offset exactly at the sustain, its fret
 the far default endpoint (the capo-floored low end for a downward scrape, the high end for an
 upward one; a start already sitting on the far endpoint travels to the other, so the path always
-moves). A zero sustain first extends to the minimum slide window so the path has somewhere to
-go. Turnaround waypoints are authored later, never synthesized here — a default scrape is one
+moves). Turnaround waypoints are authored later, never synthesized here — a default scrape is one
 straight drag.
 
-\param note Note receiving the path; the caller owns setting the attack itself.
+\param note Note receiving the path; the caller owns setting the attack itself, and owns a ring
+long enough to hold a gesture (\ref common::core::g_minimum_slide_window) — every note rings, so
+there is no zero to extend here.
 \param upward True to scrape toward the neck's high end, false toward the low end.
 \param capo The tuning's capo, which floors the low endpoint (\ref pickSlideDefaultLowFret).
 */

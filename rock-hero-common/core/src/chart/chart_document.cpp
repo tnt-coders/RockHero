@@ -1,5 +1,6 @@
 #include "chart/chart_document.h"
 
+#include <algorithm>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/shared/json.h>
@@ -118,15 +119,25 @@ namespace
     note.position = *position;
     note.string = Json::readOptionalInt(note_json, "string", 0);
     note.fret = Json::readOptionalInt(note_json, "fret", -1);
-    if (!Json::value(note_json, "sustain").isVoid())
+    // Required, with no default: every note rings for some length, so a missing key is a missing
+    // fact rather than "no tail" — reading it as zero would silently invent the one datum the
+    // model cannot derive. This is also the path a chart written before the duration model
+    // actually takes, and the only one: that writer OMITTED the key on every tail-less note, which
+    // is most of them, so the message carries the re-import remedy exactly like the removed-key
+    // tripwires below. (The positive-sustain rule states the same remedy for a zero that is
+    // written out, which no version of the writer ever emitted.)
+    if (Json::value(note_json, "sustain").isVoid())
     {
-        auto sustain = readFraction(note_json, "sustain");
-        if (!sustain.has_value())
-        {
-            return std::unexpected{std::move(sustain.error())};
-        }
-        note.sustain = *sustain;
+        return std::unexpected{malformed(
+            "chart note is missing \"sustain\"; re-import the package to get the note's actual "
+            "ring duration")};
     }
+    auto sustain = readFraction(note_json, "sustain");
+    if (!sustain.has_value())
+    {
+        return std::unexpected{std::move(sustain.error())};
+    }
+    note.sustain = *sustain;
 
     const std::string attack = Json::readOptionalString(note_json, "attack", "");
     if (attack == "legato")
@@ -332,10 +343,9 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     std::string line = R"({ "position": ")" + formatGridPositionToken(note.position) + '"';
     line += ", \"string\": " + std::to_string(note.string);
     line += ", \"fret\": " + std::to_string(note.fret);
-    if (note.sustain.numerator != 0)
-    {
-        line += R"(, "sustain": ")" + formatBeatFractionToken(note.sustain) + '"';
-    }
+    // Always emitted: the ring is a note's own fact, and the reader refuses a document that omits
+    // it, so there is no shorter form to elide into.
+    line += R"(, "sustain": ")" + formatBeatFractionToken(note.sustain) + '"';
     switch (note.attack)
     {
         case NoteAttack::Pick:
@@ -544,6 +554,18 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
             }
             chart.notes.push_back(std::move(*note));
         }
+    }
+    // The order is a document rule, checked here rather than left to the validator, because
+    // everything between the two reads the stream as a sorted one: the normalizer's same-string
+    // bound binary-searches it (`sustainBoundOf`), presentation partitions onset groups by
+    // adjacency, and the resolver's forward walk calls the previous note on a string its
+    // predecessor. Refused rather than sorted, the same posture the persisted sections take — and
+    // refusing it BEFORE normalization is what keeps an out-of-order document from being
+    // diagnosed as some garbage truncation the search invented. Duplicate onsets stay the
+    // validator's: a sortedness test cannot see them.
+    if (!std::ranges::is_sorted(chart.notes, chartNoteOrderLess))
+    {
+        return std::unexpected{malformed("chart notes must be sorted by position and string")};
     }
 
     const juce::var& shapes_json = Json::value(root, "shapes");

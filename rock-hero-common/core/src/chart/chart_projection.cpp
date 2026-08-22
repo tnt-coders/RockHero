@@ -42,25 +42,26 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     state.string_count = static_cast<int>(chart.tuning.strings.size());
     state.capo = chart.tuning.capo;
 
-    // Every per-note fact this projection derives comes from the one resolutions pass: the SAVED
-    // stream it draws, each note's resolved connection motion, and the effective holds the span
-    // convention implies. The saved form matters because a pick slide overrides its other
-    // techniques in memory (chart.h) and the display must show the scrape without them, and
-    // because the hold rule states saved form as its precondition — fed the in-memory stream, a
-    // latent dead flag chokes an onset group the saved chart holds.
+    // Every per-note fact this projection derives comes from the one resolutions pass: the
+    // PRESENTED stream it draws, each note's resolved connection motion, and each note's hold. The
+    // presented form is the whole of what a surface shows — the stored ring is the actual duration
+    // the string sounds, and drawing it directly would run tails through the heads that follow
+    // (`docs/plans/in-progress/note-sustain-model.md`). It is derived from the saved form, so a
+    // pick slide's in-memory overrides (chart.h) are already stripped and the scrape draws as the
+    // scrape it is.
     const ChartResolutions resolutions = chartResolutions(chart.notes, chart.shapes, tempo_map);
-    const std::vector<ChartNote>& saved_notes = resolutions.saved_notes;
+    const std::vector<ChartNote>& presented_notes = resolutions.presented_notes;
 
     // Note onsets ascend, so the forward cursor resolves them in amortized constant time.
     // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the
     // plain resolver instead of a second cursor.
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
     std::map<GridPosition, SlideRamp> slide_ramp_starts;
-    state.notes.reserve(saved_notes.size());
-    state.display_hold_ends.reserve(saved_notes.size());
-    for (std::size_t note_index = 0; note_index < saved_notes.size(); ++note_index)
+    state.notes.reserve(presented_notes.size());
+    state.display_hold_ends.reserve(presented_notes.size());
+    for (std::size_t note_index = 0; note_index < presented_notes.size(); ++note_index)
     {
-        const ChartNote& note = saved_notes[note_index];
+        const ChartNote& note = presented_notes[note_index];
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         // A scrape renders through the unpitched machinery end to end and never feeds the
         // slide-locked ramps: it has no fret-hand anchor to ramp.
@@ -72,7 +73,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble())
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
-            onset_beat + resolutions.effective_sustains[note_index].toDouble()));
+            onset_beat + resolutions.holds[note_index].toDouble()));
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
@@ -147,8 +148,11 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     }
 
     state.shapes.reserve(chart.shapes.size());
-    // The shared arrival rule, answered for every span in one pass.
-    const std::vector<bool> arrivals = chartShapeArrivals(chart, tempo_map);
+    // The shared arrival rule, answered for every span in one pass — and asked of the same
+    // presented stream every per-note fact above comes from, because whether a string is still
+    // ringing across a span start is a question about what sounds, not about what is stored.
+    const std::vector<bool> arrivals =
+        chartShapeArrivals(presented_notes, chart.shapes, chart.templates, tempo_map);
     for (std::size_t shape_index = 0; shape_index < chart.shapes.size(); ++shape_index)
     {
         const ChartShape& shape = chart.shapes[shape_index];

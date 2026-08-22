@@ -37,27 +37,28 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   `minimumSustainDistanceBeats(signature_denominator)` — the one settled gap every element keeps
   before the next event, expressed in signature beats so it scales with the meter.
 - `g_minimum_kept_sustain_whole_note` (a quarter note) and
-  `minimumKeptSustainBeats(signature_denominator)` — the shortest notated ring that earns a tail.
-  Import's drop rule and the legato hold test share it deliberately: that is what lets a missing
-  tail read as a *proven* release. Quarter-note-referenced, never signature-beat-referenced (user
-  rule 2026-08-14): one signature beat of 12/8 is an eighth, and the old one-beat bound handed
-  nearly every note of a 12/8 song a tail. In x/4 meters the two references coincide.
+  `minimumKeptSustainBeats(signature_denominator)` — the shortest actual ring that earns a *drawn*
+  tail, and the bound presentation rule 3 drops a short effect-free tail against. It bounds only
+  what is drawn: the legato hold test reads the stored ring and asks strict adjacency, so nothing
+  about a missing tail is inferred any more. Quarter-note-referenced, never
+  signature-beat-referenced (user rule 2026-08-14): one signature beat of 12/8 is an eighth, and
+  the old one-beat bound handed nearly every note of a 12/8 song a tail. In x/4 meters the two
+  references coincide.
 - `g_minimum_slide_window` (1/8 **beat**, not a whole-note reference like the two above) — the
   smallest span a glide, slide-out, or scrape leg may occupy. A zero-length gesture has nowhere to
   travel, so import synthesis, the presentation trim's slide-out compression, and the editor's
   scrape defaults all floor on this one window.
-- `chartEffectiveSustains(notes, shapes, tempo_map)` — per-note held lengths, extending a
-  sustainless member of a strum that a hand-shape span holds. Callers pass notes in **saved** form.
-  Spans may overlap, so what it remembers is the **furthest-reaching** span already started, not the
-  latest-starting one: an earlier span running longer holds the same strum just as well, and
-  tracking the latest start let a short span beginning inside a long one shadow it, so a held chord
-  silently lost its extension and the connection that extension justified read as a plain pick.
-  *In flux:* `chartHolds` in `chart/chart_presentation.h` is the model's answer for a chart storing
-  ACTUAL ring durations, and it **composes** over this rule rather than restating it — this one
-  decides the extension, asked of the presented stream, and the note's own ring caps the result. It
-  stays public only while readers still resolve holds from a trimmed stored form.
-- `predecessorHoldReaches(...)` — the connection hold test: true unless the chart proves the
-  same-string predecessor was released before the onset.
+- `sustainBoundOf(notes, note, tempo_map)` — the one bound on a ring: the distance to the next
+  onset on the note's **own** string, or nullopt when nothing later sounds there. A re-strike stops
+  the ring (40-Q2-B), so a tail may reach that onset exactly and never pass it. Two rules need the
+  same answer and are stated once through this one: `normalizeSustainOverlaps` truncates to it, and
+  the editor's duration verbs grow toward it. Anything DERIVED from a ring inherits the bound
+  instead of restating it — `chartHolds` caps a span-implied hold at the note's own ring, which
+  normalization already holds inside this bound.
+- `predecessorHoldReaches(...)` — the connection hold test, and now plain: true when the
+  predecessor's stored ring reaches the onset. Strict adjacency, no assumptions — the kept-bound
+  assumption and the margin slack were both compensations for a trimmed encoding that no longer
+  exists.
 - `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
   `snapGridPosition` — the exact `GridPosition` ↔ beat conversions, signed and inverse-exact, all
   crossing beat, measure, and meter boundaries without floating-point drift.
@@ -69,16 +70,16 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
 
 # Presentation: stored durations vs drawn ones (`chart/chart_presentation.h`)
 
-*In flux — the Guitar Pro importer now stores actual rings and reads this module for the two passes
-that ride readability, but the painters, hit testing and the legato resolver still read
-`ChartNote::sustain` directly (stages A1 and A2 of
-`docs/plans/in-progress/note-sustain-model.md`; A3 moves the readers).*
-
-The model being built here is simple to state: `ChartNote::sustain` is the **actual** duration the
-string rings — Guitar Pro's notated duration at import, what the editor's verbs author — and what a
-surface **draws** is derived from it, once per chart revision, by `presentedChartNotes`. The
-readability policy that used to run at import time and destroy the notated durations becomes a pure
-read-side derivation, so nothing that is drawn is stored and nothing that is stored is a guess.
+The model is simple to state: `ChartNote::sustain` is the **actual** duration the string rings —
+Guitar Pro's notated duration at import, what the editor's verbs author — and what a surface
+**draws** is derived from it, once per chart revision, by `presentedChartNotes`. The readability
+policy that used to run at import time and destroy the notated durations is a pure read-side
+derivation, so nothing that is drawn is stored and nothing that is stored is a guess. Every reader
+is on the derived form: `chartResolutions` carries it as `presented_notes`, the projection builds
+every `NoteViewState` field from it, and the shared arrival rule (`chartShapeArrivals`) asks it
+too — whether a posture string still sounds across a span start is a display fact like any other,
+and a dead string presents no tail to sound (**scored = presented**, plan ruling 4 — the scorer
+reads the same form when it exists).
 
 - `presentedChartNotes(saved_notes, tempo_map)` — one presented note per saved note, through four
   ordered rules: trim to the margin before the next binding onset (with a ring that runs strictly
@@ -88,8 +89,12 @@ read-side derivation, so nothing that is drawn is stored and nothing that is sto
 - `chartHolds(saved_notes, presented_notes, shapes, tempo_map)` — how long the hand stays down,
   which is not the same question: a chug under a hand-shape span presents no tail at all, yet the
   span is what tells the player to keep holding it, so such a member holds for its actual ring
-  capped by the span. It is `chartEffectiveSustains` asked of the presented stream, capped per note
-  at the stored ring — the span rule is asked, never restated.
+  capped by the span. The span convention is its own private engine, asked of the presented stream
+  so it extends exactly the members presentation emptied; spans may overlap, so what that engine
+  remembers is the **furthest-reaching** span already started, not the latest-starting one (an
+  earlier span running longer holds the same strum just as well, and tracking the latest start let
+  a short span beginning inside a long one shadow it, so a held chord silently lost its extension
+  and the connection that extension justified read as a plain pick).
 - `hasSustainTechnique`, `lastChangingPayloadOffset`, `clipPayloadsTo`,
   `keptStrictlyAfterLastWaypoint` — the tail helpers the rules are built from, shared with the
   Guitar Pro importer so its trim and the presentation ask the same questions.

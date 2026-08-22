@@ -197,9 +197,9 @@ on both surfaces.
 
 The **span-implied hold** is the one place the idioms still differ in substance,
 so it is worth knowing before touching either. Both view states carry `display_hold_ends` resolved
-from the same `chartEffectiveSustains` authority (that unification is what closed the recorded W9-A
-divergence), and that authority bounds the hold at the next onset on the note's own string — the same
-bound 40-Q2-B imposes on a stored sustain, so neither surface can draw a hold through a later head.
+from the same `chartHolds` authority (that unification is what closed the recorded W9-A
+divergence), and that authority caps the hold at the note's own ACTUAL ring — which 40-Q2-B already
+holds inside the next onset on its string, so neither surface can draw a hold through a later head.
 Each then spends the bounded value differently: 2D draws a tail ribbon to that end, while the board
 draws no tail for a sustainless strum and instead **pins the head at the hit line** until the hold
 ends. The board additionally clamps that pin with `HighwayChordGroupViewState::hold_cap_seconds` — the

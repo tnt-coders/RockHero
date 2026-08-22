@@ -254,7 +254,8 @@ void writeChartedProjectPackage(
                 .path = "song/" + chart_ref,
                 .contents = R"({ "formatVersion": 1,)"
                             R"( "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-                            R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5)" +
+                            R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5,)"
+                            R"( "sustain": "1/8")" +
                             attack_property + R"( } ] })",
             },
             ArchiveEntry{
@@ -558,10 +559,11 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
 
     SECTION("a chart written under older rules is normalized, and the project carries the report")
     {
-        // A dead note with a plain tail was legal before E25 shipped (2026-08-20). The load trims
-        // it instead of refusing the project, and what it trimmed travels with the Project so the
-        // controller can show it once at open — the report IS the repair's honesty.
-        writeChartedProjectPackage(path, R"(, "sustain": "1", "dead": true)");
+        // A dead note carrying a bend was legal before the technique matrix shipped: a damped
+        // string sounds no pitch to modulate, so the load sheds the bend instead of refusing the
+        // project, and what it shed travels with the Project so the controller can show it once at
+        // open — the report IS the repair's honesty.
+        writeChartedProjectPackage(path, R"(, "dead": true, "bend": [["0", 1.0]])");
 
         Project project;
         FakeAnalyzeAudio fake_analyze;
@@ -575,14 +577,16 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
             const common::core::Chart& chart = *result->arrangements.front().chart;
             REQUIRE(chart.notes.size() == 1);
             CHECK(chart.notes.front().dead);
-            CHECK(chart.notes.front().sustain == common::core::Fraction{});
+            CHECK(chart.notes.front().bend.empty());
+            // The ring is untouched: a dead note's damped stroke has a duration like any other.
+            CHECK(chart.notes.front().sustain == common::core::Fraction{1, 8});
         }
         CHECK(project.songConvertedOnLoad());
         REQUIRE(project.loadConversions().size() == 1);
         CHECK(project.loadConversions().front().arrangement == 0);
         CHECK(
             project.loadConversions().front().conversion.repair ==
-            common::core::ChartRepair::MutedTail);
+            common::core::ChartRepair::DeadNoteModulation);
         CHECK(project.loadConversions().front().conversion.where == "1:2 string 1");
     }
 }

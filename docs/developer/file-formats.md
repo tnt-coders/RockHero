@@ -143,7 +143,7 @@ like every other format.
 | `notes[].position` | grid token | req | Note location. |
 | `notes[].string` | int | opt | String index (`0`). |
 | `notes[].fret` | int | opt | (`-1` = unset). |
-| `notes[].sustain` | fraction | opt | Omitted when zero. |
+| `notes[].sustain` | fraction | **req** | The actual duration the string rings, strictly positive and always written. Not what is drawn: every surface derives the tail it shows from this (`presentedChartNotes`). A missing key is a malformed document and a non-positive value is refused. The MISSING-key path is the tripwire that actually fires on an old package — the pre-model writer elided the key on every tail-less note rather than writing a zero — so that message is the one carrying the re-import remedy. |
 | `notes[].attack` | string | opt | `pinch`\|`legato`\|`leftTap`\|`tap`\|`pop`\|`slap`\|`pickSlide`; absent = pick (there is no `pick` token — an explicit one is a read error). **No direction is ever stored.** `legato` is the relational claim "this onset connects to its same-string predecessor"; which way it runs — hammer-on or pull-off — is read back from the predecessor at load (`resolveLegato`), and a claim the chart does not justify plays as a plain pick. The writer emits the RESOLVED form, so an unjustifiable claim serializes as a pick and no written document can carry one; the reader settles what it reads anyway, and reports what it converted. `leftTap` is the local claim "the fretting hand strikes this from nowhere" — it needs no predecessor, resolves to the hammer motion always, and (like `tap`) needs a fret or a node to strike. A `pickSlide` note is a right-hand scrape: `fret` is where the scrape starts, `slideOut` is the **required** unpitched terminal at exactly the sustain (nothing rings past a scrape), and `slides` is **optional** direction-turnaround waypoints — pick coordinates, never fingerings, with the whole path always traveling (consecutive neck positions strictly differ, the start fret included). The writer omits the five pitched keys on such notes — `mute`, `harmonicNode`, `vibrato`, `tremolo`, `bend` (in-memory values are session-only overrides) — and the rules reject a document carrying them; `emphasis` is a scrape's own dynamics and IS written, at either end of the axis. |
 | `notes[].mute` | string | opt | `palm`\|`full`. |
 | `notes[].harmonicNode` | number | opt | Harmonic node position in fret units, **and the assertion that the note is a harmonic** — there is no separate harmonic key. In `(0, 48]`, strictly beyond the physical stop (the fret, or the capo when `fret` is 0), and additionally on the neck (`≤ 30`) when the fretting finger is the one touching it. A `pinch` attack must carry one. The removed `harmonic` and `touch` keys are **refused** rather than ignored, so an un-reimported package fails to load with a message naming the fix. |
@@ -156,7 +156,11 @@ like every other format.
 | `fhps[]` | object[] | opt | `{position req, fret (0), width (4; omitted when 4)}`. |
 
 Unknown enum tokens are hard read errors; chart *rules* (ordering against the tempo map) are
-validated after load, not by the parser.
+validated after load, not by the parser. The one exception is the note array's own ORDER: `notes[]`
+must be sorted by (position, string), and the parser refuses a stream that is not — rather than
+reordering it — because the normalizer that runs before validation binary-searches the stream for
+each note's next same-string onset. Duplicate onsets stay validation's, which is where the rest of
+the same rule lives.
 
 **No note references** (updated 2026-07-23, superseding the short-lived `slideEnd: "next"`
 adjacency terminal): payloads never reference other notes — not by ID (which would make

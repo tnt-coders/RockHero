@@ -99,20 +99,16 @@ lengthen a ring, and before the two passes that ride the drawn picture — the c
 (rules 10–12) and the trail-off hand exits (rule 9); the fret-hand generator and slide-in
 resolution run ahead of it, because the resolver's scoops are one of the passes that lengthen.
 
-One shortening more survives, and it is the same rule stated twice. Rule 26's dead-note trim
-(E25) is a presentation rule now, but `normalizeChartNote` still applies it to the STORED note as
-well, so a plain dead note ships with a zero `sustain` instead of its notated ring — which
-contradicts this section and the model's positive-sustain invariant. Removing it belongs to stage
-A3 of `docs/plans/in-progress/note-sustain-model.md`; until then a dead string inside a live chord
-also loses the pinned head its shape span used to give it (measured on the local corpus: 7,835
-zero-ring notes, 342 shortened holds). Readability otherwise is the next section, and it is drawn,
-not stored.
+Nothing else shortens a ring. A dead note keeps its notated duration like any other — E25 is a
+presentation rule and nothing applies it to the stored note — because that duration is the timing
+the legato adjacency test reads, and the picture it does not draw is derived. Readability otherwise
+is the next section, and it is drawn, not stored.
 
 **Tail policy — what a surface DRAWS** (GP notates every note at its full duration, and the chart
 now *stores* that duration; a chart only *shows* deliberate sustains, so the shortening is a
 read-side derivation rather than an import-time edit). Rules 1–4 below are the presentation rules,
 implemented once in `presentedChartNotes` (`chart_presentation.h` in common/core, covered by
-`test_chart_presentation.cpp`) and applied in the order written, with rule 26's dead-note trim
+`test_chart_presentation.cpp`) and applied in the order written, with the dead note's silent tail
 (E25) applied last as the fourth. They are not import policy at all
 any more: every surface derives them from the stored stream, so the same chart drawn from a `.rock`
 file and from a fresh import shows the same tails, and the model behind the split is
@@ -130,8 +126,10 @@ file and from a fresh import shows the same tails, and the model behind the spli
    members — never bind each other. One hold is exempt
    (user rule 2026-07-22): a ring running *strictly past* the next binding onset — merged from
    a tie or notated across voices — is a deliberate hold, drawn whole however many later onsets
-   it crosses and exempt from the drop rule below; that ring is what the arpeggio arrival rule
-   reads. A ring that merely *reaches* the next binding onset trims like any other, ties included.
+   it crosses and exempt from the drop rule below; that drawn ring is what the arpeggio arrival
+   rule reads, since the rule asks the presented form — so a dead string, which presents no tail
+   at all (E25), never reads as ringing under a strum.
+   A ring that merely *reaches* the next binding onset trims like any other, ties included.
    Binding is decided on the SOUNDING position, because that is what the stored chart has: a
    grace lead is a real onset here, where the old import-time form read the beat the source
    notated and exempted a strum's own grace-shifted members (the measured consequences are listed
@@ -296,9 +294,11 @@ handshape or diagram data, so the tab's chord boxes are derived):
     its own ring.
 12. **A fully-strummed span is a chord box; a ring-through span or a held chord under tapping is
     an arpeggio.** A note still ringing through a chord's onset (tie-held from before, not
-    re-struck) joins the derived posture on its string, and the projections' shared arrival rule
-    renders any span with a posture string *still ringing at the span start without an onset
-    there* as an arpeggio: a strum under held content is picking around it, not a full strum
+    re-struck) joins the derived posture on its string — the posture asks the STORED ring, because
+    where the hand is, is not the same question as what is sounding — and the projections' shared
+    arrival rule renders any span with a posture string *still ringing at the span start without an
+    onset there* as an arpeggio, asking the PRESENTED ring for exactly that reason: a strum under
+    held content is picking around it, not a full strum
     (user rule 2026-07-22 — both the chord under a held single note and the re-strum whose tied
     members keep ringing are arpeggios, so a tied passage with a hand move splits into two
     arpeggio shapes). A **tapped note sounding anywhere within the span** also flips a box to a
@@ -530,10 +530,14 @@ differently):
     the technique exclusions fire — **the deadening wins outright** (a dead note drops its bend and
     vibrato and keeps its node, which is positional; the dead pinch alone loses its harmonic, since
     its node lies off the neck), a tap harmonic drops its tremolo, a fret-hand harmonic drops its
-    payload, an open string drops its slide; a strike with nowhere to land becomes a pick; a scrape
-    that no longer travels becomes the pick it sounds like; and last, a dead note's plain tail is
-    trimmed (E25). Then templates clamp and hand windows fit onto the board. E4's strike requirement
-    is ALSO decided earlier, the moment a note's node is known (`flattenStrandedStrike`), because
+    payload, an open string drops its slide; a strike with nowhere to land becomes a pick; and
+    last, a scrape that no longer travels becomes the pick it sounds like. A dead note's tail is
+    NOT trimmed here — E25 is a presentation rule (tail rule 4 below), and the stored ring is the
+    timing a legato claim after the cluck reads. Then the one stream-level note rule bounds every
+    ring at its own string's next onset (40-Q2-B, `normalizeSustainOverlaps`, reported as
+    `OverlappingTail`), and templates clamp and hand windows fit onto the board. E4's strike
+    requirement is ALSO decided earlier, the moment a note's node is known
+    (`flattenStrandedStrike`), because
     the chord-shape and hand-window passes read the attack and must not shape a song around a tap
     that cannot survive. The relational half, `sweepUnjustifiedLegato`, is the normalizer's last
     stage — the same sweep every settle point runs — so a chart is never born carrying a claim its
@@ -545,8 +549,9 @@ differently):
     claim and nothing more — the score says the notes connect but not which way, which is exactly
     what the claim says — so the junk flags real scores carry (a mark with nothing before it, or
     with a predecessor at the same stop) are what this sweep converts, counted in the import log.
-    It also reads rule 3's kept-sustain bound: past it a missing tail is a proven release, so a
-    predecessor that no longer reaches justifies no connection at all.
+    It reads the predecessor's stored RING and asks strict adjacency: a string that stopped
+    sounding before the onset is a released string, so a predecessor that no longer reaches
+    justifies no connection at all.
 
 Every generated track logs a conversion note ("phrase-aware; verify", "derived N chord
 spans", "imported N pick slides") so the guesses stay observable in the import log.

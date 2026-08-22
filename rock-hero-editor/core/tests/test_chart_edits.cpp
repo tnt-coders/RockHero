@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -211,8 +212,8 @@ TEST_CASE("planInsertNote adds a note on an empty slot", "[core][chart]")
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const auto plan =
-        planInsertNote(chart, tempo_map, makeTestNote({.measure = 4, .beat = 1}, 1, 5));
+    const auto plan = planInsertNote(
+        chart, tempo_map, makeTestNote({.measure = 4, .beat = 1}, 1, 5), g_fixture_sustain);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -233,8 +234,8 @@ TEST_CASE("planInsertNote replaces a note on an occupied slot", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     // Slot measure 2 beat 1 / string 1 already holds fret 3.
-    const auto plan =
-        planInsertNote(chart, tempo_map, makeTestNote({.measure = 2, .beat = 1}, 1, 9));
+    const auto plan = planInsertNote(
+        chart, tempo_map, makeTestNote({.measure = 2, .beat = 1}, 1, 9), g_fixture_sustain);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -245,14 +246,55 @@ TEST_CASE("planInsertNote replaces a note on an occupied slot", "[core][chart]")
     }
 }
 
+// Every note rings, so a placement authors a duration: the session's grid step, clamped by the one
+// bound on a ring (40-Q2-B) when the string is struck again sooner than that.
+TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "[core][chart]")
+{
+    const common::core::Chart chart = makeTestChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto uncrowded = planInsertNote(
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 4, .beat = 1}, 1, 5),
+        common::core::Fraction{1, 2});
+    REQUIRE(uncrowded.has_value());
+    if (uncrowded.has_value())
+    {
+        REQUIRE(uncrowded->inserted.size() == 1);
+        CHECK(uncrowded->inserted.front().sustain == common::core::Fraction{1, 2});
+    }
+
+    // The fixture's string-1 note at measure 3 beat 1 is struck a quarter beat after this slot, so
+    // a half-beat default cannot ring through it: the finalize gate's normalization ends it there.
+    const auto crowded = planInsertNote(
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 2, .beat = 4, .offset = {3, 4}}, 1, 5),
+        common::core::Fraction{1, 2});
+    REQUIRE(crowded.has_value());
+    if (crowded.has_value())
+    {
+        const common::core::ChartNote* placed =
+            noteAt(crowded->inserted, {.measure = 2, .beat = 4, .offset = {3, 4}}, 1);
+        REQUIRE(placed != nullptr);
+        CHECK(placed->sustain == common::core::Fraction{1, 4});
+    }
+}
+
 // Re-placing a note identical to the one already on the slot changes nothing, so the plan is empty.
+// The ring has to come from the DEFAULT to make that true, because the parameter overwrites the
+// handed note's own sustain — so each case passes the occupant's ring, and the two-beat note is
+// here so the case cannot pass merely because the fixture default happened to match.
 TEST_CASE("planInsertNote returns nullopt for an unchanged placement", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
 
-    const auto plan = planInsertNote(chart, tempo_map, chart.notes[0]);
-    CHECK_FALSE(plan.has_value());
+    CHECK_FALSE(
+        planInsertNote(chart, tempo_map, chart.notes[0], chart.notes[0].sustain).has_value());
+    CHECK_FALSE(
+        planInsertNote(chart, tempo_map, chart.notes[2], chart.notes[2].sustain).has_value());
 }
 
 // 40-Q2-B: inserting on a string whose earlier note's sustain rings across the new onset truncates
@@ -282,8 +324,8 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     // The new onset lands one beat into the two-beat sustain.
-    const auto plan =
-        planInsertNote(chart, tempo_map, makeTestNote({.measure = 1, .beat = 2}, 1, 7));
+    const auto plan = planInsertNote(
+        chart, tempo_map, makeTestNote({.measure = 1, .beat = 2}, 1, 7), g_fixture_sustain);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -547,64 +589,81 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
 
-// Shrinking a sustain past zero floors it at zero rather than going negative.
-TEST_CASE("planAdjustSustain floors a shrunk sustain at zero", "[core][chart]")
+// Every note rings, so there is no empty ring to shrink to: a step that would reach zero is
+// refused for THAT note, and the rest of the selection still moves.
+TEST_CASE("planAdjustSustain refuses a step that would empty a ring", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{1})};
+    chart.notes = {
+        makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{1}),
+        makeTestNote({.measure = 1, .beat = 1}, 2, 0, common::core::Fraction{3}),
+    };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
+    const std::vector<ChartNoteKey> keys{
+        keyAt({.measure = 1, .beat = 1}, 1), keyAt({.measure = 1, .beat = 1}, 2)
+    };
 
     const auto plan = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{-2});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
+        // The one-beat ring would go to -1, so it is left exactly as it was; deleting the note is
+        // the verb for removing it.
+        CHECK(noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1) == nullptr);
         const common::core::ChartNote* shrunk =
-            noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
+            noteAt(plan->inserted, {.measure = 1, .beat = 1}, 2);
         REQUIRE(shrunk != nullptr);
-        CHECK(shrunk->sustain == common::core::Fraction{});
+        CHECK(shrunk->sustain == common::core::Fraction{1});
         CHECK(plan->label == "Shrink Sustain");
     }
+
+    // With nothing left that can shrink, the press changes nothing at all.
+    const std::vector<ChartNoteKey> only_short{keyAt({.measure = 1, .beat = 1}, 1)};
+    const auto refused =
+        planAdjustSustain(chart, tempo_map, only_short, common::core::Fraction{-2});
+    REQUIRE_FALSE(refused.has_value());
+    CHECK(refused.error() == ChartPlanRefusal::NoChange);
 }
 
-// Growing a sustain clamps it to end the minimum sustain distance before the next onset on any
-// string; a same-onset chord member never blocks the growth.
-TEST_CASE("planAdjustSustain clamps a grown sustain before the next onset", "[core][chart]")
+// Growth stops at exact adjacency with the next onset on the note's OWN string — the one bound on
+// a ring (40-Q2-B) — and a note on another string never blocks it, because the margin that used to
+// bind against any string was the DRAWN tail's spacing rule, which presentation now owns.
+TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
         makeTestNote({.measure = 1, .beat = 1}, 1, 0),
-        makeTestNote({.measure = 1, .beat = 1}, 2, 0),
-        makeTestNote({.measure = 1, .beat = 3}, 2, 0),
+        makeTestNote({.measure = 1, .beat = 2}, 2, 0),
+        makeTestNote({.measure = 1, .beat = 3}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
 
-    // The next onset is two beats out on string 2; the margin in 4/4 is a quarter beat, so the
-    // grown tail clamps to 7/4 beats even though ten beats were requested.
     const auto plan = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{10});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
         const common::core::ChartNote* grown = noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(grown != nullptr);
-        CHECK(grown->sustain == common::core::Fraction{7, 4});
+        // Two beats to its own string's restrike, and the string-2 onset one beat in blocks
+        // nothing.
+        CHECK(grown->sustain == common::core::Fraction{2});
         CHECK(plan->label == "Grow Sustain");
     }
 }
 
-// A tail already sitting at the clamp limit refuses to grow rather than being rewritten to the
+// A tail already sitting at the bound refuses to grow rather than being rewritten to the
 // same value, so the plan is empty.
-TEST_CASE("planAdjustSustain refuses to grow a tail already at the limit", "[core][chart]")
+TEST_CASE("planAdjustSustain refuses to grow a tail already at the bound", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{7, 4}),
-        makeTestNote({.measure = 1, .beat = 1}, 2, 0),
-        makeTestNote({.measure = 1, .beat = 3}, 2, 0),
+        makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{2}),
+        makeTestNote({.measure = 1, .beat = 2}, 2, 0),
+        makeTestNote({.measure = 1, .beat = 3}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
@@ -756,33 +815,45 @@ TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]
     }
 }
 
-// A sustainless note grows the DEFAULT scrape length so the path has somewhere to travel: a
-// quarter note (user 2026-08-18), not the old degeneracy floor of an eighth of a beat, which a
-// corpus survey found to be 16x shorter than any scrape anyone charted. Nothing later blocks
-// this note within a quarter note, so the growth clamp does not bind here.
-TEST_CASE("planSetAttack gives a sustainless scrape the default quarter note", "[core][chart]")
+// A ring too short to hold a gesture at all grows to the DEFAULT scrape length so the path has
+// somewhere to travel: a quarter note (user 2026-08-18), not the old degeneracy floor of an eighth
+// of a beat, which a corpus survey found to be 16x shorter than any scrape anyone charted. A ring
+// that CAN hold the gesture is kept exactly as authored — the ring is the note's own truth, and
+// this verb changes the attack, not the duration.
+TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]")
 {
-    const common::core::Chart chart = makeTestChart();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 5, common::core::Fraction{1, 16}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 7, common::core::Fraction{1, 2}),
+    };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartNoteKey> keys{
+        keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
+    };
 
     const auto plan =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        const common::core::ChartNote* scrape =
-            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
-        REQUIRE(scrape != nullptr);
-        CHECK(scrape->sustain == pickSlideDefaultSustainBeats(4));
-        CHECK(scrape->sustain > common::core::g_minimum_slide_window);
-        REQUIRE(scrape->slide_out.has_value());
-        if (scrape->slide_out.has_value())
+        const common::core::ChartNote* stub = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+        REQUIRE(stub != nullptr);
+        CHECK(stub->sustain == pickSlideDefaultSustainBeats(4));
+        CHECK(stub->sustain > common::core::g_minimum_slide_window);
+        REQUIRE(stub->slide_out.has_value());
+        if (stub->slide_out.has_value())
         {
             // The terminal is pinned exactly at the sustain: a scrape rings no longer than it
             // travels.
-            CHECK(scrape->slide_out->offset == scrape->sustain);
+            CHECK(stub->slide_out->offset == stub->sustain);
         }
+
+        const common::core::ChartNote* kept = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
+        REQUIRE(kept != nullptr);
+        CHECK(kept->sustain == common::core::Fraction{1, 2});
+
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
     }
@@ -1055,62 +1126,46 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
     }
 }
 
-// E25 inside the verbs: a dead note carries no plain tail, and the tail goes WITH the press that
-// deadens the note (or removes the tremolo that justified it) rather than the press being refused
-// over a tail that means nothing once the note is dead. The trim is the plan's own consequence, so
-// it rides the same undo entry, and growing a dead note's tail by hand simply changes nothing.
-TEST_CASE(
-    "planSetNoteFlag trims a dead note's plain tail as the edit's consequence", "[core][chart]")
+// E25 is a PRESENTATION rule now (plan ruling 5, 2026-08-21), so the verbs stopped trimming: X on
+// a held note deadens it and leaves the ring exactly where it was, because a dead note's damped
+// stroke has a duration like any other and that duration is what a legato claim after it reads.
+// What changes is only what a surface draws, which no plan touches.
+TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
     // measure 3 / string 1 carries a two-beat tail in the fixture.
     constexpr std::size_t held = 2;
-    REQUIRE(chart.notes[held].sustain.numerator > 0);
+    const common::core::Fraction ring = chart.notes[held].sustain;
+    REQUIRE(ring.numerator > 0);
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
-    SECTION("X on a held note deadens it and trims the tail in one entry")
+    const auto dead =
+        planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
+    REQUIRE(dead.has_value());
+    if (dead.has_value())
     {
-        const auto dead =
-            planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
-        REQUIRE(dead.has_value());
-        if (dead.has_value())
-        {
-            REQUIRE(dead->inserted.size() == 1);
-            CHECK(dead->inserted.front().dead);
-            CHECK(dead->inserted.front().sustain == common::core::Fraction{});
-            applyAndValidate(chart, tempo_map, *dead);
-        }
-
-        // Growing the dead note's tail afterwards is inert, not refused: the plan trims what it
-        // grew, so the diff is empty.
-        const auto grown = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{1});
-        REQUIRE_FALSE(grown.has_value());
-        CHECK(grown.error() == ChartPlanRefusal::NoChange);
+        REQUIRE(dead->inserted.size() == 1);
+        CHECK(dead->inserted.front().dead);
+        CHECK(dead->inserted.front().sustain == ring);
+        applyAndValidate(chart, tempo_map, *dead);
     }
 
-    SECTION("a tremolo'd dead note keeps its tail until the tremolo goes")
+    // The other half of the same rule, so the pair is stated in one place: the ring survives the
+    // press and NOTHING draws it (E25 as rule 4 of the presentation).
+    const std::vector<common::core::ChartNote> presented =
+        common::core::presentedChartNotes(chart.notes, tempo_map);
+    REQUIRE(presented.size() == chart.notes.size());
+    CHECK(presented[held].sustain == common::core::Fraction{});
+    CHECK(chart.notes[held].sustain == ring);
+
+    // And the duration verbs go on working on it: nothing about the note is frozen by the mute.
+    const auto grown = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{1});
+    REQUIRE(grown.has_value());
+    if (grown.has_value())
     {
-        chart.notes[held].tremolo = true;
-        const auto dead =
-            planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
-        REQUIRE(dead.has_value());
-        if (dead.has_value())
-        {
-            REQUIRE(dead->inserted.size() == 1);
-            CHECK(dead->inserted.front().sustain == chart.notes[held].sustain);
-            applyAndValidate(chart, tempo_map, *dead);
-        }
-        const auto plain = planSetNoteFlag(
-            chart, tempo_map, keys, ChartNoteFlag::Tremolo, false, "Remove Tremolo");
-        REQUIRE(plain.has_value());
-        if (plain.has_value())
-        {
-            REQUIRE(plain->inserted.size() == 1);
-            CHECK_FALSE(plain->inserted.front().tremolo);
-            CHECK(plain->inserted.front().sustain == common::core::Fraction{});
-            applyAndValidate(chart, tempo_map, *plain);
-        }
+        REQUIRE(grown->inserted.size() == 1);
+        CHECK(grown->inserted.front().sustain == ring + common::core::Fraction{1});
     }
 }
 
@@ -1462,7 +1517,10 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
 
     // A new onset half a beat into the scrape truncates its sustain to exact adjacency.
     const auto plan = planInsertNote(
-        chart, tempo_map, makeTestNote({.measure = 1, .beat = 1, .offset = {1, 2}}, 1, 5));
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 1, .beat = 1, .offset = {1, 2}}, 1, 5),
+        g_fixture_sustain);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -1587,8 +1645,8 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
     };
     // One-beat gaps sit at the kept-sustain bound, so the predecessors hold their tails to the
     // margin — the connection the resolver requires there.
-    chart.notes[0].sustain = common::core::Fraction{3, 4};
-    chart.notes[2].sustain = common::core::Fraction{3, 4};
+    chart.notes[0].sustain = common::core::Fraction{1};
+    chart.notes[2].sustain = common::core::Fraction{1};
 
     const std::vector<ChartNoteKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
@@ -1650,7 +1708,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 1}, 1, 7),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
-        chart.notes[0].sustain = common::core::Fraction{3, 4};
+        chart.notes[0].sustain = common::core::Fraction{1};
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 2}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
@@ -1660,17 +1718,17 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
 
     SECTION("a released predecessor whose connection cannot be authored")
     {
-        // A bare predecessor at the kept-sustain bound is a proven release, and the assist may
-        // only author what a manual drag could: a note on ANOTHER string between the pair caps
-        // the predecessor's growth short of the margin point, so the note is skipped whole
-        // rather than partially extended.
+        // The predecessor's ring stops short, and the one tail the assist may not spend is a
+        // gesture's own authored window: a trail-off's exit is data the author placed, so the note
+        // is skipped whole rather than having its gesture rewritten to buy a connection.
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 3),
-            makeTestNote({.measure = 1, .beat = 2}, 2, 5),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 2}),
             makeTestNote({.measure = 1, .beat = 3}, 1, 7),
         };
+        chart.notes[0].slide_out =
+            common::core::SlideOut{.offset = common::core::Fraction{1, 2}, .fret = 5};
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
@@ -1685,7 +1743,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{3, 4}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[0].harmonic_node = 12.0;
@@ -1703,7 +1761,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{3, 4}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
             makeScrape({.measure = 1, .beat = 3}, 2),
         };
@@ -1719,11 +1777,11 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
     }
 }
 
-// The D14 assist: when the hold is the only thing missing, the verb grows the predecessor's tail
-// to the margin point and claims the connection in the same plan — the tail is the held-ness
+// The D14 assist: when the hold is the only thing missing, the verb grows the predecessor's ring
+// to the successor's onset and claims the connection in the same plan — the ring is the held-ness
 // datum, and the verb writes it rather than demanding the drag first.
 TEST_CASE(
-    "planSetLegato grows a released predecessor's tail to author the connection", "[core][chart]")
+    "planSetLegato grows a released predecessor's ring to author the connection", "[core][chart]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
 
@@ -1743,7 +1801,7 @@ TEST_CASE(
             // The grown predecessor rides the same plan: its tail ends exactly at the margin
             // point before the onset (two beats less the quarter-beat margin in 4/4).
             REQUIRE(planned.plan->inserted.size() == 2);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{7, 4});
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{2});
             CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Pick);
             CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
         }
@@ -1763,7 +1821,7 @@ TEST_CASE(
         if (planned.plan.has_value())
         {
             REQUIRE(planned.plan->inserted.size() == 2);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{7, 4});
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{2});
             CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
         }
     }
@@ -1790,8 +1848,8 @@ TEST_CASE(
         if (planned.plan.has_value())
         {
             REQUIRE(planned.plan->inserted.size() == 4);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{15, 4});
-            CHECK(planned.plan->inserted[1].sustain == common::core::Fraction{15, 4});
+            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{4});
+            CHECK(planned.plan->inserted[1].sustain == common::core::Fraction{4});
             CHECK(planned.plan->inserted[2].attack == common::core::NoteAttack::Legato);
             CHECK(planned.plan->inserted[3].attack == common::core::NoteAttack::Legato);
         }
@@ -1852,7 +1910,7 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{3, 4}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 9),
         };
         chart.notes[1].harmonic_node = 21.0;
@@ -1875,7 +1933,7 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{3, 4}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 5),
         };
         chart.notes[1].harmonic_node = 17.0;
@@ -1894,7 +1952,7 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{3, 4}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 0),
         };
         chart.notes[1].harmonic_node = 12.0;
@@ -1918,7 +1976,7 @@ TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[cor
         // String 2's note is first on its string, so nothing justifies a claim on it.
         makeTestNote({.measure = 1, .beat = 2}, 2, 4),
     };
-    chart.notes[0].sustain = common::core::Fraction{3, 4};
+    chart.notes[0].sustain = common::core::Fraction{1};
 
     const std::vector<ChartNoteKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
@@ -1961,7 +2019,7 @@ TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[co
         common::core::Chart chart;
         chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
         chart.notes = {
-            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{3, 4}),
+            makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 2}, 1, 7),
         };
         chart.notes[1].attack = common::core::NoteAttack::LeftTap;
@@ -1988,7 +2046,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
         makeTestNote({.measure = 1, .beat = 1}, 1, 9),
         makeTestNote({.measure = 1, .beat = 3}, 1, 5),
     };
-    chart.notes[0].sustain = common::core::Fraction{7, 4};
+    chart.notes[0].sustain = common::core::Fraction{2};
     chart.notes[1].attack = common::core::NoteAttack::Legato;
 
     const auto plan = planAdjustSustain(
@@ -1998,7 +2056,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     {
         // Only the tail is in the plan: the claim is untouched, and the chart stays valid with it.
         REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted[0].sustain == common::core::Fraction{3, 4});
+        CHECK(plan->inserted[0].sustain == common::core::Fraction{1});
         applyAndValidate(chart, tempo_map, *plan);
         CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
         const common::core::ChartResolutions resolutions =
@@ -2011,7 +2069,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     // current stream it is a one-note plan, and against the PRE-BURST stream it carries the tail
     // change too, which is how the settle folds into the burst's own undo entry.
     const std::vector<common::core::ChartNote> pre_burst = {
-        makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{7, 4}),
+        makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{2}),
         chart.notes[1],
     };
     const auto settled = planSettleLegato(chart, tempo_map, chart.notes, "Settle Legato");
@@ -2033,7 +2091,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     if (folded.has_value())
     {
         REQUIRE(folded->inserted.size() == 2);
-        CHECK(folded->inserted[0].sustain == common::core::Fraction{3, 4});
+        CHECK(folded->inserted[0].sustain == common::core::Fraction{1});
         CHECK(folded->inserted[1].attack == common::core::NoteAttack::Pick);
         CHECK(folded->label == "Shrink Sustain");
     }

@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <compare>
 #include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
-#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -15,16 +15,30 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Rule 3 ENDS a tail rather than shortening it, and a presented note must still keep the model's
-// shape — payload offsets lie within the sustain — because the painters read it as an ordinary
-// note. Nothing actually survives the clip: any payload at all earns the group its tail, so a
-// dropped group has none left to clip. The clip is here so that invariant holds by construction
-// rather than by that argument, which spans two rules and would quietly stop being true if either
-// moved. Rule 4 owes the same clip and pays it beside its own call to trimMutedTail.
+// Rules 3 and 4 END a tail rather than shortening it, and a presented note must still keep the
+// model's shape — payload offsets lie within the sustain — because the painters read it as an
+// ordinary note. Nothing actually survives the clip under either rule: any payload at all earns
+// the group its tail, and a dead note carrying a slide keeps its own. The clip is here so that
+// invariant holds by construction rather than by that argument, which spans two rules and would
+// quietly stop being true if either moved.
 void dropPresentedTail(ChartNote& note)
 {
     note.sustain = Fraction{};
     clipPayloadsTo(note, note.sustain);
+}
+
+// Rule 4 (E25): a dead note rings nothing, so a plain tail on one is silence pretending to be
+// sound. The two things that keep a dead string making noise or travelling are what keep its tail:
+// repeated raking (a chug), or a dragged mute. A scrape always carries a slide-out, so a scrape
+// with a dead flag keeps its gesture.
+//
+// Applied to the PRESENTED note only. The stored ring is untouched by design (plan ruling 5): it
+// is the timing information the legato adjacency test reads, and pinning a dead note at zero
+// re-broke every claim after a muted cluck once already.
+[[nodiscard]] bool presentsNoDeadTail(const ChartNote& note)
+{
+    return note.dead && !note.tremolo && note.slides.empty() && !note.slide_out.has_value() &&
+           note.sustain.numerator > 0;
 }
 
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
@@ -129,6 +143,78 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     {
         note.sustain = target;
     }
+}
+
+// The span convention, and \ref chartHolds's whole engine: a strum under a hand-shape span is held
+// for the span even where its members present no tail, because the span is what tells the player
+// how long to keep the shape fretted. Only a TAIL-LESS member of a same-onset group of two or more
+// covered by a span extends, and never when the whole group is dead (a dead chug is choked, not
+// held); single notes and members that still present a tail already state their own hold. Coverage
+// is positional only, with no posture matching.
+//
+// Asked of the PRESENTED stream, which is what makes it extend exactly the members presentation
+// emptied. It was public while readers still resolved holds from a trimmed stored form; nothing
+// does now, so it is this composition's engine rather than a rule of its own.
+//
+// It states no bound of its own. 40-Q2-B — no tail past the next onset on its own string — reaches
+// the answer through chartHolds's ring cap instead, because normalizeSustainOverlaps already holds
+// every stored ring inside that same bound; restating it here was a second statement of the rule
+// that could only ever agree with the first.
+[[nodiscard]] std::vector<Fraction> spanExtendedHolds(
+    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const TempoMap& tempo_map)
+{
+    std::vector<Fraction> held;
+    held.reserve(presented_notes.size());
+    for (const ChartNote& note : presented_notes)
+    {
+        held.push_back(note.sustain);
+    }
+    // Both streams ascend, so one cursor consumes each span exactly once. What it has to remember
+    // is the FURTHEST point any already-started span reaches — not which span started last. Spans
+    // may overlap, and an earlier one running longer holds the same strum just as well; tracking
+    // the latest STARTING span let a long shape be shadowed by a short one that began inside it,
+    // so a held chord silently lost its extension and the legato that extension justified was
+    // repaired away. Advancing each span once here is also less work than re-advancing the
+    // remembered span at every onset group.
+    std::size_t next_shape = 0;
+    std::optional<GridPosition> covering_end;
+    for (std::size_t index = 0; index < presented_notes.size();)
+    {
+        const GridPosition onset = presented_notes[index].position;
+        std::size_t group_end = index + 1;
+        bool all_dead = presented_notes[index].dead;
+        while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
+        {
+            all_dead = all_dead && presented_notes[group_end].dead;
+            ++group_end;
+        }
+        while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
+        {
+            const GridPosition span_end = advanceGridPosition(
+                tempo_map, shapes[next_shape].position, shapes[next_shape].sustain);
+            if (!covering_end.has_value() || *covering_end < span_end)
+            {
+                covering_end = span_end;
+            }
+            ++next_shape;
+        }
+        if (group_end - index >= 2 && !all_dead && covering_end.has_value() &&
+            !(*covering_end < onset))
+        {
+            const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
+            for (std::size_t member = index; member < group_end; ++member)
+            {
+                if (presented_notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
+                {
+                    continue;
+                }
+                held[member] = span_hold;
+            }
+        }
+        index = group_end;
+    }
+    return held;
 }
 
 } // namespace
@@ -250,34 +336,28 @@ std::vector<ChartNote> presentedChartNotes(
         group_begin = group_end;
     }
 
-    // Rule 4 (E25), asked of the one authority that states it rather than restating its condition:
-    // a dead note rings nothing, so a plain tail on one is silence pretending to be sound, while
-    // tremolo (a chug) or a slide payload (a dragged mute) keeps it making noise or travelling.
-    // Applying it to the PRESENTED note rather than the stored one is the whole of the model's
-    // change here: a dead note keeps its actual duration, which is what a legato claim after a
-    // muted cluck reads.
+    // Rule 4 (E25), over the whole stream last, so a tail rules 1 to 3 left standing is still
+    // judged as a dead note's.
     for (ChartNote& note : presented)
     {
-        if (trimMutedTail(note))
+        if (presentsNoDeadTail(note))
         {
-            clipPayloadsTo(note, note.sustain);
+            dropPresentedTail(note);
         }
     }
     return presented;
 }
 
-// The span rule is asked, never restated: chartEffectiveSustains is the one authority for which
-// members a hand-shape span extends and how far, and the model's whole change to the answer is a
-// cap. Handing it the PRESENTED stream is what makes it extend exactly the members presentation
-// emptied — it skips any note still carrying a tail, and presentation touches nothing else it
-// reads (positions, strings and dead flags come through untouched). Restating its walk here would
-// duplicate the furthest-reaching-span subtlety that already cost one silently dropped chord
-// extension, in a copy no build could keep in step.
+// The span convention is asked of the presented stream (spanExtendedHolds above), and the model's
+// whole change to the answer is a cap. Handing it the PRESENTED stream is what makes it extend
+// exactly the members presentation emptied — it skips any note still carrying a tail, and
+// presentation touches nothing else it reads (positions, strings and dead flags come through
+// untouched).
 std::vector<Fraction> chartHolds(
     const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,
     const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
 {
-    std::vector<Fraction> held = chartEffectiveSustains(presented_notes, shapes, tempo_map);
+    std::vector<Fraction> held = spanExtendedHolds(presented_notes, shapes, tempo_map);
     for (std::size_t index = 0; index < held.size(); ++index)
     {
         // The actual ring is the cap the model adds: the span says how long the SHAPE is held, but

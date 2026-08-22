@@ -281,8 +281,8 @@ void EditorController::Impl::insertChartNoteAt(
     note.position = position;
     note.string = string;
     note.fret = fret;
-    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan =
-        planInsertNote(*arrangement->chart, session().song().tempo_map, note);
+    std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan = planInsertNote(
+        *arrangement->chart, session().song().tempo_map, note, chartGridStepBeats(position));
     if (!plan.has_value())
     {
         return;
@@ -1385,7 +1385,11 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> EditorController::Impl::repl
         note.position = insert->slot.position;
         note.string = insert->slot.string;
         note.fret = entry.value;
-        return planInsertNote(*arrangement->chart, session().song().tempo_map, std::move(note));
+        return planInsertNote(
+            *arrangement->chart,
+            session().song().tempo_map,
+            std::move(note),
+            chartGridStepBeats(insert->slot.position));
     }
     const auto& retype = std::get<ChartFretEntry::Retype>(entry.target);
     if (retype.keys.empty())
@@ -1595,8 +1599,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 }
 
 // Grows or shrinks the selection's sustains by one grid step — or one 1/960-beat fine step,
-// the uniform Ctrl precision tier on the extent verbs — as one compound undo entry; growth
-// clamps to the minimum-sustain-distance margin before the next onset on any string.
+// the uniform Ctrl precision tier on the extent verbs — as one compound undo entry. What the
+// planner does with the step is its own (planAdjustSustain): growth clamps at exact adjacency with
+// the next onset on the note's OWN string, and a shrink that would reach zero is refused per note.
 void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSustain& action)
 {
     const int direction = action.direction;

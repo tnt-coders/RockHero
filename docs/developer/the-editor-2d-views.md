@@ -236,18 +236,18 @@ is deliberately single-sourced:
   the note, not how it is performed — which is the ruled reason it exists in the editor's 2D lane
   only: the 3D surfaces keep the merged hammer-motion reading, and the game's future 2D tab view
   must suppress it (recorded in roadmap plan 30).
-- **A tail's end is `display_hold_ends[index]`, not the note's own sustain.** A sustainless member
-  of a strum a hand-shape span holds is drawn held to the span's end, because the span is what tells
-  the player how long to keep the shape fretted. Both surfaces resolve that one field from the same
-  `chartEffectiveSustains` authority (`HighwayViewState::display_hold_ends` is its twin), which is
+- **A tail's end is `display_hold_ends[index]`, not the note's own presented tail.** A member of a
+  strum a hand-shape span holds is drawn held past its tail, because the span is what tells the
+  player how long to keep the shape fretted. Both surfaces resolve that one field from the same
+  `chartHolds` authority (`HighwayViewState::display_hold_ends` is its twin), which is
   what closed the recorded W9-A divergence where 2D drew bare heads for a chart the board drew held.
   It is also what the visible-range prefix maximum must index, so a span-held strum stays in range
   for as long as it is drawn — **and what `tabNoteLayout` must be handed**, so the hit rectangle
   covers exactly the ribbon the paint pass drew. Those are the three places one hold end has to
   reach; a silent step is any one of them left on `note.end_seconds`, which is how a span-extended
-  ribbon shipped drawn and unclickable. The hold end is itself bounded at the next onset on the
-  note's own string, the same bound 40-Q2-B imposes on a stored sustain — resolved in
-  `chartEffectiveSustains`, never on a surface, so both surfaces inherit it.
+  ribbon shipped drawn and unclickable. The hold end is itself capped at the note's own actual
+  ring, which 40-Q2-B already holds inside its string's next onset — resolved in `chartHolds`,
+  never on a surface, so both surfaces inherit it.
 
 One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
 (the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via

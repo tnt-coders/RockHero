@@ -71,11 +71,17 @@ per note.
 ## Invariants on the stored form
 
 - `sustain > 0` for every note. Structural refusal (no repair can invent a duration); a missing
-  `sustain` key is a malformed document. This doubles as the format tripwire: a chart written
-  before this model has zero-sustain notes and refuses with "re-import the package".
+  `sustain` key is a malformed document. The MISSING-key refusal is the format tripwire that
+  actually fires: the pre-model writer elided the key on every tail-less note rather than writing
+  a zero, so that is the path a real old package takes, and its message is the one that has to
+  name the re-import (corrected 2026-08-22 — the positive-sustain rule states the same remedy for
+  a zero that no writer ever emitted).
 - A tail never crosses the next onset on its own string (40-Q2-B). Now a rule of the one
   normalizer (`ChartRepair::OverlappingTail`), run at load, by the importer before its synthesis
-  passes, and by the editor's plan gate — one authority instead of an editor-only trim.
+  passes, and by the editor's plan gate — one authority instead of an editor-only trim. It asks
+  `sustainBoundOf`, a binary search over the sorted stream, so the document reader now refuses an
+  out-of-order document itself rather than handing the normalizer a stream its searches cannot
+  read (the validator's own order refusal comes too late — the normalizer runs first).
 - Payload offsets lie within the actual ring (unchanged; the meaning widens).
 - A scrape's terminal sits exactly at its actual end (unchanged).
 
@@ -91,13 +97,17 @@ flattens that claim at load and reports it.
 ## The hold (3D pinned heads, 2D range culling)
 
 `holds[i]` is the presented end, except that a member of a 2+ onset group under a covering
-shape span whose presented tail is empty holds for its actual ring, capped at the span's end and at
-the next onset on its own string. An all-dead group is choked, as today. Singles hold for their
-presented tail.
+shape span whose presented tail is empty holds for its actual ring, capped at the span's end. An
+all-dead group is choked, as today. Singles hold for their presented tail. The same-string bound
+needs no cap of its own: `normalizeSustainOverlaps` already holds every stored ring inside its own
+string's next onset, so capping at the ring caps at the bound too — the A3 review deleted the
+second statement of it that had been sitting inside the span engine, unable to do anything but
+agree with the first.
 
-Structurally this is today's span rule unchanged: `chartHolds` *asks* `chartEffectiveSustains` —
+Structurally this is today's span rule unchanged: `chartHolds` *asks* the span convention —
 handing it the presented stream, so it extends exactly the members presentation emptied — and caps
-each answer at the stored ring. The rule is composed over, never restated.
+each answer at the stored ring. The rule is composed over, never restated; the span engine is
+private to `chart_presentation.cpp` now that nothing resolves holds from a trimmed stored form.
 
 The cap is a real change of value, though, not a rename, and it is the same change the 2D ribbons
 show on the other surface: today's hold is the span's remainder whatever the strum rang for, so a
@@ -187,8 +197,11 @@ The rest of the A2 diff, for the record (113 songs, 245,866 notes, 22,218 spans)
   into that grace's posture, which is what made it distinct from the identical two-string posture
   on the next beat. Accepted for the same reason the steal is — the string genuinely stopped
   sounding there.
-- **3,146 holds change in 50 songs.** 2,775 shorten and 29 end — the intended A1 hold cap, the
-  fourth deviation above — and 10 lengthen, the shift-slide case above.
+- **3,156 holds change in 51 songs.** 2,775 shorten and 371 end — the intended A1 hold cap, the
+  fourth deviation above, plus the 342-note defect below — and 10 lengthen. The 10 are two
+  different things, measured note by note: **2** are the tie-merged shift-slide origin above
+  (its sus lengthened and its hold followed), and **8** are the sus additions further down — the
+  same notes, their holds following the tails the sounding-position regrouping gave them.
 - **342 of those hold changes are a defect, not a deviation.** A DEAD note inside a live chord
   under a covering span loses its pinned head entirely, because `normalizeChart` still applies
   E25 to the STORED ring (7,835 notes ship with `sustain` zero, and every one of them is dead)
@@ -202,13 +215,38 @@ The rest of the A2 diff, for the record (113 songs, 245,866 notes, 22,218 spans)
   all, and the no-clamp control dump is byte-identical to the shipped one. What earned the note a
   tail under the notated-strum key could not be reconstructed from the dumps.
 
+### Re-measured at A3 (2026-08-22)
+
+Against the A2 dump, the A3 readers change **exactly one thing across 245,866 notes in 113 songs**:
+the 342 dead-note holds above. Every one is a dead note, every one still presents no tail (rule 4
+doing its work on the presented form alone), 317 now match the pre-change hold exactly and 25 stay
+shorter — capped by their own ring rather than the span's end, which is the intended A1 hold cap.
+The defect is closed.
+
+Against the pre-change baseline the whole A3 picture is therefore A2's table minus that defect:
+2,839 hold changes in 49 songs (2,800 shorter, 29 ended, 10 lengthened) where A2 had 3,156 in 51
+(2,775 / 371 / 10 — the 371 being 29 genuine ends plus the 342 defect). The 67 sus drops, the 8 sus
+additions (a strum's longer-ringing member gaining the tail the notated-beat grouping suppressed —
+the sounding-position regrouping ruled on 2026-08-21, in its other direction), the 2 shift-slide
+SUS lengthenings, the 3 merged chord templates and the byte-identical fret-hand placements are all
+unchanged from A2. The 10 hold lengthenings are those two groups' holds following those two tail
+changes — 2 shift-slide, 8 sus additions — not 10 shift-slides.
+
+**The strict hold test changed nothing measurable.** Not one resolved legato motion differs, from
+either baseline: Guitar Pro tiles durations, so an imported claim's predecessor rings exactly to its
+onset, and the kept-bound assumption it replaced was never load-bearing on this corpus. The
+accepted "claims after a rest flatten" deviation is real by construction and has zero instances
+here — which also retires the recorded worry that a muted-tail trim would flatten claims
+corpus-wide.
+
 ## Stages
 
 - **A** — the data model, pixel-identical: A1 core (`chart_presentation.h/.cpp`, the hold, the
   validator and document rules, tests); A2 importer (emit actual, trimming deleted, tests
-  migrated); A3 readers (projection on presented, `display_hold_ends` on holds, resolver strict;
-  golden diff); A4 editor verbs (growth clamps at adjacency, shrink refuses zero, insert default one
-  grid step, assist to the onset); D1 the 2D ribbon change as its own commit.
+  migrated); A3 readers (projection on presented, `display_hold_ends` on holds, the shared arrival
+  rule `chartShapeArrivals` on presented as well, resolver strict; golden diff); A4 editor verbs
+  (growth clamps at adjacency, shrink refuses zero, insert default one grid step, assist to the
+  onset); D1 the 2D ribbon change as its own commit.
 - **B** — the editor's Alt reveal: while Alt is held every visible note draws its actual ring as a
   dimmed outline; release snaps back to the presented form.
 - **C** — shape spans derived from the notes (rule 12 as today: a posture starts at a ≥2-note

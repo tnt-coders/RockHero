@@ -8,7 +8,6 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -42,13 +41,13 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
-\brief The shortest notated ring that earns a kept sustain tail: a quarter note.
+\brief The shortest actual ring that earns a drawn sustain tail: a quarter note.
 
-Two readers must agree on this bound, which is why it is named once. The import drop rule
-removes the tail of any effect-free note notated shorter than this — a shorter ring reads as
-noise in a chart, not a deliberate sustain. Consequently a note held through a gap of at least
-this length necessarily carries a tail reaching the minimum-sustain-distance margin, which is
-what lets \ref predecessorHoldReaches read a shorter (or absent) tail as a proven release.
+The bound presentation rule 3 (\ref presentedChartNotes) drops a short effect-free tail against: a
+ring shorter than this reads as noise in a chart, not a deliberate sustain, so no surface draws
+one. It bounds only what is DRAWN — the legato hold test reads the stored ring and asks strict
+adjacency, so a chug inside the bound justifies its hammer-on by ringing to the onset rather than
+by any assumption about tails.
 
 Quarter-note-referenced, never signature-beat-referenced (user rule 2026-08-14), matching the
 tempo semantics: one signature beat of 12/8 is an eighth note, and an eighth-note chug is noise,
@@ -89,79 +88,37 @@ defaults — and a window one of them measured differently would be a gesture th
 inline constexpr Fraction g_minimum_slide_window{1, 8};
 
 /*!
-\brief Resolves each note's effective held length: its sustain, span-extended for chord strums.
+\brief True when the predecessor's ring reaches the onset: strict adjacency.
 
-The chart convention the hold test must judge against, and the musical twin of the display's
-\ref HighwayViewState::display_hold_ends, which resolves this answer into seconds rather than
-restating it: a strum under a hand-shape span is held for the whole span even when
-its notes carry no sustain, because the span is what tells the player how long to keep the shape
-fretted. Each SUSTAINLESS note in a same-onset group of two or more covered by a span therefore
-holds to the span's end. Groups whose notes are all dead stay unextended (a dead chug is
-choked, not held), as do single notes and notes carrying an explicit sustain, whose tails already
-state their hold. Coverage is positional only, with no posture matching.
+The legato hold test. A hammer-on or pull-off is real only while the finger that plays it is still
+on the string, and the chart says exactly how long that is: `ChartNote::sustain` is the ACTUAL
+duration the string rings, so the predecessor is still down at the onset precisely when its ring
+reaches it. Nothing is assumed and nothing is inferred.
 
-The span-implied hold is capped at the next onset on the note's OWN string, the same bound 40-Q2-B
-imposes on a stored sustain: a derived hold running past a later head would draw a tail through and
-beyond it, which no storable chart can express. The cap cannot change \ref predecessorHoldReaches —
-the onset it measures to IS the successor whose claim reads this hold, and a hold reaching exactly
-that onset still reaches — so it is a display bound resolved in the one authority rather than a
-second rule on the surfaces.
+Both compensations the trimmed encoding needed are gone with it. The kept-sustain assumption (any
+gap under a quarter note justified a claim, because a shorter tail was legitimately absent from the
+chart) said nothing about the notes and everything about what import had destroyed. The margin
+slack (a tail one minimum-sustain-distance short still counted) existed because the stored tail
+WAS the drawn tail, and a drawn tail must not crowd the next head — the margin is a presentation
+rule now (\ref presentedChartNotes), and the stored ring has no reason to stop short of anything.
 
-The two readers ask simultaneity in the terms their domains offer — exact `GridPosition` equality
-here, resolved seconds against a rounding tolerance on the display side — and agree. Exact positions
-always resolve to equal seconds, and the display's tolerance is a nanosecond, six orders below the
-finest grid the editor offers, so it can absorb arithmetic noise but never join two notes a chart
-can tell apart. There is no set of notes one groups and the other does not.
+Consequence, and the point: a chug chained to its restrike justifies its hammer-on exactly as
+before (Guitar Pro tiles durations, so the ring ends on the next onset), while a note followed by a
+REST no longer does — the string stopped sounding, and the chart now says so. The settle sweep
+(\ref sweepUnjustifiedLegato) flattens such a claim at load and reports it.
 
-Callers must pass notes in their SAVED form (`savedChartNote`). A pick slide's latent mute is the
-difference that matters: in memory an onset group can read as all-muted, and so choked, where the
-saved chart reads it as held. Judging the saved form is what keeps the `H` verb, the legato repair
-and the validation gate from disagreeing about whether a shape is held — each had to learn this
-separately, so it is a contract here now rather than a habit at three call sites. A PRESENTED
-stream (\ref presentedChartNotes) satisfies that same contract — it is derived from the saved form
-and carries its `dead` flags through untouched — which is what lets \ref chartHolds ask this rule
-about the tails presentation left empty.
-
-\note \ref chartHolds is the model's answer for a chart that stores ACTUAL ring durations, and it
-      COMPOSES over this rule rather than restating it: this decides the extension against the
-      presented stream, and the note's own ring caps the result. The callers left here are the
-      readers that still resolve holds from a trimmed stored form; when the last of them moves,
-      this stops being a public rule and becomes that composition's engine.
-
-\param notes Note stream in saved form, sorted by (position, string).
-\param shapes Hand-posture spans sorted by position.
-\param tempo_map Tempo map supplying the signature-derived beat axis.
-\return Per-note effective held length in beats, sized like notes; never shorter than the
-        note's own sustain.
-*/
-[[nodiscard]] std::vector<Fraction> chartEffectiveSustains(
-    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map);
-
-/*!
-\brief True unless the chart proves the predecessor was released before the onset.
-
-The legato hold test: a hammer-on or pull-off is real only while its predecessor can still be
-held when the new note starts. Under an onset gap shorter than the kept-sustain bound
-(\ref minimumKeptSustainBeats at the predecessor's measure) that is assumed — tails below the
-bound are legitimately absent. At or beyond it, a held-through predecessor carries a tail
-reaching the minimum-sustain-distance margin before the onset, so a hold ending short of that
-margin — evaluated at the predecessor's measure, the same margin every trim derives — proves the
-string was released.
-
-The held length is the EFFECTIVE one (\ref chartEffectiveSustains), never the stored sustain: a
-sustainless member of a strum under a hand-shape span is held by the span, and reading its zero
-would call a held shape released. A scrape's sustain is its gesture's end, so the same
-comparison covers it.
+With the same-string clamp (\ref sustainBoundOf) this is equality in practice: a predecessor's ring
+may reach its successor's onset and never pass it, and the successor of a claim IS the next onset
+on that string.
 
 \param predecessor Onset of the previous note on the same string.
-\param effective_sustain That note's effective held length from \ref chartEffectiveSustains.
+\param sustain That note's stored ring in beats.
 \param onset Onset of the note taking the hammer-on or pull-off.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
-\return True when a hammer-on or pull-off from the predecessor is not disproven.
+\return True when the predecessor is still ringing at the onset.
 */
 [[nodiscard]] bool predecessorHoldReaches(
-    const GridPosition& predecessor, Fraction effective_sustain, const GridPosition& onset,
+    const GridPosition& predecessor, Fraction sustain, const GridPosition& onset,
     const TempoMap& tempo_map);
 
 /*!

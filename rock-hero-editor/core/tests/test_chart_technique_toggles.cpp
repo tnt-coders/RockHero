@@ -4,9 +4,9 @@
 namespace rock_hero::editor::core
 {
 
-// Sustain growth clamps to the minimum-sustain-distance margin — the shared 1/16-whole-note
-// constant (a quarter beat in 4/4) — before the next onset on ANY string;
-// shrinking floors at zero.
+// Sustain growth stops at exact adjacency with the next onset on the note's OWN string (40-Q2-B,
+// the one bound on a ring), and a note on another string blocks nothing; shrinking refuses the
+// step that would empty the ring.
 TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][chart]")
 {
     FakeTransport transport;
@@ -24,48 +24,51 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // A plain click selects just the string-1 note (containment hierarchy).
+    // A plain click selects just the string-1 note (containment hierarchy). Every fixture note
+    // starts at the eighth-of-a-beat fixture ring, so each grid step adds a whole beat to that.
     click(controller, 40.0f, 220.0f);
     controller.onChartSustainAdjustRequested(1, false);
     const auto* chart = chartOrNull(controller);
-    CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
+    CHECK(chart->notes[0].sustain == common::core::Fraction{9, 8});
 
-    // Five more quarter-note steps would reach 6 beats, but the measure-3 note sits 4 beats
-    // later: growth clamps a quarter-beat margin before it, at 15/4 beats.
+    // Five more quarter-note steps would reach 49/8 beats, but the measure-3 note is the next
+    // onset on this string, four beats later: growth stops exactly there and the last steps
+    // change nothing.
     for (int step = 0; step < 5; ++step)
     {
         controller.onChartSustainAdjustRequested(1, false);
     }
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].sustain == common::core::Fraction{15, 4});
+    CHECK(chart->notes[0].sustain == common::core::Fraction{4});
 
-    // The margin binds across strings too: the string-2 chord member has no same-string
-    // successor at all, but the measure-3 string-1 note still stops its tail at 15/4 beats.
+    // Nothing bounds the string-2 chord member, because the bound is its OWN string's next onset
+    // and it has none: the measure-3 note on string 1 no longer stops its ring.
     click(controller, 40.0f, 180.0f);
     for (int step = 0; step < 6; ++step)
     {
         controller.onChartSustainAdjustRequested(1, false);
     }
     chart = chartOrNull(controller);
-    CHECK(chart->notes[1].sustain == common::core::Fraction{15, 4});
+    CHECK(chart->notes[1].sustain == common::core::Fraction{49, 8});
 
-    // Shrinking floors at zero.
+    // Shrinking stops one step short of empty: every note rings, so the step that would reach zero
+    // is refused rather than clamped.
     click(controller, 40.0f, 220.0f);
     for (int step = 0; step < 6; ++step)
     {
         controller.onChartSustainAdjustRequested(-1, false);
     }
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+    CHECK(chart->notes[0].sustain == common::core::Fraction{1});
 
     // The Ctrl fine tier composes on the extent verb too (the off-grid unification): one fine
-    // grow adds exactly 1/960 beat, and the fine shrink returns exactly to zero.
+    // grow adds exactly 1/960 beat, and the fine shrink returns exactly to where it was.
     controller.onChartSustainAdjustRequested(1, true);
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].sustain == common::core::Fraction{1, 960});
+    CHECK(chart->notes[0].sustain == common::core::Fraction{961, 960});
     controller.onChartSustainAdjustRequested(-1, true);
     chart = chartOrNull(controller);
-    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+    CHECK(chart->notes[0].sustain == common::core::Fraction{1});
 }
 
 // The pick-slide toggle authors a scrape from a plain note and back within the session. The
@@ -120,7 +123,7 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
     CHECK_FALSE(chart->notes[0].slide_out.has_value());
-    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+    CHECK(chart->notes[0].sustain == g_fixture_sustain);
 }
 
 // Uniform scope on a mixed selection: any plain note present makes the whole selection become
@@ -212,7 +215,7 @@ TEST_CASE("EditorController toggles a palm mute with exact restoration", "[core]
     controller.onUndoRequested();
     chart = chartOrNull(controller);
     CHECK_FALSE(chart->notes[0].palm_mute);
-    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+    CHECK(chart->notes[0].sustain == g_fixture_sustain);
 }
 
 // The both-muted note the two-flag model exists for, authored the way the user authors it: press

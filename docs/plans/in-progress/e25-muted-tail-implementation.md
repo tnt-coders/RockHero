@@ -12,6 +12,16 @@ dirty, and leaves the file untouched until a save. The principle is codified in
 `docs/design/architectural-principles.md` ("Domain Invariants: One Normalizer, Normalize-or-Refuse").
 What follows is the design record that produced it.
 
+**Superseded in part 2026-08-22 by the note-sustain model**
+(`docs/plans/in-progress/note-sustain-model.md`): E25 is now presentation rule 4 in
+`presentedChartNotes` rather than a repair of the stored field, so a dead note keeps the ring it
+was notated with (that ring is the timing a legato claim after the cluck reads) and only its DRAWN
+tail goes. The rule's substance — a dead string presents no tail unless tremolo or a slide keeps it
+making noise or travelling — is unchanged. Two code citations below went with that change and are
+left as the record they were: `sustainGrowthLimit` is deleted (the duration verbs and the `L`
+assist clamp at `sustainBoundOf`, the next onset on the note's own string), and no verb extends a
+zero ring any more, because no note stores one.
+
 The rule itself was signed 2026-08-09 as E25 (ruling D16) and needs no revisiting. What this
 document holds is the *implementation* design, opened 2026-08-20, paused mid-discussion, and
 settled later the same day: the user ruled all four open questions, each on the recommended

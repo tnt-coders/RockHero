@@ -403,7 +403,6 @@ struct SlideOut
 \brief One string sounding once: the only event kind in the note stream.
 
 A strummed chord is simultaneous notes at one position; shape spans supply the notation layer.
-A zero sustain means the note has no sustain tail.
 */
 struct ChartNote
 {
@@ -416,7 +415,22 @@ struct ChartNote
     /*! \brief Fret sounded; zero is the open string. */
     int fret{0};
 
-    /*! \brief Sustain duration in beats; zero means no sustain. */
+    /*!
+    \brief The ACTUAL duration the string rings, in beats. Strictly positive.
+
+    Guitar Pro's notated duration at import, what the editor's verbs author, and what playback will
+    sound. Not what any surface draws: the drawn tail is derived from this once per chart revision
+    by \ref presentedChartNotes, so a sub-quarter chug rings for its eighth and shows nothing, and
+    a dead note carries the duration of its damped stroke while presenting no tail at all (E25).
+    Storing the truth once is what keeps the readability policy from being destruction that every
+    later reader then has to guess back (`docs/plans/in-progress/note-sustain-model.md`).
+
+    Every note rings for some length, so zero is not an encoding — \ref validateChartNoteAlone
+    refuses it structurally, since no repair can invent a duration. The only bound is
+    \ref sustainBoundOf: a re-strike stops the ring, so the tail may reach the next onset on its own
+    string exactly and never pass it (40-Q2-B, \ref normalizeSustainOverlaps). Payload offsets lie
+    within it.
+    */
     Fraction sustain{};
 
     /*! \brief How the onset is produced. */

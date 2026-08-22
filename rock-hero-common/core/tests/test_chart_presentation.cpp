@@ -565,4 +565,69 @@ TEST_CASE("Presented tails, dead groups and singles hold what they show", "[core
     }
 }
 
+// Which span a strum inherits from, and for how long the span machinery keeps looking. Nothing
+// forbids spans from overlapping, and a shape that began earlier and runs longer holds the same
+// strum just as well — but a single cursor remembering the latest STARTING span let a short one
+// beginning inside a long one shadow it, so the strum read as released and every hammer-on or
+// pull-off it justified was repaired away. Every note here rings half a beat: effect-free and
+// under the kept-sustain bound, so rule 3 presents no tail and the span rule is what answers.
+TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+
+    SECTION("an earlier, longer span is not shadowed by a later, shorter one")
+    {
+        // Span A covers global beats 0 through 8.25; span B starts later (beat 4) and ends at 5,
+        // long before the chord at measure 3 beat 1 (global beat 8).
+        const std::vector<ChartShape> shapes = {
+            ChartShape{.position = at(1, 1), .sustain = Fraction{33, 4}},
+            ChartShape{.position = at(2, 1), .sustain = Fraction{1}},
+        };
+        const std::vector<ChartNote> saved = {
+            note(at(3, 1), 1, Fraction{1, 2}),
+            note(at(3, 1), 2, Fraction{1, 2}, 7),
+        };
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+        REQUIRE(holds.size() == 2);
+        // A quarter beat of span A is left, which is shorter than the ring, so it is the cap. A
+        // cursor that remembered only span B would find no cover at all and hold nothing.
+        CHECK(holds[0] == Fraction{1, 4});
+        CHECK(holds[1] == Fraction{1, 4});
+
+        // Listing order must not matter either: the same two spans the other way round give the
+        // same answer, which a last-writer-wins cursor could not promise.
+        const std::vector<ChartShape> reversed = {shapes[1], shapes[0]};
+        const std::vector<Fraction> held_reversed = chartHolds(saved, presented, reversed, map);
+        REQUIRE(held_reversed.size() == 2);
+        CHECK(held_reversed[0] == Fraction{1, 4});
+    }
+
+    SECTION("the cursor advances to a later span, and past every span nothing extends")
+    {
+        // One span over measure 1, another over measure 4; measure 5 is past both.
+        const std::vector<ChartShape> shapes = {
+            ChartShape{.position = at(1, 1), .sustain = Fraction{4}},
+            ChartShape{.position = at(4, 1), .sustain = Fraction{2}},
+        };
+        const std::vector<ChartNote> saved = {
+            note(at(4, 1), 1, Fraction{1, 2}),
+            note(at(4, 1), 2, Fraction{1, 2}, 7),
+            note(at(5, 1), 1, Fraction{1, 2}),
+            note(at(5, 1), 2, Fraction{1, 2}, 7),
+        };
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        const std::vector<Fraction> holds = chartHolds(saved, presented, shapes, map);
+        REQUIRE(holds.size() == saved.size());
+        // The second span reaches two beats past the strum, so each member holds its own ring.
+        CHECK(holds[0] == Fraction{1, 2});
+        CHECK(holds[1] == Fraction{1, 2});
+        // No span covers measure 5, so its strum holds exactly what it presents: nothing.
+        CHECK(holds[2] == Fraction{});
+        CHECK(holds[3] == Fraction{});
+    }
+}
+
 } // namespace rock_hero::common::core

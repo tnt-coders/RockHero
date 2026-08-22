@@ -35,12 +35,14 @@ acceptance. All other fields, D13's constants, spans, and nodes are unchanged.
 ## Read model
 
 One total resolver — today's `derivedLegatoAttack` retargeted, clauses byte-identical:
-`resolveLegato(note, predecessor, predecessor_effective_sustain, tempo_map) →
-{Hammer, Pull, Unjustified}`. `LeftTap` resolves to the hammer motion unconditionally.
-Resolution reads the predecessor's STORED fields only (no cascade). A shared helper computes
-per-note resolutions in one O(n) same-string walk (saved forms + `chartEffectiveSustains`),
-living in common/core beside the resolver, consumed by the tab lane, the highway, the gameplay
-build, and the reader — computed per chart revision, never per frame. Display draws the
+`resolveLegato(note, predecessor, tempo_map) → {Hammer, Pull, Unjustified}` (the hold parameter
+went with the note-sustain model on 2026-08-22 — the predecessor's own stored ring IS the hold
+datum, so there is no derived length to pass alongside). `LeftTap` resolves to the hammer motion
+unconditionally. Resolution reads the predecessor's STORED fields only (no cascade). A shared
+helper computes per-note resolutions in one O(n) same-string walk (saved forms plus the derived
+presented forms and holds), living in common/core beside the resolver, consumed by the tab lane,
+the highway, the gameplay build, and the reader — computed per chart revision, never per frame.
+Display draws the
 RESOLVED motion with today's mark geometry; an `Unjustified` `Legato` draws and scores as a
 plain Pick. **No cue, no lint, no dormant-state chrome.** The no-indicator choice is justified
 by TRANSIENCE (broken claims cannot cross a top-of-history settle or reach any file), not by
@@ -61,9 +63,12 @@ by design.
   applying would change nothing does the press mean clear, and the clear flattens the
   stored-`Legato` subset only — a `LeftTap` keeps its attack through clear** (Shift+T is the
   tap's sole author; plain L never destroys one).
-- **The assist:** for a note being set whose predecessor's effective hold does not reach (gap
-  at/past the kept-sustain bound), grow the predecessor's tail to `(distance − margin)` in the
-  same plan when that makes the claim resolve and the growth is within `sustainGrowthLimit`.
+- **The assist:** for a note being set whose predecessor's ring does not reach its onset, grow that
+  ring to the successor's ONSET in the same plan when that makes the claim resolve. (Amended
+  2026-08-22 with the note-sustain model: the target was `(distance − margin)` bounded by
+  `sustainGrowthLimit`, both of which were the DRAWN tail's spacing rule; the stored ring's one
+  bound is the next onset on its own string, which is exactly this note, so the assist authors
+  precisely what a manual drag could and needs no limit of its own.)
   The assist SKIPS gesture-carrying predecessors (a scrape, or any note with a slide-out): the
   tail is that gesture's authored window, and the assist must not reshape it — manual drag
   remains the authoring path there.
@@ -188,7 +193,7 @@ load-time conversion.
 (cancelled unbuilt, task #63); the derivation/oracle-restatement toggle machinery; the old
 D14 assist body (rewritten into the new toggle planner); the cue/lint/chrome obligations;
 relational validity rows; the importer settle dance. Kept: `predecessorHoldReaches` + both
-constants, `chartEffectiveSustains`, `sustainGrowthLimit`, `finalizePlan`'s funnel, the fret
+constants, the span-hold rule, the ring bound, `finalizePlan`'s funnel, the fret
 entry window, the toggle window + `dropTop`.
 
 ## Signature ledger (final, red-team-corrected)

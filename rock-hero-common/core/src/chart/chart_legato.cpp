@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -13,8 +14,7 @@ namespace rock_hero::common::core
 {
 
 LegatoMotion resolveLegato(
-    const ChartNote& note, const ChartNote* const predecessor,
-    const Fraction predecessor_effective_sustain, const TempoMap& tempo_map)
+    const ChartNote& note, const ChartNote* const predecessor, const TempoMap& tempo_map)
 {
     // The left-hand tap states the motion locally, so it is answered before any predecessor is
     // consulted: there is nothing for a neighbour to justify or withdraw.
@@ -26,11 +26,11 @@ LegatoMotion resolveLegato(
     // there is no fretting finger at its end to release or to continue from — the note after a
     // scrape is picked. A dead predecessor is deliberately NOT disqualified (ruled and reversed the
     // same day, 2026-08-20): its finger is on the stop, and the muted cluck that follows is a
-    // hammer or pull like any other; what bounds it is the hold test below, since a dead note
-    // carries no tail to prove a hold past the kept-sustain bound.
+    // hammer or pull like any other; the hold test below bounds it by the same ring every note
+    // carries.
     if (predecessor == nullptr || isScrape(predecessor->attack) || fretHandHarmonic(*predecessor) ||
         !predecessorHoldReaches(
-            predecessor->position, predecessor_effective_sustain, note.position, tempo_map))
+            predecessor->position, predecessor->sustain, note.position, tempo_map))
     {
         return LegatoMotion::Unjustified;
     }
@@ -60,8 +60,11 @@ ChartResolutions chartResolutions(
     {
         resolutions.saved_notes.push_back(savedChartNote(note));
     }
-    resolutions.effective_sustains =
-        chartEffectiveSustains(resolutions.saved_notes, shapes, tempo_map);
+    // What the surfaces draw, and how long the hand stays down: derived here so a chart revision
+    // pays for them once, and so no consumer can derive a different picture of the same chart.
+    resolutions.presented_notes = presentedChartNotes(resolutions.saved_notes, tempo_map);
+    resolutions.holds =
+        chartHolds(resolutions.saved_notes, resolutions.presented_notes, shapes, tempo_map);
 
     // The last note seen per string: the stream is sorted, so this IS each note's same-string
     // predecessor when it is reached.
@@ -77,21 +80,16 @@ ChartResolutions chartResolutions(
             string_in_range ? last_per_string.at(static_cast<std::size_t>(note.string))
                             : g_no_chart_predecessor;
         resolutions.predecessors.push_back(predecessor_index);
-        const ChartNote* predecessor = nullptr;
-        Fraction predecessor_hold{};
-        if (predecessor_index != g_no_chart_predecessor)
-        {
-            predecessor = &resolutions.saved_notes[predecessor_index];
-            predecessor_hold = resolutions.effective_sustains[predecessor_index];
-        }
+        const ChartNote* const predecessor = predecessor_index == g_no_chart_predecessor
+                                                 ? nullptr
+                                                 : &resolutions.saved_notes[predecessor_index];
         // Only a note that actually CLAIMS a connection is resolved here. A plain pick's entry
         // stays `Unjustified` even where a claim would have resolved — which is exactly what lets
         // display code read this entry alone for the whole legatoClaimable family. The `H` toggle
         // asks resolveLegato directly for the hypothetical it needs.
         const bool claims = note.attack == NoteAttack::Legato || note.attack == NoteAttack::LeftTap;
         resolutions.legato.push_back(
-            claims ? resolveLegato(note, predecessor, predecessor_hold, tempo_map)
-                   : LegatoMotion::Unjustified);
+            claims ? resolveLegato(note, predecessor, tempo_map) : LegatoMotion::Unjustified);
         if (string_in_range)
         {
             last_per_string.at(static_cast<std::size_t>(note.string)) = index;

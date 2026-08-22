@@ -57,44 +57,6 @@ namespace
     return common::core::frettingFingerOnNode(note) != common::core::frettingFingerOnNode(retyped);
 }
 
-// How far this note's tail may GROW, in beats — the minimum-sustain-distance rule: an extension
-// must end at least the shared margin BEFORE the next onset on ANY string, so growth can never
-// crowd another note. Same-onset chord members sit at equal positions and never block each
-// other, and notes under a shared shape span are implied-held across each other's onsets (§5),
-// so span siblings never block either — the first later onset outside every shared span binds.
-// One authority for every verb that grows a tail (the duration verb's clamp, the legato assist's
-// reachability pre-check), so what an assist may author and what a manual drag may reach can
-// never disagree. Nullopt when nothing later blocks at all.
-[[nodiscard]] std::optional<common::core::Fraction> sustainGrowthLimit(
-    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const common::core::ChartNote& note)
-{
-    const auto shares_span = [&chart, &tempo_map, &note](const common::core::GridPosition& other) {
-        return std::ranges::any_of(chart.shapes, [&](const common::core::ChartShape& shape) {
-            const auto covers = [&](const common::core::GridPosition& position) {
-                return !(position < shape.position) &&
-                       common::core::beatDistance(tempo_map, shape.position, position) <
-                           shape.sustain;
-            };
-            return covers(note.position) && covers(other);
-        });
-    };
-    auto blocker = std::ranges::upper_bound(
-        chart.notes, note.position, {}, &common::core::ChartNote::position);
-    while (blocker != chart.notes.end() && shares_span(blocker->position))
-    {
-        ++blocker;
-    }
-    if (blocker == chart.notes.end())
-    {
-        return std::nullopt;
-    }
-    const common::core::TimeSignatureChange signature =
-        tempo_map.timeSignatureAt(note.position.measure);
-    return common::core::beatDistance(tempo_map, note.position, blocker->position) -
-           common::core::minimumSustainDistanceBeats(signature.denominator);
-}
-
 // Diffs the current stream against the planned stream into removed/inserted full values; both
 // inputs are sorted by (position, string).
 [[nodiscard]] std::optional<ChartNotesEditPlan> diffNotes(
@@ -145,34 +107,25 @@ namespace
     return plan;
 }
 
-// The two repairs a plan carries with it rather than refusing over, and the only two: an attack
-// that STRIKES from nowhere needs somewhere to land (E4), and a dead note carries no plain tail
-// (E25). Both ride the entry that produced them because the truth each repairs is the note's OWN —
-// retyping a tap down to the open string leaves nothing to strike, and deadening a held note
-// leaves a tail that means nothing — so refusing instead would make the edit fail for a reason the
-// user never asked about, and for E25 would refuse X on every held note in an imported chart.
-// Every OTHER rule the normalizer owns stays a refusal, because its repair would discard authored
-// data the user did not touch. Stated once, asked twice: by the flag and emphasis verbs' per-note
-// eligibility tests (so a held note is eligible for X rather than skipped) and by finalizePlan
-// over the whole candidate (so no verb can forget). The attack verb asks only the trim, since
-// for it the attack is the intent and a stranded strike is a note to skip.
-void repairOwnTruths(common::core::ChartNote& note)
+// The one repair a plan carries with it rather than refusing over: an attack that STRIKES from
+// nowhere needs somewhere to land (E4). It rides the entry that produced it because the truth it
+// repairs is the note's OWN — retyping a tap down to the open string leaves nothing to strike — so
+// refusing instead would make the edit fail for a reason the user never asked about. Every OTHER
+// rule the normalizer owns stays a refusal, because its repair would discard authored data the
+// user did not touch. (A dead note's tail was the second such repair until E25 became a
+// presentation rule: X now leaves the ring alone, because nothing draws it.)
+//
+// Whether a verb's per-note ELIGIBILITY test applies the flatten before asking the rule authority.
+// Only the verbs whose intent is not the attack do: for the attack verb a strike with nowhere to
+// land is a note to skip, not one to quietly retype as a pick.
+enum class StrandedStrikeRepair : std::uint8_t
 {
-    static_cast<void>(common::core::flattenStrandedStrike(note));
-    static_cast<void>(common::core::trimMutedTail(note));
-}
-
-// Which of the plan's own repairs a verb's per-note eligibility applies before asking the rule
-// authority. Every verb asks the tail trim; only the verbs whose intent is NOT the attack ask the
-// strike flatten too, since for the attack verb a strike with nowhere to land is a note to skip.
-enum class EligibilityRepairs : std::uint8_t
-{
-    StrikeAndTail,
-    TailOnly
+    Flatten,
+    Skip
 };
 
 // Finalizes a candidate stream: restores (position, string) order, applies the 40-Q2-B overlap
-// normalization and the two in-plan repairs, gates the result through the whole technique matrix,
+// normalization and the one in-plan repair, gates the result through the whole technique matrix,
 // and diffs against the current stream. The gate is what makes authoring an invalid chart
 // impossible by construction — a plan whose candidate the document reader would reject refuses
 // here, for every present and future verb, with no per-verb guard to forget. It validates the SAVED
@@ -184,15 +137,16 @@ enum class EligibilityRepairs : std::uint8_t
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
+    // The truncated indices are the load path's business (it names what it changed); a producer
+    // that only needs the invariant ignores them, which is why the rule is not [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
-    // The in-plan repairs (repairOwnTruths). Relational truths deliberately do not repair here
-    // (see planSettleLegato): mid-burst a claim the chart cannot justify simply plays as the pick
-    // it sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no
-    // record of which notes the plan touched, because a note the plan left alone already passed
-    // this gate.
+    // The in-plan repair (E4). Relational truths deliberately do not repair here (see
+    // planSettleLegato): mid-burst a claim the chart cannot justify simply plays as the pick it
+    // sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no record
+    // of which notes the plan touched, because a note the plan left alone already passed this gate.
     for (common::core::ChartNote& note : candidate)
     {
-        repairOwnTruths(note);
+        static_cast<void>(common::core::flattenStrandedStrike(note));
     }
     // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
     // by the writer, so validating the in-memory values would refuse charts the document accepts.
@@ -219,14 +173,14 @@ enum class EligibilityRepairs : std::uint8_t
 // from `note`, or returns false to leave the note alone), a write that changes nothing the document
 // would record is skipped (asked of the writer's own authority, so a scrape, whose saved form
 // strips its latents, never earns an undo entry for a flag no surface draws), the plan's own
-// repairs ride the eligibility test, and the per-note rule authority then judges the SAVED form so
+// repair rides the eligibility test, and the per-note rule authority then judges the SAVED form so
 // a mixed selection applies to what CAN take the write and leaves the rest alone. The three
 // planners used to carry this skeleton each, and two of them disagreed about the no-op test.
 template <typename Write>
 [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planNoteWrite(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, const std::string_view label,
-    const EligibilityRepairs repairs, Write&& write)
+    const StrandedStrikeRepair stranded, Write&& write)
 {
     if (keys.empty())
     {
@@ -249,13 +203,9 @@ template <typename Write>
         {
             continue;
         }
-        if (repairs == EligibilityRepairs::StrikeAndTail)
+        if (stranded == StrandedStrikeRepair::Flatten)
         {
-            repairOwnTruths(written);
-        }
-        else
-        {
-            static_cast<void>(common::core::trimMutedTail(written));
+            static_cast<void>(common::core::flattenStrandedStrike(written));
         }
         if (!common::core::validateChartNoteAlone(
                  common::core::savedChartNote(written), chart.tuning, tempo_map)
@@ -277,8 +227,13 @@ template <typename Write>
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    common::core::ChartNote note)
+    common::core::ChartNote note, const common::core::Fraction default_sustain)
 {
+    // Every note rings, so a placement authors a duration whether the user thought about one or
+    // not, and the session's grid step is what they were looking at when they placed it. The
+    // finalize gate's same-string normalization does the clamping: a step that would ring through
+    // the next onset on the string ends exactly on it.
+    note.sustain = default_sustain;
     std::vector<common::core::ChartNote> candidate = chart.notes;
     // Placing on an occupied slot replaces the note there. Still reachable under the marker
     // model: undo/redo never move the marker, so undoing a delete can put a note back under
@@ -455,29 +410,34 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
             continue;
         }
         common::core::Fraction next_sustain = note.sustain + beat_delta;
-        if (next_sustain.numerator < 0)
-        {
-            next_sustain = common::core::Fraction{};
-        }
         // A scrape needs somewhere to travel: its sustain floors at the minimum gesture window
-        // instead of zero (the path re-terminates onto the shrunk tail via the payload clip).
+        // (the path re-terminates onto the shrunk tail via the payload clip).
         if (common::core::isScrape(note.attack) &&
             next_sustain < common::core::g_minimum_slide_window)
         {
             next_sustain = common::core::g_minimum_slide_window;
         }
-        // The minimum-sustain-distance rule (override design deliberately open): growing a tail
-        // clamps it to the shared growth limit, so extension can never crowd another note. The
-        // clamp binds this verb only: pre-existing closer spacing (imports, the insert
-        // truncation's exact adjacency) is left untouched, and a tail already at or past the
-        // limit refuses to grow rather than shrinking to it.
+        // Every note rings for some length, so there is no empty ring to shrink to: a step that
+        // would reach zero is refused for THIS note (the others in the selection still shrink)
+        // rather than clamped, because clamping would silently author a duration the model has no
+        // encoding for. Deleting the note is the verb for removing it.
+        if (next_sustain.numerator <= 0)
+        {
+            continue;
+        }
+        // The one bound on a ring (40-Q2-B): a tail may grow to exact adjacency with the next
+        // onset on its OWN string and no further, because a re-strike stops the ring. The margin
+        // that used to bind growth against ANY string was the DRAWN tail's spacing rule, which
+        // presentation now owns; the stored ring has no reason to stop short of the string's own
+        // next head. A tail already at or past the bound refuses to grow rather than shrinking to
+        // it.
         if (beat_delta.numerator > 0)
         {
-            const std::optional<common::core::Fraction> limit =
-                sustainGrowthLimit(chart, tempo_map, note);
-            if (limit.has_value() && *limit < next_sustain)
+            const std::optional<common::core::Fraction> bound =
+                common::core::sustainBoundOf(chart.notes, note, tempo_map);
+            if (bound.has_value() && *bound < next_sustain)
             {
-                next_sustain = note.sustain < *limit ? *limit : note.sustain;
+                next_sustain = note.sustain < *bound ? *bound : note.sustain;
             }
         }
         if (next_sustain == note.sustain)
@@ -556,27 +516,28 @@ ChartLegatoPlan planSetLegato(
         // because its node vetoes the pull clause and its open string leaves nothing to hammer on.
         common::core::ChartNote asked = resolutions.saved_notes[index];
         asked.attack = common::core::NoteAttack::Legato;
-        common::core::LegatoMotion resolved = common::core::resolveLegato(
-            asked,
-            predecessor,
-            predecessor == nullptr ? common::core::Fraction{}
-                                   : resolutions.effective_sustains[predecessor_index],
-            tempo_map);
+        common::core::LegatoMotion resolved =
+            common::core::resolveLegato(asked, predecessor, tempo_map);
         // The D14 assist: when the HOLD is the only thing missing — the claim would resolve if the
-        // predecessor were still held — the verb grows that tail to the margin point in the same
-        // plan, so pressing H across the bound authors the connection instead of demanding the drag
-        // first (the tail IS the held-ness datum; the verb writes it rather than requiring it). The
-        // re-ask under a trivially reaching hold IS the only-blocker test: an equal fret, a missing
-        // predecessor, or a fret-hand-harmonic predecessor still refuses. Growth is pre-checked
-        // against the shared growth limit, so the assist can never author what a manual drag could
-        // not reach, and a blocked note is skipped whole rather than partially extended.
+        // predecessor were still ringing — the verb grows that ring to the successor's ONSET in
+        // the same plan, so pressing H authors the connection instead of demanding the drag first
+        // (the ring IS the held-ness datum; the verb writes it rather than requiring it). The
+        // hypothetical is asked by handing the resolver a predecessor carrying that ring, which IS
+        // the only-blocker test: an equal fret, a missing predecessor, or a fret-hand-harmonic
+        // predecessor still refuses.
+        //
+        // No growth pre-check, and none is possible to disagree with: `note` is the next onset on
+        // the predecessor's string by construction (that is what makes it the predecessor), so the
+        // onset the assist grows to IS the predecessor's sustainBoundOf — exactly what a manual
+        // drag could reach, and exactly what the finalize gate would clamp to.
         bool hold_was_the_only_blocker = false;
         if (resolved == common::core::LegatoMotion::Unjustified && predecessor != nullptr)
         {
-            const common::core::Fraction distance =
+            common::core::ChartNote still_ringing = *predecessor;
+            still_ringing.sustain =
                 common::core::beatDistance(tempo_map, predecessor->position, note.position);
             const common::core::LegatoMotion if_held =
-                common::core::resolveLegato(asked, predecessor, distance, tempo_map);
+                common::core::resolveLegato(asked, &still_ringing, tempo_map);
             hold_was_the_only_blocker = if_held != common::core::LegatoMotion::Unjustified;
             // A trail-off's tail is its authored exit window, not slack to spend: reshaping it to
             // buy a connection would rewrite the gesture. The connection itself stays legal — the
@@ -585,19 +546,10 @@ ChartLegatoPlan planSetLegato(
             // never the only blocker.)
             if (hold_was_the_only_blocker && !predecessor->slide_out.has_value())
             {
-                const common::core::TimeSignatureChange signature =
-                    tempo_map.timeSignatureAt(predecessor->position.measure);
-                const common::core::Fraction required =
-                    distance - common::core::minimumSustainDistanceBeats(signature.denominator);
-                const std::optional<common::core::Fraction> limit =
-                    sustainGrowthLimit(chart, tempo_map, *predecessor);
-                if (required.numerator > 0 && !(limit.has_value() && *limit < required))
-                {
-                    candidate[predecessor_index].sustain = required;
-                    common::core::clipPayloadsToSustain(candidate[predecessor_index]);
-                    resolved = if_held;
-                    changed = true;
-                }
+                candidate[predecessor_index].sustain = still_ringing.sustain;
+                common::core::clipPayloadsToSustain(candidate[predecessor_index]);
+                resolved = if_held;
+                changed = true;
             }
         }
         if (resolved == common::core::LegatoMotion::Unjustified)
@@ -674,15 +626,15 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
     const std::vector<ChartNoteKey>& keys, const common::core::NoteAttack attack,
     const std::string_view label)
 {
-    // Only the tail trim rides THIS verb's eligibility, never the strike flatten: here the attack
-    // IS what the user asked for, so a strike with nowhere to land (an open-string pinch re-handed
-    // to the fretting hand) is a note to skip, not one to quietly retype as a pick.
+    // The strike flatten never rides THIS verb's eligibility: here the attack IS what the user
+    // asked for, so a strike with nowhere to land (an open-string pinch re-handed to the fretting
+    // hand) is a note to skip, not one to quietly retype as a pick.
     return planNoteWrite(
         chart,
         tempo_map,
         keys,
         label,
-        EligibilityRepairs::TailOnly,
+        StrandedStrikeRepair::Skip,
         [&](const common::core::ChartNote& note, common::core::ChartNote& retyped) {
             if (note.attack == attack)
             {
@@ -715,20 +667,22 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
             }
             if (common::core::isScrape(attack))
             {
-                // A scrape needs room to travel, so a sustainless note grows one first: a quarter
-                // note, clamped by the SAME growth limit every tail-growing verb obeys, so an
-                // authored default can never crowd the next onset.
-                if (retyped.sustain.numerator <= 0)
+                // A scrape needs room to travel, so a ring too short to hold a gesture at all
+                // grows first: the signed quarter-note default, clamped by the model's ONE bound
+                // (40-Q2-B) so an authored default can never ring through the string's next
+                // onset. A ring that can hold the gesture is left exactly as authored — the ring
+                // is the note's own truth, and this verb changes the attack, not the duration.
+                if (retyped.sustain < common::core::g_minimum_slide_window)
                 {
                     const common::core::TimeSignatureChange signature =
                         tempo_map.timeSignatureAt(note.position.measure);
                     common::core::Fraction wanted =
                         pickSlideDefaultSustainBeats(signature.denominator);
-                    const std::optional<common::core::Fraction> limit =
-                        sustainGrowthLimit(chart, tempo_map, note);
-                    if (limit.has_value() && *limit < wanted)
+                    const std::optional<common::core::Fraction> bound =
+                        common::core::sustainBoundOf(chart.notes, note, tempo_map);
+                    if (bound.has_value() && *bound < wanted)
                     {
-                        wanted = *limit;
+                        wanted = *bound;
                     }
                     retyped.sustain = wanted > common::core::g_minimum_slide_window
                                           ? wanted
@@ -760,15 +714,18 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
 {
     // The write is one bool, and the rule authority is what refuses `dead` wherever a technique
     // needs the pitch it removes — a bend, a vibrato, a pinch's squeal — and what a palm mute
-    // always passes. The eligibility asks the plan's own repairs first, so a held note is
-    // eligible for X (its tail goes with the press) rather than skipped over the tail.
+    // always passes. The eligibility asks the plan's own repair first (E4's strike flatten), as
+    // every verb whose intent is not the attack does: a write that leaves a strike with nowhere to
+    // land retypes to a plain pick and applies, rather than skipping the note for a reason the
+    // user never asked about. The ring is not this verb's business at all — E25 is a presentation
+    // rule, so X takes a dead note's DRAWN tail away and leaves its stored duration standing.
     bool common::core::ChartNote::* const field = chartNoteFlagField(which);
     return planNoteWrite(
         chart,
         tempo_map,
         keys,
         label,
-        EligibilityRepairs::StrikeAndTail,
+        StrandedStrikeRepair::Flatten,
         [field, value](const common::core::ChartNote&, common::core::ChartNote& written) {
             written.*field = value;
             return true;
@@ -785,7 +742,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
         tempo_map,
         keys,
         label,
-        EligibilityRepairs::StrikeAndTail,
+        StrandedStrikeRepair::Flatten,
         [value](const common::core::ChartNote&, common::core::ChartNote& struck) {
             struck.emphasis = value;
             return true;

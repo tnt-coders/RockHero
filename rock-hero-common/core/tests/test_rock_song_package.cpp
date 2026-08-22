@@ -1434,7 +1434,7 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
             .position = GridPosition{.measure = 1, .beat = 3},
             .string = 4,
             .fret = 2,
-            .sustain = {},
+            .sustain = Fraction{1, 8},
             .bend = {},
             .slides = {},
         });
@@ -1508,6 +1508,45 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
     CHECK(read_document_bytes() == bytes_before);
 }
 
+// The one rule a note cannot obey alone (40-Q2-B): a document written before the ring model — or
+// by a converter that never learned it — can carry a tail ringing through its own string's next
+// onset. The load truncates it at that onset and REPORTS the conversion rather than refusing the
+// package or drawing a tail through a later head.
+TEST_CASE(
+    "Rock song package read truncates a tail past its own string", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    // Hand-written, because the canonical writer cannot produce this document: string 1 rings four
+    // beats through its own restrike two beats later.
+    writeTextFile(
+        package_directory / chart_ref,
+        R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
+        R"( "notes": [ { "position": "1:1", "string": 1, "fret": 5, "sustain": "4" },)"
+        R"( { "position": "1:3", "string": 1, "fret": 7, "sustain": "1/8" } ] })");
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read = readRockSongPackageDirectory(package_directory);
+    REQUIRE(read.has_value());
+    REQUIRE(read->conversions.size() == 1);
+    CHECK(read->conversions.front().conversion.repair == ChartRepair::OverlappingTail);
+    CHECK(read->conversions.front().conversion.where == "1:1 string 1");
+    REQUIRE(read->song.arrangements.front().chart.has_value());
+    if (read->song.arrangements.front().chart.has_value())
+    {
+        const Chart& loaded_chart = *read->song.arrangements.front().chart;
+        REQUIRE(loaded_chart.notes.size() == 2);
+        CHECK(loaded_chart.notes.front().sustain == Fraction{2});
+    }
+}
+
 // The load sweep: a hand-made document can carry a connection claim its own notes do not justify —
 // nothing the project writes can, since the writer settles first — and the reader settles it rather
 // than refusing the package, reporting the conversion so the editor can mark the session dirty.
@@ -1525,7 +1564,8 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5, "attack": "legato" } ] })");
+        R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5, "sustain": "1/8",)"
+        R"( "attack": "legato" } ] })");
 
     Song song = makeSong(source_audio);
     song.arrangements.front().chart_ref = chart_ref;
@@ -1552,7 +1592,8 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             .position = GridPosition{.measure = 1, .beat = 1},
             .string = 1,
             .fret = 5,
-            .sustain = {},
+            // Rings exactly to the claim below, which is what justifies it.
+            .sustain = Fraction{1, 2},
             .bend = {},
             .slides = {},
         },
@@ -1560,7 +1601,7 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
             .string = 1,
             .fret = 7,
-            .sustain = {},
+            .sustain = Fraction{1, 8},
             .attack = NoteAttack::Legato,
             .bend = {},
             .slides = {},
@@ -1593,6 +1634,7 @@ TEST_CASE(
             .position = GridPosition{.measure = 1, .beat = 9},
             .string = 3,
             .fret = 5,
+            .sustain = Fraction{1, 8},
             .bend = {},
             .slides = {},
         },
@@ -1612,7 +1654,7 @@ TEST_CASE(
     writeTextFile(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
-        R"( "notes": [ { "position": "1:9", "string": 3, "fret": 5 } ] })");
+        R"( "notes": [ { "position": "1:9", "string": 3, "fret": 5, "sustain": "1/8" } ] })");
 
     // A position off the grid is structural — no repair can express it — so the load refuses
     // exactly as before the normalizer existed.

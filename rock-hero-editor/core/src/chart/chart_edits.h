@@ -66,17 +66,22 @@ enum class ChartPlanRefusal : std::uint8_t
 /*!
 \brief Plans placing one note, replacing any note already on its (position, string) slot.
 
-The placed note's sustain clamps against the next same-string onset and any earlier same-string
-sustain ringing across the onset truncates (40-Q2-B), all in the one plan.
+Every note rings, so a placement authors a duration: `default_sustain` becomes the placed note's
+ring, clamped against the next onset on its own string, and any earlier same-string ring crossing
+the new onset truncates (40-Q2-B) — all in the one plan. The default is the caller's because it is
+a SESSION fact (the grid step the user is working at), not a chart one; `note.sustain` is
+overwritten rather than read, so there is only one channel for it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
 \param note Note to place; the caller owns position/string/fret validity.
+\param default_sustain Ring the placed note gets before the same-string clamp; the session's
+current grid step.
 \return The plan; NoChange when the placement changes nothing, Invalid when the gate refuses it.
 */
 [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    common::core::ChartNote note);
+    common::core::ChartNote note, common::core::Fraction default_sustain);
 
 /*!
 \brief Plans deleting the notes matching the given keys.
@@ -153,10 +158,12 @@ rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 /*!
 \brief Plans adjusting the keyed notes' sustains by an exact beat delta.
 
-Sustains floor at zero — at the minimum gesture window on pick slides, whose path re-terminates
-onto the changed tail (shrink compresses the final point, growth rides it out). Growth clamps
-against the next same-string onset (40-Q2-B) and payload points beyond a shortened sustain are
-clipped with it.
+Every note rings, so there is no empty ring to shrink to: a step that would take a note's sustain
+to zero or below is refused for THAT note and the rest of the selection still moves (a pick slide
+floors at the minimum gesture window instead, its path re-terminating onto the changed tail —
+shrink compresses the final point, growth rides it out). Growth clamps at exact adjacency with the
+next onset on the note's own string (40-Q2-B, \ref common::core::sustainBoundOf), which is the
+model's one bound on a ring; payload points beyond a shortened sustain are clipped with it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis.
@@ -181,7 +188,7 @@ enum class ChartLegatoSkip : std::uint8_t
     /*! \brief Nothing earlier on the note's own string to connect to. */
     NoPredecessor,
 
-    /*! \brief The predecessor's hold ends too early, and its tail could not be grown to reach. */
+    /*! \brief The predecessor's ring stops before the onset, and could not be grown to reach. */
     PredecessorReleased,
 
     /*! \brief A predecessor that reaches, but no connection between the two stops. */
@@ -227,11 +234,13 @@ a rule restated here said so. Direction is never written: the stored claim is th
 statement, and both surfaces read the motion back through the same resolver.
 
 The assist authors the missing half of a claim rather than demanding it first: when the
-predecessor's hold stops short of the onset, its tail grows to the margin point in the SAME plan,
-but only when that makes the claim resolve and only within `sustainGrowthLimit`, so the assist can
-never author what a manual drag could not reach. It skips a trail-off predecessor — any note with a
-slide-out — because that tail is the gesture's authored window, not slack to spend. (A scrape needs
-no such guard: the resolver disqualifies it outright, so its hold is never the only blocker.)
+predecessor's ring stops short of the onset, it grows to that ONSET — exact adjacency — in the SAME
+plan, but only when that makes the claim resolve. It can never author what a manual drag could not
+reach, and needs no bound of its own to say so: the claiming note IS the next onset on the
+predecessor's string, so the target is exactly that predecessor's
+\ref common::core::sustainBoundOf. It skips a trail-off predecessor — any note with a slide-out —
+because that tail is the gesture's authored window, not slack to spend. (A scrape needs no such
+guard: the resolver disqualifies it outright, so its ring is never the only blocker.)
 
 \param chart Chart the plan is built against.
 \param tempo_map Tempo map the plan resolves distances through.

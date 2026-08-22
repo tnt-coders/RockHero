@@ -13,16 +13,30 @@ namespace rock_hero::editor::core
 {
 
 /*!
+\brief The ring a fixture note gets when the test does not turn on its duration: an eighth of a
+beat.
+
+Chosen once, for every suite that hand-builds a chart. Three things make it the right nothing-to-
+say value: it is strictly positive, as every stored ring must be (a zero one is refused
+structurally — `ChartNote::sustain`); it is under the kept-sustain bound, so presentation drops the
+tail and no surface draws anything; and it is shorter than any gap these fixtures use, so it
+justifies no legato claim. A test whose meaning depends on the duration — a drawn tail, a hold, a
+connection — states its own.
+*/
+inline constexpr common::core::Fraction g_fixture_sustain{1, 8};
+
+/*!
 \brief Builds a note carrying only the fields the planners read, with the non-DMI position,
 bend, and slides fields listed so -Wmissing-designated-field-initializers stays quiet.
 \param position Musical onset.
 \param string One-based string.
 \param fret Fret sounded.
-\param sustain Held length in beats; zero by default.
+\param sustain Ring in beats; \ref g_fixture_sustain by default.
 \return The note.
 */
 [[nodiscard]] inline common::core::ChartNote makeTestNote(
-    common::core::GridPosition position, int string, int fret, common::core::Fraction sustain = {})
+    common::core::GridPosition position, int string, int fret,
+    common::core::Fraction sustain = g_fixture_sustain)
 {
     return common::core::ChartNote{
         .position = position,

@@ -5,6 +5,8 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <optional>
+#include <ranges>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -52,10 +54,12 @@ bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map
            position.offset.numerator >= 0 && position.offset < Fraction{1};
 }
 
-std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_map)
+std::vector<bool> chartShapeArrivals(
+    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
+    const std::vector<ChordTemplate>& templates, const TempoMap& tempo_map)
 {
     std::vector<bool> arpeggio;
-    arpeggio.reserve(chart.shapes.size());
+    arpeggio.reserve(shapes.size());
     // Both streams ascend, so one note cursor serves every shape. It carries the one thing the rule
     // needs from the past — the most recent note on each string — which is what turns the whole
     // classification into a single forward pass. Answering it per shape instead meant walking BACK
@@ -65,11 +69,12 @@ std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_m
     std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
     last_per_string.fill(no_note);
     std::size_t next_note = 0;
-    for (const ChartShape& shape : chart.shapes)
+    for (const ChartShape& shape : shapes)
     {
-        while (next_note < chart.notes.size() && chart.notes[next_note].position < shape.position)
+        while (next_note < presented_notes.size() &&
+               presented_notes[next_note].position < shape.position)
         {
-            const int string = chart.notes[next_note].string;
+            const int string = presented_notes[next_note].string;
             if (string >= 1 && string <= g_max_chart_strings)
             {
                 last_per_string.at(static_cast<std::size_t>(string)) = next_note;
@@ -79,8 +84,8 @@ std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_m
         // The cursor now sits on the first note AT the span start, and the notes sharing that onset
         // are the contiguous run from there.
         std::size_t after_start = next_note;
-        while (after_start < chart.notes.size() &&
-               chart.notes[after_start].position == shape.position)
+        while (after_start < presented_notes.size() &&
+               presented_notes[after_start].position == shape.position)
         {
             ++after_start;
         }
@@ -97,13 +102,13 @@ std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_m
         const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
         bool held_under_right_hand = false;
         for (std::size_t scan = next_note;
-             scan < chart.notes.size() && chart.notes[scan].position < span_end;
+             scan < presented_notes.size() && presented_notes[scan].position < span_end;
              ++scan)
         {
             held_under_right_hand =
-                held_under_right_hand || rightHandOnset(chart.notes[scan].attack);
+                held_under_right_hand || rightHandOnset(presented_notes[scan].attack);
         }
-        if (held_under_right_hand || shape.chord >= chart.templates.size())
+        if (held_under_right_hand || shape.chord >= templates.size())
         {
             arpeggio.push_back(held_under_right_hand);
             continue;
@@ -112,7 +117,9 @@ std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_m
         // A posture string still ringing at the start without an onset there was not re-struck —
         // the strum picks around the held note, so the span cannot be one full strum. Only that
         // string's most recent earlier note can still be ringing, which the cursor already knows.
-        const ChordTemplate& chord_template = chart.templates[shape.chord];
+        // "Ringing" is the PRESENTED tail: a dead string makes no sound to pick around, and
+        // presentation is where a dead note's tail goes (E25).
+        const ChordTemplate& chord_template = templates[shape.chord];
         bool rings_unstruck = false;
         for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
         {
@@ -126,12 +133,13 @@ std::vector<bool> chartShapeArrivals(const Chart& chart, const TempoMap& tempo_m
             bool struck = false;
             for (std::size_t scan = next_note; scan < after_start; ++scan)
             {
-                struck = struck || chart.notes[scan].string == string;
+                struck = struck || presented_notes[scan].string == string;
             }
             const std::size_t earlier = last_per_string.at(static_cast<std::size_t>(string));
-            rings_unstruck = rings_unstruck ||
-                             (!struck && earlier != no_note &&
-                              shape.position < sustainEndPosition(tempo_map, chart.notes[earlier]));
+            rings_unstruck =
+                rings_unstruck ||
+                (!struck && earlier != no_note &&
+                 shape.position < sustainEndPosition(tempo_map, presented_notes[earlier]));
         }
         arpeggio.push_back(rings_unstruck);
     }
@@ -300,10 +308,10 @@ std::string_view chartRepairText(const ChartRepair repair)
         {
             return "a tap with nothing to strike became a plain pick";
         }
-        case ChartRepair::MutedTail:
+        case ChartRepair::OverlappingTail:
         {
-            return "a dead note rings nothing, so its plain tail was trimmed (tremolo or a slide "
-                   "keeps one)";
+            return "a re-strike stops the ring, so a tail was truncated at the next onset on its "
+                   "string";
         }
         case ChartRepair::FretPastBoard:
         {
@@ -337,21 +345,6 @@ bool flattenStrandedStrike(ChartNote& note)
         return false;
     }
     note.attack = NoteAttack::Pick;
-    return true;
-}
-
-bool trimMutedTail(ChartNote& note)
-{
-    // The two things that keep a dead string making noise or travelling are what keep its tail:
-    // repeated raking, or a dragged mute. A scrape always carries a slide-out, so a scrape with a
-    // latent dead flag in memory is never trimmed — which is what lets the editor apply this to
-    // the in-memory note rather than the saved form.
-    if (!note.dead || note.tremolo || !note.slides.empty() || note.slide_out.has_value() ||
-        note.sustain.numerator <= 0)
-    {
-        return false;
-    }
-    note.sustain = Fraction{};
     return true;
 }
 
@@ -394,34 +387,42 @@ void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
     }
 }
 
-// Walks each string's sorted notes: a sustain ringing across the next onset on that string ends
-// exactly there instead (adjacency is legal), clipping payloads with it. One inner scan per note
-// finds that string's next onset, and it stops at the first one found — later notes on the string
-// are bounded by their own predecessor in turn.
-void normalizeSustainOverlaps(std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+// The one walk that answers "when is this string struck again", which the truncation below, the
+// span-implied hold's cap and the editor's growth verbs all read. Same-position notes are on
+// different strings by construction (a duplicate onset is an invalid chart), so the search starts
+// past the note's whole onset group and stops at the first later note on the string.
+std::optional<Fraction> sustainBoundOf(
+    const std::vector<ChartNote>& notes, const ChartNote& note, const TempoMap& tempo_map)
 {
+    const auto later = std::ranges::subrange(
+        std::ranges::upper_bound(notes, note.position, std::ranges::less{}, &ChartNote::position),
+        notes.end());
+    const auto next = std::ranges::find(later, note.string, &ChartNote::string);
+    if (next == later.end())
+    {
+        return std::nullopt;
+    }
+    return beatDistance(tempo_map, note.position, next->position);
+}
+
+// A ring past its bound ends exactly on it (adjacency is legal), clipping payloads with the tail.
+std::vector<std::size_t> normalizeSustainOverlaps(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    std::vector<std::size_t> truncated;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
-        if (note.sustain.numerator <= 0)
+        const std::optional<Fraction> bound = sustainBoundOf(notes, note, tempo_map);
+        if (!bound.has_value() || !(*bound < note.sustain))
         {
             continue;
         }
-        for (std::size_t later = index + 1; later < notes.size(); ++later)
-        {
-            const ChartNote& next = notes[later];
-            if (next.string != note.string)
-            {
-                continue;
-            }
-            if (next.position < sustainEndPosition(tempo_map, note))
-            {
-                note.sustain = beatDistance(tempo_map, note.position, next.position);
-                clipPayloadsToSustain(note, /*end_lands_on_onset=*/true);
-            }
-            break;
-        }
+        note.sustain = *bound;
+        clipPayloadsToSustain(note, /*end_lands_on_onset=*/true);
+        truncated.push_back(index);
     }
+    return truncated;
 }
 
 std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& tuning)
@@ -530,27 +531,20 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
         fired(ChartRepair::StrandedStrike);
     }
 
-    // 5. A scrape keeps traveling or it is no scrape: after the clamps, floors, and drops above,
-    //    consecutive neck positions — start, turnarounds, exit — must strictly differ, because a
-    //    pick cannot rest on a fret and still be scraping (an ordinary slide's equal-fret segment
-    //    is a legitimate hold). A scrape without its terminal at all is missing data and stays a
-    //    refusal, so only a present exit is judged. Demoted to the plain pick it sounds like, with
-    //    its path cleared. The editor's scrape verb asks no question of its own here: it builds
-    //    the path and lets the fixpoint judge it, so a held segment skips the note the same way.
+    // 5. Last: a scrape keeps traveling or it is no scrape. After the clamps, floors, and drops
+    //    above, consecutive neck positions — start, turnarounds, exit — must strictly differ,
+    //    because a pick cannot rest on a fret and still be scraping (an ordinary slide's
+    //    equal-fret segment is a legitimate hold). A scrape without its terminal at all is missing
+    //    data and stays a refusal, so only a present exit is judged. Demoted to the plain pick it
+    //    sounds like, with its path cleared. The editor's scrape verb asks no question of its own
+    //    here: it builds the path and lets the fixpoint judge it, so a held segment skips the note
+    //    the same way.
     if (isScrape(note.attack) && note.slide_out.has_value() && !pickSlidePathTravels(note))
     {
         note.attack = NoteAttack::Pick;
         note.slides.clear();
         note.slide_out.reset();
         fired(ChartRepair::StilledScrape);
-    }
-
-    // 6. The muted tail, last: the tap-harmonic arm above can clear the tremolo that was a
-    //    tail's only justification, and the stilled-scrape demotion can clear the slide payload
-    //    that was, so the trim must read the note as it now stands.
-    if (trimMutedTail(note))
-    {
-        fired(ChartRepair::MutedTail);
     }
     return repairs;
 }
@@ -617,6 +611,19 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
             normalizeChartNote(note, chart.tuning),
             positionText(note.position) + " string " + std::to_string(note.string));
     }
+    // The one rule a note cannot obey alone (40-Q2-B): a re-strike stops the ring. It runs here
+    // rather than at each producer, so a chart written before the rule — or by a converter that
+    // never learned it — is truncated and REPORTED on load instead of drawing a tail through a
+    // later head.
+    for (const std::size_t index : normalizeSustainOverlaps(chart.notes, tempo_map))
+    {
+        conversions.push_back(
+            ChartConversion{
+                .repair = ChartRepair::OverlappingTail,
+                .where = positionText(chart.notes[index].position) + " string " +
+                         std::to_string(chart.notes[index].string),
+            });
+    }
     for (std::size_t index = 0; index < chart.templates.size(); ++index)
     {
         record(normalizeChordTemplate(chart.templates[index]), "template " + std::to_string(index));
@@ -661,11 +668,19 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "note is out of range at " + positionText(note.position),
         }};
     }
-    if (note.sustain.numerator < 0)
+    // Every struck string rings for SOME length — a dead note's damped stroke included — so the
+    // sustain is the actual duration and is strictly positive. No repair can express this: a
+    // duration is information, and inventing one would be authoring the chart. It doubles as the
+    // format tripwire for any zero that reaches memory, which is why the message names the cause
+    // rather than the field. A package written before the duration model rarely arrives here: that
+    // writer OMITTED the key on every tail-less note, so the document reader refuses it first,
+    // with the same re-import remedy.
+    if (note.sustain.numerator <= 0)
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "note sustain must not be negative at " + positionText(note.position),
+            .message = "note sustain must be positive at " + positionText(note.position) +
+                       "; this chart predates the note duration model and must be re-imported",
         }};
     }
     if (note.harmonic_node.has_value() &&
