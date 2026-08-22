@@ -16,14 +16,6 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Sub-beat step keeping a degenerate gesture payload strictly after its predecessor.
-
-The minimum span a glide, slide-out, or scrape leg may occupy: zero-length gestures have
-nowhere to travel, so synthesis and compression floor on this window.
-*/
-inline constexpr common::core::Fraction g_minimum_slide_window{1, 8};
-
-/*!
 \brief Default scrape endpoints, corpus-derived (plan 55 Phase 2).
 
 Down-slides overwhelmingly start at the neck's high end (~70% at fret 13 and above) and end

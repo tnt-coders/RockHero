@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
@@ -774,7 +775,7 @@ TEST_CASE("planSetAttack gives a sustainless scrape the default quarter note", "
             noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
         REQUIRE(scrape != nullptr);
         CHECK(scrape->sustain == pickSlideDefaultSustainBeats(4));
-        CHECK(scrape->sustain > g_minimum_slide_window);
+        CHECK(scrape->sustain > common::core::g_minimum_slide_window);
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
         {
@@ -1397,13 +1398,13 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             const common::core::ChartNote* scrape =
                 noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
-            CHECK(scrape->sustain == g_minimum_slide_window);
+            CHECK(scrape->sustain == common::core::g_minimum_slide_window);
             // The turnaround no longer fits inside the floored window; the terminal alone rides.
             CHECK(scrape->slides.empty());
             REQUIRE(scrape->slide_out.has_value());
             if (scrape->slide_out.has_value())
             {
-                CHECK(scrape->slide_out->offset == g_minimum_slide_window);
+                CHECK(scrape->slide_out->offset == common::core::g_minimum_slide_window);
                 CHECK(scrape->slide_out->fret == 12);
             }
         }

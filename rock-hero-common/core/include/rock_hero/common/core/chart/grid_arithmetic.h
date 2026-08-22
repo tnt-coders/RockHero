@@ -75,6 +75,20 @@ x/4, two beats in x/8.
 }
 
 /*!
+\brief Sub-beat step keeping a degenerate gesture payload strictly after its predecessor.
+
+The minimum span a glide, slide-out, or scrape leg may occupy: zero-length gestures have
+nowhere to travel, so synthesis and compression floor on this window.
+
+Unlike the two bounds above this is a plain BEAT quantity, not a whole-note-referenced one: it
+bounds payload offsets, which are already stated in beats, rather than naming a note value. It
+sits here because three producers floor on it — the Guitar Pro import's gesture synthesis, the
+presentation trim's slide-out compression (\ref presentedChartNotes), and the editor's scrape
+defaults — and a window one of them measured differently would be a gesture the rules refuse.
+*/
+inline constexpr Fraction g_minimum_slide_window{1, 8};
+
+/*!
 \brief Resolves each note's effective held length: its sustain, span-extended for chord strums.
 
 The chart convention the hold test must judge against, and the musical twin of the display's
@@ -103,7 +117,16 @@ Callers must pass notes in their SAVED form (`savedChartNote`). A pick slide's l
 difference that matters: in memory an onset group can read as all-muted, and so choked, where the
 saved chart reads it as held. Judging the saved form is what keeps the `H` verb, the legato repair
 and the validation gate from disagreeing about whether a shape is held — each had to learn this
-separately, so it is a contract here now rather than a habit at three call sites.
+separately, so it is a contract here now rather than a habit at three call sites. A PRESENTED
+stream (\ref presentedChartNotes) satisfies that same contract — it is derived from the saved form
+and carries its `dead` flags through untouched — which is what lets \ref chartHolds ask this rule
+about the tails presentation left empty.
+
+\note \ref chartHolds is the model's answer for a chart that stores ACTUAL ring durations, and it
+      COMPOSES over this rule rather than restating it: this decides the extension against the
+      presented stream, and the note's own ring caps the result. The callers left here are the
+      readers that still resolve holds from a trimmed stored form; when the last of them moves,
+      this stops being a public rule and becomes that composition's engine.
 
 \param notes Note stream in saved form, sorted by (position, string).
 \param shapes Hand-posture spans sorted by position.

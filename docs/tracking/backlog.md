@@ -375,10 +375,12 @@ remains:
   (`advanceGridPosition` extends the final signature, `gridPositionForGlobalBeat` clamps the
   measure and emits an out-of-range beat). Making the latter extend like the tempo map deletes
   `withinGrid` and both call-site guards; short of that, call the authority.
-- **Two payload-clip helpers for one rule**: `clipPayloadsTo` (importer) and
-  `clipPayloadsToSustain` (editor) overlap, and the shift-slide junction hand-restates the
-  slide-out clip immediately after calling the narrower one. Give the shared helper the slide-out
-  clip behind its target parameter, or state why the builder deliberately owns a narrower rule.
+- **Two payload-clip helpers for one rule**: `clipPayloadsTo` (`chart_presentation.h`) and
+  `clipPayloadsToSustain` (`chart_rules.h`) overlap, and the importer's shift-slide junction
+  hand-restates the slide-out clip immediately after calling the narrower one. Both now live in
+  `common/core`, so the consolidation is a one-file edit: give the shared helper the slide-out clip
+  behind its target parameter, or state why the presentation trim deliberately owns a narrower
+  rule (it is still choosing where its end goes when it clips, which is the current answer).
 - Evaluate: the importer's no-landing degradation path forces a DOWNWARD trail-off even when the
   notated glide direction is known (consistent with the pre-existing no-landing path, so a
   deliberate change would touch both).

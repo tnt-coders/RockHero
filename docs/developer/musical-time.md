@@ -42,12 +42,20 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   tail read as a *proven* release. Quarter-note-referenced, never signature-beat-referenced (user
   rule 2026-08-14): one signature beat of 12/8 is an eighth, and the old one-beat bound handed
   nearly every note of a 12/8 song a tail. In x/4 meters the two references coincide.
+- `g_minimum_slide_window` (1/8 **beat**, not a whole-note reference like the two above) — the
+  smallest span a glide, slide-out, or scrape leg may occupy. A zero-length gesture has nowhere to
+  travel, so import synthesis, the presentation trim's slide-out compression, and the editor's
+  scrape defaults all floor on this one window.
 - `chartEffectiveSustains(notes, shapes, tempo_map)` — per-note held lengths, extending a
   sustainless member of a strum that a hand-shape span holds. Callers pass notes in **saved** form.
   Spans may overlap, so what it remembers is the **furthest-reaching** span already started, not the
   latest-starting one: an earlier span running longer holds the same strum just as well, and
   tracking the latest start let a short span beginning inside a long one shadow it, so a held chord
   silently lost its extension and the connection that extension justified read as a plain pick.
+  *In flux:* `chartHolds` in `chart/chart_presentation.h` is the model's answer for a chart storing
+  ACTUAL ring durations, and it **composes** over this rule rather than restating it — this one
+  decides the extension, asked of the presented stream, and the note's own ring caps the result. It
+  stays public only while readers still resolve holds from a trimmed stored form.
 - `predecessorHoldReaches(...)` — the connection hold test: true unless the chart proves the
   same-string predecessor was released before the onset.
 - `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
@@ -58,6 +66,31 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   tone-track normalization, tone-track validation, and the editor's end-of-chart navigation and
   selection bounds), so the terminal-anchor lookup and the position it becomes are spelled once
   here.
+
+# Presentation: stored durations vs drawn ones (`chart/chart_presentation.h`)
+
+*In flux — the module exists and is tested, but no reader consumes it yet (stage A1 of
+`docs/plans/in-progress/note-sustain-model.md`; A2 moves the importer onto it and A3 the readers).*
+
+The model being built here is simple to state: `ChartNote::sustain` is the **actual** duration the
+string rings — Guitar Pro's notated duration at import, what the editor's verbs author — and what a
+surface **draws** is derived from it, once per chart revision, by `presentedChartNotes`. The
+readability policy that used to run at import time and destroy the notated durations becomes a pure
+read-side derivation, so nothing that is drawn is stored and nothing that is stored is a guess.
+
+- `presentedChartNotes(saved_notes, tempo_map)` — one presented note per saved note, through four
+  ordered rules: trim to the margin before the next binding onset (with a ring that runs strictly
+  *past* that onset exempt as a deliberate hold), floor the trim on payload that still changes
+  something, drop short effect-free tails per onset group, and present no tail on a dead note that
+  is neither tremoloed nor sliding. Payload is clipped with the tail, never rescaled.
+- `chartHolds(saved_notes, presented_notes, shapes, tempo_map)` — how long the hand stays down,
+  which is not the same question: a chug under a hand-shape span presents no tail at all, yet the
+  span is what tells the player to keep holding it, so such a member holds for its actual ring
+  capped by the span. It is `chartEffectiveSustains` asked of the presented stream, capped per note
+  at the stored ring — the span rule is asked, never restated.
+- `hasSustainTechnique`, `lastChangingPayloadOffset`, `clipPayloadsTo`,
+  `keptStrictlyAfterLastWaypoint` — the tail helpers the rules are built from, shared with the
+  Guitar Pro importer so its trim and the presentation ask the same questions.
 
 # The TempoMap
 

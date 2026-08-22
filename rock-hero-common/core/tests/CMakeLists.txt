@@ -6,6 +6,7 @@ include(Catch)
 add_executable(
     rock_hero_common_core_tests
     test_chart.cpp
+    test_chart_presentation.cpp
     test_chart_projection.cpp
     test_session.cpp
     test_song.cpp

@@ -22,62 +22,6 @@ namespace
     return ChartNoteKey{.position = note.position, .string = note.string};
 }
 
-// Drops bend and slide points past the note's (possibly shortened) sustain so the payload rule
-// "offsets within the sustain" keeps holding after a 40-Q2-B truncation. A slide-out past the
-// sustain drops like any payload. Latent payloads on a scrape clip too — they must still fit
-// the sustain when a toggle-back makes them real again.
-//
-// `end_lands_on_onset` says the new sustain end IS a following same-string onset, which the
-// 40-Q2-B truncation always makes it. A pitched waypoint may not sit on a later onset of its own
-// string (the glide-into-a-real-note case stores no coordinates, which is what keeps that
-// encoding undesyncable), so there the last point must go too: keeping it turned an ordinary
-// note placement into a silent refusal of the whole plan, because the truncation left behind
-// exactly the payload the gate then rejected. A sustain that merely ends where the user put it
-// keeps a point at its end, which is the normal shift-slide glide-end.
-void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_on_onset = false)
-{
-    std::erase_if(note.bend, [&note](const common::core::BendPoint& point) {
-        return note.sustain < point.offset;
-    });
-    if (common::core::isScrape(note.attack) && note.slide_out.has_value())
-    {
-        // A scrape's gesture ends exactly at the sustain, so a sustain change RE-TERMINATES the
-        // slide-out instead of dropping it (the import trim's compress twist under the editor's
-        // exact-adjacency bound): turnaround waypoints strictly before the new end survive, and
-        // the terminal rides to the sustain itself. When compression makes the terminal fret
-        // meet its new predecessor, the nearest earlier differing fret takes over so the path
-        // never sits still.
-        const std::vector<common::core::SlideWaypoint> path = std::move(note.slides);
-        note.slides = {};
-        for (const common::core::SlideWaypoint& waypoint : path)
-        {
-            if (waypoint.offset < note.sustain)
-            {
-                note.slides.push_back(waypoint);
-            }
-        }
-        const int previous_fret = note.slides.empty() ? note.fret : note.slides.back().fret;
-        int terminal_fret = note.slide_out->fret;
-        std::size_t candidate = path.size();
-        while (terminal_fret == previous_fret && candidate > 0)
-        {
-            --candidate;
-            terminal_fret = path[candidate].fret;
-        }
-        note.slide_out = common::core::SlideOut{.offset = note.sustain, .fret = terminal_fret};
-        return;
-    }
-    std::erase_if(
-        note.slides, [&note, end_lands_on_onset](const common::core::SlideWaypoint& waypoint) {
-            return end_lands_on_onset ? !(waypoint.offset < note.sustain)
-                                      : note.sustain < waypoint.offset;
-        });
-    if (note.slide_out.has_value() && note.sustain < note.slide_out->offset)
-    {
-        note.slide_out.reset();
-    }
-}
-
 // True when a note's harmonic node cannot follow it into `target`, so the verb changing the attack
 // must send the node away with it.
 //
@@ -149,37 +93,6 @@ void clipPayloadsToSustain(common::core::ChartNote& note, const bool end_lands_o
         tempo_map.timeSignatureAt(note.position.measure);
     return common::core::beatDistance(tempo_map, note.position, blocker->position) -
            common::core::minimumSustainDistanceBeats(signature.denominator);
-}
-
-// 40-Q2-B normalization: walking each string's sorted notes, any sustain ringing across the next
-// onset truncates to end exactly there (adjacency is legal), clipping payloads with it.
-void normalizeSustainOverlaps(
-    std::vector<common::core::ChartNote>& notes, const common::core::TempoMap& tempo_map)
-{
-    for (std::size_t index = 0; index < notes.size(); ++index)
-    {
-        common::core::ChartNote& note = notes[index];
-        if (note.sustain.numerator <= 0)
-        {
-            continue;
-        }
-        for (std::size_t later = index + 1; later < notes.size(); ++later)
-        {
-            const common::core::ChartNote& next = notes[later];
-            if (next.string != note.string)
-            {
-                continue;
-            }
-            const common::core::GridPosition sustain_end =
-                common::core::sustainEndPosition(tempo_map, note);
-            if (next.position < sustain_end)
-            {
-                note.sustain = common::core::beatDistance(tempo_map, note.position, next.position);
-                clipPayloadsToSustain(note, /*end_lands_on_onset=*/true);
-            }
-            break;
-        }
-    }
 }
 
 // Diffs the current stream against the planned stream into removed/inserted full values; both
@@ -271,7 +184,7 @@ enum class EligibilityRepairs : std::uint8_t
     std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
-    normalizeSustainOverlaps(candidate, tempo_map);
+    common::core::normalizeSustainOverlaps(candidate, tempo_map);
     // The in-plan repairs (repairOwnTruths). Relational truths deliberately do not repair here
     // (see planSettleLegato): mid-burst a claim the chart cannot justify simply plays as the pick
     // it sounds like, and the burst stays one undo step. Sweeping the whole candidate needs no
@@ -548,9 +461,10 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
         }
         // A scrape needs somewhere to travel: its sustain floors at the minimum gesture window
         // instead of zero (the path re-terminates onto the shrunk tail via the payload clip).
-        if (common::core::isScrape(note.attack) && next_sustain < g_minimum_slide_window)
+        if (common::core::isScrape(note.attack) &&
+            next_sustain < common::core::g_minimum_slide_window)
         {
-            next_sustain = g_minimum_slide_window;
+            next_sustain = common::core::g_minimum_slide_window;
         }
         // The minimum-sustain-distance rule (override design deliberately open): growing a tail
         // clamps it to the shared growth limit, so extension can never crowd another note. The
@@ -571,7 +485,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
             continue;
         }
         note.sustain = next_sustain;
-        clipPayloadsToSustain(note);
+        common::core::clipPayloadsToSustain(note);
         changed = true;
     }
     if (!changed)
@@ -680,7 +594,7 @@ ChartLegatoPlan planSetLegato(
                 if (required.numerator > 0 && !(limit.has_value() && *limit < required))
                 {
                     candidate[predecessor_index].sustain = required;
-                    clipPayloadsToSustain(candidate[predecessor_index]);
+                    common::core::clipPayloadsToSustain(candidate[predecessor_index]);
                     resolved = if_held;
                     changed = true;
                 }
@@ -816,8 +730,9 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
                     {
                         wanted = *limit;
                     }
-                    retyped.sustain =
-                        wanted > g_minimum_slide_window ? wanted : g_minimum_slide_window;
+                    retyped.sustain = wanted > common::core::g_minimum_slide_window
+                                          ? wanted
+                                          : common::core::g_minimum_slide_window;
                 }
                 // An existing slide IS the gesture's path, so converting keeps the frets and the
                 // direction the charter already drew; only a note with no slide at all takes the

@@ -12,6 +12,7 @@
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_legato.h>
+#include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/shared/ascii_case.h>
@@ -35,6 +36,16 @@ using common::core::GridPosition;
 using common::core::NoteAttack;
 using common::core::NoteEmphasis;
 using common::core::SlideWaypoint;
+
+// The tail helpers this import policy shares with the presentation rules in core
+// (chart_presentation.h), which now state the same policy on the read side: one set of questions
+// decides what a trim may keep and what a surface may draw, so the importer asks the shared
+// authority rather than carrying a private twin of it.
+using common::core::clipPayloadsTo;
+using common::core::g_minimum_slide_window;
+using common::core::hasSustainTechnique;
+using common::core::keptStrictlyAfterLastWaypoint;
+using common::core::lastChangingPayloadOffset;
 
 // One note event on the global rational beat axis, before tie merging.
 struct NoteEvent
@@ -100,32 +111,10 @@ struct MeasureGrid
     return lead;
 }
 
-// The minimum gesture window and the corpus-derived default scrape live in the shared seam so
-// import and the editor's attack verb synthesize identical defaults (pick_slide_defaults.h).
-
-// Drops the bend and slide points a tail shortened to `target` no longer contains, so the model's
-// "payload within the sustain" invariant survives every trim. Every shortening owes this: a point
-// left behind hands validation a note it must refuse, and import refuses whole SONGS rather than
-// notes, so one such point costs the song. The slide-out is each caller's own business — one trim
-// here places it rather than dropping it — and `target` is a parameter because a caller may clip
-// before deciding what the sustain finally becomes.
-void clipPayloadsTo(ChartNote& note, const Fraction target)
-{
-    std::erase_if(note.bend, [target](const BendPoint& point) { return target < point.offset; });
-    std::erase_if(
-        note.slides, [target](const SlideWaypoint& waypoint) { return target < waypoint.offset; });
-}
-
-// Bumps a payload window landing on or before the note's last waypoint to one minimum step past
-// it, so the payload stays ascending.
-[[nodiscard]] Fraction keptStrictlyAfterLastWaypoint(const ChartNote& note, const Fraction window)
-{
-    if (!note.slides.empty() && window <= note.slides.back().offset)
-    {
-        return note.slides.back().offset + g_minimum_slide_window;
-    }
-    return window;
-}
+// The corpus-derived default scrape lives in the shared seam so import and the editor's attack
+// verb synthesize identical defaults (pick_slide_defaults.h); the minimum gesture window sits one
+// level down in common::core (grid_arithmetic.h), beside the other shared duration bounds, because
+// the presentation rules floor on the same window.
 
 // A slide gesture's fret travel never shrinks below two frets — the minimum that reads as a
 // slide. Widens an agreeing hand delta to that minimum; the constant alone supplies the default
@@ -836,49 +825,6 @@ struct BuiltNote
     // glide leaves from the junction, not the merged note's onset (policy rule 15).
     std::optional<Fraction> slide_from_beat;
 };
-
-// Reports whether the note carries a technique that lives on its sustain tail. These notes keep
-// their tails through the sub-beat drop rule: removing the tail would remove the technique.
-[[nodiscard]] bool hasSustainTechnique(const ChartNote& note)
-{
-    return !note.bend.empty() || !note.slides.empty() || note.slide_out.has_value() ||
-           note.vibrato || note.tremolo;
-}
-
-// The offset of the last payload point that CHANGES something — the last instant the tail still
-// has information to present, and so the furthest a margin trim may be overridden (rule 2).
-//
-// A bend point repeating its predecessor's semitones and a waypoint repeating the previous fret
-// (a HOLD, not a glide) both say what the tail already said, so a trailing run of them is not a
-// reason to keep a tail open past the margin. The note starts unbent at its own fret, which is
-// what the first point of each payload is measured against. Whole-note techniques — vibrato,
-// tremolo, emphasis, muting, harmonics — cannot change mid-sustain and so never appear here at
-// all.
-// The unpitched slide-out is deliberately absent: its end is gesture geometry that trims back
-// with the tail rather than pinning it (rule 2), and the trim compresses it separately.
-[[nodiscard]] Fraction lastChangingPayloadOffset(const ChartNote& note)
-{
-    Fraction last{};
-    double previous_semitones = 0.0;
-    for (const BendPoint& point : note.bend)
-    {
-        if (std::is_neq(point.semitones <=> previous_semitones) && last < point.offset)
-        {
-            last = point.offset;
-        }
-        previous_semitones = point.semitones;
-    }
-    int previous_fret = note.fret;
-    for (const SlideWaypoint& waypoint : note.slides)
-    {
-        if (waypoint.fret != previous_fret && last < waypoint.offset)
-        {
-            last = waypoint.offset;
-        }
-        previous_fret = waypoint.fret;
-    }
-    return last;
-}
 
 // Normalizes imported sustains for chart readability (import policy). The maintained
 // plain-English spec is "GP chart normalization policy" in

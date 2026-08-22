@@ -355,6 +355,75 @@ bool trimMutedTail(ChartNote& note)
     return true;
 }
 
+// The scrape branch returns early on purpose: a scrape's terminal is RE-PLACED at the new sustain
+// rather than dropped, and the waypoint erase below (which would judge the turnarounds against
+// end_lands_on_onset) and the slide-out drop after it would both be wrong for it.
+void clipPayloadsToSustain(ChartNote& note, const bool end_lands_on_onset)
+{
+    std::erase_if(
+        note.bend, [&note](const BendPoint& point) { return note.sustain < point.offset; });
+    if (isScrape(note.attack) && note.slide_out.has_value())
+    {
+        const std::vector<SlideWaypoint> path = std::move(note.slides);
+        note.slides = {};
+        for (const SlideWaypoint& waypoint : path)
+        {
+            if (waypoint.offset < note.sustain)
+            {
+                note.slides.push_back(waypoint);
+            }
+        }
+        const int previous_fret = note.slides.empty() ? note.fret : note.slides.back().fret;
+        int terminal_fret = note.slide_out->fret;
+        std::size_t candidate = path.size();
+        while (terminal_fret == previous_fret && candidate > 0)
+        {
+            --candidate;
+            terminal_fret = path[candidate].fret;
+        }
+        note.slide_out = SlideOut{.offset = note.sustain, .fret = terminal_fret};
+        return;
+    }
+    std::erase_if(note.slides, [&note, end_lands_on_onset](const SlideWaypoint& waypoint) {
+        return end_lands_on_onset ? !(waypoint.offset < note.sustain)
+                                  : note.sustain < waypoint.offset;
+    });
+    if (note.slide_out.has_value() && note.sustain < note.slide_out->offset)
+    {
+        note.slide_out.reset();
+    }
+}
+
+// Walks each string's sorted notes: a sustain ringing across the next onset on that string ends
+// exactly there instead (adjacency is legal), clipping payloads with it. One inner scan per note
+// finds that string's next onset, and it stops at the first one found — later notes on the string
+// are bounded by their own predecessor in turn.
+void normalizeSustainOverlaps(std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    for (std::size_t index = 0; index < notes.size(); ++index)
+    {
+        ChartNote& note = notes[index];
+        if (note.sustain.numerator <= 0)
+        {
+            continue;
+        }
+        for (std::size_t later = index + 1; later < notes.size(); ++later)
+        {
+            const ChartNote& next = notes[later];
+            if (next.string != note.string)
+            {
+                continue;
+            }
+            if (next.position < sustainEndPosition(tempo_map, note))
+            {
+                note.sustain = beatDistance(tempo_map, note.position, next.position);
+                clipPayloadsToSustain(note, /*end_lands_on_onset=*/true);
+            }
+            break;
+        }
+    }
+}
+
 std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& tuning)
 {
     std::vector<ChartRepair> repairs;

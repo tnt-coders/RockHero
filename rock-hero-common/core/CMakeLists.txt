@@ -7,6 +7,7 @@ target_sources(
     PRIVATE src/chart/chart.cpp
             src/chart/chart_document.cpp
             src/chart/chart_legato.cpp
+            src/chart/chart_presentation.cpp
             src/chart/chart_projection.cpp
             src/chart/chart_rules.cpp
             src/chart/chart_tokens.cpp

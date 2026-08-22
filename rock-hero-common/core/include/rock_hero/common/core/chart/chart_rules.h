@@ -283,6 +283,51 @@ normalizer applies it to everything a load or import brings in.
 [[nodiscard]] bool trimMutedTail(ChartNote& note);
 
 /*!
+\brief Clips a note's payload back inside its own (possibly shortened) sustain.
+
+The consequence every shortening of a STORED tail owes, so the payload rule "offsets lie within
+the sustain" keeps holding after it. Latent payloads on a scrape clip too — they must still fit
+the sustain when a toggle-back makes them real again. Its narrower relative
+\ref clipPayloadsTo clips to a caller-chosen target and leaves the slide-out alone, because a
+presentation trim is still deciding where its end goes; this one is for a note whose end is
+already settled.
+
+A scrape is re-terminated rather than clipped: its gesture ends exactly at the sustain, so a
+sustain change moves the terminal instead of dropping it. Turnaround waypoints strictly before the
+new end survive, and when compression makes the terminal fret meet its new predecessor the nearest
+earlier differing fret takes over, so the path never sits still.
+
+`end_lands_on_onset` says the new sustain end IS a following same-string onset, which the 40-Q2-B
+truncation (\ref normalizeSustainOverlaps) always makes it. A pitched waypoint may not sit on a
+later onset of its own string — that encoding stores no coordinates, which is what keeps it
+undesyncable — so there the last point must go too; keeping it turned an ordinary note placement
+into a silent refusal of the whole plan, because the truncation left behind exactly the payload
+the gate then rejected. A sustain that merely ends where the user put it keeps a point at its end,
+which is the normal shift-slide glide end.
+
+\param note Note whose payload is clipped in place.
+\param end_lands_on_onset True when the new sustain end is a following onset on the note's string.
+*/
+void clipPayloadsToSustain(ChartNote& note, bool end_lands_on_onset = false);
+
+/*!
+\brief Truncates every tail ringing across the next onset on its own string (40-Q2-B).
+
+A re-strike stops the ring, so no stored tail may cross the next onset on its string; exact
+adjacency stays legal, which is what lets a slide reach its landing. The truncation clips the
+payload with the tail (\ref clipPayloadsToSustain).
+
+Stated once here rather than at each producer: the editor's plan gate normalizes a candidate
+stream through this before validating it, and the importer and the loading path join it as the
+model moves to stored actual durations. A tail the rule would truncate is not a chart the
+validator accepts, so a producer that forgot the rule produced a document nothing could read.
+
+\param notes Note stream to normalize in place, sorted by (position, string).
+\param tempo_map Tempo map supplying the signature-derived beat axis.
+*/
+void normalizeSustainOverlaps(std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+
+/*!
 \brief Repairs every rule one note can be made to obey on its own, in place; reports which fired.
 
 The per-note authority of the chart normalizer (\ref normalizeChart), and the fixpoint the per-note
