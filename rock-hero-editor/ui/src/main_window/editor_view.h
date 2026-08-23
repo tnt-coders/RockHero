@@ -234,20 +234,6 @@ public:
     void focusOfChildComponentChanged(FocusChangeType cause) override;
 
     /*!
-    \brief Re-samples the live Alt state on pointer motion anywhere in the editor window.
-
-    The constructor registers this view as a mouse listener for every nested child, so this fires
-    wherever the pointer sits rather than only over this view's own background. It is the sampler
-    for the ON edge under a widget that swallows \ref modifierKeysChanged:
-    `Component::internalModifierKeysChanged` fabricates a mouse move on EVERY modifier change, so
-    a press a widget ate still produces an event this view sees. The poll cannot cover that edge,
-    because it runs only while the reveal is already on.
-
-    \param event Mouse event delivered by JUCE; the reveal reads the key state, not the event.
-    */
-    void mouseMove(const juce::MouseEvent& event) override;
-
-    /*!
     \brief Returns the top-level editor menu names.
     \return Menu names shown by the menu bar.
     */
@@ -328,8 +314,8 @@ private:
     //
     //  - modifierKeysChanged gives the instant edge wherever JUCE delivers it to this view, and
     //    the preview window forwards its own deliveries here through the hook installed on it;
-    //  - mouseMove anywhere in the window gives the ON edge a widget swallowed, because JUCE
-    //    fabricates a move on every modifier change;
+    //  - pointer motion anywhere in the window (m_actual_ring_reveal_sampler) gives the ON edge
+    //    a widget swallowed, because JUCE fabricates a move on every modifier change;
     //  - the poll (m_actual_ring_reveal_poll) runs ONLY while the reveal is on and is the
     //    authority for the OFF edge that cannot be missed: a release delivered anywhere, or
     //    nowhere, is noticed within one tick wherever the pointer is. It costs nothing while the
@@ -681,6 +667,26 @@ private:
     // it goes off (see syncActualRingReveal). Declared after the lane it drives so it is destroyed
     // — and with it stopped — first.
     juce::TimedCallback m_actual_ring_reveal_poll{[this] { syncActualRingReveal(); }};
+
+    // Re-samples the Alt key on pointer motion anywhere in the editor window: the constructor
+    // registers this listener for every nested child, so it fires wherever the pointer sits. It is
+    // a separate object rather than this view itself, and it overrides nothing but mouseMove, on
+    // purpose: a deep mouse listener receives EVERY mouse callback for every child — JUCE's
+    // internalMouseWheel sends a wheel to the target's parent chain AND then to every ancestor's
+    // deep listeners — so registering the view itself made its own mouseWheelMove run twice per
+    // notch, and every sustain step moved two grid lines.
+    class ActualRingRevealSampler final : public juce::MouseListener
+    {
+    public:
+        explicit ActualRingRevealSampler(EditorView& owner)
+            : m_owner(owner)
+        {}
+        void mouseMove(const juce::MouseEvent& event) override;
+
+    private:
+        EditorView& m_owner;
+    };
+    ActualRingRevealSampler m_actual_ring_reveal_sampler{*this};
 
     // Tone track row hosted below the waveform inside the track viewport.
     ToneTrackView m_tone_track_view;

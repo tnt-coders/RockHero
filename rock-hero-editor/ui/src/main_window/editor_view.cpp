@@ -384,8 +384,10 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 
     // Mouse events from every nested child, not just this view's own background: the actual-ring
     // reveal re-samples the Alt key on pointer motion, the only notification left for a press a
-    // widget under the pointer swallowed (see syncActualRingReveal).
-    addMouseListener(this, /*wantsEventsForAllNestedChildComponents=*/true);
+    // widget under the pointer swallowed (see syncActualRingReveal). The listener is its own
+    // object, never this view — see the member's comment for the double-wheel that taught this.
+    addMouseListener(
+        &m_actual_ring_reveal_sampler, /*wantsEventsForAllNestedChildComponents=*/true);
 
     // Register the keybind registry: every command's info (name, category, default chords,
     // enablement) comes from this target, and the manager's key mapping set becomes the single
@@ -572,6 +574,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 // Disconnects the menu bar from this model before base and member teardown begins.
 EditorView::~EditorView()
 {
+    // The sampler is a member, destroyed before this view's base: unregister it first so no
+    // pointer event delivered during teardown reaches a dead listener.
+    removeMouseListener(&m_actual_ring_reveal_sampler);
     if (m_audio_device_settings_window != nullptr && !m_audio_device_settings_window_reset_pending)
     {
         m_controller.onAudioDeviceSettingsClosed();
@@ -1095,9 +1100,9 @@ void EditorView::focusOfChildComponentChanged(FocusChangeType)
 
 // The sampler for a press no modifier callback delivers here: one swallowed by a widget under
 // the pointer, which JUCE still answers with a fabricated mouse move.
-void EditorView::mouseMove(const juce::MouseEvent&)
+void EditorView::ActualRingRevealSampler::mouseMove(const juce::MouseEvent&)
 {
-    syncActualRingReveal();
+    m_owner.syncActualRingReveal();
 }
 
 // Creates the preview window on first use, then shows or hides it; hiding suspends the render

@@ -345,7 +345,9 @@ on a change. No JUCE callback reliably reports a held modifier, so that one auth
 `juce::ComponentPeer::getCurrentModifiersRealtime()`, the realtime query rather than the cached
 modifier state — is sampled by edge: `modifierKeysChanged` for the instant edge wherever JUCE
 delivers it (the 3D preview forwards its own deliveries, whose parent chain would otherwise end in
-that window); `mouseMove`, registered for all nested children, for the ON edge a widget swallowed
+that window); a dedicated mouse-listener member registered for all nested children and overriding
+only `mouseMove` (never the view itself — a deep listener also receives every child's wheel, and
+that once doubled every sustain step), for the ON edge a widget swallowed
 (a `juce::Slider` under the pointer overrides `modifierKeysChanged` without forwarding, and only
 the mouse move JUCE fabricates on every modifier change gets through); and a 30 Hz poll that runs
 only while the reveal is on, for the OFF edge that cannot be missed — a release while the pointer

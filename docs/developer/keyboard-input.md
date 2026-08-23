@@ -123,10 +123,14 @@ before adding a second held-modifier state:
   handed — one way to answer the question, not two.
 - **The samplers divide the work by edge.** `modifierKeysChanged` gives the instant edge wherever
   JUCE delivers it to the editor, and `PreviewWindow::modifierKeysChanged` forwards the preview's
-  own deliveries to the same sampler so a release over the 3D window is instant too. `mouseMove`,
-  registered for all nested children via `addMouseListener(this, true)`, gives the ON edge a
-  widget swallowed: `Component::internalModifierKeysChanged` fabricates a mouse move on *every*
-  modifier change, so even a press a widget ate still produces an event somewhere in the window.
+  own deliveries to the same sampler so a release over the 3D window is instant too. A dedicated
+  `juce::MouseListener` member, registered for all nested children and overriding only
+  `mouseMove`, gives the ON edge a widget swallowed: `Component::internalModifierKeysChanged`
+  fabricates a mouse move on *every* modifier change, so even a press a widget ate still produces
+  an event somewhere in the window. It is its own object on purpose — a deep listener receives
+  every mouse callback for every child, and registering the view itself once made its
+  `mouseWheelMove` run twice per notch (JUCE sends a wheel up the target's parent chain *and* to
+  every ancestor's deep listeners), so every sustain step moved two grid lines.
   And a `juce::TimedCallback` poll at 30 Hz, running **only while the reveal is on** — started when
   it turns on, stopped when it turns off, nonexistent otherwise — is the authority for the OFF edge
   that cannot be missed: a release delivered anywhere, or nowhere, shows within one tick wherever
