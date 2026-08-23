@@ -217,15 +217,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the ownership proof.
     [[nodiscard]] bool chartVerbWindowHolds(const std::vector<ChartNoteKey>& armed_keys) const;
     [[nodiscard]] bool reverseTechniqueToggleWindow(ChartTechnique technique);
-    // The accumulated delta of the duration gesture this press continues, or nullopt when the
-    // press starts one. Adds the fold's own precondition to the shared proof: a save mid-gesture
-    // makes the entry the file's clean state, which replaceTop refuses to rewrite, so the gesture
-    // ends there and the next step starts a fresh one from the saved values.
-    [[nodiscard]] std::optional<common::core::Fraction> liveChartSustainGestureDelta() const;
-    // Ends a gesture whose accumulated delta describes no edit at all: takes its entry back out of
+    // The steps of the duration gesture this press continues, or nullptr when the press starts one.
+    // Adds the fold's own precondition to the shared proof: a save mid-gesture makes the entry the
+    // file's clean state, which replaceTop refuses to rewrite, so the gesture ends there and the
+    // next step starts a fresh one from the saved values. The returned pointer lives inside
+    // m_chart_verb_window, so it dies with any reassignment of that field.
+    [[nodiscard]] const std::vector<ChartSustainStep>* liveChartSustainGestureSteps() const;
+    // Ends a gesture whose replayed steps describe no edit at all: takes its entry back out of
     // the history (dropTop) and walks the chart to the stream that entry was applied to, so a run
-    // that nets to zero leaves neither a dead undo step nor a modified document identical to the
-    // saved file.
+    // that replays back to its start leaves neither a dead undo step nor a modified document
+    // identical to the saved file.
     void retireChartSustainGesture(const ChartNotesEditPlan& applied);
     void onChartEscapePressed();
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
@@ -856,26 +857,30 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // What the next press of the verb that armed the window needs to know: the technique a second
     // press would reverse (the legato plan's ruling 4, extended to the scrape 2026-08-18), or the
-    // duration gesture's accumulated delta (user ruling 2026-08-22).
+    // duration gesture's steps so far (user ruling 2026-08-22).
     struct ChartTechniqueToggle
     {
         ChartTechnique technique{};
     };
 
+    // The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
+    // grid line, so its size depends on where that end sits and there is no delta to accumulate
+    // (user bug 2026-08-23 — a summed delta left a fine-tuned ring off-grid forever). The planner
+    // replays the list over each note's pre-gesture ring; the list IS the gesture.
     struct ChartSustainGesture
     {
-        common::core::Fraction delta{};
+        std::vector<ChartSustainStep> steps;
     };
 
     // The chart verbs' coalescing window over the entry m_chart_notes_top names: while the
     // selection still matches and that record still owns the history top, the next press of the
     // SAME verb continues what the last one started instead of stacking a second entry — a
     // technique toggle REVERSES its entry exactly (tails an assist grew included, a true ON/OFF
-    // toggle rather than a do/undo pair), and a duration step re-plans the whole gesture from one
-    // accumulated delta and replaces the entry. Once either proof fails (selection changed, caret
-    // moved, any other edit, undo/redo, a committing settle), the window is dead and the next
-    // press means its verb's ordinary law starting from the current values; grown tails then stay
-    // and Ctrl+Z is the revert.
+    // toggle rather than a do/undo pair), and a duration step appends itself to the gesture's step
+    // list, re-plans the whole run from the pre-gesture rings and replaces the entry. Once either
+    // proof fails (selection changed, caret moved, any other edit, undo/redo, a committing settle),
+    // the window is dead and the next press means its verb's ordinary law starting from the current
+    // values; grown tails then stay and Ctrl+Z is the revert.
     //
     // ONE window, because at most one can ever be armed: every arming runs after
     // applyChartEditPlan, which disarms, so eight per-verb fields encoded a one-of-eight state and

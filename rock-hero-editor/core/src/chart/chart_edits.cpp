@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/session/session.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -229,6 +230,46 @@ template <typename Write>
     return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
+// Replays a duration gesture's steps over one note's PRE-GESTURE ring and returns the ring they
+// author.
+//
+// Deliberately UNBOUNDED: the floor and the same-string bound judge this answer at the call site
+// and are never fed back into the walk. That is the gesture's symmetry (ruling 8) — a step a bound
+// absorbed would otherwise become the next step's starting value, and a chord member pinned on the
+// way out would come back on a different ring than it left on. So the authored ring may sit past a
+// note's bound, or at or below zero, between steps; the caller resolves both.
+//
+// A GRID step moves the ring's END, an absolute position, onto the adjacent grid line strictly
+// beyond it — the same primitive the caret step and the lane nudge walk with, which is what makes a
+// fine-tuned end SNAP back onto the grid instead of carrying its remainder forever. A FINE step
+// adds the 1/960-beat tier to the ring itself.
+//
+// Two degenerate ends are harmless and deliberately unguarded: an authored ring at or below zero
+// puts the end at or before the onset, where advanceGridPosition clamps at the grid origin and
+// adjacentTempoGridPosition can collapse onto its input — a ring stepped back past the start of the
+// song simply stops moving, and the floor holds the note's visible ring either way.
+[[nodiscard]] common::core::Fraction authoredSustain(
+    const common::core::TempoMap& tempo_map, const common::core::ChartNote& start,
+    const std::vector<ChartSustainStep>& steps)
+{
+    common::core::Fraction ring = start.sustain;
+    for (const ChartSustainStep& step : steps)
+    {
+        if (step.grid_note_value.has_value())
+        {
+            const common::core::GridPosition end =
+                common::core::advanceGridPosition(tempo_map, start.position, ring);
+            ring = common::core::beatDistance(
+                tempo_map,
+                start.position,
+                adjacentTempoGridPosition(tempo_map, *step.grid_note_value, end, step.grow));
+            continue;
+        }
+        ring = ring + common::core::Fraction{step.grow ? 1 : -1, g_fine_grid_denominator};
+    }
+    return ring;
+}
+
 } // namespace
 
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planInsertNote(
@@ -401,12 +442,21 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planRetypeFrets(
 std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartNoteKey>& keys,
-    const common::core::Fraction beat_delta)
+    const std::vector<ChartSustainStep>& steps)
 {
+    // A gesture that has recorded nothing describes nothing; the finalize below would answer
+    // NoChange anyway, so say it up front.
+    if (steps.empty())
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
     // The candidate starts from the LIVE stream because a floored note keeps the ring it currently
-    // has; every note the delta does reach is then rebuilt WHOLE from its pre-gesture value, which
+    // has; every note the replay does reach is then rebuilt WHOLE from its pre-gesture value, which
     // is also what restores payload an earlier step's shrink clipped away.
     std::vector<common::core::ChartNote> candidate = chart.notes;
+    // What the entry changes the selection's rings by in total, start → now, which is what names
+    // it below.
+    common::core::Fraction net{};
     for (common::core::ChartNote& note : candidate)
     {
         if (!std::ranges::binary_search(keys, keyOf(note)))
@@ -419,7 +469,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
             continue;
         }
         common::core::ChartNote stepped = *start;
-        stepped.sustain = start->sustain + beat_delta;
+        stepped.sustain = authoredSustain(tempo_map, *start, steps);
         // A scrape needs somewhere to travel: its sustain floors at the minimum gesture window
         // (the path re-terminates onto the shrunk tail via the payload clip). That floor is always
         // positive, so a scrape never reaches the hold below.
@@ -429,38 +479,43 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
             stepped.sustain = common::core::g_minimum_slide_window;
         }
         // Every note rings for some length, so there is no empty ring to shrink to: a note the
-        // delta would take to zero or below keeps the ring it currently has — the live value the
+        // replay takes to zero or below keeps the ring it currently has — the live value the
         // candidate was seeded with — rather than being clamped to some invented floor, and
-        // rejoins the gesture the moment start + delta is positive again. Deleting the note is the
-        // verb for removing it.
-        if (stepped.sustain.numerator <= 0)
+        // rejoins the gesture the moment the replayed ring is positive again. Deleting the note is
+        // the verb for removing it.
+        if (stepped.sustain.numerator > 0)
         {
-            continue;
+            // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next
+            // onset on its OWN string and no further, because a re-strike stops the ring. The
+            // margin that used to bind growth against ANY string was the DRAWN tail's spacing
+            // rule, which presentation now owns. Clamping the replayed value needs no direction
+            // test and no memory of the previous step — a note pinned at its bound reports the
+            // bound for every step past it, and leaves it the moment the replayed ring falls back
+            // inside. The clamp can never SHORTEN a note below where the gesture found it:
+            // normalizeSustainOverlaps holds every stored ring inside this same bound, so `start`
+            // is already at most the bound.
+            if (const std::optional<common::core::Fraction> bound =
+                    common::core::sustainBoundOf(chart.notes, note, tempo_map);
+                bound.has_value() && *bound < stepped.sustain)
+            {
+                stepped.sustain = *bound;
+            }
+            common::core::clipPayloadsToSustain(stepped);
+            note = std::move(stepped);
         }
-        // The one bound on a ring (40-Q2-B): a tail may reach exact adjacency with the next onset
-        // on its OWN string and no further, because a re-strike stops the ring. The margin that
-        // used to bind growth against ANY string was the DRAWN tail's spacing rule, which
-        // presentation now owns. Clamping the recomputed value needs no direction test and no
-        // memory of the previous step — a note pinned at its bound reports the bound for every
-        // delta past it, and leaves it the moment start + delta falls back inside. The clamp can
-        // never SHORTEN a note below where the gesture found it: normalizeSustainOverlaps holds
-        // every stored ring inside this same bound, so `start` is already at most the bound.
-        if (const std::optional<common::core::Fraction> bound =
-                common::core::sustainBoundOf(chart.notes, note, tempo_map);
-            bound.has_value() && *bound < stepped.sustain)
-        {
-            stepped.sustain = *bound;
-        }
-        common::core::clipPayloadsToSustain(stepped);
-        note = std::move(stepped);
+        // A held note counts too: the ring it keeps is still what the entry writes over `base`.
+        net = net + (note.sustain - start->sustain);
     }
 
     // The label states the gesture's NET direction, because the entry it goes on describes the
-    // whole gesture rather than its last step. A zero delta needs no name of its own: it recomputes
-    // every keyed note to the ring `base` already holds, so the finalize below refuses it as
-    // NoChange and the caller retires the gesture's entry instead of labelling one that describes
-    // nothing.
-    const std::string_view label = beat_delta.numerator > 0 ? "Grow Sustain" : "Shrink Sustain";
+    // whole gesture (start → now) rather than the step just pressed: grow, grow, shrink is a growth
+    // of one step, and "Undo Shrink Sustain" over an entry that shortens the ring would lie. The
+    // steps themselves have no sign to sum — a grid step's size is whatever reaches the next line —
+    // but the entry's own change does, totalled over the selection so a member the bound or the
+    // floor held still leaves the others to name it. A run that replays every ring back to `base`
+    // needs no name at all: the finalize below refuses it as NoChange and the caller retires the
+    // gesture's entry instead of labelling one that describes nothing.
+    const std::string_view label = net.numerator > 0 ? "Grow Sustain" : "Shrink Sustain";
     return finalizePlan(chart, tempo_map, base, std::move(candidate), label);
 }
 

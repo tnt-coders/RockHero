@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -184,6 +185,77 @@ TEST_CASE("Grid snapping ignores non-positive note values", "[core][chart]")
 
     CHECK(snapGridPosition(map, position, Fraction{}) == position);
     CHECK(snapGridPosition(map, position, Fraction{-1, 4}) == position);
+}
+
+// The adjacent line strictly beyond a position, either way: from a line its neighbour, from between
+// lines the nearer line in the step direction — a step never overshoots the line it is next to.
+TEST_CASE("Grid stepping reaches the adjacent note-value line", "[core][chart]")
+{
+    const TempoMap map = signatureChangeMap();
+    const Fraction eighth_grid{1, 8};
+    const GridPosition on_line{.measure = 1, .beat = 1, .offset = {}};
+    const GridPosition between{.measure = 1, .beat = 1, .offset = Fraction{1, 5}};
+    const GridPosition half{.measure = 1, .beat = 1, .offset = Fraction{1, 2}};
+
+    CHECK(adjacentGridPosition(map, on_line, eighth_grid, true) == half);
+    CHECK(adjacentGridPosition(map, between, eighth_grid, true) == half);
+    CHECK(adjacentGridPosition(map, between, eighth_grid, false) == on_line);
+    CHECK(adjacentGridPosition(map, half, eighth_grid, false) == on_line);
+    // The next downbeat is the line after a measure's last one.
+    CHECK(
+        adjacentGridPosition(
+            map,
+            GridPosition{.measure = 1, .beat = 4, .offset = Fraction{1, 2}},
+            eighth_grid,
+            true) == GridPosition{.measure = 2, .beat = 1, .offset = {}});
+}
+
+// The reversibility the caret, the lane nudge, and the duration gesture all rely on, in the meter
+// that broke it: a 1/4-note grid in 7/8 steps two beats, so the measure's last line (beat 7) sits
+// one beat — exactly half a step — before the next downbeat. A walk that stepped two beats back
+// from the downbeat and re-snapped to the nearest line landed halfway between beats 5 and 7 and
+// resolved the tie to beat 5, skipping the line the forward walk had just visited.
+TEST_CASE("Grid stepping is exactly reversible across an odd measure", "[core][chart]")
+{
+    const TempoMap map = signatureChangeMap();
+    const Fraction quarter_grid{1, 4};
+
+    // Forward from the 7/8 downbeat through every line of the measure onto the next downbeat.
+    std::vector<GridPosition> forward{GridPosition{.measure = 3, .beat = 1, .offset = {}}};
+    while (forward.back().measure == 3)
+    {
+        forward.push_back(adjacentGridPosition(map, forward.back(), quarter_grid, true));
+    }
+    REQUIRE(forward.size() == 5);
+    CHECK(forward[1] == GridPosition{.measure = 3, .beat = 3, .offset = {}});
+    CHECK(forward[2] == GridPosition{.measure = 3, .beat = 5, .offset = {}});
+    CHECK(forward[3] == GridPosition{.measure = 3, .beat = 7, .offset = {}});
+    CHECK(forward[4] == GridPosition{.measure = 4, .beat = 1, .offset = {}});
+
+    // Back from the downbeat through the same lines in reverse, beat 7 included.
+    for (std::size_t index = forward.size() - 1; index > 0; --index)
+    {
+        CAPTURE(index);
+        CHECK(adjacentGridPosition(map, forward[index], quarter_grid, false) == forward[index - 1]);
+    }
+}
+
+// Stepping earlier from a downbeat lands on the previous measure's last line on THAT measure's
+// meter — here the 4/4 measure before the 7/8 one, whose quarter-note step is one beat — and the
+// grid origin, which has no earlier line, answers with the position itself.
+TEST_CASE("Grid stepping crosses a downbeat onto the previous meter's last line", "[core][chart]")
+{
+    const TempoMap map = signatureChangeMap();
+    const Fraction quarter_grid{1, 4};
+    const GridPosition downbeat{.measure = 3, .beat = 1, .offset = {}};
+    const GridPosition last_line{.measure = 2, .beat = 4, .offset = {}};
+    const GridPosition origin{.measure = 1, .beat = 1, .offset = {}};
+
+    CHECK(adjacentGridPosition(map, downbeat, quarter_grid, false) == last_line);
+    CHECK(adjacentGridPosition(map, last_line, quarter_grid, true) == downbeat);
+    CHECK(adjacentGridPosition(map, origin, quarter_grid, false) == origin);
+    // Note-value validity policy belongs to callers, as for the snap.
+    CHECK(adjacentGridPosition(map, downbeat, Fraction{}, true) == downbeat);
 }
 
 } // namespace rock_hero::common::core

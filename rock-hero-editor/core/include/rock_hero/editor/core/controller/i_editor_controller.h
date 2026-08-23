@@ -349,11 +349,12 @@ public:
     /*!
     \brief Handles a request to grow or shrink the selected notes' sustains by one step.
 
-    One grid step by default, or one 1/960-beat step when \p fine — the uniform Ctrl precision
-    tier on the extent verbs (the off-grid unification; Ctrl+Alt+wheel and
-    Ctrl+Shift+Alt+Left/Right compose it). Sustains floor at zero and growth clamps to the
-    minimum-sustain-distance margin before the next onset on any string (span siblings exempt);
-    the whole selection adjusts as one undo entry.
+    One grid step by default — which moves each ring's END onto the adjacent tempo-grid line, so a
+    ring the fine tier left between lines snaps back onto the grid — or one 1/960-beat step when
+    \p fine, the uniform Ctrl precision tier on the extent verbs (the off-grid unification;
+    Ctrl+Alt+wheel and Ctrl+Shift+Alt+Left/Right compose it). Growth stops at exact adjacency with
+    the next onset on the note's OWN string, a ring a step would empty holds where it is, and a run
+    of presses is ONE gesture, replayed from the rings it started at onto one undo entry.
 
     \param direction +1 to grow, -1 to shrink.
     \param fine True when Ctrl requests the 1/960-beat fine step.

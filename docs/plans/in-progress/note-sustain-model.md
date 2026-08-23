@@ -513,15 +513,17 @@ corpus-wide.
    read), a shorter default would flatten a hammer-on the charter marked after it, and playback
    can honour the accent itself when it exists rather than the duration storing a convention.
 8. **The duration verb is a GESTURE** (ruled 2026-08-22, shipped the same day). A run of steps —
-   grid or the Ctrl fine tier, mixed freely — accumulates into ONE `Fraction` delta, and every
-   selected note is recomputed as its PRE-GESTURE ring plus that delta: clamped up at its own
-   string's `sustainBoundOf`, and holding the ring it currently has when start + delta is not
-   positive (there is no empty ring; it rejoins the moment start + delta is positive again). The
-   user's reason is symmetry: every note moves by the same delta from where it started, so whatever
+   grid or the Ctrl fine tier, mixed freely — is recorded IN ORDER (amended 2026-08-23, see the
+   addendum below; it was ONE accumulated `Fraction` delta as first shipped), and every selected
+   note is recomputed by REPLAYING that run over its PRE-GESTURE ring: the answer clamped up at its
+   own string's `sustainBoundOf`, and holding the ring it currently has when the replay is not
+   positive (there is no empty ring; it rejoins the moment the replay is positive again). The
+   user's reason is symmetry: every note replays the same steps from where it started, so whatever
    shape the selection's tails had comes back intact and nothing blocks anything else — a chord
    member pinned at its bound on the way out rejoins its neighbours exactly where it left them,
    where per-step clamping baked the clamp into the next step's starting value and shrank the chord
-   asymmetrically. It also fixes the second half of the same defect: the run is ONE undo entry
+   asymmetrically. Neither bound enters the replay, which is what preserves that: they judge its
+   answer. It also fixes the second half of the same defect: the run is ONE undo entry
    rather than one per keypress. The first step pushes it, every later one replaces it
    (`replaceTop`), so the entry always describes start → now, and the pre-gesture values need no
    snapshot because that entry reversed IS the pre-gesture stream (the settle fold's method). A run
@@ -533,6 +535,48 @@ corpus-wide.
    change, caret move, any other edit, undo/redo, a committing settle, a save); the next step then
    opens a fresh gesture from the current rings. Both verbs share ONE window field
    (`m_chart_verb_window`, a variant), because at most one can ever be armed.
+
+   **Addendum — a grid step moves the ring's END, so the gesture keeps its STEPS** (user bug
+   2026-08-23, fixed the same day). The summed delta was wrong about what a grid step IS: fine-tune
+   a tail with Ctrl and every later grid step carried the remainder forever, so the tail never
+   returned to the grid the user was looking at. The two tiers move different things and only one
+   of them has a size:
+
+   - A **grid** step moves the ring's END — the onset plus the ring, an absolute grid position — to
+     the adjacent line strictly beyond it in the step's direction, through the ONE step primitive
+     the caret and the lane nudge already walk with (`adjacentTempoGridPosition`). From an on-grid
+     end that is exactly one grid step, as the delta was; from an off-grid end it snaps, ceiling
+     when growing and flooring when shrinking. No snapping rule is restated in the planner, and the
+     step carries the grid NOTE VALUE rather than a beat amount so the meter at whatever measure
+     the end lands in scales it (a quarter-note step is one beat in x/4 and two in x/8).
+   - A **fine** step adds ±1/960 of a beat to the ring itself, unchanged.
+
+   `ChartSustainGesture` therefore holds the step list, not a delta; `planAdjustSustain` takes it
+   and replays it per note. Consequences, all intended and pinned by tests:
+
+   - Grid-only gestures from an ON-GRID ring, and fine-only gestures from any ring, stay exactly
+     reversible: each step lands on a lattice its opposite steps back through, and the bounds still
+     stay out of the replay.
+   - A grid step from a FINE-TUNED ring snaps by design, so reversing it lands on the grid line
+     BELOW, not on the off-grid ring the gesture started from. The grid step means "put the end on
+     the line"; a remainder surviving it is the bug.
+   - A chord whose members sit at different off-grid offsets snaps each member to its OWN next
+     line, because the replay runs per note from that note's own end.
+   - A run that replays every note back to `base` is still NoChange, so the entry is still retired.
+     The undo label names the entry's NET direction — the total change the replay makes to the
+     selection's rings, start → now — because the entry describes the whole gesture: grow, grow,
+     shrink is a growth of one step and its undo shortens the ring, so a label read off the last
+     press ("Shrink") would lie about what Ctrl+Z does. The steps themselves have no sign to sum;
+     the entry's own change does.
+   - The reversibility claim above was FALSE as first shipped, and the fault was older than the
+     gesture: `adjacentTempoGridPosition` stepped one grid step and re-snapped to the NEAREST line,
+     which skipped a measure's last line whenever it sat exactly half a step before the next
+     downbeat (a 1/4 grid in 7/8: back two beats from the downbeat lands halfway between beats 5
+     and 7, and the tie-to-earlier rule picked 5), so a grow-then-shrink took a six-beat ring to
+     four. The caret step and the lane nudge had the same defect. The adjacent line is now read off
+     the lattice directly (`common::core::adjacentGridPosition`, beside `snapGridPosition` on one
+     lattice helper), the editor primitive delegates to it, and the walk is an involution on every
+     meter — pinned in both suites by walking the lattice forward and back.
 9. **The reveal's outline is FURNITURE INK, not string ink** (ruled 2026-08-22 while building
    stage B, which left the choice open). It draws in `EditorTheme::lane_overlay` at half alpha —
    the translucent white the armed caret square and the Alt insert ghost already share — rather

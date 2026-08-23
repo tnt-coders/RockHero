@@ -156,54 +156,101 @@ rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
 /*!
-\brief Plans the keyed notes' sustains at one accumulated gesture delta, recomputed from the rings
-the gesture started at.
+\brief One step of a duration gesture: which tier moves the ring's end, and which way.
+
+A gesture records its steps rather than their sum, because a GRID step has no size of its own to
+sum: it moves the ring's END onto the adjacent line of the tempo grid, so what it adds depends on
+where that end currently sits and on the meter of the measure it lands in. The fine tier is the one
+fixed quantity (1/960 of a beat), so a step is fully described by the grid it snaps to — or the
+absence of one — plus a direction.
+*/
+struct ChartSustainStep
+{
+    /*!
+    \brief Grid note value the step snaps onto (a fraction of a whole note); empty for a fine step.
+
+    The note VALUE, never a precomputed beat amount: the planner needs the grid to land on, and
+    `gridStepBeats` scales the value by the local meter (one 1/4 step is one beat in x/4 and two in
+    x/8), so a ring crossing a meter change still lands on that meter's own lines.
+    */
+    std::optional<common::core::Fraction> grid_note_value;
+
+    /*! \brief True when the step lengthens the ring, false when it shortens it. */
+    bool grow{};
+};
+
+/*!
+\brief Plans the keyed notes' sustains by replaying a gesture's steps from the rings it started at.
 
 The duration verb is a GESTURE (user ruling 2026-08-22), not a run of independent steps: the caller
-accumulates every step into ONE `beat_delta`, and every keyed note is recomputed as its PRE-GESTURE
-ring plus that delta. That is what makes the verb symmetric — each note moves by the same delta from
-where it started, so whatever shape the selection's tails had is preserved in both directions, a
-member pinned at its own bound on the way out rejoins the others exactly where it left them on the
+records every step in press order, and every keyed note is recomputed by replaying the whole run
+over its PRE-GESTURE ring. That is what makes the verb symmetric — each note replays the same steps
+from where it started, so whatever shape the selection's tails had is preserved in both directions,
+a member pinned at its own bound on the way out rejoins the others exactly where it left them on the
 way back, and nothing blocks anything else: a passage of different-length tails can all be pushed as
 far as each one can go. Stepping from the LIVE ring instead is what cannot do that — a clamp or a
 floor would become the next step's starting value, and the selection would come back a different
 shape than it went out.
+
+The two tiers move different things, which is why the gesture keeps the steps and not one delta
+(user bug 2026-08-23):
+
+- A **grid** step moves the ring's END — the note's onset plus its ring, an absolute position — to
+  the adjacent tempo-grid line strictly beyond it in the step's direction, through the one keyboard
+  step primitive the caret and the lane nudge already share (\ref adjacentTempoGridPosition). From
+  an on-grid end that is exactly one grid step, as a summed delta was; from an off-grid end it
+  SNAPS, ceiling when growing and flooring when shrinking. No snapping rule is restated here.
+- A **fine** step adds 1/960 of a beat to the ring itself, the uniform Ctrl precision tier.
 
 `base` is the stream the gesture started from. Each keyed note's pre-gesture ring is read from it,
 and the returned plan is diffed against it, so the plan always describes start → now and can replace
 the entry the gesture's first step pushed. On a gesture's first step `base` IS `chart.notes` and the
 result is an ordinary one-step edit.
 
-Two rules bound the recomputed ring, and neither carries anything over from a previous step:
+Two rules bound the replayed ring, and neither is fed back into the replay — they judge its answer,
+so a clamp never becomes the next step's starting value:
 
 - Growth clamps at exact adjacency with the next onset on the note's own string (40-Q2-B,
   \ref common::core::sustainBoundOf), the model's one bound on a ring. A note pinned there reports
-  the bound for every delta past it.
-- Every note rings, so there is no empty ring to shrink to: a note whose start + delta is not
+  the bound for every step past it, and leaves the bound on the step that falls back inside.
+- Every note rings, so there is no empty ring to shrink to: a note whose replayed ring is not
   positive keeps the ring it CURRENTLY has — read from `chart`, not from `base`, because the value
-  on screen is the one that holds — and rejoins the delta as soon as start + delta is positive
-  again. A scrape floors at the minimum gesture window instead, its path re-terminating onto the
-  changed tail (shrink compresses the final point, growth rides it out).
+  on screen is the one that holds — and rejoins the replay as soon as it is positive again. A
+  scrape floors at the minimum gesture window instead, its path re-terminating onto the changed
+  tail (shrink compresses the final point, growth rides it out).
 
 Payload beyond a shortened ring is clipped with it, out of the PRE-GESTURE payload, so growing back
 restores what an earlier step's shrink clipped away.
 
+Three consequences of the grid step's law, all intended:
+
+- A grid-only gesture from an ON-GRID ring, and a fine-only gesture from any ring, are exactly
+  reversible: every step lands on a lattice its opposite steps back through, and neither bound
+  enters the replay to bake itself in.
+- A grid step from a FINE-TUNED ring snaps, so reversing it lands on the grid line below rather
+  than on the off-grid ring the gesture started from. That is the point of the verb: the grid step
+  means "put the end on the grid line", and a remainder that survived it would make the visible
+  grid a lie for the rest of the session.
+- A chord whose members sit at different off-grid offsets snaps each member to its OWN next line,
+  because the replay runs per note from that note's own end. Members already sharing a line stay
+  together.
+
 \param chart Chart being edited, live: the ring bounds, and the ring a floored note holds.
-\param tempo_map Tempo map supplying the beat axis.
+\param tempo_map Tempo map supplying the beat axis and the meter each grid step lands in.
 \param base Stream the gesture started from: the pre-gesture rings, and the stream the plan is
 diffed against.
 \param keys Notes whose sustains change, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition).
-\param beat_delta The gesture's whole accumulated delta, signed.
-\return The plan the gesture's entry should hold; NoChange when the accumulated delta puts every
-        ring back where `base` had it, which means the gesture describes no edit at all — the
-        caller's answer is to RETIRE the entry it pushed rather than replace it with one that
-        describes nothing; Invalid when the gate refuses the result.
+\param steps The gesture's steps in press order, replayed in that order over every keyed note.
+\return The plan the gesture's entry should hold; NoChange when the replay puts every ring back
+        where `base` had it (or when there are no steps yet), which means the gesture describes no
+        edit at all — the caller's answer is to RETIRE the entry it pushed rather than replace it
+        with one that describes nothing; Invalid when the gate refuses the result.
 */
 [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, const std::vector<ChartNoteKey>& keys,
-    common::core::Fraction beat_delta);
+    const std::vector<ChartSustainStep>& steps);
 
 /*! \brief Why an `H` press left a selected note as it found it. */
 enum class ChartLegatoSkip : std::uint8_t

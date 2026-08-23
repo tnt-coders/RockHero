@@ -2,6 +2,7 @@
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -34,10 +35,11 @@ struct GestureFixture
         controller.attachView(view);
     }
 
-    // Loads the shared chart fixture; false when the open route did not produce an arrangement.
-    [[nodiscard]] bool load()
+    // Loads the shared chart fixture, or a caller's own stream when a scenario needs different
+    // rings; false when the open route did not produce an arrangement.
+    [[nodiscard]] bool load(common::core::Chart chart = makeTestChart())
     {
-        return loadChartArrangement(controller, project_services, audio);
+        return loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
     }
 
     // The ring of the note on a (measure, string) slot, or a zero Fraction when there is none.
@@ -98,12 +100,13 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     REQUIRE(fixture.load());
 
     // A plain click selects just the string-1 note (containment hierarchy). Every fixture note
-    // starts at the eighth-of-a-beat fixture ring, so each grid step adds a whole beat to that.
+    // starts at the eighth-of-a-beat fixture ring, which ends BETWEEN grid lines, so the first grid
+    // step snaps its end onto the next line rather than adding a beat to it.
     click(fixture.controller, 40.0f, 220.0f);
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{9, 8});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
 
-    // Five more quarter-note steps would reach 49/8 beats, but the measure-3 note is the next
+    // Five more quarter-note steps would reach six beats, but the measure-3 note is the next
     // onset on this string, four beats later: growth stops exactly there.
     for (int index = 0; index < 5; ++index)
     {
@@ -118,7 +121,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{49, 8});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{6});
 
     // Shrinking stops one step short of empty: every note rings, so the step that would reach zero
     // holds the ring where it is.
@@ -143,22 +146,27 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
 // The gesture's headline property (user ruling 2026-08-22): a run of steps is ONE undo entry, and a
 // run that comes back to where it started leaves the notes byte-identical — because every step
 // re-plans from the rings the gesture began with rather than from the ring the last step left.
+//
+// The measure-3 note is the one this can be said of: its two-beat ring ends ON a grid line, and a
+// grid step from the lattice lands on the lattice, so the steps back retrace the steps out. From a
+// fine-tuned ring the first grid step snaps and the run cannot return — by design, pinned below.
 TEST_CASE("A sustain gesture is one undo entry and round-trips exactly", "[core][chart]")
 {
     GestureFixture fixture;
     REQUIRE(fixture.load());
 
-    click(fixture.controller, 40.0f, 220.0f);
+    click(fixture.controller, 80.0f, 220.0f);
     const common::core::Chart* chart = chartOrNull(fixture.controller);
     REQUIRE(chart != nullptr);
-    const common::core::ChartNote start = chart->notes[0];
+    REQUIRE(chart->notes.size() == 3);
+    const common::core::ChartNote start = chart->notes[2];
     const std::size_t entries_before = fixture.undoEntryCount();
 
     for (int index = 0; index < 3; ++index)
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{25, 8});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{5});
     // Three presses, one entry: the first pushed it and every later step replaced it, so the entry
     // always describes start → now.
     CHECK(fixture.undoEntryCount() == entries_before + 1);
@@ -172,7 +180,8 @@ TEST_CASE("A sustain gesture is one undo entry and round-trips exactly", "[core]
     REQUIRE(chart != nullptr);
     if (chart != nullptr)
     {
-        CHECK(chart->notes[0] == start);
+        REQUIRE(chart->notes.size() == 3);
+        CHECK(chart->notes[2] == start);
     }
     // And a run that nets to zero leaves NO entry: it describes nothing, so it is taken back out
     // rather than replaced with an empty one the user would have to Ctrl+Z past.
@@ -181,50 +190,55 @@ TEST_CASE("A sustain gesture is one undo entry and round-trips exactly", "[core]
 
 // The case the gesture exists for: a chord whose members have different room. The bounded member
 // pins at its own restrike while the free one keeps growing, and on the way back it leaves the
-// bound at exactly the delta that put it there — so the chord's shape survives the round trip
+// bound on exactly the step that put it there — so the chord's shape survives the round trip
 // instead of shrinking asymmetrically.
 TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][chart]")
 {
     GestureFixture fixture;
-    REQUIRE(fixture.load());
+    // The fixture chart with on-grid rings on the measure-2 onset, because this run has to return
+    // exactly and only a ring ending on a grid line can (a grid step from between lines snaps).
+    common::core::Chart chart = makeTestChart();
+    chart.notes[0].sustain = common::core::Fraction{1};
+    chart.notes[1].sustain = common::core::Fraction{1};
+    REQUIRE(fixture.load(std::move(chart)));
 
     // The double click selects the whole measure-2 onset: string 1 (bounded four beats later by its
     // own restrike) and string 2 (bounded by nothing).
     doubleClick(fixture.controller, 40.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntryCount();
 
-    for (int index = 0; index < 5; ++index)
+    for (int index = 0; index < 4; ++index)
     {
         fixture.step(1);
     }
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{4});
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{41, 8});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{5});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 
+    // The step back is the one that put the bounded member there, so it rejoins its neighbour on
+    // the same ring they parted from: the clamp never entered the replay.
     fixture.step(-1);
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{4});
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{33, 8});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{4});
 
-    // 1/8 + 3 is back inside the bound, so the pinned member rejoins its neighbour on the same ring
-    // they parted from.
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{25, 8});
-    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{25, 8});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{3});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{3});
 
-    for (int index = 0; index < 3; ++index)
+    for (int index = 0; index < 2; ++index)
     {
         fixture.step(-1);
     }
-    CHECK(fixture.ringAt(2, 1) == g_fixture_sustain);
-    CHECK(fixture.ringAt(2, 2) == g_fixture_sustain);
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
+    CHECK(fixture.ringAt(2, 2) == common::core::Fraction{1});
     // Both members are back where they started, so the whole run describes nothing and its entry
     // goes with it.
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
-// The floor is the bound's mirror image: a ring the accumulated delta would take to zero holds
-// where it is instead of vanishing, and rejoins the gesture the moment start + delta is positive
-// again — which means the overshoot has to be paid back first, exactly as it is at the bound.
+// The floor is the bound's mirror image: a ring the replay would take to zero holds where it is
+// instead of vanishing, and rejoins the gesture the moment the replay is positive again — which
+// means the overshoot has to be paid back first, exactly as it is at the bound.
 TEST_CASE("An emptied ring holds and rejoins inside one gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -254,8 +268,10 @@ TEST_CASE("An emptied ring holds and rejoins inside one gesture", "[core][chart]
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
-// Grid and fine steps are terms of one exact rational, so they mix inside a single gesture and
-// cancel exactly — the reason the accumulated delta is a Fraction rather than a count of steps.
+// The bug this verb's step list exists for (user 2026-08-23), end to end: a fine step nudges the
+// ring off the lattice, and the GRID step after it snaps the end onto the next line instead of
+// carrying that remainder — which a single accumulated delta could not do, because it had no idea
+// where the end sat. The two tiers still mix freely inside one gesture.
 TEST_CASE("Fine and grid steps mix inside one sustain gesture", "[core][chart]")
 {
     GestureFixture fixture;
@@ -266,14 +282,17 @@ TEST_CASE("Fine and grid steps mix inside one sustain gesture", "[core][chart]")
 
     fixture.step(1, /*fine=*/true);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1921, 960});
+    // Three beats exactly, not 2881/960: the grid step lands on the grid line, wherever the fine
+    // tier had left the end.
     fixture.step(1);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2881, 960});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
     fixture.step(-1, /*fine=*/true);
-    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2879, 960});
+    // And back: the end sits a hair short of the line at three beats, so the line strictly before
+    // it is the two-beat one the note started on — the run describes nothing and its entry goes.
     fixture.step(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2});
-    // The four steps cancel exactly, so the mixed-tier run leaves no entry either.
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
@@ -291,15 +310,16 @@ TEST_CASE("Undo mid-gesture restores the start and ends the gesture", "[core][ch
     {
         fixture.step(1);
     }
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{25, 8});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{3});
 
     fixture.controller.onUndoRequested();
     CHECK(fixture.ringAt(2, 1) == g_fixture_sustain);
 
-    // A fresh gesture: one grid step off the RESTORED ring, and a new entry replacing the redo
-    // branch rather than a replacement of an entry the cursor has walked away from.
+    // A fresh gesture: one grid step off the RESTORED ring — which snaps back onto the grid from
+    // the fixture's off-grid eighth — and a new entry replacing the redo branch rather than a
+    // replacement of an entry the cursor has walked away from.
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{9, 8});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 }
 
@@ -314,7 +334,7 @@ TEST_CASE("Selection, caret and other verbs end the sustain gesture", "[core][ch
     click(fixture.controller, 40.0f, 220.0f);
     fixture.step(1);
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{17, 8});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{2});
 
     SECTION("a selection change")
     {
@@ -334,9 +354,9 @@ TEST_CASE("Selection, caret and other verbs end the sustain gesture", "[core][ch
 
     const std::size_t entries_before = fixture.undoEntryCount();
     fixture.step(-1);
-    // One grid step off 17/8 — the gesture's own delta would have made this 9/8 too, so the entry
-    // count is what separates a continued gesture from a fresh one.
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{9, 8});
+    // One grid step off two beats — a continued gesture would have replayed to one beat too, so
+    // the entry count is what separates a continued gesture from a fresh one.
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
 }
 
@@ -352,13 +372,13 @@ TEST_CASE("A save ends the gesture and the next step still lands", "[core][chart
     click(fixture.controller, 40.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntryCount();
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{9, 8});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
 
     fixture.controller.onSaveRequested();
     REQUIRE(fixture.project_services.save_call_count == 1);
 
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{17, 8});
+    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{2});
     // Two entries: the saved one, which stays exactly as the file has it, and this step's own.
     CHECK(fixture.undoEntryCount() == entries_before + 2);
 }
@@ -372,19 +392,21 @@ TEST_CASE("A net-zero sustain gesture leaves the document clean", "[core][chart]
     GestureFixture fixture;
     REQUIRE(fixture.load());
 
-    click(fixture.controller, 40.0f, 220.0f);
+    // The measure-3 note again: only a ring already on a grid line can be stepped away from and
+    // back onto byte-for-byte, which is what "no unsaved edits" has to mean here.
+    click(fixture.controller, 80.0f, 220.0f);
     fixture.controller.onSaveRequested();
     REQUIRE(fixture.project_services.save_call_count == 1);
     const std::size_t entries_before = fixture.undoEntryCount();
     REQUIRE(fixture.atCleanState());
 
     fixture.step(1);
-    CHECK(fixture.ringAt(2, 1) == common::core::Fraction{9, 8});
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
     CHECK_FALSE(fixture.atCleanState());
 
     fixture.step(-1);
-    CHECK(fixture.ringAt(2, 1) == g_fixture_sustain);
+    CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2});
     CHECK(fixture.undoEntryCount() == entries_before);
     CHECK(fixture.atCleanState());
 }

@@ -232,4 +232,30 @@ signature returns the position unchanged.
 [[nodiscard]] GridPosition snapGridPosition(
     const TempoMap& tempo_map, GridPosition position, Fraction note_value);
 
+/*!
+\brief The adjacent line of the measure-anchored note-value grid strictly beyond a position.
+
+The same lattice \ref snapGridPosition reads, asked a different question: not the nearest line but
+the neighbouring one in a direction. From a position between lines the result is the nearer line in
+the step direction, so a step never jumps past the adjacent line; from a line it is the next line
+of the lattice — across a downbeat, the neighbouring measure's line on THAT measure's meter, with
+every downbeat a line of its own. The answer is read off the lattice directly rather than by
+stepping and re-snapping, which is what makes the walk exactly reversible on every meter: stepping
+back from any line returns to the line it was stepped from, even where the measure length leaves
+the last line an odd half-step short of the next downbeat (a 1/4 grid in 7/8).
+
+The grid origin has no earlier line, so stepping earlier from it returns the position unchanged;
+callers treat a result equal to the input as a refusal. Note-value validity policy stays with the
+caller as for \ref snapGridPosition: a non-positive note value or a degenerate signature also
+returns the position unchanged.
+
+\param tempo_map Tempo map supplying signatures and the beat grid.
+\param position Valid grid position to step from (offset in [0, 1)), on- or off-grid.
+\param note_value Grid step as a fraction of a whole note; must be positive.
+\param later True to step later in time, false earlier.
+\return The exact position of the adjacent grid line in the step direction.
+*/
+[[nodiscard]] GridPosition adjacentGridPosition(
+    const TempoMap& tempo_map, GridPosition position, Fraction note_value, bool later);
+
 } // namespace rock_hero::common::core

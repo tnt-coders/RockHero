@@ -43,12 +43,16 @@ funnel because flattening a claim to a plain pick can violate no rule; see the p
   A toggle whose second press provably reverses its own first press (the technique toggle window)
   applies the entry's inverse and removes it via `EditorUndoHistory::dropTop`, so the pair
   leaves no trace. A run of duration steps is one gesture the same way, but by REPLACEMENT: each
-  step re-plans the whole selection from the rings the run started at and swaps the entry via
+  press appends its step to the run's list, re-plans the whole selection by replaying that list over
+  the rings the run started at, and swaps the entry via
   `replaceTop`, so however many keys were pressed, one entry describes start → now and one Ctrl+Z
   undoes the run (`performActionImpl(AdjustChartSustain)`, ruled 2026-08-22 — before it, every
-  step was its own entry) — and a run whose delta nets back to zero ends at `dropTop` like the
+  step was its own entry) — and a run that replays back to its start ends at `dropTop` like the
   toggle, since an entry describing nothing is a dead Ctrl+Z on a document reported modified that
-  is byte-identical to the file. All three splices refuse when the top entry is the reachable clean
+  is byte-identical to the file. The run keeps its STEPS rather than one summed delta (fixed
+  2026-08-23): a grid step moves the ring's END onto the adjacent grid line, so what it adds is
+  whatever reaches that line, and a summed delta carried a Ctrl fine-tuned remainder through every
+  later grid step. All three splices refuse when the top entry is the reachable clean
   state — the file holds what that entry produced, so rewriting or erasing it would make "return to
   clean" restore content the file does not have. A verb that must still act there pushes instead:
   the technique toggle's reversal becomes its own inverse entry (the tail still comes back, the

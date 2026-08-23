@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <numeric>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -48,6 +50,81 @@ namespace
         .beat = 1 + static_cast<int>(whole),
         .offset = offset,
     };
+}
+
+// The measure-anchored note-value lattice at one measure: line 0 is the downbeat, line k sits k
+// steps after it, and the count restarts at the next downbeat, which is a line of its own even when
+// the measure length is not a multiple of the step. Both lattice queries — the nearest line and the
+// adjacent line — read their lines from here, so which lines EXIST is stated once.
+struct MeasureLattice
+{
+    // One grid step in beats: the note value (a fraction of a whole note) scaled by how many beats
+    // one whole note spans in this measure, the signature denominator.
+    Fraction step;
+
+    // The measure's length in beats, which is where the next downbeat sits.
+    Fraction length;
+
+    // Index of the last line at or before a beat count from the downbeat.
+    [[nodiscard]] std::int64_t lineIndexAtOrBefore(Fraction beats_from_downbeat) const
+    {
+        return floorDivide(
+            static_cast<std::int64_t>(beats_from_downbeat.numerator) * step.denominator,
+            static_cast<std::int64_t>(beats_from_downbeat.denominator) * step.numerator);
+    }
+
+    // Beats from the downbeat to the line at an index. Unbounded on purpose: an index past the
+    // measure's last line names a multiple at or beyond the length, and linePosition below is what
+    // turns that into the next downbeat.
+    [[nodiscard]] Fraction lineAt(std::int64_t index) const
+    {
+        return makeFraction(index * step.numerator, static_cast<std::int64_t>(step.denominator));
+    }
+
+    // Index of the last line strictly inside the measure: the one the next downbeat follows.
+    [[nodiscard]] std::int64_t lastLineIndex() const
+    {
+        const std::int64_t at_or_before = lineIndexAtOrBefore(length);
+        return lineAt(at_or_before) == length ? at_or_before - 1 : at_or_before;
+    }
+};
+
+// The lattice at a measure, or nothing when there is none to address — a non-positive note value
+// or a degenerate signature — in which case every lattice query returns its input unchanged.
+[[nodiscard]] std::optional<MeasureLattice> measureLatticeAt(
+    const TempoMap& tempo_map, int measure, Fraction note_value)
+{
+    if (note_value <= Fraction{})
+    {
+        return std::nullopt;
+    }
+    const TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
+    if (signature.denominator <= 0 || signature.numerator <= 0)
+    {
+        return std::nullopt;
+    }
+    return MeasureLattice{
+        .step = Fraction{note_value.numerator * signature.denominator, note_value.denominator},
+        .length = Fraction{signature.numerator},
+    };
+}
+
+// Beats from a position's downbeat to the position itself.
+[[nodiscard]] Fraction beatsFromDownbeat(GridPosition position)
+{
+    return Fraction{position.beat - 1} + position.offset;
+}
+
+// The grid position of a measure's line at an index, or the next measure's downbeat when the index
+// reaches past the measure's last line — the restart that keeps every downbeat on the lattice.
+[[nodiscard]] GridPosition linePosition(MeasureLattice lattice, int measure, std::int64_t index)
+{
+    const Fraction line = lattice.lineAt(index);
+    if (line >= lattice.length)
+    {
+        return GridPosition{.measure = measure + 1, .beat = 1, .offset = {}};
+    }
+    return positionInMeasure(measure, line);
 }
 
 } // namespace
@@ -109,47 +186,72 @@ bool predecessorHoldReaches(
 // note-value steps, downbeats always lines, ties to the earlier line, exact rational results.
 GridPosition snapGridPosition(const TempoMap& tempo_map, GridPosition position, Fraction note_value)
 {
-    if (note_value <= Fraction{})
+    const std::optional<MeasureLattice> lattice =
+        measureLatticeAt(tempo_map, position.measure, note_value);
+    if (!lattice.has_value())
     {
         return position;
     }
 
-    // One step in beats: the note value is a fraction of a whole note, and the signature
-    // denominator names how many beats one whole note spans in this measure.
-    const TimeSignatureChange signature = tempo_map.timeSignatureAt(position.measure);
-    if (signature.denominator <= 0 || signature.numerator <= 0)
-    {
-        return position;
-    }
-    const Fraction step{note_value.numerator * signature.denominator, note_value.denominator};
-
-    // Beats from this measure's downbeat, and the grid-line multiples on either side.
-    const Fraction beats_from_downbeat = Fraction{position.beat - 1} + position.offset;
-    const std::int64_t step_count = floorDivide(
-        static_cast<std::int64_t>(beats_from_downbeat.numerator) * step.denominator,
-        static_cast<std::int64_t>(beats_from_downbeat.denominator) * step.numerator);
-    const Fraction lower_line =
-        makeFraction(step_count * step.numerator, static_cast<std::int64_t>(step.denominator));
-    const Fraction upper_line = makeFraction(
-        (step_count + 1) * step.numerator, static_cast<std::int64_t>(step.denominator));
-
-    // The count restarts at every downbeat, so the line above never passes the next measure's
-    // downbeat — which is itself always a line, even when the measure length is not a multiple
-    // of the step.
-    const Fraction measure_length{signature.numerator};
-    const bool upper_is_next_downbeat = upper_line >= measure_length;
-    const Fraction upper_candidate = upper_is_next_downbeat ? measure_length : upper_line;
+    // The lines on either side of the position. The count restarts at every downbeat, so the line
+    // above never passes the next measure's downbeat — which is itself always a line, even when the
+    // measure length is not a multiple of the step.
+    const Fraction beats = beatsFromDownbeat(position);
+    const std::int64_t index = lattice->lineIndexAtOrBefore(beats);
+    const Fraction lower_line = lattice->lineAt(index);
+    const Fraction upper_line = std::min(lattice->lineAt(index + 1), lattice->length);
 
     // Ties resolve to the earlier line, matching nearestTempoGridTime's stable-click rule.
-    const Fraction distance_down = beats_from_downbeat - lower_line;
-    const Fraction distance_up = upper_candidate - beats_from_downbeat;
-    if (distance_up < distance_down)
+    const bool upper_nearer = upper_line - beats < beats - lower_line;
+    return linePosition(*lattice, position.measure, upper_nearer ? index + 1 : index);
+}
+
+// The neighbouring line is read straight off the lattice, never found by stepping and re-snapping:
+// a re-snap picks the NEAREST line to wherever the step landed, which is the wrong line whenever a
+// measure's last line sits exactly half a step short of the next downbeat (a two-beat step in 7/8
+// leaves beat 7 one beat before the downbeat; stepping back two from the downbeat lands one beat
+// past beat 5 and one short of beat 7, and the tie-to-earlier rule then skips beat 7 entirely). The
+// walk is an involution on the lattice because each direction names the adjacent index outright.
+GridPosition adjacentGridPosition(
+    const TempoMap& tempo_map, GridPosition position, Fraction note_value, bool later)
+{
+    const std::optional<MeasureLattice> lattice =
+        measureLatticeAt(tempo_map, position.measure, note_value);
+    if (!lattice.has_value())
     {
-        return upper_is_next_downbeat
-                   ? GridPosition{.measure = position.measure + 1, .beat = 1, .offset = {}}
-                   : positionInMeasure(position.measure, upper_line);
+        return position;
     }
-    return positionInMeasure(position.measure, lower_line);
+
+    const Fraction beats = beatsFromDownbeat(position);
+    const std::int64_t index = lattice->lineIndexAtOrBefore(beats);
+    if (later)
+    {
+        // The line after the last one at or before the position is the first strictly beyond it,
+        // whether the position sits on a line or between two.
+        return linePosition(*lattice, position.measure, index + 1);
+    }
+
+    // Earlier: the last line at or before the position — unless the position sits ON it, where the
+    // line before that is wanted. Below the downbeat the walk leaves this measure.
+    const std::int64_t earlier = lattice->lineAt(index) < beats ? index : index - 1;
+    if (earlier >= 0)
+    {
+        return positionInMeasure(position.measure, lattice->lineAt(earlier));
+    }
+    // From a downbeat the earlier line is the previous measure's last, on THAT measure's lattice:
+    // its meter can differ, so its step and length are read afresh. The grid origin has no earlier
+    // line at all, and collapsing onto the input is the documented refusal.
+    if (position.measure <= 1)
+    {
+        return position;
+    }
+    const std::optional<MeasureLattice> previous =
+        measureLatticeAt(tempo_map, position.measure - 1, note_value);
+    if (!previous.has_value())
+    {
+        return position;
+    }
+    return positionInMeasure(position.measure - 1, previous->lineAt(previous->lastLineIndex()));
 }
 
 } // namespace rock_hero::common::core

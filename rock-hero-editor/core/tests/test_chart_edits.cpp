@@ -36,6 +36,24 @@ namespace
     return ChartNoteKey{.position = position, .string = string};
 }
 
+// The grids the duration-gesture scenarios step on. Against the 4/4 map above a quarter-note grid
+// puts one line on every beat and a sixteenth-note grid one every quarter of a beat.
+constexpr common::core::Fraction g_quarter_grid{1, 4};
+constexpr common::core::Fraction g_sixteenth_grid{1, 16};
+
+// One recorded step of a duration gesture: a grid step snapping onto a note value's lines, or one
+// step of the 1/960-beat fine tier. The two spellings exist so a scenario's step list reads as the
+// run of presses it stands for.
+[[nodiscard]] ChartSustainStep gridStep(common::core::Fraction note_value, bool grow)
+{
+    return ChartSustainStep{.grid_note_value = note_value, .grow = grow};
+}
+
+[[nodiscard]] ChartSustainStep fineStep(bool grow)
+{
+    return ChartSustainStep{.grid_note_value = std::nullopt, .grow = grow};
+}
+
 // A valid scrape: fret 9 start, one turnaround waypoint, and the required slide-out terminal
 // exactly at the one-beat sustain, per the pick-slide invariants the planners must preserve.
 [[nodiscard]] common::core::ChartNote makeScrape(common::core::GridPosition position, int string)
@@ -589,31 +607,33 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
 
-// Every note rings, so there is no empty ring to shrink to: a note the delta would take to zero
-// keeps the ring it currently has, and the rest of the selection still moves.
-TEST_CASE("planAdjustSustain holds a ring the delta would empty", "[core][chart]")
+// Every note rings, so there is no empty ring to shrink to: a note the replay takes to zero keeps
+// the ring it currently has, and the rest of the selection still moves.
+TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{1}),
-        makeTestNote({.measure = 1, .beat = 1}, 2, 0, common::core::Fraction{3}),
+        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{3}),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{
-        keyAt({.measure = 1, .beat = 1}, 1), keyAt({.measure = 1, .beat = 1}, 2)
+        keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
+    };
+    const std::vector<ChartSustainStep> steps{
+        gridStep(g_quarter_grid, false), gridStep(g_quarter_grid, false)
     };
 
-    const auto plan =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{-2});
+    const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        // The one-beat ring would go to -1, so it is left exactly as it was; deleting the note is
-        // the verb for removing it.
-        CHECK(noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1) == nullptr);
+        // The one-beat ring's end reaches its own onset on the first step and would pass it on the
+        // second, so it is left exactly as it was; deleting the note is the verb for removing it.
+        CHECK(noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1) == nullptr);
         const common::core::ChartNote* shrunk =
-            noteAt(plan->inserted, {.measure = 1, .beat = 1}, 2);
+            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(shrunk != nullptr);
         CHECK(shrunk->sustain == common::core::Fraction{1});
         CHECK(plan->label == "Shrink Sustain");
@@ -621,11 +641,273 @@ TEST_CASE("planAdjustSustain holds a ring the delta would empty", "[core][chart]
 
     // With nothing left that can shrink, the press changes nothing at all: NoChange, the same
     // answer every planner gives for an empty diff.
-    const std::vector<ChartNoteKey> only_short{keyAt({.measure = 1, .beat = 1}, 1)};
-    const auto unchanged =
-        planAdjustSustain(chart, tempo_map, chart.notes, only_short, common::core::Fraction{-2});
+    const std::vector<ChartNoteKey> only_short{keyAt({.measure = 2, .beat = 1}, 1)};
+    const auto unchanged = planAdjustSustain(chart, tempo_map, chart.notes, only_short, steps);
     REQUIRE_FALSE(unchanged.has_value());
     CHECK(unchanged.error() == ChartPlanRefusal::NoChange);
+}
+
+// The bug the step list exists for (user 2026-08-23): a GRID step moves the ring's END onto the
+// adjacent grid line, so a ring the Ctrl fine tier left between lines snaps onto the grid — ceiling
+// when growing, flooring when shrinking — instead of carrying its remainder forever, which is what
+// a summed beat delta did.
+TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // A ring a fine step could have authored: one beat and a hair, ending between two grid lines.
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 960})};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    SECTION("a grid grow ceilings onto the next line")
+    {
+        const auto plan = planAdjustSustain(
+            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const grown =
+                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            REQUIRE(grown != nullptr);
+            if (grown != nullptr)
+            {
+                // The next line, not 961/960 + 1: a grid step lands on the grid.
+                CHECK(grown->sustain == common::core::Fraction{2});
+            }
+        }
+    }
+
+    SECTION("a grid shrink floors onto the previous line")
+    {
+        const auto plan = planAdjustSustain(
+            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const shrunk =
+                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            REQUIRE(shrunk != nullptr);
+            if (shrunk != nullptr)
+            {
+                CHECK(shrunk->sustain == common::core::Fraction{1});
+            }
+        }
+    }
+
+    SECTION("reversing the snap lands on the line below, not on the off-grid start")
+    {
+        const auto plan = planAdjustSustain(
+            chart,
+            tempo_map,
+            chart.notes,
+            keys,
+            {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const reversed =
+                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            REQUIRE(reversed != nullptr);
+            if (reversed != nullptr)
+            {
+                // The fine remainder is gone for good, and that is the point: a grid step means
+                // "put the end on the grid line", so the run cannot return to a ring between them.
+                CHECK(reversed->sustain == common::core::Fraction{1});
+            }
+        }
+    }
+}
+
+// The two tiers in one run, and the asymmetry that follows from the law: a fine step nudges the
+// ring itself, the grid step after it SNAPS the end that nudge moved off the lattice, and a fine
+// step after THAT nudges the snapped ring off it again. Reversing the grid step therefore lands on
+// the line below rather than on the off-grid ring the run started from — the intended behaviour,
+// not a rounding artifact.
+TEST_CASE("planAdjustSustain snaps a fine-tuned ring on the next grid step", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{2})};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which no
+    // step below expects, so the caller's own comparison fails.
+    const auto ringAfter = [&](const std::vector<ChartSustainStep>& steps) {
+        const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+        if (!plan.has_value())
+        {
+            return common::core::Fraction{};
+        }
+        const common::core::ChartNote* const note =
+            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+        return note != nullptr ? note->sustain : common::core::Fraction{};
+    };
+
+    std::vector<ChartSustainStep> steps{fineStep(true)};
+    CHECK(ringAfter(steps) == common::core::Fraction{1921, 960});
+
+    steps.push_back(gridStep(g_quarter_grid, true));
+    CHECK(ringAfter(steps) == common::core::Fraction{3});
+
+    steps.push_back(fineStep(true));
+    CHECK(ringAfter(steps) == common::core::Fraction{2881, 960});
+
+    // Back one grid step: the end sits a hair past the line at 3, so the line strictly before it is
+    // the one at 3 itself — the fine nudge is what the grid step snaps away.
+    steps.push_back(gridStep(g_quarter_grid, false));
+    CHECK(ringAfter(steps) == common::core::Fraction{3});
+
+    // And one more puts the end back on the line the two-beat ring started on, so the whole run
+    // describes nothing at all: NoChange, the answer that retires the gesture's entry. Only a run
+    // that STARTED on a line can come back to its start — see the off-grid case above.
+    steps.push_back(gridStep(g_quarter_grid, false));
+    const auto closed = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+    REQUIRE_FALSE(closed.has_value());
+    CHECK(closed.error() == ChartPlanRefusal::NoChange);
+}
+
+// Each note replays the steps over its OWN end, so a chord whose members were fine-tuned to
+// different offsets snaps each member onto its own next line rather than sharing one answer.
+TEST_CASE("planAdjustSustain snaps each chord member to its own line", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // Ends a hair past beat 2 and a hair before beat 4 — different cells of the grid, so the
+        // same grow step reaches a different line for each, by a different distance (959/960 of
+        // a beat for the first, 1/960 for the second). One shared answer for the selection, a
+        // line or a delta, cannot satisfy both.
+        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 960}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{2879, 960}),
+    };
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{
+        keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
+    };
+
+    const auto plan =
+        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* const low =
+            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+        const common::core::ChartNote* const high =
+            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
+        REQUIRE(low != nullptr);
+        REQUIRE(high != nullptr);
+        if (low != nullptr && high != nullptr)
+        {
+            CHECK(low->sustain == common::core::Fraction{2});
+            CHECK(high->sustain == common::core::Fraction{3});
+        }
+    }
+}
+
+// Grid lines are signature-beat-derived, and the step carries the NOTE VALUE so the meter scales it
+// where the ring's end actually lands: in 6/8 a beat is an eighth note, so a quarter-note grid
+// steps two beats and an eighth-note grid one.
+TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][chart]")
+{
+    // Two 6/8 measures at one eighth-note beat per second, so the whole fixture is grid rather than
+    // terminal-anchor extrapolation.
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 12.0},
+        },
+    };
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // Half a beat: an end between the lines of every grid this test steps.
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1, 2})};
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    SECTION("an eighth-note grid lines up with the beat")
+    {
+        const auto plan = planAdjustSustain(
+            chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const grown =
+                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            REQUIRE(grown != nullptr);
+            if (grown != nullptr)
+            {
+                CHECK(grown->sustain == common::core::Fraction{1});
+            }
+        }
+    }
+
+    SECTION("a quarter-note grid spans two beats")
+    {
+        const auto plan = planAdjustSustain(
+            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* const grown =
+                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            REQUIRE(grown != nullptr);
+            if (grown != nullptr)
+            {
+                // Lines sit on beats 1, 3 and 5 of the measure, so the end at beat 1½ reaches 3.
+                CHECK(grown->sustain == common::core::Fraction{2});
+            }
+        }
+    }
+}
+
+// The header's first consequence, in the meter that once falsified it: a grid-only run from an
+// on-grid ring is exactly reversible. In 7/8 a quarter-note grid steps two beats, so the lines sit
+// on beats 1, 3, 5 and 7 with the next downbeat one beat after the last — and a step primitive that
+// stepped two beats back from that downbeat and re-snapped to the nearest line skipped beat 7,
+// taking a six-beat ring to four. The ring's end here starts on beat 7 itself.
+TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 7, .denominator = 8},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 4, .beat = 1, .seconds = 21.0},
+        },
+    };
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{6})};
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    // Assertion-free (read inside CHECK expressions), as in the fine-tuned run above.
+    const auto ringAfter = [&](const std::vector<ChartSustainStep>& steps) {
+        const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
+        if (!plan.has_value())
+        {
+            return common::core::Fraction{};
+        }
+        const common::core::ChartNote* const note =
+            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+        return note != nullptr ? note->sustain : common::core::Fraction{};
+    };
+
+    // Beat 7 to the next downbeat is one beat, the short last gap of the measure.
+    CHECK(ringAfter({gridStep(g_quarter_grid, true)}) == common::core::Fraction{7});
+    // And back down onto beat 7 — not past it onto beat 5 — so the run describes nothing.
+    const auto closed = planAdjustSustain(
+        chart,
+        tempo_map,
+        chart.notes,
+        keys,
+        {gridStep(g_quarter_grid, true), gridStep(g_quarter_grid, false)});
+    REQUIRE_FALSE(closed.has_value());
+    CHECK(closed.error() == ChartPlanRefusal::NoChange);
 }
 
 // Growth stops at exact adjacency with the next onset on the note's OWN string — the one bound on
@@ -642,18 +924,70 @@ TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[cor
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
+    const std::vector<ChartSustainStep> steps{
+        gridStep(g_quarter_grid, true),
+        gridStep(g_quarter_grid, true),
+        gridStep(g_quarter_grid, true)
+    };
 
-    const auto plan =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{10});
+    const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
         const common::core::ChartNote* grown = noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(grown != nullptr);
         // Two beats to its own string's restrike, and the string-2 onset one beat in blocks
-        // nothing.
+        // nothing; the third step past the bound reports the bound.
         CHECK(grown->sustain == common::core::Fraction{2});
         CHECK(plan->label == "Grow Sustain");
+    }
+}
+
+// The entry describes the whole gesture, so its label names the NET direction, not the last press:
+// grow, grow, shrink leaves the ring one step longer than the gesture found it, and the undo menu
+// must offer to take a growth back. A label read off the last step would say "Shrink" over an
+// entry whose undo shortens the ring.
+TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][chart]")
+{
+    // The measure-3 note rings two beats with no same-string successor, so no bound is involved.
+    const common::core::Chart chart = makeTestChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto grown = planAdjustSustain(
+        chart,
+        tempo_map,
+        chart.notes,
+        keys,
+        {gridStep(g_quarter_grid, true),
+         gridStep(g_quarter_grid, true),
+         gridStep(g_quarter_grid, false)});
+    REQUIRE(grown.has_value());
+    if (grown.has_value())
+    {
+        const common::core::ChartNote* const note =
+            noteAt(grown->inserted, {.measure = 3, .beat = 1}, 1);
+        REQUIRE(note != nullptr);
+        if (note != nullptr)
+        {
+            CHECK(note->sustain == common::core::Fraction{3});
+        }
+        CHECK(grown->label == "Grow Sustain");
+    }
+
+    // And the mirror: shrink, shrink, grow nets to one step shorter.
+    const auto shrunk = planAdjustSustain(
+        chart,
+        tempo_map,
+        chart.notes,
+        keys,
+        {gridStep(g_quarter_grid, false),
+         gridStep(g_quarter_grid, false),
+         gridStep(g_quarter_grid, true)});
+    REQUIRE(shrunk.has_value());
+    if (shrunk.has_value())
+    {
+        CHECK(shrunk->label == "Shrink Sustain");
     }
 }
 
@@ -672,13 +1006,13 @@ TEST_CASE("planAdjustSustain leaves a tail already at the bound alone", "[core][
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
 
     const auto plan =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{1});
+        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
 
-// Empty keys and a zero delta both plan no sustain change — from a stream that IS the base, the
-// two no-ops the verb sees before any gesture has accumulated anything.
+// Empty keys and an empty step list both plan no sustain change — from a stream that IS the base,
+// the two no-ops the verb sees before any gesture has recorded anything.
 TEST_CASE("planAdjustSustain plans nothing for no-op inputs", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
@@ -686,43 +1020,44 @@ TEST_CASE("planAdjustSustain plans nothing for no-op inputs", "[core][chart]")
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto no_keys =
-        planAdjustSustain(chart, tempo_map, chart.notes, {}, common::core::Fraction{1});
+        planAdjustSustain(chart, tempo_map, chart.notes, {}, {gridStep(g_quarter_grid, true)});
     REQUIRE_FALSE(no_keys.has_value());
     CHECK(no_keys.error() == ChartPlanRefusal::NoChange);
 
-    const auto no_delta =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{});
-    REQUIRE_FALSE(no_delta.has_value());
-    CHECK(no_delta.error() == ChartPlanRefusal::NoChange);
+    const auto no_steps = planAdjustSustain(chart, tempo_map, chart.notes, keys, {});
+    REQUIRE_FALSE(no_steps.has_value());
+    CHECK(no_steps.error() == ChartPlanRefusal::NoChange);
 }
 
-// The gesture's whole point, at the planner level: every step recomputes the selection from the
-// rings the gesture STARTED at, so a chord member pinned at its own bound diverges from its
-// neighbour on the way out and rejoins it at exactly the same delta on the way back. Stepping from
-// the live ring cannot do this — the clamp would become the next step's starting value and the
-// chord would come back a different shape.
-TEST_CASE("planAdjustSustain recomputes a chord from the gesture's start", "[core][chart]")
+// The gesture's whole point, at the planner level: every press replays the whole run over the rings
+// the gesture STARTED at, so a chord member pinned at its own bound diverges from its neighbour on
+// the way out and rejoins it on exactly the step that put it there. Stepping from the live ring
+// cannot do this — the clamp would become the next step's starting value and the chord would come
+// back a different shape.
+TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {
-        makeTestNote({.measure = 1, .beat = 1}, 1, 0),
-        makeTestNote({.measure = 1, .beat = 1}, 2, 0),
-        // The string-1 member's own restrike two beats later: its bound, and nothing to the
+        makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{1}),
+        // The string-1 member's own restrike three beats later: its bound, and nothing to the
         // string-2 member.
-        makeTestNote({.measure = 1, .beat = 3}, 1, 0),
+        makeTestNote({.measure = 2, .beat = 4}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{
-        keyAt({.measure = 1, .beat = 1}, 1), keyAt({.measure = 1, .beat = 1}, 2)
+        keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
     const std::vector<common::core::ChartNote> base = chart.notes;
 
-    // The controller's discipline in miniature: the plan describes start → now, so the live chart
-    // walks back to the start before the plan applies to it.
+    // The controller's discipline in miniature: the press appends its step to the run, and the plan
+    // describes start → now, so the live chart walks back to the start before it applies.
     common::core::Chart live = chart;
-    const auto stepTo = [&](common::core::Fraction delta) {
-        const auto plan = planAdjustSustain(live, tempo_map, base, keys, delta);
+    std::vector<ChartSustainStep> steps;
+    const auto press = [&](bool grow) {
+        steps.push_back(gridStep(g_quarter_grid, grow));
+        const auto plan = planAdjustSustain(live, tempo_map, base, keys, steps);
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -735,54 +1070,60 @@ TEST_CASE("planAdjustSustain recomputes a chord from the gesture's start", "[cor
     // zero ring, which no step below expects, so the caller's own comparison fails.
     const auto ringOf = [&](int string) {
         const common::core::ChartNote* const note =
-            noteAt(live.notes, {.measure = 1, .beat = 1}, string);
+            noteAt(live.notes, {.measure = 2, .beat = 1}, string);
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
 
-    stepTo(common::core::Fraction{1});
-    CHECK(ringOf(1) == common::core::Fraction{9, 8});
-    CHECK(ringOf(2) == common::core::Fraction{9, 8});
-
-    // 17/8 would ring through the string-1 restrike, so that member pins at its bound while its
-    // neighbour keeps going.
-    stepTo(common::core::Fraction{2});
+    press(/*grow=*/true);
     CHECK(ringOf(1) == common::core::Fraction{2});
-    CHECK(ringOf(2) == common::core::Fraction{17, 8});
-    stepTo(common::core::Fraction{3});
-    CHECK(ringOf(1) == common::core::Fraction{2});
-    CHECK(ringOf(2) == common::core::Fraction{25, 8});
+    CHECK(ringOf(2) == common::core::Fraction{2});
+    press(/*grow=*/true);
+    CHECK(ringOf(1) == common::core::Fraction{3});
+    CHECK(ringOf(2) == common::core::Fraction{3});
 
-    // Coming back, the pinned member leaves its bound at exactly the delta that put it there.
-    stepTo(common::core::Fraction{2});
-    CHECK(ringOf(1) == common::core::Fraction{2});
-    CHECK(ringOf(2) == common::core::Fraction{17, 8});
-    stepTo(common::core::Fraction{1});
-    CHECK(ringOf(1) == common::core::Fraction{9, 8});
-    CHECK(ringOf(2) == common::core::Fraction{9, 8});
+    // A fourth beat would ring through the string-1 restrike, so that member pins at its bound
+    // while its neighbour keeps going.
+    press(/*grow=*/true);
+    CHECK(ringOf(1) == common::core::Fraction{3});
+    CHECK(ringOf(2) == common::core::Fraction{4});
 
-    // Back at zero the gesture nets to nothing, which is NoChange rather than a plan describing
-    // nothing: the controller's answer is to take the gesture's undo entry back out and walk the
-    // chart to `base` itself.
-    const auto closed = planAdjustSustain(live, tempo_map, base, keys, common::core::Fraction{});
+    // Coming back, the pinned member leaves its bound on exactly the step that put it there — the
+    // clamp never entered the replay, so it could not shorten the next step's starting value.
+    press(/*grow=*/false);
+    CHECK(ringOf(1) == common::core::Fraction{3});
+    CHECK(ringOf(2) == common::core::Fraction{3});
+    press(/*grow=*/false);
+    CHECK(ringOf(1) == common::core::Fraction{2});
+    CHECK(ringOf(2) == common::core::Fraction{2});
+
+    // Back on the ring it started from, the gesture describes nothing, which is NoChange rather
+    // than a plan describing nothing: the controller's answer is to take the gesture's undo entry
+    // back out and walk the chart to `base` itself.
+    steps.push_back(gridStep(g_quarter_grid, false));
+    const auto closed = planAdjustSustain(live, tempo_map, base, keys, steps);
     REQUIRE_FALSE(closed.has_value());
     CHECK(closed.error() == ChartPlanRefusal::NoChange);
 }
 
-// A ring the delta would empty holds the value it CURRENTLY has — read from the live chart, not
-// from the gesture's start — and rejoins the delta the moment start + delta is positive again.
-// Holding the start value instead would grow the note back on a shrink press.
+// A ring the replay would empty holds the value it CURRENTLY has — read from the live chart, not
+// from the gesture's start — and rejoins the replay the moment it is positive again. Holding the
+// start value instead would grow the note back on a shrink press. The floor stays out of the replay
+// itself, which is what makes the overshoot payable: every step taken past the floor has to be paid
+// back before the ring moves again.
 TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.notes = {makeTestNote({.measure = 1, .beat = 1}, 1, 0, common::core::Fraction{9, 8})};
+    chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{3})};
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
     const std::vector<common::core::ChartNote> base = chart.notes;
 
     common::core::Chart live = chart;
-    const auto stepTo = [&](common::core::Fraction delta) {
-        const auto plan = planAdjustSustain(live, tempo_map, base, keys, delta);
+    std::vector<ChartSustainStep> steps;
+    const auto press = [&](bool grow) {
+        steps.push_back(gridStep(g_quarter_grid, grow));
+        const auto plan = planAdjustSustain(live, tempo_map, base, keys, steps);
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -794,25 +1135,33 @@ TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][c
     // no step below expects, so the caller's own comparison fails.
     const auto ring = [&] {
         const common::core::ChartNote* const note =
-            noteAt(live.notes, {.measure = 1, .beat = 1}, 1);
+            noteAt(live.notes, {.measure = 2, .beat = 1}, 1);
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
 
-    stepTo(common::core::Fraction{-1});
-    CHECK(ring() == common::core::Fraction{1, 8});
-    // 9/8 - 2 is negative, so the ring holds where the previous step left it rather than being
-    // clamped to some invented floor or restored to its 9/8 start.
-    stepTo(common::core::Fraction{-2});
-    CHECK(ring() == common::core::Fraction{1, 8});
-    stepTo(common::core::Fraction{-3});
-    CHECK(ring() == common::core::Fraction{1, 8});
-    // Positive again: it rejoins the shared delta exactly where the arithmetic puts it.
-    stepTo(common::core::Fraction{-1, 2});
-    CHECK(ring() == common::core::Fraction{5, 8});
-    // All the way back at zero, a ring that spent three steps floored still nets out exactly: the
-    // planner has nothing left to describe, and NoChange is what tells the caller to take the
-    // gesture's entry back out and walk the chart to `base`.
-    const auto closed = planAdjustSustain(live, tempo_map, base, keys, common::core::Fraction{});
+    press(/*grow=*/false);
+    CHECK(ring() == common::core::Fraction{2});
+    press(/*grow=*/false);
+    CHECK(ring() == common::core::Fraction{1});
+    // The next line IS the onset, so the ring holds where the previous step left it rather than
+    // being clamped to some invented floor or restored to its three-beat start.
+    press(/*grow=*/false);
+    CHECK(ring() == common::core::Fraction{1});
+    press(/*grow=*/false);
+    CHECK(ring() == common::core::Fraction{1});
+    // Paying the overshoot back: still held on the step that returns the end to the onset, ringing
+    // again on the one after it.
+    press(/*grow=*/true);
+    CHECK(ring() == common::core::Fraction{1});
+    press(/*grow=*/true);
+    CHECK(ring() == common::core::Fraction{1});
+    press(/*grow=*/true);
+    CHECK(ring() == common::core::Fraction{2});
+    // A run that replays back to its start still describes nothing even after three floored steps:
+    // NoChange is what tells the caller to take the gesture's entry back out and walk the chart to
+    // `base`.
+    steps.push_back(gridStep(g_quarter_grid, true));
+    const auto closed = planAdjustSustain(live, tempo_map, base, keys, steps);
     REQUIRE_FALSE(closed.has_value());
     CHECK(closed.error() == ChartPlanRefusal::NoChange);
 }
@@ -829,8 +1178,12 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     const std::vector<common::core::ChartNote> base = chart.notes;
 
     common::core::Chart live = chart;
-    const auto stepTo = [&](common::core::Fraction delta) {
-        const auto plan = planAdjustSustain(live, tempo_map, base, keys, delta);
+    std::vector<ChartSustainStep> steps;
+    // Sixteenth-note steps against the 4/4 map: a quarter of a beat each, so the one-beat scrape
+    // walks its ring down in four presses and back up in three.
+    const auto press = [&](bool grow) {
+        steps.push_back(gridStep(g_sixteenth_grid, grow));
+        const auto plan = planAdjustSustain(live, tempo_map, base, keys, steps);
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -839,8 +1192,12 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
         }
     };
 
-    // Far enough to floor at the minimum gesture window, which clips the turnaround away.
-    stepTo(common::core::Fraction{-10});
+    // All the way to the onset, where the scrape floors at the minimum gesture window; the
+    // turnaround is clipped away with the tail.
+    for (int index = 0; index < 4; ++index)
+    {
+        press(/*grow=*/false);
+    }
     const common::core::ChartNote* scrape = noteAt(live.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(scrape != nullptr);
     if (scrape != nullptr)
@@ -849,9 +1206,12 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
         CHECK(scrape->slides.empty());
     }
 
-    // Growing back inside the same gesture puts the turnaround back, because the ring is recomputed
+    // Growing back inside the same gesture puts the turnaround back, because the ring is replayed
     // from the note the gesture started with rather than from the floored one.
-    stepTo(common::core::Fraction{-1, 4});
+    for (int index = 0; index < 3; ++index)
+    {
+        press(/*grow=*/true);
+    }
     scrape = noteAt(live.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(scrape != nullptr);
     if (scrape != nullptr)
@@ -1349,8 +1709,9 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     CHECK(chart.notes[held].sustain == ring);
 
     // And the duration verbs go on working on it: nothing about the note is frozen by the mute.
+    // The two-beat ring ends on a grid line, so one grid step is one beat.
     const auto grown =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{1});
+        planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
     REQUIRE(grown.has_value());
     if (grown.has_value())
     {
@@ -1593,8 +1954,9 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
 
     SECTION("shrink compresses the terminal onto the new end")
     {
-        const auto plan =
-            planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{-1, 4});
+        // A sixteenth-note step is a quarter beat off the one-beat ring's on-grid end.
+        const auto plan = planAdjustSustain(
+            chart, tempo_map, chart.notes, keys, {gridStep(g_sixteenth_grid, false)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1618,8 +1980,9 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
 
     SECTION("growth rides the terminal out to the new end")
     {
-        const auto plan =
-            planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{1, 2});
+        // An eighth-note step is half a beat in 4/4.
+        const auto plan = planAdjustSustain(
+            chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, true)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1638,8 +2001,9 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
 
     SECTION("shrink floors at the minimum gesture window")
     {
-        const auto plan =
-            planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{-10});
+        // One quarter-note step takes the one-beat ring's end back onto its own onset.
+        const auto plan = planAdjustSustain(
+            chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, false)});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -1675,24 +2039,24 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
-    // Shrink to 3/8: only the first turnaround survives, and the terminal fret 3 would sit
+    // Shrink to half a beat: only the first turnaround survives, and the terminal fret 3 would sit
     // still against it, so the earlier differing fret 12 terminates instead.
-    const auto plan =
-        planAdjustSustain(chart, tempo_map, chart.notes, keys, common::core::Fraction{-5, 8});
+    const auto plan = planAdjustSustain(
+        chart, tempo_map, chart.notes, keys, {gridStep(common::core::Fraction{1, 8}, false)});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
         const common::core::ChartNote* shrunk =
             noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(shrunk != nullptr);
-        CHECK(shrunk->sustain == common::core::Fraction{3, 8});
+        CHECK(shrunk->sustain == common::core::Fraction{1, 2});
         REQUIRE(shrunk->slides.size() == 1);
         CHECK(shrunk->slides[0].offset == common::core::Fraction{1, 4});
         CHECK(shrunk->slides[0].fret == 3);
         REQUIRE(shrunk->slide_out.has_value());
         if (shrunk->slide_out.has_value())
         {
-            CHECK(shrunk->slide_out->offset == common::core::Fraction{3, 8});
+            CHECK(shrunk->slide_out->offset == common::core::Fraction{1, 2});
             CHECK(shrunk->slide_out->fret == 12);
         }
         common::core::Chart applied = chart;
@@ -2248,7 +2612,7 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
         tempo_map,
         chart.notes,
         {keyAt({.measure = 1, .beat = 1}, 1)},
-        common::core::Fraction{-1});
+        {gridStep(g_quarter_grid, false)});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {

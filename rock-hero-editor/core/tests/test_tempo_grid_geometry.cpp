@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstddef>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -605,7 +606,8 @@ TEST_CASE("Nearest tempo grid position is exact for odd note values", "[core][te
 // reach. This walks the stepper's lattice across a meter change, an odd meter, and a tempo change
 // with a grid whose step does not divide every measure, and holds the walker to the same lines:
 // every stepped line is where a click at its own time lands, a click half a step short of it still
-// resolves to a line of the lattice, and no line sits on the walk the stepper skips.
+// resolves to a line of the lattice, and no line sits on the walk the stepper skips. The walk back
+// then retraces the same lines, because a step from any line must return to the line it came from.
 TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo-grid]")
 {
     // 4/4, then 6/8, then 7/8; the tempo halves at measure 3.
@@ -625,11 +627,13 @@ TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo
     // every downbeat restart is exercised.
     const common::core::Fraction grid{3, 16};
 
-    common::core::GridPosition line{.measure = 1, .beat = 1, .offset = {}};
+    std::vector<common::core::GridPosition> walked{
+        common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}}
+    };
     const common::core::GridPosition terminal{.measure = 5, .beat = 1, .offset = {}};
-    int lines = 0;
-    while (line < terminal)
+    while (walked.back() < terminal)
     {
+        const common::core::GridPosition line = walked.back();
         CAPTURE(line.measure, line.beat, line.offset.numerator, line.offset.denominator);
         // The stepper's line is a fixed point of the walker: a click exactly on it lands on it.
         const double seconds = secondsAtGridPosition(map, line);
@@ -647,12 +651,19 @@ TEST_CASE("Grid stepping and click snapping agree on the lattice", "[core][tempo
         CHECK(
             nearestTempoGridPosition(map, grid, common::core::TimePosition{midpoint + 1e-6}) ==
             next);
-        line = next;
-        ++lines;
+        walked.push_back(next);
     }
     // Non-vacuity: a 3/4-beat step puts 6 lines in 4/4, a 1.5-beat step 4 in 6/8 and 5 in each
-    // 7/8 measure.
-    CHECK(lines == 6 + 4 + 5 + 5);
+    // 7/8 measure, and the terminal downbeat closes the walk.
+    REQUIRE(walked.size() == 6 + 4 + 5 + 5 + 1);
+
+    // Back down the same lines: every step earlier lands exactly on the line the step later came
+    // from, across the meter changes and the measure-anchored restarts alike.
+    for (std::size_t index = walked.size() - 1; index > 0; --index)
+    {
+        CAPTURE(index);
+        CHECK(adjacentTempoGridPosition(map, grid, walked[index], false) == walked[index - 1]);
+    }
 }
 
 } // namespace rock_hero::editor::core

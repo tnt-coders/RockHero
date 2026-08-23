@@ -172,7 +172,7 @@ diffed against, and the caller still has to commit that — walking the chart ba
 is what removes the claim. Its `nullopt` therefore carries the one thing left that is not a plan
 (the sweep found nothing to flatten), where collapsing the empty diff into `NoChange` would have
 told the caller to do nothing. Every other planner, `planAdjustSustain` included, keeps the
-`expected` shape: a gesture whose accumulated delta puts every ring back where it started needs no
+`expected` shape: a gesture whose replayed steps put every ring back where it started needs no
 plan to describe it, because the answer to `NoChange` there is to take the gesture's undo entry back
 out — not to commit an entry that describes nothing.
 
@@ -390,13 +390,15 @@ alternative does with the proof differs, and that is the point of keeping the pr
 
 - **The technique toggle** REVERSES its entry exactly, tails an assist grew included, and drops it
   (`dropTop`) so the pair leaves no trace.
-- **The duration gesture** (user ruling 2026-08-22) accumulates every step into one `Fraction`
-  delta, re-plans the whole selection from the rings the gesture STARTED at, and REPLACES its entry
-  (`replaceTop`) so one entry always describes start → now. The start values need no snapshot: the
-  entry's own plan, reversed, IS the pre-gesture stream — the settle sweep's method, reused.
-  Recomputing from the start rather than stepping the live ring is what makes the verb symmetric,
+- **The duration gesture** (user ruling 2026-08-22) records every step in press order, re-plans the
+  whole selection by REPLAYING that list over the rings the gesture STARTED at, and REPLACES its
+  entry (`replaceTop`) so one entry always describes start → now. The start values need no snapshot:
+  the entry's own plan, reversed, IS the pre-gesture stream — the settle sweep's method, reused.
+  Replaying from the start rather than stepping the live ring is what makes the verb symmetric,
   so a chord member pinned at its own bound rejoins its neighbours exactly where it left them.
-  A delta that nets back to zero ends at the toggle's ending instead: there is nothing left to
+  The list is what a summed delta could not be (2026-08-23): a grid step moves the ring's END onto
+  the adjacent grid line, so its size is only known once you know where that end sits.
+  A run that replays back to its start ends at the toggle's ending instead: there is nothing left to
   describe, so the entry is DROPPED and the chart walked back, because an entry describing nothing
   is a dead Ctrl+Z on a document reported modified that is identical to the saved file.
 

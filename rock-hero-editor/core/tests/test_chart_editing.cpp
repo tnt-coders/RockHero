@@ -582,14 +582,16 @@ TEST_CASE("EditorController publishes both chart forms together", "[core][chart]
     CHECK(state->tab->shapes == state->tab_actual->shapes);
     CHECK(state->tab->fret_hand_positions == state->tab_actual->fret_hand_positions);
 
-    // A chart edit rebuilds both: one grid step of the sustain verb grows the clicked note's ring
-    // by a beat (half a second at 120 BPM), and the reveal must show that immediately.
+    // A chart edit rebuilds both: one grid step of the sustain verb moves the clicked note's ring
+    // END onto the next grid line — the chug's eighth of a beat ends between lines, so the step
+    // snaps it to the beat at 2.5s rather than adding half a second to it — and the reveal must
+    // show that immediately.
     const std::shared_ptr<const common::core::ChartViewState> before = state->tab_actual;
     click(controller, 40.0f, 220.0f);
     controller.onChartSustainAdjustRequested(1, false);
     REQUIRE(state->tab_actual != nullptr);
     CHECK(state->tab_actual != before);
-    CHECK(state->tab_actual->notes[0].end_seconds == Catch::Approx(2.5625));
+    CHECK(state->tab_actual->notes[0].end_seconds == Catch::Approx(2.5));
 }
 
 } // namespace rock_hero::editor::core

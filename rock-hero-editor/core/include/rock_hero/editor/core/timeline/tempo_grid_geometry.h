@@ -226,14 +226,15 @@ step_beats = note_value x denominator (a 1/8 grid in 6/8 steps one beat; in 4/4,
 /*!
 \brief The adjacent tempo-grid line strictly beyond a position, walked in exact rationals.
 
-The one keyboard time-step primitive shared by the marker's caret stepping and the automation
-point nudge, so the two surfaces can never land on different slots for the same verb. From an
-off-grid position whose nearest line lies in the step direction, the result is that line (a
-step never jumps past the adjacent line); from the lattice, the position advances one grid
-step and re-snaps, with a second push when a measure-anchored grid restart would otherwise
-swallow the step. The walk is exact-rational end to end — no seconds round-trip — so stepping
-is precisely reversible on any grid, odd values included. At the map edge the result can
-collapse onto \p from; callers treat that as a refusal.
+The one keyboard time-step primitive shared by the marker's caret stepping, the automation point
+nudge, and the duration verb's grid step, so no two surfaces can land on different slots for the
+same verb. It is \ref common::core::adjacentGridPosition under the editor's note-value validity
+policy (an invalid value falls back to the default grid, exactly as rendering and snapping do):
+from an off-grid position the result is the nearer line in the step direction (a step never jumps
+past the adjacent line); from the lattice, the neighbouring line, read off the lattice directly.
+The walk is exact-rational end to end — no seconds round-trip — and precisely reversible on any
+grid and any meter, odd values and odd measure lengths included. At the grid origin stepping
+earlier collapses onto \p from; callers treat that as a refusal.
 
 \param tempo_map Song tempo map supplying signatures, the beat grid, and absolute beat times.
 \param grid_note_value Grid step as a fraction of a whole note.

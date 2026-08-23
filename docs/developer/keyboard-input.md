@@ -211,9 +211,11 @@ PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
 and chart-bound extends of the grid-locked `TimeSelection` — the range edge reuses the caret's
 shared destination helpers, so the two can never drift on the same motion),
 `onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction, fine)` (THE duration verb —
-a run of presses is one GESTURE: the steps accumulate into a single delta, the selection re-plans
-from the rings the run started at, and the whole run stays one undo entry, ruled 2026-08-22; see
-\ref guide_undo),
+a run of presses is one GESTURE: each press appends its step to the run's list, the selection
+re-plans by replaying that list over the rings the run started at, and the whole run stays one undo
+entry, ruled 2026-08-22; see \ref guide_undo. A grid step moves the ring's END onto the adjacent
+grid line — so a ring the Ctrl fine tier left between lines snaps back onto the grid — which is why
+the run records steps rather than summing them into one delta),
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, accent, ghost, pick slide,

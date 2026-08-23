@@ -60,8 +60,12 @@ the validation gate all resolve through — so a spacing rule cannot mean two th
   assumption and the margin slack were both compensations for a trimmed encoding that no longer
   exists.
 - `globalBeatPosition`, `advanceGridPosition`, `beatDistance`, `sustainEndPosition`,
-  `snapGridPosition` — the exact `GridPosition` ↔ beat conversions, signed and inverse-exact, all
-  crossing beat, measure, and meter boundaries without floating-point drift.
+  `snapGridPosition`, `adjacentGridPosition` — the exact `GridPosition` ↔ beat conversions, signed
+  and inverse-exact, all crossing beat, measure, and meter boundaries without floating-point
+  drift. The last two are the two questions asked of one note-value lattice (nearest line, and the
+  neighbouring line in a direction); the adjacent line is read off the lattice rather than found by
+  stepping and re-snapping, which is what keeps a step back from any line landing on the line it
+  came from in every meter.
 - `terminalGridPosition(tempo_map)` — the chart's closing barline as a `GridPosition`. Every
   consumer of the chart's end needs the same answer (package read closing the last tone region,
   tone-track normalization, tone-track validation, and the editor's end-of-chart navigation and
@@ -170,9 +174,17 @@ surfaces and input families: pointer placement, keyboard moves, and the sustain 
 compose the same fine tier (the off-grid unification). Pointer gestures must go through
 `musicalGridPositionForX` (see \ref guide_2d_views); keyboard stepping has its own single
 primitives in the same header — `gridStepBeats(...)` (one step's size at a measure) and
-`adjacentTempoGridPosition(...)` (the next line from any position, exact-rational, so a coarse
-step from an off-grid start lands on the adjacent line, never overshoots) — and
-`secondsAtGridPosition(...)` turns an exact position back into seconds for geometry.
+`adjacentTempoGridPosition(...)` (the next line from any position: common core's
+`adjacentGridPosition` under the editor's note-value validity policy, exact-rational, so a coarse
+step from an off-grid start lands on the adjacent line, never overshoots, and a step back returns
+to the line it came from) — and `secondsAtGridPosition(...)` turns an exact position back into
+seconds for geometry.
+
+The duration verb steps that same primitive, over the ring's END rather than a caret
+(`planAdjustSustain`, `chart_edits.h`): a grid step puts the end on the adjacent line, so a ring
+the fine tier left between lines snaps back onto the grid, while a fine step adds the 1/960 beat.
+That is why a duration gesture records its steps in order instead of summing them — a grid step has
+no size until you know where the end sits.
 
 *Design in flux: making the tempo map user-visible/editable is active work
 (`docs/plans/in-progress/tone-track-tempo-map-plan.md`), and tempo-anchor authoring is an

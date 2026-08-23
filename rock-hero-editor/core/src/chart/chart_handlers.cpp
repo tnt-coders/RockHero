@@ -1599,13 +1599,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         /*set_exact=*/false)));
 }
 
-// Grows or shrinks the selection's rings by one grid step — or one 1/960-beat fine step, the
-// uniform Ctrl precision tier on the extent verbs — as ONE GESTURE (user ruling 2026-08-22): every
-// step of a run adds to a single accumulated delta, the whole selection is re-planned from the
-// rings the gesture STARTED at, and the run stays one undo entry that always describes start → now.
-// That is what makes the verb symmetric: a chord member pinned at its own bound on the way out
-// rejoins its neighbours exactly where it left them on the way back, instead of each step baking
-// the clamp into the next step's starting value.
+// Grows or shrinks the selection's rings by one grid step — moving each ring's END onto the
+// adjacent grid line — or by one 1/960-beat fine step, the uniform Ctrl precision tier on the
+// extent verbs, as ONE GESTURE (user ruling 2026-08-22): every press APPENDS its step to the run's
+// list, the whole selection is re-planned by replaying that list over the rings the gesture STARTED
+// at, and the run stays one undo entry that always describes start → now. That is what makes the
+// verb symmetric: a chord member pinned at its own bound on the way out rejoins its neighbours
+// exactly where it left them on the way back, instead of each step baking the clamp into the next
+// step's starting value.
+//
+// The list replaced a single accumulated delta (user bug 2026-08-23): a grid step has no size to
+// sum, because what it adds is whatever reaches the next line from where the ring's end currently
+// sits — and a summed delta therefore carried a Ctrl fine-tuned remainder through every later grid
+// step, leaving the ring permanently off-grid.
 //
 // The gesture is live while the shared window proof holds (the same selection, and the burst record
 // still owning the history top), so it ends at every commit point the technique toggle ends at —
@@ -1622,22 +1628,30 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
         return;
     }
 
-    const common::core::GridPosition reference = chartSelection().notes().front().position;
-    const common::core::Fraction step =
-        fine ? common::core::Fraction{1, 960} : chartGridStepBeats(reference);
-    const common::core::Fraction signed_step =
-        direction > 0 ? step : common::core::Fraction{-step.numerator, step.denominator};
-    // Grid and fine steps mix freely inside one gesture: both are just terms of the same exact
-    // rational, which is the whole reason the delta is a Fraction rather than a step count.
-    const std::optional<common::core::Fraction> live_delta = liveChartSustainGestureDelta();
-    const common::core::Fraction delta =
-        live_delta.value_or(common::core::Fraction{}) + signed_step;
-    // Bound once as a pointer so every read below is provably behind the has_value check, the
-    // shape this file uses wherever an optional's guarantee has to survive intervening calls. A
-    // live delta and the burst record are present together — the delta's own proofs demand the
-    // record — so this pointer is exactly "a gesture is running".
+    // A grid step records the session's NOTE VALUE rather than a beat amount, because the planner
+    // snaps the ring's end onto that grid's own lines: the meter at whatever measure the end lands
+    // in scales the value there, so nothing here needs to know where any ring ends.
+    const ChartSustainStep step{
+        .grid_note_value =
+            fine ? std::optional<common::core::Fraction>{} : std::optional{m_grid_note_value},
+        .grow = direction > 0,
+    };
+    // Bound once as a pointer so every read below is provably behind the null check, the shape this
+    // file uses wherever an optional's guarantee has to survive intervening calls. A live gesture
+    // and the burst record are present together — the gesture's own proofs demand the record — so
+    // this pointer is exactly "a gesture is running". It dies with any reassignment of the window,
+    // so the steps are copied out of it here, before anything below can touch that field.
+    const std::vector<ChartSustainStep>* const live = liveChartSustainGestureSteps();
+    // Grid and fine steps mix freely inside one gesture; the list keeps them in the order they were
+    // pressed, which is the only order that replays what the user did.
+    std::vector<ChartSustainStep> steps;
+    if (live != nullptr)
+    {
+        steps = *live;
+    }
+    steps.push_back(step);
     ChartNotesTopEntry* const burst =
-        live_delta.has_value() && m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
+        live != nullptr && m_chart_notes_top.has_value() ? &*m_chart_notes_top : nullptr;
 
     // The stream the gesture started from. Mid-gesture it is reconstructed by reversing exactly
     // what the top entry applied — the settle fold's own method, and the reason the gesture keeps
@@ -1656,16 +1670,17 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
         base = std::move(pre_gesture.notes);
     }
     std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan = planAdjustSustain(
-        *arrangement->chart, session().song().tempo_map, base, chartSelection().notes(), delta);
+        *arrangement->chart, session().song().tempo_map, base, chartSelection().notes(), steps);
     if (!plan.has_value())
     {
-        // Invalid is the gate refusing the result, so this step never happened: the delta is not
-        // accumulated, and a running gesture keeps the entry and the delta it had.
+        // Invalid is the gate refusing the result, so this step never happened: it is not recorded
+        // (the appended list is local until the window is armed below), and a running gesture keeps
+        // the entry and the steps it had.
         //
         // NoChange is the gesture standing exactly where it started — every ring already at its
-        // bound on a first step, or a run that netted back to zero — so it describes no edit at
-        // all. A first step then arms nothing, and the next press in the other direction starts
-        // from the current rings rather than paying back a delta that never moved anything; a
+        // bound on a first step, or a run that replayed back to its start — so it describes no edit
+        // at all. A first step then arms nothing, and the next press in the other direction starts
+        // from the current rings rather than paying back steps that never moved anything; a
         // running gesture RETIRES the entry it pushed, because an entry describing nothing is a
         // dead Ctrl+Z on a document reported modified that is byte-identical to the saved file.
         if (plan.error() == ChartPlanRefusal::NoChange && burst != nullptr)
@@ -1685,7 +1700,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
     else
     {
         // The history entry is swapped BEFORE the model moves, the settle fold's discipline: the
-        // two states must never disagree, and liveChartSustainGestureDelta's proofs are exactly
+        // two states must never disagree, and the live-gesture proofs above are exactly
         // replaceTop's own preconditions, so a refusal here is a logic error reported with the
         // chart untouched rather than left between two entries.
         if (m_undo_history.replaceTop(std::make_unique<ChartNotesEdit>(*plan)).status !=
@@ -1710,12 +1725,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
         updateView();
     }
 
-    // Both paths arm the same window: the live selection, and the delta the next step accumulates
-    // into. Read back from the selection rather than carried across the apply, so the keys are
+    // Both paths arm the same window: the live selection, and the step list the next press appends
+    // to. Read back from the selection rather than carried across the apply, so the keys are
     // always the ones the next press will compare against.
     m_chart_verb_window = ChartVerbWindow{
         .keys = chartSelection().notes(),
-        .verb = ChartSustainGesture{.delta = delta},
+        .verb = ChartSustainGesture{.steps = std::move(steps)},
     };
 }
 
@@ -1738,34 +1753,36 @@ bool EditorController::Impl::chartVerbWindowHolds(const std::vector<ChartNoteKey
            m_undo_history.snapshot().position == m_chart_notes_top->history_position;
 }
 
-// The gesture a duration step continues, or nullopt when the press starts one.
+// The steps of the gesture a duration press continues, or nullptr when the press starts one. The
+// pointer aliases m_chart_verb_window, so a caller must copy what it needs before anything can
+// reassign that field.
 //
 // Beyond the shared proof it asks the fold's own precondition: a save mid-gesture makes the entry
 // the file's clean state, and replaceTop refuses to rewrite that (widening it would make "return to
 // clean" restore different content than the file holds). So a save ENDS the gesture, exactly like
 // any other commit point, and the next step opens a fresh one from the saved rings.
-std::optional<common::core::Fraction> EditorController::Impl::liveChartSustainGestureDelta() const
+const std::vector<ChartSustainStep>* EditorController::Impl::liveChartSustainGestureSteps() const
 {
     if (!m_chart_verb_window.has_value() || !chartVerbWindowHolds(m_chart_verb_window->keys))
     {
-        return std::nullopt;
+        return nullptr;
     }
     const auto* const gesture = std::get_if<ChartSustainGesture>(&m_chart_verb_window->verb);
     if (gesture == nullptr || m_undo_history.isAtCleanState())
     {
-        return std::nullopt;
+        return nullptr;
     }
-    return gesture->delta;
+    return &gesture->steps;
 }
 
 // Ends a duration gesture that describes nothing, by taking back the entry its first step pushed
-// and walking the chart back to the stream that entry was applied to. What a run netting to zero
-// has to leave behind: an entry describing nothing is a dead Ctrl+Z, and it would report the
-// document modified while it is byte-identical to the saved file.
+// and walking the chart back to the stream that entry was applied to. What a run replaying back to
+// its start has to leave behind: an entry describing nothing is a dead Ctrl+Z, and it would report
+// the document modified while it is byte-identical to the saved file.
 //
 // This is the technique toggle's own "the pair leaves no trace" mechanism (dropTop). It needs no
 // clean-state alternative, which that verb does need, because a save ends the gesture BEFORE a step
-// can reach here — liveChartSustainGestureDelta refuses at the clean state, so a live gesture and
+// can reach here — liveChartSustainGestureSteps refuses at the clean state, so a live gesture and
 // dropTop's preconditions are the same thing.
 //
 // applied: the plan the entry holds, which is why the record naming it is retired last.
