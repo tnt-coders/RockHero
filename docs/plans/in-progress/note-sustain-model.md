@@ -265,19 +265,25 @@ corpus-wide.
   the shared paint core, like the selection ring, and reuses `tabNoteLayout`'s tail span so it
   traces where a tail of that length would sit. `paintTabLane`'s visible-span rule moved out to the
   exported `tabVisibleSpan` so the reveal culls through the same widened clip the notation does,
-  against its own prefix maximum over the actual ends. The held key has ONE authority
-  (`ComponentPeer::getCurrentModifiersRealtime`), never a modifier callback trusted as a feed: JUCE
-  delivers `modifierKeysChanged` to the component under the pointer (else the focused one) and up
-  THAT chain, so `juce::Slider` can swallow it and a change over the 3D preview ends in the
-  preview's window. **Tracking ruled 2026-08-22/23** after the user sighted the tails stranded on
-  when Alt was released with the pointer over the preview: the modifier callback gives the instant
-  edge (the preview forwards its own deliveries through `PreviewWindow::modifierKeysChanged`),
-  the fabricated mouse move gives the ON edge a widget swallowed, a 30 Hz `juce::TimedCallback`
-  poll that exists only while the reveal is on gives the OFF edge that cannot be missed, and
-  keyboard focus leaving the editor window (`focusOfChildComponentChanged`, the window-level
-  predicate) is a release outright rather than a sample — Alt is still down mid-Alt+Tab. A gate
-  on focus (`revealed = focused && alt`) was rejected: the preview grabs focus when it opens, so
-  Alt over the lane with the preview open would then show nothing.
+  against its own prefix maximum over the actual ends. **Tracking ruled 2026-08-23, replacing the
+  event-driven samplers of 2026-08-22/23.** The reveal is on exactly while `juce::Process::
+  isForegroundProcess() && juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown()` —
+  "the app" is the PROCESS, so the editor window or the 3D preview being active both count — read
+  from ONE place, `EditorView`'s per-frame vblank attachment (the one that already samples the
+  meters and the time readout, for the view's whole life), and from nothing event-driven. The
+  user's reason, after sighting the previous design: with the
+  2D view focused, Alt toggled the tails only while the pointer was over the 2D view and stopped
+  when it moved over the 3D view; clicking the 3D view into focus made Alt work again; and the
+  reveal sometimes flipped with the app completely out of focus. "Alt should work IFF the app is
+  in focus, and not change based on where the mouse is in the app (or which window in the app the
+  mouse is over)." That is the axis JUCE's modifier callbacks are keyed on — `modifierKeysChanged`
+  goes to the component under the pointer (else the focused one) and up THAT window's chain, and a
+  release mid-Alt+Tab goes to another application — so the `modifierKeysChanged` and
+  `focusOfChildComponentChanged` overrides, the deep mouse listener, the preview's forwarding hook,
+  the reveal's own timer, and its start/stop logic were all deleted together. Both halves of the
+  predicate are process-wide OS queries, so the per-frame sampler is the only one that cannot be
+  wrong about where the pointer is. (The earlier rejection of a gate on the editor WINDOW's focus stands for a different
+  reason than it was given: the preview grabbing focus is exactly why the test is the process.)
 
   **The second look, behind a temporary toggle (2026-08-22).** The outline was one answer to "how
   should the ring show"; the other is that the ring should simply BE the notation. So the lane now
@@ -459,11 +465,10 @@ corpus-wide.
     still sample once at the mark's start: they draw straight by design. (The first build held the
     light still too, on a recorded reason — "a whole-song placement scan per note" — that was
     false: the window query is logarithmic and the tail was already paying it per sample.)
-  - **Toggle, not held.** The 2D reveal is held under `Alt`; this latches. The held reveal is
-    the main window's state (since the 2026-08-23 tracking change the preview forwards the
-    modifier changes JUCE hands it, so a held key is no longer out of reach there — the
-    remaining reason stands alone), and a rig watched while navigating with the caret keys wants
-    both hands free.
+  - **Toggle, not held.** The 2D reveal is held under `Alt`; this latches. Since the 2026-08-23
+    tracking change the held key is a process-wide predicate, so it is not out of reach in the
+    preview — the one reason that stands is that a rig watched while navigating with the caret
+    keys wants both hands free.
 
   **No GPU-free witness exists for any mark's appearance** — `HighwayRenderer::draw` has no tests
   at all, by construction. What is tested is the pure math around it: the clamp and its

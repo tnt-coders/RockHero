@@ -93,8 +93,8 @@ void TabView::setEditState(core::ChartEditViewState edit)
 }
 
 // Holds or releases the actual-ring reveal. A repaint only on a genuine change, because the
-// editor re-asserts the current modifier state on every modifier event and on every tick of its
-// poll while the reveal is on, so most calls say what the lane already shows.
+// editor re-asserts its foreground-and-Alt predicate every frame for its whole life, so nearly
+// every call says what the lane already shows.
 void TabView::setActualRingReveal(bool revealed)
 {
     if (revealed == m_actual_ring_reveal)

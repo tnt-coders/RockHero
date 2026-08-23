@@ -145,17 +145,17 @@ public:
 
     While it is on, every visible note shows the ring the string ACTUALLY sounds for over the
     presented tail this lane normally draws — as an outline, or by drawing the whole lane in the
-    actual form, per \ref setActualRingRevealStyle. The editor holds it on for as long as the Alt
-    key is — the sustain gesture's own modifier — so the length being authored is visible while it
-    is authored, and releasing snaps the lane back to the presented picture.
+    actual form, per \ref setActualRingRevealStyle. The editor holds it on exactly while the
+    application is in the foreground and the Alt key — the sustain gesture's own modifier — is
+    down, so the length being authored is visible while it is authored, and releasing snaps the
+    lane back to the presented picture.
 
-    A held state, not a mode: nothing here latches. The editor re-samples the live key state at
-    every point a change could have gone unseen and keeps polling it for as long as the reveal is
-    on, so a release nothing delivered cannot strand the reveal on; another window taking the
-    keyboard is treated as a release. The key itself is the shell's business — this lane, like
-    everything headless below it, knows only the state.
+    A held state, not a mode: nothing here latches. The editor re-reads that predicate from the
+    operating system every frame for its whole life, so a release nothing delivered cannot strand
+    the reveal on and where the pointer sits never matters. The key itself is the shell's business
+    — this lane, like everything headless below it, knows only the state.
 
-    \param revealed True while the reveal modifier is held.
+    \param revealed True while the reveal modifier is held in the foreground application.
     */
     void setActualRingReveal(bool revealed);
 

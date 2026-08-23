@@ -72,10 +72,6 @@ constexpr int g_audio_device_menu_button_max_width{520};
 constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
-// How often the actual-ring reveal re-reads the Alt key while it is on: a release the window was
-// never told about shows within one tick, about two frames at this rate, and the poll is not
-// running at all while the reveal is off.
-constexpr int g_actual_ring_reveal_poll_hz{30};
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
 [[nodiscard]] int audioDeviceButtonWidth(
@@ -375,19 +371,13 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
           std::make_unique<TrackViewport>(
               controller, m_arrangement_view, m_tab_view, m_tone_track_view,
               m_tone_automation_lanes_view, *m_cursor_overlay, audio_ports.transport))
-    , m_meter_vblank_attachment(this, [this] {
+    , m_vblank_attachment(this, [this] {
         refreshAudioMeters();
         refreshTimeDisplay();
+        syncActualRingReveal();
     })
 {
     setWantsKeyboardFocus(true);
-
-    // Mouse events from every nested child, not just this view's own background: the actual-ring
-    // reveal re-samples the Alt key on pointer motion, the only notification left for a press a
-    // widget under the pointer swallowed (see syncActualRingReveal). The listener is its own
-    // object, never this view — see the member's comment for the double-wheel that taught this.
-    addMouseListener(
-        &m_actual_ring_reveal_sampler, /*wantsEventsForAllNestedChildComponents=*/true);
 
     // Register the keybind registry: every command's info (name, category, default chords,
     // enablement) comes from this target, and the manager's key mapping set becomes the single
@@ -574,9 +564,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 // Disconnects the menu bar from this model before base and member teardown begins.
 EditorView::~EditorView()
 {
-    // The sampler is a member, destroyed before this view's base: unregister it first so no
-    // pointer event delivered during teardown reaches a dead listener.
-    removeMouseListener(&m_actual_ring_reveal_sampler);
     if (m_audio_device_settings_window != nullptr && !m_audio_device_settings_window_reset_pending)
     {
         m_controller.onAudioDeviceSettingsClosed();
@@ -1055,54 +1042,16 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
     juce::Component::mouseWheelMove(event, wheel);
 }
 
-// Asks the operating system whether Alt is down and hands the answer to the lane. Every sampler
-// below goes through here — see the header for why the key state is read rather than taken from
-// whatever a callback was handed.
+// Sampled every frame by m_vblank_attachment: asks the operating system whether this process is in
+// the foreground and whether Alt is down, and hands the conjunction to the lane, which repaints
+// only on a change — in the same frame, since JUCE runs vblank listeners before it flushes
+// repaints. See the header for why both halves are process-wide queries and why no callback
+// feeds this.
 void EditorView::syncActualRingReveal()
 {
-    setActualRingReveal(juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown());
-}
-
-// Re-asserting the current state is free at both ends: the lane repaints only on a change, and
-// starting a running timer only resets its countdown — which is what each poll tick does to
-// itself while Alt stays down.
-void EditorView::setActualRingReveal(bool revealed)
-{
-    m_tab_view.setActualRingReveal(revealed);
-    if (revealed)
-    {
-        m_actual_ring_reveal_poll.startTimerHz(g_actual_ring_reveal_poll_hz);
-    }
-    else
-    {
-        m_actual_ring_reveal_poll.stopTimer();
-    }
-}
-
-// Keeps forwarding after sampling: this view observes the modifier rather than consuming it, and
-// JUCE's own implementation is what carries the event on up the parent chain.
-void EditorView::modifierKeysChanged(const juce::ModifierKeys& modifiers)
-{
-    syncActualRingReveal();
-    juce::Component::modifierKeysChanged(modifiers);
-}
-
-// Another window taking the keyboard reads as a release. Not a sample: Alt is still physically
-// down during an Alt+Tab away, and reading it would keep the reveal on in a window the user just
-// left.
-void EditorView::focusOfChildComponentChanged(FocusChangeType)
-{
-    if (!hasKeyboardFocus(/*trueIfChildIsFocused=*/true))
-    {
-        setActualRingReveal(false);
-    }
-}
-
-// The sampler for a press no modifier callback delivers here: one swallowed by a widget under
-// the pointer, which JUCE still answers with a fabricated mouse move.
-void EditorView::ActualRingRevealSampler::mouseMove(const juce::MouseEvent&)
-{
-    m_owner.syncActualRingReveal();
+    m_tab_view.setActualRingReveal(
+        juce::Process::isForegroundProcess() &&
+        juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown());
 }
 
 // Creates the preview window on first use, then shows or hides it; hiding suspends the render
@@ -1158,9 +1107,6 @@ void EditorView::togglePreviewWindow()
                 }
                 return m_command_manager.invokeDirectly(command, false);
             },
-            // A modifier change JUCE delivers to the preview's chain would otherwise reach the
-            // reveal only through the poll, one tick late (syncActualRingReveal).
-            [this] { syncActualRingReveal(); },
             getTopLevelComponent());
     }
 

@@ -79,12 +79,13 @@ chords. Everything else is plumbing that keeps focus in the right place:
 
 # Held modifiers: the one key that is a state, not a chord
 
-Everything above turns a keystroke into a *verb*. One key does not: **holding `Alt` reveals each
-visible note's actual ring in the 2D tab lane**, and releasing it snaps the lane back. Nothing is
-invoked, nothing is undoable, and the mapping set is not involved at all — the whole path is
-`EditorView::syncActualRingReveal` → `TabView::setActualRingReveal`, repainting only on a change.
-`Alt` is the key because `Alt` is already the authoring gate, and the ring it shows is exactly what
-`Alt`+wheel edits; see \ref guide_2d_views for the mark itself.
+Everything above turns a keystroke into a *verb*. One key does not: **holding `Alt` while this
+application is in the foreground reveals each visible note's actual ring in the 2D tab lane**, and
+releasing it snaps the lane back. Nothing is invoked, nothing is undoable, and the mapping set is
+not involved at all — the whole path is `EditorView::syncActualRingReveal` →
+`TabView::setActualRingReveal`, repainting only on a change. `Alt` is the key because `Alt` is
+already the authoring gate, and the ring it shows is exactly what `Alt`+wheel edits; see
+\ref guide_2d_views for the mark itself.
 
 WHICH mark it makes is an ordinary command, which is the split worth noticing: the held state is
 not registrable, but the preference that shapes it is, so `F6`
@@ -97,53 +98,47 @@ alert. It is temporary: the sighting picks one mark and the command goes with th
 The 3D preview shows the *same* ring and deliberately does **not** copy the idiom: `F1` there is an
 ordinary registered command that latches a floor mark through four states (off, a string-colored
 light, a filled band, an outlined one), with `Shift+F1` and `Ctrl+F1` latching the two filters that
-narrow WHICH notes it marks. The held modifier is the main window's state — the preview only
-reports the modifier changes JUCE hands it, through the hook below — and a rig you watch while
-navigating wants both hands free. A held state that has to survive a window boundary is the case to
-reach for a latch in. All three chords carry the same key on purpose: they are one rig, and the
-modifiers narrow what the bare key cycles.
+narrow WHICH notes it marks. A rig you watch while navigating with the caret keys wants both hands
+free, which is the case to reach for a latch in. All three chords carry the same key on purpose:
+they are one rig, and the modifiers narrow what the bare key cycles.
 
-A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. Four facts
-before adding a second held-modifier state:
+A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. The rule
+and its four facts, before adding a second held-modifier state:
 
-- **`modifierKeysChanged` is a hint, not a feed.** JUCE delivers it to the component under the
-  mouse pointer, falling back to the focused one when the pointer is over none
+- **The rule is one predicate, and it ignores the pointer.** The reveal is on exactly while
+  `juce::Process::isForegroundProcess()` and
+  `juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown()` both hold. "The app" is the
+  *process*: the editor window or the 3D preview being the active window both count, and the answer
+  never depends on where the pointer is or which of this app's windows holds the keyboard. The
+  user's framing: `Alt` should work if and only if the app is in focus, and not change based on
+  where the mouse is in the app.
+- **`modifierKeysChanged` cannot feed it, by construction.** JUCE delivers that callback to the
+  component under the mouse pointer, falling back to the focused one when the pointer is over none
   (`ComponentPeer::handleModifierKeysChange`), and `Component`'s own implementation forwards it up
-  *that component's* parent chain — which is why an override on `EditorView` hears `Alt` from
-  anywhere in the window, and why an override must keep forwarding. But a widget may override it
-  *without* forwarding (`juce::Slider` does), and then a transition under that widget never
-  arrives; a change while the pointer is over the 3D preview, or while the preview holds the
-  keyboard, walks the preview's chain and ends at `PreviewWindow`; and a release delivered while
-  another application holds the keyboard (`Alt`+Tab) never arrives at all.
-- **The state has one authority: `juce::ComponentPeer::getCurrentModifiersRealtime()`.** The
-  *realtime* query asks the OS, where the cached `ModifierKeys::currentModifiers` is refreshed
-  before focus gain on Windows and is not on macOS. The peer owns that seam, so one line is true on
-  all three platforms. `EditorView::syncActualRingReveal` is the only place that reads it, and it
-  reads it even inside `modifierKeysChanged` rather than trusting the modifiers that callback was
-  handed — one way to answer the question, not two.
-- **The samplers divide the work by edge.** `modifierKeysChanged` gives the instant edge wherever
-  JUCE delivers it to the editor, and `PreviewWindow::modifierKeysChanged` forwards the preview's
-  own deliveries to the same sampler so a release over the 3D window is instant too. A dedicated
-  `juce::MouseListener` member, registered for all nested children and overriding only
-  `mouseMove`, gives the ON edge a widget swallowed: `Component::internalModifierKeysChanged`
-  fabricates a mouse move on *every* modifier change, so even a press a widget ate still produces
-  an event somewhere in the window. It is its own object on purpose — a deep listener receives
-  every mouse callback for every child, and registering the view itself once made its
-  `mouseWheelMove` run twice per notch (JUCE sends a wheel up the target's parent chain *and* to
-  every ancestor's deep listeners), so every sustain step moved two grid lines.
-  And a `juce::TimedCallback` poll at 30 Hz, running **only while the reveal is on** — started when
-  it turns on, stopped when it turns off, nonexistent otherwise — is the authority for the OFF edge
-  that cannot be missed: a release delivered anywhere, or nowhere, shows within one tick wherever
-  the pointer is. Every path that changes the reveal goes through `EditorView::setActualRingReveal`,
-  which is what keeps the lane's state and the poll's lifetime from ever disagreeing.
-- **Another window taking the keyboard is a release, not a sample.**
-  `EditorView::focusOfChildComponentChanged` forces the reveal off when `hasKeyboardFocus(true)`
-  turns false — it is the one focus callback that reports the *window's* focus (JUCE fires it when
-  that predicate changes, and the predicate counts the view itself), so focus moving from the
-  output fader to the lane is not a loss, while another application, the preview (which grabs
-  focus when opened and when clicked), or a plugin window taking it is. It does not read the key:
-  `Alt` is still physically down during an `Alt`+Tab away, and sampling would keep the reveal on
-  in a window the user just left.
+  *that component's* parent chain. So a change while the pointer is over the 3D preview walks the
+  preview's chain and ends there; a widget may override it *without* forwarding (`juce::Slider`
+  does); and a release delivered while another application holds the keyboard (`Alt`+Tab) never
+  arrives at all. Pointer position and per-window focus are exactly the axis the rule must ignore,
+  and they are the axis every modifier callback is keyed on — which is why the old event-driven
+  samplers (an override on `EditorView`, a forwarding hook on `PreviewWindow`, a deep mouse
+  listener, a focus callback) were each wrong in a different pointer position and were all deleted
+  together.
+- **Both halves are process-wide OS queries.** `Process::isForegroundProcess` compares the
+  foreground window's process to ours on Windows (`GetForegroundWindow`,
+  juce_Windowing_windows.cpp:5649), asks `[NSApp isActive]` on macOS (juce_Threads_mac.mm:193), and
+  reads the peer's focus-in/out flag on Linux (juce_Windowing_linux.cpp:685). The *realtime*
+  modifier query asks the OS for the key (`GetAsyncKeyState` on Windows, `[NSEvent modifierFlags]`
+  on macOS), where the cached `ModifierKeys::currentModifiers` is whatever a window last saw.
+  Neither knows what the pointer is over, so neither can be wrong about it. (Linux is the gap JUCE
+  leaves: its realtime query refreshes only Shift and Ctrl from the X pointer mask,
+  juce_XWindowSystem_linux.cpp:2537, and keeps Alt as the last X key or pointer event left it, so
+  there the reveal can lag one such event.)
+- **One sampler: `EditorView`'s per-frame vblank attachment, for the view's whole life.** The same
+  `juce::VBlankAttachment` that samples the meters and the time readout re-reads the predicate
+  every frame and pushes the answer to the lane, which repaints only on a change — in that same
+  frame, since JUCE runs vblank listeners before it flushes repaints. There is no timer, no
+  start/stop logic, and no second reader of the key — one way to answer the question, not two
+  (\ref guide_patterns, "VBlank sampling, never Timer").
 
 # Decoding
 

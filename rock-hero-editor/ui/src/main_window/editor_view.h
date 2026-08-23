@@ -184,56 +184,6 @@ public:
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
 
     /*!
-    \brief Re-samples the Alt key into the tab lane's actual-ring reveal.
-
-    Alt is already the chart's authoring gate — it is what the sustain wheel gesture rides — so
-    holding it is what shows the ring being authored: while it is down every visible note in the
-    2D lane outlines its actual duration over the presented tail. Nothing below this view learns
-    of the key; the reveal is a UI fact and the editor core never sees it.
-
-    JUCE routes this event to the component under the mouse pointer, falling back to the focused
-    one when the pointer is over none, and `Component`'s own implementation forwards it up the
-    parent chain — so this override hears Alt from anywhere inside the editor window whose widgets
-    forward (`ComponentPeer::handleModifierKeysChange`, `Component::modifierKeysChanged`). It
-    keeps forwarding for the same reason: it observes the modifier, it never consumes it.
-
-    It does not read \p modifiers, and it is not the only sampler. No modifier callback can be
-    trusted as a feed: a widget may override this one WITHOUT forwarding (`juce::Slider` does),
-    a change delivered while the pointer is over the 3D preview window — or while that window
-    holds the keyboard — walks THAT window's parent chain and ends there, and a release during
-    Alt+Tab is delivered to another application entirely. So the key state has one authority —
-    `juce::ComponentPeer::getCurrentModifiersRealtime`, which asks the operating system rather
-    than returning what this window last saw — and this override is one of the samplers that
-    read it; the private syncActualRingReveal lists how they divide the work.
-
-    \param modifiers Modifier keys as JUCE saw them; forwarded on rather than read.
-    */
-    void modifierKeysChanged(const juce::ModifierKeys& modifiers) override;
-
-    /*!
-    \brief Turns the actual-ring reveal off when keyboard focus leaves the editor window.
-
-    Another window taking the keyboard — another application, or this editor's own 3D preview,
-    which grabs focus when it opens and when it is clicked — is treated as Alt being released:
-    the reveal snaps off and stops polling, whatever the key is physically doing, and only a
-    fresh sample (a modifier change, or pointer motion back inside this window) turns it on
-    again. Focus ARRIVING samples nothing: the reveal is off by then, and a press is what turns
-    it on.
-
-    This is the one focus callback that reports the window's focus rather than one component's.
-    JUCE fires it when `hasKeyboardFocus(true)` changes for this view, and that predicate counts
-    the view itself (`Component::internalChildKeyboardFocusChange`), so it fires once whether this
-    view or any descendant held the focus, and not at all when focus merely moves between two
-    descendants — the output fader taking a click must not read as a release. Every loss path
-    reassigns the focused component BEFORE it calls here (`ComponentPeer::handleFocusLoss`,
-    `Component::takeKeyboardFocus`, `Component::giveAwayKeyboardFocusInternal`), so the predicate
-    already describes the new state when it is read.
-
-    \param cause Why the focus changed; a loss releases unconditionally.
-    */
-    void focusOfChildComponentChanged(FocusChangeType cause) override;
-
-    /*!
     \brief Returns the top-level editor menu names.
     \return Menu names shown by the menu bar.
     */
@@ -303,38 +253,29 @@ private:
     bool dispatchSelectionWheel(
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel);
 
-    // Reads whether Alt is physically down and hands the answer to setActualRingReveal. This is
-    // the ONE authority for that answer, because JUCE offers no reliable notification of a
-    // modifier's state: modifierKeysChanged goes to the component under the pointer (else the
-    // focused one) and up THAT component's parent chain, so a change while the pointer is over
-    // the 3D preview window, or while that window holds the keyboard, ends in the preview's chain
-    // and never reaches this view; a widget under the pointer can swallow it (juce::Slider); and a
-    // release during Alt+Tab goes to another application entirely. So nothing trusts what a
-    // callback was handed — every sampler reads the key, and they divide the work like this:
+    // The tab lane's actual-ring reveal is on exactly while this process is the foreground
+    // application AND Alt is physically down. Alt is already the chart's authoring gate — it is
+    // what the sustain wheel gesture rides — so holding it shows the ring being authored: every
+    // visible note in the 2D lane draws its actual duration in place of the presented tail.
+    // Nothing below this view learns of the key; the reveal is a UI fact and the editor core never
+    // sees it.
     //
-    //  - modifierKeysChanged gives the instant edge wherever JUCE delivers it to this view, and
-    //    the preview window forwards its own deliveries here through the hook installed on it;
-    //  - pointer motion anywhere in the window (m_actual_ring_reveal_sampler) gives the ON edge
-    //    a widget swallowed, because JUCE fabricates a move on every modifier change;
-    //  - the poll (m_actual_ring_reveal_poll) runs ONLY while the reveal is on and is the
-    //    authority for the OFF edge that cannot be missed: a release delivered anywhere, or
-    //    nowhere, is noticed within one tick wherever the pointer is. It costs nothing while the
-    //    reveal is off.
-    //
-    // Focus leaving the window is the one event that does not sample — it forces the reveal off
-    // as if Alt had been released (focusOfChildComponentChanged).
-    //
-    // getCurrentModifiersRealtime, not the cached ModifierKeys::currentModifiers: only the
-    // realtime query asks the operating system, and it is the peer's own seam, so one line is
-    // true on all three platforms (Windows GetAsyncKeyState, macOS NSEvent modifierFlags, Linux
-    // the X server). The cached value happens to be refreshed before focus gain on Windows and is
-    // not on macOS, which is exactly the kind of per-OS difference the seam exists to absorb.
+    // "Foreground" is the process, not a window: the editor window or its 3D preview being the
+    // active one both count, and the rule must not change with where the pointer is or which of
+    // this app's windows holds the keyboard. That is exactly the axis JUCE's modifier callbacks
+    // are keyed on — modifierKeysChanged goes to the component under the pointer (else the focused
+    // one) and up THAT window's parent chain, and a release during Alt+Tab goes to another
+    // application entirely — so no callback can feed this. Both halves of the predicate are
+    // process-wide OS queries instead: juce::Process::isForegroundProcess compares the foreground
+    // window's process to ours (Windows GetForegroundWindow, macOS [NSApp isActive], Linux the
+    // peer's focus-in/out flag), and juce::ComponentPeer::getCurrentModifiersRealtime asks the
+    // operating system for the key (Windows GetAsyncKeyState, macOS NSEvent modifierFlags) rather
+    // than returning what a window last saw. Linux is the exception JUCE leaves: its realtime
+    // query refreshes only Shift and Ctrl from the X pointer mask and keeps Alt as the last X key
+    // or pointer event left it, so there the reveal can lag one such event. This view's per-frame
+    // sampler (m_vblank_attachment) is the ONE place the predicate is read, and it is the only
+    // sampler that cannot be wrong about where the pointer is.
     void syncActualRingReveal();
-
-    // Applies a reveal state to the lane and keeps the poll running exactly while it is on. Every
-    // path that changes the reveal goes through here, so the lane's state and the poll's lifetime
-    // cannot disagree.
-    void setActualRingReveal(bool revealed);
 
     // Opens the asynchronous project package chooser and forwards accepted selections.
     void showOpenChooser();
@@ -559,9 +500,9 @@ private:
 
     // Applies one change to the preview's actual-ring diagnostics switches: F1 cycles the mark's
     // form, its two modifier chords flip a filter each. Latches rather than following the 2D
-    // reveal's held Alt — the held reveal is this window's state, and a sighting rig watched
-    // while navigating with the caret keys wants both hands free. The whole options POD makes the
-    // round trip so a switch added later needs no new pass-through anywhere on the path.
+    // reveal's held Alt — a sighting rig watched while navigating with the caret keys wants both
+    // hands free. The whole options POD makes the round trip so a switch added later needs no new
+    // pass-through anywhere on the path.
     void updatePreviewDiagnostics(
         const std::function<void(common::ui::HighwayDiagnosticsOptions&)>& change);
 
@@ -663,31 +604,6 @@ private:
     // Tablature lane drawn over the waveform row inside the track viewport.
     TabView m_tab_view{};
 
-    // Re-samples the Alt key while the lane's actual-ring reveal is on, and is stopped the moment
-    // it goes off (see syncActualRingReveal). Declared after the lane it drives so it is destroyed
-    // — and with it stopped — first.
-    juce::TimedCallback m_actual_ring_reveal_poll{[this] { syncActualRingReveal(); }};
-
-    // Re-samples the Alt key on pointer motion anywhere in the editor window: the constructor
-    // registers this listener for every nested child, so it fires wherever the pointer sits. It is
-    // a separate object rather than this view itself, and it overrides nothing but mouseMove, on
-    // purpose: a deep mouse listener receives EVERY mouse callback for every child — JUCE's
-    // internalMouseWheel sends a wheel to the target's parent chain AND then to every ancestor's
-    // deep listeners — so registering the view itself made its own mouseWheelMove run twice per
-    // notch, and every sustain step moved two grid lines.
-    class ActualRingRevealSampler final : public juce::MouseListener
-    {
-    public:
-        explicit ActualRingRevealSampler(EditorView& owner)
-            : m_owner(owner)
-        {}
-        void mouseMove(const juce::MouseEvent& event) override;
-
-    private:
-        EditorView& m_owner;
-    };
-    ActualRingRevealSampler m_actual_ring_reveal_sampler{*this};
-
     // Tone track row hosted below the waveform inside the track viewport.
     ToneTrackView m_tone_track_view;
 
@@ -735,9 +651,11 @@ private:
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
 
-    // Vblank callback used for continuous meter and time-readout refresh without controller
-    // state churn.
-    juce::VBlankAttachment m_meter_vblank_attachment;
+    // This view's one per-frame sampler: every vblank it re-reads the meters, the transport
+    // position for the time readout, and the actual-ring reveal's foreground-and-Alt predicate
+    // (syncActualRingReveal) — volatile display state the controller never pushes. Declared after
+    // every member it samples into so it is destroyed, and its callback stopped, first.
+    juce::VBlankAttachment m_vblank_attachment;
 
     // Pending single-shot callback waiting for the next busy overlay paint.
     std::function<void()> m_after_busy_overlay_paint;

@@ -319,10 +319,9 @@ Seven things about it are deliberate:
 - **The 3D preview has its own sighting of the same datum, and it is a LATCH, not a held key.**
   `F1` there cycles a floor band under each note — off, filled, outlined — running the same
   actual ring (`HighwayDiagnosticsOptions`, \ref guide_3d_highway). The idiom deliberately
-  differs from this lane's held `Alt`: the held reveal is the main window's state (the preview
-  only reports the modifier changes JUCE hands it, see \ref guide_keyboard), and a rig you are
-  looking at while navigating with the caret keys wants both hands free. Same fact, two
-  surfaces, two idioms — the pattern the highway and the tab already use for the hold.
+  differs from this lane's held `Alt`: a rig you are looking at while navigating with the caret
+  keys wants both hands free. Same fact, two surfaces, two idioms — the pattern the highway and
+  the tab already use for the hold.
 - **The outline is editor furniture, so it never enters the paint core.** In that style the mark
   is drawn in `TabView::paint` after `paintTabLane`, exactly like the selection ring, in
   `EditorTheme::lane_overlay` at half alpha — the ink the caret square and the insert ghost
@@ -339,21 +338,17 @@ Seven things about it are deliberate:
   from `tab_paint_core.h` for precisely this, host chrome that must cull by the same widened clip
   the notation does.
 
-The key itself never reaches the editor core. `EditorView::syncActualRingReveal` asks the OS
-whether `Alt` is down and hands the answer to `TabView::setActualRingReveal`, which repaints only
-on a change. No JUCE callback reliably reports a held modifier, so that one authority —
-`juce::ComponentPeer::getCurrentModifiersRealtime()`, the realtime query rather than the cached
-modifier state — is sampled by edge: `modifierKeysChanged` for the instant edge wherever JUCE
-delivers it (the 3D preview forwards its own deliveries, whose parent chain would otherwise end in
-that window); a dedicated mouse-listener member registered for all nested children and overriding
-only `mouseMove` (never the view itself — a deep listener also receives every child's wheel, and
-that once doubled every sustain step), for the ON edge a widget swallowed
-(a `juce::Slider` under the pointer overrides `modifierKeysChanged` without forwarding, and only
-the mouse move JUCE fabricates on every modifier change gets through); and a 30 Hz poll that runs
-only while the reveal is on, for the OFF edge that cannot be missed — a release while the pointer
-is over the 3D window, or anywhere else, shows within one tick. Keyboard focus leaving the editor
-window is treated as a release outright (`focusOfChildComponentChanged`), not sampled: `Alt` is
-still down mid-`Alt`+Tab. \ref guide_keyboard has the general shape.
+The key itself never reaches the editor core. The reveal is on exactly while this process is the
+foreground application AND `Alt` is physically down — `juce::Process::isForegroundProcess()` and
+`juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown()`, both process-wide OS queries —
+and `EditorView::syncActualRingReveal` hands that conjunction to `TabView::setActualRingReveal`,
+which repaints only on a change. It is read from one place, the editor view's per-frame vblank
+attachment — the one that already samples the meters and the time readout, for the view's whole
+life — and from nothing event-driven: JUCE delivers modifier callbacks by pointer position and
+per-window focus, which is exactly the axis the rule must ignore (the editor window or the 3D
+preview being active both count, and where the pointer sits never matters), so the per-frame
+sampler is the only one that cannot be wrong about where the pointer is. \ref guide_keyboard has
+the rule and the facts behind it.
 
 ## Tone track — `ToneTrackView`
 

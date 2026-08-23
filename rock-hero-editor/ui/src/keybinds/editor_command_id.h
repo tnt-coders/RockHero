@@ -90,9 +90,9 @@ enum class EditorCommandId : std::uint16_t
 
     The sighting rig for the note-sustain model's stage D: a floor mark under each note running
     the ACTUAL ring the string sounds for, which the presented tail above it may have trimmed or
-    dropped. Deliberately a LATCH where the 2D lane's equivalent reveal is held under `Alt` —
-    the held reveal is the main window's state, and a sighting rig watched while navigating the
-    preview with the caret keys wants both hands free while it is on.
+    dropped. Deliberately a LATCH where the 2D lane's equivalent reveal is held under `Alt`: a
+    sighting rig watched while navigating the preview with the caret keys wants both hands free
+    while it is on.
     */
     CycleActualRingLook = 0x130B,
 

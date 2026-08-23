@@ -362,6 +362,12 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
 // its ACTUAL form, so a note the presentation rules left tail-less grows a real tail — notation,
 // not an annotation over it. Probed mid-tail on its own row rather than at an edge, which is the
 // probe the outline style's hairline rectangle around the same span would fail.
+//
+// The lane's state is the only half of the reveal with a headless witness. The editor drives it
+// from one predicate — this process is the foreground application AND Alt is physically down —
+// whose two halves are both operating-system queries (juce::Process::isForegroundProcess,
+// juce::ComponentPeer::getCurrentModifiersRealtime) that no test can set, so the editor side is
+// pinned by reading, not by a test.
 TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
