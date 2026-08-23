@@ -2531,7 +2531,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
             // every wheel notch, and each notch already projected the chart twice — here and
             // again inside the highway projection below — so this makes three. The shape that
             // removes it is one producer returning both forms from a single chartResolutions
-            // pass (note-sustain-model.md stage B), which is unbuilt.
+            // pass, which would also make the two forms' index alignment — which the lane's
+            // per-note pick reads on the paint path — structural rather than asserted. Tracked
+            // in docs/tracking/watch-items.md; unbuilt.
             m_tab_actual_view_state = std::make_shared<const common::core::ChartViewState>(
                 common::core::makeChartViewState(
                     *arrangement, state.tempo_map, common::core::ChartNoteForm::Actual));

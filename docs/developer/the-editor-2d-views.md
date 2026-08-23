@@ -260,19 +260,29 @@ run outward onto its own vertex spacing, so the rasterized result is *identical*
 similar. At full zoom a held tremolo chord would otherwise cost tens of thousands of off-screen
 vertices every frame. A test pins that a tail looks the same however the repaint is clipped.
 
-**The Alt reveal** is how the length you cannot see becomes visible while you author it. The lane
-draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is
-invisible wherever presentation trimmed or dropped it. Hold `Alt` and every *visible* note shows
-that ring; release and the lane snaps back. It is global while held, not selection-scoped: the
-question it answers ("what is really ringing here") is about the passage, not about the selection.
-`Alt` is the key because `Alt` is already the authoring gate — you see the ring while you are the
-one changing it.
+**The actual-ring pick** is how the length you cannot see becomes visible while you author it. The
+lane draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is
+invisible wherever presentation trimmed or dropped it. One rule decides, per note, which form that
+note is drawn in, and it has two inputs: a note draws its **actual** ring when the whole-lane
+`Alt` reveal is held **or** when that note is **selected**, and its presented tail otherwise.
+
+The two inputs answer two different questions, which is why both exist:
+
+- **The selection is the note under scrutiny.** You selected it to do something to it, so its real
+  length is what you need to see — and every chart verb already settles on a selection change, so
+  deselecting *is* the moment presentation clips the tail back to the picture.
+- **`Alt` is the lookahead, and the selection cannot serve it.** With a selection standing, typing
+  a digit RETYPES those notes instead of inserting one, so a charter placing notes holds no
+  selection at all — and placing the next note is exactly when the real tails around it matter.
+  Holding `Alt` shows every ring in the passage, including the notes nothing is selected on.
+  `Alt` is also already the authoring gate — it is what the sustain wheel gesture rides — so you
+  see the ring while you are the one changing it.
 
 **The mark is the notation itself** (ruled 2026-08-23, after sighting it against the alternative).
-The lane redraws in the chart's ACTUAL form: every note's tail is its real ring, with its
-techniques and its payload riding it. Nothing is annotated, because the notation *is* the answer.
-The candidate it beat — a hairline outline at tail height over the presented picture — is deleted,
-with its `F6` style toggle and the `ActualRingRevealStyle` enum that carried the choice.
+A note drawing its actual ring is drawn in the chart's ACTUAL form: its tail is the real ring, with
+its techniques and its payload riding it. Nothing is annotated, because the notation *is* the
+answer. The candidate it beat — a hairline outline at tail height over the presented picture — is
+deleted, with its `F6` style toggle and the `ActualRingRevealStyle` enum that carried the choice.
 
 Two glyph consequences follow from drawing a form no presentation rule touched, and both are
 accepted: a **dead note grows a tail** (rule 4 is a presentation rule, and the actual form has no
@@ -282,10 +292,10 @@ it never draws otherwise.
 
 Five things about it are deliberate:
 
-- **Every visible note, not only the disagreeing ones.** The reveal redraws the whole lane, so a
-  note whose ring and presented tail coincide simply looks unchanged — which is the statement "this
-  is the whole ring". A mark that appeared only on disagreement would leave a reader unable to tell
-  agreement from a reveal that is simply off.
+- **Every note the pick names, not only the disagreeing ones.** A note drawing its actual form
+  whose ring and presented tail coincide simply looks unchanged — which is the statement "this is
+  the whole ring". A mark that appeared only on disagreement would leave a reader unable to tell
+  agreement from a pick that is simply not asking.
 - **It needs a second PROJECTION, not a swapped end.** `EditorViewState::tab_actual` is the same
   chart through `makeChartViewState(..., ChartNoteForm::Actual)`, published beside `tab` under the
   same memo key. A view-side end swap was the obvious cheaper move and is wrong: the presented state
@@ -293,26 +303,32 @@ Five things about it are deliberate:
   that left with the tail cannot be put back by lengthening it. The two forms differ in `notes` and
   in nothing else — holds, spans and their arrival kinds, fret-hand placements and their approach
   ramps, the string count and the capo are all derived from the presented stream in either form, so
-  swapping forms moves no other mark on the lane. It costs a second projection per chart revision,
-  which a sustain gesture bumps per wheel notch; the reason it is not built lazily is that a lazy
-  build would require the controller to know the reveal is on, which the design forbids.
+  choosing per note moves no other mark on the lane, and the two forms align by index because
+  presentation returns one note per note in the same order. It costs a second projection per chart
+  revision, which a sustain gesture bumps per wheel notch; the reason it is not built lazily is
+  that a lazy build would require the controller to know the reveal is on, which the design
+  forbids.
 - **The actual form is editor-only, and the producers say so.** **Scored = presented**
   (`docs/plans/in-progress/note-sustain-model.md` ruling 4) holds structurally rather than by
   discipline: `makeHighwayViewState` composes the projection with no form argument, so no board,
   game or scorer state can be anything but presented, and `ChartNoteForm::Actual` is unreachable
   from them. `chart_projection.h` is the one authoritative statement of that; this is a gloss.
-- **The reveal is not hit-testable.** Hit testing, selection, marquee and `Alt`+click insert all
-  resolve against the presented projection the controller published (`displayedTabProjection`), so
-  a tail only the reveal draws cannot be clicked, boxed, or landed on. `Alt`+wheel is unaffected
+- **A revealed ring is not hit-testable.** Hit testing, selection, marquee and `Alt`+click insert
+  all resolve against the presented projection the controller published (`displayedTabProjection`),
+  so a tail only the pick draws cannot be clicked, boxed, or landed on. `Alt`+wheel is unaffected
   because it acts on the selection, not on what is under the pointer. Inside `TabView` this needs
-  no enforcement: everything paint reads goes through `drawn()`, and the only projection reads
-  outside paint are the string count and whether a chart exists, which are identical in both forms.
-- **Each form is culled by its own index.** `TabView` pairs every projection with the running
-  maximum of that form's note ends (`LaneForm`), so the notation never keeps a note in range for a
-  length it no longer draws and a ring outlasting its tail stays in range for as long as it is
-  drawn. The cull runs inside `paintTabLane`, against the drawn form's own table — there is no
-  second loop and no editor ink at all, which is the whole economy of making the ring be the
-  notation.
+  no enforcement: every note paint reads comes from the one pick lambda, and the only projection
+  reads outside paint are the string count and whether a chart exists, which are identical in both
+  forms.
+- **One conservative cull index, because a chord can be half revealed.** `TabView` keeps a single
+  running maximum of the ACTUAL form's note ends and culls both forms against it. Presentation only
+  ever trims, so every presented end falls at or before its own note's ring: the actual ends bound
+  whatever is drawn, a ring outlasting its tail stays in range for as long as it is drawn, and the
+  paint pass drops each note whose DRAWN end really precedes the window. A per-form table could not
+  be used at all here — one member of a chord can draw actual while its neighbour draws presented.
+  The cull runs inside `paintTabLane`, and the pick reaches it as a per-index accessor
+  (`common::ui::TabDrawnNote`), so there is no second loop and no editor ink at all, which is the
+  whole economy of making the ring be the notation.
 
 The key itself never reaches the editor core. The reveal is on exactly while this process is the
 foreground application AND `Alt` is physically down — `juce::Process::isForegroundProcess()` and

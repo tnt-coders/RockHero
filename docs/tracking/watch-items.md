@@ -115,6 +115,27 @@ resetting `s_renderFrameCalled` in `shutdown`, or per-window framebuffers under 
 
 ## Shared scene models
 
+### The lane's two chart forms align by index only by construction — trigger: either form published without the other, or the debug assert fires
+
+`EditorViewState::tab` and `EditorViewState::tab_actual` are two whole `ChartViewState`s built by
+two `makeChartViewState` calls under one memo key (`editor_controller.cpp`, arrangement id + chart
+revision). Since the per-note form pick shipped (2026-08-23) the 2D lane reads
+`m_actual->notes[index]` at a PRESENTED note's index on the paint path, so the two note vectors
+have to align element for element. They do — `chartResolutions` derives the presented stream from
+the saved one, one note per note in the same order — but nothing downstream can say so in a type:
+what stands in for it is a debug `assert` on the two sizes in `TabView::setState` plus the prose
+contract that the pair is rebuilt and published together. Accepted 2026-08-23: one producer, one
+memo key, one consumer, and the assert sits at the only seam a mismatch could enter through.
+
+**Trigger**: anything publishes one form without the other — a second view, a lazily built actual
+form, a test double — or the assert ever fires. **Remedy**: the shape the controller's own comment
+names, one producer emitting BOTH forms from a single pass over one `chartResolutions` result,
+which the projection is already positioned for (the forms differ in `notes` and in nothing else).
+It makes the alignment a fact of construction, drops the second projection per chart revision (a
+sustain gesture bumps the revision on every wheel notch and projects the chart three times), and
+deletes `tab_actual`, the second `shared_ptr` in `TabView`, the assert, and the published-together
+contract that currently substitutes for the type.
+
 ### ~~Tab and highway scene models stay un-unified~~ — RETIRED 2026-08-21 (W9-B shipped)
 
 **Retired 2026-08-21.** The W9-B fold shipped: one `ChartViewState` (`chart/chart_view_state.h`)

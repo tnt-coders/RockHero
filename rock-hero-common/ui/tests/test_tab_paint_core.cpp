@@ -1786,4 +1786,68 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
     CHECK(scrape_top < plain_top);
 }
 
+// The drawn-note accessor is the seam a host composing two forms of one chart draws through (the
+// editor's actual-ring pick), so the core must take the note it is handed AT EACH INDEX rather
+// than the state's own. Checked as an image identity against the state that composition names,
+// with one note from each form: a core reading the accessor once, or not at all, cannot match a
+// picture that is half one form and half the other.
+TEST_CASE("Tab paint core draws the note the drawn-note accessor picks", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // Two notes on their own lanes at one onset, differing only in how far their tails run.
+    const auto state_with = [](double upper_end, double lower_end) {
+        common::core::ChartViewState state;
+        state.string_count = 6;
+        state.notes = {
+            common::core::NoteViewState{
+                .start_seconds = 5.0,
+                .end_seconds = upper_end,
+                .string = 3,
+                .fret = 7,
+                .bend = {},
+                .slides = {},
+            },
+            common::core::NoteViewState{
+                .start_seconds = 5.0,
+                .end_seconds = lower_end,
+                .string = 4,
+                .fret = 5,
+                .bend = {},
+                .slides = {},
+            },
+        };
+        return state;
+    };
+    const common::core::ChartViewState presented = state_with(6.0, 6.0);
+    const common::core::ChartViewState actual = state_with(9.0, 9.0);
+    const common::core::ChartViewState mixed = state_with(9.0, 6.0);
+
+    const auto painted = [](const common::core::ChartViewState& tab,
+                            const std::vector<double>& prefix_max,
+                            const TabDrawnNote& drawn_note) {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(graphics, referenceMetrics(tab.string_count), tab, prefix_max, drawn_note);
+        return image;
+    };
+
+    // The longest form's ends, which bound every picture below: the window spans all of them, so
+    // the same table serves each render and only the drawn notes differ.
+    const std::vector<double> reach = common::core::makeSustainPrefixMax(actual.notes);
+    const juce::Image composed = painted(
+        presented,
+        reach,
+        [&presented, &actual](std::size_t index) -> const common::core::NoteViewState& {
+            return index == 0 ? actual.notes[index] : presented.notes[index];
+        });
+
+    CHECK(worstPixelDelta(composed, painted(mixed, reach, {})) == 0);
+    // Not vacuous: neither whole form draws that picture, so the identity above can only hold
+    // because the accessor was asked per note.
+    CHECK(worstPixelDelta(composed, painted(presented, reach, {})) > 0);
+    CHECK(worstPixelDelta(composed, painted(actual, reach, {})) > 0);
+}
+
 } // namespace rock_hero::common::ui

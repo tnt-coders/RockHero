@@ -350,6 +350,10 @@ struct LabelChip
 // The note head sounding on this string exactly at the span start, or nullptr when the string is
 // silent there. That head is what the centred posture digit contends with; its ATTACK decides
 // which hand produced it and its FRET whether the posture is already stated.
+//
+// Reads the state's own notes rather than the drawn-note accessor, and is not a site that missed
+// it: everything asked here — onset, string, attack, fret — is what presentation leaves untouched,
+// so both forms of a note answer identically.
 [[nodiscard]] const common::core::NoteViewState* headAtSpanStart(
     const common::core::ChartViewState& tab, double span_start_seconds, int chart_string)
 {
@@ -1991,7 +1995,7 @@ TabLaneMetrics makeTabLaneMetrics(
 // technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_end_seconds)
+    const std::vector<double>& prefix_max_end_seconds, const TabDrawnNote& drawn_note)
 {
     // Stated as a precondition in the header; the lane lines below index by string.
     assert(tab.string_count > 0);
@@ -2125,6 +2129,14 @@ void paintTabLane(
     const auto [first, last] =
         common::core::visibleEventRange(tab.notes, prefix_max_end_seconds, span_start, span_end);
 
+    // The note each pass below draws, resolved once for the whole call so no pass restates the
+    // fallback: the host's choice where it composes two forms of one chart, the state's own note
+    // otherwise. The index range above stays the state's own either way — presentation moves no
+    // onset and adds or removes no note, so the forms align by index and share these search keys.
+    const auto note_at = [&](std::size_t index) -> const common::core::NoteViewState& {
+        return drawn_note ? drawn_note(index) : tab.notes[index];
+    };
+
     // Floating labels collected during the note passes and drawn above every head.
     std::vector<LabelChip> slide_labels;
     std::vector<LabelChip> bend_chips;
@@ -2132,7 +2144,7 @@ void paintTabLane(
     // Tails first so heads always cover their own tail starts (Charter's noteTails layer).
     for (std::size_t index = first; index < last; ++index)
     {
-        const common::core::NoteViewState& note = tab.notes[index];
+        const common::core::NoteViewState& note = note_at(index);
         if (note.end_seconds < span_start)
         {
             continue;
@@ -2293,7 +2305,7 @@ void paintTabLane(
 
     for (std::size_t index = first; index < last; ++index)
     {
-        const common::core::NoteViewState& note = tab.notes[index];
+        const common::core::NoteViewState& note = note_at(index);
         if (note.end_seconds < span_start)
         {
             continue;

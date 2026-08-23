@@ -80,11 +80,13 @@ chords. Everything else is plumbing that keeps focus in the right place:
 
 Everything above turns a keystroke into a *verb*. One key does not: **holding `Alt` while this
 application is in the foreground reveals each visible note's actual ring in the 2D tab lane**, and
-releasing it snaps the lane back. Nothing is invoked, nothing is undoable, and the mapping set is
-not involved at all — the whole path is `EditorView::syncActualRingReveal` →
-`TabView::setActualRingReveal`, repainting only on a change. `Alt` is the key because `Alt` is
-already the authoring gate, and the ring it shows is exactly what `Alt`+wheel edits; see
-\ref guide_2d_views for the mark itself.
+releasing it clips every note back to its presented tail except the ones the selection names.
+Nothing is invoked, nothing is undoable, and the mapping set is not involved at all — the whole
+path is `EditorView::syncActualRingReveal` → `TabView::setActualRingReveal`, repainting only on a
+change. `Alt` is the key because `Alt` is already the authoring gate, and the ring it shows is
+exactly what `Alt`+wheel edits. It is the whole-lane half of a per-note rule — a SELECTED note
+draws its ring with no key held at all — so see \ref guide_2d_views for the pick and the mark it
+makes.
 
 There is nothing registrable beside it: the mark the reveal makes was decided on 2026-08-23 (the
 lane redraws in the actual form) and the `F6` toggle that had let the two candidates be flipped

@@ -11,6 +11,7 @@ each host supplies only bounds, timeline mapping, and state.
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <juce_graphics/juce_graphics.h>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -190,6 +191,23 @@ void paintTabPendingEntryBox(
     juce::Colour text_color, juce::Colour border_color);
 
 /*!
+\brief Answers which note the lane draws at one index, for a host composing two projected forms.
+
+The editor's actual-ring reveal is the one caller: it draws each note in the chart's presented or
+its \ref common::core::ChartNoteForm::Actual form, decided per note, and the two forms of one chart
+align by index because presentation trims tails and never adds or removes a note. Handing the
+choice in as an accessor keeps the composition rule wholly in the host — this core is given the
+note to draw and never the reason.
+
+An empty accessor is the ordinary case: every note draws from the state's own
+\ref common::core::ChartViewState::notes.
+
+It is asked once per VISIBLE note in each of the two note passes — the range cull runs first, on
+the state's own onsets — so the indirection costs a call per note drawn, never one per glyph.
+*/
+using TabDrawnNote = std::function<const common::core::NoteViewState&(std::size_t index)>;
+
+/*!
 \brief Draws one tablature lane's visible chart content in Charter's layer order.
 
 String lines, hand-shape spans, sustain tails with their slide and bend lines, arpeggio posture
@@ -199,15 +217,21 @@ head slack, so hosts repaint partial regions (tile strips, dirty rectangles) cor
 
 \param g Graphics context to draw into; its clip bounds gate the visible span.
 \param metrics Metrics from makeTabLaneMetrics for the lane being painted.
-\param tab Seconds-resolved tab projection; string_count must be positive. Every tail is drawn to
-       its own note's presented end (NoteViewState::end_seconds); the span-implied hold
-       (ChartViewState::display_hold_ends) is the 3D board's and is not read here.
-\param prefix_max_end_seconds Running maximum of the notes' presented ends
-       (common::core::makeSustainPrefixMax over `tab.notes`) — the same stop the tails are drawn
-       to, so nothing on screen can be culled out of the visible range.
+\param tab Seconds-resolved tab projection; string_count must be positive. Its notes order and
+       count the lane's notes, and supply every one of them unless `drawn_note` picks another
+       form's. Every tail is drawn to the DRAWN note's own end (NoteViewState::end_seconds); the
+       span-implied hold (ChartViewState::display_hold_ends) is the 3D board's and is not read
+       here.
+\param prefix_max_end_seconds Running maximum of note ends (common::core::makeSustainPrefixMax)
+       bounding the visible range. It must reach at least as far as every end DRAWN or a tail on
+       screen is culled away, so a host composing two forms passes the table of the form whose
+       tails run longest — conservative for both, since the passes below drop each note that
+       really ends before the span.
+\param drawn_note Per-index choice of which form's note to draw; empty draws `tab.notes`
+       throughout.
 */
 void paintTabLane(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::ChartViewState& tab,
-    const std::vector<double>& prefix_max_end_seconds);
+    const std::vector<double>& prefix_max_end_seconds, const TabDrawnNote& drawn_note = {});
 
 } // namespace rock_hero::common::ui

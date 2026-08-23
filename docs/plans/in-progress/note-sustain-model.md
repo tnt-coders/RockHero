@@ -271,7 +271,7 @@ corpus-wide.
   actual form itself, so the array had no reader left once stage D went too) and the export of
   `tabVisibleSpan` from `tab_paint_core.h`, which is a file-local helper of `paintTabLane` again.
   What the surviving mark needs is exactly the shared machinery below — the form parameter, the
-  `tab_actual` publication, the `LaneForm` pair with its per-form cull index, and the
+  `tab_actual` publication, the lane's cull index over the actual ends, and the
   foreground-and-Alt predicate. **Tracking ruled 2026-08-23, replacing the
   event-driven samplers of 2026-08-22/23.** The reveal is on exactly while `juce::Process::
   isForegroundProcess() && juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown()` —
@@ -318,13 +318,27 @@ corpus-wide.
     learn that the reveal is on, which `tab_view.h` forbids ("the controller never learns of it").
     Now that Tails is signed, the shape that removes both the cost and the form parameter is one
     producer returning both forms from a single `chartResolutions` pass, which would make "equal
-    outside `notes`" a fact of construction rather than a test — worth doing, not yet done.
+    outside `notes`" a fact of construction rather than a test — worth doing, not yet done. With
+    the per-note pick reading one form at the other's index, the index alignment rides on it too,
+    so it is a standing entry in `docs/tracking/watch-items.md` rather than a note in this stage.
   - **Two glyph consequences of drawing a form no rule touched, both accepted, both sighted.** A
     DEAD note grows a tail (rule 4 is a presentation rule and the actual form has none) — Alt shows
     what is STORED, and that tail reads as how long the mute is held. And a shift-slide's arrival
     waypoint, which sits exactly at the presented end and so draws no glyph, sits strictly inside
     the real ring and draws a mid-tail linked continuation head — a mark that appears only under
     the reveal (`linkedWaypoint` is form-relative and correct in both, which its doc now states).
+  - **Generalized to a PER-NOTE pick (ruled 2026-08-23).** A note draws its actual form when the
+    whole-lane Alt reveal is held OR when that note is SELECTED, presented otherwise — one lambda
+    in `TabView::paint`, read by the notation (through the paint core's new `TabDrawnNote`
+    per-index accessor, which keeps the composition rule wholly in the host) and by every overlay,
+    so there is no second statement of the rule. The selection is the thing under scrutiny and
+    every verb already settles on a selection change, so deselecting IS the moment presentation
+    clips the tail back. Alt is KEPT because the selection cannot serve the insertion lookahead:
+    with a selection standing, typing a digit RETYPES those notes instead of inserting one, so a
+    charter placing notes holds no selection at all. The `LaneForm` pair and its two cull tables
+    collapsed into one index over the ACTUAL ends — presentation only ever trims, so those ends
+    bound either form, and a per-form table could not be indexed by a per-note pick anyway, since
+    one member of a chord can draw actual beside a presented neighbour.
 - **C — done 2026-08-22.** Shape spans and their postures are DERIVED from the notes, per chart
   revision, in core: `deriveChartShapes(saved_notes, presented_notes, tempo_map)`
   (`chart/chart_shapes.h`) is the importer's `deriveChordShapes` ported unchanged onto the tempo

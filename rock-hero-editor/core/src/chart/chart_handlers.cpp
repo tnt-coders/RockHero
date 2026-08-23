@@ -45,8 +45,10 @@ constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
 } // namespace
 
-// The memoized projection deriveViewState pushed is exactly what the lane painted, so pointer
-// events resolve against it; null while no chart is displayed.
+// The memoized PRESENTED projection deriveViewState pushed, which is what pointer events resolve
+// against; null while no chart is displayed. It is not the whole of what the lane DRAWS: a
+// selected note (and every note while the reveal is held) draws its longer actual ring, and that
+// extra length is deliberately not hit-testable — see EditorViewState::tab_actual.
 const common::core::ChartViewState* EditorController::Impl::displayedTabProjection() const
 {
     return m_tab_view_state.get();

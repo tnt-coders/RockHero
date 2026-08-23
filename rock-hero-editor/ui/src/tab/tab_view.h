@@ -117,18 +117,32 @@ public:
 
     /*!
     \brief Applies the chart-editing overlay state (selection, marquee).
+
+    The selection is more than an overlay here: a SELECTED note draws in its actual form, because
+    the selection is the thing under scrutiny (\ref setActualRingReveal carries the pick's other
+    input). Every chart verb already settles on a selection change, so deselecting is the moment
+    presentation clips the tail back to the picture.
+
     \param edit Overlay state resolved against the same projection instance as setState's tab.
     */
     void setEditState(core::ChartEditViewState edit);
 
     /*!
-    \brief Turns the actual-ring reveal on or off; repaints only when the state changes.
+    \brief Turns the whole-lane actual-ring reveal on or off; repaints only when it changes.
 
-    While it is on, the lane draws the chart in its ACTUAL form — every note's tail is the ring
-    the string really sounds for, with its techniques and its payload riding it — in place of the
-    presented picture. The editor holds it on exactly while the application is in the foreground
-    and the Alt key — the sustain gesture's own modifier — is down, so the length being authored
-    is visible while it is authored, and releasing snaps the lane back.
+    One of the two inputs to the lane's per-note form pick, the other being the selection. While
+    it is on, EVERY visible note draws in its ACTUAL form — the tail is the ring the string really
+    sounds for, with its techniques and its payload riding it — in place of the presented picture.
+    The editor holds it on exactly while the application is in the foreground and the Alt key —
+    the sustain gesture's own modifier — is down, so the length being authored is visible while it
+    is authored, and releasing clips every note back to its presented tail except the ones the
+    selection still names.
+
+    It is kept beside the selection because the selection cannot do its job. With a selection
+    standing, typing a digit RETYPES those notes instead of inserting one, so a charter placing
+    notes holds no selection at all — and placing the next note is exactly when the real tails
+    around it matter. Alt is that lookahead: the whole passage's rings, including every note
+    nothing is selected on.
 
     A held state, not a mode: nothing here latches. The editor re-reads that predicate from the
     operating system every frame for its whole life, so a release nothing delivered cannot strand
@@ -198,14 +212,14 @@ public:
     /*!
     \brief Applies the current tab projections and lane-count preference.
 
-    Both forms of one chart arrive together, because the reveal must be able to swap between them
-    inside a single repaint with no controller round trip. The projections are compared by pointer
+    Both forms of one chart arrive together, because the pick chooses between them per note inside
+    a single repaint with no controller round trip. The projections are compared by pointer
     identity: the controller rebuilds them only when the displayed arrangement or the chart
     revision changes, so identical pointers mean identical content.
 
     \param tab Seconds-resolved tab projection, or null when the arrangement has no chart.
     \param tab_actual The same chart with every note at its actual ring, or null with no chart.
-           Absent, the reveal has nothing to show and the lane keeps drawing the presented form.
+           Absent, nothing can draw an actual ring and every note keeps its presented form.
     \param minimum_displayed_strings User minimum lane count; zero means match the chart.
     */
     void setState(
@@ -240,28 +254,7 @@ public:
     [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
 
 private:
-    // One drawable form of the chart, with the visibility index that belongs to it: the running
-    // maximum of ITS OWN note ends, which every cull over those notes runs against. Pairing them
-    // is what stops a form from ever being culled by the other form's reach — the notation must
-    // not keep a note in range for a length it no longer draws, and the reveal must keep a ring
-    // in range for as long as it is drawn.
-    struct LaneForm
-    {
-        std::shared_ptr<const common::core::ChartViewState> state{};
-        std::vector<double> prefix_max_end_seconds{};
-    };
-
-    // The form this lane draws right now: the actual one only while the reveal is held.
-    // Everything in paint reads the projection through this, so the two pictures cannot
-    // half-swap.
-    //
-    // The pointer path deliberately does NOT: the controller hit-tests, selects and inserts
-    // against the presented projection it published, so the reveal shows a length nothing can be
-    // clicked on. Nothing here has to enforce that, because the only reads outside paint are the
-    // string count and whether a chart exists, which are identical in both forms.
-    [[nodiscard]] const LaneForm& drawn() const noexcept;
-
-    // Rebuilds both forms' prefix-maximum end tables after the projections change.
+    // Rebuilds the visible-range index after the projections change.
     void rebuildVisibilityIndex();
 
     // The armed caret square's rectangle under the given metrics, when one should draw: the
@@ -278,11 +271,31 @@ private:
     // row, so unlike the automation lanes this needs no per-frame tick.
     void publishCaretMask();
 
-    // The chart's two forms, shared with the controller; both null without a chart. The presented
-    // one is the lane's ordinary picture and the one the controller resolves pointers against; the
-    // actual one is the reveal's.
-    LaneForm m_presented{};
-    LaneForm m_actual{};
+    // The chart's two forms, shared with the controller; both null without a chart. They align by
+    // index and differ ONLY in their notes, so the presented one is the lane's authority for
+    // everything else it draws with — string count, capo, hand-shape spans, fret-hand placements —
+    // and nothing outside the per-note pick has to ask which form is showing.
+    //
+    // The presented form is also the whole of the pointer path: the controller hit-tests, selects
+    // and inserts against the projection it published, so an actual ring is drawn and nothing
+    // more. That holds by construction rather than by enforcement — the only reads outside paint
+    // are the string count and whether a chart exists.
+    //
+    // The actual form is null when the host published no second form, which simply leaves every
+    // note presented.
+    std::shared_ptr<const common::core::ChartViewState> m_presented{};
+    std::shared_ptr<const common::core::ChartViewState> m_actual{};
+
+    // Running maximum of the ACTUAL form's note ends (the presented form's when no actual one was
+    // published), which bounds the visible note range inside the paint core.
+    //
+    // ONE table for a lane drawing both forms at once. Presentation only ever trims a tail, so a
+    // presented end always falls at or before its own note's ring: culling against the rings keeps
+    // every note in the candidate range for as long as ANY form of it could be drawn, and the
+    // paint passes then drop each note whose DRAWN end really precedes the window. A second,
+    // presented table would be a tighter bound on a cull that is already exact — and unusable
+    // besides, since one member of a chord can draw actual while its neighbour draws presented.
+    std::vector<double> m_prefix_max_end_seconds{};
 
     // Chart-editing overlay state (selection indices, marquee) pushed by the editor.
     core::ChartEditViewState m_edit{};
@@ -299,9 +312,10 @@ private:
     // Last caret mask handed to the sink, so a republish only fires on an actual change.
     std::optional<juce::Range<float>> m_published_caret_mask{};
 
-    // True while the reveal modifier is held, so paint shows every visible note's actual ring.
-    // Not part of ChartEditViewState: the controller never learns of it, because which key is
-    // down is a fact about this window and nothing headless may branch on it.
+    // True while the reveal modifier is held, so the pick answers "actual" for every visible note
+    // rather than only for the selected ones. Not part of ChartEditViewState: the controller never
+    // learns of it, because which key is down is a fact about this window and nothing headless may
+    // branch on it.
     bool m_actual_ring_reveal{false};
 
     // User minimum lane count; zero means match the chart's string count.

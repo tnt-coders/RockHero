@@ -6,7 +6,6 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/shared/displayed_strings.h>
-#include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
 #include <vector>
@@ -67,12 +66,6 @@ namespace
 void setFixtureState(TabView& view)
 {
     view.setState(makeTabState(), makeActualTabState(), 0);
-}
-
-// Running maximum of the fixture's presented tail ends, matching TabView's internal index.
-[[nodiscard]] std::vector<double> prefixMaxEnds()
-{
-    return {9.0, 9.0, 12.0};
 }
 
 } // namespace
@@ -140,35 +133,6 @@ TEST_CASE("TabView stacks lanes evenly across a proportional row", "[ui][tab-vie
     CHECK((tabLaneCenterY(1, 6, six) - tabLaneCenterY(6, 6, six)) == Catch::Approx(100.0f));
     CHECK((tabLaneCenterY(1, 4, bass) - tabLaneCenterY(4, 4, bass)) == Catch::Approx(60.0f));
     CHECK((tabLaneCenterY(1, 8, eight) - tabLaneCenterY(8, 8, eight)) == Catch::Approx(140.0f));
-}
-
-// The range query bounds candidates by sorted starts and the prefix maximum of sustain ends.
-TEST_CASE("TabView finds notes intersecting a visible span", "[ui][tab-view]")
-{
-    const auto tab = makeTabState();
-    const std::vector<double> prefix_max = prefixMaxEnds();
-
-    // A span in the middle of the long sustain starts the range at that note.
-    const auto [mid_first, mid_last] =
-        common::core::visibleEventRange(tab->notes, prefix_max, 5.0, 6.0);
-    CHECK(mid_first == 0);
-    CHECK(mid_last == 2);
-
-    // A span before every note is empty.
-    const auto [early_first, early_last] =
-        common::core::visibleEventRange(tab->notes, prefix_max, 0.0, 0.5);
-    CHECK(early_first == early_last);
-
-    // A span after every sustain is empty.
-    const auto [late_first, late_last] =
-        common::core::visibleEventRange(tab->notes, prefix_max, 13.0, 14.0);
-    CHECK(late_first == late_last);
-
-    // A span across the late zero-length note includes it.
-    const auto [end_first, end_last] =
-        common::core::visibleEventRange(tab->notes, prefix_max, 11.0, 13.0);
-    CHECK(end_first <= 2);
-    CHECK(end_last == 3);
 }
 
 // Painting draws Charter-style layered note heads on their string lines.
@@ -355,10 +319,10 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
-// The reveal: while it is held the lane draws the chart in its ACTUAL form, so a note the
-// presentation rules left tail-less grows a real tail — notation, not an annotation over it.
-// Probed mid-tail on its own row rather than at an edge, so an outline around the same span would
-// not pass it.
+// The reveal, which is the WHOLE-LANE arm of the drawn-form pick: while it is held every visible
+// note draws in its ACTUAL form with nothing selected, so a note the presentation rules left
+// tail-less grows a real tail — notation, not an annotation over it. Probed mid-tail on its own
+// row rather than at an edge, so an outline around the same span would not pass it.
 //
 // The lane's state is the only half of the reveal with a headless witness. The editor drives it
 // from one predicate — this process is the foreground application AND Alt is physically down —
@@ -408,9 +372,11 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
 }
 
 // A ring reaching a window its presented tail cannot: the note's tail ends long before the visible
-// span opens while the ring runs well into it. Each form is culled by the running maximum of its
-// OWN note ends, which is the whole reason the two tables exist — index the actual form by the
-// presented ends and the note leaves the range before the window opens.
+// span opens while the ring runs well into it. The lane culls against the ACTUAL ends, which is
+// what keeps the ring in range — index the lane by the presented ends and the note leaves the
+// range before the window opens. Both halves matter: with the reveal off the same conservative
+// index still admits the note, and the paint pass must then drop it for ending before the span,
+// or the one table would leak a tail the picture does not have.
 TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -455,19 +421,19 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
 
     // 10 seconds across 200 px: 20 px per second, so the ring ends at x = 40 and column 39 carries
     // its last ink, on the top lane (string 6, envelope rows 6 through 14). The head sits at
-    // x = -160, off the left edge, so nothing but the reveal can put ink there.
+    // x = -160, off the left edge, so nothing but the ring can put ink there.
     CHECK(render().getPixelAt(39, 12).getARGB() == 0);
 
-    // The reveal culls through the paint core's own pass, against the drawn form's index.
+    // The cull runs inside the paint core's own pass, against the one conservative index.
     view.setActualRingReveal(true);
     CHECK(render().getPixelAt(39, 12).getARGB() != 0);
 }
 
-// Every editing overlay indexes the DRAWN form, so nothing an overlay marks moves when the reveal
-// swaps the lane's notation: the heads are identical in the two forms by construction, since
-// presentation touches only the tail. The selection ring lands on exactly the same pixels revealed
-// or not, and the tail past that head is what changed.
-TEST_CASE("TabView keeps its overlays on the drawn form while revealed", "[ui][tab-view]")
+// Every editing overlay traces the note the lane drew, and the two forms share the head exactly:
+// presentation touches only the tail, so a selection ring lands on the same pixels whichever form
+// the note is in. Checked where the two arms of the pick meet on one note — selected with the
+// reveal off, then revealed — which must be the same picture, head and tail alike.
+TEST_CASE("TabView keeps its overlays on the head the two forms share", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{};
@@ -499,9 +465,97 @@ TEST_CASE("TabView keeps its overlays on the drawn form while revealed", "[ui][t
     CHECK(selected.getPixelAt(112, 10) != plain.getPixelAt(112, 10));
     CHECK(revealed.getPixelAt(112, 10) == selected.getPixelAt(112, 10));
 
-    // What the reveal did change is the tail past that head, which the presented form has none of.
-    CHECK(selected.getPixelAt(128, 12).getARGB() == 0);
-    CHECK(revealed.getPixelAt(128, 12).getARGB() != 0);
+    // The tail past that head is the note's ring in both, since selecting it and revealing it ask
+    // for the same form; unselected and unrevealed, presentation left it with none.
+    CHECK(plain.getPixelAt(128, 12).getARGB() == 0);
+    CHECK(selected.getPixelAt(128, 12).getARGB() != 0);
+    CHECK(revealed.getPixelAt(128, 12) == selected.getPixelAt(128, 12));
+}
+
+// The per-note arm of the pick, and the case a whole-lane swap cannot produce: with the reveal
+// OFF, a selected note draws its actual ring while its chord-mate at the same onset keeps the
+// presented picture — one chord, one paint call, two forms. Moving the selection to the other
+// member moves the tail with it, which is what a "draws actual whenever anything is selected"
+// mutation fails.
+TEST_CASE("TabView draws a selected note's ring beside a presented mate", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // A two-note chord at 12 s on the top two lanes, neither presenting a tail; both really ring
+    // for a second past it.
+    common::core::ChartViewState presented;
+    presented.string_count = 6;
+    presented.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 12.0,
+            .end_seconds = 12.0,
+            .string = 6,
+            .fret = 3,
+            .bend = {},
+            .slides = {},
+        },
+        common::core::NoteViewState{
+            .start_seconds = 12.0,
+            .end_seconds = 12.0,
+            .string = 5,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    common::core::ChartViewState actual = presented;
+    actual.notes[0].end_seconds = 13.0;
+    actual.notes[1].end_seconds = 13.0;
+
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(
+        std::make_shared<const common::core::ChartViewState>(std::move(presented)),
+        std::make_shared<const common::core::ChartViewState>(std::move(actual)),
+        0);
+
+    const auto render = [&view] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        return image;
+    };
+
+    // 20 seconds across 200 px: the rings span x = 120 to 130, and column 128 clears the head,
+    // which is 14.3 px wide about x = 120. Six lanes down 120 px put string 6's centre at
+    // y = 10.5 and string 5's at y = 30.5, so rows 12 and 32 sit the same 1.5 px inside each
+    // tail envelope, off both rails and off the string line.
+    constexpr int tail_x = 128;
+    constexpr int upper_row = 12;
+    constexpr int lower_row = 32;
+
+    // Nothing selected and nothing revealed: presentation clipped both rings off the lane.
+    const juce::Image plain = render();
+    CHECK(plain.getPixelAt(tail_x, upper_row).getARGB() == 0);
+    CHECK(plain.getPixelAt(tail_x, lower_row).getARGB() == 0);
+
+    view.setEditState(core::ChartEditViewState{.selected_notes = {0}});
+    const juce::Image upper_selected = render();
+    CHECK(upper_selected.getPixelAt(tail_x, upper_row).getARGB() != 0);
+    CHECK(upper_selected.getPixelAt(tail_x, lower_row).getARGB() == 0);
+
+    view.setEditState(core::ChartEditViewState{.selected_notes = {1}});
+    const juce::Image lower_selected = render();
+    CHECK(lower_selected.getPixelAt(tail_x, upper_row).getARGB() == 0);
+    CHECK(lower_selected.getPixelAt(tail_x, lower_row).getARGB() != 0);
+
+    // The pick's other arm still covers the whole lane, selection or no selection.
+    view.setEditState(core::ChartEditViewState{});
+    view.setActualRingReveal(true);
+    const juce::Image revealed = render();
+    CHECK(revealed.getPixelAt(tail_x, upper_row).getARGB() != 0);
+    CHECK(revealed.getPixelAt(tail_x, lower_row).getARGB() != 0);
 }
 
 // The controller-published armed caret renders as a white square outline on its empty slot
