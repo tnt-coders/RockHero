@@ -2519,6 +2519,20 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             m_tab_view_state = std::make_shared<const common::core::ChartViewState>(
                 common::core::makeChartViewState(*arrangement, state.tempo_map));
+            // The lane's actual-ring reveal draws the SAME chart with every note at its stored
+            // ring, so it needs a whole second projection rather than a swapped end: the
+            // presented state has already dropped the payload points its trims clipped, and no
+            // view-side transform can put those back.
+            //
+            // Built eagerly, under the same key. Building it only while the reveal is on would
+            // mean this derivation knew the reveal is on, and the reveal is a fact about which
+            // key is physically down in one window (tab_view.h: "the controller never learns of
+            // it"). The cost is real and deliberate for the sighting: a sustain gesture bumps the
+            // chart revision on every wheel notch, and each notch already projected the chart
+            // twice — here and again inside the highway projection below — so this makes three.
+            m_tab_actual_view_state = std::make_shared<const common::core::ChartViewState>(
+                common::core::makeChartViewState(
+                    *arrangement, state.tempo_map, common::core::ChartNoteForm::Actual));
         }
         // The highway state carries the display options the renderer applies per frame (the
         // displayed-string minimum among them — the scene itself is never padded), so it is
@@ -2541,6 +2555,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_arrangement_id = arrangement->id;
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
+        state.tab_actual = m_tab_actual_view_state;
         state.highway = m_highway_view_state;
 
         // Chart-editing overlays resolve against exactly the projection instance pushed above:
@@ -2634,6 +2649,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     else
     {
         m_tab_view_state.reset();
+        m_tab_actual_view_state.reset();
         m_highway_view_state.reset();
         m_tab_arrangement_id.clear();
     }

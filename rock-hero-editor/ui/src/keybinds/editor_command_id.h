@@ -91,10 +91,21 @@ enum class EditorCommandId : std::uint16_t
     The sighting rig for the note-sustain model's stage D: a floor band under each note running
     the ACTUAL ring the string sounds for, which the presented tail above it may have trimmed or
     dropped. Deliberately a LATCH where the 2D lane's equivalent reveal is held under `Alt` —
-    the preview is a separate top-level window the editor's `Alt` sampling never reaches, and a
-    sighting rig wants both hands free while it is on.
+    the held reveal is the main window's state, and a sighting rig watched while navigating the
+    preview with the caret keys wants both hands free while it is on.
     */
     ToggleActualRingBand = 0x130B,
+
+    /*!
+    \brief Flip the 2D lane's actual-ring reveal between its two marks (`F6`): outline, tails.
+
+    TEMPORARY, and knowingly so: the reveal drawn while `Alt` is held is being sighted in two
+    forms — a hairline outline annotating the presented notation, or the lane redrawn with every
+    note at its real ring — and this exists only so the user can flip between them in place. When
+    one is signed the other goes, and this command with it (the id stays retired, like 0x1304
+    through 0x130A above).
+    */
+    ToggleActualRingRevealStyle = 0x130C,
 
     /*!
     \brief Insert a tone-change marker at the cursor (`Ctrl+T`).

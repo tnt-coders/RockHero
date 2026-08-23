@@ -73,19 +73,28 @@ struct SlideViewState
 };
 
 /*!
-\brief One sounding note resolved to timeline seconds: the PRESENTED form of a chart note.
+\brief One sounding note resolved to timeline seconds, in the form its \ref ChartViewState carries.
 
-Not the stored one. `ChartNote::sustain` is the actual duration the string rings, and what a
-surface draws is derived from it once per chart revision by \ref presentedChartNotes — the tail
-trimmed to clear the next head, floored on payload that still says something, dropped where it was
-never a deliberate sustain, absent on a dead note. Every field here comes from that derivation, so
-`end_seconds`, the bend curve, the slide waypoints and the flattened slide-out all describe the
-presented note and nothing has to trim a second time.
+Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the actual duration the
+string rings, and what a surface draws is derived from it once per chart revision by
+\ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
+says something, dropped where it was never a deliberate sustain, absent on a dead note. Every field
+here comes from that derivation, so `end_seconds`, the bend curve, the slide waypoints and the
+flattened slide-out all describe the presented note and nothing has to trim a second time.
+
+The form is the form its state was projected in (\ref ChartNoteForm), never a per-note choice: a
+state carries one form throughout, and the two differ in these notes and in nothing else around
+them. Presentation touches the tail alone, so positions, strings, frets, techniques and flags read
+the same in either form; `end_seconds`, the bend curve and the slide waypoints are the three a
+reader must not assume are the presented ones.
 
 **Scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4). When the scorer
 exists it reads this, not the chart: what the player is asked to hold is exactly what the board
-showed them. That contract is why the derivation lives in common/core rather than in a painter —
-the game must be able to reach it without a surface.
+showed them. The contract holds structurally rather than by discipline, because
+\ref makeHighwayViewState composes \ref makeChartViewState with no form argument: every state a
+game surface can obtain is the presented one, and \ref ChartNoteForm::Actual is unreachable from
+the board, the game and the scorer. That contract is also why the derivation lives in common/core
+rather than in a painter — the game must be able to reach it without a surface.
 */
 struct NoteViewState
 {
@@ -93,11 +102,15 @@ struct NoteViewState
     double start_seconds{0.0};
 
     /*!
-    \brief Absolute end of the presented tail; equals start_seconds when no tail is presented.
+    \brief Absolute end of the tail; equals start_seconds when the note's form presents none.
 
     The DRAWN and scored length, never the stored ring: a sub-quarter chug rings for its eighth and
     presents nothing. This is the whole of what the 2D lane draws; the 3D board additionally pins a
     span-held strum's heads past it (\ref ChartViewState::display_hold_ends).
+
+    In the editor reveal's \ref ChartNoteForm::Actual state it is the stored ring instead, so it is
+    strictly later than the onset for every note there (the positive-sustain invariant) and the
+    equals-the-onset case simply does not arise.
     */
     double end_seconds{0.0};
 
@@ -202,7 +215,13 @@ corner from reading as a break. A flattened slide-out sits at the sustain end by
 never linked.
 
 A READ of two shared facts, not a stored field, so the one continuation rule cannot be restated
-per surface.
+per surface. Being a read is also what makes it correct in either \ref ChartNoteForm without a
+second rule: it asks the tail the note in front of it actually has. The reading genuinely differs
+between the forms, and that is the answer rather than a discrepancy — a shift-slide's arrival sits
+exactly at the PRESENTED end (rule 2 stops the trimmed tail there) and strictly inside the ACTUAL
+one, so the same waypoint that draws no glyph on the lane's ordinary picture draws a mid-tail
+continuation head under the editor's reveal. The glide really does continue there; the presented
+tail is simply cut before it.
 
 \param note Note the waypoint belongs to.
 \param waypoint One of the note's \ref NoteViewState::slides entries.
@@ -363,6 +382,10 @@ frame. The 2D tablature lane renders this directly; the 3D highway composes it i
 \ref HighwayViewState beside the board-only structure it adds. One producer, so the two surfaces
 cannot drift on a shared chart fact — where they are allowed to differ is in their painters, never
 in their data.
+
+The editor holds a SECOND state of the same chart, projected in \ref ChartNoteForm::Actual, for the
+reveal it draws while Alt is held. That is the one producer asked a different question, not a
+second projection: the two states differ in \ref notes and are equal in every other member.
 */
 struct ChartViewState
 {
@@ -423,10 +446,13 @@ struct ChartViewState
     the stored form's positive-sustain invariant — unlike \ref NoteViewState::end_seconds, which
     equals the onset wherever no tail is presented.
 
-    **Two editor-only sightings read it; no game surface does, and none may.** The 2D lane
-    outlines each visible note's ring while Alt is held, and the editor's 3D preview lays it on
-    the board floor as a diagnostics band — so the length the sustain verbs author is visible on
-    either surface while it is being authored. The rule those two obey and any third reader must:
+    **Editor-only sightings read it; no game surface does, and none may.** The editor's 3D preview
+    lays it on the board floor as a diagnostics band, and the 2D lane's reveal outlines it over the
+    presented tail in its outline style — so the length the sustain verbs author is visible on
+    either surface while it is being authored. (The reveal's other style asks the projection for a
+    whole \ref ChartNoteForm::Actual state instead, because an end alone cannot restore the payload
+    presentation clipped; that state's own copy of this array simply restates its note ends.) The
+    rule those readers obey and any further one must:
     **scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4), because
     asking a player to hold a note for a length nothing ever drew is exactly what that ruling
     forbids. This is the ONE statement of that invariant; every other site — the projection that

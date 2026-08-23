@@ -1,6 +1,10 @@
 #include "keybinds/editor_command_registry.h"
+#include "tab/tab_view.h"
 
+#include <memory>
+#include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -286,6 +290,9 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {.id = EditorCommandId::ToggleActualRingBand,
          .value = 0x130B,
          .chords = {chord(juce::KeyPress::F1Key)}},
+        {.id = EditorCommandId::ToggleActualRingRevealStyle,
+         .value = 0x130C,
+         .chords = {chord(juce::KeyPress::F6Key)}},
         {.id = EditorCommandId::InsertToneChange, .value = 0x1401, .chords = {chord('t', command)}},
         {.id = EditorCommandId::CaretStepLeft,
          .value = 0x1501,
@@ -646,6 +653,66 @@ TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
     state.chart_edit.selected_notes = {0};
     view.setState(state);
     CHECK_FALSE(selection_count_chip.isVisible());
+}
+
+// Pins the half of the reveal's Alt tracking that needs no physical key: keyboard focus leaving
+// the editor window turns the lane's actual-ring reveal off, exactly as a release would. The ON
+// edge reads the live key from the operating system and cannot be driven headlessly — so the poll
+// that runs while it is on is not pinned here — and the lane is put into the revealed state
+// directly, then the focus callback is invoked as JUCE does on a loss: with nothing in this view
+// holding focus, which is the predicate the callback reads.
+TEST_CASE(
+    "EditorView releases the actual-ring reveal when its window loses focus", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    // One note the presentation rules left tail-less whose actual ring runs a second past its
+    // head: the only ink the reveal adds, so its presence IS the reveal's state.
+    common::core::ChartViewState presented;
+    presented.string_count = 6;
+    presented.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 12.0,
+            .end_seconds = 12.0,
+            .string = 6,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    presented.actual_end_seconds = {13.0};
+    common::core::ChartViewState actual = presented;
+    actual.notes[0].end_seconds = 13.0;
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    state.tab = std::make_shared<const common::core::ChartViewState>(std::move(presented));
+    state.tab_actual = std::make_shared<const common::core::ChartViewState>(std::move(actual));
+    view.setState(state);
+
+    // The lane's own paint test's geometry: 20 s across 200 px and six lanes down 120 px put the
+    // ring at x = 120..130 on the top lane, and (128, 12) is inside its tail, clear of the head
+    // and off the tail's rails and the string line.
+    auto& lane = findRequiredDescendant<TabView>(view, "tab_view");
+    lane.setBounds(0, 0, 200, 120);
+    const auto render = [&lane] {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        lane.paint(graphics);
+        return image;
+    };
+    CHECK(render().getPixelAt(128, 12).getARGB() == 0);
+
+    lane.setActualRingReveal(true);
+    CHECK(render().getPixelAt(128, 12).getARGB() != 0);
+
+    REQUIRE_FALSE(view.hasKeyboardFocus(/*trueIfChildIsFocused=*/true));
+    view.focusOfChildComponentChanged(juce::Component::focusChangedDirectly);
+    CHECK(render().getPixelAt(128, 12).getARGB() == 0);
 }
 
 } // namespace rock_hero::editor::ui

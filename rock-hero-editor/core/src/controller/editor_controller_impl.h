@@ -1136,9 +1136,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Memoized tab and 3D-highway projections for the displayed arrangement; see
     // deriveViewState for the cache rule (keyed by arrangement id plus the session's chart
-    // revision, so chart edits rebuild both projections). Mutable because the caches refresh
+    // revision, so chart edits rebuild all three projections). Mutable because the caches refresh
     // lazily inside the const view-state derivation.
+    //
+    // The actual-ring form is the lane reveal's, built under the same key rather than on demand:
+    // see deriveViewState for why the controller cannot learn when the reveal is on.
     mutable std::shared_ptr<const common::core::ChartViewState> m_tab_view_state{};
+    mutable std::shared_ptr<const common::core::ChartViewState> m_tab_actual_view_state{};
     mutable std::shared_ptr<const common::core::HighwayViewState> m_highway_view_state{};
     mutable std::string m_tab_arrangement_id{};
     mutable std::uint64_t m_tab_chart_revision{0};

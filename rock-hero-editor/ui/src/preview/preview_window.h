@@ -29,7 +29,8 @@ keeps its native peer (and the embedded render child) alive, but the vblank feed
 visibility-blind, so the ticks stop explicitly while the window is away. The GPU stack itself
 lives from first open until destruction because bgfx cannot re-initialize in-process.
 Transport and song-navigation keys pressed while the preview has focus forward to the main view
-(44-Q4), so play/pause and caret navigation work without refocusing the editor.
+(44-Q4), so play/pause and caret navigation work without refocusing the editor; modifier changes
+delivered to this window are reported to it the same way.
 */
 class PreviewWindow final : public juce::DocumentWindow
 {
@@ -39,13 +40,14 @@ public:
     \param transport Read-only transport for paused-cursor time.
     \param playback_clock Playback-time telemetry sampled while playing.
     \param forward_key_press Callback that offers key presses to the main view's handler.
+    \param forward_modifier_change Callback told of every modifier change delivered here.
     \param centering_component Optional component used to position the window on first show.
     */
     PreviewWindow(
         const common::audio::ITransport& transport,
         const common::audio::IPlaybackClock& playback_clock,
         std::function<bool(const juce::KeyPress&)> forward_key_press,
-        juce::Component* centering_component);
+        std::function<void()> forward_modifier_change, juce::Component* centering_component);
 
     /*! \brief Runs close(): suspends the render surface's frame ticks, then hides the window. */
     ~PreviewWindow() override;
@@ -95,11 +97,26 @@ public:
     */
     bool keyPressed(const juce::KeyPress& key) override;
 
+    /*!
+    \brief Reports a modifier change delivered to this window to the main view.
+
+    JUCE delivers a modifier change to the component under the pointer, or the focused one, and up
+    THAT component's parent chain — which ends here whenever the pointer is over this window or it
+    holds the keyboard, never reaching the editor view. The editor's held-Alt reveal polls the key
+    while it is on, so nothing is lost without this; forwarding makes its release instant rather
+    than one poll tick late. The modifiers themselves are not passed on: the editor reads the key
+    state from its one authority rather than trusting any callback's copy.
+
+    \param modifiers Modifier keys as JUCE saw them; forwarded to the base, not read.
+    */
+    void modifierKeysChanged(const juce::ModifierKeys& modifiers) override;
+
 private:
     // Owned by the DocumentWindow as its content component.
     PreviewSurface* m_surface{nullptr};
 
     std::function<bool(const juce::KeyPress&)> m_forward_key_press;
+    std::function<void()> m_forward_modifier_change;
 };
 
 } // namespace rock_hero::editor::ui

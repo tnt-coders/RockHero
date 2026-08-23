@@ -21,10 +21,11 @@ constexpr int g_default_height = 720;
 PreviewWindow::PreviewWindow(
     const common::audio::ITransport& transport, const common::audio::IPlaybackClock& playback_clock,
     std::function<bool(const juce::KeyPress&)> forward_key_press,
-    juce::Component* centering_component)
+    std::function<void()> forward_modifier_change, juce::Component* centering_component)
     : juce::DocumentWindow(
           "3D Preview", editorTheme().window_background, juce::DocumentWindow::allButtons)
     , m_forward_key_press{std::move(forward_key_press)}
+    , m_forward_modifier_change{std::move(forward_modifier_change)}
 {
     setComponentID("preview_window");
     setUsingNativeTitleBar(true);
@@ -104,6 +105,17 @@ bool PreviewWindow::keyPressed(const juce::KeyPress& key)
         return true;
     }
     return juce::DocumentWindow::keyPressed(key);
+}
+
+// Editor-forwarding hook for modifier changes: the editor samples the key itself, so this carries
+// no state — only the fact that a change was delivered to this window's chain rather than its own.
+void PreviewWindow::modifierKeysChanged(const juce::ModifierKeys& modifiers)
+{
+    if (m_forward_modifier_change)
+    {
+        m_forward_modifier_change();
+    }
+    juce::DocumentWindow::modifierKeysChanged(modifiers);
 }
 
 } // namespace rock_hero::editor::ui

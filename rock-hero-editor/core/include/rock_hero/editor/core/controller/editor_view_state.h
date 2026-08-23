@@ -686,6 +686,21 @@ struct EditorViewState
     */
     std::shared_ptr<const common::core::ChartViewState> tab{};
 
+    /*!
+    \brief The same chart in \ref common::core::ChartNoteForm::Actual: every note at its real ring.
+
+    What the lane's actual-ring reveal draws while Alt is held, in the style that swaps the
+    notation itself rather than annotating it — the tails a chug or a trimmed sustain really rings
+    for, carrying the payload the presentation rules clipped off with the tail, which no view-side
+    end swap could put back. Rebuilt and shared under exactly the rule \ref tab is, and null in
+    exactly the same cases.
+
+    It is not hit-testable and never scored: pointer resolution, selection and Alt+click insert all
+    read \ref tab, and no game surface can obtain this form at all
+    (`docs/plans/in-progress/note-sustain-model.md`, ruling 4).
+    */
+    std::shared_ptr<const common::core::ChartViewState> tab_actual{};
+
     /*! \brief Chart-editing selection and marquee overlays for the tablature lane. */
     ChartEditViewState chart_edit{};
 

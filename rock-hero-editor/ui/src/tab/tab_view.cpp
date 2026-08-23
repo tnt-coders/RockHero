@@ -4,7 +4,6 @@
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <memory>
 #include <rock_hero/common/core/shared/displayed_strings.h>
@@ -94,8 +93,8 @@ void TabView::setEditState(core::ChartEditViewState edit)
 }
 
 // Holds or releases the actual-ring reveal. A repaint only on a genuine change, because the
-// editor re-asserts the current modifier state on every modifier event and on focus gain, so most
-// calls say what the lane already shows.
+// editor re-asserts the current modifier state on every modifier event and on every tick of its
+// poll while the reveal is on, so most calls say what the lane already shows.
 void TabView::setActualRingReveal(bool revealed)
 {
     if (revealed == m_actual_ring_reveal)
@@ -107,14 +106,51 @@ void TabView::setActualRingReveal(bool revealed)
     repaint();
 }
 
+// Flips which mark the reveal makes. The repaint is conditional because the style changes nothing
+// on screen while the reveal is not held — it is a latched preference, unlike the held reveal.
+void TabView::setActualRingRevealStyle(ActualRingRevealStyle style)
+{
+    if (style == m_reveal_style)
+    {
+        return;
+    }
+
+    m_reveal_style = style;
+    if (m_actual_ring_reveal)
+    {
+        repaint();
+    }
+}
+
+// Read by the shell for the tick beside the style's command.
+ActualRingRevealStyle TabView::actualRingRevealStyle() const noexcept
+{
+    return m_reveal_style;
+}
+
+// The form paint draws, and the visibility index that belongs to it. The actual form only when
+// the reveal is held in the style that swaps the notation — and only when one was published, so a
+// host pushing the presented projection alone simply has no reveal rather than a crash.
+const TabView::LaneForm& TabView::drawn() const noexcept
+{
+    const bool draw_rings = m_actual_ring_reveal &&
+                            m_reveal_style == ActualRingRevealStyle::Tails &&
+                            m_actual.state != nullptr;
+    return draw_rings ? m_actual : m_presented;
+}
+
 // With a chart displayed the lane claims its whole band — while paused a click arms the caret
 // (which IS the play-from-here position), and while playing the controller turns lane clicks
 // into plain seeks, so seeking through the lane keeps working. Without a chart the lane is
 // pointer-transparent.
+//
+// The pointer path reads the PRESENTED projection throughout, because that is the one the
+// controller resolves clicks against; the reveal's own form is drawn and nothing more.
 bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 {
-    return m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0 &&
-           getLocalBounds().contains(local_point) && m_visible_timeline.duration().seconds > 0.0;
+    return m_on_pointer_event != nullptr && m_presented.state != nullptr &&
+           m_presented.state->string_count > 0 && getLocalBounds().contains(local_point) &&
+           m_visible_timeline.duration().seconds > 0.0;
 }
 
 bool TabView::hitTest(int x, int y)
@@ -127,8 +163,8 @@ bool TabView::hitTest(int x, int y)
 core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event) const
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
-    const int displayed_count =
-        common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+    const int displayed_count = common::core::displayedStringCount(
+        m_presented.state->string_count, m_minimum_displayed_strings);
     return core::ChartPointerEvent{
         .geometry = common::ui::makeTabLaneGeometry(
             static_cast<float>(bounds.getX()),
@@ -137,7 +173,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
             static_cast<float>(bounds.getHeight()),
             m_visible_timeline,
             displayed_count,
-            m_tab->string_count),
+            m_presented.state->string_count),
         .x = event.position.x,
         .y = event.position.y,
         .modifiers =
@@ -181,7 +217,8 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
 {
     // No wantsPointerAt gate: a drag that started inside the lane keeps reporting while the
     // pointer travels outside it, exactly like any JUCE drag capture.
-    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
+    if (m_on_pointer_event != nullptr && m_presented.state != nullptr &&
+        m_presented.state->string_count > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Drag, makePointerEvent(event));
     }
@@ -189,7 +226,8 @@ void TabView::mouseDrag(const juce::MouseEvent& event)
 
 void TabView::mouseUp(const juce::MouseEvent& event)
 {
-    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
+    if (m_on_pointer_event != nullptr && m_presented.state != nullptr &&
+        m_presented.state->string_count > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Up, makePointerEvent(event));
     }
@@ -210,7 +248,8 @@ void TabView::mouseMove(const juce::MouseEvent& event)
 // Leaving the lane clears any hover ghost; the event carries no position the controller needs.
 void TabView::mouseExit(const juce::MouseEvent& event)
 {
-    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
+    if (m_on_pointer_event != nullptr && m_presented.state != nullptr &&
+        m_presented.state->string_count > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Exit, makePointerEvent(event));
     }
@@ -233,19 +272,24 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
     publishCaretMask();
 }
 
-// Applies the current tab projection and lane-count preference; the projection pointer only
-// changes when the displayed arrangement changes, so pointer identity gates the index rebuild.
+// Applies the current tab projections and lane-count preference; the projection pointers only
+// change when the displayed arrangement or the chart revision does, so pointer identity gates the
+// index rebuild. The two forms are published together and tested together — the controller derives
+// them in one step, so one changing without the other would be a defect upstream, not a case to
+// handle here.
 void TabView::setState(
-    std::shared_ptr<const common::core::ChartViewState> tab, int minimum_displayed_strings)
+    std::shared_ptr<const common::core::ChartViewState> tab,
+    std::shared_ptr<const common::core::ChartViewState> tab_actual, int minimum_displayed_strings)
 {
-    const bool tab_changed = tab != m_tab;
+    const bool tab_changed = tab != m_presented.state || tab_actual != m_actual.state;
     const bool lanes_changed = minimum_displayed_strings != m_minimum_displayed_strings;
     if (!tab_changed && !lanes_changed)
     {
         return;
     }
 
-    m_tab = std::move(tab);
+    m_presented.state = std::move(tab);
+    m_actual.state = std::move(tab_actual);
     m_minimum_displayed_strings = minimum_displayed_strings;
     if (tab_changed)
     {
@@ -260,9 +304,15 @@ void TabView::setState(
 
 // Guards the empty cases, derives the shared metrics, and delegates the drawing to the shared
 // notation paint core.
+//
+// Everything below reads the DRAWN form: while the reveal is held in its tail style that is the
+// chart at its actual rings, and every overlay must trace the heads that were painted rather than
+// the other form's. The heads are identical in both forms (presentation touches only the tail), so
+// today this is a rule about which authority the overlays ask, not about pixels moving.
 void TabView::paint(juce::Graphics& g)
 {
-    if (m_tab == nullptr || m_tab->string_count <= 0)
+    const LaneForm& lane = drawn();
+    if (lane.state == nullptr || lane.state->string_count <= 0)
     {
         return;
     }
@@ -273,22 +323,23 @@ void TabView::paint(juce::Graphics& g)
         return;
     }
 
+    const common::core::ChartViewState& tab = *lane.state;
     const int displayed_count =
-        common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+        common::core::displayedStringCount(tab.string_count, m_minimum_displayed_strings);
     const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
-        bounds, m_visible_timeline, displayed_count, m_tab->string_count);
-    common::ui::paintTabLane(g, metrics, *m_tab, m_prefix_max_end_seconds);
+        bounds, m_visible_timeline, displayed_count, tab.string_count);
+    common::ui::paintTabLane(g, metrics, tab, lane.prefix_max_end_seconds);
 
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // The actual-ring reveal (Alt held): every visible note also gets the ring the string really
-    // sounds for outlined, which the presented tail below it may have trimmed, floored, or
-    // dropped to nothing. Drawn for EVERY visible note, not only where the two ends differ — an
-    // outline landing exactly on a drawn tail is the statement "this is the whole ring", and a
-    // mark that appeared only on disagreement would leave the reader unable to tell agreement
-    // from a reveal that is simply off.
+    // The actual-ring reveal in its OUTLINE style: the notation above is the presented picture,
+    // and every visible note additionally gets the ring the string really sounds for outlined —
+    // which that tail may have trimmed, floored, or dropped to nothing. Drawn for EVERY visible
+    // note, not only where the two ends differ — an outline landing exactly on a drawn tail is the
+    // statement "this is the whole ring", and a mark that appeared only on disagreement would
+    // leave the reader unable to tell agreement from a reveal that is simply off.
     //
     // Its ink is the theme's lane_overlay, halved. Editor furniture reads through EditorTheme,
     // the editor's one color seam; the lane's own quieting authority (the paint core's Ink set
@@ -298,44 +349,40 @@ void TabView::paint(juce::Graphics& g)
     // it on every visible note would read as a lane-wide selection; and this outline belongs to
     // the same Alt family the insert ghost does — what the next edit acts on.
     //
+    // The TAIL style needs nothing here: it swapped the whole lane to the actual form above, so
+    // the ring IS the notation and no ink question arises.
+    //
     // Drawn first of the overlays so the selection ring and the caret stay above it: it is the
     // quietest mark here and by far the most numerous.
-    if (m_actual_ring_reveal)
+    if (m_actual_ring_reveal && m_reveal_style == ActualRingRevealStyle::Outline &&
+        m_actual.state != nullptr)
     {
-        // One entry per note is the projection's contract (chart_view_state.h); the reveal
-        // indexes the notes and their rings together.
-        assert(m_tab->actual_end_seconds.size() == m_tab->notes.size());
-
         // The paint core's own visible window, asked rather than restated, so an outline cannot
-        // survive a repaint the note under it did not. The cull runs against the ACTUAL ends,
-        // which is what the second prefix maximum exists for.
+        // survive a repaint the note under it did not. Both the cull and the rectangle come from
+        // the ACTUAL form — one authority for a ring's length, whichever style is showing it —
+        // and that form's index is the running maximum over its own (ring-length) ends, which is
+        // exactly what an outline reaching past its presented tail needs to stay in range.
         const common::core::TimeRange span = common::ui::tabVisibleSpan(metrics, g.getClipBounds());
+        const std::vector<common::core::NoteViewState>& rings = m_actual.state->notes;
         const auto [first, last] = common::core::visibleEventRange(
-            m_tab->notes, m_prefix_max_actual_end_seconds, span.start.seconds, span.end.seconds);
+            rings, m_actual.prefix_max_end_seconds, span.start.seconds, span.end.seconds);
         g.setColour(editorTheme().lane_overlay.withMultipliedAlpha(g_actual_ring_reveal_dim));
         for (std::size_t index = first; index < last; ++index)
         {
-            const double actual_end_seconds = m_tab->actual_end_seconds[index];
-            if (actual_end_seconds < span.start.seconds)
+            // The prefix maximum is a RUNNING one, so the range can open on a long ring and carry
+            // shorter neighbours that ended before the window with it.
+            if (rings[index].end_seconds < span.start.seconds)
             {
                 continue;
             }
 
-            // The onset column and the tail's vertical envelope come from the layout the paint
-            // core draws with, so the outline traces exactly where a tail of this length would
-            // sit; only the far edge is the reveal's own. A note presenting no tail still has the
-            // envelope here — tabNoteLayout empties the tail's WIDTH, never its span — which is
-            // what lets the two cases share one geometry.
-            const common::ui::TabNoteLayout layout =
-                common::ui::tabNoteLayout(metrics, m_tab->notes[index]);
-            const float end_x = metrics.x(actual_end_seconds);
+            // The actual form's own tail rectangle, from the layout the paint core draws with, so
+            // the outline traces exactly where that form's tail would sit rather than restating
+            // the geometry. Every stored ring is positive, so this rectangle is never empty.
+            const common::ui::TabLayoutRect ring =
+                common::ui::tabNoteLayout(metrics, rings[index]).tail;
             g.drawRect(
-                juce::Rectangle<float>{
-                    layout.onset_x,
-                    layout.tail.y,
-                    std::max(0.0f, end_x - layout.onset_x),
-                    layout.tail.height,
-                },
+                juce::Rectangle<float>{ring.x, ring.y, ring.width, ring.height},
                 g_actual_ring_reveal_stroke);
         }
     }
@@ -349,11 +396,11 @@ void TabView::paint(juce::Graphics& g)
     // drew a circle around every plectrum once the scrape head shipped.
     for (const std::size_t index : m_edit.selected_notes)
     {
-        if (index >= m_tab->notes.size())
+        if (index >= tab.notes.size())
         {
             continue;
         }
-        const common::core::NoteViewState& note = m_tab->notes[index];
+        const common::core::NoteViewState& note = tab.notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
         g.setColour(accent);
         common::ui::strokeTabNoteHeadOutline(
@@ -403,7 +450,7 @@ void TabView::paint(juce::Graphics& g)
     // a note-to-be, not the editing caret; present only while Alt hovers an insertable empty slot
     // (the controller resolves the honesty gate), so it never advertises an insert that no-ops.
     if (m_edit.insert_ghost.has_value() && m_edit.insert_ghost->string >= 1 &&
-        m_edit.insert_ghost->string <= m_tab->string_count)
+        m_edit.insert_ghost->string <= tab.string_count)
     {
         const float size = metrics.note_height;
         const float center_x = metrics.x(m_edit.insert_ghost->seconds);
@@ -430,11 +477,11 @@ void TabView::paint(juce::Graphics& g)
         {
             for (const std::size_t index : *notes)
             {
-                if (index >= m_tab->notes.size())
+                if (index >= tab.notes.size())
                 {
                     continue;
                 }
-                const common::core::NoteViewState& note = m_tab->notes[index];
+                const common::core::NoteViewState& note = tab.notes[index];
                 const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
                 common::ui::paintTabPendingEntryBox(
                     g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
@@ -443,7 +490,7 @@ void TabView::paint(juce::Graphics& g)
         else if (
             const auto* const slot =
                 std::get_if<core::ChartSlotViewState>(&m_edit.pending_fret->at);
-            slot != nullptr && slot->string >= 1 && slot->string <= m_tab->string_count
+            slot != nullptr && slot->string >= 1 && slot->string <= tab.string_count
         )
         {
             common::ui::paintTabPendingEntryBox(
@@ -465,17 +512,18 @@ void TabView::paint(juce::Graphics& g)
 std::optional<juce::Range<float>> TabView::caretMaskYRange() const
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
-    if (m_tab == nullptr || m_tab->string_count <= 0 || bounds.isEmpty() ||
+    const common::core::ChartViewState* const tab = drawn().state.get();
+    if (tab == nullptr || tab->string_count <= 0 || bounds.isEmpty() ||
         m_visible_timeline.duration().seconds <= 0.0)
     {
         return std::nullopt;
     }
 
     const int displayed_count =
-        common::core::displayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+        common::core::displayedStringCount(tab->string_count, m_minimum_displayed_strings);
     const std::optional<juce::Rectangle<float>> square = caretSquare(
         common::ui::makeTabLaneMetrics(
-            bounds, m_visible_timeline, displayed_count, m_tab->string_count));
+            bounds, m_visible_timeline, displayed_count, tab->string_count));
     if (!square.has_value())
     {
         return std::nullopt;
@@ -516,12 +564,14 @@ void TabView::resized()
 }
 
 // The caret square: centered on the caret's slot, one pixel larger than a note head so it
-// reads around a head it rides.
+// reads around a head it rides. The string bound comes from the drawn form like every other
+// overlay, which costs nothing to honor: the string count is identical in both forms.
 std::optional<juce::Rectangle<float>> TabView::caretSquare(
     const common::ui::TabLaneMetrics& metrics) const
 {
-    if (m_tab == nullptr || !m_edit.caret.has_value() || m_edit.caret->string < 1 ||
-        m_edit.caret->string > m_tab->string_count)
+    const common::core::ChartViewState* const tab = drawn().state.get();
+    if (tab == nullptr || !m_edit.caret.has_value() || m_edit.caret->string < 1 ||
+        m_edit.caret->string > tab->string_count)
     {
         return std::nullopt;
     }
@@ -532,22 +582,21 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(
     return juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size};
 }
 
-// Rebuilds both prefix-maximum end tables after the projection changes.
+// Rebuilds each form's prefix-maximum end table after the projections change.
 void TabView::rebuildVisibilityIndex()
 {
-    // The notation's table is built from the notes' own presented ends, which is exactly what the
-    // lane draws: the span-implied hold that outlasts them belongs to the 3D board, and indexing
-    // it here would keep notes in range that this surface stopped drawing at their tails.
-    //
-    // The reveal's is the same running maximum over the ACTUAL rings, and it is a second table
-    // rather than a widened first one because the two culls answer different questions: an
-    // outline that reaches past its tail must stay in range while it is drawn, and the notation
-    // must NOT keep a note in range for a length it no longer draws.
-    m_prefix_max_end_seconds =
-        m_tab == nullptr ? std::vector<double>{} : common::core::makeSustainPrefixMax(m_tab->notes);
-    m_prefix_max_actual_end_seconds =
-        m_tab == nullptr ? std::vector<double>{}
-                         : common::core::makeSustainPrefixMax(m_tab->actual_end_seconds);
+    // Each table is the running maximum of ITS OWN form's note ends, which is exactly what that
+    // form draws: the presented one stops at the tails (the span-implied hold that outlasts them
+    // belongs to the 3D board, and indexing it here would keep notes in range this surface
+    // stopped drawing), and the actual one runs to the rings, which is what a ring outlasting its
+    // tail needs to stay in range for as long as it is drawn. Two tables because the two culls
+    // answer different questions, never because one is a widened copy of the other.
+    const auto prefix_max = [](const std::shared_ptr<const common::core::ChartViewState>& state) {
+        return state == nullptr ? std::vector<double>{}
+                                : common::core::makeSustainPrefixMax(state->notes);
+    };
+    m_presented.prefix_max_end_seconds = prefix_max(m_presented.state);
+    m_actual.prefix_max_end_seconds = prefix_max(m_actual.state);
 }
 
 } // namespace rock_hero::editor::ui

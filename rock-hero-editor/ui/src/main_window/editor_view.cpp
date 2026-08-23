@@ -72,6 +72,10 @@ constexpr int g_audio_device_menu_button_max_width{520};
 constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
+// How often the actual-ring reveal re-reads the Alt key while it is on: a release the window was
+// never told about shows within one tick, about two frames at this rate, and the poll is not
+// running at all while the reveal is off.
+constexpr int g_actual_ring_reveal_poll_hz{30};
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
 [[nodiscard]] int audioDeviceButtonWidth(
@@ -352,8 +356,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     setWantsKeyboardFocus(true);
 
     // Mouse events from every nested child, not just this view's own background: the actual-ring
-    // reveal re-samples the Alt key on pointer motion, which is the only notification left when a
-    // widget under the pointer swallows modifierKeysChanged (see syncActualRingReveal).
+    // reveal re-samples the Alt key on pointer motion, the only notification left for a press a
+    // widget under the pointer swallowed (see syncActualRingReveal).
     addMouseListener(this, /*wantsEventsForAllNestedChildComponents=*/true);
 
     // Register the keybind registry: every command's info (name, category, default chords,
@@ -684,7 +688,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_arrangement_view.setWaveformVisible(m_state.waveform_visible);
 
     m_tab_view.setVisibleTimeline(m_state.visible_timeline);
-    m_tab_view.setState(m_state.tab, m_state.tab_minimum_displayed_strings);
+    m_tab_view.setState(m_state.tab, m_state.tab_actual, m_state.tab_minimum_displayed_strings);
     m_tab_view.setEditState(m_state.chart_edit);
     // The viewport needs the displayed lane count because counts past the six-string reference
     // density grow the waveform row instead of compressing the tablature lanes.
@@ -1019,13 +1023,28 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
     juce::Component::mouseWheelMove(event, wheel);
 }
 
-// Asks the operating system whether Alt is down and hands the answer to the lane; the lane
-// repaints only on a change, so re-asserting the same state costs nothing. Every sampler below
-// goes through here — see the header for why the key state is read rather than taken from
+// Asks the operating system whether Alt is down and hands the answer to the lane. Every sampler
+// below goes through here — see the header for why the key state is read rather than taken from
 // whatever a callback was handed.
 void EditorView::syncActualRingReveal()
 {
-    m_tab_view.setActualRingReveal(juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown());
+    setActualRingReveal(juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown());
+}
+
+// Re-asserting the current state is free at both ends: the lane repaints only on a change, and
+// starting a running timer only resets its countdown — which is what each poll tick does to
+// itself while Alt stays down.
+void EditorView::setActualRingReveal(bool revealed)
+{
+    m_tab_view.setActualRingReveal(revealed);
+    if (revealed)
+    {
+        m_actual_ring_reveal_poll.startTimerHz(g_actual_ring_reveal_poll_hz);
+    }
+    else
+    {
+        m_actual_ring_reveal_poll.stopTimer();
+    }
 }
 
 // Keeps forwarding after sampling: this view observes the modifier rather than consuming it, and
@@ -1036,15 +1055,19 @@ void EditorView::modifierKeysChanged(const juce::ModifierKeys& modifiers)
     juce::Component::modifierKeysChanged(modifiers);
 }
 
-// A release delivered while another application held the keyboard — Alt+Tab, the ordinary way
-// that happens — never reached this window at all.
-void EditorView::focusGained(FocusChangeType)
+// Another window taking the keyboard reads as a release. Not a sample: Alt is still physically
+// down during an Alt+Tab away, and reading it would keep the reveal on in a window the user just
+// left.
+void EditorView::focusOfChildComponentChanged(FocusChangeType)
 {
-    syncActualRingReveal();
+    if (!hasKeyboardFocus(/*trueIfChildIsFocused=*/true))
+    {
+        setActualRingReveal(false);
+    }
 }
 
-// The sampler for transitions no modifier callback delivers here: one swallowed by a widget under
-// the pointer, or one that happened while the pointer was over another window of this app.
+// The sampler for a press no modifier callback delivers here: one swallowed by a widget under
+// the pointer, which JUCE still answers with a fabricated mouse move.
 void EditorView::mouseMove(const juce::MouseEvent&)
 {
     syncActualRingReveal();
@@ -1100,6 +1123,9 @@ void EditorView::togglePreviewWindow()
                 }
                 return m_command_manager.invokeDirectly(command, false);
             },
+            // A modifier change JUCE delivers to the preview's chain would otherwise reach the
+            // reveal only through the poll, one tick late (syncActualRingReveal).
+            [this] { syncActualRingReveal(); },
             getTopLevelComponent());
     }
 
@@ -1146,6 +1172,18 @@ void EditorView::cycleActualRingBand()
         return ActualRingBand::Off;
     }();
     m_preview_window->setActualRingBand(next);
+    m_command_manager.commandStatusChanged();
+}
+
+// Flips the 2D reveal's mark. Always available, whatever is on screen: it latches a display
+// preference rather than acting on the chart, and a disabled command whose chord matches makes
+// JUCE sound the system alert.
+void EditorView::toggleActualRingRevealStyle()
+{
+    m_tab_view.setActualRingRevealStyle(
+        m_tab_view.actualRingRevealStyle() == ActualRingRevealStyle::Tails
+            ? ActualRingRevealStyle::Outline
+            : ActualRingRevealStyle::Tails);
     m_command_manager.commandStatusChanged();
 }
 
@@ -1327,6 +1365,9 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         // (getCommandInfo). Every "View" command belongs in this menu: the Actions dialog groups
         // by the same category, so one missing here is a command only its chord can reach.
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleActualRingBand);
+        // The 2D reveal's sighting switch, beside the 3D band's for the same reason: every "View"
+        // command belongs in this menu.
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleActualRingRevealStyle);
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -1485,6 +1526,14 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setTicked(
                 preview_open &&
                 m_preview_window->actualRingBand() != common::ui::ActualRingBand::Off);
+            break;
+        }
+        case EditorCommandId::ToggleActualRingRevealStyle:
+        {
+            // Always active — it latches how the held reveal draws, which is a preference the
+            // user can set before any chart is open — and ticked in the style that draws the
+            // rings as tails.
+            info.setTicked(m_tab_view.actualRingRevealStyle() == ActualRingRevealStyle::Tails);
             break;
         }
         // InsertToneChange and the grammar verbs (plan 53 Phase 1b) stay always-active on
@@ -1674,6 +1723,11 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::ToggleActualRingBand:
         {
             cycleActualRingBand();
+            return true;
+        }
+        case EditorCommandId::ToggleActualRingRevealStyle:
+        {
+            toggleActualRingRevealStyle();
             return true;
         }
         case EditorCommandId::InsertToneChange:

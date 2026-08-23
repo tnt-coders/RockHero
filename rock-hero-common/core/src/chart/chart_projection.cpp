@@ -27,9 +27,65 @@ struct SlideRamp
     bool unpitched{false};
 };
 
+// Walks every glide in a note stream once and records where each arrival's segment begins.
+//
+// A pass of its own rather than a table filled inside the note loop below, because the ramps are
+// the PRESENTED stream's answer whichever form that loop projects (chart_projection.h): when the
+// fretting hand starts moving is a fact about the chart, and a hand marker that shifted the
+// instant the editor's sighting swapped note forms would be reporting the swap rather than the
+// chart. Separating it is what lets the note loop read exactly one stream.
+[[nodiscard]] std::map<GridPosition, SlideRamp> makeSlideRampStarts(
+    const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    std::map<GridPosition, SlideRamp> starts;
+    for (const ChartNote& note : notes)
+    {
+        // A scrape renders through the unpitched machinery end to end and never feeds the
+        // slide-locked ramps: it has no fret-hand anchor to ramp. A note carrying no glide at all
+        // — nearly every note — leaves before a single position is resolved.
+        if (isScrape(note.attack) || (note.slides.empty() && slideOutOrNull(note) == nullptr))
+        {
+            continue;
+        }
+
+        const double onset_beat = globalBeatPosition(tempo_map, note.position);
+        double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
+        int segment_start_fret = note.fret;
+        for (const SlideWaypoint& waypoint : note.slides)
+        {
+            // An equal-fret waypoint is a HOLD, not a glide — nothing travels across it (the
+            // pitch is pinned, which is how a slide notated on a tied continuation records where
+            // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
+            // whole held stretch to arrive at a fret it never left, so holds fall through to the
+            // margin morph. The segment start still advances, which is what gives the following
+            // glide its true, shorter span.
+            if (waypoint.fret != segment_start_fret)
+            {
+                starts.try_emplace(
+                    advanceGridPosition(tempo_map, note.position, waypoint.offset),
+                    SlideRamp{.start_seconds = segment_start_seconds, .unpitched = false});
+            }
+            segment_start_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
+            segment_start_fret = waypoint.fret;
+        }
+        // The trail-off's own segment starts where the last pitched waypoint left off (the note's
+        // onset when there are none), which is exactly the span the rail is drawn over. Recording
+        // it ties the hand to that span and marks the family so the ease matches too.
+        if (const SlideOut* const slide_out = slideOutOrNull(note); slide_out != nullptr)
+        {
+            starts.try_emplace(
+                advanceGridPosition(tempo_map, note.position, slide_out->offset),
+                SlideRamp{.start_seconds = segment_start_seconds, .unpitched = true});
+        }
+    }
+    return starts;
+}
+
 } // namespace
 
-ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap& tempo_map)
+ChartViewState makeChartViewState(
+    const Arrangement& arrangement, const TempoMap& tempo_map, ChartNoteForm form)
 {
     ChartViewState state;
     if (!arrangement.chart.has_value())
@@ -51,20 +107,33 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
     const std::vector<ChartNote>& presented_notes = resolutions.presented_notes;
 
-    // Note onsets ascend, so the forward cursor resolves them in amortized constant time.
-    // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the
-    // plain resolver instead of a second cursor.
+    // The ONE place the form is read. It selects the stream the per-note VIEW fields below come
+    // from and nothing else in this function: the holds, the ramps, the span arrivals and their
+    // postures all keep reading the presented stream, which is what makes the two forms differ in
+    // `notes` alone. The editor's actual-ring reveal is the only caller asking for the saved form,
+    // and it draws that form as ordinary notation — techniques riding the real ring, with the
+    // payload presentation clipped restored, which a view-side end swap could not put back.
+    const std::vector<ChartNote>& drawn_notes =
+        form == ChartNoteForm::Actual ? resolutions.connections.saved_notes : presented_notes;
+
+    // Where each fret-hand placement's approach ramp begins, from the presented stream in either
+    // form; asked once for the whole chart and read by the placement pass at the bottom.
+    const std::map<GridPosition, SlideRamp> slide_ramp_starts =
+        makeSlideRampStarts(presented_notes, tempo_map);
+
+    // Note onsets ascend — presentation moves no note, so they ascend in either form — and the
+    // forward cursor resolves them in amortized constant time. Sustain ends and intra-note payload
+    // offsets can jump past later onsets, so those use the plain resolver instead of a second
+    // cursor.
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
-    std::map<GridPosition, SlideRamp> slide_ramp_starts;
-    state.notes.reserve(presented_notes.size());
-    state.display_hold_ends.reserve(presented_notes.size());
-    state.actual_end_seconds.reserve(presented_notes.size());
-    for (std::size_t note_index = 0; note_index < presented_notes.size(); ++note_index)
+    state.notes.reserve(drawn_notes.size());
+    state.display_hold_ends.reserve(drawn_notes.size());
+    state.actual_end_seconds.reserve(drawn_notes.size());
+    for (std::size_t note_index = 0; note_index < drawn_notes.size(); ++note_index)
     {
-        const ChartNote& note = presented_notes[note_index];
+        const ChartNote& note = drawn_notes[note_index];
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
-        // A scrape renders through the unpitched machinery end to end and never feeds the
-        // slide-locked ramps: it has no fret-hand anchor to ramp.
+        // A scrape's every waypoint is unpitched travel, the turnarounds included.
         const bool scrape = isScrape(note.attack);
         NoteViewState view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
@@ -74,9 +143,10 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
-        // The ACTUAL ring, read off the SAVED note the presented one above was derived from — the
-        // only place in the projection that reaches past presentation. Who may read it, and why
-        // no game surface may, is stated once on the field itself (chart_view_state.h).
+        // The ACTUAL ring, read off the SAVED note whichever form the notes above carry — in the
+        // actual form it restates that form's own end, which is what keeps the two states equal
+        // everywhere but `notes`. Who may read it, and why no game surface may, is stated once on
+        // the field itself (chart_view_state.h).
         state.actual_end_seconds.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.connections.saved_notes[note_index].sustain.toDouble()));
         view.string = note.string;
@@ -100,32 +170,15 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 });
         }
         view.slides.reserve(note.slides.size() + 1);
-        double glide_segment_start_seconds = view.start_seconds;
-        int glide_segment_start_fret = note.fret;
         for (const SlideWaypoint& waypoint : note.slides)
         {
-            const double waypoint_seconds =
-                tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
             view.slides.push_back(
                 SlideViewState{
-                    .seconds = waypoint_seconds,
+                    .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                        onset_beat + waypoint.offset.toDouble()),
                     .fret = waypoint.fret,
                     .unpitched = scrape,
                 });
-            // An equal-fret waypoint is a HOLD, not a glide — nothing travels across it (the
-            // pitch is pinned, which is how a slide notated on a tied continuation records where
-            // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
-            // whole held stretch to arrive at a fret it never left, so holds fall through to the
-            // margin morph. The segment start still advances, which is what gives the following
-            // glide its true, shorter span.
-            if (!scrape && waypoint.fret != glide_segment_start_fret)
-            {
-                slide_ramp_starts.try_emplace(
-                    advanceGridPosition(tempo_map, note.position, waypoint.offset),
-                    SlideRamp{.start_seconds = glide_segment_start_seconds, .unpitched = false});
-            }
-            glide_segment_start_seconds = waypoint_seconds;
-            glide_segment_start_fret = waypoint.fret;
         }
         // The unpitched slide-out flattens into the slide list; it owns its geometry. A scrape's
         // slide-out is its required terminal and flattens the same way.
@@ -138,24 +191,14 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                     .fret = slide_out->fret,
                     .unpitched = true,
                 });
-            // The trail-off's own segment starts where the last pitched waypoint left off (the
-            // note's onset when there are none), which is exactly the span the rail is drawn
-            // over. Recording it ties the hand to that span and marks the family so the ease
-            // matches too.
-            if (!scrape)
-            {
-                slide_ramp_starts.try_emplace(
-                    advanceGridPosition(tempo_map, note.position, slide_out->offset),
-                    SlideRamp{.start_seconds = glide_segment_start_seconds, .unpitched = true});
-            }
         }
         state.notes.push_back(std::move(view));
     }
 
     state.shapes.reserve(resolutions.shapes.size());
-    // The shared arrival rule, answered for every span in one pass — and asked of the same
-    // presented stream every per-note fact above comes from, because whether a string is still
-    // ringing across a span start is a question about what sounds, not about what is stored.
+    // The shared arrival rule, answered for every span in one pass — and asked of the PRESENTED
+    // stream in either form, because whether a string is still ringing across a span start is a
+    // question about what sounds, not about what is stored.
     const std::vector<bool> arrivals =
         chartShapeArrivals(presented_notes, resolutions.shapes, resolutions.postures, tempo_map);
     for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)

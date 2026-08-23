@@ -266,11 +266,62 @@ corpus-wide.
   traces where a tail of that length would sit. `paintTabLane`'s visible-span rule moved out to the
   exported `tabVisibleSpan` so the reveal culls through the same widened clip the notation does,
   against its own prefix maximum over the actual ends. The held key has ONE authority
-  (`ComponentPeer::getCurrentModifiersRealtime`) sampled by three callbacks, not a modifier
-  callback trusted as a feed: JUCE delivers `modifierKeysChanged` to the component under the
-  pointer and `juce::Slider` overrides it without forwarding, so a release over the output fader
-  would otherwise strand the outlines on with Alt physically up (corrected 2026-08-22 — focus gain
-  alone never covered that, only the Alt+Tab case).
+  (`ComponentPeer::getCurrentModifiersRealtime`), never a modifier callback trusted as a feed: JUCE
+  delivers `modifierKeysChanged` to the component under the pointer (else the focused one) and up
+  THAT chain, so `juce::Slider` can swallow it and a change over the 3D preview ends in the
+  preview's window. **Tracking ruled 2026-08-22/23** after the user sighted the tails stranded on
+  when Alt was released with the pointer over the preview: the modifier callback gives the instant
+  edge (the preview forwards its own deliveries through `PreviewWindow::modifierKeysChanged`),
+  the fabricated mouse move gives the ON edge a widget swallowed, a 30 Hz `juce::TimedCallback`
+  poll that exists only while the reveal is on gives the OFF edge that cannot be missed, and
+  keyboard focus leaving the editor window (`focusOfChildComponentChanged`, the window-level
+  predicate) is a release outright rather than a sample — Alt is still down mid-Alt+Tab. A gate
+  on focus (`revealed = focused && alt`) was rejected: the preview grabs focus when it opens, so
+  Alt over the lane with the preview open would then show nothing.
+
+  **The second look, behind a temporary toggle (2026-08-22).** The outline was one answer to "how
+  should the ring show"; the other is that the ring should simply BE the notation. So the lane now
+  draws, while Alt is held, the whole chart in a second projected form — every note's tail is its
+  real ring, techniques riding it, payload restored — and the outline path stays beside it so the
+  two can be flipped between. `F6` (`EditorCommandId::ToggleActualRingRevealStyle`, 0x130C, View)
+  is that flip, registry-routed like stage D's F1 and ticked in the View menu; **the default is
+  Tails, the thing being sighted**. Both the command and `ActualRingRevealStyle` are TEMPORARY:
+  the sighting picks one mark and the loser is deleted with everything only it needed.
+
+  - **One producer, a form parameter.** `makeChartViewState(arrangement, tempo_map, form)` with
+    `ChartNoteForm{Presented, Actual}`. The form selects ONE source reference for the per-note view
+    fields inside the note loop and nothing else in the function reads it: holds, spans and their
+    arrival kinds, fret-hand placements and their ramps, string count and capo all keep reading the
+    presented stream, so **the two forms differ in `notes` and in nothing else** — a contract the
+    projection's tests pin member by member. The slide-ramp table moved OUT of the note loop into
+    its own pass (`makeSlideRampStarts`) to make that structural rather than careful: the ramps are
+    the presented stream's answer, and a hand marker that jumped when the reveal was held would be
+    reporting the swap rather than the chart. A view-side end swap was rejected — the presented
+    state has already clipped the payload its trims removed, and no lengthening puts that back.
+  - **Scored = presented stays structural.** `makeHighwayViewState` composes the projection with no
+    form argument, so `ChartNoteForm::Actual` is unreachable from the board, the game and the
+    scorer. The reveal is also NON-hit-testable by ruling: hit testing, selection and Alt+click
+    insert keep reading the presented projection the controller published (Alt+wheel already acts
+    on the selection), and the 3D preview keeps the presented form with its `actual_end_seconds`
+    band.
+  - **The cost, accepted and flagged.** `EditorViewState::tab_actual` is memoized beside `tab`
+    under the same key (arrangement id + chart revision), so a sustain gesture now projects the
+    chart THREE times per wheel notch — it was already two, because `makeHighwayViewState`
+    composes its own `makeChartViewState` under the same key. Building it lazily would require
+    the controller to learn that the reveal is on, which `tab_view.h` forbids ("the controller
+    never learns of it"). Fine for a sighting; if Tails is signed, the shape that removes both the
+    cost and the form parameter is one producer returning both forms from a single
+    `chartResolutions` pass, which would make "equal outside `notes`" a fact of construction
+    rather than a test.
+  - **Two glyph consequences of drawing a form no rule touched, both accepted, both to sight.** A
+    DEAD note grows a tail (rule 4 is a presentation rule and the actual form has none) — Alt shows
+    what is STORED, and that tail reads as how long the mute is held. And a shift-slide's arrival
+    waypoint, which sits exactly at the presented end and so draws no glyph, sits strictly inside
+    the real ring and draws a mid-tail linked continuation head — a mark that appears only under
+    the reveal (`linkedWaypoint` is form-relative and correct in both, which its doc now states).
+  - **If OUTLINE wins instead**, the outline's cull returns to a prefix maximum over
+    `actual_end_seconds`: it currently culls and measures through the actual form's own notes and
+    index, which is one authority for a ring's length while both styles ship.
 - **C — done 2026-08-22.** Shape spans and their postures are DERIVED from the notes, per chart
   revision, in core: `deriveChartShapes(saved_notes, presented_notes, tempo_map)`
   (`chart/chart_shapes.h`) is the importer's `deriveChordShapes` ported unchanged onto the tempo
@@ -359,9 +410,11 @@ corpus-wide.
     order is submission order and nothing z-fights), so a band inside the lit window reads about a
     quarter quieter and slightly blue than one outside it. Moving the block past the light pass is
     a one-line alternative if that reads wrong.
-  - **Toggle, not held.** The 2D reveal is held under `Alt`; this latches. The preview is a
-    separate top-level window that the editor's realtime modifier sampling never reaches, and a
-    rig watched while navigating wants both hands free.
+  - **Toggle, not held.** The 2D reveal is held under `Alt`; this latches. The held reveal is
+    the main window's state (since the 2026-08-23 tracking change the preview forwards the
+    modifier changes JUCE hands it, so a held key is no longer out of reach there — the
+    remaining reason stands alone), and a rig watched while navigating with the caret keys wants
+    both hands free.
 
   **No GPU-free witness exists for the band's appearance** — `HighwayRenderer::draw` has no tests
   at all, by construction. What is tested is the pure clamp and the cull; the look is the

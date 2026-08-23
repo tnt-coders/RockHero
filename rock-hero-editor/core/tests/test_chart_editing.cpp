@@ -1,4 +1,6 @@
 #include <catch2/catch_approx.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <memory>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
@@ -535,6 +537,59 @@ TEST_CASE("EditorController clears chart selection on project load", "[core][cha
 
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     CHECK(state->chart_edit.selected_notes.empty());
+}
+
+// The lane is handed BOTH forms of the chart — the presented projection it draws and the
+// controller hit-tests against, and the actual-ring form the Alt reveal swaps to — published
+// together and rebuilt together under the one memo key. Rebuilding only the first is the silent
+// failure this pins: the reveal would then show a stale picture of exactly the ring the verb in
+// the user's hand is changing.
+TEST_CASE("EditorController publishes both chart forms together", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tab != nullptr);
+    REQUIRE(state->tab_actual != nullptr);
+    REQUIRE(state->tab->notes.size() == 3);
+    REQUIRE(state->tab_actual->notes.size() == state->tab->notes.size());
+
+    // The measure-2 pair is a chug — an eighth of a beat each — so presentation drops both tails
+    // and the lane draws bare heads at 2.0s, while the actual form draws the ring itself.
+    CHECK_THAT(
+        state->tab->notes[0].end_seconds,
+        Catch::Matchers::WithinULP(state->tab->notes[0].start_seconds, 0));
+    CHECK(state->tab_actual->notes[0].end_seconds == Catch::Approx(2.0625));
+
+    // Everything but the notes is the same answer in both forms, which is the projection's own
+    // contract; here it pins that the editor asked ONE producer twice rather than deriving a
+    // second scene some other way.
+    CHECK(state->tab->display_hold_ends == state->tab_actual->display_hold_ends);
+    CHECK(state->tab->shapes == state->tab_actual->shapes);
+    CHECK(state->tab->fret_hand_positions == state->tab_actual->fret_hand_positions);
+
+    // A chart edit rebuilds both: one grid step of the sustain verb grows the clicked note's ring
+    // by a beat (half a second at 120 BPM), and the reveal must show that immediately.
+    const std::shared_ptr<const common::core::ChartViewState> before = state->tab_actual;
+    click(controller, 40.0f, 220.0f);
+    controller.onChartSustainAdjustRequested(1, false);
+    REQUIRE(state->tab_actual != nullptr);
+    CHECK(state->tab_actual != before);
+    CHECK(state->tab_actual->notes[0].end_seconds == Catch::Approx(2.5625));
 }
 
 } // namespace rock_hero::editor::core

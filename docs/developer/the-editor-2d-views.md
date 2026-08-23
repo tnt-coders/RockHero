@@ -262,56 +262,96 @@ vertices every frame. A test pins that a tail looks the same however the repaint
 
 **The Alt reveal** is how the length you cannot see becomes visible while you author it. The lane
 draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is
-invisible wherever presentation trimmed or dropped it. Hold `Alt` and every *visible* note also
-gets that ring outlined at tail height, from its onset to
-`ChartViewState::actual_end_seconds[index]`; release and the lane snaps back. It is global while
-held, not selection-scoped: the question it answers ("what is really ringing here") is about the
-passage, not about the selection. `Alt` is the key because `Alt` is already the authoring gate —
-you see the ring while you are the one changing it.
+invisible wherever presentation trimmed or dropped it. Hold `Alt` and every *visible* note shows
+that ring; release and the lane snaps back. It is global while held, not selection-scoped: the
+question it answers ("what is really ringing here") is about the passage, not about the selection.
+`Alt` is the key because `Alt` is already the authoring gate — you see the ring while you are the
+one changing it.
 
-Five things about it are deliberate:
+**Two styles, one temporary toggle** (`F6`, `ToggleActualRingRevealStyle`). The mark is under
+sighting, so both candidates ship until one is chosen and the loser — with the command, the
+`ActualRingRevealStyle` enum, and whichever machinery only it needs — is deleted:
 
-- **Every visible note, not only the disagreeing ones.** An outline landing exactly on a drawn
-  tail *is* the statement "this is the whole ring"; a mark that appeared only on disagreement
-  would leave a reader unable to tell agreement from a reveal that is simply off.
+- **Tails** (the default, the thing being sighted). The lane redraws in the chart's ACTUAL form:
+  every note's tail is its real ring, with its techniques and its payload riding it. Nothing is
+  annotated, because the notation itself is the answer. Two glyph consequences follow from drawing
+  a form no presentation rule touched, and both are accepted: a **dead note grows a tail** (rule 4
+  is a presentation rule, and the actual form has no rules), which reads as how long the mute is
+  held; and a shift-slide's arrival, which sits exactly at the presented end, sits strictly inside
+  the real ring, so it draws the **linked continuation head** it never draws otherwise.
+- **Outline.** The notation stays the presented picture and each ring is annotated with a hairline
+  rectangle at tail height, from the onset to the ring's end.
+
+Seven things about it are deliberate:
+
+- **Every visible note, not only the disagreeing ones.** A mark landing exactly on a drawn tail
+  *is* the statement "this is the whole ring"; one that appeared only on disagreement would leave
+  a reader unable to tell agreement from a reveal that is simply off.
+- **The tail style needs a second PROJECTION, not a swapped end.** `EditorViewState::tab_actual`
+  is the same chart through `makeChartViewState(..., ChartNoteForm::Actual)`, published beside
+  `tab` under the same memo key. A view-side end swap was the obvious cheaper move and is wrong:
+  the presented state has already CLIPPED the payload points its trims removed, so a bend curve or
+  a trailing waypoint that left with the tail cannot be put back by lengthening it. The two forms
+  differ in `notes` and in nothing else — holds, spans and their arrival kinds, fret-hand
+  placements and their approach ramps, the string count and the capo are all derived from the
+  presented stream in either form, so swapping forms moves no other mark on the lane. It costs a
+  second projection per chart revision, which a sustain gesture bumps per wheel notch; that is
+  accepted for the sighting, and the reason it is not built lazily is that a lazy build would
+  require the controller to know the reveal is on, which the design forbids.
 - **The data is editor-only, and the projection says so.** `actual_end_seconds` rides
   `ChartViewState` beside `display_hold_ends`, resolved from the SAVED note rather than the
-  presented one. No game surface reads it and none may — **scored = presented**
-  (`docs/plans/in-progress/note-sustain-model.md` ruling 4) — and `NoteViewState` deliberately
-  does *not* gain the field: that struct is the presented form end to end, and a second undrawn
-  end inside it would hand every reader two lengths to choose between. Treat the summary here as
-  a gloss: the field's own Doxygen block (`chart_view_state.h`) is the one authoritative statement
-  of who may read it, and the projection site points there rather than restating it.
+  presented one; the outline style and the 3D band read it. No game surface reads it and none may
+  — **scored = presented** (`docs/plans/in-progress/note-sustain-model.md` ruling 4) — and that
+  contract holds structurally for the whole actual form too, because `makeHighwayViewState`
+  composes the projection with no form argument, so no board, game or scorer state can be anything
+  but presented. `NoteViewState` deliberately does *not* gain the field: that struct is one form
+  end to end, and a second undrawn end inside it would hand every reader two lengths to choose
+  between. Treat the summary here as a gloss: the field's own Doxygen block (`chart_view_state.h`)
+  is the one authoritative statement of who may read it, and the projection site points there
+  rather than restating it.
+- **The reveal is not hit-testable, in either style.** Hit testing, selection, marquee and
+  `Alt`+click insert all resolve against the presented projection the controller published
+  (`displayedTabProjection`), so a tail only the reveal draws cannot be clicked, boxed, or landed
+  on. `Alt`+wheel is unaffected because it acts on the selection, not on what is under the
+  pointer. Inside `TabView` this needs no enforcement: everything paint reads goes through
+  `drawn()`, and the only projection reads outside paint are the string count and whether a chart
+  exists, which are identical in both forms.
 - **The 3D preview has its own sighting of the same datum, and it is a LATCH, not a held key.**
   `F1` there cycles a floor band under each note — off, filled, outlined — running the same
   actual ring (`HighwayDiagnosticsOptions`, \ref guide_3d_highway). The idiom deliberately
-  differs from this lane's held `Alt`: the preview is a separate top-level window, so the
-  editor's realtime modifier sampling never reaches it, and a rig you are looking at while
-  navigating wants both hands free. Same fact, two surfaces, two idioms — the pattern the
-  highway and the tab already use for the hold.
-- **The outline is editor furniture, so it never enters the paint core.** It is drawn in
-  `TabView::paint` after `paintTabLane`, exactly like the selection ring, in
+  differs from this lane's held `Alt`: the held reveal is the main window's state (the preview
+  only reports the modifier changes JUCE hands it, see \ref guide_keyboard), and a rig you are
+  looking at while navigating with the caret keys wants both hands free. Same fact, two
+  surfaces, two idioms — the pattern the highway and the tab already use for the hold.
+- **The outline is editor furniture, so it never enters the paint core.** In that style the mark
+  is drawn in `TabView::paint` after `paintTabLane`, exactly like the selection ring, in
   `EditorTheme::lane_overlay` at half alpha — the ink the caret square and the insert ghost
   already share, because the reveal belongs to the same `Alt` family (what the next edit acts on)
   and because a mark in the *accent* on every visible note would read as a lane-wide selection.
-  Its rectangle comes from `tabNoteLayout`'s tail span, so it traces exactly where a tail of that
-  length would sit rather than restating the tail geometry; only the far edge is its own.
-- **It culls through the paint core's own window.** `tabVisibleSpan(metrics, clip)` is exported
-  from `tab_paint_core.h` for precisely this — host chrome that must cull by the same widened
-  clip the notation does — and `TabView` keeps a *second* prefix-maximum table over the actual
-  ends, because a ring outlasting its tail has to stay in range for as long as its outline is
-  drawn while the notation must not keep a note in range for a length it no longer draws.
+  Its rectangle is the actual form's own `tabNoteLayout` tail span, so it traces exactly where
+  that form's tail sits rather than restating the geometry. The tail style needs none of this: it
+  IS the notation, drawn by the shared paint core with no editor ink at all.
+- **Each form is culled by its own index.** `TabView` pairs every projection with the running
+  maximum of that form's note ends (`LaneForm`), so the notation never keeps a note in range for a
+  length it no longer draws and a ring outlasting its tail stays in range for as long as it is
+  drawn. The tail style culls inside `paintTabLane` with the drawn form's table; the outline style
+  culls in its own loop with the actual form's, through `tabVisibleSpan(metrics, clip)` — exported
+  from `tab_paint_core.h` for precisely this, host chrome that must cull by the same widened clip
+  the notation does.
 
 The key itself never reaches the editor core. `EditorView::syncActualRingReveal` asks the OS
 whether `Alt` is down and hands the answer to `TabView::setActualRingReveal`, which repaints only
 on a change. No JUCE callback reliably reports a held modifier, so that one authority —
 `juce::ComponentPeer::getCurrentModifiersRealtime()`, the realtime query rather than the cached
-modifier state — is sampled by every callback that could follow a change: `modifierKeysChanged`,
-`focusGained` (the `Alt`+Tab release, delivered to another application), and `mouseMove` registered
-for all nested children. That last one is not belt-and-braces: a `juce::Slider` under the pointer
-overrides `modifierKeysChanged` without forwarding, so the transition never reaches `EditorView` at
-all, and only the mouse move JUCE fabricates on every modifier change gets there.
-\ref guide_keyboard has the general shape.
+modifier state — is sampled by edge: `modifierKeysChanged` for the instant edge wherever JUCE
+delivers it (the 3D preview forwards its own deliveries, whose parent chain would otherwise end in
+that window); `mouseMove`, registered for all nested children, for the ON edge a widget swallowed
+(a `juce::Slider` under the pointer overrides `modifierKeysChanged` without forwarding, and only
+the mouse move JUCE fabricates on every modifier change gets through); and a 30 Hz poll that runs
+only while the reveal is on, for the OFF edge that cannot be missed — a release while the pointer
+is over the 3D window, or anywhere else, shows within one tick. Keyboard focus leaving the editor
+window is treated as a release outright (`focusOfChildComponentChanged`), not sampled: `Alt` is
+still down mid-`Alt`+Tab. \ref guide_keyboard has the general shape.
 
 ## Tone track — `ToneTrackView`
 

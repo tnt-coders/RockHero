@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -62,6 +63,24 @@ supplies bounds sized against \ref g_tab_reference_string_count.
 */
 [[nodiscard]] float tabLaneCenterY(
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept;
+
+/*!
+\brief Which mark the actual-ring reveal makes while it is held.
+
+TEMPORARY, and the toggle that flips it is temporary with it (stage B of
+`docs/plans/in-progress/note-sustain-model.md`): the two are the same question asked two ways, the
+sighting picks one, and the loser is deleted along with this enum. Both draw the same span — each
+visible note's onset to its ACTUAL ring end — and differ only in whether that span is annotated or
+drawn as notation.
+*/
+enum class ActualRingRevealStyle : std::uint8_t
+{
+    /*! \brief A hairline rectangle at tail height over the presented notation, marking the ring. */
+    Outline,
+
+    /*! \brief The actual ring drawn as an ordinary note tail, techniques and payload riding it. */
+    Tails,
+};
 
 /*!
 \brief Renders the chart tablature over the arrangement waveform lane.
@@ -124,21 +143,36 @@ public:
     /*!
     \brief Turns the actual-ring reveal on or off; repaints only when the state changes.
 
-    While it is on, every visible note additionally outlines the ring the string ACTUALLY sounds
-    for (\ref common::core::ChartViewState::actual_end_seconds) over the presented tail this lane
-    draws. The editor holds it on for as long as the Alt key is — the sustain gesture's own
-    modifier — so the length being authored is visible while it is authored, and releasing snaps
-    the lane back to the presented picture.
+    While it is on, every visible note shows the ring the string ACTUALLY sounds for over the
+    presented tail this lane normally draws — as an outline, or by drawing the whole lane in the
+    actual form, per \ref setActualRingRevealStyle. The editor holds it on for as long as the Alt
+    key is — the sustain gesture's own modifier — so the length being authored is visible while it
+    is authored, and releasing snaps the lane back to the presented picture.
 
-    A held state, not a mode: nothing here latches, and the editor re-samples the live key state
-    at every point a change could have gone unseen — its modifier callback, focus gain, and
-    pointer motion anywhere in its window — so a release nothing delivered cannot strand the
-    outlines on. The key itself is the shell's business — this lane, like everything headless
-    below it, knows only the state.
+    A held state, not a mode: nothing here latches. The editor re-samples the live key state at
+    every point a change could have gone unseen and keeps polling it for as long as the reveal is
+    on, so a release nothing delivered cannot strand the reveal on; another window taking the
+    keyboard is treated as a release. The key itself is the shell's business — this lane, like
+    everything headless below it, knows only the state.
 
     \param revealed True while the reveal modifier is held.
     */
     void setActualRingReveal(bool revealed);
+
+    /*!
+    \brief Chooses which mark the reveal makes; repaints only when it is currently held.
+
+    TEMPORARY, with the sighting it serves (\ref ActualRingRevealStyle).
+
+    \param style Mark the reveal draws while held.
+    */
+    void setActualRingRevealStyle(ActualRingRevealStyle style);
+
+    /*!
+    \brief Returns the reveal's current style, for the menu tick beside its command.
+    \return Mark the reveal draws while held.
+    */
+    [[nodiscard]] ActualRingRevealStyle actualRingRevealStyle() const noexcept;
 
     /*!
     \brief Reports whether the lane wants the pointer at a lane-local position.
@@ -197,16 +231,23 @@ public:
     void setVisibleTimeline(common::core::TimeRange visible_timeline);
 
     /*!
-    \brief Applies the current tab projection and lane-count preference.
+    \brief Applies the current tab projections and lane-count preference.
 
-    The projection is compared by pointer identity: the controller rebuilds it only when the
-    displayed arrangement changes, so identical pointers mean identical content.
+    Both forms of one chart arrive together, because the reveal must be able to swap between them
+    inside a single repaint with no controller round trip. The projections are compared by pointer
+    identity: the controller rebuilds them only when the displayed arrangement or the chart
+    revision changes, so identical pointers mean identical content.
 
     \param tab Seconds-resolved tab projection, or null when the arrangement has no chart.
+    \param tab_actual The same chart with every note at its actual ring, or null with no chart.
+           Absent, the reveal has nothing to show: the tail style keeps drawing the presented form
+           and the outline style draws no outline.
     \param minimum_displayed_strings User minimum lane count; zero means match the chart.
     */
     void setState(
-        std::shared_ptr<const common::core::ChartViewState> tab, int minimum_displayed_strings);
+        std::shared_ptr<const common::core::ChartViewState> tab,
+        std::shared_ptr<const common::core::ChartViewState> tab_actual,
+        int minimum_displayed_strings);
 
     /*!
     \brief Draws the visible notes and sustains onto the lane.
@@ -235,8 +276,28 @@ public:
     [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
 
 private:
-    // Rebuilds the prefix-maximum end tables (presented tails, actual rings) after the projection
-    // changes.
+    // One drawable form of the chart, with the visibility index that belongs to it: the running
+    // maximum of ITS OWN note ends, which every cull over those notes runs against. Pairing them
+    // is what stops a form from ever being culled by the other form's reach — the notation must
+    // not keep a note in range for a length it no longer draws, and the reveal must keep a ring
+    // in range for as long as it is drawn.
+    struct LaneForm
+    {
+        std::shared_ptr<const common::core::ChartViewState> state{};
+        std::vector<double> prefix_max_end_seconds{};
+    };
+
+    // The form this lane draws right now: the actual one only while the reveal is held AND its
+    // style says to draw notation rather than annotate it. Everything in paint reads the
+    // projection through this, so the two pictures cannot half-swap.
+    //
+    // The pointer path deliberately does NOT: the controller hit-tests, selects and inserts
+    // against the presented projection it published, so the reveal shows a length nothing can be
+    // clicked on. Nothing here has to enforce that, because the only reads outside paint are the
+    // string count and whether a chart exists, which are identical in both forms.
+    [[nodiscard]] const LaneForm& drawn() const noexcept;
+
+    // Rebuilds both forms' prefix-maximum end tables after the projections change.
     void rebuildVisibilityIndex();
 
     // The armed caret square's rectangle under the given metrics, when one should draw: the
@@ -253,8 +314,11 @@ private:
     // row, so unlike the automation lanes this needs no per-frame tick.
     void publishCaretMask();
 
-    // Seconds-resolved tab projection shared with the controller; null without a chart.
-    std::shared_ptr<const common::core::ChartViewState> m_tab{};
+    // The chart's two forms, shared with the controller; both null without a chart. The presented
+    // one is the lane's ordinary picture and the one the controller resolves pointers against; the
+    // actual one is the reveal's.
+    LaneForm m_presented{};
+    LaneForm m_actual{};
 
     // Chart-editing overlay state (selection indices, marquee) pushed by the editor.
     core::ChartEditViewState m_edit{};
@@ -271,24 +335,20 @@ private:
     // Last caret mask handed to the sink, so a republish only fires on an actual change.
     std::optional<juce::Range<float>> m_published_caret_mask{};
 
-    // True while the reveal modifier is held, so paint adds every visible note's actual-ring
-    // outline. Not part of ChartEditViewState: the controller never learns of it, because which
-    // key is down is a fact about this window and nothing headless may branch on it.
+    // True while the reveal modifier is held, so paint shows every visible note's actual ring.
+    // Not part of ChartEditViewState: the controller never learns of it, because which key is
+    // down is a fact about this window and nothing headless may branch on it.
     bool m_actual_ring_reveal{false};
+
+    // Which mark the reveal makes. Tails is the default because it is the thing being sighted;
+    // both it and the toggle that flips it are temporary (ActualRingRevealStyle).
+    ActualRingRevealStyle m_reveal_style{ActualRingRevealStyle::Tails};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
-
-    // Running maximum of note end times, aligned with the projection's note order.
-    std::vector<double> m_prefix_max_end_seconds{};
-
-    // The same running maximum over the notes' ACTUAL ring ends, which the reveal culls by: a
-    // ring outlasting its presented tail must stay in visible range for exactly as long as its
-    // outline is drawn, and the table above stops at the tails.
-    std::vector<double> m_prefix_max_actual_end_seconds{};
 };
 
 } // namespace rock_hero::editor::ui

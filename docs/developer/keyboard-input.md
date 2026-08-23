@@ -80,42 +80,63 @@ chords. Everything else is plumbing that keeps focus in the right place:
 # Held modifiers: the one key that is a state, not a chord
 
 Everything above turns a keystroke into a *verb*. One key does not: **holding `Alt` reveals each
-visible note's actual ring in the 2D tab lane** (a dimmed outline at tail height past the presented
-tail), and releasing it snaps the lane back. Nothing is invoked, nothing is undoable, and the
-mapping set is not involved at all — the whole path is
+visible note's actual ring in the 2D tab lane**, and releasing it snaps the lane back. Nothing is
+invoked, nothing is undoable, and the mapping set is not involved at all — the whole path is
 `EditorView::syncActualRingReveal` → `TabView::setActualRingReveal`, repainting only on a change.
 `Alt` is the key because `Alt` is already the authoring gate, and the ring it shows is exactly what
 `Alt`+wheel edits; see \ref guide_2d_views for the mark itself.
 
-The 3D preview shows the *same* ring and deliberately does **not** copy the idiom: `F1` there is an
-ordinary registered command that latches a floor band through three states. A held modifier reaches
-that window through none of the machinery below — it is a separate top-level window, and
-`syncActualRingReveal` samples for the main one — and a rig you watch while navigating wants both
-hands free. A held state that has to survive a window boundary is the case to reach for a latch in.
+WHICH mark it makes is an ordinary command, which is the split worth noticing: the held state is
+not registrable, but the preference that shapes it is, so `F6`
+(`EditorCommandId::ToggleActualRingRevealStyle`) flips the reveal between drawing the rings as
+tails and outlining them — registered, rebindable, ticked in the View menu, exactly like `F5` or
+`F8`. It registers always-active because it latches a display preference that is meaningful with
+no chart open, and because a disabled command whose chord matches makes JUCE sound the system
+alert. It is temporary: the sighting picks one mark and the command goes with the loser.
 
-A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. Three facts
+The 3D preview shows the *same* ring and deliberately does **not** copy the idiom: `F1` there is an
+ordinary registered command that latches a floor band through three states. The held modifier is
+the main window's state — the preview only reports the modifier changes JUCE hands it, through
+the hook below — and a rig you watch while navigating wants both hands free. A held state that has
+to survive a window boundary is the case to reach for a latch in.
+
+A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. Four facts
 before adding a second held-modifier state:
 
 - **`modifierKeysChanged` is a hint, not a feed.** JUCE delivers it to the component under the
-  mouse pointer, falling back to the focused one when the pointer is over none, and `Component`'s
-  own implementation forwards it up the parent chain — which is why an override on `EditorView`
-  hears `Alt` from anywhere in the window, and why an override must keep forwarding. But a widget
-  may override it *without* forwarding (`juce::Slider` does), and then a transition under that
-  widget never arrives; and a release delivered while another application holds the keyboard
-  (`Alt`+Tab) never arrives either.
+  mouse pointer, falling back to the focused one when the pointer is over none
+  (`ComponentPeer::handleModifierKeysChange`), and `Component`'s own implementation forwards it up
+  *that component's* parent chain — which is why an override on `EditorView` hears `Alt` from
+  anywhere in the window, and why an override must keep forwarding. But a widget may override it
+  *without* forwarding (`juce::Slider` does), and then a transition under that widget never
+  arrives; a change while the pointer is over the 3D preview, or while the preview holds the
+  keyboard, walks the preview's chain and ends at `PreviewWindow`; and a release delivered while
+  another application holds the keyboard (`Alt`+Tab) never arrives at all.
 - **The state has one authority: `juce::ComponentPeer::getCurrentModifiersRealtime()`.** The
   *realtime* query asks the OS, where the cached `ModifierKeys::currentModifiers` is refreshed
   before focus gain on Windows and is not on macOS. The peer owns that seam, so one line is true on
   all three platforms. `EditorView::syncActualRingReveal` is the only place that reads it, and it
   reads it even inside `modifierKeysChanged` rather than trusting the modifiers that callback was
   handed — one way to answer the question, not two.
-- **Every callback that could follow a change samples that authority.** Three do:
-  `modifierKeysChanged`; `focusGained`, for the `Alt`+Tab release; and `mouseMove`, registered for
-  all nested children via `addMouseListener(this, true)`. That last one is what closes the swallow,
-  because `Component::internalModifierKeysChanged` fabricates a mouse move on *every* modifier
-  change — so even a transition a widget ate still produces an event somewhere in the window — and
-  it also catches a pointer returning from another window of the app, whose parent chain
-  terminates before `EditorView`.
+- **The samplers divide the work by edge.** `modifierKeysChanged` gives the instant edge wherever
+  JUCE delivers it to the editor, and `PreviewWindow::modifierKeysChanged` forwards the preview's
+  own deliveries to the same sampler so a release over the 3D window is instant too. `mouseMove`,
+  registered for all nested children via `addMouseListener(this, true)`, gives the ON edge a
+  widget swallowed: `Component::internalModifierKeysChanged` fabricates a mouse move on *every*
+  modifier change, so even a press a widget ate still produces an event somewhere in the window.
+  And a `juce::TimedCallback` poll at 30 Hz, running **only while the reveal is on** — started when
+  it turns on, stopped when it turns off, nonexistent otherwise — is the authority for the OFF edge
+  that cannot be missed: a release delivered anywhere, or nowhere, shows within one tick wherever
+  the pointer is. Every path that changes the reveal goes through `EditorView::setActualRingReveal`,
+  which is what keeps the lane's state and the poll's lifetime from ever disagreeing.
+- **Another window taking the keyboard is a release, not a sample.**
+  `EditorView::focusOfChildComponentChanged` forces the reveal off when `hasKeyboardFocus(true)`
+  turns false — it is the one focus callback that reports the *window's* focus (JUCE fires it when
+  that predicate changes, and the predicate counts the view itself), so focus moving from the
+  output fader to the lane is not a loss, while another application, the preview (which grabs
+  focus when opened and when clicked), or a plugin window taking it is. It does not read the key:
+  `Alt` is still physically down during an `Alt`+Tab away, and sampling would keep the reveal on
+  in a window the user just left.
 
 # Decoding
 

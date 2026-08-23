@@ -229,6 +229,207 @@ TEST_CASE("Chart projection carries each note's actual ring", "[core][chart]")
     CHECK(state.actual_end_seconds[6] == Catch::Approx(13.125 * beat));
 }
 
+// The ACTUAL form draws each note at the ring the string really sounds for — the editor reveal's
+// whole picture. Where no rule trimmed anything the two forms agree; where presentation dropped a
+// tail outright, this form is the only one that has it.
+TEST_CASE("Chart projection draws the actual form at each note's ring", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const ChartViewState presented = makeChartViewState(makeArrangementWithChart(), tempo_map);
+    const ChartViewState actual =
+        makeChartViewState(makeArrangementWithChart(), tempo_map, ChartNoteForm::Actual);
+
+    REQUIRE(actual.notes.size() == 7);
+    REQUIRE(presented.notes.size() == actual.notes.size());
+
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+
+    // The fixture's last note is a lone eighth with no technique, so rule 3 presents it no tail at
+    // all — bit-exactly its own onset, the way the projection assigns it across — while the actual
+    // form draws the eighth it rings for.
+    CHECK_THAT(
+        presented.notes[6].end_seconds,
+        Catch::Matchers::WithinULP(presented.notes[6].start_seconds, 0));
+    CHECK(actual.notes[6].end_seconds == Catch::Approx(13.125 * beat));
+
+    // A note no rule trimmed is the same note in both forms.
+    CHECK(actual.notes[0].end_seconds == Catch::Approx(5.0 * beat));
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(5.0 * beat));
+
+    // The parallel ring array is unchanged by the form, so in the actual form it restates that
+    // form's own note ends — bit-exactly, since both resolve the same saved sustain.
+    REQUIRE(actual.actual_end_seconds.size() == actual.notes.size());
+    for (std::size_t index = 0; index < actual.notes.size(); ++index)
+    {
+        CHECK_THAT(
+            actual.actual_end_seconds[index],
+            Catch::Matchers::WithinULP(actual.notes[index].end_seconds, 0));
+    }
+}
+
+// Payload is what a view-side end swap could never restore, and the reason the reveal asks for a
+// whole projected form: the presentation trim CLIPS the points its shortened tail no longer
+// contains, so the presented note is missing them for good. A trailing bend point and a trailing
+// hold waypoint, both past the margin trim and neither changing anything, are exactly that case.
+TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // Four beats of ring reaching exactly the next onset (so rule 1 trims to the margin rather
+        // than presenting it whole), carrying two informative points early and two repeats late.
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{4},
+            .bend =
+                {
+                    BendPoint{.offset = Fraction{1}, .semitones = 2.0},
+                    BendPoint{.offset = Fraction{39, 10}, .semitones = 2.0},
+                },
+            .slides =
+                {
+                    SlideWaypoint{.offset = Fraction{2}, .fret = 7},
+                    SlideWaypoint{.offset = Fraction{39, 10}, .fret = 7},
+                },
+        },
+        // The binding onset the trim measures against.
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 2,
+            .fret = 3,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .slides = {},
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
+    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
+    REQUIRE(presented.notes.size() == 2);
+    REQUIRE(actual.notes.size() == 2);
+
+    // 120 BPM 4/4: a beat is half a second and the margin is a quarter of one, so the presented
+    // tail stops at 3.75 beats and the ring runs the full four.
+    CHECK(presented.notes[0].end_seconds == Catch::Approx(1.875));
+    CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
+
+    // The points past that trim left with the tail, and only the actual form still has them.
+    CHECK(presented.notes[0].bend.size() == 1);
+    REQUIRE(actual.notes[0].bend.size() == 2);
+    CHECK(actual.notes[0].bend[1].seconds == Catch::Approx(1.95));
+    CHECK(presented.notes[0].slides.size() == 1);
+    REQUIRE(actual.notes[0].slides.size() == 2);
+    CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.95));
+}
+
+// The form contract: the two states differ in their NOTES and in nothing else. Everything a
+// surface draws besides the notes — the holds, the hand-shape spans and their arrival kinds, the
+// fret-hand placements and their approach ramps, the string count, the capo, the parallel ring
+// array — is derived from the presented stream whichever form is asked for, so the editor's reveal
+// swaps note tails and moves no other mark on the lane.
+TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const Arrangement arrangement = makeArrangementWithChart();
+
+    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
+    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
+
+    CHECK(presented.string_count == actual.string_count);
+    CHECK(presented.capo == actual.capo);
+    CHECK(presented.shapes == actual.shapes);
+    CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
+    CHECK(presented.display_hold_ends == actual.display_hold_ends);
+    CHECK(presented.actual_end_seconds == actual.actual_end_seconds);
+    // ... and the notes are genuinely a different picture, or the fixture would prove nothing.
+    CHECK_FALSE(presented.notes == actual.notes);
+
+    REQUIRE(presented.notes.size() == actual.notes.size());
+    for (std::size_t index = 0; index < presented.notes.size(); ++index)
+    {
+        const NoteViewState& drawn = presented.notes[index];
+        const NoteViewState& ring = actual.notes[index];
+        // Presentation touches the tail alone, so every other per-note fact — the resolved legato
+        // motion included, which is read off the saved stream in both forms — comes through equal.
+        CHECK_THAT(ring.start_seconds, Catch::Matchers::WithinULP(drawn.start_seconds, 0));
+        CHECK(ring.string == drawn.string);
+        CHECK(ring.fret == drawn.fret);
+        CHECK(ring.attack == drawn.attack);
+        CHECK(ring.legato == drawn.legato);
+        CHECK(ring.palm_mute == drawn.palm_mute);
+        CHECK(ring.dead == drawn.dead);
+        CHECK(ring.harmonic_node == drawn.harmonic_node);
+        CHECK(ring.vibrato == drawn.vibrato);
+        CHECK(ring.tremolo == drawn.tremolo);
+        CHECK(ring.emphasis == drawn.emphasis);
+        // No presentation rule ever lengthens a tail past its stored ring.
+        CHECK(ring.end_seconds >= drawn.end_seconds);
+    }
+}
+
+// The hand's approach ramps are the derivation most exposed to the swap, because a placement can
+// be slide-locked to a gesture end that PRESENTATION MOVED: a slide-out compresses back with the
+// trimmed tail, so its grid position — the ramp table's key — is one position in the presented
+// stream and another in the saved one. The table is built from the presented stream in either
+// form, so both answer with the same margin morph; read it off the drawn stream instead and the
+// actual form alone locks this placement to a four-beat unpitched glide, and the hand marker
+// visibly jumps the moment the reveal is held.
+TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        // Four beats of ring ending exactly on the next onset, trailing off unpitched at its very
+        // end: the margin trim pulls the tail to 3.75 beats and the terminal compresses with it.
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 5,
+            .sustain = Fraction{4},
+            .bend = {},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{4}, .fret = 12},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 2,
+            .fret = 3,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .slides = {},
+        },
+    };
+    // Exactly where the STORED terminal lands, which is where the presented one no longer is.
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 9, .width = 4},
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const ChartViewState presented = makeChartViewState(arrangement, tempo_map);
+    const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
+
+    // The trim is real: the terminal moved in the presented form and stayed put in the actual one.
+    REQUIRE(presented.notes.size() == 2);
+    REQUIRE(actual.notes.size() == 2);
+    REQUIRE(presented.notes[0].slides.size() == 1);
+    REQUIRE(actual.notes[0].slides.size() == 1);
+    CHECK(presented.notes[0].slides[0].seconds == Catch::Approx(1.875));
+    CHECK(actual.notes[0].slides[0].seconds == Catch::Approx(2.0));
+
+    // 120 BPM 4/4: the margin morph is a quarter beat, an eighth of a second — in both forms.
+    REQUIRE(presented.fret_hand_positions.size() == 1);
+    CHECK(presented.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
+    CHECK_FALSE(presented.fret_hand_positions[0].unpitched_ramp);
+    CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
+}
+
 TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
 {
     Arrangement arrangement = makeArrangementWithChart();
@@ -241,6 +442,10 @@ TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
     CHECK(state.actual_end_seconds.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
+
+    // The form does not reach the no-chart exit, so the reveal's state is empty exactly when the
+    // lane's is — the editor publishes them together and neither can be the odd one out.
+    CHECK(makeChartViewState(arrangement, makeTempoMap(), ChartNoteForm::Actual) == state);
 }
 
 // The two lengths a note has on screen, and where each comes from: `end_seconds` is the PRESENTED
