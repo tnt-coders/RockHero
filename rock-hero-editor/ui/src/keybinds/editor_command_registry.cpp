@@ -134,6 +134,14 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::ToggleActualRingBand,
+            .name = "Actual Ring Band (3D Preview)",
+            .category = "View",
+            // F1 means "show me the diagnostic" in the game already; the editor had it free.
+            .default_keypresses = {chord(juce::KeyPress::F1Key)},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
             // "at Cursor" = the marker rule (E2): the armed caret when one exists, else the
             // transport position — the same "one position concept" play follows, so the insert

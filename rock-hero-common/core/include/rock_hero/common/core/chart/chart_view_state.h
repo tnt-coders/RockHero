@@ -423,11 +423,14 @@ struct ChartViewState
     the stored form's positive-sustain invariant — unlike \ref NoteViewState::end_seconds, which
     equals the onset wherever no tail is presented.
 
-    **Read by the editor's Alt reveal alone.** While Alt is held the 2D lane outlines every
-    visible note's actual ring, so the length the sustain verbs author is visible while it is
-    being authored (Alt is that gesture's own modifier). No game surface reads it and none may:
-    **scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4), and asking
-    a player to hold a note for a length nothing ever drew is exactly what that ruling forbids.
+    **Two editor-only sightings read it; no game surface does, and none may.** The 2D lane
+    outlines each visible note's ring while Alt is held, and the editor's 3D preview lays it on
+    the board floor as a diagnostics band — so the length the sustain verbs author is visible on
+    either surface while it is being authored. The rule those two obey and any third reader must:
+    **scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4), because
+    asking a player to hold a note for a length nothing ever drew is exactly what that ruling
+    forbids. This is the ONE statement of that invariant; every other site — the projection that
+    fills the array, the tests, the developer guide — points here rather than restating it.
 
     It sits here rather than on \ref NoteViewState deliberately. That struct is the presented form
     end to end — every field of it describes what is drawn — and a second, undrawn end inside it

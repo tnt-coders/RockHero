@@ -1,7 +1,8 @@
 # Note sustain model — actual durations stored, presentation derived
 
 **Status:** In progress on branch `note-sustain-experiment`. Stage A built 2026-08-21 (A1–A3 plus
-D1); stages B and C built 2026-08-22. Stage D remains undecided.
+D1); stages B, C and D built 2026-08-22. Every stage now awaits the sighting — D most of all,
+since it is a rig for making the other decisions rather than a decision itself.
 
 **Authored** 2026-08-21 out of the span-end discussion (review item 13), the short-tail hole the
 user found in the 2D lane, and the MIDI-playback requirement.
@@ -315,7 +316,56 @@ corpus-wide.
   the `H` verb — which run at every caret move, seek and selection change, and read nothing else —
   were deriving the whole song's presented stream, spans and holds on every keystroke and throwing
   all three away. `ChartResolutions` carries the connections rather than restating them.
-- **D** — sighting experiments behind diagnostics toggles: a 3D floor band for the actual ring.
+- **D — built 2026-08-22, unsighted.** The editor preview's actual-ring band: `F1` cycles a floor
+  band under each visible note running from its onset to `ChartViewState::actual_end_seconds`, off
+  → filled → outlined → off. It is a SIGHTING RIG, not a signed look — the numbers below are
+  starting points, and the rig exists to decide whether the band earns a place at all.
+
+  The switch is `HighwayRenderer::setDiagnosticsOptions(HighwayDiagnosticsOptions)`, a draw-time
+  POD deliberately kept OFF `HighwayDisplayOptions`: those ride the memoized `HighwayViewState`,
+  so a toggle the user presses to look at something would re-project the whole chart. The game
+  cannot switch it on, and that is a composition-root guarantee rather than a compiled-out one —
+  the only caller is `PreviewSurface`, reached from an `EditorCommandId` the game does not link,
+  and plan 20 Q5 answer A already ruled against build-define gating for diagnostics.
+
+  **The cull needed a second prefix maximum**, exactly as the 2D reveal did: the note pass's
+  visible range keys on `display_hold_ends`, so a note whose presented tail rule 3 emptied leaves
+  that range immediately after its onset while its ring is still crossing the board.
+  `Impl::actual_ring_prefix_max` is that table, built per chart load in both products.
+
+  **The clamp is now stated once.** `highwayVisibleSpan` (`highway_floor_band.h`, tested in
+  `test_highway_floor_band.cpp`) is the one rule for how a drawn span is bounded — from the later
+  of the onset and the hit line to the earlier of its own end and the horizon, empty when those
+  cross. The sustain tail asks it with the presented end and the band with the actual one; the
+  tail's three inline conditions were folded onto it in the same change.
+
+  Decisions taken while building, each open to reversal at the sighting:
+
+  - **Look.** Plain white `0xFFFFFFFF`, achromatic and in no notation family, reading as furniture
+    by PLANE (it lies on the floor) rather than by ink — 3D has no theme seam, and exporting
+    `EditorTheme` into `common/ui` so a shared renderer could tint one editor mark would invert the
+    dependency. Half-width twice the tail's so a rim shows beside a coinciding tail; drawn for
+    EVERY visible note, as the 2D reveal is. Fill = 0.16 body plus a 0.5 end cap one attack-line
+    long; Outline = two 0.02-half-width rails plus the same cap at 0.35. The cap draws only where
+    the ring genuinely ends inside the window — one at the horizon would claim an end the chart
+    does not have. Named constants at the top of `highway_renderer.cpp`; they are what the
+    sighting tunes.
+  - **Straight, never bent.** The band ignores `slide_state_at` and `note_y_at`: it answers a
+    DURATION question and the tail directly above it already draws the pitch path.
+  - **Two tradeoffs to weigh, both from being floor furniture.** It fades toward the hit line
+    through `color_fade_program` like all floor furniture, so a short ring — whose whole answer
+    sits near the hit line — dissolves with it; sight that case first. And it draws *before* the
+    hand-window light, which occupies the same 0.008 plane (no floor pass writes depth, so plane
+    order is submission order and nothing z-fights), so a band inside the lit window reads about a
+    quarter quieter and slightly blue than one outside it. Moving the block past the light pass is
+    a one-line alternative if that reads wrong.
+  - **Toggle, not held.** The 2D reveal is held under `Alt`; this latches. The preview is a
+    separate top-level window that the editor's realtime modifier sampling never reaches, and a
+    rig watched while navigating wants both hands free.
+
+  **No GPU-free witness exists for the band's appearance** — `HighwayRenderer::draw` has no tests
+  at all, by construction. What is tested is the pure clamp and the cull; the look is the
+  sighting's job.
 
 ## Rulings recorded (2026-08-21)
 

@@ -82,8 +82,11 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    once belongs in a small pure unit beside it instead. `highway_head_marks.h` is the pattern:
    which atlas cell a head's connection mark uses (`highwayLegatoCell`) and whether the head takes
    the darker technique base (`highwayTechHead`), both `constexpr`, both covered by
-   `test_highway_head_marks.cpp`. Reach for that shape whenever a draw-path branch is a *rule*
-   rather than geometry.
+   `test_highway_head_marks.cpp`. `highway_floor_band.h` is the same shape one level smaller:
+   `highwayVisibleSpan` is the single clamp a drawn span obeys — from the later of the onset and
+   the hit line to the earlier of its own end and the horizon, empty when those cross — asked by
+   the sustain tail with the presented end and by the actual-ring band with the actual one. Reach
+   for that shape whenever a draw-path branch is a *rule* rather than geometry.
 
 3. **Two shells** feed it frames. That is the entire product-specific surface.
 
@@ -210,7 +213,7 @@ head through a later one — and the renderer clamps its pin further with
 re-shown chord takes over the pinned display. That clamp is board-only presentation with no 2D
 counterpart to diverge from.
 
-# Two visual paths: chart visuals vs screen-space overlays
+# Three visual paths: chart visuals, screen-space overlays, world-space diagnostics
 
 Before extending anything, pick the right path — they do not share a checklist:
 
@@ -222,6 +225,24 @@ Before extending anything, pick the right path — they do not share a checklist
   text. `DiagnosticsOverlay` (`game/ui/src/overlay/`) is the HUD exemplar — record data during
   the frame, `buildRects()`, draw. The game's menu bar renders the same way. Extending
   `HighwayViewState` for a HUD element is the wrong path.
+- **World-space diagnostics** are neither, and the actual-ring band is the first of them. Like a
+  chart visual it lives in world space and reads the projected scene; like an overlay it is a
+  *switch* the viewer flips, not part of what the chart says. It draws in the ordinary drawer path
+  from a datum already on the state, and it is switched through
+  `HighwayRenderer::setDiagnosticsOptions(HighwayDiagnosticsOptions)` — a small POD that is
+  emphatically **not** part of `HighwayDisplayOptions`, because those ride the memoized
+  `HighwayViewState` and a look-at-it toggle must not re-project the chart it is looking at. The
+  overlay path cannot express one of these at all: `HighwayOverlayRect` is axis-aligned pixels,
+  and a band lying on a perspective floor is a trapezoid that moves every frame.
+
+  Two rules come with the path. **Answering the 2D lane does not apply** — a diagnostic states no
+  new chart fact, so the two-surfaces law is not engaged (the actual-ring band and the 2D lane's
+  `Alt` reveal happen to be the same datum on both surfaces, but neither owes the other an idiom).
+  And **the game is kept out by composition, not by a build define**: the only caller of
+  `setDiagnosticsOptions` is the editor's `PreviewSurface`, reached from an `EditorCommandId` the
+  game does not link, so the game's board runs on the default-constructed value. Compiling
+  diagnostics out of shipped builds was ruled against long ago (plan 20 open question 5, answer
+  A — release-build timing bugs have to stay observable), so there is no `#ifdef` here to find.
 
 # Extending the highway — silent steps
 

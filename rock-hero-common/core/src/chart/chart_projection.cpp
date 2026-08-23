@@ -75,8 +75,8 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
         // The ACTUAL ring, read off the SAVED note the presented one above was derived from — the
-        // only place in the projection that reaches past presentation, and the editor's Alt reveal
-        // is its only consumer (ruling 4: what a game surface scores is the presented form).
+        // only place in the projection that reaches past presentation. Who may read it, and why
+        // no game surface may, is stated once on the field itself (chart_view_state.h).
         state.actual_end_seconds.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.connections.saved_notes[note_index].sustain.toDouble()));
         view.string = note.string;

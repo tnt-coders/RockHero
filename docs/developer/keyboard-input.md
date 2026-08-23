@@ -61,13 +61,16 @@ chords. Everything else is plumbing that keeps focus in the right place:
   so it sets `setWantsKeyboardFocus(false)` and overrides `keyPressed` to return `false`.
   Transport, signal-chain, and plugin-tile buttons decline focus for the same reason.
 - **The 3D preview window** wants focus for itself (its render surface hosts a native child
-  window). It forwards a whitelist — the Play/Pause and preview-toggle *commands* only, resolved
-  through the command mappings rather than hardcoded chords, so future rebinds of rebindable
-  commands stay honored — through a `std::function` injected by `EditorView` (44-Q4: transport
-  keys only; editing shortcuts stay with the main window). One layer below JUCE, the preview surface
-  installs a Win32 window proc that bounces `WM_SETFOCUS` off the bgfx render child back to the
-  JUCE peer (`ui/src/preview/preview_surface.cpp`) — without it the native child swallows every
-  key. That focus-bounce is a recorded watch item; treat it as an invariant of the preview port.
+  window). It forwards a whitelist of thirteen *commands* through a `std::function` injected by
+  `EditorView`; membership is resolved through the command mappings rather than hardcoded
+  chords, so future rebinds of rebindable commands stay honored. The thirteen are Play/Pause,
+  the preview toggle, the song-navigation verbs, the grid pair, and the actual-ring band's own
+  `F1` — a diagnostic drawn in that very window has to be switchable from it (44-Q4: transport
+  keys only; editing shortcuts stay with the main window). One layer below JUCE, the preview
+  surface installs a Win32 window proc that bounces `WM_SETFOCUS` off the bgfx render child
+  back to the JUCE peer (`ui/src/preview/preview_surface.cpp`) — without it the native child
+  swallows every key. That focus-bounce is a recorded watch item; treat it as an invariant of
+  the preview port.
 - **Modal overlays own their keys.** `BusyOverlay::keyPressed` grabs focus and swallows
   everything while a busy operation runs; the themed message box and the audio-device failure
   overlay handle Return/Esc themselves. A key that "does nothing" during busy is the overlay
@@ -83,6 +86,12 @@ mapping set is not involved at all — the whole path is
 `EditorView::syncActualRingReveal` → `TabView::setActualRingReveal`, repainting only on a change.
 `Alt` is the key because `Alt` is already the authoring gate, and the ring it shows is exactly what
 `Alt`+wheel edits; see \ref guide_2d_views for the mark itself.
+
+The 3D preview shows the *same* ring and deliberately does **not** copy the idiom: `F1` there is an
+ordinary registered command that latches a floor band through three states. A held modifier reaches
+that window through none of the machinery below — it is a separate top-level window, and
+`syncActualRingReveal` samples for the main one — and a rig you watch while navigating wants both
+hands free. A held state that has to survive a window boundary is the case to reach for a latch in.
 
 A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. Three facts
 before adding a second held-modifier state:
@@ -390,7 +399,9 @@ For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
    locks ids and default chords") — it fails on any unrecorded id or default change by design.
 5. **Menu items go through `addEditorCommandItem`** (`key_chord_text.h`), never raw
    `addCommandItem` — one line in `getMenuForIndex`, and the live shortcut text renders through
-   the shared `keyChordText` formatter so menus never drift from the dialog chips.
+   the shared `keyChordText` formatter so menus never drift from the dialog chips. A command
+   whose category already has a top-level menu belongs in that menu: the Actions dialog groups by
+   the same category, so one that is missing reads as an omission and is reachable only by chord.
 6. **Plugin-window mirroring is automatic** for the trio (the sync pushes every mapping
    change); a *new* command that should also fire from plugin windows means extending the
    `PluginWindowShortcutBindings` seam, not adding predicates. The 3D preview whitelist is

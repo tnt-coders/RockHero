@@ -269,7 +269,7 @@ held, not selection-scoped: the question it answers ("what is really ringing her
 passage, not about the selection. `Alt` is the key because `Alt` is already the authoring gate —
 you see the ring while you are the one changing it.
 
-Four things about it are deliberate:
+Five things about it are deliberate:
 
 - **Every visible note, not only the disagreeing ones.** An outline landing exactly on a drawn
   tail *is* the statement "this is the whole ring"; a mark that appeared only on disagreement
@@ -279,7 +279,16 @@ Four things about it are deliberate:
   presented one. No game surface reads it and none may — **scored = presented**
   (`docs/plans/in-progress/note-sustain-model.md` ruling 4) — and `NoteViewState` deliberately
   does *not* gain the field: that struct is the presented form end to end, and a second undrawn
-  end inside it would hand every reader two lengths to choose between.
+  end inside it would hand every reader two lengths to choose between. Treat the summary here as
+  a gloss: the field's own Doxygen block (`chart_view_state.h`) is the one authoritative statement
+  of who may read it, and the projection site points there rather than restating it.
+- **The 3D preview has its own sighting of the same datum, and it is a LATCH, not a held key.**
+  `F1` there cycles a floor band under each note — off, filled, outlined — running the same
+  actual ring (`HighwayDiagnosticsOptions`, \ref guide_3d_highway). The idiom deliberately
+  differs from this lane's held `Alt`: the preview is a separate top-level window, so the
+  editor's realtime modifier sampling never reaches it, and a rig you are looking at while
+  navigating wants both hands free. Same fact, two surfaces, two idioms — the pattern the
+  highway and the tab already use for the hold.
 - **The outline is editor furniture, so it never enters the paint core.** It is drawn in
   `TabView::paint` after `paintTabLane`, exactly like the selection ring, in
   `EditorTheme::lane_overlay` at half alpha — the ink the caret square and the insert ghost

@@ -1,7 +1,7 @@
 # Catch2 covers the shared string-color palette data, the Charter-exact derivation math, the
-# highway atlas layout arithmetic, the head-mark decisions the 3D draw pass reads, and the tab
-# feature: lane geometry, the layout manifest, and the notation paint core's software-rasterized
-# pixel output.
+# highway atlas layout arithmetic, the head-mark decisions and floor-span clamp the 3D draw pass
+# reads, and the tab feature: lane geometry, the layout manifest, and the notation paint core's
+# software-rasterized pixel output.
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
@@ -10,6 +10,7 @@ add_executable(
     test_box_mute_profile.cpp
     test_head_art_profile.cpp
     test_highway_atlas.cpp
+    test_highway_floor_band.cpp
     test_highway_head_marks.cpp
     test_render_device.cpp
     test_string_color_palette.cpp

@@ -196,9 +196,9 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
 }
 
 // The ACTUAL ring rides the projection beside the presented tail, resolved from the SAVED note
-// rather than the presented one. The editor's Alt reveal is its only reader — no game surface may
-// have it, because scored is the presented form (note-sustain-model.md ruling 4) — and it is
-// sized like the notes because the reveal indexes both by note index.
+// rather than the presented one. Which surfaces may read it, and why no game surface may, is
+// stated once on the field itself (chart_view_state.h) rather than restated here. What this test
+// pins is the shape: one entry per note, because every reader indexes the two together.
 TEST_CASE("Chart projection carries each note's actual ring", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();

@@ -196,6 +196,9 @@ bool PreviewSurface::bringUpRenderer()
     }
     m_renderer.emplace(std::move(*renderer));
     m_state_dirty = m_state != nullptr;
+    // A fresh renderer starts with the default (off) diagnostics, so a band switched on before
+    // this open — or before a retried bring-up — has to be re-applied here or it silently stops.
+    applyDiagnosticsOptions();
     return true;
 #else
     return false;
@@ -237,6 +240,27 @@ void PreviewSurface::setHighwayState(std::shared_ptr<const common::core::Highway
 void PreviewSurface::setCaretSeconds(const std::optional<double> seconds)
 {
     m_caret_seconds = seconds;
+}
+
+void PreviewSurface::setActualRingBand(const common::ui::ActualRingBand band)
+{
+    m_diagnostics.actual_ring_band = band;
+    applyDiagnosticsOptions();
+}
+
+common::ui::ActualRingBand PreviewSurface::actualRingBand() const noexcept
+{
+    return m_diagnostics.actual_ring_band;
+}
+
+// The renderer is created lazily (and can be absent after a failed bring-up), so every push of
+// the diagnostics options asks first; the stored value is the authority either way.
+void PreviewSurface::applyDiagnosticsOptions()
+{
+    if (m_renderer.has_value())
+    {
+        m_renderer->setDiagnosticsOptions(m_diagnostics);
+    }
 }
 
 void PreviewSurface::resized()

@@ -3,6 +3,7 @@
 #include "highway/head_art_profile.h"
 #include "highway/highway_atlas.h"
 #include "highway/highway_emphasis_styles.h"
+#include "highway/highway_floor_band.h"
 #include "highway/highway_head_marks.h"
 
 #include <algorithm>
@@ -395,6 +396,31 @@ constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
 constexpr double g_shape_rail_core_half_width = 0.075;
 constexpr double g_shape_rail_fade_half_width = 0.225;
+
+// The actual-ring diagnostics band (the editor's stage-D sighting rig; see the draw pass for what
+// it states and why it draws where it does). Every number here is what the sighting tunes, so
+// each is named rather than spelled at the one site that reads it.
+//
+// PLAIN WHITE, at the one alpha per part. White is achromatic and belongs to no notation family
+// on this board (the string palette, the chord box's teal, the beat bars' blue, the arpeggio
+// purple all mean something), and 3D has no theme seam a diagnostic could borrow from —
+// EditorTheme lives in the editor, and exporting it into common/ui so a shared renderer could
+// tint one editor mark would invert the dependency. So the band reads as furniture by PLANE: it
+// lies on the floor with the runway ribbons and the shape rails, under the content it annotates.
+constexpr ArgbColor g_actual_ring_band_color = 0xFFFFFFFF;
+// Between the lane ribbons (0.004) and the beat bars (0.015): the floor itself stays at y = 0 and
+// content is raised off it (the floor law), so a new floor mark takes a height in that stack
+// rather than moving the plane.
+constexpr double g_actual_ring_band_y = 0.008;
+// Half-width as a multiple of the tail's, so a rim of band shows on both sides of a coinciding
+// tail rather than hiding exactly underneath it.
+constexpr double g_actual_ring_band_width_in_tails = 2.0;
+constexpr double g_actual_ring_band_fill_alpha = 0.16;
+constexpr double g_actual_ring_band_outline_alpha = 0.35;
+// The cap at the ring's end is the datum the whole rig exists to read, so it is the brightest
+// part of the mark in both variants.
+constexpr double g_actual_ring_band_cap_alpha = 0.5;
+constexpr double g_actual_ring_band_rail_half_width = 0.02;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -1641,6 +1667,8 @@ struct FrameScratch
     std::vector<std::uint16_t> box_glow_indices;
     std::vector<PosColorUvVertex> number_vertices;
     std::vector<std::uint16_t> number_indices;
+    std::vector<PosColorVertex> actual_ring_vertices;
+    std::vector<std::uint16_t> actual_ring_indices;
     std::vector<std::size_t> visible;
     std::vector<double> lane_key;
     std::vector<double> window_times;
@@ -1667,6 +1695,8 @@ struct FrameScratch
         box_glow_indices.clear();
         number_vertices.clear();
         number_indices.clear();
+        actual_ring_vertices.clear();
+        actual_ring_indices.clear();
         visible.clear();
         lane_key.clear();
         window_times.clear();
@@ -1737,12 +1767,21 @@ struct HighwayRenderer::Impl
     int displayed_count{0};
     int extra_lanes{0};
     std::vector<double> sustain_prefix_max;
+    // A SECOND prefix maximum, over the ACTUAL rings, for the diagnostics band alone. The two
+    // culls answer different questions and neither table can serve both: the note range above is
+    // keyed on display_hold_ends, and a note whose presented tail the drop rule emptied leaves
+    // that range immediately after its onset while the ring the band draws is still running.
+    // Built on every chart load, in both products, rather than lazily when the band switches on —
+    // one vector per load against a branch plus a mutable cache, and the band's own toggle is
+    // what stays free of scene work.
+    std::vector<double> actual_ring_prefix_max;
     // Natural-harmonic node series, derived once per chart revision like sustain_prefix_max:
     // the draw path labels and suppresses from this table instead of re-walking every note.
     std::vector<common::core::HighwayNodeSeries> node_series;
     // Longest FHP approach ramp, for windowSampleTimes' exact early-out: an arrival this far
     // past a window's end cannot reach back into it, and neither can any later arrival.
     double max_fhp_ramp_seconds{0.0};
+    HighwayDiagnosticsOptions diagnostics{};
     FrameScratch scratch;
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
@@ -1977,11 +2016,14 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     // reading past a vector inside the frame loop.
     assert(m_impl->state.chart.display_hold_ends.size() == m_impl->state.chart.notes.size());
     assert(m_impl->state.note_group.size() == m_impl->state.chart.notes.size());
+    assert(m_impl->state.chart.actual_end_seconds.size() == m_impl->state.chart.notes.size());
     m_impl->displayed_count = common::core::displayedStringCount(
         m_impl->state.chart.string_count, m_impl->state.options.minimum_string_count);
     m_impl->extra_lanes = m_impl->displayed_count - m_impl->state.chart.string_count;
     m_impl->sustain_prefix_max =
         common::core::makeSustainPrefixMax(m_impl->state.chart.display_hold_ends);
+    m_impl->actual_ring_prefix_max =
+        common::core::makeSustainPrefixMax(m_impl->state.chart.actual_end_seconds);
     m_impl->node_series = common::core::makeHighwayNodeSeries(m_impl->state.chart.notes);
     m_impl->max_fhp_ramp_seconds = 0.0;
     for (const common::core::FhpViewState& fhp : m_impl->state.chart.fret_hand_positions)
@@ -1990,6 +2032,14 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     }
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
+}
+
+// Draw-time only: no retained geometry is rebuilt and no chart datum is re-derived, so a toggle
+// costs one assignment and lands on the very next frame (HighwayDiagnosticsOptions states why
+// that separation is the point).
+void HighwayRenderer::setDiagnosticsOptions(const HighwayDiagnosticsOptions options)
+{
+    m_impl->diagnostics = options;
 }
 
 void HighwayRenderer::draw(
@@ -2317,6 +2367,147 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(g_lane_border_color | 0xFF000000U, alpha));
         }
 
+        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+    }
+
+    // --- Actual-ring band: the EDITOR's sighting rig for the note-sustain model, off on every
+    // shipped surface (HighwayDiagnosticsOptions::actual_ring_band). Under each visible note it
+    // lays a quiet floor band running from the onset to the note's ACTUAL ring end — how long the
+    // string really sounds, which presentation may have trimmed to a margin, floored on payload,
+    // or dropped to nothing, so on a dropped tail the band is the only mark of the ring at all.
+    //
+    // Drawn STRAIGHT: never through slide_state_at or note_y_at, and never lifted by a bend. The
+    // band answers a DURATION question, and the tail directly above it already draws the pitch
+    // path — bending the band along a glide would restate that path in the one mark whose whole
+    // job is length, and a reader could no longer tell which of the two was the subject.
+    //
+    // Drawn for EVERY visible note, exactly as the 2D reveal is: a band landing flush with a
+    // drawn tail IS the statement "this is the whole ring", and a mark that appeared only where
+    // the two ends disagree would leave a reader unable to tell agreement from a rig that is off.
+    //
+    // Two things to weigh while sighting, both consequences of being floor furniture:
+    //
+    // It fades toward the hit line through color_fade_program like every other floor mark, so the
+    // near end of a band dissolves — and a short ring, whose whole answer lives near the hit line,
+    // dissolves with it.
+    //
+    // And it draws BEFORE the hand-window light, which occupies this exact plane (both at 0.008;
+    // no floor pass writes depth, so plane order is submission order and nothing z-fights). The
+    // light composites over the band at its own quarter alpha, so a band inside the lit window
+    // reads about a quarter quieter and slightly blue than one outside it. Moving this block past
+    // the light pass is the one-line alternative if that reads wrong.
+    if (diagnostics.actual_ring_band != ActualRingBand::Off)
+    {
+        // Re-asserted here, never hoisted to the top of draw(): bgfx latches a uniform per submit,
+        // so a value another pass set does not carry into this batch.
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
+        std::vector<PosColorVertex>& vertices = scratch.actual_ring_vertices;
+        std::vector<std::uint16_t>& indices = scratch.actual_ring_indices;
+        // Culled by the rings' OWN prefix maximum (Impl::actual_ring_prefix_max states why the
+        // note pass's table cannot serve here), so a bounded scan still reaches a note whose
+        // presented tail left the visible set the instant its onset passed.
+        const auto [first_band, last_band] = common::core::visibleEventRange(
+            state.chart.notes, actual_ring_prefix_max, span_start_seconds, span_end_seconds);
+        for (std::size_t band_index = first_band; band_index < last_band; ++band_index)
+        {
+            const common::core::NoteViewState& note = state.chart.notes[band_index];
+            const double actual_end_seconds = state.chart.actual_end_seconds[band_index];
+            // The same clamp the sustain tail obeys, asked rather than restated, so the band and
+            // the tail above it can never disagree about where this note's span begins.
+            const std::optional<std::pair<double, double>> band_span = highwayVisibleSpan(
+                note.start_seconds, actual_end_seconds, now_seconds, span_end_seconds);
+            if (!band_span.has_value())
+            {
+                continue;
+            }
+            const double band_from = band_span->first;
+            const double band_to = band_span->second;
+
+            // Lane X: a fretted band straddles the note's own fretboard anchor at twice the tail
+            // half-width, so a rim shows on both sides of a tail sitting on it; an open string's
+            // spans the hand window inset by the tail margin, the treatment its own tail takes.
+            // Sampled once, at the band's start, rather than followed along a mid-band window
+            // move: this mark is a length, and the tail above it is what tracks the hand.
+            double x0 = 0.0;
+            double x1 = 0.0;
+            if (!common::core::openString(note))
+            {
+                const double center = noteFretboardX(note, note.fret, metrics, mirrored);
+                const double half =
+                    common::core::highwayTailHalfWidth(metrics) * g_actual_ring_band_width_in_tails;
+                x0 = center - half;
+                x1 = center + half;
+            }
+            else
+            {
+                const auto [window_x0, window_x1] =
+                    handWindowXAt(state, band_from, metrics, mirrored);
+                x0 = window_x0 + g_open_tail_margin;
+                x1 = window_x1 - g_open_tail_margin;
+                if (!(x1 > x0))
+                {
+                    continue; // a tapered neck's window can narrow past the insets mid-morph
+                }
+            }
+
+            const double z_from = time_to_z(band_from);
+            const double z_to = time_to_z(band_to);
+            switch (diagnostics.actual_ring_band)
+            {
+                case ActualRingBand::Fill:
+                {
+                    pushFloorQuad(
+                        vertices,
+                        indices,
+                        x0,
+                        x1,
+                        g_actual_ring_band_y,
+                        z_from,
+                        z_to,
+                        packAbgr(g_actual_ring_band_color, g_actual_ring_band_fill_alpha));
+                    break;
+                }
+                case ActualRingBand::Outline:
+                {
+                    const std::uint32_t rail =
+                        packAbgr(g_actual_ring_band_color, g_actual_ring_band_outline_alpha);
+                    for (const double rail_x : {x0, x1})
+                    {
+                        pushFloorQuad(
+                            vertices,
+                            indices,
+                            rail_x - g_actual_ring_band_rail_half_width,
+                            rail_x + g_actual_ring_band_rail_half_width,
+                            g_actual_ring_band_y,
+                            z_from,
+                            z_to,
+                            rail);
+                    }
+                    break;
+                }
+                case ActualRingBand::Off:
+                {
+                    break; // unreachable; the whole pass is gated on it above
+                }
+            }
+
+            // The cap, shared by both variants, sized like the measure downbeats' attack line.
+            // Only where the ring genuinely ENDS inside the visible window: a cap sitting at the
+            // horizon because the clamp stopped there would claim an end the chart does not have,
+            // and the far edge is the one datum this rig exists to read.
+            if (actual_end_seconds <= span_end_seconds)
+            {
+                pushFloorQuad(
+                    vertices,
+                    indices,
+                    x0,
+                    x1,
+                    g_actual_ring_band_y,
+                    z_to - g_attack_line_half_length,
+                    z_to + g_attack_line_half_length,
+                    packAbgr(g_actual_ring_band_color, g_actual_ring_band_cap_alpha));
+            }
+        }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
@@ -4080,10 +4271,16 @@ void HighwayRenderer::Impl::draw(
         // Sustain tail: from the hit line (while sounding) or the onset to the sustain end, as
         // Charter's three-band ribbon (solid edges around a translucent core). Technique
         // notes modulate the centerline, sampled adaptively in screen space.
-        if (note.end_seconds > note.start_seconds && note.end_seconds > now_seconds)
+        //
+        // The visible span is the shared clamp (highway_floor_band.h), which subsumes the three
+        // conditions this used to spell out — a tail with no length, one already behind the hit
+        // line, and one clamped to nothing at the horizon all report the same empty span.
+        if (const std::optional<std::pair<double, double>> tail_span = highwayVisibleSpan(
+                note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
+            tail_span.has_value())
         {
-            const double tail_from = std::max(note.start_seconds, now_seconds);
-            const double tail_to = std::min(note.end_seconds, span_end_seconds);
+            const double tail_from = tail_span->first;
+            const double tail_to = tail_span->second;
 
             // The tail's alpha envelope, ramped at both ends for different reasons.
             //
@@ -4138,7 +4335,9 @@ void HighwayRenderer::Impl::draw(
                 return stations;
             };
             std::array<double, 4> band{};
-            bool band_valid = tail_to > tail_from;
+            // The span itself is non-empty by construction now; only an open tail can still
+            // collapse, on a window too narrow for its insets.
+            bool band_valid = true;
             double base_x = 0.0;
             if (!common::core::openString(note))
             {
@@ -4156,7 +4355,7 @@ void HighwayRenderer::Impl::draw(
                 // [tail_from, tail_to] the window is constant across the whole visible tail, so
                 // tail_from is exact.
                 band = open_band_stations(tail_from);
-                band_valid = band_valid && (band[3] - band[0] > 2.0 * g_open_tail_margin);
+                band_valid = band[3] - band[0] > 2.0 * g_open_tail_margin;
                 base_x = (band[0] + band[3]) / 2.0;
             }
 

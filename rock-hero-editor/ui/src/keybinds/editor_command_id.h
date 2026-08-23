@@ -86,6 +86,17 @@ enum class EditorCommandId : std::uint16_t
     // its decision signed (2026-08-17/19); retired ids are never revived.
 
     /*!
+    \brief Cycle the 3D preview's actual-ring diagnostics band (`F1`): off, fill, outline.
+
+    The sighting rig for the note-sustain model's stage D: a floor band under each note running
+    the ACTUAL ring the string sounds for, which the presented tail above it may have trimmed or
+    dropped. Deliberately a LATCH where the 2D lane's equivalent reveal is held under `Alt` —
+    the preview is a separate top-level window the editor's `Alt` sampling never reaches, and a
+    sighting rig wants both hands free while it is on.
+    */
+    ToggleActualRingBand = 0x130B,
+
+    /*!
     \brief Insert a tone-change marker at the cursor (`Ctrl+T`).
 
     The marker rule: the armed caret when one exists, else the transport position.

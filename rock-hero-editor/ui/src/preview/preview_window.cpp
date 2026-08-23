@@ -80,6 +80,16 @@ void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
     m_surface->setCaretSeconds(seconds);
 }
 
+void PreviewWindow::setActualRingBand(const common::ui::ActualRingBand band)
+{
+    m_surface->setActualRingBand(band);
+}
+
+common::ui::ActualRingBand PreviewWindow::actualRingBand() const noexcept
+{
+    return m_surface->actualRingBand();
+}
+
 void PreviewWindow::closeButtonPressed()
 {
     close();

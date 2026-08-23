@@ -82,6 +82,23 @@ public:
     */
     void setCaretSeconds(std::optional<double> seconds);
 
+    /*!
+    \brief Sets the form of the renderer's actual-ring diagnostics band.
+
+    Held here rather than in the renderer's caller because the renderer is created lazily on first
+    open (and re-created after a failed bring-up), so a toggle can land while none exists; this
+    surface is the one place that knows whether it does.
+
+    \param band Band form to draw from the next frame on.
+    */
+    void setActualRingBand(common::ui::ActualRingBand band);
+
+    /*!
+    \brief Reports the actual-ring band form currently set.
+    \return The band form, whether or not a renderer exists to draw it.
+    */
+    [[nodiscard]] common::ui::ActualRingBand actualRingBand() const noexcept;
+
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
 
@@ -100,6 +117,11 @@ private:
     // re-initializing bgfx; returns whether the renderer is now live. Failure leaves the device
     // untouched so a later open can retry.
     bool bringUpRenderer();
+
+    // Pushes the stored diagnostics options at the renderer when one exists. The one place that
+    // statement lives: bring-up and every later toggle both route through it, so a band switched
+    // on before the first open survives to the frame that can draw it.
+    void applyDiagnosticsOptions();
 
     // Renders one frame: clock sample, highway draw, present.
     void renderFrame();
@@ -131,6 +153,11 @@ private:
 
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};
+
+    // Draw-time diagnostics switches (the actual-ring band). Not part of the highway display
+    // options: those ride the memoized view state, so putting a look-at-it toggle there would
+    // re-project the chart on every press.
+    common::ui::HighwayDiagnosticsOptions m_diagnostics{};
 
     // One warning per attach when the embedded child window unexpectedly disappears.
     // maybe_unused for the same non-Windows reason as m_child_window.

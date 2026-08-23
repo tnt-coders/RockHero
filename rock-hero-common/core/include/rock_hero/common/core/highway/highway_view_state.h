@@ -23,7 +23,15 @@
 namespace rock_hero::common::core
 {
 
-/*! \brief Display-mapping flags applied as pure math the renderer never sees. */
+/*!
+\brief Display-mapping flags the renderer applies while drawing, carried with the projected scene.
+
+Every field here is read per frame in `highway_renderer.cpp` — the fret axis reflects, the lanes
+stack, the padding resolves — so the chart scene underneath stays one chart fact and no consumer
+projects a second, per-display copy of it. The cost of riding the memoized view state is that
+changing one of these re-projects the chart, which is why a draw-time DIAGNOSTIC switch belongs in
+\ref common::ui::HighwayDiagnosticsOptions instead and not here.
+*/
 struct HighwayDisplayOptions
 {
     /*! \brief True to reflect the fret axis for left-handed display. */

@@ -12,6 +12,7 @@
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/ui/highway/highway_renderer.h>
 
 namespace rock_hero::editor::ui
 {
@@ -71,6 +72,18 @@ public:
     \param seconds Armed caret seconds, or nullopt while the marker is passive.
     */
     void setCaretSeconds(std::optional<double> seconds);
+
+    /*!
+    \brief Sets the form of the surface's actual-ring diagnostics band.
+    \param band Band form to draw from the next frame on.
+    */
+    void setActualRingBand(common::ui::ActualRingBand band);
+
+    /*!
+    \brief Reports the actual-ring band form the surface currently holds.
+    \return The band form.
+    */
+    [[nodiscard]] common::ui::ActualRingBand actualRingBand() const noexcept;
 
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;

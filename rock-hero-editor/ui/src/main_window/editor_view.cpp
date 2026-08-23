@@ -1070,6 +1070,9 @@ void EditorView::togglePreviewWindow()
                 static constexpr std::array g_preview_commands{
                     EditorCommandId::PlayPause,
                     EditorCommandId::TogglePreview3D,
+                    // The actual-ring band is drawn in this very window, so its key has to work
+                    // while the preview holds focus — that is the whole point of the latch.
+                    EditorCommandId::ToggleActualRingBand,
                     EditorCommandId::CaretStepLeft,
                     EditorCommandId::CaretStepRight,
                     EditorCommandId::CaretMeasureJumpLeft,
@@ -1113,6 +1116,37 @@ void EditorView::togglePreviewWindow()
                 : std::nullopt);
         m_preview_window->open();
     }
+}
+
+// Steps the preview's actual-ring band through its three forms. No-op with no preview window: the
+// command registers as disabled then, and the band has no board to draw on either way.
+void EditorView::cycleActualRingBand()
+{
+    if (m_preview_window == nullptr)
+    {
+        return;
+    }
+    using common::ui::ActualRingBand;
+    const ActualRingBand next = [&] {
+        switch (m_preview_window->actualRingBand())
+        {
+            case ActualRingBand::Off:
+            {
+                return ActualRingBand::Fill;
+            }
+            case ActualRingBand::Fill:
+            {
+                return ActualRingBand::Outline;
+            }
+            case ActualRingBand::Outline:
+            {
+                break;
+            }
+        }
+        return ActualRingBand::Off;
+    }();
+    m_preview_window->setActualRingBand(next);
+    m_command_manager.commandStatusChanged();
 }
 
 // True when there is a chart to act on at all: a projected tab scene with at least one string. The
@@ -1289,6 +1323,10 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleWaveform);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleUndoHistory);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::TogglePreview3D);
+        // Directly under the window it draws in, and greyed out while that window is closed
+        // (getCommandInfo). Every "View" command belongs in this menu: the Actions dialog groups
+        // by the same category, so one missing here is a command only its chord can reach.
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleActualRingBand);
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -1436,6 +1474,17 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
             info.setActive(m_state.project_loaded || preview_open);
             info.setTicked(preview_open);
+            break;
+        }
+        case EditorCommandId::ToggleActualRingBand:
+        {
+            // Only meaningful while the board it draws on is open; ticked whenever the band is
+            // showing in either of its two forms.
+            const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
+            info.setActive(preview_open);
+            info.setTicked(
+                preview_open &&
+                m_preview_window->actualRingBand() != common::ui::ActualRingBand::Off);
             break;
         }
         // InsertToneChange and the grammar verbs (plan 53 Phase 1b) stay always-active on
@@ -1620,6 +1669,11 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 togglePreviewWindow();
             }
+            return true;
+        }
+        case EditorCommandId::ToggleActualRingBand:
+        {
+            cycleActualRingBand();
             return true;
         }
         case EditorCommandId::InsertToneChange:

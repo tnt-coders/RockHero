@@ -307,15 +307,17 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   path allocates its wobble times, sample times, samples, lifts, and shaded vectors per note;
   `floor_numbers` no longer `stable_sort`s, and `makeHighwayTailSampleTimes` is bounded by one
   sample budget (2026-08-21), but it still allocates. All belong in `FrameScratch`, cleared in
-  `clearForFrame()`. Same review: seventeen whole-song scans remain in `draw()` over arrays that
-  are time-ascending and already have the bounded idiom beside them (`handWindowMovesWithin`
-  next to the bounded `windowSampleTimes`; the beat scan at one site next to its `lower_bound`
-  twin), four of them scanning from index 0 to now so their cost grows with playback position;
-  `StringLaneStyle` is derived per visible note with six of seven fields unread; slide-run
-  boundaries are recomputed per tail sample; and the tail-shade smoothing is O(S x W) where two
-  running sums make it O(S). In the 2D lane, the per-note bracket rescan and the per-chip
-  HarfBuzz shaping are per-song at minimum zoom, and the shapes' visible range still scans from
-  the song start for want of a prefix maximum of span ends.
+  `clearForFrame()`. The actual-ring diagnostics band (2026-08-22) is the compliant example and
+  adds nothing to either count: its batch lives in `FrameScratch` and its scan is a bounded
+  `visibleEventRange` over its own prefix maximum. Same review: seventeen whole-song scans remain
+  in `draw()` over arrays that are time-ascending and already have the bounded idiom beside them
+  (`handWindowMovesWithin` next to the bounded `windowSampleTimes`; the beat scan at one site
+  next to its `lower_bound` twin), four of them scanning from index 0 to now so their cost grows
+  with playback position; `StringLaneStyle` is derived per visible note with six of seven fields
+  unread; slide-run boundaries are recomputed per tail sample; and the tail-shade smoothing is
+  O(S x W) where two running sums make it O(S). In the 2D lane, the per-note bracket rescan and
+  the per-chip HarfBuzz shaping are per-song at minimum zoom, and the shapes' visible range still
+  scans from the song start for want of a prefix maximum of span ends.
 - **The song-select menu has no viewport.** `rock-hero-game/ui/src/game/game.cpp` draws one row
   per library entry from a fixed origin. At 100 songs on 1080p, rows past 64 are off-screen, the
   key-hint footer never appears, and selecting song 80 puts the highlight bar at y = 1328 — the

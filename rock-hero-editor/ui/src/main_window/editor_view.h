@@ -537,6 +537,11 @@ private:
     // Shows or hides the 3D preview window (View > 3D Preview, or F3).
     void togglePreviewWindow();
 
+    // Steps the preview's actual-ring diagnostics band Off -> Fill -> Outline -> Off (F1). A
+    // latch rather than the 2D reveal's held Alt: the preview is a separate top-level window the
+    // editor's modifier sampling never reaches, and a sighting rig wants both hands free.
+    void cycleActualRingBand();
+
     // Opens the actions window (Edit > Actions..., default `?`), creating it on first use; the
     // window survives closes so its tree state is kept.
     void showActionsWindow();

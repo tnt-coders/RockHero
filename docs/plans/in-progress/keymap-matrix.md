@@ -181,6 +181,7 @@ likely subsumes that one too by the same argument.
 | `Ctrl+T` | insert a tone-change marker at the **cursor** — the marker rule: armed caret if present, else the transport position (from any surface) | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F5` / `F8` | toggle 3D preview / waveform / undo-history inspector | Live (`F5` added 2026-07-21) |
+| `F1` | cycle the 3D preview's **actual-ring band** — off → filled → outlined → off. A sighting rig for the note-sustain model (stage D): a floor band under each note running the ACTUAL ring the string sounds for, which the presented tail may have trimmed or dropped. Active only while the preview is open, and forwarded into that window's own key whitelist. A LATCH, not a held key, where the 2D lane's reveal of the same ring is held under `Alt` — the preview is a separate top-level window the editor's realtime modifier sampling never reaches | Live (added 2026-08-22) |
 | `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |
 | plain wheel | zoom, marker-centered | Live |
 | `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |

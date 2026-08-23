@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
@@ -422,6 +423,20 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     // technique the fixture carries has to be present in what was projected.
     REQUIRE(scene.notes.size() == chart.notes.size());
     REQUIRE(scene.display_hold_ends.size() == scene.notes.size());
+    // The board carries the ACTUAL rings too. Editor-only data, but it rides this state, and the
+    // renderer asserts the one-per-note contract at setViewState — so a projection that stopped
+    // filling the array would trip that assert inside the frame loop rather than fail here.
+    REQUIRE(board.chart.actual_end_seconds.size() == board.chart.notes.size());
+    // Non-vacuous, and it is the property that tells the ring apart from the presented end: every
+    // stored sustain is strictly positive, so every ring outlasts its onset, where a presented end
+    // EQUALS the onset wherever the tail rules dropped the tail.
+    CHECK(
+        std::ranges::all_of(
+            std::views::iota(std::size_t{0}, board.chart.notes.size()),
+            [&board](const std::size_t index) {
+                return board.chart.actual_end_seconds[index] >
+                       board.chart.notes[index].start_seconds;
+            }));
     CHECK(scene.capo == 2);
     const auto any_note = [&scene](const auto& carries) {
         return std::ranges::any_of(scene.notes, carries);
