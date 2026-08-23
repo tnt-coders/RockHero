@@ -1,7 +1,7 @@
 # Note sustain model — actual durations stored, presentation derived
 
 **Status:** In progress on branch `note-sustain-experiment`. Stage A built 2026-08-21 (A1–A3 plus
-D1); stage B built 2026-08-22. Stages C and D remain undecided.
+D1); stages B and C built 2026-08-22. Stage D remains undecided.
 
 **Authored** 2026-08-21 out of the span-end discussion (review item 13), the short-tail hole the
 user found in the 2D lane, and the MIDI-playback requirement.
@@ -36,9 +36,9 @@ the rest.
 | **saved** (`savedChartNote`) | memory with a scrape's latent overrides stripped | the document writer, the validator, the resolver |
 | **presented** (`presentedChartNotes`) | saved notes through the tail rules | both painters, hit testing, the future scorer |
 
-`ChartResolutions` carries `saved_notes`, `presented_notes`, and the per-note `holds`, computed
-together once per chart revision; the projection builds `NoteViewState` from the presented note
-and `display_hold_ends` from the holds.
+`ChartResolutions` carries the connections (`ChartConnections`, which owns `saved_notes`),
+`presented_notes`, and the per-note `holds`, computed together once per chart revision; the
+projection builds `NoteViewState` from the presented note and `display_hold_ends` from the holds.
 
 ## The presentation rules (moved from import, stated once in core)
 
@@ -270,8 +270,51 @@ corpus-wide.
   pointer and `juce::Slider` overrides it without forwarding, so a release over the output fader
   would otherwise strand the outlines on with Alt physically up (corrected 2026-08-22 — focus gain
   alone never covered that, only the Alt+Tab case).
-- **C** — shape spans derived from the notes (rule 12 as today: a posture starts at a ≥2-note
-  onset, ringing notes join); `shapes` leaves the format.
+- **C — done 2026-08-22.** Shape spans and their postures are DERIVED from the notes, per chart
+  revision, in core: `deriveChartShapes(saved_notes, presented_notes, tempo_map)`
+  (`chart/chart_shapes.h`) is the importer's `deriveChordShapes` ported unchanged onto the tempo
+  map's own arithmetic, and `ChartResolutions` gained `shapes` and `postures` beside the two note
+  forms. The shared arrival rule `chartShapeArrivals` moved into the same header in the review
+  pass: with the span rules gone from the validator it was the last thing making `chart_rules`
+  know spans exist, and both halves of one derivation now live in one file. Rule 12 and rule 12a
+  are exactly as the importer stated them, including the margin trim,
+  the floor at the last strum and the exact-adjacency fallback; backlog item #59 (should a span's
+  end stop obeying the margin) is untouched and still open. **`templates` left the format with
+  `shapes`**, not just the spans: nothing authored a posture, so `ChordTemplate` became
+  `ChartPosture{frets}` with `name` and `fingers` deleted, and every consumer branch that could
+  only ever read an empty one went with them — `ShapeViewState::name` and the highway's chord-name
+  text pass, `ShapeStringViewState::finger` and the highway's fingering panel (with its
+  `fingering.png` asset and `HighwayTexture` enumerator), and the timeline ruler's name-chip band
+  with `TrackViewport::setShapeLabels`. When names and fingerings are ever authored they arrive as
+  a dictionary keyed by a posture, not as fields on one; the arpeggio-bracket posture verb
+  (`docs/plans/in-progress/arpeggio-posture-display-options.md`) is still open and two of its
+  rejected options now need that dictionary before they could be revisited. The reader refuses a
+  document carrying either key, with the re-import remedy named — the same tripwire the removed
+  note fields get. The validator's posture and span rules are gone with the authored data
+  (`normalizeChordTemplate`, `ChartErrorCode::InvalidTemplate` and `InvalidShape` deleted): derived
+  data cannot be invalid.
+
+  **The golden corpus differs in exactly one arrangement, and the old value was the wrong one.**
+  Across 113 songs and 245,866 notes, every note, hold, legato verdict and fret-hand placement is
+  byte-identical, and every span in 112 songs is too. In one arrangement three consecutive
+  all-open dead strums that used to derive three spans now derive one (`3:1`+11/4, `3:4`+3/4,
+  `4:1`+5/2 become `3:1`+13/2 — the same end, without the two splits). Root cause: the importer
+  derived spans BEFORE `normalizeChart`, and that song's middle strum carried a slide on an open
+  string, which the normalizer then dropped ("6 notes: an open string cannot slide, so its slide
+  was dropped"). The old spans described notes the chart does not contain. Derived at read time
+  the rule sees the settled stream and merges the three, which is what the chart says.
+
+  Two things the review pass changed, neither of them visible in the golden diff. Moving the
+  derivation onto the load path put it BEFORE `validateChartRules` — so it now runs against a
+  document whose `"string"` values nothing has bounded yet, and sizing the posture array from the
+  stream let a corrupt file pick an allocation size (a `"string"` of two billion asks for 17 GB
+  and kills the load with the refusal it was about to earn). The width is `g_max_chart_strings`
+  now, a constant rather than a quantity read off the input; the tuning would have been no safer,
+  since it is equally unvalidated at that point. And `ChartConnections`/`chartConnections` split
+  out of `ChartResolutions`: `resolveLegato` reads the saved stream alone, so the settle sweep and
+  the `H` verb — which run at every caret move, seek and selection change, and read nothing else —
+  were deriving the whole song's presented stream, spans and holds on every keystroke and throwing
+  all three away. `ChartResolutions` carries the connections rather than restating them.
 - **D** — sighting experiments behind diagnostics toggles: a 3D floor band for the actual ring.
 
 ## Rulings recorded (2026-08-21)

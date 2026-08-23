@@ -89,9 +89,6 @@ enum class HighwayTexture : std::uint8_t
     */
     Inlays,
 
-    /*! \brief Fingering-panel PNG (4x4 grid: barre shapes plus finger name glyphs). */
-    Fingering,
-
     /*!
     \brief Repeat-box mute mark art PNG: two stacked cells, palm mute above full mute, painted in
     the structural channel scheme (R tint weight, G achromatic lift, B coverage) with no alpha
@@ -142,7 +139,6 @@ static_assert(
 inline constexpr std::array g_highway_textures{
     HighwayTexture::Notes,
     HighwayTexture::Inlays,
-    HighwayTexture::Fingering,
     HighwayTexture::ChordMarks,
 };
 
@@ -245,10 +241,6 @@ static_assert(
         case HighwayTexture::Inlays:
         {
             return "inlays.png";
-        }
-        case HighwayTexture::Fingering:
-        {
-            return "fingering.png";
         }
         case HighwayTexture::ChordMarks:
         {

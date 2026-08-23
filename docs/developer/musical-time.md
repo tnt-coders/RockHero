@@ -19,7 +19,7 @@ author; **seconds** are what renderers and audio consume. Exactly one type conve
 
 # The chart model, briefly
 
-The chart itself — "the true tab" of notes, hand shapes, and postures — is the arrangement-owned
+The chart itself — "the true tab" of notes, tuning, and hand placements — is the arrangement-owned
 model in `common/core/chart/chart.h`, addressed entirely in `GridPosition`s and consumed by the
 tab and highway projections and by package IO. Chart *editing* is partly built rather than unbuilt:
 seven pure planners live in editor core (`editor/core/src/chart/chart_edits.h`), two of them
@@ -86,6 +86,12 @@ reads the same form when it exists).
   *past* that onset exempt as a deliberate hold), floor the trim on payload that still changes
   something, drop short effect-free tails per onset group, and present no tail on a dead note that
   is neither tremoloed nor sliding. Payload is clipped with the tail, never rescaled.
+- `deriveChartShapes(saved_notes, presented_notes, tempo_map)` — the hand-posture spans and the
+  posture table the notes imply. The chart stores none: a span is a statement about the notes under
+  it, so deriving it is the only way it can never disagree with them. Any onset striking two or
+  more fretting-hand strings opens a posture, consecutive onsets of the same articulation merge,
+  a still-ringing string joins the posture it crosses, tap-only onsets are transparent, and a span
+  closed by a following event keeps the same minimum sustain distance every other element does.
 - `chartHolds(saved_notes, presented_notes, shapes, tempo_map)` — how long the hand stays down,
   which is not the same question: a chug under a hand-shape span presents no tail at all, yet the
   span is what tells the player to keep holding it, so such a member holds for its actual ring
@@ -98,6 +104,13 @@ reads the same form when it exists).
 - `hasSustainTechnique`, `lastChangingPayloadOffset`, `clipPayloadsTo`,
   `keptStrictlyAfterLastWaypoint` — the tail helpers the rules are built from, shared with the
   Guitar Pro importer so its trim and the presentation ask the same questions.
+
+`chartResolutions` is the whole picture, and the whole picture costs a pass over every note in the
+song. A caller that only wants to know what a connection claim resolves to asks `chartConnections`
+instead — the saved stream, the resolved motions and each note's same-string predecessor, and
+nothing derived from presentation, because `resolveLegato` reads none of it. That is the pass the
+settle sweep and the editor's `H` verb take, and they run at every caret move, seek and selection
+change; `chartResolutions` carries its result rather than repeating the walk.
 
 # The TempoMap
 

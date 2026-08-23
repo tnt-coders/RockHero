@@ -29,22 +29,8 @@ namespace
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.templates = {
-        ChordTemplate{
-            .name = "F5",
-            .frets = {1, 3, 3, std::nullopt, std::nullopt, std::nullopt},
-            .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
-        },
-        // Held posture for the arpeggio span; string 4 is struck at the bracket start and the
-        // other two are not, which the posture entries are expected to be blind to.
-        ChordTemplate{
-            .name = "Dm7",
-            .frets = {std::nullopt, 5, std::nullopt, 7, 8, std::nullopt},
-            .fingers = {std::nullopt, 1, std::nullopt, 3, 4, std::nullopt},
-        },
-    };
     chart.notes = {
-        // Simultaneous pair at 2:1 under the shape span: reads as a chord box.
+        // Simultaneous pair at 2:1: two strings struck together derive a chord-box span.
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 1,
@@ -61,6 +47,16 @@ namespace
             .bend = {},
             .slides = {},
         },
+        // Rings across the 3:1+1/2 strum without being re-struck there: it joins that span's
+        // posture (rule 12) and makes the span arrive arpeggio-style.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1},
+            .string = 2,
+            .fret = 5,
+            .sustain = Fraction{2},
+            .bend = {},
+            .slides = {},
+        },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
@@ -68,6 +64,15 @@ namespace
             .sustain = Fraction{2},
             .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
             .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+        },
+        // The strum's second struck string: two members are what open a span at all.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
+            .string = 5,
+            .fret = 8,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .slides = {},
         },
         // Shift-slide pair: the glide is an ordinary pitched waypoint at the sustain end, the
         // minimum sustain distance before the re-picked landing on the same string, so the
@@ -87,19 +92,6 @@ namespace
             .sustain = Fraction{1, 8},
             .bend = {},
             .slides = {},
-        },
-    };
-    chart.shapes = {
-        ChartShape{
-            .position = GridPosition{.measure = 2, .beat = 1},
-            .sustain = Fraction{1},
-            .chord = 0,
-        },
-        // Only one onset at 3:1+1/2, so this span reads as an arpeggio bracket.
-        ChartShape{
-            .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
-            .sustain = Fraction{2},
-            .chord = 1,
         },
     };
     chart.fret_hand_positions = {
@@ -138,7 +130,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     const ChartViewState state = makeChartViewState(makeArrangementWithChart(), tempo_map);
 
     CHECK(state.string_count == 6);
-    REQUIRE(state.notes.size() == 5);
+    REQUIRE(state.notes.size() == 7);
     // Sized like the notes because both painters index it by note index; its values are the
     // span-hold rule's, pinned below.
     CHECK(state.display_hold_ends.size() == state.notes.size());
@@ -153,7 +145,7 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     // tail beside partners that look unsounded is a picture no strum makes.
     CHECK(state.notes[1].end_seconds == Catch::Approx(4.125 * beat));
 
-    const NoteViewState& sliding = state.notes[2];
+    const NoteViewState& sliding = state.notes[3];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
     CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
     REQUIRE(sliding.bend.size() == 1);
@@ -168,30 +160,36 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
 
     // The shift glide ends at the sustain end, the minimum sustain distance before the re-picked
     // fret-8 landing; the segment is not linked (the landing's own head renders there).
-    const NoteViewState& shift_slider = state.notes[3];
+    const NoteViewState& shift_slider = state.notes[5];
     REQUIRE(shift_slider.slides.size() == 1);
     CHECK(shift_slider.slides[0].seconds == Catch::Approx(12.75 * beat));
     CHECK(shift_slider.slides[0].fret == 8);
     CHECK_FALSE(linkedWaypoint(shift_slider, shift_slider.slides[0]));
     CHECK(shift_slider.end_seconds == Catch::Approx(12.75 * beat));
 
+    // Both spans are DERIVED from the notes above — nothing in the chart authors one. The 2:1
+    // pair strikes together and nothing rings across it, so it is a chord box; the 3:1+1/2 pair
+    // strikes under string 2's still-sounding ring, so it is an arpeggio.
     REQUIRE(state.shapes.size() == 2);
-    CHECK(state.shapes[0].name == "F5");
+    CHECK(state.shapes[0].start_seconds == Catch::Approx(4.0 * beat));
+    CHECK(state.shapes[0].end_seconds == Catch::Approx(5.0 * beat));
     CHECK_FALSE(state.shapes[0].arpeggio);
+    CHECK(state.shapes[1].start_seconds == Catch::Approx(8.5 * beat));
+    CHECK(state.shapes[1].end_seconds == Catch::Approx(10.5 * beat));
     CHECK(state.shapes[1].arpeggio);
 
     // Every span carries its whole held posture, chord box and arpeggio alike: which entries a
-    // surface draws is the painter's business (the lane brackets an arpeggio's, the board's
-    // fingering panel reads them all). String 4 is struck right at the arpeggio's bracket start
-    // and strings 2 and 5 are not, and the entries are identical either way: a posture states
-    // where the fretting hand is, never what sounds there, so the projection asks the notes
-    // nothing.
-    REQUIRE(state.shapes[0].strings.size() == 3);
-    CHECK(state.shapes[0].strings[0] == ShapeStringViewState{.string = 1, .fret = 1, .finger = 1});
+    // surface draws is the painter's business (the lane brackets an arpeggio's). The arpeggio's
+    // posture holds three strings although only two are struck at the bracket start — the third
+    // is the one still ringing through it, which is what a posture means: where the fretting hand
+    // is, not what sounds at that instant.
+    REQUIRE(state.shapes[0].strings.size() == 2);
+    CHECK(state.shapes[0].strings[0] == ShapeStringViewState{.string = 1, .fret = 1});
+    CHECK(state.shapes[0].strings[1] == ShapeStringViewState{.string = 2, .fret = 3});
     REQUIRE(state.shapes[1].strings.size() == 3);
-    CHECK(state.shapes[1].strings[0] == ShapeStringViewState{.string = 2, .fret = 5, .finger = 1});
-    CHECK(state.shapes[1].strings[1] == ShapeStringViewState{.string = 4, .fret = 7, .finger = 3});
-    CHECK(state.shapes[1].strings[2] == ShapeStringViewState{.string = 5, .fret = 8, .finger = 4});
+    CHECK(state.shapes[1].strings[0] == ShapeStringViewState{.string = 2, .fret = 5});
+    CHECK(state.shapes[1].strings[1] == ShapeStringViewState{.string = 4, .fret = 7});
+    CHECK(state.shapes[1].strings[2] == ShapeStringViewState{.string = 5, .fret = 8});
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
@@ -206,7 +204,7 @@ TEST_CASE("Chart projection carries each note's actual ring", "[core][chart]")
     const TempoMap tempo_map = makeTempoMap();
     const ChartViewState state = makeChartViewState(makeArrangementWithChart(), tempo_map);
 
-    REQUIRE(state.notes.size() == 5);
+    REQUIRE(state.notes.size() == 7);
     REQUIRE(state.actual_end_seconds.size() == state.notes.size());
 
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
@@ -215,8 +213,8 @@ TEST_CASE("Chart projection carries each note's actual ring", "[core][chart]")
     // as the statement "this is the whole ring".
     CHECK(state.actual_end_seconds[0] == Catch::Approx(5.0 * beat));
     CHECK(state.notes[0].end_seconds == Catch::Approx(5.0 * beat));
-    CHECK(state.actual_end_seconds[2] == Catch::Approx(10.5 * beat));
-    CHECK(state.notes[2].end_seconds == Catch::Approx(10.5 * beat));
+    CHECK(state.actual_end_seconds[3] == Catch::Approx(10.5 * beat));
+    CHECK(state.notes[3].end_seconds == Catch::Approx(10.5 * beat));
 
     // The last note is a lone eighth with no technique, so rule 3 presents it no tail at all: the
     // lane draws a bare head there and the ring the string really sounds for exists only here.
@@ -227,8 +225,8 @@ TEST_CASE("Chart projection carries each note's actual ring", "[core][chart]")
     // a resolver change that recomputed the end from the beat position and landed a hair away,
     // which is exactly the invariant this line exists to hold.
     CHECK_THAT(
-        state.notes[4].end_seconds, Catch::Matchers::WithinULP(state.notes[4].start_seconds, 0));
-    CHECK(state.actual_end_seconds[4] == Catch::Approx(13.125 * beat));
+        state.notes[6].end_seconds, Catch::Matchers::WithinULP(state.notes[6].start_seconds, 0));
+    CHECK(state.actual_end_seconds[6] == Catch::Approx(13.125 * beat));
 }
 
 TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
@@ -253,13 +251,6 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.templates = {
-        ChordTemplate{
-            .name = "A5",
-            .frets = {5, 7, std::nullopt, std::nullopt, std::nullopt, std::nullopt},
-            .fingers = {1, 3, std::nullopt, std::nullopt, std::nullopt, std::nullopt},
-        },
-    };
     const auto note = [](int beat, int string, int fret, Fraction sustain) {
         return ChartNote{
             .position = GridPosition{.measure = 1, .beat = beat},
@@ -270,22 +261,19 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
             .slides = {},
         };
     };
-    // A three-quarter-beat chug on two strings under a four-beat span, the same chug alone a beat
-    // later, then a note whose ring earns a real tail.
+    // A three-quarter-beat chug on two strings — which derives a span of its own — then the same
+    // chug alone a beat later, then a note whose ring earns a real tail.
     chart.notes = {
         note(1, 1, 5, Fraction{3, 4}),
         note(1, 2, 7, Fraction{3, 4}),
         note(2, 1, 7, Fraction{3, 4}),
         note(3, 1, 9, Fraction{2}),
     };
-    chart.shapes = {ChartShape{
-        .position = GridPosition{.measure = 1, .beat = 1}, .sustain = Fraction{4}, .chord = 0
-    }};
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart = std::move(chart);
 
-    // 120 BPM 4/4: a beat is half a second, so the span runs 0.0s to 2.0s and the later string-1
-    // onsets sit at 0.5s and 1.0s.
+    // 120 BPM 4/4: a beat is half a second, so the derived span runs 0.0s to 0.375s (the strum's
+    // own ring) and the later string-1 onsets sit at 0.5s and 1.0s.
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
     REQUIRE(state.notes.size() == 4);
     REQUIRE(state.display_hold_ends.size() == 4);

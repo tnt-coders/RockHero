@@ -1,10 +1,8 @@
 #include "chart/chart_rules.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
-#include <limits>
 #include <optional>
 #include <ranges>
 #include <rock_hero/common/core/chart/chart_legato.h>
@@ -54,98 +52,6 @@ bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map
            position.offset.numerator >= 0 && position.offset < Fraction{1};
 }
 
-std::vector<bool> chartShapeArrivals(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
-    const std::vector<ChordTemplate>& templates, const TempoMap& tempo_map)
-{
-    std::vector<bool> arpeggio;
-    arpeggio.reserve(shapes.size());
-    // Both streams ascend, so one note cursor serves every shape. It carries the one thing the rule
-    // needs from the past — the most recent note on each string — which is what turns the whole
-    // classification into a single forward pass. Answering it per shape instead meant walking BACK
-    // through the note stream from each span, all the way to the first note whenever a posture
-    // string had none, and both projections do this for every shape on every chart revision.
-    constexpr std::size_t no_note = std::numeric_limits<std::size_t>::max();
-    std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
-    last_per_string.fill(no_note);
-    std::size_t next_note = 0;
-    for (const ChartShape& shape : shapes)
-    {
-        while (next_note < presented_notes.size() &&
-               presented_notes[next_note].position < shape.position)
-        {
-            const int string = presented_notes[next_note].string;
-            if (string >= 1 && string <= g_max_chart_strings)
-            {
-                last_per_string.at(static_cast<std::size_t>(string)) = next_note;
-            }
-            ++next_note;
-        }
-        // The cursor now sits on the first note AT the span start, and the notes sharing that onset
-        // are the contiguous run from there.
-        std::size_t after_start = next_note;
-        while (after_start < presented_notes.size() &&
-               presented_notes[after_start].position == shape.position)
-        {
-            ++after_start;
-        }
-        if (after_start - next_note < 2)
-        {
-            // A single onset at the span start is a sequential arrival, whatever else is ringing.
-            arpeggio.push_back(true);
-            continue;
-        }
-
-        // A held chord played under a right-hand onset reads as a held arpeggio, not a strummed
-        // box: the fretting hand holds the shape while the other hand sounds above it — taps and
-        // pick slides alike. Any such note sounding within the span flips the box.
-        const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
-        bool held_under_right_hand = false;
-        for (std::size_t scan = next_note;
-             scan < presented_notes.size() && presented_notes[scan].position < span_end;
-             ++scan)
-        {
-            held_under_right_hand =
-                held_under_right_hand || rightHandOnset(presented_notes[scan].attack);
-        }
-        if (held_under_right_hand || shape.chord >= templates.size())
-        {
-            arpeggio.push_back(held_under_right_hand);
-            continue;
-        }
-
-        // A posture string still ringing at the start without an onset there was not re-struck —
-        // the strum picks around the held note, so the span cannot be one full strum. Only that
-        // string's most recent earlier note can still be ringing, which the cursor already knows.
-        // "Ringing" is the PRESENTED tail: a dead string makes no sound to pick around, and
-        // presentation is where a dead note's tail goes (E25).
-        const ChordTemplate& chord_template = templates[shape.chord];
-        bool rings_unstruck = false;
-        for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
-        {
-            // Bound to a local so the optional check and the access are provably the same object.
-            const std::optional<int>& fret = chord_template.frets[index];
-            const int string = static_cast<int>(index) + 1;
-            if (!fret.has_value() || string > g_max_chart_strings)
-            {
-                continue;
-            }
-            bool struck = false;
-            for (std::size_t scan = next_note; scan < after_start; ++scan)
-            {
-                struck = struck || presented_notes[scan].string == string;
-            }
-            const std::size_t earlier = last_per_string.at(static_cast<std::size_t>(string));
-            rings_unstruck =
-                rings_unstruck ||
-                (!struck && earlier != no_note &&
-                 shape.position < sustainEndPosition(tempo_map, presented_notes[earlier]));
-        }
-        arpeggio.push_back(rings_unstruck);
-    }
-    return arpeggio;
-}
-
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
 {
     const auto string_count = static_cast<int>(chart.tuning.strings.size());
@@ -176,65 +82,10 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }};
     }
 
-    for (std::size_t index = 0; index < chart.templates.size(); ++index)
-    {
-        const ChordTemplate& chord_template = chart.templates[index];
-        if (chord_template.frets.size() != chart.tuning.strings.size() ||
-            chord_template.fingers.size() != chart.tuning.strings.size())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidTemplate,
-                .message = "chord template arrays must match the string count: template " +
-                           std::to_string(index),
-            }};
-        }
-        for (const std::optional<int>& fret : chord_template.frets)
-        {
-            // Postures obey the capo floor exactly like notes: 0 is the capo'd open string, and
-            // the frets the capo covers do not exist to hold. Neither a negative fret nor one on
-            // a capo'd fret has a repair that is not invented data, so both stay refusals; the
-            // board ceiling is the normalizer's clamp, asked as the fixpoint below.
-            if (fret.has_value() && (*fret < 0 || (*fret != 0 && *fret <= chart.tuning.capo)))
-            {
-                return std::unexpected{ChartError{
-                    .code = ChartErrorCode::InvalidTemplate,
-                    .message =
-                        "chord template fret is out of range: template " + std::to_string(index),
-                }};
-            }
-        }
-        ChordTemplate normal = chord_template;
-        if (const std::vector<ChartRepair> repairs = normalizeChordTemplate(normal);
-            !repairs.empty())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidTemplate,
-                .message = std::string{chartRepairText(repairs.front())} + ": template " +
-                           std::to_string(index),
-            }};
-        }
-    }
-
-    const ChartShape* previous_shape = nullptr;
-    for (const ChartShape& shape : chart.shapes)
-    {
-        if (shape.chord >= chart.templates.size() || shape.sustain.numerator <= 0 ||
-            !isValidGridPosition(shape.position, tempo_map))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidShape,
-                .message = "shape span is invalid at " + positionText(shape.position),
-            }};
-        }
-        if (previous_shape != nullptr && shape.position < previous_shape->position)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidShape,
-                .message = "shape spans must be sorted at " + positionText(shape.position),
-            }};
-        }
-        previous_shape = &shape;
-    }
+    // No posture or span rules: both are derived from the notes (deriveChartShapes), so there is
+    // no authored value here that could be wrong. The posture's capo floor and board ceiling come
+    // with the frets it reads — every one of them belongs to a note this validator has already
+    // judged — and a derived span's length and order are properties of the walk that built it.
 
     const FretHandPosition* previous_fhp = nullptr;
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
@@ -549,21 +400,6 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     return repairs;
 }
 
-std::vector<ChartRepair> normalizeChordTemplate(ChordTemplate& chord_template)
-{
-    bool past_board = false;
-    for (std::optional<int>& fret : chord_template.frets)
-    {
-        if (fret.has_value() && *fret > g_max_fret)
-        {
-            past_board = true;
-            fret = g_max_fret;
-        }
-    }
-    return past_board ? std::vector<ChartRepair>{ChartRepair::FretPastBoard}
-                      : std::vector<ChartRepair>{};
-}
-
 std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
@@ -624,10 +460,6 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
                          std::to_string(chart.notes[index].string),
             });
     }
-    for (std::size_t index = 0; index < chart.templates.size(); ++index)
-    {
-        record(normalizeChordTemplate(chart.templates[index]), "template " + std::to_string(index));
-    }
     for (FretHandPosition& position : chart.fret_hand_positions)
     {
         record(
@@ -636,8 +468,7 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     }
     // The relational settle runs LAST, against the stream as it will actually stand: a trimmed
     // tail may have been the hold a neighbour's claim depended on.
-    std::vector<ChartConversion> flattened =
-        sweepUnjustifiedLegato(chart.notes, chart.shapes, tempo_map);
+    std::vector<ChartConversion> flattened = sweepUnjustifiedLegato(chart.notes, tempo_map);
     conversions.insert(
         conversions.end(),
         std::make_move_iterator(flattened.begin()),

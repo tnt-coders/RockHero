@@ -122,10 +122,12 @@ before that reading exists.
     other. Harmless today (the held extension at the boundary is zero length) but a third
     statement of "does this span cover this position" — give it one name.
     **VERDICT 2026-08-21: do NOT unify; the boundary conventions differ because the span's END
-    is overloaded upstream, and that is the real finding.** The GP importer closes a span at its
-    notated ring trimmed to the margin before the next posture, *floored at its own last strum*
-    (`gp_chart_builder.cpp`, `close_span`), with an exact-adjacency fallback that ends a crowded
-    span *on the next posture's first onset*. So a note sitting exactly on a span end is
+    is overloaded upstream, and that is the real finding.** The span derivation closes a span at
+    its notated ring trimmed to the margin before the next posture, *floored at its own last
+    strum*, with an exact-adjacency fallback that ends a crowded span *on the next posture's first
+    onset*. (Stage C 2026-08-22 moved that rule out of the importer and into
+    `common/core/src/chart/chart_shapes.cpp`'s `close_span`, unchanged; the item is about the rule,
+    not where it lives, and it stays open.) So a note sitting exactly on a span end is
     sometimes the span's own last strum and sometimes the next posture's first — no single
     open/closed convention is right for both. Each reader then asks a different question and its
     convention is correct for it: the hold rule (closed) gives a span-end group a zero hold, so

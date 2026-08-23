@@ -8,7 +8,6 @@
 #include <compare>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
-#include <string>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -257,9 +256,6 @@ struct ShapeStringViewState
     /*! \brief Fret held on the string; zero is the open string. */
     int fret{0};
 
-    /*! \brief Finger holding the fret (0 thumb, 1-4 index through pinky); empty when unknown. */
-    std::optional<int> finger{};
-
     /*!
     \brief Compares two posture entries by their stored fields.
     \param lhs Left-hand entry.
@@ -279,9 +275,6 @@ struct ShapeViewState
     /*! \brief Absolute end of the span. */
     double end_seconds{0.0};
 
-    /*! \brief Chord template display name; may be empty for unnamed shapes. */
-    std::string name;
-
     /*!
     \brief True when the span's notes arrive sequentially (arpeggio brackets) rather than
     together (chord box). Derived at projection time from the notes under the span start.
@@ -289,12 +282,11 @@ struct ShapeViewState
     bool arpeggio{false};
 
     /*!
-    \brief Posture entries from the shape's chord template, lowest string first; empty when the
-    template is unknown.
+    \brief The span's posture, lowest string first; empty when the posture is unknown.
 
     The whole held posture, stated whether or not a note sounds on the string: a posture is a
-    claim about the fretting hand, not about what is struck. The board's fingering panel reads
-    every span's entries; the arpeggio brackets on both surfaces read an arpeggio span's.
+    claim about the fretting hand, not about what is struck. The arpeggio brackets on both
+    surfaces read an arpeggio span's entries.
     */
     std::vector<ShapeStringViewState> strings;
 
@@ -307,8 +299,8 @@ struct ShapeViewState
     friend bool operator==(const ShapeViewState& lhs, const ShapeViewState& rhs)
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
-               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.name == rhs.name &&
-               lhs.arpeggio == rhs.arpeggio && lhs.strings == rhs.strings;
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.arpeggio == rhs.arpeggio &&
+               lhs.strings == rhs.strings;
     }
 };
 

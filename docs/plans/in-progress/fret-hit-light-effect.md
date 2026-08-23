@@ -105,8 +105,8 @@ So the whole effect needs:
    **last board-view pass** — after the glyph text batch that closes `draw()`, not merely after the
    fret lines: the inlay skin composites premultiplied (`ONE, INV_SRC_ALPHA`; an opaque dot texel
    multiplies whatever is underneath by ≈0, punching dark dot silhouettes through a glow drawn
-   earlier) and the fingering panel alpha-blends exactly at the hit line, so anything drawn after
-   the glow would dim or hole it. Last-in-view, the light adds over everything it should brighten.
+   earlier) and the hit-line glyph text alpha-blends over it, so anything drawn after the glow
+   would dim or hole it. Last-in-view, the light adds over everything it should brighten.
 
 Reuses `window_light_program`, its falloff uniform, `PosColorUvVertex`/`posColorUvLayout`, and the
 per-edge signed-distance UV convention — **no new `.sc` shader, no shader-set member, no CMake
@@ -226,9 +226,9 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
   release clamp is the robust fallback for the very fastest charts (a 16th at 150 BPM is 0.1 s,
   exactly today's flash length, which is why they fuse).
 - **Submission order** — the additive pass must be the *last* board-view submission: the
-  premultiplied inlay skin, the fingering panel, and the glyph text all land after the fret lines,
-  and any of them drawn after the glow dims or holes it (the inlay's `ONE, INV_SRC_ALPHA` would
-  punch dark dot silhouettes through the light).
+  premultiplied inlay skin and the glyph text both land after the fret lines, and either of them
+  drawn after the glow dims or holes it (the inlay's `ONE, INV_SRC_ALPHA` would punch dark dot
+  silhouettes through the light).
 - **Release vs. passed-note fade** — resolved: the glow pass binary-searches its own onset window
   over `state.notes` instead of reusing the visible range, so the release tunes freely.
 - **`WRITE_A` omission** — confirm nothing downstream (overlay composite, premultiplied inlay) depends

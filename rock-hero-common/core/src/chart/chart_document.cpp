@@ -42,36 +42,6 @@ namespace
     return *value;
 }
 
-[[nodiscard]] std::expected<std::vector<std::optional<int>>, ChartError> readOptionalIntArray(
-    const juce::var& array_json, const char* context)
-{
-    std::vector<std::optional<int>> values;
-    if (!array_json.isArray())
-    {
-        return std::unexpected{malformed(
-            std::string{"chart template array is missing: "} + context)};
-    }
-    values.reserve(static_cast<std::size_t>(array_json.size()));
-    for (int index = 0; index < array_json.size(); ++index)
-    {
-        const juce::var& entry = array_json[index];
-        if (entry.isVoid())
-        {
-            values.emplace_back(std::nullopt);
-        }
-        else if (entry.isInt() || entry.isInt64())
-        {
-            values.emplace_back(static_cast<int>(entry));
-        }
-        else
-        {
-            return std::unexpected{malformed(
-                std::string{"chart template entry is not null or int: "} + context)};
-        }
-    }
-    return values;
-}
-
 [[nodiscard]] std::expected<ChartNote, ChartError> readNote(const juce::var& note_json)
 {
     auto position = readPosition(note_json);
@@ -312,23 +282,6 @@ void appendJsonString(std::string& out, const std::string& text)
     out += juce::JSON::toString(juce::var{juce::String{text}}, true).toStdString();
 }
 
-void appendOptionalIntArray(std::string& out, const std::vector<std::optional<int>>& values)
-{
-    out += '[';
-    for (std::size_t index = 0; index < values.size(); ++index)
-    {
-        if (index > 0)
-        {
-            out += ", ";
-        }
-        // One binding for guard and dereference: repeating values[index] re-invokes operator[],
-        // which clang-tidy's optional tracking (correctly) treats as a fresh, unchecked value.
-        const std::optional<int>& value = values[index];
-        out += value.has_value() ? std::to_string(*value) : std::string{"null"};
-    }
-    out += ']';
-}
-
 // A chart's doubles are measurements — a harmonic node is `12 * log2(partial)`, a bend height a
 // fraction of a step — so the writer needs the shared round-trip-exact form. `juce::String{double}`
 // was NOT that: it leaves the stream at its default six significant digits, which silently rounded
@@ -515,30 +468,17 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     chart.tuning.capo = Json::readOptionalInt(tuning_json, "capo", 0);
     chart.tuning.cent_offset = Json::readOptionalDouble(tuning_json, "centOffset", 0.0);
 
-    const juce::var& chords_json = Json::value(root, "chords");
-    if (chords_json.isArray())
+    // The posture table and the spans that indexed it are gone: both are derived from the notes
+    // now (deriveChartShapes), so a document carrying them states a second, unverifiable copy of
+    // something the notes already say. Refused rather than ignored, the same tripwire the removed
+    // note fields get, so an un-reimported package fails loudly with the fix named instead of
+    // loading with a stale picture silently discarded. Delete this once the packages are
+    // re-imported — it exists to fail loudly, not to support the old shape.
+    if (!Json::value(root, "chords").isVoid() || !Json::value(root, "shapes").isVoid())
     {
-        chart.templates.reserve(static_cast<std::size_t>(chords_json.size()));
-        for (int index = 0; index < chords_json.size(); ++index)
-        {
-            const juce::var& template_json = chords_json[index];
-            auto frets = readOptionalIntArray(Json::value(template_json, "frets"), "frets");
-            if (!frets.has_value())
-            {
-                return std::unexpected{std::move(frets.error())};
-            }
-            auto fingers = readOptionalIntArray(Json::value(template_json, "fingers"), "fingers");
-            if (!fingers.has_value())
-            {
-                return std::unexpected{std::move(fingers.error())};
-            }
-            chart.templates.push_back(
-                ChordTemplate{
-                    .name = Json::readOptionalString(template_json, "name", ""),
-                    .frets = std::move(*frets),
-                    .fingers = std::move(*fingers),
-                });
-        }
+        return std::unexpected{malformed(
+            "chart uses the removed \"chords\"/\"shapes\" fields; re-import the package to derive "
+            "the hand-posture spans from the notes")};
     }
 
     const juce::var& notes_json = Json::value(root, "notes");
@@ -566,37 +506,6 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     if (!std::ranges::is_sorted(chart.notes, chartNoteOrderLess))
     {
         return std::unexpected{malformed("chart notes must be sorted by position and string")};
-    }
-
-    const juce::var& shapes_json = Json::value(root, "shapes");
-    if (shapes_json.isArray())
-    {
-        chart.shapes.reserve(static_cast<std::size_t>(shapes_json.size()));
-        for (int index = 0; index < shapes_json.size(); ++index)
-        {
-            const juce::var& shape_json = shapes_json[index];
-            auto position = readPosition(shape_json);
-            if (!position.has_value())
-            {
-                return std::unexpected{std::move(position.error())};
-            }
-            auto sustain = readFraction(shape_json, "sustain");
-            if (!sustain.has_value())
-            {
-                return std::unexpected{std::move(sustain.error())};
-            }
-            const int chord = Json::readOptionalInt(shape_json, "chord", -1);
-            if (chord < 0)
-            {
-                return std::unexpected{malformed("chart shape chord index is missing")};
-            }
-            chart.shapes.push_back(
-                ChartShape{
-                    .position = *position,
-                    .sustain = *sustain,
-                    .chord = static_cast<std::size_t>(chord),
-                });
-        }
     }
 
     const juce::var& fhps_json = Json::value(root, "fhps");
@@ -674,22 +583,7 @@ namespace
         text += items.empty() ? "],\n" : "\n  ],\n";
     };
 
-    append_array("chords", chart.templates, [](const ChordTemplate& chord_template) {
-        std::string line = R"({ "name": )";
-        appendJsonString(line, chord_template.name);
-        line += R"(, "frets": )";
-        appendOptionalIntArray(line, chord_template.frets);
-        line += R"(, "fingers": )";
-        appendOptionalIntArray(line, chord_template.fingers);
-        line += " }";
-        return line;
-    });
     append_array("notes", chart.notes, noteLine);
-    append_array("shapes", chart.shapes, [](const ChartShape& shape) {
-        return R"({ "position": ")" + formatGridPositionToken(shape.position) +
-               R"(", "sustain": ")" + formatBeatFractionToken(shape.sustain) + R"(", "chord": )" +
-               std::to_string(shape.chord) + " }";
-    });
     append_array("fhps", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
         std::string line = R"({ "position": ")" + formatGridPositionToken(fhp.position) +
                            R"(", "fret": )" + std::to_string(fhp.fret);
@@ -720,7 +614,7 @@ Chart documentChart(const Chart& chart, const TempoMap& tempo_map)
     // applied at the one seam between the two. In memory the claim survives, so re-justifying it
     // later is a neighbour edit rather than a re-authoring.
     Chart document = chart;
-    static_cast<void>(sweepUnjustifiedLegato(document.notes, document.shapes, tempo_map));
+    static_cast<void>(sweepUnjustifiedLegato(document.notes, tempo_map));
     for (ChartNote& note : document.notes)
     {
         note = savedChartNote(note);

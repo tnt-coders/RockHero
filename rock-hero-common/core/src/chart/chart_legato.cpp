@@ -5,9 +5,11 @@
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -46,64 +48,75 @@ LegatoMotion resolveLegato(
     return LegatoMotion::Unjustified;
 }
 
-ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map)
+ChartConnections chartConnections(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
-    ChartResolutions resolutions;
+    ChartConnections connections;
     // Everything downstream judges the SAVED form. A pick slide's latent mute is the difference
     // that matters: in memory an onset group can read as all-muted, and so choked, where the saved
     // chart reads it as held — which flips a span's hold extension and with it a following claim.
     // Building the stream once here is what keeps every consumer on the same side of that.
-    resolutions.saved_notes.reserve(notes.size());
+    connections.saved_notes.reserve(notes.size());
     for (const ChartNote& note : notes)
     {
-        resolutions.saved_notes.push_back(savedChartNote(note));
+        connections.saved_notes.push_back(savedChartNote(note));
     }
-    // What the surfaces draw, and how long the hand stays down: derived here so a chart revision
-    // pays for them once, and so no consumer can derive a different picture of the same chart.
-    resolutions.presented_notes = presentedChartNotes(resolutions.saved_notes, tempo_map);
-    resolutions.holds =
-        chartHolds(resolutions.saved_notes, resolutions.presented_notes, shapes, tempo_map);
 
     // The last note seen per string: the stream is sorted, so this IS each note's same-string
     // predecessor when it is reached.
     std::array<std::size_t, static_cast<std::size_t>(g_max_chart_strings) + 1> last_per_string{};
     last_per_string.fill(g_no_chart_predecessor);
-    resolutions.legato.reserve(notes.size());
-    resolutions.predecessors.reserve(notes.size());
+    connections.legato.reserve(notes.size());
+    connections.predecessors.reserve(notes.size());
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
-        const ChartNote& note = resolutions.saved_notes[index];
+        const ChartNote& note = connections.saved_notes[index];
         const bool string_in_range = note.string >= 1 && note.string <= g_max_chart_strings;
         const std::size_t predecessor_index =
             string_in_range ? last_per_string.at(static_cast<std::size_t>(note.string))
                             : g_no_chart_predecessor;
-        resolutions.predecessors.push_back(predecessor_index);
+        connections.predecessors.push_back(predecessor_index);
         const ChartNote* const predecessor = predecessor_index == g_no_chart_predecessor
                                                  ? nullptr
-                                                 : &resolutions.saved_notes[predecessor_index];
+                                                 : &connections.saved_notes[predecessor_index];
         // Only a note that actually CLAIMS a connection is resolved here. A plain pick's entry
         // stays `Unjustified` even where a claim would have resolved — which is exactly what lets
         // display code read this entry alone for the whole legatoClaimable family. The `H` toggle
         // asks resolveLegato directly for the hypothetical it needs.
         const bool claims = note.attack == NoteAttack::Legato || note.attack == NoteAttack::LeftTap;
-        resolutions.legato.push_back(
+        connections.legato.push_back(
             claims ? resolveLegato(note, predecessor, tempo_map) : LegatoMotion::Unjustified);
         if (string_in_range)
         {
             last_per_string.at(static_cast<std::size_t>(note.string)) = index;
         }
     }
+    return connections;
+}
+
+ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    ChartResolutions resolutions;
+    resolutions.connections = chartConnections(notes, tempo_map);
+    const std::vector<ChartNote>& saved_notes = resolutions.connections.saved_notes;
+    // What the surfaces draw, which postures the hand holds, and how long it stays down: all
+    // derived here so a chart revision pays for them once, and so no consumer can derive a
+    // different picture of the same chart. The order is the dependency order — the spans are read
+    // from the presented articulation, and the holds are answered against the spans.
+    resolutions.presented_notes = presentedChartNotes(saved_notes, tempo_map);
+    ChartShapes derived = deriveChartShapes(saved_notes, resolutions.presented_notes, tempo_map);
+    resolutions.shapes = std::move(derived.shapes);
+    resolutions.postures = std::move(derived.postures);
+    resolutions.holds =
+        chartHolds(saved_notes, resolutions.presented_notes, resolutions.shapes, tempo_map);
     return resolutions;
 }
 
 std::vector<ChartConversion> sweepUnjustifiedLegato(
-    std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes, const TempoMap& tempo_map)
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
     // Nothing can flatten unless some note actually claims a connection, and this runs at EVERY
     // settle event — every caret move, seek, selection change and playback start. The scan is a
-    // bare read over the stream; the resolutions pass below copies the whole stream twice before it
+    // bare read over the stream; the connections pass below copies the whole stream once before it
     // can answer the same question. `LeftTap` is deliberately not counted: its claim is local, so
     // the sweep never touches one.
     if (std::ranges::none_of(
@@ -111,13 +124,13 @@ std::vector<ChartConversion> sweepUnjustifiedLegato(
     {
         return {};
     }
-    const ChartResolutions resolutions = chartResolutions(notes, shapes, tempo_map);
+    const ChartConnections connections = chartConnections(notes, tempo_map);
     std::vector<ChartConversion> conversions;
     for (std::size_t index = 0; index < notes.size(); ++index)
     {
         ChartNote& note = notes[index];
         if (note.attack != NoteAttack::Legato ||
-            resolutions.legato[index] != LegatoMotion::Unjustified)
+            connections.legato[index] != LegatoMotion::Unjustified)
         {
             continue;
         }

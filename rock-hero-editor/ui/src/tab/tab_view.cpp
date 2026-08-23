@@ -53,11 +53,6 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
     return common::ui::tabStringColor(displayed_string, displayed_string_count);
 }
 
-juce::Colour tabShapeMarkColor(bool arpeggio)
-{
-    return common::ui::tabShapeMarkColor(arpeggio);
-}
-
 float tabLaneCenterY(
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept
 {

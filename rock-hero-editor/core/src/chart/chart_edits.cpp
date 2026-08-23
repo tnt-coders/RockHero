@@ -485,13 +485,15 @@ ChartLegatoPlan planSetLegato(
         return ChartLegatoPlan{.plan = std::nullopt, .skipped = 0, .reason = ChartLegatoSkip::None};
     }
 
-    // Resolutions of the ORIGINAL stream, in the SAVED form the gate validates: the original so
+    // Connections of the ORIGINAL stream, in the SAVED form the gate validates: the original so
     // that claiming one note's connection cannot change what the next note is asked about, and the
     // saved form because a pick slide's latent mute can make an onset group read as all-muted
     // (choked, no span extension) in memory where the saved chart reads it as held — which would
     // have the verb deny a connection the gate, the sweep, and both surfaces all agree exists.
-    const common::core::ChartResolutions resolutions =
-        common::core::chartResolutions(chart.notes, chart.shapes, tempo_map);
+    // Connections rather than the whole resolutions: the hypothetical below reads stored fields
+    // only, so the presented stream, the spans and the holds would all be derived and discarded.
+    const common::core::ChartConnections connections =
+        common::core::chartConnections(chart.notes, tempo_map);
     std::vector<common::core::ChartNote> candidate = chart.notes;
     bool changed = false;
     for (std::size_t index = 0; index < candidate.size(); ++index)
@@ -508,18 +510,18 @@ ChartLegatoPlan planSetLegato(
             ++skips.at(static_cast<std::size_t>(ChartLegatoSkip::PickingHandOnset));
             continue;
         }
-        const std::size_t predecessor_index = resolutions.predecessors[index];
+        const std::size_t predecessor_index = connections.predecessors[index];
         const common::core::ChartNote* const predecessor =
             predecessor_index == common::core::g_no_chart_predecessor
                 ? nullptr
-                : &resolutions.saved_notes[predecessor_index];
+                : &connections.saved_notes[predecessor_index];
         // The hypothetical the press asks about: this note AS A CLAIM. The claim attack has to be
         // in place because the resolver answers a `LeftTap` locally — it reports the hammer motion
         // for a tap no predecessor could justify, and asking in that form would write a claim the
         // chart cannot keep. Everything else the resolver reads is the note's own stored data, so
         // no rule it applies is restated here: a fret-hand harmonic, for instance, skips itself,
         // because its node vetoes the pull clause and its open string leaves nothing to hammer on.
-        common::core::ChartNote asked = resolutions.saved_notes[index];
+        common::core::ChartNote asked = connections.saved_notes[index];
         asked.attack = common::core::NoteAttack::Legato;
         common::core::LegatoMotion resolved =
             common::core::resolveLegato(asked, predecessor, tempo_map);
@@ -604,7 +606,7 @@ std::optional<ChartNotesEditPlan> planSettleLegato(
     const std::vector<common::core::ChartNote>& base, const std::string_view label)
 {
     std::vector<common::core::ChartNote> settled = chart.notes;
-    if (common::core::sweepUnjustifiedLegato(settled, chart.shapes, tempo_map).empty())
+    if (common::core::sweepUnjustifiedLegato(settled, tempo_map).empty())
     {
         // The ONE emptiness this planner reports: the sweep found nothing to flatten. Returning
         // the diff's emptiness instead would conflate that with a flatten that exactly cancelled

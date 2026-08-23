@@ -72,11 +72,14 @@ scrolls — above the ruler body with its measure-number row and tick band; the 
 divide chrome, body, and the content scrolling under it. Each chip drops a dotted leader line in
 its own color down to the top of the body, marking its exact position (the body's own ticks take
 over from there); leaders draw for every event, even where a chip was suppressed on a dense map,
-and every chip paints above every leader. The tab's chord/arpeggio name chips render in the ruler's bottom tick band, flush with
-the bottom edge on the tab's top rail — they are tab data the ruler merely renders (fed via
-`TrackViewport::setShapeLabels`), the same relationship the tempo row has to the tempo map,
-because viewport children cannot paint over the pinned ruler. A 1px divider along the bottom edge
+and every chip paints above every leader. A 1px divider along the bottom edge
 separates the ruler from the rows scrolling under it.
+
+(The ruler's bottom band used to carry chord/arpeggio NAME chips. Nothing ever authored a chord
+name — the postures both surfaces draw are derived from the notes and carry no name — so the band,
+its chips, and `TrackViewport::setShapeLabels` were deleted rather than kept as a row that could
+only ever be empty. When names are authored they arrive as a dictionary keyed by a posture, and
+the band comes back with them.)
 
 # How rows get data: push for content, sample for live
 
@@ -180,9 +183,8 @@ draw since W9-B's fold on 2026-08-21; promoted from editor/core by plan 30
 Phase 1 so the game's 2D tab view shares the same scene model), so painting never queries musical
 positions. Because sustains overlap, it keeps a prefix-max index
 of note end times and binary-searches the visible note range each paint instead of scanning the
-whole chart. Its chord/arpeggio name chips are rendered by the timeline ruler (see above), not by
-this view — the lane has no clean room for names, and viewport children cannot paint over the
-pinned ruler.
+whole chart. It draws each hand-shape span's rail and, for an arpeggio, its brackets; a span's
+NAME has no drawn form on either surface, because nothing authors one (see above).
 
 String colors come from the **shared palette** in
 `rock-hero-common/ui/string_colors/string_color_palette.h` — a JUCE-free authority (colors are

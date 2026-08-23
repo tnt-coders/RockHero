@@ -353,7 +353,7 @@ Behavior the branch changed correctly but did not pin; each is one focused case 
 suite:
 
 - Three importer behavior changes in `gp_chart_builder.cpp` with no importer-level test: the
-  strikeless-tap decision moved into the build loop (so chord-shape and FHP passes see the settled
+  strikeless-tap decision moved into the build loop (so the hand-window pass sees the settled
   attack), the pick-slide carrier's capo floor (a capo ≥ 3 with a scrape carrier used to refuse
   the whole song), and the hopo direction deriving from the predecessor's RELEASED fret. One
   SECTION each in `test_gp_song_importer.cpp`, in the style of the out-of-range-fields case.

@@ -2,7 +2,6 @@
 
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
-#include "tab/tab_view.h"
 #include "timeline/timeline_cursor.h"
 
 #include <cmath>
@@ -35,17 +34,12 @@ constexpr int g_measure_row_y{45};
 constexpr int g_label_row_height{12};
 constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
-// Chip height shared by every ruler chip row and the chord/arpeggio name chips so they read as
-// one family.
+// Chip height shared by every ruler chip row so they read as one family.
 constexpr int g_chip_height{11};
 // The play-from-here flag: a filled triangle at the ruler body's top pointing down the cursor
 // line, sized to read at a glance — the 1px alignment line alone was too easy to miss.
 constexpr float g_cursor_flag_half_width{5.0f};
 constexpr float g_cursor_flag_height{7.0f};
-// Tab-derived chord/arpeggio name chips fill the tick band below the measure-number row, flush
-// with the bottom edge so each chip reads as sitting directly on the tablature lane's top rail
-// beneath it.
-constexpr int g_shape_chip_height{11};
 
 // Shared ruler text face. Cached label widths are measured with the same face they are drawn
 // with, so measurement and drawing must both go through these helpers.
@@ -54,7 +48,7 @@ constexpr int g_shape_chip_height{11};
     return juce::Font{juce::FontOptions{12.0f}};
 }
 
-// Chip text face shared with the tab lane's chord/arpeggio name chips.
+// Chip text face, sized so a chip row reads as a label band rather than as content.
 [[nodiscard]] juce::Font chipFont()
 {
     return juce::Font{juce::FontOptions{10.0f}.withStyle("Bold")};
@@ -237,8 +231,8 @@ void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
     m_cursor_placement_callback = std::move(callback);
 }
 
-// Paints the chip rows with their dotted leaders, the ruler body's measure-number row and tick
-// band, and the chord/arpeggio name chips along the bottom edge.
+// Paints the chip rows with their dotted leaders and the ruler body's measure-number row and tick
+// band.
 void TimelineRuler::paint(juce::Graphics& g)
 {
     // The chip rows blend into the editor chrome so the chips and their leaders read as part of
@@ -270,7 +264,6 @@ void TimelineRuler::paint(juce::Graphics& g)
     drawTempoChips(g);
     drawChipRow(g, m_signature_labels, editorTheme().signature_chip, g_signature_row_y);
 
-    drawShapeChips(g);
     drawCursor(g);
 }
 
@@ -301,21 +294,6 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     {
         m_cursor_placement_callback(*position);
     }
-}
-
-// Stores the tab-derived chord/arpeggio name chips for the bottom tick band. A changed list
-// rebuilds the cached chip row; an unchanged list returns early because every controller state push
-// repeats it.
-void TimelineRuler::setShapeLabels(std::vector<RulerShapeLabel> labels)
-{
-    if (m_shape_source == labels)
-    {
-        return;
-    }
-
-    m_shape_source = std::move(labels);
-    refreshRulerGeometry();
-    repaint();
 }
 
 // Stores the song's section names for the section chip row. The names cache a pinned,
@@ -380,7 +358,6 @@ void TimelineRuler::refreshRulerGeometry()
 
     refreshHeaderBands(chipFont(), pinned_left_seconds);
     refreshSectionBand(chipFont(), pinned_left_seconds);
-    refreshShapeBand(chipFont());
 
     // Like the chip rows, the active measure pins to the left edge while the song scrolls,
     // seeding the row at column zero so downbeat numbers scrolling underneath suppress
@@ -662,33 +639,6 @@ void TimelineRuler::refreshSectionBand(
     }
 }
 
-// Rebuilds the chord/arpeggio name chip row for the bottom tick band. Deliberately unsuppressed:
-// chips draw left to right in span order, so where shape changes crowd tighter than a name's width
-// the later span's chip overlaps the earlier one rather than being dropped. Kept out of paint() for
-// the same reason as every other row — the per-chip GlyphArrangement measurement must not rerun on
-// cursor-only repaints driven at vblank cadence.
-void TimelineRuler::refreshShapeBand(const juce::Font& font)
-{
-    m_shape_chips.clear();
-
-    for (const RulerShapeLabel& label : m_shape_source)
-    {
-        const std::optional<float> local_x = localXForSeconds(label.seconds);
-        if (!local_x.has_value())
-        {
-            continue;
-        }
-
-        m_shape_chips.push_back(
-            RulerShapeChip{
-                .x = *local_x,
-                .text = label.name,
-                .width = static_cast<float>(textWidth(font, label.name)) + 6.0f,
-                .fill = tabShapeMarkColor(label.arpeggio),
-            });
-    }
-}
-
 // Draws visible grid ticks, with measure ticks promoted to the ruler body's full height so the
 // measure-number row stays visually attached to its downbeats.
 void TimelineRuler::drawBeatTicks(juce::Graphics& g)
@@ -740,8 +690,7 @@ void TimelineRuler::drawLabelRow(
 }
 
 // Draws one cached row of overlap-suppressed labels as filled chips — rounded fill, white
-// centered text — the chord-chip style the tab lane's name chips established. The labels must
-// have been measured with the chip font.
+// centered text. The labels must have been measured with the chip font.
 void TimelineRuler::drawChipRow(
     juce::Graphics& g, const std::vector<RulerLabel>& labels, juce::Colour fill, int row_y)
 {
@@ -792,34 +741,6 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
             digits.text,
             chip.withTrimmedLeft(static_cast<float>(glyph.width) + 3.0f),
             juce::Justification::centredLeft);
-    }
-}
-
-// Draws the cached chord/arpeggio name chips flush with the ruler's bottom edge, directly above the
-// tablature lane's top rail: the lane has no clean room for names, and this band overlaps only
-// ticks — the measure-number row above stays clear. Positions and widths come from
-// refreshShapeBand, so no text is measured here.
-void TimelineRuler::drawShapeChips(juce::Graphics& g)
-{
-    if (m_shape_chips.empty())
-    {
-        return;
-    }
-
-    const juce::Font chip_font = chipFont();
-    g.setFont(chip_font);
-    for (const RulerShapeChip& chip_label : m_shape_chips)
-    {
-        const juce::Rectangle<float> chip{
-            chip_label.x,
-            static_cast<float>(getHeight() - g_shape_chip_height),
-            chip_label.width,
-            static_cast<float>(g_shape_chip_height)
-        };
-        g.setColour(chip_label.fill);
-        g.fillRoundedRectangle(chip, 2.0f);
-        g.setColour(juce::Colours::white);
-        g.drawText(chip_label.text, chip, juce::Justification::centred);
     }
 }
 

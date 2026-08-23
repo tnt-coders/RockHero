@@ -6,7 +6,6 @@
 #include <rock_hero/common/core/chart/chart_projection.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -49,7 +48,7 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
     // (`docs/plans/in-progress/note-sustain-model.md`). It is derived from the saved form, so a
     // pick slide's in-memory overrides (chart.h) are already stripped and the scrape draws as the
     // scrape it is.
-    const ChartResolutions resolutions = chartResolutions(chart.notes, chart.shapes, tempo_map);
+    const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
     const std::vector<ChartNote>& presented_notes = resolutions.presented_notes;
 
     // Note onsets ascend, so the forward cursor resolves them in amortized constant time.
@@ -79,11 +78,11 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         // only place in the projection that reaches past presentation, and the editor's Alt reveal
         // is its only consumer (ruling 4: what a game surface scores is the presented form).
         state.actual_end_seconds.push_back(tempo_map.secondsAtGlobalBeatPosition(
-            onset_beat + resolutions.saved_notes[note_index].sustain.toDouble()));
+            onset_beat + resolutions.connections.saved_notes[note_index].sustain.toDouble()));
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
-        view.legato = resolutions.legato[note_index];
+        view.legato = resolutions.connections.legato[note_index];
         view.palm_mute = note.palm_mute;
         view.dead = note.dead;
         view.harmonic_node = note.harmonic_node;
@@ -153,29 +152,27 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
         state.notes.push_back(std::move(view));
     }
 
-    state.shapes.reserve(chart.shapes.size());
+    state.shapes.reserve(resolutions.shapes.size());
     // The shared arrival rule, answered for every span in one pass — and asked of the same
     // presented stream every per-note fact above comes from, because whether a string is still
     // ringing across a span start is a question about what sounds, not about what is stored.
     const std::vector<bool> arrivals =
-        chartShapeArrivals(presented_notes, chart.shapes, chart.templates, tempo_map);
-    for (std::size_t shape_index = 0; shape_index < chart.shapes.size(); ++shape_index)
+        chartShapeArrivals(presented_notes, resolutions.shapes, resolutions.postures, tempo_map);
+    for (std::size_t shape_index = 0; shape_index < resolutions.shapes.size(); ++shape_index)
     {
-        const ChartShape& shape = chart.shapes[shape_index];
+        const ChartShape& shape = resolutions.shapes[shape_index];
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
 
-        std::string name;
         std::vector<ShapeStringViewState> strings;
-        if (shape.chord < chart.templates.size())
+        if (shape.posture < resolutions.postures.size())
         {
-            const ChordTemplate& chord_template = chart.templates[shape.chord];
-            name = chord_template.name;
-            // Template array index 0 is the lowest string.
-            for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
+            const ChartPosture& posture = resolutions.postures[shape.posture];
+            // Posture array index 0 is the lowest string.
+            for (std::size_t index = 0; index < posture.frets.size(); ++index)
             {
                 // Bound to a local so the optional check and the access are provably the same
                 // object (bugprone-unchecked-optional-access cannot track repeated indexing).
-                const std::optional<int>& fret = chord_template.frets[index];
+                const std::optional<int>& fret = posture.frets[index];
                 if (!fret.has_value())
                 {
                     continue;
@@ -184,9 +181,6 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                     ShapeStringViewState{
                         .string = static_cast<int>(index) + 1,
                         .fret = *fret,
-                        .finger = index < chord_template.fingers.size()
-                                      ? chord_template.fingers[index]
-                                      : std::nullopt,
                     });
             }
         }
@@ -195,7 +189,6 @@ ChartViewState makeChartViewState(const Arrangement& arrangement, const TempoMap
                 .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
                 .end_seconds =
                     tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
-                .name = std::move(name),
                 // A strummed chord is a box; sequential arrival, or a posture string ringing
                 // through the start un-restruck, renders as arpeggio brackets.
                 .arpeggio = arrivals[shape_index],

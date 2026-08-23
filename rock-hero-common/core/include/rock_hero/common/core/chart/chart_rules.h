@@ -124,16 +124,12 @@ enum class ChartErrorCode : std::uint8_t
     MalformedDocument,
     /*! \brief Tuning strings are missing or the string count is unusable. */
     InvalidTuning,
-    /*! \brief A chord template's arrays disagree with the tuning's string count. */
-    InvalidTemplate,
     /*! \brief A note carries an out-of-range string, fret, or position. */
     InvalidNote,
     /*! \brief Notes are not sorted by position and string, or duplicate an onset. */
     UnsortedOrDuplicateNotes,
     /*! \brief A bend or slide payload violates its note's sustain window. */
     InvalidNotePayload,
-    /*! \brief A shape span is empty, unsorted, or references a missing template. */
-    InvalidShape,
     /*! \brief A fret-hand position entry is out of range or unsorted. */
     InvalidFretHandPosition,
     /*! \brief A pick-slide note carries other techniques or a non-traveling path. */
@@ -161,42 +157,6 @@ cannot drift between chart and song documents.
 \return True when the position's measure, beat, and sub-beat offset are all usable.
 */
 [[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map);
-
-/*!
-\brief Classifies every shape span as an arpeggio or a strummed chord box.
-
-The arrival rule shared by the highway and tab projections: a span is an arpeggio when fewer
-than two notes strike at its start, when a posture string is still ringing there without being
-re-struck (an earlier note's PRESENTED tail crosses the span start on a template string with no
-onset at it), or when a picking-hand onset — a tap or a pick slide — sounds anywhere within the
-span. A strum under held content is picking around it, and a held chord under two-hand tapping is
-sustained through the taps rather than fully strummed, so the shape renders as brackets around
-individual notes instead of one strummed box. A posture string that is merely silent at the start
-(a partial strum of the shape) does not make an arpeggio.
-
-Asked of the PRESENTED stream (\ref presentedChartNotes), like every other fact a surface draws:
-the question is what still SOUNDS across the span start, and a dead string's stored ring is timing
-rather than sound — E25 is exactly the rule that takes a dead note's tail away, and it lives in
-presentation. Everything else the rule reads (positions, strings, attacks) comes through
-presentation untouched, and a ring that genuinely crosses a span start is presented whole anyway:
-a span starts at a two-note onset, so such a ring runs strictly past its own first binding onset
-and rule 1 exempts it.
-
-Answers all the shapes at once because the rule needs to look BACKWARD — to each posture string's
-most recent earlier note — and one forward cursor over the sorted notes carries exactly that with
-no walking back. The remaining per-shape scans stay local to each span; what this batching removed
-is the unbounded backward walk, which reached the first note in the song whenever a posture string
-had none and which both projections then paid for every shape on every chart revision.
-
-\param presented_notes Notes as drawn, sorted by (position, string).
-\param shapes Hand-posture spans, sorted by position.
-\param templates Chord template table the spans index.
-\param tempo_map Song tempo map, for signature-exact sustain-crossing checks.
-\return One flag per shape, in `shapes` order: true where the span renders arpeggio-style.
-*/
-[[nodiscard]] std::vector<bool> chartShapeArrivals(
-    const std::vector<ChartNote>& presented_notes, const std::vector<ChartShape>& shapes,
-    const std::vector<ChordTemplate>& templates, const TempoMap& tempo_map);
 
 /*!
 \brief The repair a chart normalization applied — one value per rule the normalizer owns.
@@ -403,15 +363,6 @@ so applying this twice changes nothing the second time.
     ChartNote& note, const ChartTuning& tuning);
 
 /*!
-\brief Clamps a chord template's frets onto the board, in place.
-
-\param chord_template Template to normalize.
-
-\return The repairs that fired; empty when the template was already normal.
-*/
-[[nodiscard]] std::vector<ChartRepair> normalizeChordTemplate(ChordTemplate& chord_template);
-
-/*!
 \brief Fits a fret-hand window onto the playable board, in place.
 
 The window's width shrinks to the frets above the capo when it is wider than that, its index
@@ -433,8 +384,8 @@ THE one normalizer: every path that brings a chart into memory — the package r
 Guitar Pro importer — calls this and nothing else, so the two cannot drift, and the validator
 that follows refuses only what no repair can express. It applies \ref normalizeChartNote to every
 note, bounds every ring at its own string's next onset with \ref normalizeSustainOverlaps (the
-one stream-level note rule, 40-Q2-B), applies \ref normalizeChordTemplate to every template and
-\ref normalizeFretHandPosition to every hand position, then settles the relational claims with
+one stream-level note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand
+position, then settles the relational claims with
 \ref sweepUnjustifiedLegato — last, because a truncated tail can be the hold a neighbour's claim
 depended on, and the claim must be judged against the stream as it will actually stand.
 
@@ -515,18 +466,21 @@ the structural checks over the chart's own arrays and then delegates the per-not
 this paragraph — a summary here drifts, and this one did once, describing "positive sustains" while
 zero was still the encoding for a note with no tail.
 
-Broadly, the structural half: a usable tuning and the cent-offset bound; template arrays matching
-the string count, with no template fret on a capo'd fret; notes sorted by (position, string) with
-no duplicate onsets, on valid grid positions; strings in range; non-negative frets and strictly
-positive sustains;
+Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by
+(position, string) with no duplicate onsets, on valid grid positions; strings in range;
+non-negative frets and strictly positive sustains;
 slide and bend offsets ascending within the sustain, and no waypoint on a later onset of its own
-string; shape spans positive, sorted, and referencing existing templates; sorted fret-hand
-positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;
+string; sorted fret-hand positions of positive width; harmonic-node range, beyond-the-stop, and
+neck-ceiling bounds;
 pinch-requires-a-node; on pick-slide notes, no pitched techniques (a saved scrape carries none — the
 writer omits the in-memory overrides) and the required unpitched slide-out terminal exactly at the
-sustain. Then the fixpoint half, stated once each as a repair of the normalizer: every note, chord
-template, and hand position must already equal its own normal form (\ref normalizeChartNote,
-\ref normalizeChordTemplate, \ref normalizeFretHandPosition).
+sustain. Then the fixpoint half, stated once each as a repair of the normalizer: every note and
+hand position must already equal its own normal form (\ref normalizeChartNote,
+\ref normalizeFretHandPosition).
+
+Hand-posture spans and their postures are absent by construction, not by omission: they are
+derived from the notes (\ref deriveChartShapes), so there is no authored value that could be
+invalid and nothing for a rule to refuse.
 
 \param chart Chart to validate.
 \param tempo_map Song tempo map the chart's positions must lie on.

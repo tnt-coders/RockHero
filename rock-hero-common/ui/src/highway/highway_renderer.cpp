@@ -390,9 +390,6 @@ constexpr double g_chord_box_frame_alpha = 128.0 / 255.0;
 // holds the measured weights everywhere.
 constexpr ArgbColor g_full_mute_mark_color = 0xFF52798A;
 
-// Chord-name text above a box.
-constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
-
 // Hand-shape span rails on the floor: arpeggio spans in Charter's purple, held shapes in
 // the lane-border teal; a solid core with fade-out wings (fret thickness x3 and x9).
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
@@ -1728,9 +1725,6 @@ struct HighwayRenderer::Impl
     int inlay_texture_width{0};
     int inlay_texture_height{0};
 
-    // Fingering panel texture (barre shapes + finger names); invalid skips the panel.
-    UniqueBgfxHandle<bgfx::TextureHandle> fingering_texture;
-
     // Retained board-face geometry; rebuilt on chart load, streamed content uses transients.
     UniqueBgfxHandle<bgfx::VertexBufferHandle> face_vertices;
     UniqueBgfxHandle<bgfx::IndexBufferHandle> face_indices;
@@ -1887,8 +1881,6 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->inlay_texture_width = inlay.width;
     impl->inlay_texture_height = inlay.height;
     impl->inlay_texture = std::move(inlay.handle);
-    UploadedTexture fingering = uploadPngTexture(textures.at(indexOf(TextureAsset::Fingering)));
-    impl->fingering_texture = std::move(fingering.handle);
 
     // Box-mute marks: chords.png is the single source of truth for the marks' STRUCTURE. Measure
     // both marks' cross-sections from its pixels and upload them as the two-row ramp the SDF
@@ -1942,8 +1934,8 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     // replaces silently masked exactly such failures).
     if (!impl->atlases.heads.isValid() ||
         impl->atlases.head_layout.capacity() < g_head_cell_count ||
-        !impl->inlay_texture.isValid() || !impl->fingering_texture.isValid() ||
-        !impl->box_mute_ramp.isValid() || !measured_head_art.has_value())
+        !impl->inlay_texture.isValid() || !impl->box_mute_ramp.isValid() ||
+        !measured_head_art.has_value())
     {
         const std::string_view chord_marks_state =
             profiles.has_value() ? "measured" : describeStructuralArtError(profiles.error());
@@ -1954,13 +1946,12 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
             .code = HighwayRendererErrorCode::TextureAssetInvalid,
             .message = std::format(
                 "highway texture assets missing or invalid (note atlas loaded={} with {} of "
-                "{} required cells, inlays loaded={}, fingering loaded={}, chord mute marks "
-                "{}, head silhouette {}); the install or resource deployment is broken",
+                "{} required cells, inlays loaded={}, chord mute marks {}, head silhouette {}); "
+                "the install or resource deployment is broken",
                 impl->atlases.heads.isValid(),
                 impl->atlases.head_layout.capacity(),
                 g_head_cell_count,
                 impl->inlay_texture.isValid(),
-                impl->fingering_texture.isValid(),
                 chord_marks_state,
                 head_art_state)
         }};
@@ -5494,170 +5485,6 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
-    // --- Fingering panel and arpeggio brackets for the active hand shape, on the board face
-    // after the skin (Charter's pass order). Suppressed while the current chord is fully
-    // muted — dead chugs show no fingering. ---
-    {
-        // The active shape: the last one starting within Charter's 20 ms lookahead that
-        // is still running.
-        const common::core::ShapeViewState* active_shape = nullptr;
-        for (const common::core::ShapeViewState& shape : state.chart.shapes)
-        {
-            if (shape.start_seconds > now_seconds + 0.02)
-            {
-                break;
-            }
-            active_shape = &shape;
-        }
-        if (active_shape != nullptr && active_shape->end_seconds < now_seconds)
-        {
-            active_shape = nullptr;
-        }
-        if (active_shape != nullptr && !active_shape->arpeggio)
-        {
-            // Fully-muted current chord: the last group at or before the lookahead, found by
-            // binary search over the whole-song list (the projection owns the groups now, so a
-            // current chord well behind the visible window resolves too instead of falling off
-            // the window's edge).
-            const common::core::HighwayChordGroupViewState* current_group = nullptr;
-            const auto after_lookahead = std::ranges::upper_bound(
-                state.chord_groups,
-                now_seconds + 0.02,
-                std::ranges::less{},
-                &common::core::HighwayChordGroupViewState::start_seconds);
-            if (after_lookahead != state.chord_groups.begin())
-            {
-                current_group = &*std::prev(after_lookahead);
-            }
-            if (current_group != nullptr &&
-                current_group->start_seconds >= active_shape->start_seconds &&
-                current_group->count >= 2 && current_group->all_dead)
-            {
-                active_shape = nullptr;
-            }
-        }
-
-        if (active_shape != nullptr)
-        {
-            // (Arpeggio brackets now ride the arpeggio box in the chord/arpeggio-box pass, which
-            // scrolls them in and parks them at the hit line — folded in from the old
-            // active-shape-only pass that used to draw here.)
-
-            // Fingering spots: barre-aware shape cells plus finger-name cells from the
-            // fingering texture (a real-alpha PNG, so the premultiplied blend applies).
-            if (fingering_texture.isValid())
-            {
-                std::vector<PosColorUvVertex> vertices;
-                std::vector<std::uint16_t> indices;
-                const double spot_half = metrics.string_distance / 2.0;
-                const std::uint32_t white = packAbgr(0xFFFFFFFF);
-                // Quarter-grid UV cells with Charter's inset.
-                const auto cell_uv = [](const int column, const int row) {
-                    return std::array<float, 4>{
-                        static_cast<float>((column * 0.25) + 0.001),
-                        static_cast<float>((row * 0.25) + 0.001),
-                        static_cast<float>((column * 0.25) + 0.249),
-                        static_cast<float>((row * 0.25) + 0.249),
-                    };
-                };
-                const std::array<std::array<float, 4>, 5> finger_name_cells{
-                    cell_uv(3, 0), cell_uv(0, 1), cell_uv(1, 1), cell_uv(2, 1), cell_uv(3, 1)
-                };
-                const auto push_spot = [&](const int fret,
-                                           const double lane_y,
-                                           const std::array<float, 4>& uv,
-                                           const bool flip_v) {
-                    const double x = common::core::highwayNoteCenterX(fret, metrics, mirrored);
-                    const float v0 = flip_v ? uv[3] : uv[1];
-                    const float v1 = flip_v ? uv[1] : uv[3];
-                    pushQuad(
-                        vertices,
-                        indices,
-                        makeUvVertex(x - spot_half, lane_y - spot_half, 0.0, white, uv[0], v1),
-                        makeUvVertex(x + spot_half, lane_y - spot_half, 0.0, white, uv[2], v1),
-                        makeUvVertex(x + spot_half, lane_y + spot_half, 0.0, white, uv[2], v0),
-                        makeUvVertex(x - spot_half, lane_y + spot_half, 0.0, white, uv[0], v0));
-                };
-
-                // Collect each finger's displayed-lane range and fret (a barre when it spans).
-                struct FingerSpan
-                {
-                    int low_lane{0};
-                    int high_lane{0};
-                    int fret{0};
-                    bool used{false};
-                };
-                std::array<FingerSpan, 5> fingers{};
-                for (const common::core::ShapeStringViewState& entry : active_shape->strings)
-                {
-                    if (!entry.finger.has_value() || *entry.finger < 0 || *entry.finger > 4 ||
-                        entry.fret <= 0)
-                    {
-                        continue;
-                    }
-                    const int lane = invert ? (displayed_count + 1 - laneOf(entry.string))
-                                            : laneOf(entry.string);
-                    FingerSpan& span = fingers.at(static_cast<std::size_t>(*entry.finger));
-                    if (!span.used)
-                    {
-                        span = FingerSpan{
-                            .low_lane = lane, .high_lane = lane, .fret = entry.fret, .used = true
-                        };
-                    }
-                    else
-                    {
-                        span.low_lane = std::min(span.low_lane, lane);
-                        span.high_lane = std::max(span.high_lane, lane);
-                        span.fret = entry.fret;
-                    }
-                }
-                const auto lane_center_y = [&](const int lane) {
-                    return common::core::highwayLaneToY(lane, metrics);
-                };
-                for (std::size_t finger = 0; finger < fingers.size(); ++finger)
-                {
-                    const FingerSpan& span = fingers.at(finger);
-                    if (!span.used)
-                    {
-                        continue;
-                    }
-                    if (span.low_lane == span.high_lane)
-                    {
-                        push_spot(span.fret, lane_center_y(span.low_lane), cell_uv(0, 0), false);
-                        push_spot(
-                            span.fret,
-                            lane_center_y(span.low_lane),
-                            finger_name_cells.at(finger),
-                            false);
-                        continue;
-                    }
-                    // Barre: an upright end at the top lane (with the finger name), middles
-                    // between, and a flipped end at the bottom lane.
-                    push_spot(span.fret, lane_center_y(span.high_lane), cell_uv(1, 0), false);
-                    push_spot(
-                        span.fret,
-                        lane_center_y(span.high_lane),
-                        finger_name_cells.at(finger),
-                        false);
-                    for (int lane = span.low_lane + 1; lane < span.high_lane; ++lane)
-                    {
-                        push_spot(span.fret, lane_center_y(lane), cell_uv(2, 0), false);
-                    }
-                    push_spot(span.fret, lane_center_y(span.low_lane), cell_uv(1, 0), true);
-                }
-                const bgfx::TextureHandle fingering = fingering_texture.get();
-                submitBatch(
-                    vertices,
-                    indices,
-                    posColorUvLayout(),
-                    texture_program.get(),
-                    &fingering,
-                    g_board_view,
-                    g_premultiplied_state);
-            }
-        }
-    }
-
     // --- Fret numbers and section labels through the glyph atlas. ---
     {
         std::vector<PosColorUvVertex> glyph_vertices;
@@ -5703,32 +5530,6 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(0xFFFFFFFF, 0.85));
         }
 
-        // Chord names ride the hit line while their shape is active (Charter's placement: left
-        // of the hand window, above the top lane), skipped once the shape is about to end.
-        const double chord_name_y = face_top_y - (metrics.string_distance * 0.5) + 0.5;
-        for (const common::core::ShapeViewState& shape : state.chart.shapes)
-        {
-            if (shape.name.empty() || shape.end_seconds < now_seconds ||
-                shape.start_seconds > span_end_seconds)
-            {
-                continue;
-            }
-            if (shape.start_seconds <= now_seconds && shape.end_seconds <= now_seconds + 0.15)
-            {
-                continue;
-            }
-            // Display-time window: a name riding the hit line follows the window per frame, so
-            // it travels with a chord sliding under its shape span.
-            const double window_seconds = std::max(shape.start_seconds, now_seconds);
-            (void)push_text(
-                shape.name,
-                handWindowXAt(state, window_seconds, metrics, mirrored).first - 1.75,
-                chord_name_y,
-                std::max(0.0, time_to_z(shape.start_seconds)),
-                0.7,
-                packAbgr(g_chord_name_color));
-        }
-
         const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
         submitBatch(
             glyph_vertices, glyph_indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
@@ -5738,11 +5539,11 @@ void HighwayRenderer::Impl::draw(
     // reads as a 100%-perfect strike (fret-hit-light-effect plan; deterministic note-arrival
     // trigger — an input-gated game version swaps only the trigger source). Reuses the window
     // light's soft-x-edge sprite under the additive blend, so a strike strictly ADDS luminance
-    // and pops identically on lit and unlit content. Deliberately the LAST board-view
-    // submission: the premultiplied inlay skin would punch dark dot silhouettes through a glow
-    // drawn earlier, and the fingering panel and hit-line text would dim it. The envelope is a
-    // stateless function of now - onset, per-onset with an inter-onset release clamp, so fast
-    // sections keep a discrete pop per strike instead of fusing into a shimmer. ---
+    // and pops identically on lit and unlit content. Deliberately the LAST board-view submission:
+    // the premultiplied inlay skin would punch dark dot silhouettes through a glow drawn earlier,
+    // and the hit-line text would dim it. The envelope is a stateless function of now - onset,
+    // per-onset with an inter-onset release clamp, so fast sections keep a discrete pop per strike
+    // instead of fusing into a shimmer. ---
     {
         std::vector<PosColorUvVertex> vertices;
         std::vector<std::uint16_t> indices;

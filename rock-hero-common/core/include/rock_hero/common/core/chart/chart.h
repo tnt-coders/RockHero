@@ -1,12 +1,11 @@
 /*!
 \file chart.h
-\brief Arrangement-owned chart model: the true tab of notes, shapes, and postures.
+\brief Arrangement-owned chart model: the true tab of notes, tuning, and hand placements.
 */
 
 #pragma once
 
 #include <compare>
-#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -552,32 +551,6 @@ where a has_value() guard on the loop variable's own member is not otherwise cre
 }
 
 /*!
-\brief Reusable hand posture: per-string frets and fingerings.
-
-Array index 0 is the lowest-pitched string; null entries mean the string is not part of the
-posture. Fingers use 0 for the thumb and 1-4 for index through pinky.
-*/
-struct ChordTemplate
-{
-    /*! \brief Display name; may be empty for unnamed shapes. */
-    std::string name;
-
-    /*! \brief Fret held per string; nullopt when the string is not part of the posture. */
-    std::vector<std::optional<int>> frets;
-
-    /*! \brief Finger per string; nullopt when unspecified or unused. */
-    std::vector<std::optional<int>> fingers;
-
-    /*!
-    \brief Compares two templates by their stored fields.
-    \param lhs Left-hand template.
-    \param rhs Right-hand template.
-    \return True when both templates store equal values.
-    */
-    friend bool operator==(const ChordTemplate& lhs, const ChordTemplate& rhs) = default;
-};
-
-/*!
 \brief The fret the **fretting hand** occupies for this note.
 
 Not the same as `note.fret`, which is the **stop**. A fret-hand harmonic — `fret == 0` plus a
@@ -813,34 +786,6 @@ is why the connection resolver disqualifies a scrape before ever asking this.
 */
 [[nodiscard]] int releasedFret(const ChartNote& note);
 
-/*!
-\brief Hand-posture span referencing a chord template.
-
-One mechanism covers strummed chords, chugged riffs on a held shape, and arpeggios: the notes
-under the span are the sounding truth, the shape adds the notation layer (name, box or bracket,
-fingering). Whether the span renders as a chord box or an arpeggio bracket derives from whether
-its notes arrive together or sequentially.
-*/
-struct ChartShape
-{
-    /*! \brief Musical start of the span. */
-    GridPosition position;
-
-    /*! \brief Span duration in beats; strictly positive. */
-    Fraction sustain{};
-
-    /*! \brief Index into the chart's chord template table. */
-    std::size_t chord{0};
-
-    /*!
-    \brief Compares two shapes by their stored fields.
-    \param lhs Left-hand shape.
-    \param rhs Right-hand shape.
-    \return True when both shapes store equal values.
-    */
-    friend bool operator==(const ChartShape& lhs, const ChartShape& rhs) = default;
-};
-
 /*! \brief Fret-hand position: where the hand sits on the neck from this point on. */
 struct FretHandPosition
 {
@@ -897,22 +842,19 @@ struct ChartTuning
 /*!
 \brief The true tab of one arrangement.
 
-Notes say what sounds; shapes say what the hand holds; templates are reusable postures. There is
-exactly one chart per arrangement — difficulty is a derived rating, never authored variants.
+Notes say what sounds; the hand placements say where the hand sits. What the hand HOLDS — the
+chord boxes and arpeggio brackets both surfaces draw — is derived from the notes rather than stored
+beside them (\ref deriveChartShapes), because a span is a statement about the notes under it and a
+stored one could only ever disagree with them. There is exactly one chart per arrangement —
+difficulty is a derived rating, never authored variants.
 */
 struct Chart
 {
     /*! \brief Instrument tuning; the strings array length is the string count everywhere. */
     ChartTuning tuning;
 
-    /*! \brief Reusable hand postures referenced by shapes, in table order. */
-    std::vector<ChordTemplate> templates;
-
     /*! \brief Every sounding onset, sorted by (position, string). */
     std::vector<ChartNote> notes;
-
-    /*! \brief Hand-posture spans, sorted by position. */
-    std::vector<ChartShape> shapes;
 
     /*! \brief Fret-hand positions, sorted by position. */
     std::vector<FretHandPosition> fret_hand_positions;

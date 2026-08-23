@@ -675,8 +675,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
     };
     const auto resolution = [&](const std::size_t index) {
         const common::core::Chart& current = *controller.session().currentArrangement()->chart;
-        return common::core::chartResolutions(
-                   current.notes, current.shapes, controller.session().song().tempo_map)
+        return common::core::chartConnections(current.notes, controller.session().song().tempo_map)
             .legato[index];
     };
 

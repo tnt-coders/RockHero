@@ -10,6 +10,7 @@ target_sources(
             src/chart/chart_presentation.cpp
             src/chart/chart_projection.cpp
             src/chart/chart_rules.cpp
+            src/chart/chart_shapes.cpp
             src/chart/chart_tokens.cpp
             src/chart/grid_arithmetic.cpp
             src/highway/highway_camera.cpp

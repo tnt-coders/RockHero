@@ -138,8 +138,6 @@ like every other format.
 | `tuning.strings` | string[] | req | Per-string tuning labels. |
 | `tuning.capo` | int | opt | (`0`) Capo fret, `0..12`. Frets are **absolute**, and `0` means the open string capo'd or not — so the capo never appears as a fret number, and frets `1..capo` are invalid on notes, postures, pitched slide waypoints, and fret-hand positions. |
 | `tuning.centOffset` | number | opt | (`0.0`) |
-| `chords[].name` | string | opt | Chord template name (`""`). |
-| `chords[].frets` / `.fingers` | (int\|null)[] | req | Per-string; `null` = not played. |
 | `notes[].position` | grid token | req | Note location. |
 | `notes[].string` | int | opt | String index (`0`). |
 | `notes[].fret` | int | opt | (`-1` = unset). |
@@ -152,8 +150,14 @@ like every other format.
 | `notes[].bend` | [fraction, number][] | opt | Offset + semitone pairs. |
 | `notes[].slides[]` | object[] | opt | Pitched curve waypoints `{offset: <fraction> req, fret (-1)}` — legato junctions, holds, and shift-slide glides; never sits on a later onset of the string (a shift glide ends the minimum sustain distance before its re-picked landing, at exactly the sustain end). |
 | `notes[].slideOut` | object | opt | Unpitched slide-out `{offset: <fraction> req, fret (-1)}`: pressure releases and the pitch falls away — no landing note exists, so the gesture owns its end offset and gestured fret. Absent = the tail just ends. |
-| `shapes[]` | object[] | opt | `{position, sustain, chord}` all req; chord indexes `chords[]`. |
 | `fhps[]` | object[] | opt | `{position req, fret (0), width (4; omitted when 4)}`. |
+
+The removed `chords[]` and `shapes[]` keys are **refused** rather than ignored, so an un-reimported
+package fails to load with a message naming the fix. Hand-posture spans and the postures they held
+are derived from the notes wherever they are read (`deriveChartShapes`), because a span is a
+statement about the notes under it and a stored one could only ever disagree with them. Chord names
+and fingerings went with them — nothing authored either; when they are authored they become a
+dictionary keyed by a posture rather than fields on one.
 
 Unknown enum tokens are hard read errors; chart *rules* (ordering against the tempo map) are
 validated after load, not by the parser. The one exception is the note array's own ORDER: `notes[]`

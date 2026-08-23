@@ -206,7 +206,8 @@ boundary (test-only targets), which is exactly what namespaces are for.
 song, arrangement, difficulty, audio assets and their normalization metadata), `timeline/`
 (musical time — time value types, the tempo map, and the exact rational type for grid-relative
 positions; the same feature name the editor libraries use), `chart/` (the playable chart model —
-notes, chord templates, tuning, techniques — and its seconds-resolved scene, `ChartViewState`,
+notes, tuning, techniques, and the hand-posture spans derived from them — and its
+seconds-resolved scene, `ChartViewState`,
 which both renderers draw), `tone/` (tone-catalog and automation value types), `package/`
 (song-package persistence — archive IO, package IDs, workspace paths, and their errors),
 `session/` (the editable workspace session composing song, arrangement, and timeline state), and

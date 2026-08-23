@@ -1861,11 +1861,11 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
 
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *planned.plan);
-        const common::core::ChartResolutions resolutions =
-            common::core::chartResolutions(applied.notes, applied.shapes, tempo_map);
-        REQUIRE(resolutions.legato.size() == 4);
-        CHECK(resolutions.legato[1] == common::core::LegatoMotion::Hammer);
-        CHECK(resolutions.legato[3] == common::core::LegatoMotion::Pull);
+        const common::core::ChartConnections connections =
+            common::core::chartConnections(applied.notes, tempo_map);
+        REQUIRE(connections.legato.size() == 4);
+        CHECK(connections.legato[1] == common::core::LegatoMotion::Hammer);
+        CHECK(connections.legato[3] == common::core::LegatoMotion::Pull);
     }
 }
 
@@ -2257,10 +2257,10 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
         CHECK(plan->inserted[0].sustain == common::core::Fraction{1});
         applyAndValidate(chart, tempo_map, *plan);
         CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
-        const common::core::ChartResolutions resolutions =
-            common::core::chartResolutions(chart.notes, chart.shapes, tempo_map);
-        REQUIRE(resolutions.legato.size() == 2);
-        CHECK(resolutions.legato[1] == common::core::LegatoMotion::Unjustified);
+        const common::core::ChartConnections connections =
+            common::core::chartConnections(chart.notes, tempo_map);
+        REQUIRE(connections.legato.size() == 2);
+        CHECK(connections.legato[1] == common::core::LegatoMotion::Unjustified);
     }
 
     // The sweep is what ends the transience, and it can be expressed against any base: against the

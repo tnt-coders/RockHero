@@ -29,8 +29,6 @@ namespace
 using common::core::BendPoint;
 using common::core::Chart;
 using common::core::ChartNote;
-using common::core::ChartShape;
-using common::core::ChordTemplate;
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::NoteAttack;
@@ -901,220 +899,6 @@ void clampSameStringOverlaps(std::vector<BuiltNote>& built, const common::core::
     {
         built[index].note = std::move(stored[index]);
     }
-}
-
-// Derives chord templates and hand-posture spans from the note stream (import policy). Guitar Pro
-// scores in practice carry no handshape data (corpus chord collections are empty), so any onset
-// striking two or more strings becomes a chord posture, deduplicated into the template table, and
-// consecutive onsets holding the same posture merge into one shape span covering the strums' own
-// rings — the grouping the tab renders as a chord box over repeated strums.
-// Tap-only onsets are transparent to the whole derivation: taps are the tapping hand, so they
-// neither form postures nor close held spans, letting a ringing chord's span cover the taps above
-// it. ANY articulation difference is a new chord: span continuity compares each string's whole note
-// with only its position and duration neutralized, so attack (hammer/pull/tap/slap/pop), muting,
-// harmonics, vibrato, tremolo, emphasis, bends, and slides — and any technique added to ChartNote
-// later — all split the span, while strum durations never do. The template table stays deduplicated
-// by frets alone (the hand posture is identical; techniques render on the notes). A note still
-// ringing through a chord's onset (tie-held from before, not re-struck) joins the posture on its
-// string (policy rule 12); the projections' shared arrival rule then renders the partly-struck span
-// as an arpeggio, while fully-strummed spans stay chord boxes — no other arpeggio grouping is
-// derived (broken-chord grouping needs the corpus-informed pass). A span closed by a following
-// event trims to the minimum-sustain-distance margin before it — the same margin every other
-// element keeps (policy rule 12a). Derived templates are unnamed and unfingered.
-//
-// Articulation is read from the PRESENTED notes and span extent from the stored rings, which is
-// the split the box states: what the chord LOOKS like is what the surfaces draw (a tail the
-// presentation rules compressed carries a compressed gesture, and two strums that draw
-// identically are one box), while how far the hand keeps holding is the actual ring behind the
-// picture. Both streams are index-aligned with `built`.
-// The maintained plain-English spec is "GP chart normalization policy" in
-// docs/developer/the-project-lifecycle.md.
-void deriveChordShapes(
-    const std::vector<BuiltNote>& built, const std::vector<ChartNote>& presented,
-    const MeasureGrid& grid, Chart& chart)
-{
-    const std::size_t string_count = chart.tuning.strings.size();
-    std::map<std::vector<std::optional<int>>, std::size_t> template_indices;
-
-    // One struck string's contribution to a span's articulation identity: the whole note with
-    // its position and duration neutralized, so ChartNote equality decides "same chord" and new
-    // technique fields can never silently drop out of the comparison.
-    using StringArticulation = std::optional<ChartNote>;
-
-    struct OpenSpan
-    {
-        std::size_t chord{0};
-        std::vector<StringArticulation> articulation;
-        GridPosition position;
-        Fraction start_beat{};
-        Fraction end_beat{};
-        Fraction last_strum_beat{};
-    };
-    std::optional<OpenSpan> open;
-    // The closing onset reduced by the minimum-sustain-distance margin (at the closing onset's
-    // measure) — where a span it closes must end.
-    const auto margin_limit = [&grid](const BuiltNote& closing) {
-        return closing.global_beat - sustainMarginAt(grid, closing.note.position);
-    };
-    // Closes the held span. A span closed by a following event trims to the margin before it
-    // (policy rule 12a — spans keep the same minimum sustain distance as every other element),
-    // floored at the last strum so the box always reaches its final restrike. A span that would
-    // lose all length (a single strum crowded closer than the margin) falls back to exact
-    // adjacency, mirroring the sustain rules' protected-adjacency precedent — chart validation
-    // rejects zero-length spans.
-    const auto close_span = [&chart, &open](
-                                const std::optional<Fraction> closing_limit,
-                                const std::optional<Fraction>
-                                    closing_beat) {
-        if (open.has_value())
-        {
-            Fraction end = open->end_beat;
-            if (closing_limit.has_value() && *closing_limit < end)
-            {
-                end = std::max(*closing_limit, open->last_strum_beat);
-            }
-            if (!(open->start_beat < end) && closing_beat.has_value())
-            {
-                // Exact adjacency: the crowded span ends at the earlier of its own ring and the
-                // closing onset — both sit strictly after the span start, so the span keeps
-                // positive length even when the closer lands exactly on the ring's end (a dense
-                // run of short strums).
-                end = std::min(open->end_beat, *closing_beat);
-            }
-            chart.shapes.push_back(
-                ChartShape{
-                    .position = open->position,
-                    .sustain = end - open->start_beat,
-                    .chord = open->chord,
-                });
-            open.reset();
-        }
-    };
-
-    // The last note sounded per string, for the ring-through rule (policy rule 12): a note whose
-    // tail crosses a chord's onset on an un-struck string is still sounding, so its held fret
-    // joins the derived posture — and the projections' arrival rule renders the partly-struck
-    // span as an arpeggio. Indexes rather than pointers, because the posture it folds in comes
-    // from the presented stream while the ring it tests comes from the stored one.
-    std::vector<std::optional<std::size_t>> ringing(string_count);
-
-    std::size_t index = 0;
-    while (index < built.size())
-    {
-        std::size_t onset_end = index;
-        Fraction ring_end{};
-        std::vector<StringArticulation> articulation(string_count);
-        std::size_t struck = 0;
-        while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
-        {
-            const ChartNote& note = built[onset_end].note;
-            // Right-hand onsets are invisible to span derivation: they join no posture and
-            // extend no ring, so a mixed onset is judged by its fretting-hand members alone.
-            if (!common::core::rightHandOnset(note.attack))
-            {
-                if (const auto string_index = static_cast<std::size_t>(note.string - 1);
-                    string_index < string_count)
-                {
-                    ChartNote key = presented[onset_end];
-                    key.position = GridPosition{};
-                    key.sustain = Fraction{};
-                    articulation[string_index] = std::move(key);
-                    ++struck;
-                }
-                if (ring_end < ringEndOf(built[onset_end]))
-                {
-                    ring_end = ringEndOf(built[onset_end]);
-                }
-            }
-            ++onset_end;
-        }
-        if (struck == 0)
-        {
-            // Tap-only onsets are transparent to the GROUPING: they neither form a chord posture
-            // nor end a held one. A chord ringing under taps on other strings keeps its span,
-            // which the projections' arrival rule then renders as a held arpeggio — the corpus's
-            // held-shape-under-tapping case. Transparent to the grouping is not transparent to
-            // the ring: a tap is a real onset on its own string, so the clamp has already ended
-            // any ring there. A short-ringing chord is unaffected either way: its span still ends
-            // at its own ring, before the taps.
-        }
-        else if (struck >= 2)
-        {
-            // Ring-through strings join the posture (they never count as struck): the held
-            // note's articulation folds in so span merging still compares whole notes.
-            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-            {
-                const std::optional<std::size_t>& ring = ringing[string_index];
-                if (!articulation[string_index].has_value() && ring.has_value() &&
-                    built[index].global_beat < ringEndOf(built[*ring]))
-                {
-                    ChartNote key = presented[*ring];
-                    key.position = GridPosition{};
-                    key.sustain = Fraction{};
-                    articulation[string_index] = std::move(key);
-                }
-            }
-            std::vector<std::optional<int>> posture(string_count);
-            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
-            {
-                const StringArticulation& slot = articulation[string_index];
-                if (slot.has_value())
-                {
-                    posture[string_index] = slot->fret;
-                }
-            }
-            const auto [entry, inserted] =
-                template_indices.try_emplace(posture, chart.templates.size());
-            if (inserted)
-            {
-                chart.templates.push_back(
-                    ChordTemplate{
-                        .name = {},
-                        .frets = std::move(posture),
-                        .fingers = std::vector<std::optional<int>>(string_count),
-                    });
-            }
-            if (open.has_value() && open->articulation == articulation)
-            {
-                if (open->end_beat < ring_end)
-                {
-                    open->end_beat = ring_end;
-                }
-                open->last_strum_beat = built[index].global_beat;
-            }
-            else
-            {
-                close_span(margin_limit(built[index]), built[index].global_beat);
-                open = OpenSpan{
-                    .chord = entry->second,
-                    .articulation = std::move(articulation),
-                    .position = built[index].note.position,
-                    .start_beat = built[index].global_beat,
-                    .end_beat = ring_end,
-                    .last_strum_beat = built[index].global_beat,
-                };
-            }
-        }
-        else
-        {
-            // Any intervening non-chord onset ends the held posture.
-            close_span(margin_limit(built[index]), built[index].global_beat);
-        }
-        // This onset's non-tap notes become the ring candidates for later onsets (updated after
-        // use: a note starting at an onset is struck there, not ringing through it). Taps stay
-        // invisible here too — a ringing tap never folds into a later posture.
-        for (std::size_t member = index; member < onset_end; ++member)
-        {
-            if (const auto string_index = static_cast<std::size_t>(built[member].note.string - 1);
-                string_index < string_count &&
-                !common::core::rightHandOnset(built[member].note.attack))
-            {
-                ringing[string_index] = member;
-            }
-        }
-        index = onset_end;
-    }
-    close_span(std::nullopt, std::nullopt);
 }
 
 // A silence long enough to read as a phrase break: the hand re-anchors across it. 0.8s is the
@@ -2443,25 +2227,15 @@ void resolveSlideOutExits(
 
     // Every synthesis that can lengthen a ring is done, so the stored stream takes its final
     // shape here: the same-string clamp first (a re-strike stops the ring), then the picture the
-    // surfaces will draw. The two passes below ride that picture rather than the rings behind it
-    // — a trail-off's hand exit lands where the gesture is DRAWN to end, and two strums that draw
-    // identically are one chord box.
+    // surfaces will draw. The one pass below rides that picture rather than the rings behind it —
+    // a trail-off's hand exit lands where the gesture is DRAWN to end. Hand-posture spans are NOT
+    // an import decision any more: they are derived from the finished notes wherever they are read
+    // (common/core's deriveChartShapes), so there is nothing to run here and nothing to report.
     clampSameStringOverlaps(built, tempo_map);
-    std::vector<ChartNote> presented = presentedNotes(built, tempo_map);
+    const std::vector<ChartNote> presented = presentedNotes(built, tempo_map);
 
     // Trail-off exits follow the hand's next move where it agrees.
     resolveSlideOutExits(built, presented, chart.fret_hand_positions, grid, chart.tuning.capo);
-
-    // The exit pass resolves a trail-off's fret into the stored note, and the span articulation
-    // compares that fret, so the picture is re-derived rather than the fret being written twice.
-    presented = presentedNotes(built, tempo_map);
-    deriveChordShapes(built, presented, grid, chart);
-    if (!chart.shapes.empty())
-    {
-        notes.push_back(
-            "derived " + std::to_string(chart.shapes.size()) + " chord spans (" +
-            std::to_string(chart.templates.size()) + " postures)");
-    }
 
     if (unsupported_harmonics > 0)
     {
@@ -2499,12 +2273,14 @@ void resolveSlideOutExits(
     // Import is a commit point, so the chart leaves here in its normal form through the ONE
     // normalizer every load path calls: each note sheds what it cannot execute, every range is
     // brought onto the board, and the settle sweep runs last over the finished stream — released
-    // frets after every slide chain, holds after the same-string clamp, spans after the posture
-    // derivation. The rules live beside their repairs in `chart_rules`, because a list of them
-    // kept here drifted from the list there twice, and a dead note carrying a bend then reached
-    // validation intact and failed the WHOLE song's import. Counted by rule rather than listed,
-    // like every other import conversion: an import converts wholesale, and a position list for
-    // a dense score would be hundreds of lines.
+    // frets after every slide chain, holds after the same-string clamp. The spans a reader derives
+    // therefore describe the SETTLED stream, which is the stream the surfaces draw: a claim the
+    // chart cannot justify plays as a plain pick, so it must not split a box from a neighbouring
+    // strum that plays the same way. The rules live beside their repairs in `chart_rules`, because
+    // a list of them kept here drifted from the list there twice, and a dead note carrying a bend
+    // then reached validation intact and failed the WHOLE song's import. Counted by rule rather
+    // than listed, like every other import conversion: an import converts wholesale, and a
+    // position list for a dense score would be hundreds of lines.
     std::map<common::core::ChartRepair, int> repairs_by_rule;
     for (const common::core::ChartConversion& conversion :
          common::core::normalizeChart(chart, tempo_map))

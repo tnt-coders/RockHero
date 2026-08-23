@@ -4,6 +4,15 @@ Status: **SETTLED 2026-08-14.** The rule below under "What shipped" is in the co
 here is the option space it was chosen from, kept because the dead ends are expensive to re-walk and
 several were rejected for reasons no measurement would have found.
 
+**Two of the rejected options lost their premise on 2026-08-22** (note-sustain-model stage C), and
+the record is kept as written rather than rewritten. Hand-posture spans and their postures are now
+derived from the notes instead of stored, and a posture carries neither a name nor a fingering —
+nothing ever authored either, so `ShapeViewState::name`, `ShapeStringViewState::finger`, the
+timeline ruler's name-chip band with `setShapeLabels`, and the highway's fingering panel were all
+deleted as branches that could never fire. Option A's name chip and option B's fingering-bearing
+diagram would therefore have to bring their own data source back with them: when names and
+fingerings are authored they arrive as a dictionary keyed by a posture.
+
 ## What shipped
 
 One decision per posture string, at the span start:

@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <ranges>
 #include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
@@ -186,8 +187,35 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
     return common::core::presentedChartNotes(
-        common::core::chartResolutions(chart.notes, chart.shapes, tempo_map).saved_notes,
-        tempo_map);
+        common::core::chartConnections(chart.notes, tempo_map).saved_notes, tempo_map);
+}
+
+// The hand-posture spans an imported chart implies. The chart stores none — every reader derives
+// them from the notes (chart_shapes.h, whose rule is tested on its own in common/core) — so these
+// assertions pin the importer's NOTES through that derivation, not the derivation itself.
+[[nodiscard]] common::core::ChartShapes spansOf(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
+{
+    common::core::ChartResolutions resolutions =
+        common::core::chartResolutions(chart.notes, tempo_map);
+    return common::core::ChartShapes{
+        .shapes = std::move(resolutions.shapes),
+        .postures = std::move(resolutions.postures),
+    };
+}
+
+// The frets a posture actually holds, with the trailing unheld strings dropped. A posture array is
+// indexed by string number and is therefore always the model's string bound wide, so spelling that
+// width into every expectation would state the bound rather than the hand shape — and a spuriously
+// held string above the shape still fails, because it survives the trim.
+[[nodiscard]] std::vector<std::optional<int>> heldFrets(const common::core::ChartPosture& posture)
+{
+    std::vector<std::optional<int>> held = posture.frets;
+    while (!held.empty() && !held.back().has_value())
+    {
+        held.pop_back();
+    }
+    return held;
 }
 
 // Which of an imported chart's spans render arpeggio-style. The rule reads the same presented
@@ -196,8 +224,9 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 [[nodiscard]] std::vector<bool> shapeArrivalsOf(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
+    const common::core::ChartShapes derived = spansOf(chart, tempo_map);
     return common::core::chartShapeArrivals(
-        presentedNotesOf(chart, tempo_map), chart.shapes, chart.templates, tempo_map);
+        presentedNotesOf(chart, tempo_map), derived.shapes, derived.postures, tempo_map);
 }
 
 // Finds the generated fret-hand position at an exact grid position, or null. The slide tests use
@@ -335,8 +364,9 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[4].bend.empty());
 
     // No two notes strike together in the fixture, so no chord furniture is derived.
-    CHECK(chart.templates.empty());
-    CHECK(chart.shapes.empty());
+    const common::core::ChartShapes fixture_spans = spansOf(chart, song->tempo_map);
+    CHECK(fixture_spans.postures.empty());
+    CHECK(fixture_spans.shapes.empty());
 
     // The generated fret-hand track opens on the fret-5 palm mute, then the seven-to-nine shift
     // glide drags the anchor up by its own +2 delta to a fret-7 window at the pitched waypoint
@@ -905,19 +935,20 @@ TEST_CASE(
     // trims to the minimum sustain distance before the landing onset (rule 12a — spans keep the
     // same margin as every other element) even though its tied member rings on, so the landing
     // reads as its own arrival with the standard gap.
-    REQUIRE(chart.shapes.size() == 2);
-    CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.shapes[0].sustain == Fraction{3, 4});
-    REQUIRE(chart.shapes[0].chord < chart.templates.size());
+    const common::core::ChartShapes derived = spansOf(chart, song->tempo_map);
+    REQUIRE(derived.shapes.size() == 2);
+    CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(derived.shapes[0].sustain == Fraction{3, 4});
+    REQUIRE(derived.shapes[0].posture < derived.postures.size());
     CHECK(
-        chart.templates[chart.shapes[0].chord].frets ==
-        std::vector<std::optional<int>>{3, 6, 8, std::nullopt, std::nullopt, std::nullopt});
+        heldFrets(derived.postures[derived.shapes[0].posture]) ==
+        std::vector<std::optional<int>>{3, 6, 8});
     CHECK(shapeArrivalsOf(chart, song->tempo_map)[0]);
-    CHECK(chart.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
-    REQUIRE(chart.shapes[1].chord < chart.templates.size());
+    CHECK(derived.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+    REQUIRE(derived.shapes[1].posture < derived.postures.size());
     CHECK(
-        chart.templates[chart.shapes[1].chord].frets ==
-        std::vector<std::optional<int>>{3, 2, 4, std::nullopt, std::nullopt, std::nullopt});
+        heldFrets(derived.postures[derived.shapes[1].posture]) ==
+        std::vector<std::optional<int>>{3, 2, 4});
     CHECK(shapeArrivalsOf(chart, song->tempo_map)[1]);
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -975,94 +1006,22 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
     REQUIRE(chart.notes.size() == 7);
 
-    // One deduplicated unnamed posture, in absolute frets (the fixture's capo is 2): absolute 5
-    // on the lowest string, absolute 7 on the second.
-    REQUIRE(chart.templates.size() == 1);
-    const common::core::ChordTemplate& posture = chart.templates.front();
-    CHECK(posture.name.empty());
-    REQUIRE(posture.frets.size() == 6);
+    // One deduplicated posture, in absolute frets (the fixture's capo is 2, and Guitar Pro's frets
+    // are capo-relative): absolute 5 on the lowest string, absolute 7 on the second.
+    const common::core::ChartShapes derived = spansOf(chart, song->tempo_map);
+    REQUIRE(derived.postures.size() == 1);
+    const common::core::ChartPosture& posture = derived.postures.front();
+    REQUIRE(posture.frets.size() >= 2);
     CHECK(posture.frets[0] == std::optional{5});
     CHECK(posture.frets[1] == std::optional{7});
-    CHECK_FALSE(posture.frets[2].has_value());
-    REQUIRE(posture.fingers.size() == 6);
-    CHECK_FALSE(posture.fingers[0].has_value());
 
     // Both strums merge into one span from 1:1 toward the eighth strum's ring end at 1:2+1/2,
     // trimmed to the minimum sustain distance before the closing fret-7 onset there (rule 12a) —
     // even though presentation draws no tail on either strum.
-    REQUIRE(chart.shapes.size() == 1);
-    CHECK(chart.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(chart.shapes.front().sustain == Fraction{5, 4});
-    CHECK(chart.shapes.front().chord == 0);
-
-    std::filesystem::remove_all(scratch, cleanup_error);
-}
-
-// Any articulation difference is a new chord: a palm mute or a hammered attack on the same
-// frets ends the span and opens a new box, while both spans share one frets-deduplicated
-// template.
-TEST_CASE("Guitar Pro import splits chord spans on articulation changes", "[core][gp-import]")
-{
-    const std::filesystem::path scratch =
-        std::filesystem::temp_directory_path() / "rh_gp_articulation_chord_test";
-    std::error_code cleanup_error;
-    std::filesystem::remove_all(scratch, cleanup_error);
-    const std::filesystem::path workspace = scratch / "song";
-    std::filesystem::create_directories(workspace);
-
-    // The same power chord strummed twice — plain, then palm-muted or hammered: two spans, one
-    // template either way.
-    const std::string articulation_property = GENERATE(
-        std::string{"<Property name=\"PalmMuted\"><Enable/></Property>\n"},
-        std::string{"<Property name=\"HopoDestination\"><Enable/></Property>\n"});
-    std::string gpif{g_fixture_gpif};
-    const auto replace_once = [&gpif](const std::string& marker, const std::string& replacement) {
-        const std::size_t position = gpif.find(marker);
-        REQUIRE(position != std::string::npos);
-        gpif.replace(position, marker.size(), replacement);
-    };
-    replace_once("<Notes>0</Notes>", "<Notes>9 6</Notes>");
-    replace_once("<Notes>1</Notes>", "<Notes>7 8</Notes>");
-    replace_once(
-        "</Notes>\n<Rhythms>",
-        "<Note id=\"6\"><Properties>\n"
-        "<Property name=\"String\"><String>1</String></Property>\n"
-        "<Property name=\"Fret\"><Fret>5</Fret></Property>\n"
-        "</Properties></Note>\n"
-        "<Note id=\"7\"><Properties>\n"
-        "<Property name=\"String\"><String>0</String></Property>\n"
-        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n" +
-            articulation_property +
-            "</Properties></Note>\n"
-            "<Note id=\"8\"><Properties>\n"
-            "<Property name=\"String\"><String>1</String></Property>\n"
-            "<Property name=\"Fret\"><Fret>5</Fret></Property>\n" +
-            articulation_property +
-            "</Properties></Note>\n"
-            "<Note id=\"9\"><Properties>\n"
-            "<Property name=\"String\"><String>0</String></Property>\n"
-            "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
-            "</Properties></Note>\n"
-            "</Notes>\n<Rhythms>");
-    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
-
-    GpSongImporter importer;
-    const auto song = importer.importSong(archive, workspace);
-    REQUIRE(song.has_value());
-    REQUIRE(song->arrangements.size() == 1);
-    const common::core::Chart& chart = requiredChart(song->arrangements.front());
-
-    // One frets-identical template, but the palm-muted strum is its own chord: two spans, each
-    // trimmed to the minimum sustain distance before the event that closes it (rule 12a) — the
-    // differing strum at beat 2, then the fret-7 onset at 1:2+1/2.
-    REQUIRE(chart.templates.size() == 1);
-    REQUIRE(chart.shapes.size() == 2);
-    CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(chart.shapes[0].sustain == Fraction{3, 4});
-    CHECK(chart.shapes[0].chord == 0);
-    CHECK(chart.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.shapes[1].sustain == Fraction{1, 4});
-    CHECK(chart.shapes[1].chord == 0);
+    REQUIRE(derived.shapes.size() == 1);
+    CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(derived.shapes.front().sustain == Fraction{5, 4});
+    CHECK(derived.shapes.front().posture == 0);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -1417,8 +1376,9 @@ TEST_CASE(
         CHECK(presented[0].sustain == Fraction{7, 4});
         CHECK(presented[1].sustain == Fraction{7, 4});
         // One merged span from the first strum through the last strum's ring.
-        REQUIRE(chart.shapes.size() == 1);
-        CHECK(chart.shapes[0].sustain == Fraction{4});
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].sustain == Fraction{4});
     }
 
     SECTION("a changed chord rings the same way but splits the span")
@@ -1438,7 +1398,7 @@ TEST_CASE(
         REQUIRE(chart.notes.size() == 4);
         CHECK(chart.notes[0].sustain == Fraction{2});
         CHECK(chart.notes[1].sustain == Fraction{2});
-        CHECK(chart.shapes.size() == 2);
+        CHECK(spansOf(chart, built->tempo_map).shapes.size() == 2);
     }
 
     SECTION("a ring notated across voices past the next onset is held whole")
@@ -2941,8 +2901,7 @@ TEST_CASE("Guitar Pro import maps grace-note hammer-ons and pull-offs", "[core][
     // other motion — or, where the frets then match, resolves to nothing and the sweep drops it.
     const auto resolution = [](const GpBuiltSong& built, const std::size_t index) {
         const common::core::Chart& chart = built.arrangements.front().chart;
-        return common::core::chartResolutions(chart.notes, chart.shapes, built.tempo_map)
-            .legato[index];
+        return common::core::chartConnections(chart.notes, built.tempo_map).legato[index];
     };
 
     SECTION("a grace below the principal hammers on")
@@ -3040,9 +2999,10 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
         // One span from the strum through its notated ring: the taps neither close nor trim it,
         // and the covered span arrives as a held arpeggio.
-        REQUIRE(chart.shapes.size() == 1);
-        CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-        CHECK(chart.shapes[0].sustain == Fraction{2});
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes[0].sustain == Fraction{2});
         CHECK(shapeArrivalsOf(chart, built->tempo_map)[0]);
     }
 
@@ -3053,8 +3013,9 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         const common::core::Chart& chart = built->arrangements.front().chart;
         // The quarter chord's ring ends at the first tap's onset, so the span keeps its own
         // notated duration, the taps land outside it, and the box stays a strummed box.
-        REQUIRE(chart.shapes.size() == 1);
-        CHECK(chart.shapes[0].sustain == Fraction{1});
+        const common::core::ChartShapes derived = spansOf(chart, built->tempo_map);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes[0].sustain == Fraction{1});
         CHECK_FALSE(shapeArrivalsOf(chart, built->tempo_map)[0]);
     }
 
@@ -3087,35 +3048,8 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         CHECK(chart.notes[1].attack == common::core::NoteAttack::Tap);
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
         CHECK(chart.notes[3].attack == common::core::NoteAttack::Legato);
-        CHECK(chart.shapes.empty());
+        CHECK(spansOf(chart, built->tempo_map).shapes.empty());
     }
-}
-
-// A dense run can close a span exactly at its notated end, inside the margin: the crowded close
-// falls back to exact adjacency (the earlier of the notated ring and the closing onset) so the
-// span keeps positive length instead of collapsing to zero and failing chart validation.
-TEST_CASE("Guitar Pro import keeps crowded chord spans at positive length", "[core][gp-import]")
-{
-    const std::vector<GpSyncPoint> syncs{
-        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
-    };
-
-    GpScore score = makeLinearScore(1, syncs);
-    GpBeat chord;
-    chord.duration_whole = Fraction{1, 32};
-    chord.notes = {
-        GpNote{.string = 0, .fret = 3, .harmonic_type = ""},
-        GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
-    };
-    score.tracks[0].bars.push_back(GpBar{.voices = {{chord, noteBeat(Fraction{1, 32}, 7)}}});
-
-    const auto built = buildGpSong(score);
-    REQUIRE(built.has_value());
-    const common::core::Chart& chart = built->arrangements.front().chart;
-    // The closing onset lands exactly on the 1/8-beat chord's notated end, closer than the
-    // margin: the span ends there, exact-adjacent, rather than collapsing to zero.
-    REQUIRE(chart.shapes.size() == 1);
-    CHECK(chart.shapes[0].sustain == Fraction{1, 8});
 }
 
 // The gpif spells grace placement as the GraceNotes element's text ("OnBeat" for Ctrl+Shift+G

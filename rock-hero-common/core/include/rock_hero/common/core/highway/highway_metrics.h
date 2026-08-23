@@ -308,8 +308,7 @@ string spacing off the floor and the fret lines spanning the grid stick out the 
 distance above the top lane as below the bottom lane. The grid hugs the flat notes on purpose (a
 far-away head standing vertical in the rolling flip dips below the floor at the horizon; a full
 one-string stack lift clears that but loses the flat-against-the-board look, which wins). The
-shared seam so every string-plane consumer (string lanes, fingering spots) maps lanes
-identically.
+shared seam so every string-plane consumer maps lanes identically.
 
 \param lane One-based lane index, 1 at the bottom.
 \param metrics World-space constants.

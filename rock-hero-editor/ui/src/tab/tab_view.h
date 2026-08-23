@@ -50,18 +50,6 @@ the shared declaration is the one place it is described.
 [[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
 
 /*!
-\brief Returns the hand-shape mark color shared by the tab lane and the ruler's name chips.
-
-Delegates to common::ui::tabShapeMarkColor, which owns the rule. The editor's own reason for
-reaching for it: the lane's span rails and the ruler's chord/arpeggio name chips derive from the
-same tab projection, so a chip visually belongs to the rails below it.
-
-\param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
-\return Opaque mark color.
-*/
-[[nodiscard]] juce::Colour tabShapeMarkColor(bool arpeggio);
-
-/*!
 \brief Returns the vertical center of one string lane inside the tablature bounds.
 
 Delegates to common::ui::tabLaneCenterY, which owns the lane stacking and spacing rule. The editor

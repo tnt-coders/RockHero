@@ -331,9 +331,11 @@ intentionally avoided, since fuzzy note onsets do not carry it.
 
 Playable chart storage is implemented: each arrangement may carry a `Chart`
 (`rock-hero-common/core/.../chart/chart.h`) holding the tuning (string pitches, capo, cents
-offset), chord templates with fingering, notes (string/fret/sustain plus techniques — attack and
-mute styles, harmonics, bends, slides, vibrato, tremolo), chord/arpeggio shapes, and fret-hand
-positions, persisted as a per-arrangement chart document referenced by `chart_ref`.
+offset), notes (string/fret/sustain plus techniques — attack and mute styles, harmonics, bends,
+slides, vibrato, tremolo), and fret-hand positions, persisted as a per-arrangement chart document
+referenced by `chart_ref`. Chord/arpeggio shapes and the postures they hold are not stored: they
+are derived from the notes wherever they are read, because a span is a statement about the notes
+under it.
 Synthesized-instrument storage remains deferred until a feature needs it.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a

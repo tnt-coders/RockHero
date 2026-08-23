@@ -270,17 +270,6 @@ public:
         double measure_start_seconds, double measure_end_seconds, double caret_seconds);
 
     /*!
-    \brief Forwards the tab-derived chord/arpeggio name chips to the pinned timeline ruler.
-
-    The chips are tablature data rendered on the ruler's pinned surface (its bottom tick band
-    sits directly above the tab lane's top rail), exactly as the tempo and signature rows
-    render tempo-map data.
-
-    \param labels Named shape spans in ascending start order; empty clears the chips.
-    */
-    void setShapeLabels(std::vector<RulerShapeLabel> labels);
-
-    /*!
     \brief Forwards the song's section names to the pinned ruler's section chip row.
 
     Section names are song-level view data rendered on the ruler's pinned surface, exactly as

@@ -9,6 +9,7 @@
 #include <limits>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>
@@ -82,20 +83,21 @@ author the ring a claim needs) asks it by handing over a predecessor carrying th
     const ChartNote& note, const ChartNote* predecessor, const TempoMap& tempo_map);
 
 /*!
-\brief Everything a chart revision derives per note, resolved once for every consumer.
+\brief The saved note stream and every connection claim it justifies.
 
-The per-note facts each surface needs and none may restate: the saved form the rules judge, the
-presented form every surface DRAWS and the scorer will read, how long each note is held, the
-resolved connection motion, and the same-string predecessor every one of those was answered
-against.
-They travel together because they are computed together — the holds need both the saved and the
-presented forms to be answered at all — and because computing them separately is exactly how the
-tab lane, the highway, the gameplay build, and the reader came to disagree about the same chart.
+What the connection rules need, and nothing more. \ref resolveLegato reads a predecessor's stored
+position, ring, released fret and attack class, so the saved stream plus one forward walk answers
+every claim in the chart; nothing presentation derives — the drawn tails, the hand-posture spans,
+the holds — can change a verdict here.
 
-Every vector is index-parallel to the note stream it was built from. Consumed once per chart
-revision, never per frame.
+That is why this is asked on its own rather than through \ref ChartResolutions. The settle sweep
+and the editor's legato verb want only these three vectors, and they run at every caret move,
+selection change, seek and playback start; deriving a whole song's presented stream, spans and
+holds to read one flag was a full pass over the chart thrown away on every keystroke.
+
+Every vector is index-parallel to the note stream it was built from.
 */
-struct ChartResolutions
+struct ChartConnections
 {
     /*!
     \brief Each note in its saved form (\ref savedChartNote): in-memory latents stripped.
@@ -105,18 +107,6 @@ struct ChartResolutions
     draws directly.
     */
     std::vector<ChartNote> saved_notes;
-
-    /*!
-    \brief Each note as it is DRAWN and scored (\ref presentedChartNotes).
-
-    The tail rules applied to the saved stream: what both painters, hit testing, and the future
-    scorer read (\ref NoteViewState is this form resolved to seconds). Same order and size as
-    \ref saved_notes; only tails and the payload riding them differ.
-    */
-    std::vector<ChartNote> presented_notes;
-
-    /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
-    std::vector<Fraction> holds;
 
     /*!
     \brief What each note's connection claim resolves to.
@@ -139,22 +129,83 @@ struct ChartResolutions
 };
 
 /*!
-\brief Resolves a whole note stream once: saved and presented forms, holds, connection motions.
+\brief Resolves a whole note stream's connections: the saved form, the motions, the predecessors.
 
 One forward walk carrying the most recent note per string, which IS each note's same-string
 predecessor when it is reached, so the connection motions cost one pass over the stream rather than
 a backward search per note.
 
 \param notes Note stream sorted by (position, string).
-\param shapes Hand-posture spans the notes play under; a span implies its strum is held, which the
-       holds resolve against.
 \param tempo_map Song tempo map supplying the beat axis.
 
-\return The per-note resolutions, index-parallel to `notes`.
+\return The connections; every vector is index-parallel to `notes`.
+*/
+[[nodiscard]] ChartConnections chartConnections(
+    const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+
+/*!
+\brief Everything a chart revision derives per note, resolved once for every consumer.
+
+The per-note facts each surface needs and none may restate: the connections the saved stream
+justifies, the presented form every surface DRAWS and the scorer will read, and how long each note
+is held — plus the hand-posture spans the notes imply, which are not per-note but are derived from
+the same two streams and are what the holds are answered against.
+
+What is added here over \ref ChartConnections travels together because it is computed together —
+the holds need both the saved and the presented forms AND the spans to be answered at all — and
+because computing them separately is exactly how the tab lane, the highway, the gameplay build, and
+the reader came to disagree about the same chart. The connections are carried rather than restated,
+so a consumer of the whole picture still reads them from one place.
+
+Every per-note vector is index-parallel to the note stream it was built from. Consumed once per
+chart revision, never per frame.
+*/
+struct ChartResolutions
+{
+    /*! \brief The saved stream and the connections it justifies (\ref chartConnections). */
+    ChartConnections connections;
+
+    /*!
+    \brief Each note as it is DRAWN and scored (\ref presentedChartNotes).
+
+    The tail rules applied to the saved stream: what both painters, hit testing, and the future
+    scorer read (\ref NoteViewState is this form resolved to seconds). Same order and size as
+    \ref ChartConnections::saved_notes; only tails and the payload riding them differ.
+    */
+    std::vector<ChartNote> presented_notes;
+
+    /*!
+    \brief The hand-posture spans the notes imply (\ref deriveChartShapes).
+
+    Not stored anywhere: a span is a statement about the notes under it, so it is derived here from
+    the two streams above and read from here by everything that draws a chord box or an arpeggio
+    bracket. \ref shapes indexes \ref postures.
+    */
+    std::vector<ChartShape> shapes;
+
+    /*! \brief The posture table \ref shapes indexes, in first-appearance order. */
+    std::vector<ChartPosture> postures;
+
+    /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
+    std::vector<Fraction> holds;
+};
+
+/*!
+\brief Resolves a whole note stream once: connections, presented form, spans, holds.
+
+The connections come from \ref chartConnections, so the walk that answers them is stated once for
+both the callers that want the whole picture and the callers that want a claim.
+
+The spans come from the same stream rather than from a caller, which is what makes them impossible
+to disagree with it: a caller holding a stale span list has nowhere to pass it.
+
+\param notes Note stream sorted by (position, string).
+\param tempo_map Song tempo map supplying the beat axis.
+
+\return The resolutions; every per-note vector is index-parallel to `notes`.
 */
 [[nodiscard]] ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map);
+    const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
 \brief Flattens every legato claim the chart no longer justifies to a plain pick — the settle sweep.
@@ -173,7 +224,6 @@ reads a predecessor's released fret, node, attack class, position and ring, and 
 no flatten can create or destroy another note's justification.
 
 \param notes Note stream sorted by (position, string); flattened in place.
-\param shapes Hand-posture spans the notes play under, for the hold test.
 \param tempo_map Song tempo map supplying the beat axis.
 
 \return One \ref ChartRepair::UnjustifiedLegato conversion per flattened claim, in note order, each
@@ -181,7 +231,6 @@ no flatten can create or destroy another note's justification.
         invariant, which is what callers test to know whether it changed.
 */
 [[nodiscard]] std::vector<ChartConversion> sweepUnjustifiedLegato(
-    std::vector<ChartNote>& notes, const std::vector<ChartShape>& shapes,
-    const TempoMap& tempo_map);
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

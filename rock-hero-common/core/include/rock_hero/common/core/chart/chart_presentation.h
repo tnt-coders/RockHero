@@ -6,6 +6,7 @@
 #pragma once
 
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <vector>

@@ -703,8 +703,7 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
 
     const auto resolution = [&](const std::size_t index) {
         const common::core::Chart& current = *controller.session().currentArrangement()->chart;
-        return common::core::chartResolutions(
-                   current.notes, current.shapes, controller.session().song().tempo_map)
+        return common::core::chartConnections(current.notes, controller.session().song().tempo_map)
             .legato[index];
     };
 

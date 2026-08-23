@@ -480,14 +480,12 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
         common::core::ShapeViewState{
             .start_seconds = 2.0,
             .end_seconds = 6.0,
-            .name = "A5",
             .arpeggio = false,
             .strings = {},
         },
         common::core::ShapeViewState{
             .start_seconds = 10.0,
             .end_seconds = 12.0,
-            .name = "Dm",
             .arpeggio = true,
             .strings = {
                 common::core::ShapeStringViewState{.string = 3, .fret = 7},
@@ -632,7 +630,6 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
         common::core::ShapeViewState{
             .start_seconds = 10.0,
             .end_seconds = 14.0,
-            .name = "X",
             .arpeggio = true,
             .strings = {
                 common::core::ShapeStringViewState{.string = 3, .fret = 7},

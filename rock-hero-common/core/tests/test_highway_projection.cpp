@@ -51,15 +51,8 @@ namespace
 {
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    chart.templates = {
-        ChordTemplate{
-            .name = "F5",
-            .frets = {1, 3, 3, std::nullopt, std::nullopt, std::nullopt},
-            .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
-        },
-    };
     chart.notes = {
-        // Simultaneous pair at 2:1 under the shape span: reads as a chord box.
+        // Simultaneous pair at 2:1: two strings struck together derive a chord-box span.
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 1,
@@ -76,6 +69,16 @@ namespace
             .bend = {},
             .slides = {},
         },
+        // Rings across the 3:1+1/2 strum without being re-struck there, so it joins that span's
+        // posture and makes the span arrive arpeggio-style.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1},
+            .string = 2,
+            .fret = 5,
+            .sustain = Fraction{2},
+            .bend = {},
+            .slides = {},
+        },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
@@ -83,6 +86,15 @@ namespace
             .sustain = Fraction{2},
             .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
             .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+        },
+        // The strum's second struck string: two members are what open a span at all.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
+            .string = 5,
+            .fret = 8,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .slides = {},
         },
         // Natural harmonic with a between-fret node the highway must carry through.
         ChartNote{
@@ -93,19 +105,6 @@ namespace
             .harmonic_node = 3.2,
             .bend = {},
             .slides = {},
-        },
-    };
-    chart.shapes = {
-        ChartShape{
-            .position = GridPosition{.measure = 2, .beat = 1},
-            .sustain = Fraction{1},
-            .chord = 0,
-        },
-        // Only one onset at 3:1+1/2, so this span reads as an arpeggio treatment.
-        ChartShape{
-            .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
-            .sustain = Fraction{2},
-            .chord = 0,
         },
     };
     chart.fret_hand_positions = {
@@ -137,18 +136,6 @@ namespace
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.tuning.capo = 2;
-    chart.templates = {
-        ChordTemplate{
-            .name = "G#5",
-            .frets = {4, 6, 6, std::nullopt, std::nullopt, std::nullopt},
-            .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
-        },
-        ChordTemplate{
-            .name = "D5",
-            .frets = {std::nullopt, 5, 7, 7, std::nullopt, std::nullopt},
-            .fingers = {std::nullopt, 1, 3, 4, std::nullopt, std::nullopt},
-        },
-    };
     chart.notes = {
         // Scrape from fret 17 down to 5 and back to 12, its terminal parked exactly on the
         // sustain. Outside every span, so it cannot flip a shape to arpeggio treatment.
@@ -289,7 +276,17 @@ namespace
             .bend = {},
             .slides = {},
         },
-        // Lone onset at the second span's start: reads as an arpeggio.
+        // Held into the 5:1 strum without being re-struck there: the string that makes the second
+        // derived span arrive arpeggio-style, and the third string of its posture.
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 4},
+            .string = 2,
+            .fret = 5,
+            .sustain = Fraction{2},
+            .bend = {},
+            .slides = {},
+        },
+        // The 5:1 pair: two strings struck together under the held one.
         ChartNote{
             .position = GridPosition{.measure = 5, .beat = 1},
             .string = 3,
@@ -298,17 +295,13 @@ namespace
             .bend = {},
             .slides = {},
         },
-    };
-    chart.shapes = {
-        ChartShape{
-            .position = GridPosition{.measure = 2, .beat = 1},
-            .sustain = Fraction{1},
-            .chord = 0,
-        },
-        ChartShape{
+        ChartNote{
             .position = GridPosition{.measure = 5, .beat = 1},
-            .sustain = Fraction{2},
-            .chord = 1,
+            .string = 4,
+            .fret = 7,
+            .sustain = Fraction{1, 2},
+            .bend = {},
+            .slides = {},
         },
     };
     chart.fret_hand_positions = {
@@ -340,7 +333,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
         makeHighwayViewState(makeArrangementWithChart(), tempo_map, makeHighwaySections(), {});
 
     CHECK(state.chart.string_count == 6);
-    REQUIRE(state.chart.notes.size() == 4);
+    REQUIRE(state.chart.notes.size() == 6);
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
@@ -351,7 +344,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     // this member draws its own eighth-of-a-beat tail rather than none.
     CHECK(state.chart.notes[1].end_seconds == Catch::Approx(4.125 * beat));
 
-    const NoteViewState& sliding = state.chart.notes[2];
+    const NoteViewState& sliding = state.chart.notes[3];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
     CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
     REQUIRE(sliding.bend.size() == 1);
@@ -363,7 +356,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     // The between-fret harmonic node survives projection untouched, and its presence is what
     // makes the note a harmonic now.
-    const NoteViewState& harmonic = state.chart.notes[3];
+    const NoteViewState& harmonic = state.chart.notes[5];
     CHECK(harmonic.attack == NoteAttack::Pick);
     REQUIRE(harmonic.harmonic_node.has_value());
     if (harmonic.harmonic_node.has_value())
@@ -372,18 +365,20 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
         CHECK(nodeIsOnNeck(harmonic.attack));
     }
 
+    // Both spans are DERIVED from the notes: the 2:1 pair is a chord box, and the 3:1+1/2 pair
+    // strikes under string 2's still-sounding ring, which makes it an arpeggio.
     REQUIRE(state.chart.shapes.size() == 2);
-    CHECK(state.chart.shapes[0].name == "F5");
     CHECK_FALSE(state.chart.shapes[0].arpeggio);
     CHECK(state.chart.shapes[1].arpeggio);
-    // Posture entries carry the template's frets and fingerings (only strings in the posture).
-    REQUIRE(state.chart.shapes[0].strings.size() == 3);
+    // Posture entries carry the derived frets, one per string the posture holds.
+    REQUIRE(state.chart.shapes[0].strings.size() == 2);
     CHECK(state.chart.shapes[0].strings[0].string == 1);
     CHECK(state.chart.shapes[0].strings[0].fret == 1);
-    CHECK(state.chart.shapes[0].strings[0].finger == 1);
-    CHECK(state.chart.shapes[0].strings[2].string == 3);
-    CHECK(state.chart.shapes[0].strings[2].fret == 3);
-    CHECK(state.chart.shapes[0].strings[2].finger == 4);
+    CHECK(state.chart.shapes[0].strings[1].string == 2);
+    CHECK(state.chart.shapes[0].strings[1].fret == 3);
+    REQUIRE(state.chart.shapes[1].strings.size() == 3);
+    CHECK(state.chart.shapes[1].strings[2].string == 5);
+    CHECK(state.chart.shapes[1].strings[2].fret == 8);
 
     REQUIRE(state.chart.fret_hand_positions.size() == 1);
     CHECK(state.chart.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
@@ -525,7 +520,6 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
     Chart* const chart = chartOrNull(dense);
     REQUIRE(chart != nullptr);
     chart->notes.clear();
-    chart->shapes.clear();
     chart->fret_hand_positions.clear();
     for (int measure = 1; measure <= 6; ++measure)
     {
@@ -685,11 +679,6 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     const TempoMap map = makeHighwayTempoMap();
     Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // One span covering global beats 0 through 8, which at the default 120 BPM is 0.0 to 4.0
-    // seconds.
-    chart.shapes = {
-        ChartShape{.position = GridPosition{.measure = 1, .beat = 1}, .sustain = Fraction{8}},
-    };
     const auto strum_note = [](int string, GridPosition position) {
         return ChartNote{
             .position = position,
@@ -702,12 +691,26 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .slides = {},
         };
     };
-    // One chugged pair at global beat 4 (2.0 seconds) with the whole span still ahead of it, and
-    // another at global beat 7.5 (3.75 seconds), where only half a beat of span is left.
+    // One chugged pair at global beat 4 (2.0 seconds) and the same chug again at global beat 7.5
+    // (3.75 seconds), which merges into one derived span; a single onset at global beat 8.25 then
+    // closes that span one margin earlier, at global beat 8 — 4.0 seconds — which is less than the
+    // late pair's own three-quarter-beat ring. That is the case the cap is about: the shape lets go
+    // before the string stops.
     const GridPosition early{.measure = 2, .beat = 1};
     const GridPosition late{.measure = 2, .beat = 4, .offset = Fraction{1, 2}};
     chart.notes = {
-        strum_note(1, early), strum_note(2, early), strum_note(1, late), strum_note(2, late)
+        strum_note(1, early),
+        strum_note(2, early),
+        strum_note(1, late),
+        strum_note(2, late),
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 4}},
+            .string = 3,
+            .fret = 7,
+            .sustain = Fraction{1, 8},
+            .bend = {},
+            .slides = {},
+        },
     };
 
     Arrangement arrangement = makeArrangementWithChart();
@@ -716,7 +719,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
         makeHighwayViewState(arrangement, map, {}, HighwayDisplayOptions{});
 
     REQUIRE(state.chart.display_hold_ends.size() == state.chart.notes.size());
-    REQUIRE(state.chart.notes.size() == 4);
+    REQUIRE(state.chart.notes.size() == 5);
     // Struck at 2.0 seconds and presenting no tail, so the heads stay pinned for what the strings
     // actually ring: three quarters of a beat, which the span outlasts.
     CHECK(state.chart.notes[0].end_seconds == Catch::Approx(2.0));
@@ -742,8 +745,13 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
         CHECK_THAT(
             lane.display_hold_ends[index],
             Catch::Matchers::WithinULP(state.chart.display_hold_ends[index], 0));
-        // And the hold genuinely outlasts the tail on every one of them, which is the whole reason
-        // the two surfaces can read the same field and draw different lengths.
+    }
+    // And the hold genuinely outlasts the tail on every STRUM member, which is the whole reason
+    // the two surfaces can read the same field and draw different lengths. The closing single
+    // onset is not a strum, so nothing extends it and it holds exactly what it presents.
+    for (std::size_t index = 0; index < 4; ++index)
+    {
+        CAPTURE(index);
         CHECK(lane.display_hold_ends[index] > lane.notes[index].end_seconds);
     }
 
@@ -751,7 +759,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
     // for as long as it is held: a window opening AFTER the late pair's onset still has to include
     // it, because the span holds its heads to 4.0.
     const std::vector<double> prefix_max = makeSustainPrefixMax(state.chart.display_hold_ends);
-    REQUIRE(prefix_max.size() == 4);
+    REQUIRE(prefix_max.size() == 5);
     CHECK(prefix_max[3] == Catch::Approx(4.0));
     const auto visible = visibleEventRange(state.chart.notes, prefix_max, 3.9, 4.0);
     CHECK(visible.first == 2);

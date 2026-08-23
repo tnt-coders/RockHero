@@ -394,13 +394,6 @@ void TrackViewport::setAutomationCaretMask(std::optional<juce::Range<float>> mas
     updateRulerCursor();
 }
 
-// Forwards the tab-derived chord/arpeggio name chips to the pinned ruler, which renders them
-// in its bottom tick band directly above the tablature lane.
-void TrackViewport::setShapeLabels(std::vector<RulerShapeLabel> labels)
-{
-    m_timeline_ruler.setShapeLabels(std::move(labels));
-}
-
 // Forwards the song's section names to the pinned ruler's section chip row.
 void TrackViewport::setSectionLabels(std::vector<RulerSectionLabel> labels)
 {

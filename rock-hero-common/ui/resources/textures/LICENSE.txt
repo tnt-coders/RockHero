@@ -3,7 +3,6 @@ Charter (https://github.com/Lordszynencja/Charter) and redistributed under the B
 License below:
 
   - notes.png
-  - fingering.png
   - inlays.png
 
 They ship with Rock Hero as runtime resources; this notice must accompany them in source and

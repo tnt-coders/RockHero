@@ -28,40 +28,6 @@ timeline_ruler.cpp; change this constant only together with those row constants.
 inline constexpr int g_timeline_ruler_height{68};
 
 /*!
-\brief One chord or arpeggio hand-shape name shown at the shape's span start.
-
-Tab-projection data, not ruler data: the tablature lane's shape spans own the names, and the
-ruler merely renders them in its bottom band — exactly as the tempo and signature rows render
-tempo-map data — because that band is the only pinned surface directly above the lane's rails.
-*/
-struct RulerShapeLabel
-{
-    /*! \brief Absolute timeline second of the span start the chip anchors to. */
-    double seconds{0.0};
-
-    /*! \brief Template display name; never empty (unnamed shapes get no chip). */
-    juce::String name;
-
-    /*! \brief True for arpeggio spans (purple chip); false for chord spans (blue chip). */
-    bool arpeggio{false};
-
-    /*!
-    \brief Compares two shape labels by their stored values.
-    \param lhs Left-hand label.
-    \param rhs Right-hand label.
-    \return True when both labels store equal values.
-    */
-    friend bool operator==(const RulerShapeLabel& lhs, const RulerShapeLabel& rhs)
-    {
-        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on
-        // the floating member. Exact equality is intended; the ordering query expresses it
-        // warning-free with identical semantics (NaN compares unequal either way).
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name &&
-               lhs.arpeggio == rhs.arpeggio;
-    }
-};
-
-/*!
 \brief One song-section name shown as a chip at the section's start.
 
 Song-level view data, not ruler data: the controller's section projection owns the names and
@@ -172,18 +138,6 @@ public:
     void setCursorPlacementCallback(CursorPlacementCallback callback);
 
     /*!
-    \brief Stores the tab-derived chord/arpeggio name chips drawn in the bottom tick band.
-
-    The chips sit flush with the ruler's bottom edge, directly above the tablature lane's top
-    rail, overlapping only ticks — the measure-number row above stays clear. A changed list rebuilds
-    the cached chip row; an unchanged list returns early because every controller state push
-    repeats it.
-
-    \param labels Named shape spans in ascending start order; empty clears the chips.
-    */
-    void setShapeLabels(std::vector<RulerShapeLabel> labels);
-
-    /*!
     \brief Stores the song's section names drawn as the header's top chip row.
 
     The active section pins to the left edge as the song scrolls. An unchanged list returns
@@ -218,17 +172,6 @@ private:
         int width{0};
     };
 
-    // A chord/arpeggio name chip already resolved to a subpixel draw position, measured width, and
-    // the fill its kind selects. Distinct from RulerLabel because the shape band anchors chips on
-    // exact span starts rather than integer grid columns, and each chip carries its own colour.
-    struct RulerShapeChip
-    {
-        float x{0.0f};
-        juce::String text{};
-        float width{0.0f};
-        juce::Colour fill{};
-    };
-
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
 
@@ -247,10 +190,6 @@ private:
     // Rebuilds the section chip row: one label per visible section start plus the pinned active
     // section at the left edge, sharing the header rows' pin gate.
     void refreshSectionBand(const juce::Font& font, std::optional<double> pinned_left_seconds);
-
-    // Rebuilds the bottom band's chord/arpeggio name chips, unsuppressed so a crowded later span
-    // overlaps its neighbour rather than vanishing. The font must match the chip draw font.
-    void refreshShapeBand(const juce::Font& font);
 
     // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
@@ -275,9 +214,6 @@ private:
 
     // Draws the tempo chip row: one chip per cached glyph+digits marking pair.
     void drawTempoChips(juce::Graphics& g);
-
-    // Draws the tab-derived chord/arpeggio name chips along the ruler's bottom edge.
-    void drawShapeChips(juce::Graphics& g);
 
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
@@ -347,15 +283,6 @@ private:
     // tempo of the span each visible anchor starts, with band-wide overlap suppression; cached
     // for the same text-measurement reason as m_measure_labels.
     std::vector<RulerLabel> m_tempo_labels{};
-
-    // Tab-derived chord/arpeggio name chips for the bottom tick band, pushed by the owning view
-    // whenever the displayed chart changes; positions resolve via localXForSeconds when the chip
-    // row rebuilds.
-    std::vector<RulerShapeLabel> m_shape_source{};
-
-    // Bottom band chip row: position, measured width, and fill per visible shape span, cached for
-    // the same text-measurement reason as m_measure_labels.
-    std::vector<RulerShapeChip> m_shape_chips{};
 
     // Song-section names, pushed by the owning view whenever the song's sections change;
     // positions resolve via localXForSeconds when the chip row rebuilds.

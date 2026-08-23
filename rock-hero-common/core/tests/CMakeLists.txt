@@ -8,6 +8,7 @@ add_executable(
     test_chart.cpp
     test_chart_presentation.cpp
     test_chart_projection.cpp
+    test_chart_shapes.cpp
     test_session.cpp
     test_song.cpp
     test_arrangement.cpp

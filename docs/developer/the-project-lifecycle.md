@@ -68,7 +68,8 @@ Two implementations, dispatched by extension:
   delays the audio, negative means the recording's head precedes the score and playback skips
   it. Most real charts carry a negative value, so dropping it desyncs the song. The builder then
   resolves the score's gestures, clamps each ring at its own string's next onset, and generates
-  chord spans and fret-hand positions per the policy spec below.
+  fret-hand positions per the policy spec below. Chord spans are NOT generated: they are derived
+  from the finished notes wherever they are read (rules 10-12a).
 
 An import produces an **unsaved** project: no path, `save_requires_destination` set, so the first
 save is forced to Save As — which is also the moment per-project view state starts persisting.
@@ -135,7 +136,7 @@ file and from a fresh import shows the same tails, and the model behind the spli
    notated and exempted a strum's own grace-shifted members (the measured consequences are listed
    in the model plan's accepted deviations).
    Repeated chords trim too: their held-to-the-restrike reading lives in the merged shape span
-   (rule 11), which derives from the stored rings and already runs through every
+   (rule 11), which is derived from the stored rings and already runs through every
    restrike — the box continues while the tails keep the minimum gap.
 2. **Clip a technique payload that says nothing new; never clip one that does.** Carrying a
    technique is not a blanket exemption from rule 1 (user rule 2026-08-06, superseding the
@@ -263,13 +264,23 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
    are never stranded in the dipped window. A trail-off with no room before the next onset
    stays planted.
 
-**Chord template and shape derivation** (`deriveChordShapes`; GP scores in practice carry no
-handshape or diagram data, so the tab's chord boxes are derived):
+**Posture and shape derivation** — no longer an import rule at all. GP scores in practice carry no
+handshape or diagram data, and the chart stores none either: a span is a statement about the notes
+under it, so `common::core::deriveChartShapes` (`chart/chart_shapes.h`) derives every span and
+posture from the note stream wherever they are read, once per chart revision inside
+`chartResolutions`. Rules 10 to 12a below are that derivation's maintained plain-English spec —
+this page is where they are stated, and `chart_shapes.h` points here rather than restating them.
+
+One consequence of the move is worth naming: the derivation now sees the SETTLED stream, where the
+importer ran before `normalizeChart`. A strum whose notes carried something the rules refuse — a
+slide on an open string, say — used to derive its own span from data the chart never contained;
+now it reads as what it is, and merges with its identically-played neighbours.
 
 10. **Two or more strings struck together form a chord.** The onset's posture — the fret held
-    on each struck string, open strings included — becomes a reusable template, deduplicated
-    across the chart. Derived templates are unnamed and carry no fingering (the name chip only
-    renders for named shapes). Tap-attack notes are excepted: taps belong to the tapping hand,
+    on each struck string, open strings included — becomes a posture entry, deduplicated by fret
+    vector across the chart. Postures carry no name and no fingering, because nothing authors
+    either; when they are authored they become a dictionary keyed by a posture rather than fields
+    on one. Tap-attack notes are excepted: taps belong to the tapping hand,
     not the fretting posture, so they never join a posture — even a multi-string tapped onset
     derives no chord, and a mixed onset is judged by its non-tap members alone (rule 11).
 11. **Repeated strums of one articulation share one span.** Consecutive onsets whose strings
@@ -281,7 +292,7 @@ handshape or diagram data, so the tab's chord boxes are derived):
     tails draw). Any intervening non-chord onset or any
     articulation difference on any string ends the span — a muted or hammered chord is its own
     chord with its own box, even on the frets of the chord before it, while frets-identical
-    chords share one deduplicated template (the hand posture is identical; techniques render on
+    chords share one deduplicated posture (the hand posture is identical; techniques render on
     the notes). Tap-attack notes are invisible to span derivation (user rule 2026-07-28): they
     join no posture and never open or close a span, so a tap-only onset is fully transparent to
     the GROUPING — a chord ringing under taps on other strings keeps its span, which rule 12 then
@@ -535,15 +546,15 @@ differently):
     NOT trimmed here — E25 is a presentation rule (tail rule 4 below), and the stored ring is the
     timing a legato claim after the cluck reads. Then the one stream-level note rule bounds every
     ring at its own string's next onset (40-Q2-B, `normalizeSustainOverlaps`, reported as
-    `OverlappingTail`), and templates clamp and hand windows fit onto the board. E4's strike
+    `OverlappingTail`), and hand windows fit onto the board. E4's strike
     requirement is ALSO decided earlier, the moment a note's node is known
     (`flattenStrandedStrike`), because
-    the chord-shape and hand-window passes read the attack and must not shape a song around a tap
+    the hand-window pass reads the attack and must not shape a song around a tap
     that cannot survive. The relational half, `sweepUnjustifiedLegato`, is the normalizer's last
     stage — the same sweep every settle point runs — so a chart is never born carrying a claim its
     own notes contradict. It runs last because it reads the finished stream: released frets after
-    the slide chains (rules 13-15), holds after the ring policy's clamp, spans after posture
-    derivation.
+    the slide chains (rules 13-15), holds after the ring policy's clamp. The spans a reader
+    derives therefore describe the SETTLED stream (rules 10-12a).
     The importer counts the repairs by rule in its log; the editor's open shows them once with
     positions. Guitar Pro's hammer-on/pull-off destinations import as the `Legato`
     claim and nothing more — the score says the notes connect but not which way, which is exactly
