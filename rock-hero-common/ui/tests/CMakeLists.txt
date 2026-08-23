@@ -10,7 +10,7 @@ add_executable(
     test_box_mute_profile.cpp
     test_head_art_profile.cpp
     test_highway_atlas.cpp
-    test_highway_floor_band.cpp
+    test_highway_floor_geometry.cpp
     test_highway_head_marks.cpp
     test_highway_slide_path.cpp
     test_render_device.cpp

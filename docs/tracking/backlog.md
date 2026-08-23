@@ -307,11 +307,9 @@ verified against the code by the reviewer; re-verify before acting, since the tr
   path allocates its wobble times, sample times, samples, lifts, and shaded vectors per note;
   `floor_numbers` no longer `stable_sort`s, and `makeHighwayTailSampleTimes` is bounded by one
   sample budget (2026-08-21), but it still allocates. All belong in `FrameScratch`, cleared in
-  `clearForFrame()`. The actual-ring diagnostics pass is the compliant example and adds nothing to
-  either count: both its batches and the light form's per-note exact-time list live in
-  `FrameScratch` (2026-08-22, extended with the light 2026-08-23), its scan is a bounded
-  `visibleEventRange` over its own prefix maximum, and the light streams quads straight into its
-  batch with no intermediate sample vector — the shape the modulated-tail path above still needs.
+  `clearForFrame()`. The shape wanted is a pass whose batches live in `FrameScratch`, whose scan is
+  a bounded `visibleEventRange`, and which streams quads straight into its batch with no
+  intermediate sample vector — which the modulated-tail path above still needs.
   Same review: seventeen whole-song scans remain
   in `draw()` over arrays that are time-ascending and already have the bounded idiom beside them
   (`handWindowMovesWithin` next to the bounded `windowSampleTimes`; the beat scan at one site

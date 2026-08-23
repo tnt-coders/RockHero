@@ -134,41 +134,6 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
-            .id = EditorCommandId::CycleActualRingLook,
-            .name = "Actual Ring Mark (3D Preview)",
-            .category = "View",
-            // F1 means "show me the diagnostic" in the game already; the editor had it free.
-            .default_keypresses = {chord(juce::KeyPress::F1Key)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::ToggleActualRingRevealStyle,
-            // Named for what ticking it does, since it registers as a two-state toggle rather
-            // than a cycle: ticked draws the rings as tails, unticked outlines them.
-            .name = "Reveal Actual Rings as Tails",
-            .category = "View",
-            // The 2D reveal's sighting switch beside the 3D mark's on F1; F6 was the nearest free
-            // function key (F5 waveform, F8 undo history, F3 preview).
-            .default_keypresses = {chord(juce::KeyPress::F6Key)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::ToggleActualRingTailedNotes,
-            .name = "Actual Ring Mark: Tailed Notes",
-            .category = "View",
-            // The rig's two filters sit on F1's own key under a modifier each: they narrow the
-            // mark that key cycles, so they are read together and pressed together.
-            .default_keypresses = {chord(juce::KeyPress::F1Key, shift)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
-            .id = EditorCommandId::ToggleActualRingChordMembers,
-            .name = "Actual Ring Mark: Chord Members",
-            .category = "View",
-            .default_keypresses = {chord(juce::KeyPress::F1Key, command)},
-        });
-    registry.push_back(
-        EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
             // "at Cursor" = the marker rule (E2): the armed caret when one exists, else the
             // transport position — the same "one position concept" play follows, so the insert

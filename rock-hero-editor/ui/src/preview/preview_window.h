@@ -12,7 +12,6 @@
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
-#include <rock_hero/common/ui/highway/highway_diagnostics_options.h>
 
 namespace rock_hero::editor::ui
 {
@@ -72,18 +71,6 @@ public:
     \param seconds Armed caret seconds, or nullopt while the marker is passive.
     */
     void setCaretSeconds(std::optional<double> seconds);
-
-    /*!
-    \brief Sets the surface's draw-time diagnostics switches.
-    \param options Diagnostics switches to draw with from the next frame on.
-    */
-    void setDiagnosticsOptions(common::ui::HighwayDiagnosticsOptions options);
-
-    /*!
-    \brief Reports the diagnostics switches the surface currently holds.
-    \return The switches.
-    */
-    [[nodiscard]] common::ui::HighwayDiagnosticsOptions diagnosticsOptions() const noexcept;
 
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;

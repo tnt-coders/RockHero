@@ -32,7 +32,7 @@ struct SlideRamp
 // A pass of its own rather than a table filled inside the note loop below, because the ramps are
 // the PRESENTED stream's answer whichever form that loop projects (chart_projection.h): when the
 // fretting hand starts moving is a fact about the chart, and a hand marker that shifted the
-// instant the editor's sighting swapped note forms would be reporting the swap rather than the
+// instant the editor's Alt reveal swapped note forms would be reporting the swap rather than the
 // chart. Separating it is what lets the note loop read exactly one stream.
 [[nodiscard]] std::map<GridPosition, SlideRamp> makeSlideRampStarts(
     const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
@@ -128,7 +128,6 @@ ChartViewState makeChartViewState(
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
     state.notes.reserve(drawn_notes.size());
     state.display_hold_ends.reserve(drawn_notes.size());
-    state.actual_end_seconds.reserve(drawn_notes.size());
     for (std::size_t note_index = 0; note_index < drawn_notes.size(); ++note_index)
     {
         const ChartNote& note = drawn_notes[note_index];
@@ -143,12 +142,6 @@ ChartViewState makeChartViewState(
                 : view.start_seconds;
         state.display_hold_ends.push_back(tempo_map.secondsAtGlobalBeatPosition(
             onset_beat + resolutions.holds[note_index].toDouble()));
-        // The ACTUAL ring, read off the SAVED note whichever form the notes above carry — in the
-        // actual form it restates that form's own end, which is what keeps the two states equal
-        // everywhere but `notes`. Who may read it, and why no game surface may, is stated once on
-        // the field itself (chart_view_state.h).
-        state.actual_end_seconds.push_back(tempo_map.secondsAtGlobalBeatPosition(
-            onset_beat + resolutions.connections.saved_notes[note_index].sustain.toDouble()));
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;

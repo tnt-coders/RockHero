@@ -437,35 +437,6 @@ struct ChartViewState
     */
     std::vector<double> display_hold_ends;
 
-    /*!
-    \brief Per-note ACTUAL ring end in seconds — the editor's, one entry per \ref notes entry.
-
-    How long the string really sounds: each saved note's `ChartNote::sustain` resolved through
-    the tempo map, before the presentation rules trim it to the margin, floor it on payload, or
-    drop it outright (\ref presentedChartNotes). Strictly later than the onset for every note, by
-    the stored form's positive-sustain invariant — unlike \ref NoteViewState::end_seconds, which
-    equals the onset wherever no tail is presented.
-
-    **Editor-only sightings read it; no game surface does, and none may.** The editor's 3D preview
-    lays it on the board floor as a diagnostics band, and the 2D lane's reveal outlines it over the
-    presented tail in its outline style — so the length the sustain verbs author is visible on
-    either surface while it is being authored. (The reveal's other style asks the projection for a
-    whole \ref ChartNoteForm::Actual state instead, because an end alone cannot restore the payload
-    presentation clipped; that state's own copy of this array simply restates its note ends.) The
-    rule those readers obey and any further one must:
-    **scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4), because
-    asking a player to hold a note for a length nothing ever drew is exactly what that ruling
-    forbids. This is the ONE statement of that invariant; every other site — the projection that
-    fills the array, the tests, the developer guide — points here rather than restating it.
-
-    It sits here rather than on \ref NoteViewState deliberately. That struct is the presented form
-    end to end — every field of it describes what is drawn — and a second, undrawn end inside it
-    would hand every reader two lengths to choose between, which is the guess the whole model
-    exists to delete. A parallel array keeps the presented note indivisible and makes the actual
-    ring something a surface has to reach for on purpose.
-    */
-    std::vector<double> actual_end_seconds;
-
     /*! \brief Hand-posture spans in ascending start order. */
     std::vector<ShapeViewState> shapes;
 

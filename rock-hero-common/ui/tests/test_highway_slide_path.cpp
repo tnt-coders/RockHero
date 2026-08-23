@@ -109,8 +109,8 @@ TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart",
 }
 
 // Past the last waypoint the glide HOLDS its target, which is what "continue straight along the
-// fret it stopped on" means for anything drawn past the presented tail — the actual-ring mark's
-// case, since the ring outlasts the ribbon by construction.
+// fret it stopped on" means: a gesture that has stopped travelling does not drift, and anything
+// drawn past the last waypoint reads the fret it stopped on.
 TEST_CASE("Past the last waypoint the glide holds its final target", "[ui][highway]")
 {
     const common::core::HighwayMetrics metrics;

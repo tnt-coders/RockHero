@@ -35,8 +35,9 @@
 stored duration `Alt`+wheel edits, which the presented tail may have trimmed or dropped — and
 releasing snaps back (stage B of `docs/plans/in-progress/note-sustain-model.md`, shipped
 2026-08-22). Global while held, never selection-scoped, and never hit-testable: clicks, marquees
-and `Alt`+click inserts keep resolving against the presented picture. Which mark it makes is the
-`F6` toggle below, under sighting.
+and `Alt`+click inserts keep resolving against the presented picture. The mark it makes is the
+notation itself: the lane redraws in the chart's actual form (ruled 2026-08-23; the outline
+candidate and its `F6` toggle are deleted).
 
 `Shift` = range / extend / axis-lock. The **time
 selection** is **always grid-locked** — keyboard *and* pointer, never finer than the display grid
@@ -167,7 +168,7 @@ likely subsumes that one too by the same argument.
 | **Edge-drag extent** | `✗` — chart sustain is `Alt`+wheel | `—` (no extent) | resize region | Live (tone) · chart uses `Alt`+wheel |
 | **Drag from empty (marquee)** | marquee select | marquee (scheduled) `✚` | `✗` | Live chart · `✚` lanes |
 | **`Alt`+drag from empty** | insert + place note | insert + place point | split + drag boundary | Live |
-| **`Alt` held (no gesture)** | reveal every visible note's **actual ring** — as real tails (default) or as outlines, per `F6` | `✗` | `✗` | Live 2026-08-22 (chart only) |
+| **`Alt` held (no gesture)** | reveal every visible note's **actual ring** — the lane redraws in the chart's actual form, so each ring is an ordinary tail | `✗` | `✗` | Live 2026-08-22 (chart only; mark signed 2026-08-23) |
 | **`Alt`+wheel** | duration (sustain / span) | `✗` | `✗` | Live (chart only) |
 | **`Ctrl+Alt`+wheel** | **fine** duration | `✗` | `✗` | Live (chart only) |
 | **`Shift+Alt`+wheel** | fret shift ±1 | `✗` | `✗` | Live (chart only) |
@@ -184,9 +185,6 @@ likely subsumes that one too by the same argument.
 | `Ctrl+T` | insert a tone-change marker at the **cursor** — the marker rule: armed caret if present, else the transport position (from any surface) | Live (guard against `Alt` 2026-07-20; marker-rule anchor + "at Cursor" name 2026-07-21) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F5` / `F8` | toggle 3D preview / waveform / undo-history inspector | Live (`F5` added 2026-07-21) |
-| `F1` | cycle the 3D preview's **actual-ring mark** — off → light → filled → outlined → off. A sighting rig for the note-sustain model (stage D): a floor mark under each note running the ACTUAL ring the string sounds for, which the presented tail may have trimmed or dropped. The LIGHT is the candidate: an additive puddle in the note's own string color that follows the note's glide; the two band forms are the plain-white furniture it replaces. Active only while the preview is open, and forwarded into that window's own key whitelist. A LATCH, not a held key, where the 2D lane's reveal of the same ring is held under `Alt` — the preview is a separate top-level window the editor's realtime modifier sampling never reaches | Live (added 2026-08-22; light + four-state cycle 2026-08-23) |
-| `Shift+F1` / `Ctrl+F1` | the two filters on that same rig: mark notes that already draw a **tail** / mark notes inside a **chord box**. Both default ON, so the rig starts marking everything; turning one off asks what the rig says with the cases the presented notation already answers removed (a chord box states its own posture's hold). Same window gate and whitelist as `F1` — one rig, one key, the modifiers narrowing what it shows | Live (added 2026-08-23) |
-| `F6` | flip the 2D lane's **actual-ring reveal** between drawing the rings as real tails (default) and outlining them over the presented notation. The reveal itself is the held `Alt` above; this only chooses its mark. A sighting switch, TEMPORARY: when one mark is signed the other goes and so does this command | Live (added 2026-08-22) |
 | `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |
 | plain wheel | zoom, marker-centered | Live |
 | `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |

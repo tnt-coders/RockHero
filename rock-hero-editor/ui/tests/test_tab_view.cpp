@@ -50,9 +50,6 @@ namespace
             .slides = {},
         },
     };
-    // One entry per note, as the projection guarantees. The first two rings are exactly their
-    // presented tails; the last one outlasts a head that draws no tail at all.
-    state.actual_end_seconds = {9.0, 2.5, 13.0};
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
 }
 
@@ -358,10 +355,10 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
-// The reveal's TAIL style, the mark being sighted: while it is held the lane draws the chart in
-// its ACTUAL form, so a note the presentation rules left tail-less grows a real tail — notation,
-// not an annotation over it. Probed mid-tail on its own row rather than at an edge, which is the
-// probe the outline style's hairline rectangle around the same span would fail.
+// The reveal: while it is held the lane draws the chart in its ACTUAL form, so a note the
+// presentation rules left tail-less grows a real tail — notation, not an annotation over it.
+// Probed mid-tail on its own row rather than at an edge, so an outline around the same span would
+// not pass it.
 //
 // The lane's state is the only half of the reveal with a headless witness. The editor drives it
 // from one predicate — this process is the foreground application AND Alt is physically down —
@@ -379,9 +376,6 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
             .end = common::core::TimePosition{20.0},
         });
     setFixtureState(view);
-
-    // The shipped default is the style under sighting, so an unconfigured lane shows it.
-    CHECK(view.actualRingRevealStyle() == ActualRingRevealStyle::Tails);
 
     // 20 seconds across 200 px, six lanes down 120 px: 10 px per second, and the tail envelope on
     // the TOP lane (string 6, centre y = 10.5) spans rows 6 through 14.
@@ -404,7 +398,7 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
     CHECK(hidden.getPixelAt(128, 12).getARGB() == 0);
     CHECK(revealed.getPixelAt(128, 12).getARGB() != 0);
 
-    // A note whose ring and presented tail coincide is untouched, because this style adds no mark
+    // A note whose ring and presented tail coincide is untouched, because the reveal adds no mark
     // of its own: the long sustain's tail is the same tail either way.
     CHECK(revealed.getPixelAt(50, 110) == hidden.getPixelAt(50, 110));
 
@@ -413,60 +407,10 @@ TEST_CASE("TabView draws each note's actual ring as a tail while held", "[ui][ta
     CHECK(render().getPixelAt(128, 12).getARGB() == 0);
 }
 
-// The reveal's OUTLINE style, the mark it is being sighted against: the notation stays the
-// presented picture and each visible note's ring is annotated with a hairline rectangle instead.
-// Same span, drawn as a border — so the ring's far edge carries ink while the span it encloses
-// stays exactly as the presented lane left it.
-TEST_CASE("TabView outlines each note's actual ring in its other style", "[ui][tab-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabView view{};
-    view.setBounds(0, 0, 200, 120);
-    view.setVisibleTimeline(
-        common::core::TimeRange{
-            .start = common::core::TimePosition{},
-            .end = common::core::TimePosition{20.0},
-        });
-    setFixtureState(view);
-    view.setActualRingRevealStyle(ActualRingRevealStyle::Outline);
-
-    const auto render = [&view] {
-        const juce::Image image{juce::SoftwareImageType{}.create(
-            juce::Image::ARGB, 200, 120, true)};
-        juce::Graphics graphics{image};
-        view.paint(graphics);
-        return image;
-    };
-
-    const juce::Image hidden = render();
-    view.setActualRingReveal(true);
-    const juce::Image revealed = render();
-
-    // The late note's ring outline: its right edge fills column 129, clear of the head that stops
-    // at x = 127.
-    CHECK(hidden.getPixelAt(129, 12).getARGB() == 0);
-    CHECK(revealed.getPixelAt(129, 12).getARGB() != 0);
-
-    // The span it encloses stays empty, which is the whole difference from the tail style — the
-    // pixel that style fills is the one this one deliberately leaves alone.
-    CHECK(revealed.getPixelAt(128, 12).getARGB() == 0);
-
-    // A note whose ring and presented tail coincide is outlined all the same — over the tail's own
-    // top rail on the bottom lane (string 1, centre y = 110.5, envelope top row 106), so the pixel
-    // changes rather than appearing. Drawn for EVERY visible note, not only the disagreeing ones:
-    // an outline landing exactly on a drawn tail is the statement "this is the whole ring".
-    CHECK(hidden.getPixelAt(50, 106).getARGB() != 0);
-    CHECK(revealed.getPixelAt(50, 106) != hidden.getPixelAt(50, 106));
-
-    // Releasing snaps back here too.
-    view.setActualRingReveal(false);
-    CHECK(render().getPixelAt(129, 12).getARGB() == 0);
-}
-
 // A ring reaching a window its presented tail cannot: the note's tail ends long before the visible
 // span opens while the ring runs well into it. Each form is culled by the running maximum of its
 // OWN note ends, which is the whole reason the two tables exist — index the actual form by the
-// presented ends and the note leaves the range before the window opens, in either style.
+// presented ends and the note leaves the range before the window opens.
 TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -483,7 +427,6 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
             .slides = {},
         },
     };
-    presented.actual_end_seconds = {12.0};
     common::core::ChartViewState actual = presented;
     actual.notes[0].end_seconds = 12.0;
 
@@ -515,12 +458,8 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
     // x = -160, off the left edge, so nothing but the reveal can put ink there.
     CHECK(render().getPixelAt(39, 12).getARGB() == 0);
 
-    // The tail style culls through the paint core's own pass, against the drawn form's index.
+    // The reveal culls through the paint core's own pass, against the drawn form's index.
     view.setActualRingReveal(true);
-    CHECK(render().getPixelAt(39, 12).getARGB() != 0);
-
-    // The outline style culls in its own loop, against the same table.
-    view.setActualRingRevealStyle(ActualRingRevealStyle::Outline);
     CHECK(render().getPixelAt(39, 12).getARGB() != 0);
 }
 

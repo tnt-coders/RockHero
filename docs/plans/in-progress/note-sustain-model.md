@@ -1,8 +1,11 @@
 # Note sustain model — actual durations stored, presentation derived
 
 **Status:** In progress on branch `note-sustain-experiment`. Stage A built 2026-08-21 (A1–A3 plus
-D1); stages B, C and D built 2026-08-22. Every stage now awaits the sighting — D most of all,
-since it is a rig for making the other decisions rather than a decision itself.
+D1); stages B, C and D built 2026-08-22. **Sighted 2026-08-23, and both looks are now settled:**
+stage B's reveal keeps the real-tails mark and its outline candidate is deleted; stage D's 3D
+actual-ring rig is deleted outright — the user's ruling is that any mark on the highway for a
+short note's length adds clutter, not value. What remains open is the rest of task #83 (span-end
+item #59, the arpeggio-bracket verb, the converter default of ruling 7, and whether to merge).
 
 **Authored** 2026-08-21 out of the span-end discussion (review item 13), the short-tail hole the
 user found in the 2D lane, and the MIDI-playback requirement.
@@ -257,15 +260,19 @@ corpus-wide.
   core and the layout manifest, and `display_hold_ends` becomes the 3D board's field alone. It
   retired the watch item on the two surfaces' holds diverging: with no 2D hold there is nothing
   left to diverge.
-- **B — done 2026-08-22.** The editor's Alt reveal: while Alt is held every visible note in the 2D
-  lane outlines its actual ring at tail height; release snaps back to the presented form. The ring
-  rides the projection as `ChartViewState::actual_end_seconds`, derived beside `display_hold_ends`
-  from the SAVED notes — the editor's field alone, because scored is the presented form (ruling 4),
-  and `NoteViewState` deliberately does not gain it. The outline is editor furniture drawn after
-  the shared paint core, like the selection ring, and reuses `tabNoteLayout`'s tail span so it
-  traces where a tail of that length would sit. `paintTabLane`'s visible-span rule moved out to the
-  exported `tabVisibleSpan` so the reveal culls through the same widened clip the notation does,
-  against its own prefix maximum over the actual ends. **Tracking ruled 2026-08-23, replacing the
+- **B — done 2026-08-22, SIGNED 2026-08-23 on the real-tails mark.** The editor's Alt reveal: while
+  Alt is held the 2D lane redraws the whole chart in its ACTUAL form — every note's tail is the ring
+  the string really sounds for, techniques riding it and the payload presentation clipped restored;
+  release snaps back to the presented form. **The mark was sighted against a hairline outline over
+  the presented notation and the notation-swap won**, so the outline path, its `F6` style toggle
+  (`EditorCommandId::ToggleActualRingRevealStyle`, 0x130C), the `ActualRingRevealStyle` enum and
+  everything only they needed are deleted. Two things the outline had needed went with it: the
+  parallel `ChartViewState::actual_end_seconds` array (the reveal gets the ring from the projected
+  actual form itself, so the array had no reader left once stage D went too) and the export of
+  `tabVisibleSpan` from `tab_paint_core.h`, which is a file-local helper of `paintTabLane` again.
+  What the surviving mark needs is exactly the shared machinery below — the form parameter, the
+  `tab_actual` publication, the `LaneForm` pair with its per-form cull index, and the
+  foreground-and-Alt predicate. **Tracking ruled 2026-08-23, replacing the
   event-driven samplers of 2026-08-22/23.** The reveal is on exactly while `juce::Process::
   isForegroundProcess() && juce::ComponentPeer::getCurrentModifiersRealtime().isAltDown()` —
   "the app" is the PROCESS, so the editor window or the 3D preview being active both count — read
@@ -285,14 +292,9 @@ corpus-wide.
   wrong about where the pointer is. (The earlier rejection of a gate on the editor WINDOW's focus stands for a different
   reason than it was given: the preview grabbing focus is exactly why the test is the process.)
 
-  **The second look, behind a temporary toggle (2026-08-22).** The outline was one answer to "how
-  should the ring show"; the other is that the ring should simply BE the notation. So the lane now
-  draws, while Alt is held, the whole chart in a second projected form — every note's tail is its
-  real ring, techniques riding it, payload restored — and the outline path stays beside it so the
-  two can be flipped between. `F6` (`EditorCommandId::ToggleActualRingRevealStyle`, 0x130C, View)
-  is that flip, registry-routed like stage D's F1 and ticked in the View menu; **the default is
-  Tails, the thing being sighted**. Both the command and `ActualRingRevealStyle` are TEMPORARY:
-  the sighting picks one mark and the loser is deleted with everything only it needed.
+  **How the signed mark works (built 2026-08-22 as the second look, kept 2026-08-23).** The ring
+  should simply BE the notation, so the lane draws the whole chart in a second projected form while
+  Alt is held rather than annotating the presented one.
 
   - **One producer, a form parameter.** `makeChartViewState(arrangement, tempo_map, form)` with
     `ChartNoteForm{Presented, Actual}`. The form selects ONE source reference for the per-note view
@@ -308,26 +310,21 @@ corpus-wide.
     form argument, so `ChartNoteForm::Actual` is unreachable from the board, the game and the
     scorer. The reveal is also NON-hit-testable by ruling: hit testing, selection and Alt+click
     insert keep reading the presented projection the controller published (Alt+wheel already acts
-    on the selection), and the 3D preview keeps the presented form with its `actual_end_seconds`
-    band.
-  - **The cost, accepted and flagged.** `EditorViewState::tab_actual` is memoized beside `tab`
-    under the same key (arrangement id + chart revision), so a sustain gesture now projects the
-    chart THREE times per wheel notch — it was already two, because `makeHighwayViewState`
-    composes its own `makeChartViewState` under the same key. Building it lazily would require
-    the controller to learn that the reveal is on, which `tab_view.h` forbids ("the controller
-    never learns of it"). Fine for a sighting; if Tails is signed, the shape that removes both the
-    cost and the form parameter is one producer returning both forms from a single
-    `chartResolutions` pass, which would make "equal outside `notes`" a fact of construction
-    rather than a test.
-  - **Two glyph consequences of drawing a form no rule touched, both accepted, both to sight.** A
+    on the selection), and the 3D preview keeps the presented form.
+  - **The cost, accepted and still open.** `EditorViewState::tab_actual` is memoized beside `tab`
+    under the same key (arrangement id + chart revision), so a sustain gesture projects the chart
+    THREE times per wheel notch — it was already two, because `makeHighwayViewState` composes its
+    own `makeChartViewState` under the same key. Building it lazily would require the controller to
+    learn that the reveal is on, which `tab_view.h` forbids ("the controller never learns of it").
+    Now that Tails is signed, the shape that removes both the cost and the form parameter is one
+    producer returning both forms from a single `chartResolutions` pass, which would make "equal
+    outside `notes`" a fact of construction rather than a test — worth doing, not yet done.
+  - **Two glyph consequences of drawing a form no rule touched, both accepted, both sighted.** A
     DEAD note grows a tail (rule 4 is a presentation rule and the actual form has none) — Alt shows
     what is STORED, and that tail reads as how long the mute is held. And a shift-slide's arrival
     waypoint, which sits exactly at the presented end and so draws no glyph, sits strictly inside
     the real ring and draws a mid-tail linked continuation head — a mark that appears only under
     the reveal (`linkedWaypoint` is form-relative and correct in both, which its doc now states).
-  - **If OUTLINE wins instead**, the outline's cull returns to a prefix maximum over
-    `actual_end_seconds`: it currently culls and measures through the actual form's own notes and
-    index, which is one authority for a ring's length while both styles ship.
 - **C — done 2026-08-22.** Shape spans and their postures are DERIVED from the notes, per chart
   revision, in core: `deriveChartShapes(saved_notes, presented_notes, tempo_map)`
   (`chart/chart_shapes.h`) is the importer's `deriveChordShapes` ported unchanged onto the tempo
@@ -373,113 +370,35 @@ corpus-wide.
   the `H` verb — which run at every caret move, seek and selection change, and read nothing else —
   were deriving the whole song's presented stream, spans and holds on every keystroke and throwing
   all three away. `ChartResolutions` carries the connections rather than restating them.
-- **D — built 2026-08-22, band sighted and superseded 2026-08-23.** The editor preview's
-  actual-ring mark: `F1` cycles a floor mark under each marked note running from its onset to
-  `ChartViewState::actual_end_seconds`, off → **light** → filled → outlined → off. It is a
-  SIGHTING RIG, not a signed look — the numbers below are starting points, and the rig exists to
-  decide whether the mark earns a place at all.
+- **D — built 2026-08-22, sighted and DELETED 2026-08-23.** The editor preview's actual-ring mark:
+  `F1` cycled a floor mark under each marked note running from its onset to the ring's end, off →
+  light → filled → outlined → off, with `Shift+F1` and `Ctrl+F1` filtering which notes were marked.
+  Three forms were sighted in place. The fill died first; the outline was tolerable; the light —
+  the user's own reading of what the outline was groping for, *a mild lighting effect on the floor,
+  like the lighting already there, in the colour of the note* — was built as the candidate.
 
-  **The first sighting killed the fill and left the outline tolerable**, and the user's own
-  reading of why named the replacement: a *mild lighting effect on the floor, like the lighting
-  already there, in the colour of the note*. That is the `Light` form, and it is now the
-  candidate — the two band forms stay only so the three can be flipped between in place, and the
-  loser is deleted with everything only it needed.
+  **The ruling is that none of them earns a place: any mark on the highway for a short note's
+  length adds clutter, not value.** The rig is therefore deleted whole — `ActualRingLook`,
+  `HighwayDiagnosticsOptions` and its header, `HighwayRenderer::setDiagnosticsOptions` and the
+  preview's pass-throughs, the ring-mark draw pass in all three forms, the second prefix maximum
+  over the rings, the per-note gate and the light's envelope helpers, and the three commands with
+  their registry rows, View-menu rows and preview-window whitelist entries (ids 0x130B, 0x130D and
+  0x130E stay retired). The 2D lane keeps the same datum under `Alt` (stage B): it has the space
+  for a length that the board, read at speed, does not.
 
-  The switch is `HighwayRenderer::setDiagnosticsOptions(HighwayDiagnosticsOptions)`, a draw-time
-  POD in its own public header (`highway_diagnostics_options.h`, so the pure rules beside the
-  renderer and the editor's preview plumbing can name it without the renderer's whole API) and
-  deliberately kept OFF `HighwayDisplayOptions`: those ride the memoized `HighwayViewState`,
-  so a toggle the user presses to look at something would re-project the whole chart. The game
-  cannot switch it on, and that is a composition-root guarantee rather than a compiled-out one —
-  the only caller is `PreviewSurface`, reached from an `EditorCommandId` the game does not link,
-  and plan 20 Q5 answer A already ruled against build-define gating for diagnostics.
+  What the rig left behind and the shipped board still reads — kept, with their tests:
+  `highway_slide_path.h` (`highwayNoteFretboardX`, `highwaySlideStateAt`, `highwayGlideSliceCount`)
+  and `highway_floor_geometry.h` (`highwayVisibleSpan` and `HighwaySpan`, `highwayFloorFootprint`
+  with `g_open_tail_margin`), renamed from `highway_floor_band.h` now that no band is left for it
+  to be named after. The sustain tail, the head, the hand-window light and the tap light ask all of
+  them, which is why the extractions outlive the rig that prompted them. `HighwaySpan::ends_inside`
+  went with the rig: only the band's end cap and the light's far fade ever read it, and the tail
+  reads `from` and `to` alone.
 
-  **The cull needed a second prefix maximum**, exactly as the 2D reveal did: the note pass's
-  visible range keys on `display_hold_ends`, so a note whose presented tail rule 3 emptied leaves
-  that range immediately after its onset while its ring is still crossing the board.
-  `Impl::actual_ring_prefix_max` is that table, built per chart load in both products.
-
-  **The rules the marks share are stated once, in two pure units beside the renderer.**
-  `highway_floor_band.h` holds `highwayVisibleSpan` (how a drawn span is bounded — from the later
-  of the onset and the hit line to the earlier of its own end and the horizon, empty when those
-  cross, and whether the far end is the span's OWN), `highwayFloorFootprint` (where a mark under
-  one note lies on the fret axis and how wide: the note's anchor, or the hand window inset by the
-  open-tail margin), `highwayRingMarkApplies` (the per-note gate) and `highwayFloorLightEnvelope`
-  (the light's soft-ended alpha, its ramp clamped so the ends never cross). `highway_slide_path.h`
-  holds `highwayNoteFretboardX`, `highwaySlideStateAt` and `highwayGlideSliceCount` — the fret
-  anchor, the glide, and the density every glide-following mark subdivides by. The sustain tail
-  asks all of them too; the marks add no second producer for anything.
-
-  Decisions taken while building, each open to reversal at the sighting:
-
-  - **The light.** Additive `window_light_program` — the board's own lighting sprite, the one the
-    hand window, the tapping hand and the strike glow already use — in the note's `StringLaneStyle
-    ::tail`, the value the ribbon above it draws with. Additive rather than alpha because a note's
-    light sits INSIDE the hand-window light by construction, where an alpha light repaints instead
-    of adding. Core half-width 1.5 tail half-widths (0.24 world) with a 2.0 falloff (0.32), so the
-    footprint is 0.80 with a 0.16 full-strength middle — inside one fret slot, wider than the tail
-    over it. Additive peak 0.22, against the hand window's 0.251 alpha composite. Both ends fade
-    over `g_tail_onset_fade_seconds`, the tail's own onset ramp, clamped to half the ring so the
-    two ramps meet at the midpoint of a short ring instead of crossing (a fixed ramp left a ring of
-    50 ms or less — a dead note's, a chug's — at alpha zero at both of its only two exact times,
-    invisible), with NO cap; the far end fades only where the ring genuinely ends on the board. No
-    texture: the soft edge is the shader's analytic per-fragment mask, which is
-    resolution-independent and already tuned per pass through one uniform.
-  - **The light follows the glide; the bands do not.** It walks `highwaySlideStateAt` over the
-    visible span, subdividing gliding stretches by `highwayGlideSliceCount` and capped at
-    `g_tail_sample_cap` per note. It ignores the tremolo wobble, on the head's precedent (the
-    teeth are a texture the tail carries), and past the last waypoint the path holds the last fret
-    — which for a note with an unpitched slide-out means the light sits at the trail-off's
-    *compressed* end fret while the pick was, in the stored form, still travelling. The board
-    carries the ring's LENGTH and no actual-form gesture geometry, so that is accepted rather than
-    fixed with a second producer. The bands stay straight: they answer a DURATION question and the
-    tail above them already draws the pitch path.
-  - **The unpitched release's dim does NOT carry into the light.** A rail dims because pressure is
-    coming off the string; the light's whole claim is that the string is still ringing, which is
-    the datum the rig exists to read.
-  - **Band look.** Plain white `0xFFFFFFFF`, achromatic and in no notation family, reading as
-    furniture by PLANE (it lies on the floor) rather than by ink — 3D has no theme seam, and
-    exporting `EditorTheme` into `common/ui` so a shared renderer could tint one editor mark would
-    invert the dependency. Half-width twice the tail's so a rim shows beside a coinciding tail.
-    Fill = 0.16 body plus a 0.5 end cap one attack-line long; Outline = two 0.02-half-width rails
-    plus the same cap at 0.35. The cap draws only where the ring genuinely ends inside the window.
-    Named constants at the top of `highway_renderer.cpp`; they are what the sighting tunes.
-  - **One pass, in the last floor slot.** All three forms draw from one loop after the shape rails
-    and both hands' lights and before the note batches, so everything on the floor is under the
-    light and lit by it, and the note geometry occludes all three. That also moves the bands past
-    the hand-window light, which used to composite over them at its own quarter alpha and left a
-    band inside the lit window reading quieter and slightly blue. The bands still fade toward the
-    hit line through `color_fade_program`, so a short ring can still dissolve near the hit line;
-    the light does not, because `window_light_program` deliberately has no hit-line fade.
-  - **Two filters, one gate, positive by default.** `actual_ring_marks_tailed_notes` and
-    `actual_ring_marks_chord_members` (`Shift+F1`, `Ctrl+F1`) say WHICH notes are marked, so one
-    predicate serves every form. The tailed-note fact is the chart's (`end_seconds >
-    start_seconds`), never "a tail is visible this frame", which flickers at the horizon; the
-    chord fact is the chord BOX's own rule (`highwayChordBoxApplies`, now named once in
-    `highway_view_state.h` and read by the box, the arpeggio lookup, the strike glow and this
-    gate), because the reason to filter chord members is that the box already states the hold.
-  - **An open note's light tracks the hand, as the tail above it does.** Its footprint is read per
-    slice through the one per-time footprint the open tail's stations already walk
-    (`floorFootprintAt`, a binary search over the placements), with the window's own ramp samples
-    joined to the exact set so the light follows the eased border where the tail does. The BANDS
-    still sample once at the mark's start: they draw straight by design. (The first build held the
-    light still too, on a recorded reason — "a whole-song placement scan per note" — that was
-    false: the window query is logarithmic and the tail was already paying it per sample.)
-  - **Toggle, not held.** The 2D reveal is held under `Alt`; this latches. Since the 2026-08-23
-    tracking change the held key is a process-wide predicate, so it is not out of reach in the
-    preview — the one reason that stands is that a rig watched while navigating with the caret
-    keys wants both hands free.
-
-  **No GPU-free witness exists for any mark's appearance** — `HighwayRenderer::draw` has no tests
-  at all, by construction. What is tested is the pure math around it: the clamp and its
-  `ends_inside` fact, the footprint, the gate across every filter combination, the glide path
-  (anchor, waypoint, eased mid-segment, the hold past the last waypoint, a node riding its stop,
-  the run-wide unpitched ramp) and the slice policy's bounds. The look is the sighting's job.
-
-  **If a per-note floor light is ever wanted in the GAME, it is a different mark.** This one's
-  length is `ChartViewState::actual_end_seconds`, whose invariant is that no game surface reads it
-  (ruling 4, scored = presented). A shipped light takes `NoteViewState::end_seconds` or
-  `display_hold_ends` instead.
+  **The third visual path went with it.** `docs/developer/the-3d-highway.md` had grown a
+  "world-space diagnostics" path for this rig; it is back to two paths, with one paragraph
+  recording what a world-space mark would need if the shape is ever wanted again (the overlay path
+  cannot express one, and its switch must never be a `HighwayDisplayOptions` field).
 
 ## Rulings recorded (2026-08-21)
 
@@ -577,19 +496,10 @@ corpus-wide.
      the lattice directly (`common::core::adjacentGridPosition`, beside `snapGridPosition` on one
      lattice helper), the editor primitive delegates to it, and the walk is an involution on every
      meter — pinned in both suites by walking the lattice forward and back.
-9. **The reveal's outline is FURNITURE INK, not string ink** (ruled 2026-08-22 while building
-   stage B, which left the choice open). It draws in `EditorTheme::lane_overlay` at half alpha —
-   the translucent white the armed caret square and the Alt insert ghost already share — rather
-   than in a dimmed version of the note's own string colour. Three reasons, in order of weight.
-   The lane's quieting authority (`Ink` leaned toward the lane ground by `ghosted`) is the
-   NOTATION's and is private to the paint core; dimming a string colour in the editor would be a
-   second statement of how this surface quiets ink, which is the exact defect class the model is
-   clearing out — and exporting the notation palette so chrome could borrow it would breach the
-   rule that editor furniture never enters the paint core. The accent is spoken for: it means
-   "selected", and a mark in it on every visible note would read as a lane-wide selection. And the
-   string identity the ink would carry is already carried by the lane the outline sits in, so it
-   would buy nothing. The reveal therefore joins the Alt family it belongs to — what the next edit
-   acts on — told apart from its siblings by shape, as they are from each other: a square for the
-   caret, a ring for the note-to-be, a tail-height rectangle for the ring being authored. It draws
-   at a fraction of their alpha because it marks every visible note at once where they mark one
-   slot; the stroke is the marquee's hairline for the same reason.
+9. **RETIRED 2026-08-23 with the mark it governed.** The reveal's outline was to draw in
+   `EditorTheme::lane_overlay` at half alpha rather than in a dimmed string colour (ruled
+   2026-08-22); the outline lost the sighting and is deleted, so the ruling has no subject. The
+   number is kept so the earlier references stay readable, and the reason that outlives it is
+   general: the lane's quieting authority (`Ink` leaned toward the lane ground by `ghosted`) is the
+   NOTATION's and is private to the paint core, so editor chrome may never restate it or borrow the
+   notation palette. The signed mark needs no ink of its own — it IS the notation.

@@ -33,7 +33,6 @@
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/common/ui/highway/highway_diagnostics_options.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -497,19 +496,6 @@ private:
 
     // Shows or hides the 3D preview window (View > 3D Preview, or F3).
     void togglePreviewWindow();
-
-    // Applies one change to the preview's actual-ring diagnostics switches: F1 cycles the mark's
-    // form, its two modifier chords flip a filter each. Latches rather than following the 2D
-    // reveal's held Alt — a sighting rig watched while navigating with the caret keys wants both
-    // hands free. The whole options POD makes the round trip so a switch added later needs no new
-    // pass-through anywhere on the path.
-    void updatePreviewDiagnostics(
-        const std::function<void(common::ui::HighwayDiagnosticsOptions&)>& change);
-
-    // Flips the 2D lane's held reveal between outlining each ring and drawing the lane at those
-    // rings (F6). TEMPORARY: it exists only to sight the two against each other, and goes with
-    // whichever mark loses.
-    void toggleActualRingRevealStyle();
 
     // Opens the actions window (Edit > Actions..., default `?`), creating it on first use; the
     // window survives closes so its tree state is kept.

@@ -320,33 +320,6 @@ constexpr int g_track_viewport_min_height{80};
     return "Save changes before continuing?";
 }
 
-// The order `F1` steps the 3D preview's actual-ring mark through. Off first, so one more press
-// always returns the board to what it shows with the rig closed; the light leads the band forms
-// because it is the candidate the sighting is for.
-[[nodiscard]] common::ui::ActualRingLook nextActualRingLook(const common::ui::ActualRingLook look)
-{
-    switch (look)
-    {
-        case common::ui::ActualRingLook::Off:
-        {
-            return common::ui::ActualRingLook::Light;
-        }
-        case common::ui::ActualRingLook::Light:
-        {
-            return common::ui::ActualRingLook::Fill;
-        }
-        case common::ui::ActualRingLook::Fill:
-        {
-            return common::ui::ActualRingLook::Outline;
-        }
-        case common::ui::ActualRingLook::Outline:
-        {
-            break;
-        }
-    }
-    return common::ui::ActualRingLook::Off;
-}
-
 } // namespace
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
@@ -1074,12 +1047,6 @@ void EditorView::togglePreviewWindow()
                 static constexpr std::array g_preview_commands{
                     EditorCommandId::PlayPause,
                     EditorCommandId::TogglePreview3D,
-                    // The actual-ring rig is drawn in this very window, so its keys have to work
-                    // while the preview holds focus — that is the whole point of the latch, and
-                    // its two filters are read by flipping them while watching the board.
-                    EditorCommandId::CycleActualRingLook,
-                    EditorCommandId::ToggleActualRingTailedNotes,
-                    EditorCommandId::ToggleActualRingChordMembers,
                     EditorCommandId::CaretStepLeft,
                     EditorCommandId::CaretStepRight,
                     EditorCommandId::CaretMeasureJumpLeft,
@@ -1123,34 +1090,6 @@ void EditorView::togglePreviewWindow()
                 : std::nullopt);
         m_preview_window->open();
     }
-}
-
-// Reads the preview's diagnostics switches, applies one change, and pushes them back. The whole
-// POD makes the round trip so each verb states only the switch it owns; no-op with no preview
-// window, where the commands register as disabled and there is no board to draw on either way.
-void EditorView::updatePreviewDiagnostics(
-    const std::function<void(common::ui::HighwayDiagnosticsOptions&)>& change)
-{
-    if (m_preview_window == nullptr)
-    {
-        return;
-    }
-    common::ui::HighwayDiagnosticsOptions options = m_preview_window->diagnosticsOptions();
-    change(options);
-    m_preview_window->setDiagnosticsOptions(options);
-    m_command_manager.commandStatusChanged();
-}
-
-// Flips the 2D reveal's mark. Always available, whatever is on screen: it latches a display
-// preference rather than acting on the chart, and a disabled command whose chord matches makes
-// JUCE sound the system alert.
-void EditorView::toggleActualRingRevealStyle()
-{
-    m_tab_view.setActualRingRevealStyle(
-        m_tab_view.actualRingRevealStyle() == ActualRingRevealStyle::Tails
-            ? ActualRingRevealStyle::Outline
-            : ActualRingRevealStyle::Tails);
-    m_command_manager.commandStatusChanged();
 }
 
 // True when there is a chart to act on at all: a projected tab scene with at least one string. The
@@ -1327,16 +1266,6 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleWaveform);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleUndoHistory);
         addEditorCommandItem(menu, m_command_manager, EditorCommandId::TogglePreview3D);
-        // Directly under the window they draw in, and greyed out while that window is closed
-        // (getCommandInfo). Every "View" command belongs in this menu: the Actions dialog groups
-        // by the same category, so one missing here is a command only its chord can reach.
-        addEditorCommandItem(menu, m_command_manager, EditorCommandId::CycleActualRingLook);
-        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleActualRingTailedNotes);
-        addEditorCommandItem(
-            menu, m_command_manager, EditorCommandId::ToggleActualRingChordMembers);
-        // The 2D reveal's sighting switch, beside the 3D rig's for the same reason: every "View"
-        // command belongs in this menu.
-        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleActualRingRevealStyle);
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -1484,45 +1413,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
             info.setActive(m_state.project_loaded || preview_open);
             info.setTicked(preview_open);
-            break;
-        }
-        case EditorCommandId::CycleActualRingLook:
-        {
-            // Only meaningful while the board it draws on is open; ticked whenever the mark is
-            // showing in any of its three forms.
-            const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
-            info.setActive(preview_open);
-            info.setTicked(
-                preview_open && m_preview_window->diagnosticsOptions().actual_ring !=
-                                    common::ui::ActualRingLook::Off);
-            break;
-        }
-        case EditorCommandId::ToggleActualRingTailedNotes:
-        {
-            // The rig's filters share its window gate: they change nothing a closed board could
-            // show, and both are ticked when ON, which is what "these notes are marked" reads as.
-            const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
-            info.setActive(preview_open);
-            info.setTicked(
-                preview_open &&
-                m_preview_window->diagnosticsOptions().actual_ring_marks_tailed_notes);
-            break;
-        }
-        case EditorCommandId::ToggleActualRingChordMembers:
-        {
-            const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
-            info.setActive(preview_open);
-            info.setTicked(
-                preview_open &&
-                m_preview_window->diagnosticsOptions().actual_ring_marks_chord_members);
-            break;
-        }
-        case EditorCommandId::ToggleActualRingRevealStyle:
-        {
-            // Always active — it latches how the held reveal draws, which is a preference the
-            // user can set before any chart is open — and ticked in the style that draws the
-            // rings as tails.
-            info.setTicked(m_tab_view.actualRingRevealStyle() == ActualRingRevealStyle::Tails);
             break;
         }
         // InsertToneChange and the grammar verbs (plan 53 Phase 1b) stay always-active on
@@ -1707,32 +1597,6 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 togglePreviewWindow();
             }
-            return true;
-        }
-        case EditorCommandId::CycleActualRingLook:
-        {
-            updatePreviewDiagnostics([](common::ui::HighwayDiagnosticsOptions& options) {
-                options.actual_ring = nextActualRingLook(options.actual_ring);
-            });
-            return true;
-        }
-        case EditorCommandId::ToggleActualRingTailedNotes:
-        {
-            updatePreviewDiagnostics([](common::ui::HighwayDiagnosticsOptions& options) {
-                options.actual_ring_marks_tailed_notes = !options.actual_ring_marks_tailed_notes;
-            });
-            return true;
-        }
-        case EditorCommandId::ToggleActualRingChordMembers:
-        {
-            updatePreviewDiagnostics([](common::ui::HighwayDiagnosticsOptions& options) {
-                options.actual_ring_marks_chord_members = !options.actual_ring_marks_chord_members;
-            });
-            return true;
-        }
-        case EditorCommandId::ToggleActualRingRevealStyle:
-        {
-            toggleActualRingRevealStyle();
             return true;
         }
         case EditorCommandId::InsertToneChange:

@@ -17,13 +17,13 @@ namespace rock_hero::common::core
 \brief Which of a note's two lengths the projected \ref ChartViewState::notes carry.
 
 The two forms differ in \ref ChartViewState::notes and in NOTHING else. Holds, hand-shape spans
-and their arrival kinds, fret-hand placements and their approach ramps, the string count, the capo
-and \ref ChartViewState::actual_end_seconds are all derived from the PRESENTED stream whichever
-form is asked for, so a surface swapping forms swaps its note tails and no other mark on it moves.
+and their arrival kinds, fret-hand placements and their approach ramps, the string count and the
+capo are all derived from the PRESENTED stream whichever form is asked for, so a surface swapping
+forms swaps its note tails and no other mark on it moves.
 
-\ref Actual exists for one editor sighting (\ref makeChartViewState states why no game surface can
-reach it) and is not a second opinion about what a note is: positions, strings, frets, techniques
-and flags are identical in both, because presentation only ever touches the tail.
+\ref Actual exists for the editor's Alt reveal alone (\ref makeChartViewState states why no game
+surface can reach it) and is not a second opinion about what a note is: positions, strings, frets,
+techniques and flags are identical in both, because presentation only ever touches the tail.
 */
 enum class ChartNoteForm : std::uint8_t
 {

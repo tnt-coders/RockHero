@@ -61,12 +61,11 @@ chords. Everything else is plumbing that keeps focus in the right place:
   so it sets `setWantsKeyboardFocus(false)` and overrides `keyPressed` to return `false`.
   Transport, signal-chain, and plugin-tile buttons decline focus for the same reason.
 - **The 3D preview window** wants focus for itself (its render surface hosts a native child
-  window). It forwards a whitelist of fifteen *commands* through a `std::function` injected by
+  window). It forwards a whitelist of twelve *commands* through a `std::function` injected by
   `EditorView`; membership is resolved through the command mappings rather than hardcoded
-  chords, so future rebinds of rebindable commands stay honored. The fifteen are Play/Pause,
-  the preview toggle, the song-navigation verbs, the grid pair, and the actual-ring rig's three
-  (`F1` and its two modifier chords) — a diagnostic drawn in that very window has to be
-  switchable from it (44-Q4: transport keys only; editing shortcuts stay with the main window).
+  chords, so future rebinds of rebindable commands stay honored. The twelve are Play/Pause,
+  the preview toggle, the song-navigation verbs, and the grid pair (44-Q4: transport keys only;
+  editing shortcuts stay with the main window).
   One layer below JUCE, the preview surface installs a Win32 window proc that bounces
   `WM_SETFOCUS` off the bgfx render child back to the JUCE peer
   (`ui/src/preview/preview_surface.cpp`) — without it the native child swallows every key. That
@@ -87,20 +86,10 @@ not involved at all — the whole path is `EditorView::syncActualRingReveal` →
 already the authoring gate, and the ring it shows is exactly what `Alt`+wheel edits; see
 \ref guide_2d_views for the mark itself.
 
-WHICH mark it makes is an ordinary command, which is the split worth noticing: the held state is
-not registrable, but the preference that shapes it is, so `F6`
-(`EditorCommandId::ToggleActualRingRevealStyle`) flips the reveal between drawing the rings as
-tails and outlining them — registered, rebindable, ticked in the View menu, exactly like `F5` or
-`F8`. It registers always-active because it latches a display preference that is meaningful with
-no chart open, and because a disabled command whose chord matches makes JUCE sound the system
-alert. It is temporary: the sighting picks one mark and the command goes with the loser.
-
-The 3D preview shows the *same* ring and deliberately does **not** copy the idiom: `F1` there is an
-ordinary registered command that latches a floor mark through four states (off, a string-colored
-light, a filled band, an outlined one), with `Shift+F1` and `Ctrl+F1` latching the two filters that
-narrow WHICH notes it marks. A rig you watch while navigating with the caret keys wants both hands
-free, which is the case to reach for a latch in. All three chords carry the same key on purpose:
-they are one rig, and the modifiers narrow what the bare key cycles.
+There is nothing registrable beside it: the mark the reveal makes was decided on 2026-08-23 (the
+lane redraws in the actual form) and the `F6` toggle that had let the two candidates be flipped
+between is gone with the losing one. The 3D preview once had its own `F1` rig for the same datum
+and that is gone too, so `Alt` is the whole of this idiom on either surface.
 
 A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. The rule
 and its four facts, before adding a second held-modifier state:

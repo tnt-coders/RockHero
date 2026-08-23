@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <cstdint>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -63,24 +62,6 @@ supplies bounds sized against \ref g_tab_reference_string_count.
 */
 [[nodiscard]] float tabLaneCenterY(
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept;
-
-/*!
-\brief Which mark the actual-ring reveal makes while it is held.
-
-TEMPORARY, and the toggle that flips it is temporary with it (stage B of
-`docs/plans/in-progress/note-sustain-model.md`): the two are the same question asked two ways, the
-sighting picks one, and the loser is deleted along with this enum. Both draw the same span — each
-visible note's onset to its ACTUAL ring end — and differ only in whether that span is annotated or
-drawn as notation.
-*/
-enum class ActualRingRevealStyle : std::uint8_t
-{
-    /*! \brief A hairline rectangle at tail height over the presented notation, marking the ring. */
-    Outline,
-
-    /*! \brief The actual ring drawn as an ordinary note tail, techniques and payload riding it. */
-    Tails,
-};
 
 /*!
 \brief Renders the chart tablature over the arrangement waveform lane.
@@ -143,12 +124,11 @@ public:
     /*!
     \brief Turns the actual-ring reveal on or off; repaints only when the state changes.
 
-    While it is on, every visible note shows the ring the string ACTUALLY sounds for over the
-    presented tail this lane normally draws — as an outline, or by drawing the whole lane in the
-    actual form, per \ref setActualRingRevealStyle. The editor holds it on exactly while the
-    application is in the foreground and the Alt key — the sustain gesture's own modifier — is
-    down, so the length being authored is visible while it is authored, and releasing snaps the
-    lane back to the presented picture.
+    While it is on, the lane draws the chart in its ACTUAL form — every note's tail is the ring
+    the string really sounds for, with its techniques and its payload riding it — in place of the
+    presented picture. The editor holds it on exactly while the application is in the foreground
+    and the Alt key — the sustain gesture's own modifier — is down, so the length being authored
+    is visible while it is authored, and releasing snaps the lane back.
 
     A held state, not a mode: nothing here latches. The editor re-reads that predicate from the
     operating system every frame for its whole life, so a release nothing delivered cannot strand
@@ -158,21 +138,6 @@ public:
     \param revealed True while the reveal modifier is held in the foreground application.
     */
     void setActualRingReveal(bool revealed);
-
-    /*!
-    \brief Chooses which mark the reveal makes; repaints only when it is currently held.
-
-    TEMPORARY, with the sighting it serves (\ref ActualRingRevealStyle).
-
-    \param style Mark the reveal draws while held.
-    */
-    void setActualRingRevealStyle(ActualRingRevealStyle style);
-
-    /*!
-    \brief Returns the reveal's current style, for the menu tick beside its command.
-    \return Mark the reveal draws while held.
-    */
-    [[nodiscard]] ActualRingRevealStyle actualRingRevealStyle() const noexcept;
 
     /*!
     \brief Reports whether the lane wants the pointer at a lane-local position.
@@ -240,8 +205,7 @@ public:
 
     \param tab Seconds-resolved tab projection, or null when the arrangement has no chart.
     \param tab_actual The same chart with every note at its actual ring, or null with no chart.
-           Absent, the reveal has nothing to show: the tail style keeps drawing the presented form
-           and the outline style draws no outline.
+           Absent, the reveal has nothing to show and the lane keeps drawing the presented form.
     \param minimum_displayed_strings User minimum lane count; zero means match the chart.
     */
     void setState(
@@ -287,9 +251,9 @@ private:
         std::vector<double> prefix_max_end_seconds{};
     };
 
-    // The form this lane draws right now: the actual one only while the reveal is held AND its
-    // style says to draw notation rather than annotate it. Everything in paint reads the
-    // projection through this, so the two pictures cannot half-swap.
+    // The form this lane draws right now: the actual one only while the reveal is held.
+    // Everything in paint reads the projection through this, so the two pictures cannot
+    // half-swap.
     //
     // The pointer path deliberately does NOT: the controller hit-tests, selects and inserts
     // against the presented projection it published, so the reveal shows a length nothing can be
@@ -339,10 +303,6 @@ private:
     // Not part of ChartEditViewState: the controller never learns of it, because which key is
     // down is a fact about this window and nothing headless may branch on it.
     bool m_actual_ring_reveal{false};
-
-    // Which mark the reveal makes. Tails is the default because it is the thing being sighted;
-    // both it and the toggle that flips it are temporary (ActualRingRevealStyle).
-    ActualRingRevealStyle m_reveal_style{ActualRingRevealStyle::Tails};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

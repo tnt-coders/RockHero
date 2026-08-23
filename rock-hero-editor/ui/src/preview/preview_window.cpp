@@ -80,16 +80,6 @@ void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
     m_surface->setCaretSeconds(seconds);
 }
 
-void PreviewWindow::setDiagnosticsOptions(const common::ui::HighwayDiagnosticsOptions options)
-{
-    m_surface->setDiagnosticsOptions(options);
-}
-
-common::ui::HighwayDiagnosticsOptions PreviewWindow::diagnosticsOptions() const noexcept
-{
-    return m_surface->diagnosticsOptions();
-}
-
 void PreviewWindow::closeButtonPressed()
 {
     close();

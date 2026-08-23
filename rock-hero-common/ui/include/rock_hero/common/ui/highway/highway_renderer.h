@@ -12,7 +12,6 @@
 #include <memory>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
-#include <rock_hero/common/ui/highway/highway_diagnostics_options.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -148,16 +147,6 @@ public:
     \param state Seconds-resolved highway content from the shared projection.
     */
     void setViewState(common::core::HighwayViewState state);
-
-    /*!
-    \brief Sets the draw-time diagnostics switches; takes effect on the next frame.
-
-    Retains nothing and rebuilds nothing — see \ref HighwayDiagnosticsOptions for why a switch a
-    user toggles while watching the board must not travel with the projected scene.
-
-    \param options Diagnostics switches the following frames draw with.
-    */
-    void setDiagnosticsOptions(HighwayDiagnosticsOptions options);
 
     /*!
     \brief Encodes one frame of the highway into the render views.

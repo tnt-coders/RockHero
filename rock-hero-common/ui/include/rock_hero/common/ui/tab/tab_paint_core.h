@@ -135,25 +135,6 @@ struct TabLaneMetrics : TabLaneGeometry
     int chart_string_count, TabLaneStyle style = {});
 
 /*!
-\brief Returns the time span one paint call can show: the clip widened by the glyph slack.
-
-Heads and icons reach a fixed pixel distance around their onset, so an event whose onset sits
-just outside the clip still has ink inside it; the span the visibility queries run against is the
-clip widened by that reach on both sides. Exported because host chrome culling alongside the
-notation has to use the SAME window — the editor's actual-ring reveal is the one caller today.
-Restating the widening in a host is how a mark comes to appear on one repaint and vanish on the
-next, at a boundary nothing visible moves across.
-
-\param metrics Metrics of the lane being painted; its bounds must have positive width.
-\param clip_bounds Clip region to bound the span by, in the metrics' coordinate space
-       (`juce::Graphics::getClipBounds()`); intersected with the lane bounds here, so a host may
-       pass its context's raw clip.
-\return Visible span in absolute timeline seconds, wider than the clip by the glyph slack.
-*/
-[[nodiscard]] common::core::TimeRange tabVisibleSpan(
-    const TabLaneMetrics& metrics, juce::Rectangle<int> clip_bounds);
-
-/*!
 \brief Strokes the outline of the silhouette this note's head is drawn with.
 
 For host chrome that must trace a head it did not draw — the editor's selection ring is the one

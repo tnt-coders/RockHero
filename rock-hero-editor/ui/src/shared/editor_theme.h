@@ -87,15 +87,13 @@ struct EditorTheme
     juce::Colour accent{0xff87cefa};
 
     /*!
-    \brief Editor furniture drawn OVER the tab lane's notation: the armed caret's square, the
-    Alt-hover insert ghost's ring, and the Alt-held actual-ring reveal's outline.
+    \brief Editor furniture drawn OVER the tab lane's notation: the armed caret's square and the
+    Alt-hover insert ghost's ring.
 
     Translucent white so the notation reads through it and it stays visible over every string
-    color; the overlays share one ink because they are the same kind of thing — what the next
+    color; the two overlays share one ink because they are the same kind of thing — what the next
     edit lands on or acts on — told apart by shape alone (square for the caret, round for the
-    note-to-be, a tail-height rectangle for the ring being authored). The reveal draws at a
-    fraction of this alpha, because it marks every visible note at once where the other two mark
-    one slot.
+    note-to-be).
     */
     juce::Colour lane_overlay{0xb3ffffff};
 

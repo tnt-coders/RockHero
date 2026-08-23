@@ -2527,9 +2527,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
             // Built eagerly, under the same key. Building it only while the reveal is on would
             // mean this derivation knew the reveal is on, and the reveal is a fact about which
             // key is physically down in one window (tab_view.h: "the controller never learns of
-            // it"). The cost is real and deliberate for the sighting: a sustain gesture bumps the
-            // chart revision on every wheel notch, and each notch already projected the chart
-            // twice — here and again inside the highway projection below — so this makes three.
+            // it"). The cost is real and accepted: a sustain gesture bumps the chart revision on
+            // every wheel notch, and each notch already projected the chart twice — here and
+            // again inside the highway projection below — so this makes three. The shape that
+            // removes it is one producer returning both forms from a single chartResolutions
+            // pass (note-sustain-model.md stage B), which is unbuilt.
             m_tab_actual_view_state = std::make_shared<const common::core::ChartViewState>(
                 common::core::makeChartViewState(
                     *arrangement, state.tempo_map, common::core::ChartNoteForm::Actual));

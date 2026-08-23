@@ -85,15 +85,10 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    `test_highway_head_marks.cpp`. Two more sit beside it, and between them they hold every rule a
    floor mark and the tail above it have to agree on:
 
-   - `highway_floor_band.h` — `highwayVisibleSpan` is the single clamp a drawn span obeys (from
+   - `highway_floor_geometry.h` — `highwayVisibleSpan` is the single clamp a drawn span obeys (from
      the later of the onset and the hit line to the earlier of its own end and the horizon, empty
-     when those cross, and it reports whether the far end is the span's OWN, which is what a cap
-     or a fade-out may claim an ending from); `highwayFloorFootprint` is where a mark under one
-     note lies on the fret axis and how wide (the note's anchor, or the hand window inset by the
-     open-tail margin); `highwayRingMarkApplies` is which notes the actual-ring rig marks; and
-     `highwayFloorLightEnvelope` is the light form's soft-ended alpha, with its ramp clamped to
-     half the ring so the two ends can never cross (the fact that decides whether the shortest
-     rings draw at all).
+     when those cross), and `highwayFloorFootprint` is where a mark under one note lies on the fret
+     axis and how wide (the note's anchor, or the hand window inset by the open-tail margin).
    - `highway_slide_path.h` — `highwayNoteFretboardX` and `highwaySlideStateAt`, the fret axis and
      the glide, below.
 
@@ -236,7 +231,7 @@ head through a later one — and the renderer clamps its pin further with
 re-shown chord takes over the pinned display. That clamp is board-only presentation with no 2D
 counterpart to diverge from.
 
-# Three visual paths: chart visuals, screen-space overlays, world-space diagnostics
+# Two visual paths: chart visuals and screen-space overlays
 
 Before extending anything, pick the right path — they do not share a checklist:
 
@@ -248,44 +243,19 @@ Before extending anything, pick the right path — they do not share a checklist
   text. `DiagnosticsOverlay` (`game/ui/src/overlay/`) is the HUD exemplar — record data during
   the frame, `buildRects()`, draw. The game's menu bar renders the same way. Extending
   `HighwayViewState` for a HUD element is the wrong path.
-- **World-space diagnostics** are neither, and the actual-ring rig is the first of them. Like a
-  chart visual it lives in world space and reads the projected scene; like an overlay it is a
-  *switch* the viewer flips, not part of what the chart says. It draws in the ordinary drawer path
-  from a datum already on the state, and it is switched through
-  `HighwayRenderer::setDiagnosticsOptions(HighwayDiagnosticsOptions)` — a small POD in its own
-  header (`highway/highway_diagnostics_options.h`, so the pure rules beside the renderer and the
-  editor's preview plumbing can name it without the renderer's whole API) that is
-  emphatically **not** part of `HighwayDisplayOptions`, because those ride the memoized
-  `HighwayViewState` and a look-at-it toggle must not re-project the chart it is looking at. The
-  overlay path cannot express one of these at all: `HighwayOverlayRect` is axis-aligned pixels,
-  and a mark lying on a perspective floor is a trapezoid that moves every frame.
-
-  **One switch per question, never one per form.** `ActualRingLook` is Off / Light / Fill /
-  Outline — a single enum for how the ring is shown, with the two per-note filters
-  (`actual_ring_marks_tailed_notes`, `actual_ring_marks_chord_members`) beside it because they say
-  WHICH notes are marked, which every form has to answer the same way. That is one pass in the
-  last floor slot, one gate (`highwayRingMarkApplies`) and one footprint for all three marks; a
-  second enum for the light would have been a second mark stackable on the first. The light form
-  is the one that behaves like the board's other lighting rather than like furniture: an additive
-  `window_light_program` batch in the note's own string color, its soft x edges the hand window's
-  own per-fragment mask, walking `highwaySlideStateAt` so it travels with a slide and, under an
-  open string, the hand window's own ramp samples so it travels with the hand. It is the only
-  ring mark that follows either — the band forms answer a length question the tail above them
-  already draws the path for, while a light left behind by its own note would read as a fault.
-
-  Two rules come with the path. **Answering the 2D lane does not apply** — a diagnostic states no
-  new chart fact, so the two-surfaces law is not engaged (the actual-ring rig and the 2D lane's
-  `Alt` reveal happen to be the same datum on both surfaces, but neither owes the other an idiom).
-  And **the game is kept out by composition, not by a build define**: the only caller of
-  `setDiagnosticsOptions` is the editor's `PreviewSurface`, reached from an `EditorCommandId` the
-  game does not link, so the game's board runs on the default-constructed value. Compiling
-  diagnostics out of shipped builds was ruled against long ago (plan 20 open question 5, answer
-  A — release-build timing bugs have to stay observable), so there is no `#ifdef` here to find.
-
-  A shipped per-note floor light would be a *different* mark, and the reason is worth stating
-  before anyone reuses this one: this light's LENGTH is `ChartViewState::actual_end_seconds`,
-  whose invariant is that no game surface reads it (scored = presented). A shipped light takes
-  `NoteViewState::end_seconds` or `display_hold_ends` instead.
+A **world-space diagnostic** — a mark lying on the board that a viewer switches on to look at
+something, rather than part of what the chart says — was built once as a third path and removed on
+2026-08-23 (`docs/plans/in-progress/note-sustain-model.md`, stage D): a per-note floor mark for the
+ring a short note really sounds for, which the sighting found adds clutter and not information. Two
+things it established are worth keeping if the shape is ever wanted again. The overlay path cannot
+express one at all — `HighwayOverlayRect` is axis-aligned pixels, and a mark on a perspective floor
+is a trapezoid that moves every frame — so it has to draw in the ordinary drawer path. And its
+switch must NOT be a `HighwayDisplayOptions` field: those ride the memoized `HighwayViewState`, so a
+toggle pressed to look at the board would re-project the chart it is looking at. It belongs on a
+draw-time setter of the renderer's own, with the game kept out by composition (an editor-only
+caller) rather than by a build define — compiling diagnostics out of shipped builds was ruled
+against long ago (plan 20 open question 5, answer A: release-build timing bugs have to stay
+observable).
 
 # Extending the highway — silent steps
 

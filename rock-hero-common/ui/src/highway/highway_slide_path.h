@@ -4,15 +4,14 @@
 
 Nothing inside the renderer's draw pass is reachable from a test, so a rule the pass makes more
 than once belongs in a small pure unit beside it instead — the reasoning \ref highway_head_marks.h
-states at length, and \ref highway_floor_band.h repeats one level smaller.
+states at length, and \ref highway_floor_geometry.h repeats one level smaller.
 
-This is that shape for the fret axis. Four consumers already asked the glide where a note is at a
-time — the head's anchor, the tail's arc probe, the tail's per-sample walk, and now the actual-ring
-floor light — and the anchor underneath it is asked by those plus the fret-span furniture. Both
-were written inline in `draw()`, the glide as a sixty-line lambda declared AFTER every floor pass,
-which is what made a floor mark unable to follow a slide at all without moving it. They are pure
-functions of a projected note, the board metrics and a time, so out here they gain the witness the
-draw pass can never have.
+This is that shape for the fret axis. Three consumers ask the glide where a note is at a time — the
+head's anchor, the tail's arc probe and the tail's per-sample walk — and the anchor underneath it is
+asked by those plus the fret-span furniture. Both were written inline in `draw()`, the glide as a
+sixty-line lambda declared AFTER every floor pass, which is what made a floor mark unable to follow
+a slide at all without moving it. They are pure functions of a projected note, the board metrics and
+a time, so out here they gain the witness the draw pass can never have.
 */
 
 #pragma once
@@ -101,15 +100,14 @@ struct HighwaySlideState
 The ONE authority for a note's lateral travel. Segments run between waypoint anchors, eased by
 \ref common::core::highwaySlideEaseWeight in the family the ARRIVING waypoint names (a pitched
 glide accelerates into its target; an unpitched one releases early), and past the last waypoint the
-glide holds its target — which is also what a mark drawn past the presented tail wants, since a
-gesture that has stopped travelling continues straight along the fret it stopped on.
+glide holds its target, since a gesture that has stopped travelling continues straight along the
+fret it stopped on.
 
-One caveat rides that hold, and only a mark drawn past the PRESENTED end can see it: presentation
-compresses an unpitched slide-out's terminal earlier than the stored gesture, so for those notes the
-held position past the presented end is the trail-off's compressed end fret while the pick was, in
-the stored form, still travelling. The board carries the actual ring's LENGTH and no actual-form
-gesture geometry, so nothing here can do better; a second producer for the untrimmed path would
-state the glide twice.
+One caveat rides that hold, and only a mark drawn past the PRESENTED end could see it: presentation
+compresses an unpitched slide-out's terminal earlier than the stored gesture, so past the presented
+end the held position is the trail-off's compressed end fret while the pick was, in the stored form,
+still travelling. Nothing here can do better from a presented note; a second producer for the
+untrimmed path would state the glide twice.
 
 The dim spans the whole CONSECUTIVE unpitched run rather than one segment: a scrape's chained legs
 are one continuous release, so the alpha must never snap back to full at a direction reversal —
@@ -197,9 +195,9 @@ constexpr int g_glide_slice_max = 64;
 /*!
 \brief How many straight slices a gliding segment is drawn as, for a travel in fret units.
 
-The one density policy every glide-following mark obeys: the tapping hand's light patches and the
-actual-ring floor light both subdivide an eased segment by it, so a scrape cannot facet under one
-mark while staying smooth under the other.
+The one density policy every glide-following mark obeys — the tapping hand's light patches today,
+and any later mark that walks an eased segment — so a scrape cannot facet under one mark while
+staying smooth under another.
 
 \param sweep_frets Absolute travel across the segment in fret units; a finite, non-negative value.
 \return Slice count, never below \ref g_glide_slice_min nor above \ref g_glide_slice_max.

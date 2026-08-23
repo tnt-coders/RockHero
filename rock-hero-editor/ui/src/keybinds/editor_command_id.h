@@ -81,48 +81,11 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief View > 3D Preview (`F3`). */
     TogglePreview3D = 0x1303,
 
-    // 0x1304 through 0x130A were sighting samplers (accent light, family scale, string spacing,
-    // harmonic size, head width, staged-atlas cycling, and the 2D note trim), each deleted when
-    // its decision signed (2026-08-17/19); retired ids are never revived.
-
-    /*!
-    \brief Cycle the 3D preview's actual-ring mark (`F1`): off, light, fill, outline.
-
-    The sighting rig for the note-sustain model's stage D: a floor mark under each note running
-    the ACTUAL ring the string sounds for, which the presented tail above it may have trimmed or
-    dropped. Deliberately a LATCH where the 2D lane's equivalent reveal is held under `Alt`: a
-    sighting rig watched while navigating the preview with the caret keys wants both hands free
-    while it is on.
-    */
-    CycleActualRingLook = 0x130B,
-
-    /*!
-    \brief Flip the 2D lane's actual-ring reveal between its two marks (`F6`): outline, tails.
-
-    TEMPORARY, and knowingly so: the reveal drawn while `Alt` is held is being sighted in two
-    forms — a hairline outline annotating the presented notation, or the lane redrawn with every
-    note at its real ring — and this exists only so the user can flip between them in place. When
-    one is signed the other goes, and this command with it (the id stays retired, like 0x1304
-    through 0x130A above).
-    */
-    ToggleActualRingRevealStyle = 0x130C,
-
-    /*!
-    \brief Include notes that already draw a tail in the 3D preview's ring marks (`Shift+F1`).
-
-    A filter on the same rig `F1` cycles the form of, not a second rig. Off leaves the marks on
-    only the notes whose ring the presented form does NOT already draw, which is the comparison
-    wanted once the agreeing cases have been checked.
-    */
-    ToggleActualRingTailedNotes = 0x130D,
-
-    /*!
-    \brief Include notes inside a chord box in the 3D preview's ring marks (`Ctrl+F1`).
-
-    The other filter on that rig: a chord box already states how long its posture is held, so a
-    mark under each member repeats it — off asks what the rig says with that repetition removed.
-    */
-    ToggleActualRingChordMembers = 0x130E,
+    // 0x1304 through 0x130E were sighting samplers (accent light, family scale, string spacing,
+    // harmonic size, head width, staged-atlas cycling, the 2D note trim, and the actual-ring
+    // rigs — the 3D floor mark with its two filters, and the 2D reveal's style flip), each
+    // deleted when its decision signed (2026-08-17/19, 2026-08-23); retired ids are never
+    // revived.
 
     /*!
     \brief Insert a tone-change marker at the cursor (`Ctrl+T`).

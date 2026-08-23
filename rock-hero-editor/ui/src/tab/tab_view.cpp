@@ -29,18 +29,6 @@ namespace
     return std::max(1.0f, head_size / 15.0f) * 1.5f;
 }
 
-// Stroke of the actual-ring reveal's outline: a hairline, deliberately outside the ring family
-// above. Those mark ONE object each and are sized to straddle its edge; the reveal draws on every
-// visible note at once, so its weight is the whole of what keeps a lane full of outlines reading
-// as an annotation over the notation rather than as more notation. The marquee's border is the
-// same hairline for the same reason.
-constexpr float g_actual_ring_reveal_stroke{1.0f};
-
-// How far the reveal's outline sits under the furniture ink it shares. The caret square and the
-// insert ghost are the loudest marks on the lane by design and each states one slot; an outline on
-// every visible note at that weight would bury what it is annotating.
-constexpr float g_actual_ring_reveal_dim{0.5f};
-
 } // namespace
 
 // The notation rasterizer lives in the shared paint core (rock-hero-common/ui tab/), one
@@ -106,36 +94,12 @@ void TabView::setActualRingReveal(bool revealed)
     repaint();
 }
 
-// Flips which mark the reveal makes. The repaint is conditional because the style changes nothing
-// on screen while the reveal is not held — it is a latched preference, unlike the held reveal.
-void TabView::setActualRingRevealStyle(ActualRingRevealStyle style)
-{
-    if (style == m_reveal_style)
-    {
-        return;
-    }
-
-    m_reveal_style = style;
-    if (m_actual_ring_reveal)
-    {
-        repaint();
-    }
-}
-
-// Read by the shell for the tick beside the style's command.
-ActualRingRevealStyle TabView::actualRingRevealStyle() const noexcept
-{
-    return m_reveal_style;
-}
-
-// The form paint draws, and the visibility index that belongs to it. The actual form only when
-// the reveal is held in the style that swaps the notation — and only when one was published, so a
-// host pushing the presented projection alone simply has no reveal rather than a crash.
+// The form paint draws, and the visibility index that belongs to it. The actual form only while
+// the reveal is held — and only when one was published, so a host pushing the presented projection
+// alone simply has no reveal rather than a crash.
 const TabView::LaneForm& TabView::drawn() const noexcept
 {
-    const bool draw_rings = m_actual_ring_reveal &&
-                            m_reveal_style == ActualRingRevealStyle::Tails &&
-                            m_actual.state != nullptr;
+    const bool draw_rings = m_actual_ring_reveal && m_actual.state != nullptr;
     return draw_rings ? m_actual : m_presented;
 }
 
@@ -305,10 +269,10 @@ void TabView::setState(
 // Guards the empty cases, derives the shared metrics, and delegates the drawing to the shared
 // notation paint core.
 //
-// Everything below reads the DRAWN form: while the reveal is held in its tail style that is the
-// chart at its actual rings, and every overlay must trace the heads that were painted rather than
-// the other form's. The heads are identical in both forms (presentation touches only the tail), so
-// today this is a rule about which authority the overlays ask, not about pixels moving.
+// Everything below reads the DRAWN form: while the reveal is held that is the chart at its actual
+// rings, and every overlay must trace the heads that were painted rather than the other form's.
+// The heads are identical in both forms (presentation touches only the tail), so today this is a
+// rule about which authority the overlays ask, not about pixels moving.
 void TabView::paint(juce::Graphics& g)
 {
     const LaneForm& lane = drawn();
@@ -333,59 +297,6 @@ void TabView::paint(juce::Graphics& g)
     // Chart-editing overlays draw above the shared notation and never enter the paint core:
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
-
-    // The actual-ring reveal in its OUTLINE style: the notation above is the presented picture,
-    // and every visible note additionally gets the ring the string really sounds for outlined —
-    // which that tail may have trimmed, floored, or dropped to nothing. Drawn for EVERY visible
-    // note, not only where the two ends differ — an outline landing exactly on a drawn tail is the
-    // statement "this is the whole ring", and a mark that appeared only on disagreement would
-    // leave the reader unable to tell agreement from a reveal that is simply off.
-    //
-    // Its ink is the theme's lane_overlay, halved. Editor furniture reads through EditorTheme,
-    // the editor's one color seam; the lane's own quieting authority (the paint core's Ink set
-    // leaned toward the lane ground) belongs to the NOTATION, is private to that core, and is not
-    // a palette chrome may borrow. Within the theme this joins the caret square and the insert
-    // ghost rather than the accent, for two reasons: the accent means "selected", and a mark in
-    // it on every visible note would read as a lane-wide selection; and this outline belongs to
-    // the same Alt family the insert ghost does — what the next edit acts on.
-    //
-    // The TAIL style needs nothing here: it swapped the whole lane to the actual form above, so
-    // the ring IS the notation and no ink question arises.
-    //
-    // Drawn first of the overlays so the selection ring and the caret stay above it: it is the
-    // quietest mark here and by far the most numerous.
-    if (m_actual_ring_reveal && m_reveal_style == ActualRingRevealStyle::Outline &&
-        m_actual.state != nullptr)
-    {
-        // The paint core's own visible window, asked rather than restated, so an outline cannot
-        // survive a repaint the note under it did not. Both the cull and the rectangle come from
-        // the ACTUAL form — one authority for a ring's length, whichever style is showing it —
-        // and that form's index is the running maximum over its own (ring-length) ends, which is
-        // exactly what an outline reaching past its presented tail needs to stay in range.
-        const common::core::TimeRange span = common::ui::tabVisibleSpan(metrics, g.getClipBounds());
-        const std::vector<common::core::NoteViewState>& rings = m_actual.state->notes;
-        const auto [first, last] = common::core::visibleEventRange(
-            rings, m_actual.prefix_max_end_seconds, span.start.seconds, span.end.seconds);
-        g.setColour(editorTheme().lane_overlay.withMultipliedAlpha(g_actual_ring_reveal_dim));
-        for (std::size_t index = first; index < last; ++index)
-        {
-            // The prefix maximum is a RUNNING one, so the range can open on a long ring and carry
-            // shorter neighbours that ended before the window with it.
-            if (rings[index].end_seconds < span.start.seconds)
-            {
-                continue;
-            }
-
-            // The actual form's own tail rectangle, from the layout the paint core draws with, so
-            // the outline traces exactly where that form's tail would sit rather than restating
-            // the geometry. Every stored ring is positive, so this rectangle is never empty.
-            const common::ui::TabLayoutRect ring =
-                common::ui::tabNoteLayout(metrics, rings[index]).tail;
-            g.drawRect(
-                juce::Rectangle<float>{ring.x, ring.y, ring.width, ring.height},
-                g_actual_ring_reveal_stroke);
-        }
-    }
 
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the

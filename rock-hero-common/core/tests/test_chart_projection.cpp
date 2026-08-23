@@ -195,40 +195,6 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
 }
 
-// The ACTUAL ring rides the projection beside the presented tail, resolved from the SAVED note
-// rather than the presented one. Which surfaces may read it, and why no game surface may, is
-// stated once on the field itself (chart_view_state.h) rather than restated here. What this test
-// pins is the shape: one entry per note, because every reader indexes the two together.
-TEST_CASE("Chart projection carries each note's actual ring", "[core][chart]")
-{
-    const TempoMap tempo_map = makeTempoMap();
-    const ChartViewState state = makeChartViewState(makeArrangementWithChart(), tempo_map);
-
-    REQUIRE(state.notes.size() == 7);
-    REQUIRE(state.actual_end_seconds.size() == state.notes.size());
-
-    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
-
-    // Where no rule trims the ring, the two ends coincide — which the reveal draws all the same,
-    // as the statement "this is the whole ring".
-    CHECK(state.actual_end_seconds[0] == Catch::Approx(5.0 * beat));
-    CHECK(state.notes[0].end_seconds == Catch::Approx(5.0 * beat));
-    CHECK(state.actual_end_seconds[3] == Catch::Approx(10.5 * beat));
-    CHECK(state.notes[3].end_seconds == Catch::Approx(10.5 * beat));
-
-    // The last note is a lone eighth with no technique, so rule 3 presents it no tail at all: the
-    // lane draws a bare head there and the ring the string really sounds for exists only here.
-    // That gap is the whole reason the reveal exists.
-    //
-    // Bit-exact, not tolerant: a tail-less note's end IS its onset, assigned across rather than
-    // recomputed, so the two doubles must be the same value. Approx's relative epsilon would pass
-    // a resolver change that recomputed the end from the beat position and landed a hair away,
-    // which is exactly the invariant this line exists to hold.
-    CHECK_THAT(
-        state.notes[6].end_seconds, Catch::Matchers::WithinULP(state.notes[6].start_seconds, 0));
-    CHECK(state.actual_end_seconds[6] == Catch::Approx(13.125 * beat));
-}
-
 // The ACTUAL form draws each note at the ring the string really sounds for — the editor reveal's
 // whole picture. Where no rule trimmed anything the two forms agree; where presentation dropped a
 // tail outright, this form is the only one that has it.
@@ -255,16 +221,6 @@ TEST_CASE("Chart projection draws the actual form at each note's ring", "[core][
     // A note no rule trimmed is the same note in both forms.
     CHECK(actual.notes[0].end_seconds == Catch::Approx(5.0 * beat));
     CHECK(presented.notes[0].end_seconds == Catch::Approx(5.0 * beat));
-
-    // The parallel ring array is unchanged by the form, so in the actual form it restates that
-    // form's own note ends — bit-exactly, since both resolve the same saved sustain.
-    REQUIRE(actual.actual_end_seconds.size() == actual.notes.size());
-    for (std::size_t index = 0; index < actual.notes.size(); ++index)
-    {
-        CHECK_THAT(
-            actual.actual_end_seconds[index],
-            Catch::Matchers::WithinULP(actual.notes[index].end_seconds, 0));
-    }
 }
 
 // Payload is what a view-side end swap could never restore, and the reason the reveal asks for a
@@ -329,9 +285,9 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
 
 // The form contract: the two states differ in their NOTES and in nothing else. Everything a
 // surface draws besides the notes — the holds, the hand-shape spans and their arrival kinds, the
-// fret-hand placements and their approach ramps, the string count, the capo, the parallel ring
-// array — is derived from the presented stream whichever form is asked for, so the editor's reveal
-// swaps note tails and moves no other mark on the lane.
+// fret-hand placements and their approach ramps, the string count, the capo — is derived from the
+// presented stream whichever form is asked for, so the editor's reveal swaps note tails and moves
+// no other mark on the lane.
 TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
@@ -345,7 +301,6 @@ TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][cha
     CHECK(presented.shapes == actual.shapes);
     CHECK(presented.fret_hand_positions == actual.fret_hand_positions);
     CHECK(presented.display_hold_ends == actual.display_hold_ends);
-    CHECK(presented.actual_end_seconds == actual.actual_end_seconds);
     // ... and the notes are genuinely a different picture, or the fixture would prove nothing.
     CHECK_FALSE(presented.notes == actual.notes);
 
@@ -439,7 +394,6 @@ TEST_CASE("Chart projection is empty without a chart", "[core][chart]")
     CHECK(state.string_count == 0);
     CHECK(state.notes.empty());
     CHECK(state.display_hold_ends.empty());
-    CHECK(state.actual_end_seconds.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
 

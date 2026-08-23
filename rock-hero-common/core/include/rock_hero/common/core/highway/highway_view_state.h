@@ -29,8 +29,8 @@ namespace rock_hero::common::core
 Every field here is read per frame in `highway_renderer.cpp` — the fret axis reflects, the lanes
 stack, the padding resolves — so the chart scene underneath stays one chart fact and no consumer
 projects a second, per-display copy of it. The cost of riding the memoized view state is that
-changing one of these re-projects the chart, which is why a draw-time DIAGNOSTIC switch belongs in
-\ref common::ui::HighwayDiagnosticsOptions instead and not here.
+changing one of these re-projects the chart, so a switch a viewer flips while WATCHING the board —
+a diagnostic, a sighting rig — belongs on the renderer's own draw-time surface instead, never here.
 */
 struct HighwayDisplayOptions
 {
@@ -300,10 +300,10 @@ struct HighwayChordGroupViewState
 
 Two or more fretting-hand members. Stated here beside the count it reads rather than at the sites
 that ask, because the answer is not the box's alone any more: the arpeggio bracket looks for the
-struck group, the strike glow lights a boxed cluster's window edges instead of its fret lines, and
-the actual-ring diagnostics filter exists precisely BECAUSE the box already states the strum's
-held duration — a rig that filtered on a count of its own could have disagreed with the box it was
-deferring to.
+struck group and the strike glow lights a boxed cluster's window edges instead of its fret lines.
+A mark that deferred to the box — "the box already states this strum's held duration, so do not
+repeat it" — would have to ask this too rather than filter on a count of its own, or the two could
+disagree about the same strum.
 
 \param fretting_hand_count Members struck by the fretting hand
        (\ref HighwayChordGroupViewState::fretting_hand_count).

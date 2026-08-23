@@ -1825,6 +1825,38 @@ void drawCapoChip(juce::Graphics& g, const TabLaneMetrics& metrics, const int ca
     g.drawText(text, box, juce::Justification::centred);
 }
 
+// The visible time span one paint call can show: the clip, held to the lane's own bounds and
+// widened by the pixel slack heads and icons reach around their onset, since an event whose onset
+// sits just outside the clip still has ink inside it. The clip is intersected here so a host
+// drawing the lane inside a larger component cannot have that component's other columns read as
+// visible time.
+[[nodiscard]] common::core::TimeRange tabVisibleSpan(
+    const TabLaneMetrics& metrics, juce::Rectangle<int> clip_bounds)
+{
+    // Divided by immediately below, exactly as makeTabLaneMetrics divides by it.
+    assert(metrics.bounds.getWidth() > 0);
+
+    const juce::Rectangle<int> clip = clip_bounds.getIntersection(metrics.bounds);
+    const double duration = metrics.visible_timeline.duration().seconds;
+    const double seconds_per_pixel = duration / static_cast<double>(metrics.bounds.getWidth());
+    const double slack_seconds =
+        static_cast<double>(metrics.max_note_height) * 3.0 * seconds_per_pixel;
+    // Clip columns relative to the lane's left edge, which is where x() measures time from.
+    const int clip_from = clip.getX() - metrics.bounds.getX();
+    const int clip_to = clip.getRight() - metrics.bounds.getX();
+    return common::core::TimeRange{
+        .start =
+            common::core::TimePosition{
+                metrics.visible_timeline.start.seconds +
+                static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds
+            },
+        .end = common::core::TimePosition{
+            metrics.visible_timeline.start.seconds +
+            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds
+        },
+    };
+}
+
 } // namespace
 
 // Converts the shared palette authority to JUCE colors at the paint core's boundary; the
@@ -1952,36 +1984,6 @@ TabLaneMetrics makeTabLaneMetrics(
     metrics.bend_font = juce::Font{juce::FontOptions{std::max(10.0f, metrics.note_height / 4.0f)}};
     metrics.label_font = juce::Font{juce::FontOptions{g_shape_label_height}.withStyle("Bold")};
     return metrics;
-}
-
-// The visible time span: the clip, held to the lane's own bounds and widened by the pixel slack
-// heads and icons reach around their onset. The clip is intersected here so a host drawing the
-// lane inside a larger component cannot have that component's other columns read as visible time.
-common::core::TimeRange tabVisibleSpan(
-    const TabLaneMetrics& metrics, juce::Rectangle<int> clip_bounds)
-{
-    // Divided by immediately below, exactly as makeTabLaneMetrics divides by it.
-    assert(metrics.bounds.getWidth() > 0);
-
-    const juce::Rectangle<int> clip = clip_bounds.getIntersection(metrics.bounds);
-    const double duration = metrics.visible_timeline.duration().seconds;
-    const double seconds_per_pixel = duration / static_cast<double>(metrics.bounds.getWidth());
-    const double slack_seconds =
-        static_cast<double>(metrics.max_note_height) * 3.0 * seconds_per_pixel;
-    // Clip columns relative to the lane's left edge, which is where x() measures time from.
-    const int clip_from = clip.getX() - metrics.bounds.getX();
-    const int clip_to = clip.getRight() - metrics.bounds.getX();
-    return common::core::TimeRange{
-        .start =
-            common::core::TimePosition{
-                metrics.visible_timeline.start.seconds +
-                static_cast<double>(clip_from) * seconds_per_pixel - slack_seconds
-            },
-        .end = common::core::TimePosition{
-            metrics.visible_timeline.start.seconds +
-            static_cast<double>(clip_to) * seconds_per_pixel + slack_seconds
-        },
-    };
 }
 
 // Draws the visible chart content in Charter's layer order: string lines, hand-shape spans,
