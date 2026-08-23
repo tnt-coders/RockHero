@@ -295,6 +295,25 @@ struct HighwayChordGroupViewState
     }
 };
 
+/*!
+\brief Whether an onset group is a struck CHORD — the one rule the chord box is drawn by.
+
+Two or more fretting-hand members. Stated here beside the count it reads rather than at the sites
+that ask, because the answer is not the box's alone any more: the arpeggio bracket looks for the
+struck group, the strike glow lights a boxed cluster's window edges instead of its fret lines, and
+the actual-ring diagnostics filter exists precisely BECAUSE the box already states the strum's
+held duration — a rig that filtered on a count of its own could have disagreed with the box it was
+deferring to.
+
+\param fretting_hand_count Members struck by the fretting hand
+       (\ref HighwayChordGroupViewState::fretting_hand_count).
+\return True when the group draws a plain chord box.
+*/
+[[nodiscard]] constexpr bool highwayChordBoxApplies(std::size_t fretting_hand_count) noexcept
+{
+    return fretting_hand_count >= 2;
+}
+
 /*! \brief The derived onset grouping: the groups, and each note's index into them. */
 struct HighwayChordGrouping
 {

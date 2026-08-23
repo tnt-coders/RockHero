@@ -5,6 +5,7 @@
 #include "highway/highway_emphasis_styles.h"
 #include "highway/highway_floor_band.h"
 #include "highway/highway_head_marks.h"
+#include "highway/highway_slide_path.h"
 
 #include <algorithm>
 #include <array>
@@ -67,6 +68,14 @@ constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alik
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright
+// The lighting plane every floor light shares: the fretting hand's window, the tapping hand's,
+// and each marked note's — and the actual-ring BAND forms lie on it too, being the same mark in
+// another coat. Between the lane ribbons (0.004) and the beat bars (0.015) — the floor itself
+// stays at y = 0 and content is raised off it (the floor law), so a new floor mark takes a height
+// in that stack rather than moving the plane. Named once so a fourth light cannot land on a fourth
+// literal.
+constexpr double g_floor_light_y = 0.008;
+
 // The board's lit lane appearance: what each lane's surface looks like where the hand-window
 // light reveals it (plain lanes the runway blue, inlay-dotted lanes distinctly darker — the
 // intrinsic board pattern). The light carries these as vertex color and the per-fragment mask
@@ -330,9 +339,9 @@ constexpr double g_open_note_end_fade_length = 0.5;
 // Sustain tails are three-band ribbons in Charter: solid edge strips around an inner band
 // Charter draws at 192/255 alpha. Ours is deliberately more translucent so notes stay
 // readable through a tail's core. Fretted tails split the tail width quarter/half/quarter;
-// open tails span the hand window inset by a margin, with edge bands of the same width.
+// open tails span the hand window inset by g_open_tail_margin (highway_floor_band.h, where every
+// floor mark under an open note reads it), with edge bands of the same width.
 constexpr double g_tail_inner_alpha = 96.0 / 255.0;
-constexpr double g_open_tail_margin = 0.2;
 
 // Sustain tails dissolve over this last fraction of the note duration (the glow posts' fade
 // toward the note, mirrored at the tip), so a sustain ends softly instead of stopping dead.
@@ -366,9 +375,6 @@ constexpr double g_open_post_foot_length = 0.5;
 constexpr double g_tail_pixels_per_sample = 4.0;
 constexpr std::size_t g_tail_sample_cap = 256;
 
-// Unpitched slides release pressure, so their rail dims toward this alpha across the glide.
-constexpr double g_unpitched_slide_end_alpha = 0.25;
-
 // Chord-box palette and geometry (Charter's values): a translucent teal panel per strummed
 // chord, with corner holders, gradient frame bars, and mute-cross variants.
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
@@ -397,21 +403,19 @@ constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
 constexpr double g_shape_rail_core_half_width = 0.075;
 constexpr double g_shape_rail_fade_half_width = 0.225;
 
-// The actual-ring diagnostics band (the editor's stage-D sighting rig; see the draw pass for what
-// it states and why it draws where it does). Every number here is what the sighting tunes, so
+// The actual-ring diagnostics marks (the editor's stage-D sighting rig; see the draw pass for what
+// they state and why they draw where they do). Every number here is what the sighting tunes, so
 // each is named rather than spelled at the one site that reads it.
 //
-// PLAIN WHITE, at the one alpha per part. White is achromatic and belongs to no notation family
-// on this board (the string palette, the chord box's teal, the beat bars' blue, the arpeggio
-// purple all mean something), and 3D has no theme seam a diagnostic could borrow from —
-// EditorTheme lives in the editor, and exporting it into common/ui so a shared renderer could
-// tint one editor mark would invert the dependency. So the band reads as furniture by PLANE: it
-// lies on the floor with the runway ribbons and the shape rails, under the content it annotates.
+// The BAND forms are PLAIN WHITE, at the one alpha per part. White is achromatic and belongs to no
+// notation family on this board (the string palette, the chord box's teal, the beat bars' blue,
+// the arpeggio purple all mean something), and 3D has no theme seam a diagnostic could borrow
+// from — EditorTheme lives in the editor, and exporting it into common/ui so a shared renderer
+// could tint one editor mark would invert the dependency. So a band reads as furniture by PLANE:
+// it lies on the floor with the runway ribbons and the shape rails, under the content it
+// annotates. (The LIGHT form answers the question the other way and takes the note's own string
+// color — it is not furniture at all, it is the note lighting the board it rings over.)
 constexpr ArgbColor g_actual_ring_band_color = 0xFFFFFFFF;
-// Between the lane ribbons (0.004) and the beat bars (0.015): the floor itself stays at y = 0 and
-// content is raised off it (the floor law), so a new floor mark takes a height in that stack
-// rather than moving the plane.
-constexpr double g_actual_ring_band_y = 0.008;
 // Half-width as a multiple of the tail's, so a rim of band shows on both sides of a coinciding
 // tail rather than hiding exactly underneath it.
 constexpr double g_actual_ring_band_width_in_tails = 2.0;
@@ -421,6 +425,20 @@ constexpr double g_actual_ring_band_outline_alpha = 0.35;
 // part of the mark in both variants.
 constexpr double g_actual_ring_band_cap_alpha = 0.5;
 constexpr double g_actual_ring_band_rail_half_width = 0.02;
+
+// The actual-ring LIGHT: a mild additive puddle under a marked note, in the note's own string
+// color, following the note's own glide path. Sized in tail half-widths so a head-metric retune
+// carries it, the band's own convention.
+//
+// The mask band straddles the core edge (half strength on it — the hand window's own
+// cross-section, fs_window_light.sc), so the drawn footprint is 2 x core + falloff = 0.80 world
+// with a 0.16-wide full-strength middle: inside one fret slot (first_fret_distance is 1.1) and
+// comfortably wider than the 0.32 tail it lies under.
+constexpr double g_note_light_half_width_in_tails = 1.5; // core half-width -> 0.24 world
+constexpr double g_note_light_falloff_in_tails = 2.0;    // soft band across the edge -> 0.32
+// Additive peak, against the hand-window light's 0x40 = 0.251 alpha composite. Deliberately
+// short of it: a note's light sits INSIDE the window's and adds to it.
+constexpr double g_note_light_alpha = 0.22;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -463,45 +481,6 @@ struct PosColorGlowVertex
     float corner;
     float shape;
 };
-
-// Where a STOPPED note sounds on the fretboard axis, and the one authority for that anchor; a
-// fret-0 note never asks it — the open-string bar across the hand window is its own treatment.
-//
-// A stopped harmonic (a tapped artificial, say — a natural's fret 0 takes the open-string bar and
-// never reaches here) is touched AT its node rather than behind a fret wire, so its head, its tail
-// and every point its glide passes through must all read the same value: the node lands just past
-// a wire while the fret slot's middle sits between the two wires behind it, half a slot away.
-//
-// The stop is a parameter because a gesture sounds from more than one of them — the onset from the
-// note's own fret, a slide from each fret it travels to — and a harmonic's node RIDES its stop:
-// fret spacing is logarithmic, so the node's offset above the stop is constant in fret units and a
-// glide that moves the stop moves the node by the same amount. Passing `note.fret` therefore gives
-// the onset's anchor, and the shift is zero there. This is the same rule `tabNoteHeadText` labels
-// every head of a gesture by, so the two surfaces cannot disagree about what a glide arrives at.
-//
-// Note the asymmetry with the fret-span line, which marks where the HAND goes and so stays on the
-// stop: on an artificial harmonic the hand presses at `fret` while the sound comes from the node
-// twelve-or-so frets up, and both facts are drawn. A note's own glow post is not furniture — it is
-// the head's shadow, so it travels with the head, node shift and glide included. A WAYPOINT's post
-// is furniture and does stay on its stop, because that is a place the hand goes.
-//
-// A pinch harmonic's node belongs to the PICKING hand, so the fretting hand stays on the stop and
-// this returns the ordinary fret slot; that node still waits for its own right-hand cue (25-Q5).
-[[nodiscard]] double noteFretboardX(
-    const common::core::NoteViewState& note, const int fret_at_point,
-    const common::core::HighwayMetrics& metrics, const bool mirrored)
-{
-    const common::core::SoundingPosition sounding =
-        common::core::highwayDrawnSoundingPosition(note, fret_at_point);
-    if (sounding.at_node)
-    {
-        // The fret axis takes a fractional coordinate directly, so the node needs no rounding of
-        // any kind here. This is NOT the ceil that `fretFor` applies: that one asks which integer
-        // fret *contains* the node, for the hand window; this wants the node's exact position.
-        return common::core::highwayFretLineX(sounding.position, metrics, mirrored);
-    }
-    return common::core::highwayNoteCenterX(fret_at_point, metrics, mirrored);
-}
 
 // Lazily built layouts. begin()'s default RendererType::Noop merely selects an attribute-size
 // table shared with D3D11 (it never consults the live context), so building these is safe at
@@ -701,6 +680,28 @@ constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
     const double low_x = common::core::highwayFretLineX(window.low_line, metrics, mirrored);
     const double high_x = common::core::highwayFretLineX(window.high_line, metrics, mirrored);
     return {std::min(low_x, high_x), std::max(low_x, high_x)};
+}
+
+// One note's floor footprint (highwayFloorFootprint) at a time, for geometry that follows the
+// hand: the window is read at that instant, and where it has narrowed past an open string's
+// insets the footprint collapses onto the window's centre at zero width rather than inverting the
+// mark. The open tail's band stations and the actual-ring light both walk this per sample, which
+// is why the collapse is stated here once instead of at each walk. Only an open string's result
+// varies with time — a fretted note's footprint never reads the window, so the binary search
+// behind it is spent for nothing there, which is cheaper than restating the open/fretted split
+// at every caller.
+[[nodiscard]] HighwayFloorFootprint floorFootprintAt(
+    const common::core::HighwayViewState& state, const common::core::NoteViewState& note,
+    const double fretted_half_width, const double seconds,
+    const common::core::HighwayMetrics& metrics, const bool mirrored)
+{
+    const std::pair<double, double> window_x = handWindowXAt(state, seconds, metrics, mirrored);
+    return highwayFloorFootprint(note, fretted_half_width, window_x, metrics, mirrored)
+        .value_or(
+            HighwayFloorFootprint{
+                .center_x = (window_x.first + window_x.second) / 2.0,
+                .half_width = 0.0,
+            });
 }
 
 // True when the hand window moves anywhere inside a time span (some placement's ramp overlaps
@@ -1669,6 +1670,9 @@ struct FrameScratch
     std::vector<std::uint16_t> number_indices;
     std::vector<PosColorVertex> actual_ring_vertices;
     std::vector<std::uint16_t> actual_ring_indices;
+    std::vector<PosColorUvVertex> note_light_vertices;
+    std::vector<std::uint16_t> note_light_indices;
+    std::vector<double> note_light_times;
     std::vector<std::size_t> visible;
     std::vector<double> lane_key;
     std::vector<double> window_times;
@@ -1697,6 +1701,9 @@ struct FrameScratch
         number_indices.clear();
         actual_ring_vertices.clear();
         actual_ring_indices.clear();
+        note_light_vertices.clear();
+        note_light_indices.clear();
+        note_light_times.clear();
         visible.clear();
         lane_key.clear();
         window_times.clear();
@@ -1767,13 +1774,13 @@ struct HighwayRenderer::Impl
     int displayed_count{0};
     int extra_lanes{0};
     std::vector<double> sustain_prefix_max;
-    // A SECOND prefix maximum, over the ACTUAL rings, for the diagnostics band alone. The two
+    // A SECOND prefix maximum, over the ACTUAL rings, for the diagnostics marks alone. The two
     // culls answer different questions and neither table can serve both: the note range above is
     // keyed on display_hold_ends, and a note whose presented tail the drop rule emptied leaves
-    // that range immediately after its onset while the ring the band draws is still running.
-    // Built on every chart load, in both products, rather than lazily when the band switches on —
-    // one vector per load against a branch plus a mutable cache, and the band's own toggle is
-    // what stays free of scene work.
+    // that range immediately after its onset while the ring the mark draws is still running.
+    // Built on every chart load, in both products, rather than lazily when the rig switches on —
+    // one vector per load against a branch plus a mutable cache, and the rig's own toggles are
+    // what stay free of scene work.
     std::vector<double> actual_ring_prefix_max;
     // Natural-harmonic node series, derived once per chart revision like sustain_prefix_max:
     // the draw path labels and suppresses from this table instead of re-walking every note.
@@ -2370,147 +2377,6 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
-    // --- Actual-ring band: the EDITOR's sighting rig for the note-sustain model, off on every
-    // shipped surface (HighwayDiagnosticsOptions::actual_ring_band). Under each visible note it
-    // lays a quiet floor band running from the onset to the note's ACTUAL ring end — how long the
-    // string really sounds, which presentation may have trimmed to a margin, floored on payload,
-    // or dropped to nothing, so on a dropped tail the band is the only mark of the ring at all.
-    //
-    // Drawn STRAIGHT: never through slide_state_at or note_y_at, and never lifted by a bend. The
-    // band answers a DURATION question, and the tail directly above it already draws the pitch
-    // path — bending the band along a glide would restate that path in the one mark whose whole
-    // job is length, and a reader could no longer tell which of the two was the subject.
-    //
-    // Drawn for EVERY visible note, exactly as the 2D reveal is: a band landing flush with a
-    // drawn tail IS the statement "this is the whole ring", and a mark that appeared only where
-    // the two ends disagree would leave a reader unable to tell agreement from a rig that is off.
-    //
-    // Two things to weigh while sighting, both consequences of being floor furniture:
-    //
-    // It fades toward the hit line through color_fade_program like every other floor mark, so the
-    // near end of a band dissolves — and a short ring, whose whole answer lives near the hit line,
-    // dissolves with it.
-    //
-    // And it draws BEFORE the hand-window light, which occupies this exact plane (both at 0.008;
-    // no floor pass writes depth, so plane order is submission order and nothing z-fights). The
-    // light composites over the band at its own quarter alpha, so a band inside the lit window
-    // reads about a quarter quieter and slightly blue than one outside it. Moving this block past
-    // the light pass is the one-line alternative if that reads wrong.
-    if (diagnostics.actual_ring_band != ActualRingBand::Off)
-    {
-        // Re-asserted here, never hoisted to the top of draw(): bgfx latches a uniform per submit,
-        // so a value another pass set does not carry into this batch.
-        bgfx::setUniform(fade_params.get(), fade_uniform.data());
-        std::vector<PosColorVertex>& vertices = scratch.actual_ring_vertices;
-        std::vector<std::uint16_t>& indices = scratch.actual_ring_indices;
-        // Culled by the rings' OWN prefix maximum (Impl::actual_ring_prefix_max states why the
-        // note pass's table cannot serve here), so a bounded scan still reaches a note whose
-        // presented tail left the visible set the instant its onset passed.
-        const auto [first_band, last_band] = common::core::visibleEventRange(
-            state.chart.notes, actual_ring_prefix_max, span_start_seconds, span_end_seconds);
-        for (std::size_t band_index = first_band; band_index < last_band; ++band_index)
-        {
-            const common::core::NoteViewState& note = state.chart.notes[band_index];
-            const double actual_end_seconds = state.chart.actual_end_seconds[band_index];
-            // The same clamp the sustain tail obeys, asked rather than restated, so the band and
-            // the tail above it can never disagree about where this note's span begins.
-            const std::optional<std::pair<double, double>> band_span = highwayVisibleSpan(
-                note.start_seconds, actual_end_seconds, now_seconds, span_end_seconds);
-            if (!band_span.has_value())
-            {
-                continue;
-            }
-            const double band_from = band_span->first;
-            const double band_to = band_span->second;
-
-            // Lane X: a fretted band straddles the note's own fretboard anchor at twice the tail
-            // half-width, so a rim shows on both sides of a tail sitting on it; an open string's
-            // spans the hand window inset by the tail margin, the treatment its own tail takes.
-            // Sampled once, at the band's start, rather than followed along a mid-band window
-            // move: this mark is a length, and the tail above it is what tracks the hand.
-            double x0 = 0.0;
-            double x1 = 0.0;
-            if (!common::core::openString(note))
-            {
-                const double center = noteFretboardX(note, note.fret, metrics, mirrored);
-                const double half =
-                    common::core::highwayTailHalfWidth(metrics) * g_actual_ring_band_width_in_tails;
-                x0 = center - half;
-                x1 = center + half;
-            }
-            else
-            {
-                const auto [window_x0, window_x1] =
-                    handWindowXAt(state, band_from, metrics, mirrored);
-                x0 = window_x0 + g_open_tail_margin;
-                x1 = window_x1 - g_open_tail_margin;
-                if (!(x1 > x0))
-                {
-                    continue; // a tapered neck's window can narrow past the insets mid-morph
-                }
-            }
-
-            const double z_from = time_to_z(band_from);
-            const double z_to = time_to_z(band_to);
-            switch (diagnostics.actual_ring_band)
-            {
-                case ActualRingBand::Fill:
-                {
-                    pushFloorQuad(
-                        vertices,
-                        indices,
-                        x0,
-                        x1,
-                        g_actual_ring_band_y,
-                        z_from,
-                        z_to,
-                        packAbgr(g_actual_ring_band_color, g_actual_ring_band_fill_alpha));
-                    break;
-                }
-                case ActualRingBand::Outline:
-                {
-                    const std::uint32_t rail =
-                        packAbgr(g_actual_ring_band_color, g_actual_ring_band_outline_alpha);
-                    for (const double rail_x : {x0, x1})
-                    {
-                        pushFloorQuad(
-                            vertices,
-                            indices,
-                            rail_x - g_actual_ring_band_rail_half_width,
-                            rail_x + g_actual_ring_band_rail_half_width,
-                            g_actual_ring_band_y,
-                            z_from,
-                            z_to,
-                            rail);
-                    }
-                    break;
-                }
-                case ActualRingBand::Off:
-                {
-                    break; // unreachable; the whole pass is gated on it above
-                }
-            }
-
-            // The cap, shared by both variants, sized like the measure downbeats' attack line.
-            // Only where the ring genuinely ENDS inside the visible window: a cap sitting at the
-            // horizon because the clamp stopped there would claim an end the chart does not have,
-            // and the far edge is the one datum this rig exists to read.
-            if (actual_end_seconds <= span_end_seconds)
-            {
-                pushFloorQuad(
-                    vertices,
-                    indices,
-                    x0,
-                    x1,
-                    g_actual_ring_band_y,
-                    z_to - g_attack_line_half_length,
-                    z_to + g_attack_line_half_length,
-                    packAbgr(g_actual_ring_band_color, g_actual_ring_band_cap_alpha));
-            }
-        }
-        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
-    }
-
     // --- Hand-window light: one continuous brightness calculation across the window width,
     // evaluated per fragment (fhp-window-motion plan, lighting redesign). Each slab vertex
     // carries the fragment's distances inside the window's eased edges (linear within a slice,
@@ -2611,7 +2477,7 @@ void HighwayRenderer::Impl::draw(
                                         const std::uint32_t tint) {
                     return makeUvVertex(
                         x,
-                        0.008,
+                        g_floor_light_y,
                         z,
                         tint,
                         static_cast<float>((x - low) + spill),
@@ -2715,7 +2581,7 @@ void HighwayRenderer::Impl::draw(
                                         const double high_x) {
                     return makeUvVertex(
                         x,
-                        0.008,
+                        g_floor_light_y,
                         z,
                         tint,
                         static_cast<float>((x - low_x) + spill),
@@ -2774,15 +2640,13 @@ void HighwayRenderer::Impl::draw(
                         b.fret_high);
                     continue;
                 }
-                // Slice density scales with the sweep: six slices sufficed for tapped glides'
-                // few-fret travels but facet a scrape's dozen-fret leg into visible straights.
-                // Four per fret keeps the eased curve under half a fret per slice at its
-                // steepest, and the ease follows the arrival station's glide family — a
-                // scrape's unpitched pick travel curves differently than a tapped pitched
-                // glide.
+                // Slice density scales with the sweep (highwayGlideSliceCount, the one policy the
+                // actual-ring light subdivides by too), and the ease follows the arrival
+                // station's glide family — a scrape's unpitched pick travel curves differently
+                // than a tapped pitched glide.
                 const double sweep = std::max(
                     std::abs(b.fret_low - a.fret_low), std::abs(b.fret_high - a.fret_high));
-                const int slices = std::clamp(static_cast<int>(std::ceil(sweep * 4.0)), 6, 64);
+                const int slices = highwayGlideSliceCount(sweep);
                 double previous_seconds = a.seconds;
                 double previous_low = a.fret_low;
                 double previous_high = a.fret_high;
@@ -2943,6 +2807,347 @@ void HighwayRenderer::Impl::draw(
             }
         }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+    }
+
+    // --- Actual-ring marks: the EDITOR's sighting rig for the note-sustain model, off on every
+    // shipped surface (HighwayDiagnosticsOptions::actual_ring). Under each marked note it draws
+    // that note's ACTUAL ring — from the onset to how long the string really sounds, which
+    // presentation may have trimmed to a margin, floored on payload, or dropped to nothing, so on
+    // a dropped tail this is the only mark of the ring at all.
+    //
+    // ONE pass for every form, in the LAST floor slot: after the shape rails and after both hands'
+    // lights, before the note batches. Everything painted on the floor is therefore UNDER the
+    // light form and lit by it, and the note geometry draws over all three forms and occludes
+    // them. The band forms moved here with the light rather than keeping their old slot above the
+    // hand-window light, where that light composited over them at its own quarter alpha and left a
+    // band inside the lit window reading a quarter quieter and slightly blue than one outside it.
+    //
+    // WHICH notes are marked is highwayRingMarkApplies — one gate for every form, because the
+    // two filters say which notes carry a mark rather than what the mark looks like.
+    //
+    // The BAND forms draw STRAIGHT: never along the glide, never lifted by a bend. A band answers
+    // a DURATION question and the tail directly above it already draws the pitch path, so bending
+    // it would restate that path in the one mark whose whole job is length. The LIGHT follows the
+    // glide instead — and, under an open string, the hand window — and may, because it is not
+    // competing with the tail for the same reading: it is the board lit from under the ribbon,
+    // and a light that stayed behind while its note slid away, or while the hand moved on under
+    // its open string, would read as a rendering fault rather than as a length.
+    if (diagnostics.actual_ring != ActualRingLook::Off)
+    {
+        std::vector<PosColorVertex>& band_vertices = scratch.actual_ring_vertices;
+        std::vector<std::uint16_t>& band_indices = scratch.actual_ring_indices;
+        std::vector<PosColorUvVertex>& light_vertices = scratch.note_light_vertices;
+        std::vector<std::uint16_t>& light_indices = scratch.note_light_indices;
+        // The light reuses the hand window's own soft-edge mechanism at its own width: the mask
+        // reaches half strength ON the core edge and nothing half a falloff outside it, so the
+        // spill is baked into the vertex UVs exactly as the window light bakes its own. This is
+        // the core a FRETTED light asks the footprint for; an open string's comes back wider.
+        const double light_core_half =
+            common::core::highwayTailHalfWidth(metrics) * g_note_light_half_width_in_tails;
+        const double light_falloff =
+            common::core::highwayTailHalfWidth(metrics) * g_note_light_falloff_in_tails;
+        const double light_spill = light_falloff / 2.0;
+        // The half-width each form asks the footprint for: the light's core, or the band's double
+        // tail width, which is what leaves a rim of band showing beside a coinciding tail.
+        const double mark_half_width =
+            diagnostics.actual_ring == ActualRingLook::Light
+                ? light_core_half
+                : common::core::highwayTailHalfWidth(metrics) * g_actual_ring_band_width_in_tails;
+        // Culled by the rings' OWN prefix maximum (Impl::actual_ring_prefix_max states why the
+        // note pass's table cannot serve here), so a bounded scan still reaches a note whose
+        // presented tail left the visible set the instant its onset passed.
+        const auto [first_ring, last_ring] = common::core::visibleEventRange(
+            state.chart.notes, actual_ring_prefix_max, span_start_seconds, span_end_seconds);
+        for (std::size_t ring_index = first_ring; ring_index < last_ring; ++ring_index)
+        {
+            const common::core::NoteViewState& note = state.chart.notes[ring_index];
+            const common::core::HighwayChordGroupViewState& group =
+                state.chord_groups[state.note_group[ring_index]];
+            if (!highwayRingMarkApplies(
+                    group.fretting_hand_count, note.end_seconds > note.start_seconds, diagnostics))
+            {
+                continue;
+            }
+            const double actual_end_seconds = state.chart.actual_end_seconds[ring_index];
+            // The same clamp the sustain tail obeys, asked rather than restated, so a mark and the
+            // tail above it can never disagree about where this note's span begins — and it
+            // carries whether the ring genuinely ends on the board, which is the one fact both the
+            // band's cap and the light's far fade are allowed to claim an ending from.
+            const std::optional<HighwaySpan> ring = highwayVisibleSpan(
+                note.start_seconds, actual_end_seconds, now_seconds, span_end_seconds);
+            if (!ring.has_value())
+            {
+                continue;
+            }
+            // The footprint at the mark's start. The BAND forms hold it across the whole mark —
+            // they draw straight by design, and the tail above an open note is what tracks a
+            // window move under a band. The light samples it again per slice below; this one is
+            // the gate every form shares, and a mark with nowhere to lie at its start draws
+            // nothing, the tail's own rule (band_valid).
+            const std::optional<HighwayFloorFootprint> footprint = highwayFloorFootprint(
+                note,
+                mark_half_width,
+                handWindowXAt(state, ring->from, metrics, mirrored),
+                metrics,
+                mirrored);
+            if (!footprint.has_value())
+            {
+                continue; // a tapered neck's window can narrow past the insets mid-morph
+            }
+
+            if (diagnostics.actual_ring == ActualRingLook::Light)
+            {
+                // The note's own tail color, the value the ribbon above it uses and the tail glow
+                // emits, so the light reads as that note's rather than as a mark placed near it.
+                // Deliberately NOT run through emitterSpectrum: that pedestal exists so the accent
+                // glow's gain can clip a channel into a white core, and at a mild additive alpha it
+                // would only desaturate.
+                const ArgbColor light_color =
+                    StringLaneStyle{stringLaneColor(laneOf(note.string), displayed_count, palette)}
+                        .tail;
+                const double base_x = footprint->center_x;
+                // Where the light's centre and lit CORE are at a time: the footprint the hand
+                // gives at that instant — a fretted note's own anchor at the light's asked-for
+                // core, or the whole inset hand window under an open string, which FOLLOWS the
+                // window exactly as the tail above it does (a light left behind by a position
+                // shift reads as a fault, the same fault as one left behind by a slide) — carried
+                // along the note's glide, asked of the ONE authority the head and the tail ask
+                // (highway_slide_path.h). The two never compound: an open string cannot slide,
+                // and a fretted footprint never reads the window. The falloff then straddles the
+                // core edge whichever case produced it. Tremolo's x wobble is deliberately
+                // absent: the teeth are a texture the tail carries, the precedent the head set.
+                const auto light_footprint_at = [&](const double seconds) {
+                    HighwayFloorFootprint at =
+                        floorFootprintAt(state, note, light_core_half, seconds, metrics, mirrored);
+                    at.center_x +=
+                        highwaySlideStateAt(note, base_x, metrics, mirrored, seconds).x_offset;
+                    return at;
+                };
+                // Both ends soft, over the tail's own onset-ramp span so a light and a ribbon
+                // emerge over the same stretch of board (highwayFloorLightEnvelope, which clamps
+                // the ramp to half the ring so the two ends can never cross — the clamp is what
+                // lets a ring of one ramp or less draw at all). The far end fades only where the
+                // ring genuinely ends on the board.
+                //
+                // The unpitched release's dim does NOT carry in (ruled 2026-08-23): a rail dims
+                // because the pressure is coming off the string, and this light's whole claim is
+                // that the string is STILL RINGING, so dimming it through a release would hide the
+                // answer the rig exists to read.
+                const double light_ramp_seconds = highwayFloorLightRamp(
+                    note.start_seconds, actual_end_seconds, g_tail_onset_fade_seconds);
+                const auto light_alpha_at = [&](const double seconds) {
+                    return g_note_light_alpha * highwayFloorLightEnvelope(
+                                                    note.start_seconds,
+                                                    actual_end_seconds,
+                                                    ring->ends_inside,
+                                                    g_tail_onset_fade_seconds,
+                                                    seconds);
+                };
+                // Exact times: the span's ends, each waypoint inside it (a corner in the PATH),
+                // the two envelope corners (a corner in the ALPHA), and under an open string the
+                // hand window's own ramp samples (a corner in the FOOTPRINT — the same set the
+                // open tail joins to its samples, so the light tracks the eased border exactly
+                // where the tail does). Alpha is linear only between corners, so a ring drawn as
+                // one quad would smear its 50 ms onset rise across the whole ring — the bug the
+                // tail's own span split exists to prevent.
+                std::vector<double>& times = scratch.note_light_times;
+                times.clear();
+                times.push_back(ring->from);
+                times.push_back(ring->to);
+                const auto push_interior_time = [&](const double seconds) {
+                    if (seconds > ring->from && seconds < ring->to)
+                    {
+                        times.push_back(seconds);
+                    }
+                };
+                push_interior_time(note.start_seconds + light_ramp_seconds);
+                if (ring->ends_inside)
+                {
+                    push_interior_time(actual_end_seconds - light_ramp_seconds);
+                }
+                for (const common::core::SlideViewState& waypoint : note.slides)
+                {
+                    push_interior_time(waypoint.seconds);
+                }
+                if (common::core::openString(note))
+                {
+                    windowSampleTimes(
+                        state, ring->from, ring->to, max_fhp_ramp_seconds, scratch.window_times);
+                    times.insert(
+                        times.end(), scratch.window_times.begin(), scratch.window_times.end());
+                }
+                std::ranges::sort(times);
+
+                const auto push_light_slice = [&](const double from_seconds,
+                                                  const HighwayFloorFootprint& from,
+                                                  const double to_seconds,
+                                                  const HighwayFloorFootprint& to) {
+                    const std::uint32_t tint_a =
+                        packAbgr(light_color, light_alpha_at(from_seconds));
+                    const std::uint32_t tint_b = packAbgr(light_color, light_alpha_at(to_seconds));
+                    // The mask reaches half strength ON the core edge and nothing half a falloff
+                    // outside it, so each vertex carries its signed distance inside each edge
+                    // plus the spill, exactly as the hand window's own vertices do.
+                    const auto vertex = [&](const HighwayFloorFootprint& at,
+                                            const double z,
+                                            const double side,
+                                            const std::uint32_t tint) {
+                        const double from_center = side * (at.half_width + light_spill);
+                        return makeUvVertex(
+                            at.center_x + from_center,
+                            g_floor_light_y,
+                            z,
+                            tint,
+                            static_cast<float>((from_center + at.half_width) + light_spill),
+                            static_cast<float>((at.half_width - from_center) + light_spill));
+                    };
+                    const double za = time_to_z(from_seconds);
+                    const double zb = time_to_z(to_seconds);
+                    pushQuad(
+                        light_vertices,
+                        light_indices,
+                        vertex(from, za, -1.0, tint_a),
+                        vertex(from, za, 1.0, tint_a),
+                        vertex(to, zb, 1.0, tint_b),
+                        vertex(to, zb, -1.0, tint_b));
+                };
+                // One quad per straight run and per glide slice, streamed straight into the batch
+                // with no intermediate sample list. The per-note budget is the tail sampler's own,
+                // so a scrape's chained legs cannot tessellate this pass past what one note is
+                // allowed to cost; past it the ring's remainder simply goes undrawn.
+                std::size_t slice_budget = g_tail_sample_cap;
+                double previous_seconds = times.front();
+                HighwayFloorFootprint previous = light_footprint_at(previous_seconds);
+                for (std::size_t step = 1; step < times.size() && slice_budget > 0; ++step)
+                {
+                    const double to_seconds = times[step];
+                    if (!(to_seconds > previous_seconds))
+                    {
+                        continue; // a waypoint landing on a corner adds no stretch of its own
+                    }
+                    const HighwayFloorFootprint to = light_footprint_at(to_seconds);
+                    // Only a GLIDE can curve between two exact times, so only a sliding note's
+                    // stretch whose ends differ in x subdivides, by its travel in frets (the tap
+                    // light's own test and density). An open string's centre also moves between
+                    // two window samples, but the window's eased move is already sliced into the
+                    // exact set above, so each of those stretches is a straight step and takes
+                    // one quad — subdividing them too would spend the budget six-fold on
+                    // straight lines and leave the ring's end undrawn.
+                    const bool glides =
+                        !note.slides.empty() && std::is_neq(previous.center_x <=> to.center_x);
+                    const std::size_t slices =
+                        glides ? static_cast<std::size_t>(highwayGlideSliceCount(
+                                     std::abs(to.center_x - previous.center_x) /
+                                     metrics.first_fret_distance))
+                               : 1;
+                    const std::size_t drawn = std::min(slices, slice_budget);
+                    slice_budget -= drawn;
+                    // The slices interpolate from the stretch's START, held here while the walk
+                    // advances through them: measuring each against the previous slice instead
+                    // would take k/n of what was LEFT rather than of the stretch, bunching the
+                    // slices toward its end until most of the density landed in its last
+                    // fraction.
+                    const double from_seconds = previous_seconds;
+                    for (std::size_t slice = 1; slice < drawn; ++slice)
+                    {
+                        const double progress =
+                            static_cast<double>(slice) / static_cast<double>(drawn);
+                        const double seconds =
+                            from_seconds + ((to_seconds - from_seconds) * progress);
+                        const HighwayFloorFootprint at = light_footprint_at(seconds);
+                        push_light_slice(previous_seconds, previous, seconds, at);
+                        previous_seconds = seconds;
+                        previous = at;
+                    }
+                    push_light_slice(previous_seconds, previous, to_seconds, to);
+                    previous_seconds = to_seconds;
+                    previous = to;
+                }
+                continue;
+            }
+
+            const double x0 = footprint->center_x - footprint->half_width;
+            const double x1 = footprint->center_x + footprint->half_width;
+            const double z_from = time_to_z(ring->from);
+            const double z_to = time_to_z(ring->to);
+            switch (diagnostics.actual_ring)
+            {
+                case ActualRingLook::Fill:
+                {
+                    pushFloorQuad(
+                        band_vertices,
+                        band_indices,
+                        x0,
+                        x1,
+                        g_floor_light_y,
+                        z_from,
+                        z_to,
+                        packAbgr(g_actual_ring_band_color, g_actual_ring_band_fill_alpha));
+                    break;
+                }
+                case ActualRingLook::Outline:
+                {
+                    const std::uint32_t rail =
+                        packAbgr(g_actual_ring_band_color, g_actual_ring_band_outline_alpha);
+                    for (const double rail_x : {x0, x1})
+                    {
+                        pushFloorQuad(
+                            band_vertices,
+                            band_indices,
+                            rail_x - g_actual_ring_band_rail_half_width,
+                            rail_x + g_actual_ring_band_rail_half_width,
+                            g_floor_light_y,
+                            z_from,
+                            z_to,
+                            rail);
+                    }
+                    break;
+                }
+                case ActualRingLook::Light:
+                case ActualRingLook::Off:
+                {
+                    break; // unreachable; the light returns above and Off gates the whole pass
+                }
+            }
+
+            // The cap, shared by both band variants, sized like the measure downbeats' attack
+            // line. Only where the ring genuinely ENDS inside the visible window, the fact the
+            // span already carries: a cap sitting at the horizon because the clamp stopped there
+            // would claim an end the chart does not have, and the far edge is the one datum this
+            // rig exists to read.
+            if (ring->ends_inside)
+            {
+                pushFloorQuad(
+                    band_vertices,
+                    band_indices,
+                    x0,
+                    x1,
+                    g_floor_light_y,
+                    z_to - g_attack_line_half_length,
+                    z_to + g_attack_line_half_length,
+                    packAbgr(g_actual_ring_band_color, g_actual_ring_band_cap_alpha));
+            }
+        }
+        // Each form's uniform is re-asserted immediately before its own submit, never hoisted:
+        // bgfx latches a uniform per submit, so the value another pass set does not carry into
+        // this batch — and the light's falloff is its own, differing from both the hand window's
+        // 0.55 and the strike glow's 0.2. Only one form fills a batch per frame; submitBatch
+        // returns on the empty one.
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
+        submitBatch(
+            band_vertices, band_indices, posColorLayout(), color_fade_program.get(), nullptr);
+        const std::array<float, 4> ring_light_params{
+            static_cast<float>(light_falloff), 0.0F, 0.0F, 0.0F
+        };
+        bgfx::setUniform(window_light_params.get(), ring_light_params.data());
+        submitBatch(
+            light_vertices,
+            light_indices,
+            posColorUvLayout(),
+            window_light_program.get(),
+            nullptr,
+            g_board_view,
+            g_additive_state);
     }
 
     // --- Notes: per-note geometry batched per onset group and flushed far-to-near (see
@@ -3236,7 +3441,7 @@ void HighwayRenderer::Impl::draw(
                     &common::core::HighwayChordGroupViewState::start_seconds));
             const auto struck_group = std::ranges::find_if(
                 group_candidates, [&](const common::core::HighwayChordGroupViewState& group) {
-                    return group.fretting_hand_count >= 2 &&
+                    return common::core::highwayChordBoxApplies(group.fretting_hand_count) &&
                            std::abs(group.start_seconds - shape.start_seconds) <
                                g_onset_match_epsilon;
                 });
@@ -3274,7 +3479,7 @@ void HighwayRenderer::Impl::draw(
         {
             // Only non-tap members earn the plain (fretting-hand) box: a fretted note under a
             // simultaneous tap is a single note, and tapped chords get their own box below.
-            if (group.fretting_hand_count < 2)
+            if (!common::core::highwayChordBoxApplies(group.fretting_hand_count))
             {
                 continue;
             }
@@ -3659,74 +3864,6 @@ void HighwayRenderer::Impl::draw(
         const double dx = (b[0] - a[0]) * 0.5 * static_cast<double>(width);
         const double dy = (b[1] - a[1]) * 0.5 * static_cast<double>(height);
         return std::sqrt((dx * dx) + (dy * dy));
-    };
-
-    // Slide state at a time: the eased X offset from the note's base fret plus the alpha dim of
-    // unpitched (pressure-release) glides.
-    struct SlideState
-    {
-        double x_offset;
-        double alpha;
-    };
-    const auto slide_state_at = [&](const common::core::NoteViewState& note,
-                                    const double base_x,
-                                    const double seconds) {
-        if (note.slides.empty() || note.fret <= 0)
-        {
-            return SlideState{.x_offset = 0.0, .alpha = 1.0};
-        }
-        // The unpitched dim spans the whole CONSECUTIVE unpitched run: a scrape's chained
-        // legs are one continuous release, so the alpha must never snap back to full at a
-        // direction reversal — only the geometry restarts per leg. A lone terminal
-        // slide-out is a one-segment run, which reduces to the original per-segment dim.
-        const auto unpitched_alpha_at = [&](const std::size_t segment, const double at) {
-            std::size_t run_begin = segment;
-            while (run_begin > 0 && note.slides[run_begin - 1].unpitched)
-            {
-                --run_begin;
-            }
-            std::size_t run_end = segment;
-            while (run_end + 1 < note.slides.size() && note.slides[run_end + 1].unpitched)
-            {
-                ++run_end;
-            }
-            const double run_start_seconds =
-                run_begin == 0 ? note.start_seconds : note.slides[run_begin - 1].seconds;
-            const double run_span = note.slides[run_end].seconds - run_start_seconds;
-            const double progress =
-                run_span > 0.0 ? std::clamp((at - run_start_seconds) / run_span, 0.0, 1.0) : 1.0;
-            return 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress);
-        };
-        double segment_start_seconds = note.start_seconds;
-        double segment_start_x = base_x;
-        for (std::size_t index = 0; index < note.slides.size(); ++index)
-        {
-            const common::core::SlideViewState& waypoint = note.slides[index];
-            const double waypoint_x = noteFretboardX(note, waypoint.fret, metrics, mirrored);
-            if (seconds <= waypoint.seconds)
-            {
-                const double span = waypoint.seconds - segment_start_seconds;
-                const double progress =
-                    span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0)
-                               : 1.0;
-                const double weight =
-                    common::core::highwaySlideEaseWeight(progress, waypoint.unpitched);
-                const double alpha = waypoint.unpitched ? unpitched_alpha_at(index, seconds) : 1.0;
-                return SlideState{
-                    .x_offset =
-                        segment_start_x + ((waypoint_x - segment_start_x) * weight) - base_x,
-                    .alpha = alpha,
-                };
-            }
-            segment_start_seconds = waypoint.seconds;
-            segment_start_x = waypoint_x;
-        }
-        // Past the last waypoint the glide holds its target (and any unpitched dimming).
-        const common::core::SlideViewState& last = note.slides.back();
-        return SlideState{
-            .x_offset = noteFretboardX(note, last.fret, metrics, mirrored) - base_x,
-            .alpha = last.unpitched ? g_unpitched_slide_end_alpha : 1.0,
-        };
     };
 
     // The six per-note batches flush per onset group, far-to-near: the board view is
@@ -4203,10 +4340,13 @@ void HighwayRenderer::Impl::draw(
                 : std::max(0.0, 1.0 - ((now_seconds - note.start_seconds) / g_passed_fade_seconds));
         // Slide state at the anchor: a sounding head glides with its slide, and an unpitched
         // release dims the head and its post in step with the tail.
-        const SlideState head_slide = slide_state_at(
+        const HighwaySlideState head_slide = highwaySlideStateAt(
             note,
-            common::core::openString(note) ? 0.0
-                                           : noteFretboardX(note, note.fret, metrics, mirrored),
+            common::core::openString(note)
+                ? 0.0
+                : highwayNoteFretboardX(note, note.fret, metrics, mirrored),
+            metrics,
+            mirrored,
             head_seconds);
 
         // Bend geometry: highwayBentNoteY applies the lift per semitone, inverted on the upper
@@ -4275,12 +4415,12 @@ void HighwayRenderer::Impl::draw(
         // The visible span is the shared clamp (highway_floor_band.h), which subsumes the three
         // conditions this used to spell out — a tail with no length, one already behind the hit
         // line, and one clamped to nothing at the horizon all report the same empty span.
-        if (const std::optional<std::pair<double, double>> tail_span = highwayVisibleSpan(
+        if (const std::optional<HighwaySpan> tail_span = highwayVisibleSpan(
                 note.start_seconds, note.end_seconds, now_seconds, span_end_seconds);
             tail_span.has_value())
         {
-            const double tail_from = tail_span->first;
-            const double tail_to = tail_span->second;
+            const double tail_from = tail_span->from;
+            const double tail_to = tail_span->to;
 
             // The tail's alpha envelope, ramped at both ends for different reasons.
             //
@@ -4311,53 +4451,58 @@ void HighwayRenderer::Impl::draw(
                 return ghost_tail_alpha * std::clamp(std::min(tip, onset), 0.0, 1.0);
             };
 
-            // Band X stations: fretted tails straddle the note center, open tails span the hand
-            // window with Charter's inset (with a degenerate-window guard for tapered
-            // necks). An open band's stations follow the sliding window per time, collapsing
-            // gracefully when a mid-transition extent gets too narrow for the insets.
-            const auto open_band_stations = [&](const double seconds) {
-                const auto [window_x0, window_x1] =
-                    handWindowXAt(state, seconds, metrics, mirrored);
-                std::array<double, 4> stations{
-                    window_x0 + g_open_tail_margin,
-                    window_x0 + (2.0 * g_open_tail_margin),
-                    window_x1 - (2.0 * g_open_tail_margin),
-                    window_x1 - g_open_tail_margin,
+            // Band X stations. The OUTER pair is the shared floor footprint
+            // (highwayFloorFootprint): a fretted tail straddling the note's own fretboard anchor
+            // at the tail half-width, an open one spanning the hand window inset by its margin —
+            // the same two numbers the actual-ring marks lie between, which is why the anchor and
+            // the margin live in one place rather than in each mark's own arithmetic. The INNER
+            // pair is Charter's cross-section and stays per case: a fretted ribbon splits its
+            // width quarter/half/quarter, while an open one keeps edge bands one margin wide
+            // across the whole window.
+            const auto band_stations = [&](const HighwayFloorFootprint& footprint) {
+                const double outer = footprint.half_width;
+                const double inner = common::core::openString(note)
+                                         ? std::max(0.0, outer - g_open_tail_margin)
+                                         : outer / 2.0;
+                return std::array<double, 4>{
+                    footprint.center_x - outer,
+                    footprint.center_x - inner,
+                    footprint.center_x + inner,
+                    footprint.center_x + outer,
                 };
-                if (stations[2] < stations[1])
-                {
-                    const double center = (stations[1] + stations[2]) / 2.0;
-                    stations[1] = center;
-                    stations[2] = center;
-                    stations[0] = std::min(stations[0], center);
-                    stations[3] = std::max(stations[3], center);
-                }
-                return stations;
             };
-            std::array<double, 4> band{};
+            // An open band's stations follow the sliding window per time; a window narrowed past
+            // the insets mid-transition collapses the footprint (floorFootprintAt), and the
+            // stations collapse with it onto the window's centre rather than inverting the ribbon.
+            const auto band_stations_at = [&](const double seconds) {
+                return band_stations(floorFootprintAt(
+                    state,
+                    note,
+                    common::core::highwayTailHalfWidth(metrics),
+                    seconds,
+                    metrics,
+                    mirrored));
+            };
+            // Sampled at the VISIBLE tail start, not the onset: tail_from advances with playback,
+            // and once a window move has scrolled fully behind the hit line the remaining tail
+            // must hold the settled post-move window — the onset-time window is the pre-move one,
+            // and using it snapped a ringing open tail back to the old hand position the instant
+            // the ramp left the visible span. With no ramp inside [tail_from, tail_to] the window
+            // is constant across the whole visible tail, so tail_from is exact.
+            const HighwayFloorFootprint tail_footprint = floorFootprintAt(
+                state,
+                note,
+                common::core::highwayTailHalfWidth(metrics),
+                tail_from,
+                metrics,
+                mirrored);
             // The span itself is non-empty by construction now; only an open tail can still
-            // collapse, on a window too narrow for its insets.
-            bool band_valid = true;
-            double base_x = 0.0;
-            if (!common::core::openString(note))
-            {
-                base_x = noteFretboardX(note, note.fret, metrics, mirrored);
-                const double half = common::core::highwayTailHalfWidth(metrics);
-                band = {base_x - half, base_x - (half / 2.0), base_x + (half / 2.0), base_x + half};
-            }
-            else
-            {
-                // Sampled at the VISIBLE tail start, not the onset: tail_from advances with
-                // playback, and once a window move has scrolled fully behind the hit line the
-                // remaining tail must hold the settled post-move window — the onset-time window
-                // is the pre-move one, and using it snapped a ringing open tail back to the old
-                // hand position the instant the ramp left the visible span. With no ramp inside
-                // [tail_from, tail_to] the window is constant across the whole visible tail, so
-                // tail_from is exact.
-                band = open_band_stations(tail_from);
-                band_valid = band[3] - band[0] > 2.0 * g_open_tail_margin;
-                base_x = (band[0] + band[3]) / 2.0;
-            }
+            // collapse, on a window too narrow for its insets — a collapsed footprint has no
+            // width at all, so it fails the margin test the same way.
+            const bool band_valid =
+                !common::core::openString(note) || tail_footprint.half_width > g_open_tail_margin;
+            const double base_x = tail_footprint.center_x;
+            const std::array<double, 4> band = band_stations(tail_footprint);
 
             const bool modulated =
                 note.vibrato || note.tremolo || !note.bend.empty() || !note.slides.empty();
@@ -4459,7 +4604,9 @@ void HighwayRenderer::Impl::draw(
                     const double taper = common::core::highwayTailTaper(
                         (seconds - note.start_seconds) / duration,
                         common::core::g_highway_tail_taper_fraction);
-                    const double arc_x = base_x + slide_state_at(note, base_x, seconds).x_offset;
+                    const double arc_x =
+                        base_x +
+                        highwaySlideStateAt(note, base_x, metrics, mirrored, seconds).x_offset;
                     const double arc_y = note_y_at(seconds, taper);
                     const double arc_z = time_to_z(seconds);
                     if (probe > 0)
@@ -4607,7 +4754,8 @@ void HighwayRenderer::Impl::draw(
                     const double taper = common::core::highwayTailTaper(
                         (seconds - note.start_seconds) / duration,
                         common::core::g_highway_tail_taper_fraction);
-                    const SlideState slide = slide_state_at(note, base_x, seconds);
+                    const HighwaySlideState slide =
+                        highwaySlideStateAt(note, base_x, metrics, mirrored, seconds);
                     double x_offset = slide.x_offset;
                     if (teethed)
                     {
@@ -4622,7 +4770,7 @@ void HighwayRenderer::Impl::draw(
                     }
                     samples.push_back(
                         TailSample{
-                            .stations = open_band_moves ? open_band_stations(seconds) : band,
+                            .stations = open_band_moves ? band_stations_at(seconds) : band,
                             .x_offset = x_offset,
                             .y = note_y_at(seconds, taper),
                             .z = time_to_z(seconds),
@@ -5097,9 +5245,9 @@ void HighwayRenderer::Impl::draw(
             continue;
         }
 
-        // Fretted head anchor: where the note sounds from at its own stop (noteFretboardX states
-        // the rule, including which harmonics move onto their node).
-        double x = noteFretboardX(note, note.fret, metrics, mirrored);
+        // Fretted head anchor: where the note sounds from at its own stop (highwayNoteFretboardX
+        // states the rule, including which harmonics move onto their node).
+        double x = highwayNoteFretboardX(note, note.fret, metrics, mirrored);
         // A sounding head travels with its glide, so it stays glued to the tail through bends,
         // vibrato, and slides. It does NOT ride the tremolo teeth: the teeth are a texture the
         // tail carries, and a head shaking with them reads as a jitter fighting its own digit
@@ -5831,7 +5979,7 @@ void HighwayRenderer::Impl::draw(
                     any_open = any_open || common::core::openString(note);
                 }
             }
-            const bool boxed = fretting_hand_count >= 2;
+            const bool boxed = common::core::highwayChordBoxApplies(fretting_hand_count);
             if (boxed || any_open)
             {
                 window_edge_onsets.push_back(cluster_start);

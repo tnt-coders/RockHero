@@ -82,11 +82,22 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    once belongs in a small pure unit beside it instead. `highway_head_marks.h` is the pattern:
    which atlas cell a head's connection mark uses (`highwayLegatoCell`) and whether the head takes
    the darker technique base (`highwayTechHead`), both `constexpr`, both covered by
-   `test_highway_head_marks.cpp`. `highway_floor_band.h` is the same shape one level smaller:
-   `highwayVisibleSpan` is the single clamp a drawn span obeys — from the later of the onset and
-   the hit line to the earlier of its own end and the horizon, empty when those cross — asked by
-   the sustain tail with the presented end and by the actual-ring band with the actual one. Reach
-   for that shape whenever a draw-path branch is a *rule* rather than geometry.
+   `test_highway_head_marks.cpp`. Two more sit beside it, and between them they hold every rule a
+   floor mark and the tail above it have to agree on:
+
+   - `highway_floor_band.h` — `highwayVisibleSpan` is the single clamp a drawn span obeys (from
+     the later of the onset and the hit line to the earlier of its own end and the horizon, empty
+     when those cross, and it reports whether the far end is the span's OWN, which is what a cap
+     or a fade-out may claim an ending from); `highwayFloorFootprint` is where a mark under one
+     note lies on the fret axis and how wide (the note's anchor, or the hand window inset by the
+     open-tail margin); `highwayRingMarkApplies` is which notes the actual-ring rig marks; and
+     `highwayFloorLightEnvelope` is the light form's soft-ended alpha, with its ramp clamped to
+     half the ring so the two ends can never cross (the fact that decides whether the shortest
+     rings draw at all).
+   - `highway_slide_path.h` — `highwayNoteFretboardX` and `highwaySlideStateAt`, the fret axis and
+     the glide, below.
+
+   Reach for that shape whenever a draw-path branch is a *rule* rather than geometry.
 
 3. **Two shells** feed it frames. That is the entire product-specific surface.
 
@@ -158,17 +169,29 @@ string count to match its 2D tab lane).
 
 # The fretboard axis: one function, and a deliberate stop/node split
 
-Where a STOPPED note sits on the board's fret axis is decided by exactly one function in the
-renderer, `noteFretboardX(note, fret_at_point, metrics, mirrored)`, and every point of a stopped
-gesture reads it — the head, the tail band's base, and each glide station. (A fret-0 note takes
-the open-string bar treatment across the hand window instead and never asks it.) The stop is a
-parameter because one gesture sounds from more than one of them: the onset from the note's own
-fret, a slide from each fret it travels to. A harmonic's node *rides* its stop — fret spacing is
-logarithmic, so the node's offset above the stop is constant in fret units and a glide that moves
-the stop moves the node by the same amount — which is why passing `note.fret` gives the onset's
-anchor with a zero shift. This is the same rule 2D labels heads by (`tabNoteHeadText`), with one
-deliberate 3D-only addition: the board clamp (`highwayDrawnSoundingPosition`) holds a node at the
-drawn board's edge, which the 2D label does not apply — the decided asymmetry roadmap 57 tracks.
+Where a STOPPED note sits on the board's fret axis is decided by exactly one function,
+`highwayNoteFretboardX(note, fret_at_point, metrics, mirrored)` in `highway_slide_path.h`, and
+every point of a stopped gesture reads it — the head, the tail band's base, each glide station,
+and the actual-ring floor mark. (A fret-0 note takes the open-string bar treatment across the hand
+window instead and never asks it.) The stop is a parameter because one gesture sounds from more
+than one of them: the onset from the note's own fret, a slide from each fret it travels to.
+
+Where the gesture has TRAVELLED to at an instant is the companion in the same header,
+`highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
+(pitched and unpitched glides ease differently) plus the unpitched release's alpha dim, holding
+the last target past the last waypoint. Both were inline in `draw()` until the floor light needed
+them — the glide as a lambda declared after every floor pass, which is precisely what made a floor
+mark unable to follow a slide — and out here they carry `test_highway_slide_path.cpp`.
+`highwayGlideSliceCount` rides along as the one density policy every glide-following mark
+subdivides an eased segment by, so a scrape cannot facet under one mark while staying smooth under
+another.
+
+A harmonic's node *rides* its stop — fret spacing is logarithmic, so the node's offset above the
+stop is constant in fret units and a glide that moves the stop moves the node by the same amount —
+which is why passing `note.fret` gives the onset's anchor with a zero shift. This is the same rule
+2D labels heads by (`tabNoteHeadText`), with one deliberate 3D-only addition: the board clamp
+(`highwayDrawnSoundingPosition`) holds a node at the drawn board's edge, which the 2D label does
+not apply — the decided asymmetry roadmap 57 tracks.
 So the two surfaces cannot disagree about what a glide arrives at, only about where a
 past-the-board node is shown.
 
@@ -225,24 +248,44 @@ Before extending anything, pick the right path — they do not share a checklist
   text. `DiagnosticsOverlay` (`game/ui/src/overlay/`) is the HUD exemplar — record data during
   the frame, `buildRects()`, draw. The game's menu bar renders the same way. Extending
   `HighwayViewState` for a HUD element is the wrong path.
-- **World-space diagnostics** are neither, and the actual-ring band is the first of them. Like a
+- **World-space diagnostics** are neither, and the actual-ring rig is the first of them. Like a
   chart visual it lives in world space and reads the projected scene; like an overlay it is a
   *switch* the viewer flips, not part of what the chart says. It draws in the ordinary drawer path
   from a datum already on the state, and it is switched through
-  `HighwayRenderer::setDiagnosticsOptions(HighwayDiagnosticsOptions)` — a small POD that is
+  `HighwayRenderer::setDiagnosticsOptions(HighwayDiagnosticsOptions)` — a small POD in its own
+  header (`highway/highway_diagnostics_options.h`, so the pure rules beside the renderer and the
+  editor's preview plumbing can name it without the renderer's whole API) that is
   emphatically **not** part of `HighwayDisplayOptions`, because those ride the memoized
   `HighwayViewState` and a look-at-it toggle must not re-project the chart it is looking at. The
   overlay path cannot express one of these at all: `HighwayOverlayRect` is axis-aligned pixels,
-  and a band lying on a perspective floor is a trapezoid that moves every frame.
+  and a mark lying on a perspective floor is a trapezoid that moves every frame.
+
+  **One switch per question, never one per form.** `ActualRingLook` is Off / Light / Fill /
+  Outline — a single enum for how the ring is shown, with the two per-note filters
+  (`actual_ring_marks_tailed_notes`, `actual_ring_marks_chord_members`) beside it because they say
+  WHICH notes are marked, which every form has to answer the same way. That is one pass in the
+  last floor slot, one gate (`highwayRingMarkApplies`) and one footprint for all three marks; a
+  second enum for the light would have been a second mark stackable on the first. The light form
+  is the one that behaves like the board's other lighting rather than like furniture: an additive
+  `window_light_program` batch in the note's own string color, its soft x edges the hand window's
+  own per-fragment mask, walking `highwaySlideStateAt` so it travels with a slide and, under an
+  open string, the hand window's own ramp samples so it travels with the hand. It is the only
+  ring mark that follows either — the band forms answer a length question the tail above them
+  already draws the path for, while a light left behind by its own note would read as a fault.
 
   Two rules come with the path. **Answering the 2D lane does not apply** — a diagnostic states no
-  new chart fact, so the two-surfaces law is not engaged (the actual-ring band and the 2D lane's
+  new chart fact, so the two-surfaces law is not engaged (the actual-ring rig and the 2D lane's
   `Alt` reveal happen to be the same datum on both surfaces, but neither owes the other an idiom).
   And **the game is kept out by composition, not by a build define**: the only caller of
   `setDiagnosticsOptions` is the editor's `PreviewSurface`, reached from an `EditorCommandId` the
   game does not link, so the game's board runs on the default-constructed value. Compiling
   diagnostics out of shipped builds was ruled against long ago (plan 20 open question 5, answer
   A — release-build timing bugs have to stay observable), so there is no `#ifdef` here to find.
+
+  A shipped per-note floor light would be a *different* mark, and the reason is worth stating
+  before anyone reuses this one: this light's LENGTH is `ChartViewState::actual_end_seconds`,
+  whose invariant is that no game surface reads it (scored = presented). A shipped light takes
+  `NoteViewState::end_seconds` or `display_hold_ends` instead.
 
 # Extending the highway — silent steps
 

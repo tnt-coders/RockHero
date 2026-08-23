@@ -300,9 +300,9 @@ Seven things about it are deliberate:
   require the controller to know the reveal is on, which the design forbids.
 - **The data is editor-only, and the projection says so.** `actual_end_seconds` rides
   `ChartViewState` beside `display_hold_ends`, resolved from the SAVED note rather than the
-  presented one; the outline style and the 3D band read it. No game surface reads it and none may
-  — **scored = presented** (`docs/plans/in-progress/note-sustain-model.md` ruling 4) — and that
-  contract holds structurally for the whole actual form too, because `makeHighwayViewState`
+  presented one; the outline style and the 3D ring marks read it. No game surface reads it and
+  none may — **scored = presented** (`docs/plans/in-progress/note-sustain-model.md` ruling 4) —
+  and that contract holds structurally for the whole actual form too, because `makeHighwayViewState`
   composes the projection with no form argument, so no board, game or scorer state can be anything
   but presented. `NoteViewState` deliberately does *not* gain the field: that struct is one form
   end to end, and a second undrawn end inside it would hand every reader two lengths to choose

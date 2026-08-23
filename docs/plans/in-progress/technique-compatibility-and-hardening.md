@@ -140,10 +140,10 @@ has `fret == 0` and `node == 12`, so the rule rejected the very technique E13 al
 it wants is the **sounding position**: where the striking finger meets the string. An earlier
 revision planned a `soundingPosition(note)` accessor shared with the renderer; the 2026-08-08
 review retired that plan, because the two consumers deliberately diverged into *different*
-questions — the renderer's `noteFretboardX` wants an x-coordinate (the exact node), while core's
-`fretFor` wants the hand's fret (`ceil` of the node, and `note.fret` for a `Tap` attack, whose node
-is the *other* hand's). Writing E4 on `fretFor` would reject the open-string tap harmonic all over
-again (`fretFor` returns 0 for it). The correct enforcement form is simply:
+questions — the renderer's `highwayNoteFretboardX` wants an x-coordinate (the exact node), while
+core's `fretFor` wants the hand's fret (`ceil` of the node, and `note.fret` for a `Tap` attack,
+whose node is the *other* hand's). Writing E4 on `fretFor` would reject the open-string tap
+harmonic all over again (`fretFor` returns 0 for it). The correct enforcement form is simply:
 
 ```
 note.fret > 0 || note.harmonic_node.has_value()
@@ -580,8 +580,8 @@ stop instead of reading `note.fret` — the onset passes its own fret, a linked 
 fret the glide has reached, and the node rides the stop (fret spacing is logarithmic, so the node's
 offset above the stop is constant in fret units). One authority, two call sites, net code removed:
 every head of a gesture states the same *quantity* rather than a node at the onset and a fret at the
-junctions. The 3D fretboard axis took the same parameter for the same reason (`noteFretboardX`), so
-the two surfaces cannot disagree about what a glide arrives at.
+junctions. The 3D fretboard axis took the same parameter for the same reason
+(`highwayNoteFretboardX`), so the two surfaces cannot disagree about what a glide arrives at.
 
 ### A live data-loss bug the collapse exposed
 
@@ -664,10 +664,11 @@ times, `round` 7, `ceil` never.** The user raised the concern (`round` was unsaf
 proposed `floor`, which inverts because fret `N` spans `[N-1, N]` rather than `[N, N+1]`; they confirmed
 the span against a real guitar.
 
-**Not every rounding is that question.** `noteFretboardX` in the renderer once floored the node and
-lerped to the next wire. That is *interpolation*, not containment — and since `highwayFretLineX` takes a
-fractional coordinate and is linear in it, the whole dance collapsed to one call with no rounding at
-all. Removed, because a stray `floor` sitting next to a `ceil` rule costs a reader time.
+**Not every rounding is that question.** `highwayNoteFretboardX` (then the renderer's own
+`noteFretboardX`) once floored the node and lerped to the next wire. That is *interpolation*, not
+containment — and since `highwayFretLineX` takes a fractional coordinate and is linear in it, the
+whole dance collapsed to one call with no rounding at all. Removed, because a stray `floor` sitting
+next to a `ceil` rule costs a reader time.
 
 **The naming iterated to its final shape** on the user's repeated objections (`fretHandFret` and
 `fretboardHarmonicNode` verbose; `handFret` "still reads really odd"; `anchorNode` redundant with

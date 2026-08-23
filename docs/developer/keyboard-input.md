@@ -61,16 +61,16 @@ chords. Everything else is plumbing that keeps focus in the right place:
   so it sets `setWantsKeyboardFocus(false)` and overrides `keyPressed` to return `false`.
   Transport, signal-chain, and plugin-tile buttons decline focus for the same reason.
 - **The 3D preview window** wants focus for itself (its render surface hosts a native child
-  window). It forwards a whitelist of thirteen *commands* through a `std::function` injected by
+  window). It forwards a whitelist of fifteen *commands* through a `std::function` injected by
   `EditorView`; membership is resolved through the command mappings rather than hardcoded
-  chords, so future rebinds of rebindable commands stay honored. The thirteen are Play/Pause,
-  the preview toggle, the song-navigation verbs, the grid pair, and the actual-ring band's own
-  `F1` — a diagnostic drawn in that very window has to be switchable from it (44-Q4: transport
-  keys only; editing shortcuts stay with the main window). One layer below JUCE, the preview
-  surface installs a Win32 window proc that bounces `WM_SETFOCUS` off the bgfx render child
-  back to the JUCE peer (`ui/src/preview/preview_surface.cpp`) — without it the native child
-  swallows every key. That focus-bounce is a recorded watch item; treat it as an invariant of
-  the preview port.
+  chords, so future rebinds of rebindable commands stay honored. The fifteen are Play/Pause,
+  the preview toggle, the song-navigation verbs, the grid pair, and the actual-ring rig's three
+  (`F1` and its two modifier chords) — a diagnostic drawn in that very window has to be
+  switchable from it (44-Q4: transport keys only; editing shortcuts stay with the main window).
+  One layer below JUCE, the preview surface installs a Win32 window proc that bounces
+  `WM_SETFOCUS` off the bgfx render child back to the JUCE peer
+  (`ui/src/preview/preview_surface.cpp`) — without it the native child swallows every key. That
+  focus-bounce is a recorded watch item; treat it as an invariant of the preview port.
 - **Modal overlays own their keys.** `BusyOverlay::keyPressed` grabs focus and swallows
   everything while a busy operation runs; the themed message box and the audio-device failure
   overlay handle Return/Esc themselves. A key that "does nothing" during busy is the overlay
@@ -95,10 +95,13 @@ no chart open, and because a disabled command whose chord matches makes JUCE sou
 alert. It is temporary: the sighting picks one mark and the command goes with the loser.
 
 The 3D preview shows the *same* ring and deliberately does **not** copy the idiom: `F1` there is an
-ordinary registered command that latches a floor band through three states. The held modifier is
-the main window's state — the preview only reports the modifier changes JUCE hands it, through
-the hook below — and a rig you watch while navigating wants both hands free. A held state that has
-to survive a window boundary is the case to reach for a latch in.
+ordinary registered command that latches a floor mark through four states (off, a string-colored
+light, a filled band, an outlined one), with `Shift+F1` and `Ctrl+F1` latching the two filters that
+narrow WHICH notes it marks. The held modifier is the main window's state — the preview only
+reports the modifier changes JUCE hands it, through the hook below — and a rig you watch while
+navigating wants both hands free. A held state that has to survive a window boundary is the case to
+reach for a latch in. All three chords carry the same key on purpose: they are one rig, and the
+modifiers narrow what the bare key cycles.
 
 A held modifier is not a keystroke, and JUCE has no callback that reliably reports one. Four facts
 before adding a second held-modifier state:

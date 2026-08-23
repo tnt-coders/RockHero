@@ -81,14 +81,14 @@ void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
     m_surface->setCaretSeconds(seconds);
 }
 
-void PreviewWindow::setActualRingBand(const common::ui::ActualRingBand band)
+void PreviewWindow::setDiagnosticsOptions(const common::ui::HighwayDiagnosticsOptions options)
 {
-    m_surface->setActualRingBand(band);
+    m_surface->setDiagnosticsOptions(options);
 }
 
-common::ui::ActualRingBand PreviewWindow::actualRingBand() const noexcept
+common::ui::HighwayDiagnosticsOptions PreviewWindow::diagnosticsOptions() const noexcept
 {
-    return m_surface->actualRingBand();
+    return m_surface->diagnosticsOptions();
 }
 
 void PreviewWindow::closeButtonPressed()

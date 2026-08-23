@@ -12,6 +12,7 @@
 #include <memory>
 #include <rock_hero/common/core/highway/highway_resources.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
+#include <rock_hero/common/ui/highway/highway_diagnostics_options.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -89,41 +90,6 @@ struct HighwayOverlayRect
 
     /*! \brief Packed ABGR color (alpha-blended). */
     std::uint32_t abgr{0};
-};
-
-/*! \brief Which form the actual-ring diagnostics band takes on the board floor. */
-enum class ActualRingBand : std::uint8_t
-{
-    /*! \brief No band is drawn; the value every shipped surface runs with. */
-    Off,
-
-    /*! \brief A translucent body over the whole ring, with a brighter cap at the ring's end. */
-    Fill,
-
-    /*! \brief Two thin rails along the band's edges and the same cap, leaving the floor clear. */
-    Outline
-};
-
-/*!
-\brief Draw-time diagnostics switches for the editor's sighting rigs.
-
-Deliberately NOT part of common::core::HighwayDisplayOptions. Those ride the memoized
-HighwayViewState, so changing one re-projects the whole chart; these change nothing but what the
-next frame emits, and a toggle a user presses to look at something must not rebuild the scene it
-is looking at.
-
-**The game cannot switch these on, and that is a composition-root guarantee rather than a
-compile-time one.** The only caller of \ref HighwayRenderer::setDiagnosticsOptions is the editor's
-preview surface, reached from an editor command id the game does not link — so the game's board is
-the default-constructed value and nothing in the game binary can name another. The project ruled
-AGAINST compiling diagnostics out of shipped builds (game/core `diagnostics.h`, plan 20 open
-question 5, answer A: release-build timing bugs have to stay observable), so there is deliberately
-no build define gating this either.
-*/
-struct HighwayDiagnosticsOptions
-{
-    /*! \brief Form of the actual-ring band drawn under each visible note's presented tail. */
-    ActualRingBand actual_ring_band{ActualRingBand::Off};
 };
 
 /*!

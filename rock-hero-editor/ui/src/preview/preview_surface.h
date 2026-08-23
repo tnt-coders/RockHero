@@ -83,21 +83,23 @@ public:
     void setCaretSeconds(std::optional<double> seconds);
 
     /*!
-    \brief Sets the form of the renderer's actual-ring diagnostics band.
+    \brief Sets the renderer's draw-time diagnostics switches.
 
     Held here rather than in the renderer's caller because the renderer is created lazily on first
     open (and re-created after a failed bring-up), so a toggle can land while none exists; this
-    surface is the one place that knows whether it does.
+    surface is the one place that knows whether it does. The whole POD crosses rather than one
+    setter per switch: the caller reads the current value, changes the one switch it owns, and
+    writes it back, so a switch added later needs no new pass-through.
 
-    \param band Band form to draw from the next frame on.
+    \param options Diagnostics switches to draw with from the next frame on.
     */
-    void setActualRingBand(common::ui::ActualRingBand band);
+    void setDiagnosticsOptions(common::ui::HighwayDiagnosticsOptions options);
 
     /*!
-    \brief Reports the actual-ring band form currently set.
-    \return The band form, whether or not a renderer exists to draw it.
+    \brief Reports the diagnostics switches currently set.
+    \return The switches, whether or not a renderer exists to draw with them.
     */
-    [[nodiscard]] common::ui::ActualRingBand actualRingBand() const noexcept;
+    [[nodiscard]] common::ui::HighwayDiagnosticsOptions diagnosticsOptions() const noexcept;
 
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
@@ -119,7 +121,7 @@ private:
     bool bringUpRenderer();
 
     // Pushes the stored diagnostics options at the renderer when one exists. The one place that
-    // statement lives: bring-up and every later toggle both route through it, so a band switched
+    // statement lives: bring-up and every later toggle both route through it, so a rig switched
     // on before the first open survives to the frame that can draw it.
     void applyDiagnosticsOptions();
 
@@ -154,7 +156,7 @@ private:
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};
 
-    // Draw-time diagnostics switches (the actual-ring band). Not part of the highway display
+    // Draw-time diagnostics switches (the actual-ring rig). Not part of the highway display
     // options: those ride the memoized view state, so putting a look-at-it toggle there would
     // re-project the chart on every press.
     common::ui::HighwayDiagnosticsOptions m_diagnostics{};

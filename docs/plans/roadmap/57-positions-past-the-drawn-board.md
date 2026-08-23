@@ -37,8 +37,8 @@ normally, so the two surfaces disagreed about whether the note existed on screen
 
 - `highwayDrawnSoundingPosition` in `highway_view_state.h` is now the single authority for where a
   note draws on the 3D board, and it **holds a node at the board's edge**. Every 3D consumer reads it
-  — the renderer's `noteFretboardX`, the camera's framing scan, the tap station chain, and the
-  tap-onset fret light — so the board and the camera can no longer frame different places.
+  — the renderer's `highwayNoteFretboardX`, the camera's framing scan, the tap station chain, and
+  the tap-onset fret light — so the board and the camera can no longer frame different places.
 - The **fret 25–30 half was deliberately left unclamped**, because clamping would draw a note at a
   fret the chart did not ask for. It is the same mismatch and wants the same single decision rather
   than a second quiet clamp.

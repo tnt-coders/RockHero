@@ -806,9 +806,9 @@ shipped technique verbs.
   2D surface — a two-position technique may eventually want both. 3D already carries both, which
   settles what "both" should look like: the note (head, tail, glide) sounds from the node, while
   the board's own furniture — glow post and fret-span line — marks the stop the hand presses. That
-  division is now stated once, in `noteFretboardX`, which takes the stop as a parameter so every
-  point of a gesture reads the same axis: a node RIDES its stop (fret spacing is logarithmic, so
-  the offset above the stop is constant in fret units), which is the same rule `tabNoteHeadText`
+  division is now stated once, in `highwayNoteFretboardX`, which takes the stop as a parameter so
+  every point of a gesture reads the same axis: a node RIDES its stop (fret spacing is logarithmic,
+  so the offset above the stop is constant in fret units), which is the same rule `tabNoteHeadText`
   labels each head by. Before that, an artificial harmonic's glide left the node axis and landed on
   the raw fret slot of its waypoint, so its tail traveled to a place 2D never labeled.
 - [x] **D2 — The scrape's payload shape — ADOPTED 2026-08-08 and shipped flat.** `slide_out` is

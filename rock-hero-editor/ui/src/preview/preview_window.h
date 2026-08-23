@@ -12,7 +12,7 @@
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
-#include <rock_hero/common/ui/highway/highway_renderer.h>
+#include <rock_hero/common/ui/highway/highway_diagnostics_options.h>
 
 namespace rock_hero::editor::ui
 {
@@ -76,16 +76,16 @@ public:
     void setCaretSeconds(std::optional<double> seconds);
 
     /*!
-    \brief Sets the form of the surface's actual-ring diagnostics band.
-    \param band Band form to draw from the next frame on.
+    \brief Sets the surface's draw-time diagnostics switches.
+    \param options Diagnostics switches to draw with from the next frame on.
     */
-    void setActualRingBand(common::ui::ActualRingBand band);
+    void setDiagnosticsOptions(common::ui::HighwayDiagnosticsOptions options);
 
     /*!
-    \brief Reports the actual-ring band form the surface currently holds.
-    \return The band form.
+    \brief Reports the diagnostics switches the surface currently holds.
+    \return The switches.
     */
-    [[nodiscard]] common::ui::ActualRingBand actualRingBand() const noexcept;
+    [[nodiscard]] common::ui::HighwayDiagnosticsOptions diagnosticsOptions() const noexcept;
 
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;

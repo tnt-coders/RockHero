@@ -86,15 +86,15 @@ enum class EditorCommandId : std::uint16_t
     // its decision signed (2026-08-17/19); retired ids are never revived.
 
     /*!
-    \brief Cycle the 3D preview's actual-ring diagnostics band (`F1`): off, fill, outline.
+    \brief Cycle the 3D preview's actual-ring mark (`F1`): off, light, fill, outline.
 
-    The sighting rig for the note-sustain model's stage D: a floor band under each note running
+    The sighting rig for the note-sustain model's stage D: a floor mark under each note running
     the ACTUAL ring the string sounds for, which the presented tail above it may have trimmed or
     dropped. Deliberately a LATCH where the 2D lane's equivalent reveal is held under `Alt` —
     the held reveal is the main window's state, and a sighting rig watched while navigating the
     preview with the caret keys wants both hands free while it is on.
     */
-    ToggleActualRingBand = 0x130B,
+    CycleActualRingLook = 0x130B,
 
     /*!
     \brief Flip the 2D lane's actual-ring reveal between its two marks (`F6`): outline, tails.
@@ -106,6 +106,23 @@ enum class EditorCommandId : std::uint16_t
     through 0x130A above).
     */
     ToggleActualRingRevealStyle = 0x130C,
+
+    /*!
+    \brief Include notes that already draw a tail in the 3D preview's ring marks (`Shift+F1`).
+
+    A filter on the same rig `F1` cycles the form of, not a second rig. Off leaves the marks on
+    only the notes whose ring the presented form does NOT already draw, which is the comparison
+    wanted once the agreeing cases have been checked.
+    */
+    ToggleActualRingTailedNotes = 0x130D,
+
+    /*!
+    \brief Include notes inside a chord box in the 3D preview's ring marks (`Ctrl+F1`).
+
+    The other filter on that rig: a chord box already states how long its posture is held, so a
+    mark under each member repeats it — off asks what the rig says with that repetition removed.
+    */
+    ToggleActualRingChordMembers = 0x130E,
 
     /*!
     \brief Insert a tone-change marker at the cursor (`Ctrl+T`).
