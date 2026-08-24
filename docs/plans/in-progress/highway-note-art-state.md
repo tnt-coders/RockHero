@@ -290,17 +290,17 @@ cell 4's two axes are equal to 0.000000 tx.
   A fretted tail's own pixels are identical lit or unlit. Whether the halo reads loud enough at
   far z closed with the 2026-08-18 signing and lives on as the watch item's trigger (the knob is
   `g_accent_gain`).
-- **Ghost: SIGNED 2026-08-15 and no longer a sighting item.** `half light` won on the highway
+- **Ghost: current trial.** `half light` won on the highway
   (sighted at alpha 0.45 head and markers against 0.65 tail; **collapsed on trial to a single 0.5
   everywhere** at the user's suggestion, plus 0.5 open-bar thickness, to test whether the
-  head/sustain split was a distinction the eye ever made), the opaque `lean` won on the
-  2D lane, and every alternative is ripped out of both. F10 and its command are gone with them,
+  head/sustain split was a distinction the eye ever made). The 2D lane now uses the normal note
+  colors at 0.5 opacity. F10 and its command are gone,
   and F9 followed when the accent light signed (2026-08-18); no sighting sampler remains.
 
-**The 2D lane's ghost is SHIPPED and is not a sighting item** — it took the opposite mechanism on
-purpose (an opaque lean toward the lane's ground); see `note-emphasis-axis.md` item 4 for why, and
-for the ink-authority refactor that made it a loop instead of a parameter threaded through every
-drawing helper.
+**The 2D lane's ghost is being retuned** — the current trial keeps every normal note ink color,
+flattens each note's opaque tail and head art together, then applies the shared 0.5 opacity once.
+Fret numbers remain opaque overlays while their plates use 0.75 opacity. See
+`note-emphasis-axis.md` item 4 for the superseded lean history and group-compositing rationale.
 
 **The evaluation vehicle.** A hand-authored project package exercising every technique —
 each one alone, stacked in a chord, and on sliding notes where that is legal — lives outside the

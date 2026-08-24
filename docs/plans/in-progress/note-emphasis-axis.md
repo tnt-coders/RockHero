@@ -77,20 +77,20 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    suspected: it never read the element at all.
 3. ~~**Projections/views:**~~ **SHIPPED.** Both view types carry the emphasis value; the D4 scrape
    pass-through carried over unchanged.
-4. **Rendering:** **GHOST SIGNED both surfaces 2026-08-15 — `half light` on the highway, the
-   opaque `lean` on the 2D lane. The ACCENT light SIGNED 2026-08-18 as the rendered `medium
-   flat` glow.** Ghost draws quiet at
-   the same weight, but each surface spends that weight the way it actually composites — the
-   divergence the `StringStyle` constructor already signed for tails, now extended to the whole
-   axis. The highway keeps translucency over its dark world (`g_ghost_alpha`, and a
+4. **Rendering:** **GHOST is currently `half light` on both surfaces. The ACCENT light SIGNED
+   2026-08-18 as the rendered `medium flat` glow.** Ghost draws at 0.5 alpha on both surfaces. The
+   highway keeps that translucency over its dark world (`g_ghost_alpha`, and a
    sustain that rises from nothing over a fixed span at its onset so a ghost's ribbon emerges FROM
-   the head instead of showing through it). The 2D lane instead **leans every ink toward the
-   lane's own ground**, opaquely, which lands on the same numbers a translucent draw over that
-   ground would produce and costs none of what translucency costs on an opaque surface.
+   the head instead of showing through it). **Amended 2026-08-23:** the 2D lane now keeps every
+   normal ink color unchanged and uses 0.5 opacity as the ghost indication on its art. Each note's
+   opaque tail, marks and head are flattened before that opacity is applied, so the tail cannot
+   show through its own head. Fret numbers and linked-waypoint numbers are overlaid fully opaque;
+   fret-number plates and slide fret chips use 0.75 opacity. The former lean evaluation remains
+   below.
 
-   That 2D choice was reached by rejecting a JUCE transparency layer, and the reasons are worth
-   keeping because they are properties of this lane rather than of that API: a translucent head
-   reveals its own sustain ribbon, the lane line and a chord box's fill through itself (15–95
+   The former 2D lean choice was reached by rejecting a JUCE transparency layer. The reasons are
+   worth keeping because they are properties of this lane rather than of that API: a translucent
+   head reveals its own sustain ribbon, the lane line and a chord box's fill through itself (15–95
    luma counts on the strings, measured); un-revealing it needs a knockout, which is a fourth
    restatement of "a head covers its silhouette" and so condemns the design; the layer is sized to
    the CLIP rather than to the note, and the tail body is deliberately drawn outside the technique
@@ -121,9 +121,9 @@ no new matrix cells open; the only impossible combination (ghost + accent) is st
    The shape that made the ORIGINAL objection go away was **generalizing the one ink authority
    that already existed**. `StringStyle` held the per-string chain while a dozen file-scope greys and raw
    whites held the rest, so nothing could act on ALL of a note's ink. Naming them one `Ink` set
-   makes `ghosted()` a loop over that set: the head backing becomes self-correcting (the ground
-   leaned toward the ground is the ground), the chips close for free by carrying their own ink,
-   and a mark added later is quiet by construction. Authority count in that file went 2 → 1.
+   first made the lean one loop. The current group treatment removes the ghost palette entirely:
+   `LaneStyles` stores each string's colors once, and the finished note takes opacity once.
+   Authority count in that file remains 1.
 
    Accent rendering: the 2D glow is unchanged; 3D became a **rendered light** and the atlas ring
    it replaces is retired (cell 3 of the head atlas is now empty), because a mark drawn on a head

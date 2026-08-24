@@ -1,6 +1,5 @@
 #include "tab/tab_paint_core.h"
 
-#include "highway/highway_emphasis_styles.h"
 #include "string_colors/string_color_palette.h"
 #include "tab/plectrum_outline.h"
 
@@ -158,24 +157,43 @@ enum class Ink : std::uint8_t
     Count
 };
 
-// A ghost's quiet, SIGNED 2026-08-15 after sighting four candidates: the opaque LEAN wins.
-//
-// Quiet on this surface means leaning every ink toward the lane's ground, opaquely. The lane
-// composites by covering, so this spends the weight the way the surface actually works: the note
-// still covers what is behind it and only its colour drops. Genuine group translucency was built
-// and sighted beside it and lost - over bare lane the two are the same picture to within about
-// four counts, and everywhere else translucency reveals a lane line, a waveform, a measure grid
-// and a neighbour's ribbon, every one of them brighter than a ghost's own ring.
-//
-// ONE weight, read from the shared emphasis styles rather than spelled again here: a ghost on
-// the highway keeps that alpha over a dark world, which leaves exactly that share of the ground
-// showing through, so the same share is what this surface leans. The two say the same thing about
-// the same note through different mechanisms, and reading one number is what keeps them in step.
-//
-// The head and the sustain used to differ (0.55 against 0.35), on the reasoning that a ghost is an
-// attack dynamic rather than a sustain one so a ribbon dimmed as hard as its head would read as a
-// rendering fault. Collapsing them is being tried against exactly that claim.
-constexpr float g_ghost_ground{static_cast<float>(g_ghost_alpha)};
+// A 2D ghost keeps the normal note's colors. Its finished note art is flattened before this weight
+// is applied, so the head covers its own tail. Fret plates then land at a middle weight while their
+// glyphs remain opaque.
+constexpr float g_ghost_opacity{0.5f};
+constexpr float g_ghost_fret_plate_opacity{0.75f};
+
+// Opens a JUCE transparency layer and closes it after every nested graphics state has unwound.
+// JUCE has no RAII form, while ending a layer before an inner ScopedSaveState is destroyed silently
+// corrupts the composite. The saved outer state also normalizes Direct2D, which does not restore
+// the graphics state on endTransparencyLayer as JUCE's API contract specifies.
+class ScopedTransparencyLayer
+{
+public:
+    ScopedTransparencyLayer(
+        juce::Graphics& graphics, const juce::Rectangle<int> group_bounds, const float opacity)
+        : m_graphics(graphics)
+        , m_state(graphics)
+    {
+        m_graphics.reduceClipRegion(group_bounds);
+        m_graphics.beginTransparencyLayer(opacity);
+    }
+
+    ScopedTransparencyLayer(const ScopedTransparencyLayer&) = delete;
+    ScopedTransparencyLayer(ScopedTransparencyLayer&&) = delete;
+    ScopedTransparencyLayer& operator=(const ScopedTransparencyLayer&) = delete;
+    ScopedTransparencyLayer& operator=(ScopedTransparencyLayer&&) = delete;
+
+    ~ScopedTransparencyLayer()
+    {
+        m_graphics.endTransparencyLayer();
+    }
+
+private:
+    juce::Graphics& m_graphics;
+    // Restores the saved outer state after the destructor body closes the layer.
+    juce::Graphics::ScopedSaveState m_state;
+};
 
 // Bridges the shared Charter-exact style derivation to JUCE colors at this module's boundary;
 // the per-string entries match common::ui::StringLaneStyle one for one.
@@ -226,23 +244,6 @@ struct StringStyle
         // of an array-shaped palette into a debug failure instead of a mark that vanishes.
         assert(
             std::ranges::none_of(inks, [](const juce::Colour ink) { return ink.isTransparent(); }));
-    }
-
-    // This string's ink set with a ghost's quiet taken out of it: `ground` is how far every ink
-    // leans toward the lane's ground.
-    //
-    // Quiet on THIS surface means leaning toward the lane's own ground, not translucency — the
-    // ruling and its evidence sit with the weight above. Applied to EVERY ink at one weight, so a
-    // mark added later is quiet by construction rather than by remembering to quiet it, and no
-    // ink can drift out of step with its neighbours.
-    [[nodiscard]] StringStyle ghosted(const float ground) const
-    {
-        StringStyle quiet = *this;
-        for (juce::Colour& ink : quiet.inks)
-        {
-            ink = ink.interpolatedWith(g_note_background_color, ground);
-        }
-        return quiet;
     }
 
 private:
@@ -296,37 +297,30 @@ PlatePalette mutePlatePalette(const StringStyle& style, const bool palm_mute)
                      : PlatePalette{.fill = style[Ink::PlateLight], .ink = style[Ink::PlateDark]};
 }
 
-// Every per-string style one paint can need, in both dynamics a note can be drawn at. A
-// StringStyle is a palette lookup plus Charter's whole derivation chain, and its ghost is that
-// chain leaned toward the ground; both depend on nothing but the string and the emphasis, so the
-// tail, bracket and head passes index this table rather than rebuilding it per note. Sized by the
-// chart-string cap, which needs no precondition on the chart's own string count.
+// Every per-string style one paint can need. Ghosting is a finished-note composite rather than a
+// second palette, so normal and ghost notes deliberately read the same opaque colors here.
 struct LaneStyles
 {
-    std::vector<StringStyle> normal;
-    std::vector<StringStyle> ghost;
+    std::vector<StringStyle> strings;
 
     // Clamped like the palette itself, which cycles defensively past its tiers: a string outside
     // the chart's range is already drawn off the lane band by laneY, so it wants a color here, not
     // a branch.
-    [[nodiscard]] const StringStyle& operator()(
-        const int chart_string, const common::core::NoteEmphasis emphasis) const
+    [[nodiscard]] const StringStyle& operator()(const int chart_string) const
     {
         const auto index = static_cast<std::size_t>(
             std::clamp(chart_string, 1, common::core::g_max_chart_strings) - 1);
-        return common::core::isGhosted(emphasis) ? ghost[index] : normal[index];
+        return strings[index];
     }
 };
 
 [[nodiscard]] LaneStyles makeLaneStyles(const TabLaneMetrics& metrics)
 {
     LaneStyles styles;
-    styles.normal.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
-    styles.ghost.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
+    styles.strings.reserve(static_cast<std::size_t>(common::core::g_max_chart_strings));
     for (int chart_string = 1; chart_string <= common::core::g_max_chart_strings; ++chart_string)
     {
-        styles.normal.emplace_back(metrics.baseColor(chart_string));
-        styles.ghost.push_back(styles.normal.back().ghosted(g_ghost_ground));
+        styles.strings.emplace_back(metrics.baseColor(chart_string));
     }
     return styles;
 }
@@ -339,12 +333,11 @@ struct LabelChip
     juce::Colour background;
     juce::Colour border;
 
-    // The chip carries its own text ink rather than reaching for white at draw time. Chips are
-    // collected during the tail pass and drawn LAST, above every head, so by then the note they
-    // belong to is long out of scope — and a chip whose ink is decided at draw time is a chip
-    // that cannot be quieted with its note. Filling it here from the note's own ink set is what
-    // makes a ghost's slide fret and bend amount fade with the ghost.
+    // Chips are collected during the tail pass and drawn LAST, above every head. Their box follows
+    // the resolved opacity; fret-label ink can opt out while bend amounts remain part of the group.
     juce::Colour ink;
+    float opacity;
+    bool opaque_ink;
 };
 
 // The note head sounding on this string exactly at the span start, or nullptr when the string is
@@ -662,7 +655,7 @@ constexpr float g_accent_glow_reach_heads = 0.2f;
 // over the head; but this surface renders the accent as light rather than as a glyph, and once the
 // phenomenon is what is drawn, the phenomenon's extent governs.
 //
-// The quiet end of this axis already reached the tail here (a ghost leans the whole ink set, the
+// The quiet end of this axis already reached the tail here (a ghost fades the whole ink set, the
 // ribbon with it), so a head-only accent left the axis saying different things at its two ends on
 // one surface. The highway reached this same conclusion for its ribbon; this is the 2D half.
 //
@@ -1078,7 +1071,7 @@ constexpr float g_technique_line_thickness = 2.0f;
 void drawSlideLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& slide_labels)
+    std::vector<LabelChip>& slide_labels, const float opacity)
 {
     if (note.slides.empty())
     {
@@ -1137,6 +1130,8 @@ void drawSlideLines(
                     .background = charterDarker(charterDarker(charterDarker(style[Ink::Tail]))),
                     .border = style[Ink::Tail],
                     .ink = style[Ink::Digit],
+                    .opacity = opacity,
+                    .opaque_ink = true,
                 });
         }
 
@@ -1145,23 +1140,61 @@ void drawSlideLines(
     }
 }
 
-// Draws Charter's linked-note head (the same layered shape with a doubly darkened center) with
-// its fret number at each linked slide waypoint. Charter charts express unpicked slide chains as
-// linked notes and draw one of these at every link; our format merges the chain into waypoints,
-// so the linked waypoints are exactly where Charter's linked heads sit. A shift slide's landing
-// is not linked — the re-picked target note's own head renders there instead, and painting the
-// linked head over it would make a picked note look like a continuation.
+// Draws Charter's linked-note head shapes at each linked slide waypoint. Charter charts express
+// unpicked slide chains as linked notes and draw one of these at every link; our format merges the
+// chain into waypoints, so the linked waypoints are exactly where Charter's linked heads sit.
 //
 // A scrape's turnarounds are linked too, and they wear the note's OWN head shape — the plectrum —
 // so each junction reads as one continuous gesture changing direction rather than a chain of
 // disconnected diagonals. Without a head the corner is a bare kink in a white line, which reads
 // as discontinuous even though the pick never leaves the string; the head is also where the
 // traveled fret is stated, replacing the chip that used to float above the line.
-void drawSlideWaypointHeads(
+void drawSlideWaypointHeadShape(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float center_y)
+    const common::core::NoteViewState& note, const common::core::SlideViewState& waypoint,
+    const float center_y)
 {
-    const HeadShape shape = headShapeFor(note);
+    const float size = metrics.headSize();
+    fillHeadShape(
+        g,
+        style[Ink::BorderInner],
+        style[Ink::LinkedInner],
+        metrics.x(waypoint.seconds),
+        center_y,
+        size,
+        headShapeFor(note));
+}
+
+// Draws the fully opaque fret number that rides one linked slide waypoint head.
+void drawSlideWaypointFretNumber(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, const common::core::SlideViewState& waypoint,
+    const float center_y)
+{
+    if (!metrics.draw_text)
+    {
+        return;
+    }
+
+    // A junction labels its own stop through the SAME rule the onset head uses, so one gesture
+    // cannot show two different quantities: on a harmonic the onset and junction label nodes.
+    const juce::String text = tabNoteHeadText(note, waypoint.fret);
+    const float size = metrics.headSize();
+    const float x = metrics.x(waypoint.seconds);
+    const float digit_raise = headDigitRaise(headShapeFor(note), size);
+    g.setColour(style[Ink::Digit]);
+    g.setFont(metrics.fret_font);
+    g.drawText(
+        text,
+        juce::Rectangle<float>{x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f},
+        juce::Justification::centred);
+}
+
+// Draws only the shapes so a ghost can flatten them into its translucent note group.
+void drawSlideWaypointHeadShapes(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, const float center_y)
+{
     for (const common::core::SlideViewState& waypoint : note.slides)
     {
         if (!common::core::linkedWaypoint(note, waypoint))
@@ -1169,28 +1202,40 @@ void drawSlideWaypointHeads(
             continue;
         }
 
-        const float x = metrics.x(waypoint.seconds);
-        const float size = metrics.headSize();
-        fillHeadShape(
-            g, style[Ink::BorderInner], style[Ink::LinkedInner], x, center_y, size, shape);
-        if (metrics.draw_text)
+        drawSlideWaypointHeadShape(g, metrics, style, note, waypoint, center_y);
+    }
+}
+
+// Draws the fully opaque fret numbers that ride linked slide waypoint heads.
+void drawSlideWaypointFretNumbers(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, float center_y)
+{
+    for (const common::core::SlideViewState& waypoint : note.slides)
+    {
+        if (!common::core::linkedWaypoint(note, waypoint))
         {
-            // A junction labels its own stop through the SAME rule the onset head uses, so one
-            // gesture cannot show two different quantities: on a harmonic the onset labels the
-            // node, and so does the junction, transposed to where the glide has arrived.
-            const juce::String text = tabNoteHeadText(note, waypoint.fret);
-            // The plectrum's digit rides the same raise its onset head uses, so the two
-            // plectrum numbers on one gesture cannot sit at different heights.
-            const float digit_raise = headDigitRaise(shape, size);
-            g.setColour(style[Ink::Digit]);
-            g.setFont(metrics.fret_font);
-            g.drawText(
-                text,
-                juce::Rectangle<float>{
-                    x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
-                },
-                juce::Justification::centred);
+            continue;
         }
+
+        drawSlideWaypointFretNumber(g, metrics, style, note, waypoint, center_y);
+    }
+}
+
+// Draws a normal linked waypoint head in its established shape-then-number order.
+void drawSlideWaypointHeads(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, const float center_y)
+{
+    for (const common::core::SlideViewState& waypoint : note.slides)
+    {
+        if (!common::core::linkedWaypoint(note, waypoint))
+        {
+            continue;
+        }
+
+        drawSlideWaypointHeadShape(g, metrics, style, note, waypoint, center_y);
+        drawSlideWaypointFretNumber(g, metrics, style, note, waypoint, center_y);
     }
 }
 
@@ -1200,7 +1245,7 @@ void drawSlideWaypointHeads(
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
-    std::vector<LabelChip>& bend_chips)
+    std::vector<LabelChip>& bend_chips, const float opacity)
 {
     if (note.bend.empty())
     {
@@ -1245,6 +1290,8 @@ void drawBendLines(
                     .background = chip_background,
                     .border = chip_background,
                     .ink = style[Ink::Digit],
+                    .opacity = opacity,
+                    .opaque_ink = false,
                 });
         }
         last = {to.x + 1.0f, to.y};
@@ -1653,9 +1700,63 @@ void drawAttackIcon(
     }
 }
 
-// Draws the complete note head stack in Charter's order: accent glow, layered head shape, the
-// pinch-harmonic edge line, mute icon, fret number, then the attack icon.
-void drawNoteHead(
+// Draws the optional mute plate below a fret number at its independently tuned opacity.
+void drawNoteHeadFretPlate(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, const float onset_x, const float center_y,
+    const float opacity)
+{
+    const bool muted = common::core::isMuted(note.palm_mute, note.dead);
+    if (!metrics.draw_text || !muted)
+    {
+        return;
+    }
+
+    const juce::String head_text = tabNoteHeadText(note, note.fret);
+    const PlatePalette mute_plate = mutePlatePalette(style, note.palm_mute);
+    // Both mutes box the fret number so it stays readable where the X's crossing strokes cut
+    // through the digits. The pending entry box shares this exact plate geometry.
+    const juce::Rectangle<float> box = headTextPlate(metrics, head_text, onset_x, center_y);
+    std::optional<ScopedTransparencyLayer> plate_layer;
+    const juce::Rectangle<int> plate_bounds = box.getSmallestIntegerContainer();
+    if (opacity < 1.0f && g.clipRegionIntersects(plate_bounds))
+    {
+        plate_layer.emplace(g, plate_bounds, opacity);
+    }
+    g.setColour(mute_plate.fill);
+    g.fillRect(box);
+    g.setColour(style[Ink::MuteBorder]);
+    g.drawRect(box, 1.0f);
+}
+
+// Draws only the fret-number glyph so a ghost can keep it fully opaque above the faded plate.
+void drawNoteHeadFretNumber(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, const float onset_x, const float center_y)
+{
+    if (!metrics.draw_text)
+    {
+        return;
+    }
+
+    const juce::String head_text = tabNoteHeadText(note, note.fret);
+    const bool muted = common::core::isMuted(note.palm_mute, note.dead);
+    const PlatePalette mute_plate = mutePlatePalette(style, note.palm_mute);
+    const HeadShape shape = headShapeFor(note);
+    const float size = metrics.headSize();
+    const float digit_raise = headDigitRaise(shape, size);
+    g.setColour(muted ? mute_plate.ink : style[Ink::Digit]);
+    g.setFont(metrics.fret_font);
+    g.drawText(
+        head_text,
+        juce::Rectangle<float>{
+            onset_x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
+        },
+        juce::Justification::centred);
+}
+
+// Draws the note head art below its fret furniture: accent glow, layered shape, pinch edge and X.
+void drawNoteHeadBase(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y)
 {
@@ -1697,36 +1798,16 @@ void drawNoteHead(
     // note outright, so a scrape passes two clear flags here and draws no X at all.
 
     drawMuteIcon(g, metrics, style, note.palm_mute, note.dead, onset_x, center_y);
+}
 
-    if (metrics.draw_text)
-    {
-        const juce::String head_text = tabNoteHeadText(note, note.fret);
-        const bool muted = common::core::isMuted(note.palm_mute, note.dead);
-        const PlatePalette mute_plate = mutePlatePalette(style, note.palm_mute);
-        if (muted)
-        {
-            // Both mutes box the fret number so it stays readable where the X's crossing strokes
-            // cut through the digits; the plate rule lives in mutePlatePalette and the geometry
-            // in headTextPlate, shared with the pending entry box.
-            const juce::Rectangle<float> box = headTextPlate(metrics, head_text, onset_x, center_y);
-            g.setColour(mute_plate.fill);
-            g.fillRect(box);
-            g.setColour(style[Ink::MuteBorder]);
-            g.drawRect(box, 1.0f);
-        }
-        // Only the plectrum moves its digit; the shared raise rule says so once for every
-        // digit-placing drawer.
-        const float digit_raise = headDigitRaise(shape, size);
-        g.setColour(muted ? mute_plate.ink : style[Ink::Digit]);
-        g.setFont(metrics.fret_font);
-        g.drawText(
-            head_text,
-            juce::Rectangle<float>{
-                onset_x - size, center_y - size - digit_raise, size * 2.0f, size * 2.0f
-            },
-            juce::Justification::centred);
-    }
-
+// Draws the complete normal-note head stack in its established furniture-before-attack order.
+void drawNoteHead(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const common::core::NoteViewState& note, const float onset_x, const float center_y)
+{
+    drawNoteHeadBase(g, metrics, style, note, onset_x, center_y);
+    drawNoteHeadFretPlate(g, metrics, style, note, onset_x, center_y, 1.0f);
+    drawNoteHeadFretNumber(g, metrics, style, note, onset_x, center_y);
     // The beside-head satellite draws LAST here, over every other mark including the dead X —
     // the opposite of the order the 3D head uses, and deliberately so. The surfaces are not
     // disagreeing about one rule; they are answering two different questions. On the highway
@@ -1900,10 +1981,9 @@ void strokeTabNoteHeadOutline(
 
 // Rationale lives on the declaration in tab_paint_core.h. The two grounds stay internal on
 // purpose: they are KNOWN backgrounds the host cannot mispair with its inks. Dark is
-// 0xff101010, the lane's own established near-black (the quieting target the 2D surface
-// already leans toward); light is pure white, so the invalid red reads at the error idiom's
-// full pop and the PLATE POLARITY FLIP itself signals invalid even in full monochrome — the
-// same glance mechanism the mute plate-flip design established.
+// 0xff101010, the lane's own established near-black; light is pure white, so the invalid red reads
+// at the error idiom's full pop and the PLATE POLARITY FLIP itself signals invalid even in full
+// monochrome. It uses the same glance mechanism the mute plate-flip design established.
 void paintTabPendingEntryBox(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::NoteViewState* note,
     const float center_x, const float center_y, const juce::String& text, const bool light_plate,
@@ -2141,7 +2221,8 @@ void paintTabLane(
     std::vector<LabelChip> slide_labels;
     std::vector<LabelChip> bend_chips;
 
-    // Tails first so heads always cover their own tail starts (Charter's noteTails layer).
+    // Tails first so normal heads cover their own tail starts (Charter's noteTails layer). A ghost
+    // instead draws its head here inside the same flattened group as its tail.
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = note_at(index);
@@ -2150,13 +2231,26 @@ void paintTabLane(
             continue;
         }
 
-        // A ghost's quiet arrives HERE, as the note's whole ink set rather than as a factor
-        // each drawing helper has to remember. Everything the passes below draw for this note —
-        // ribbon, rails, diagonals, bend curve, sine, head, digits, plates, the deferred chips —
-        // reads its colour from this one object.
-        const StringStyle& style = lane_styles(note.string, note.emphasis);
+        const StringStyle& style = lane_styles(note.string);
         const float center_y = metrics.laneY(note.string);
         const float onset_x = metrics.x(note.start_seconds);
+
+        // A ghost's opaque tail, marks and head are flattened together, then the finished note is
+        // composited once. Per-ink alpha would let the already-drawn tail show through the head.
+        const bool grouped = common::core::isGhosted(note.emphasis);
+        const float note_opacity = grouped ? g_ghost_opacity : 1.0f;
+        const float fret_plate_opacity = grouped ? g_ghost_fret_plate_opacity : 1.0f;
+        const juce::Rectangle<int> group_bounds{
+            juce::roundToInt(onset_x - metrics.headSize()),
+            juce::roundToInt(center_y - metrics.lane_height),
+            juce::roundToInt(metrics.x(note.end_seconds) - onset_x + (2.0f * metrics.headSize())),
+            juce::roundToInt(2.0f * metrics.lane_height)
+        };
+        std::optional<ScopedTransparencyLayer> group;
+        if (grouped && g.clipRegionIntersects(group_bounds))
+        {
+            group.emplace(g, group_bounds, note_opacity);
+        }
 
         drawNoteTail(g, metrics, style, note, onset_x, center_y);
 
@@ -2201,8 +2295,27 @@ void paintTabLane(
                 }
             }
             drawVibratoSine(g, metrics, style, note, onset_x, center_y);
-            drawSlideLines(g, metrics, style, note, onset_x, center_y, slide_labels);
-            drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
+            // An unpitched slide label states a fret, so its box uses the plate weight while its
+            // text stays fully opaque.
+            drawSlideLines(
+                g, metrics, style, note, onset_x, center_y, slide_labels, fret_plate_opacity);
+            drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips, note_opacity);
+        }
+
+        if (grouped)
+        {
+            drawSlideWaypointHeadShapes(g, metrics, style, note, center_y);
+            drawNoteHeadBase(g, metrics, style, note, onset_x, center_y);
+            // Attack badges remain in the ghost group. Their placement explicitly clears the fret
+            // window, so the later fret overlays cannot obscure them.
+            drawAttackIcon(g, metrics, style, note, onset_x, center_y);
+
+            // Close the note group before drawing fret plates at their middle weight and fret
+            // numbers fully opaque.
+            group.reset();
+            drawSlideWaypointFretNumbers(g, metrics, style, note, center_y);
+            drawNoteHeadFretPlate(g, metrics, style, note, onset_x, center_y, fret_plate_opacity);
+            drawNoteHeadFretNumber(g, metrics, style, note, onset_x, center_y);
         }
     }
 
@@ -2244,8 +2357,7 @@ void paintTabLane(
         // Posture brackets are SHAPE furniture, not a note's ink: they state where the hand is
         // posted, which is as true under a ghosted strum as under any other. They take the plain
         // style whatever the notes inside them are struck at.
-        const StringStyle& style =
-            lane_styles(bracket.note.string, common::core::NoteEmphasis::Normal);
+        const StringStyle& style = lane_styles(bracket.note.string);
         const float center_y = metrics.laneY(bracket.note.string);
         const int top = juce::roundToInt(center_y - bracket_half_height);
         const int bottom = juce::roundToInt(center_y + bracket_half_height);
@@ -2311,7 +2423,13 @@ void paintTabLane(
             continue;
         }
 
-        const StringStyle& style = lane_styles(note.string, note.emphasis);
+        // A grouped ghost already drew its head opaquely over its tail before the group faded.
+        if (common::core::isGhosted(note.emphasis))
+        {
+            continue;
+        }
+
+        const StringStyle& style = lane_styles(note.string);
         const float center_y = metrics.laneY(note.string);
         drawSlideWaypointHeads(g, metrics, style, note, center_y);
         drawNoteHead(g, metrics, style, note, metrics.x(note.start_seconds), center_y);
@@ -2331,12 +2449,22 @@ void paintTabLane(
                     text_width + pad * 2.0f,
                     font.getHeight() + 2.0f
                 };
+                std::optional<ScopedTransparencyLayer> chip_layer;
+                const juce::Rectangle<int> chip_bounds = box.getSmallestIntegerContainer();
+                if (chip.opacity < 1.0f && g.clipRegionIntersects(chip_bounds))
+                {
+                    chip_layer.emplace(g, chip_bounds, chip.opacity);
+                }
                 g.setColour(chip.background);
                 g.fillRect(box);
                 if (chip.border != chip.background)
                 {
                     g.setColour(chip.border);
                     g.drawRect(box, 1.0f);
+                }
+                if (chip.opaque_ink)
+                {
+                    chip_layer.reset();
                 }
                 g.setColour(chip.ink);
                 g.drawText(chip.text, box, juce::Justification::centred);

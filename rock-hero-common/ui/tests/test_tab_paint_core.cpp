@@ -182,7 +182,7 @@ TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab
 // a stronger attack, and a plucked string's whole ring scales with how hard it was struck — it
 // rings as A * exp(-lambda * t), where picking harder raises A while lambda is fixed by the
 // damping, so the note is louder at every instant it sounds rather than only at its onset. The
-// quiet end of this axis already said so here by leaning the entire ink set, ribbon included, so a
+// quiet end of this axis already said so here by fading the entire ink set, ribbon included, so a
 // head-only accent left one axis saying two different things at its two ends.
 //
 // And it rides the RAILS with NO END CAP. The tail draws no cap at either end by the 2026-08-16
@@ -1491,138 +1491,114 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
     CHECK(covered > 200.0);
 }
 
-// A ghost note is quieted by COLOR, never by opacity, and that distinction is the whole design
-// rather than a detail. This lane is opaque and composites by covering: a head that went
-// translucent would show its own sustain ribbon through its right half, plus the lane line and
-// anything else beneath it, and it would need a knockout to stay correct. Leaning every ink toward
-// the lane's ground buys the identical weight with none of that, so the picture must come out the
-// same shape at the same opacity and merely darker.
+// A ghost note keeps the normal note's RGB colors. Its tail, head art and technique marks flatten
+// into one translucent group. Fret plates use a middle opacity while their numbers remain opaque.
 //
-// Three claims, each killing a different way the axis can regress: drawing the ghost identically
-// to a normal note (the state before this existed), quieting it by alpha (which the surface's own
-// compositing model forbids), and quieting only the string-derived ink while the loudest mark on
-// the note — the white fret digit — stays at full strength.
-TEST_CASE("Tab paint core quiets a ghost note by color, not by opacity", "[ui][tab-paint]")
+// Isolated fully covered pixels expose the palette color directly, so they pin equal RGB alongside
+// the chosen alpha without lane compositing obscuring either claim.
+TEST_CASE("Tab paint core preserves color and fades a ghost note", "[ui][tab-paint]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const TabLaneMetrics metrics = referenceMetrics(6);
-    const auto painted = [&metrics](const common::core::NoteEmphasis emphasis) {
-        common::core::ChartViewState state;
-        state.string_count = 6;
-        state.notes = {
-            common::core::NoteViewState{
-                .start_seconds = 5.0,
-                .end_seconds = 9.0,
-                .string = 3,
-                .fret = 7,
-                .emphasis = emphasis,
-                .bend = {},
-                .slides = {},
-            },
+    const auto painted =
+        [&metrics](const common::core::NoteEmphasis emphasis, const bool dead = false) {
+            common::core::ChartViewState state;
+            state.string_count = 6;
+            state.notes = {
+                common::core::NoteViewState{
+                    .start_seconds = 5.0,
+                    .end_seconds = 9.0,
+                    .string = 3,
+                    .fret = 7,
+                    .dead = dead,
+                    .emphasis = emphasis,
+                    .bend = {},
+                    .slides = {},
+                },
+            };
+            const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
+            const juce::Image image{juce::SoftwareImageType{}.create(
+                juce::Image::ARGB, 400, 240, true)};
+            juce::Graphics graphics{image};
+            paintTabLane(graphics, metrics, state, prefix_max);
+            return image;
         };
-        const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
-        const juce::Image image{juce::SoftwareImageType{}.create(
-            juce::Image::ARGB, 400, 240, true)};
-        juce::Graphics graphics{image};
-        paintTabLane(graphics, metrics, state, prefix_max);
-        return image;
-    };
 
     const juce::Image normal = painted(common::core::NoteEmphasis::Normal);
     const juce::Image ghost = painted(common::core::NoteEmphasis::Ghost);
+    const juce::Image muted_normal = painted(common::core::NoteEmphasis::Normal, true);
+    const juce::Image muted_ghost = painted(common::core::NoteEmphasis::Ghost, true);
 
     // It is drawn differently at all.
     CHECK(worstPixelDelta(normal, ghost) > 0);
 
-    // ...but at the SAME opacity everywhere, which is the claim a transparency treatment could not
-    // make. Every ink is opaque before and after leaning, so the two renders differ only in color:
-    // identical silhouettes, identical antialiased edges, and a head that still covers what is
-    // under it.
-    //
-    // Every channel also moves TOWARD the lane's ground and never past it. Toward, not merely
-    // down: a dark string's ink can sit BELOW the ground in a channel it barely uses — the red
-    // string's tail fill carries no green at all — and leaning lifts that channel the few counts
-    // the ground holds. That is not a defect to clamp away, it is precisely what the same note
-    // drawn translucent over this ground would show, which is what makes the quiet weight here
-    // mean the same thing it means on the highway.
-    constexpr int ground_channel = 0x10;
-    // One count of slack, and only one: JUCE tweens in premultiplied 8-bit integers, so a channel
-    // already sitting ON the ground can quantize a count to either side of it. That rounding is
-    // not a direction, and nothing this test is defending against — alpha, a no-op, a brightening
-    // — can hide inside a single count.
-    constexpr int quantization_slack = 1;
-    int worst_alpha_delta = 0;
-    bool any_moved = false;
-    bool any_overshot = false;
-    juce::Point<int> overshot_at{-1, -1};
-    juce::Colour overshot_was;
-    juce::Colour overshot_now;
-    const auto leans_toward_ground = [&](const int was, const int now) {
-        any_moved = any_moved || now != was;
-        return std::abs(now - ground_channel) <=
-               std::abs(was - ground_channel) + quantization_slack;
-    };
+    int largest_alpha_drop = 0;
+    int isolated_ink_pixels = 0;
+    int worst_isolated_rgb_delta = 0;
     for (int x = 0; x < normal.getWidth(); ++x)
     {
         for (int y = 0; y < normal.getHeight(); ++y)
         {
             const juce::Colour from_normal = normal.getPixelAt(x, y);
             const juce::Colour from_ghost = ghost.getPixelAt(x, y);
-            worst_alpha_delta = std::max(
-                worst_alpha_delta, std::abs(from_normal.getAlpha() - from_ghost.getAlpha()));
-            const bool leans = leans_toward_ground(from_normal.getRed(), from_ghost.getRed()) &&
-                               leans_toward_ground(from_normal.getGreen(), from_ghost.getGreen()) &&
-                               leans_toward_ground(from_normal.getBlue(), from_ghost.getBlue());
-            if (!leans && !any_overshot)
+            largest_alpha_drop =
+                std::max(largest_alpha_drop, from_normal.getAlpha() - from_ghost.getAlpha());
+            if (from_normal.getAlpha() == 255 && from_ghost.getAlpha() == 127)
             {
-                overshot_at = {x, y};
-                overshot_was = from_normal;
-                overshot_now = from_ghost;
+                ++isolated_ink_pixels;
+                worst_isolated_rgb_delta = std::max(
+                    {worst_isolated_rgb_delta,
+                     std::abs(from_normal.getRed() - from_ghost.getRed()),
+                     std::abs(from_normal.getGreen() - from_ghost.getGreen()),
+                     std::abs(from_normal.getBlue() - from_ghost.getBlue())});
             }
-            any_overshot = any_overshot || !leans;
         }
     }
-    CHECK(worst_alpha_delta == 0);
-    CAPTURE(overshot_at.toString(), overshot_was.toString(), overshot_now.toString());
-    CHECK_FALSE(any_overshot);
-    CHECK(any_moved);
+    // A single fully covered group lands at 50% alpha (127 in JUCE's layer compositor). Internal
+    // overlap stays at that same alpha because the finished group is faded only once.
+    CHECK(largest_alpha_drop == 128);
+    CHECK(isolated_ink_pixels > 0);
+    // Premultiplying at 50% alpha and recovering straight RGB costs at most two 8-bit counts.
+    CHECK(worst_isolated_rgb_delta <= 2);
 
-    // The fret digit quiets with the note. It is the loudest ink a note carries and the one that
-    // does NOT come from the string palette, so a ghost whose digit is still pure white is a ghost
-    // quieted through the string colors alone — which is exactly the shape this ink set exists to
-    // make impossible.
+    // The plain fret digit is redrawn opaquely above the translucent group.
     const int onset_x = juce::roundToInt(metrics.x(5.0));
     const int center_y = juce::roundToInt(metrics.laneY(3));
-    CHECK(topDigitInkRow(normal, onset_x, center_y) > 0);
-    CHECK(topDigitInkRow(ghost, onset_x, center_y) == 0);
+    const int normal_digit_top = topDigitInkRow(normal, onset_x, center_y);
+    CHECK(normal_digit_top > 0);
+    CHECK(topDigitInkRow(ghost, onset_x, center_y) == normal_digit_top);
 
-    // And the whole note quiets at ONE weight — head and sustain alike. That is the claim the
-    // single ghost constant makes, and it is worth pinning as an equality rather than as two
-    // numbers: the earlier design leaned the head and the ribbon differently, and the way that
-    // regresses is for one of them to drift while the other stays put. Measured as the share of
-    // each sample's distance above the lane's ground that survives — the head's fill against the
-    // tail's bright rail, well past the head.
-    constexpr double ground = 16.0; // the lane's own near-black, which every ink leans toward
-    const auto retained = [&](const int x, const int y) {
-        const juce::Colour was = normal.getPixelAt(x, y);
-        const juce::Colour now = ghost.getPixelAt(x, y);
-        const double above = (was.getRed() + was.getGreen() + was.getBlue()) - (3.0 * ground);
-        const double left = (now.getRed() + now.getGreen() + now.getBlue()) - (3.0 * ground);
-        REQUIRE(above > 0.0);
-        return left / above;
-    };
-    // Inside the head's fill, clear of the single digit's glyph; and on the tail's top rail, sixty
-    // columns downstream where nothing but the ribbon is drawn.
-    const double head_retained =
-        retained(onset_x + juce::roundToInt(metrics.headSize() * 0.32f), center_y);
-    const int rail_y = juce::roundToInt(
-        static_cast<float>(center_y) - (metrics.tail_height / 3.0f) - 1.0f +
-        (metrics.tail_edge_size / 2.0f));
-    const double tail_retained = retained(onset_x + 60, rail_y);
-    CAPTURE(head_retained, tail_retained);
-    CHECK_THAT(head_retained, Catch::Matchers::WithinAbs(0.5, 0.02));
-    CHECK_THAT(tail_retained, Catch::Matchers::WithinAbs(0.5, 0.02));
-    CHECK_THAT(tail_retained, Catch::Matchers::WithinAbs(head_retained, 0.02));
+    // A dead note's white plate lands at 0.75 over the 0.5 note beneath it: JUCE's integer
+    // source-over produces alpha 222. The grouped white X remains at 127, while the plate is no
+    // longer opaque at 255.
+    const int head_half = juce::roundToInt(metrics.headSize() / 2.0f);
+    int strongest_ghost_plate_alpha = 0;
+    for (int x = onset_x - head_half; x <= onset_x + head_half; ++x)
+    {
+        for (int y = center_y - head_half; y <= center_y + head_half; ++y)
+        {
+            if (isWhiteInk(muted_normal.getPixelAt(x, y)))
+            {
+                const juce::Colour ghost_pixel = muted_ghost.getPixelAt(x, y);
+                if (ghost_pixel.getRed() >= 200 && ghost_pixel.getGreen() >= 200 &&
+                    ghost_pixel.getBlue() >= 200 && ghost_pixel.getAlpha() < 250)
+                {
+                    strongest_ghost_plate_alpha = std::max(
+                        strongest_ghost_plate_alpha, static_cast<int>(ghost_pixel.getAlpha()));
+                }
+            }
+        }
+    }
+    CHECK(strongest_ghost_plate_alpha == 222);
+
+    // The head is opaque while the note group is assembled, so its right half lands identically
+    // over its own tail and its left half over bare lane. Per-ink alpha breaks this identity by
+    // revealing the tail only on the right.
+    const int offset = juce::roundToInt(metrics.headSize() * 0.32f);
+    const juce::Colour over_tail = ghost.getPixelAt(onset_x + offset, center_y);
+    const juce::Colour over_lane = ghost.getPixelAt(onset_x - offset, center_y);
+    CAPTURE(over_tail.toString(), over_lane.toString(), onset_x, center_y, offset);
+    CHECK(over_tail == over_lane);
 }
 
 // A tail that ends bare — no cap — is only correct if every mark riding it runs the whole ribbon.
