@@ -2,6 +2,7 @@
 
 #include "shared/editor_theme.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -15,6 +16,14 @@ namespace
 
 // Width reserved for the static caption so the combo box gets the remaining strip space.
 constexpr int g_caption_width{36};
+
+// How far the snap-off strike sits inside the value's glyph bounds. Small and nonzero: the mark
+// has to read as struck text — a line through the digits and nothing else — rather than a slash
+// reaching for the widget's edges.
+constexpr float g_value_strike_inset{1.0F};
+
+// Thickness of that strike, thin enough to leave the digits legible underneath.
+constexpr float g_value_strike_thickness{1.0F};
 
 // Note-value presets offered as quick selections beside free fraction entry: the power-of-two
 // ladder interleaved with the triplet subdivisions (1/6 = quarter triplets, 1/12 = eighth
@@ -75,6 +84,50 @@ constexpr std::array<common::core::Fraction, 9> g_note_value_presets{
     }
 
     return common::core::Fraction{numerator, denominator};
+}
+
+// Finds the label a combo box draws its value through. JUCE builds that label from the
+// look-and-feel and positions it there (juce_ComboBox.cpp, lookAndFeelChanged and resized), and it
+// is the only child a combo box ever adds, so this is where the value's on-screen geometry lives.
+[[nodiscard]] const juce::Label* comboBoxValueLabel(const juce::ComboBox& box)
+{
+    for (int index = 0; index < box.getNumChildComponents(); ++index)
+    {
+        if (const auto* label = dynamic_cast<const juce::Label*>(box.getChildComponent(index)))
+        {
+            return label;
+        }
+    }
+
+    return nullptr;
+}
+
+// Bounds of the glyphs a label actually draws, in the label's own coordinates.
+//
+// Re-runs JUCE's fitted-text layout with the label's own drawing inputs — the same call
+// LookAndFeel_V2::drawLabel makes — instead of guessing at the text's extent, so a mark aligned to
+// this box cannot drift from the characters it is aligned to. The result is glyph-tight rather
+// than the whole text field, which is the difference between marking the value and marking the
+// control.
+[[nodiscard]] juce::Rectangle<float> labelGlyphBounds(const juce::Label& label)
+{
+    const juce::Rectangle<float> text_area =
+        label.getBorderSize().subtractedFrom(label.getLocalBounds()).toFloat();
+    const juce::Font font = label.getFont();
+
+    juce::GlyphArrangement arrangement;
+    arrangement.addFittedText(
+        font,
+        label.getText(),
+        text_area.getX(),
+        text_area.getY(),
+        text_area.getWidth(),
+        text_area.getHeight(),
+        label.getJustificationType(),
+        std::max(1, static_cast<int>(text_area.getHeight() / font.getHeight())),
+        label.getMinimumHorizontalScale());
+
+    return arrangement.getBoundingBox(0, -1, false);
 }
 
 } // namespace
@@ -174,10 +227,14 @@ void GridSpacingSelector::resized()
     m_note_value_box.setBounds(bounds.reduced(4, 0));
 }
 
-// The snap-off indicator: the whole readout leans toward the quieting ground, then a thin diagonal
-// crosses the value. Two marks rather than one because they say different things — the quieting
-// says "not binding right now", and the strike names the VALUE as the thing that is not binding,
-// which the quieting alone would leave ambiguous with a disabled control.
+// The snap-off indicator: one thin diagonal through the value's own digits, and nothing else.
+//
+// It marks the VALUE, never the control. An earlier version quieted the whole readout under a veil
+// and ran the strike the width of the box; sighting rejected all of it. Darkening the surround
+// framed the caption and the box in a shadow that belonged to neither, dimming the chrome said
+// "unavailable" when the grid is still fully selectable, and a stroke reaching across the drop-down
+// arrow read as "do not click this". A struck number says the one true thing — this figure is not
+// binding right now — and leaves everything that is still live looking live.
 void GridSpacingSelector::paintOverChildren(juce::Graphics& g)
 {
     if (m_snap_enabled)
@@ -185,18 +242,35 @@ void GridSpacingSelector::paintOverChildren(juce::Graphics& g)
         return;
     }
 
-    g.setColour(quietingVeil());
-    g.fillRect(getLocalBounds());
+    // A combo box always has its text label, so a miss here means JUCE changed shape underneath
+    // us; the assertion says so in debug, and a shipped build draws no mark rather than a mark in
+    // the wrong place.
+    const juce::Label* value_label = comboBoxValueLabel(m_note_value_box);
+    jassert(value_label != nullptr);
+    if (value_label == nullptr)
+    {
+        return;
+    }
 
-    const juce::Rectangle<float> value_bounds =
-        m_note_value_box.getBounds().toFloat().reduced(3.0F);
+    // Glyph bounds arrive in the label's coordinates; the label sits in the combo box and the box
+    // sits in this component, so both origins carry the mark up to where it is painted.
+    const juce::Rectangle<float> strike =
+        labelGlyphBounds(*value_label)
+            .translated(
+                static_cast<float>(m_note_value_box.getX() + value_label->getX()),
+                static_cast<float>(m_note_value_box.getY() + value_label->getY()))
+            .reduced(g_value_strike_inset);
+
+    // The value's own ink at full strength, exactly like a pen through a printed price: the mark
+    // is what carries the state, so weakening it would drift back toward the "unavailable" look
+    // the indicator exists to avoid.
     g.setColour(editorTheme().primary_text);
     g.drawLine(
-        value_bounds.getX(),
-        value_bounds.getBottom(),
-        value_bounds.getRight(),
-        value_bounds.getY(),
-        1.0F);
+        strike.getX(),
+        strike.getBottom(),
+        strike.getRight(),
+        strike.getY(),
+        g_value_strike_thickness);
 }
 
 // Emits parsed entries and reverts the display otherwise; the accepted value comes back through

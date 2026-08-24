@@ -1,6 +1,5 @@
 #include "timeline/grid_spacing_selector.h"
 
-#include <algorithm>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
@@ -28,6 +27,45 @@ public:
     // Number of note-value notifications received.
     int chosen_count{0};
 };
+
+// Reports whether two snapshots of the same component agree pixel for pixel over a region.
+[[nodiscard]] bool regionIsIdentical(
+    const juce::Image& before, const juce::Image& after, juce::Rectangle<int> region)
+{
+    for (int y = region.getY(); y < region.getBottom(); ++y)
+    {
+        for (int x = region.getX(); x < region.getRight(); ++x)
+        {
+            if (before.getPixelAt(x, y) != after.getPixelAt(x, y))
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+// Smallest rectangle enclosing every pixel that differs between two snapshots, empty when they
+// agree everywhere. This is what a state indicator's footprint actually is, so assertions can be
+// made about where the indicator is allowed to reach rather than about brightness alone.
+[[nodiscard]] juce::Rectangle<int> changedRegion(
+    const juce::Image& before, const juce::Image& after)
+{
+    juce::Rectangle<int> changed;
+    for (int y = 0; y < before.getHeight(); ++y)
+    {
+        for (int x = 0; x < before.getWidth(); ++x)
+        {
+            if (before.getPixelAt(x, y) != after.getPixelAt(x, y))
+            {
+                changed = changed.getUnion(juce::Rectangle<int>{x, y, 1, 1});
+            }
+        }
+    }
+
+    return changed;
+}
 
 } // namespace
 
@@ -141,12 +179,13 @@ TEST_CASE("GridSpacingSelector steps the preset ladder", "[ui][grid-spacing]")
     CHECK(listener.chosen_count == count_before_ends);
 }
 
-// Verifies the snap-off indicator on the readout: the control is veiled and a strike crosses the
-// value, and both leave again when snap returns. The two marks say different things, so both are
-// pinned — the veil alone would be indistinguishable from a disabled control, which is why the
-// strike is sampled at the middle of the box, past the left-aligned value text where nothing else
-// is ever drawn.
-TEST_CASE("GridSpacingSelector marks the readout while snap is off", "[ui][grid-spacing]")
+// Verifies the snap-off indicator marks the value and only the value: a mark appears within the
+// readout's value text, the caption strip and the drop-down arrow end render identically in both
+// states, and snapping back restores the readout exactly. The region identity is the point rather
+// than a brightness sample — a veil over the control or a strike run across the arrow both make
+// the grid look unavailable when it is still fully selectable, and both are what these assertions
+// forbid.
+TEST_CASE("GridSpacingSelector strikes only the value while snap is off", "[ui][grid-spacing]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingGridListener listener;
@@ -155,51 +194,38 @@ TEST_CASE("GridSpacingSelector marks the readout while snap is off", "[ui][grid-
     selector.setBounds(0, 0, 220, 24);
     auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
 
-    // Mean brightness over the combo box's own opaque chrome: the veil can only lower it, and one
-    // hairline strike is far too thin to lift it back.
-    const auto box_mean_brightness = [&selector, &box]() {
-        const juce::Image image = selector.createComponentSnapshot(selector.getLocalBounds());
-        const juce::Rectangle<int> bounds = box.getBounds();
-        float total = 0.0f;
-        for (int x = bounds.getX(); x < bounds.getRight(); ++x)
-        {
-            for (int y = bounds.getY(); y < bounds.getBottom(); ++y)
-            {
-                total += image.getPixelAt(x, y).getBrightness();
-            }
-        }
-
-        return total / static_cast<float>(std::max(1, bounds.getWidth() * bounds.getHeight()));
+    const auto snapshot = [&selector]() {
+        return selector.createComponentSnapshot(selector.getLocalBounds());
     };
 
-    // Brightest pixel in a small window at the box's centre, which the diagonal crosses exactly.
-    const auto centre_peak_brightness = [&selector, &box]() {
-        const juce::Image image = selector.createComponentSnapshot(selector.getLocalBounds());
-        const juce::Rectangle<int> bounds = box.getBounds();
-        float peak = 0.0f;
-        for (int x = bounds.getCentreX() - 2; x <= bounds.getCentreX() + 2; ++x)
-        {
-            for (int y = bounds.getCentreY() - 2; y <= bounds.getCentreY() + 2; ++y)
-            {
-                peak = std::max(peak, image.getPixelAt(x, y).getBrightness());
-            }
-        }
+    // Everything left of the readout is the "Grid" caption; the right third of the readout carries
+    // the drop-down arrow. Both are derived from the box's placed bounds so the probe follows the
+    // layout instead of restating it.
+    const juce::Rectangle<int> caption_region = selector.getLocalBounds().withRight(box.getX());
+    const juce::Rectangle<int> arrow_region =
+        box.getBounds().withLeft(box.getRight() - (box.getWidth() / 3));
 
-        return peak;
-    };
-
-    const float snapped_mean = box_mean_brightness();
-    const float snapped_peak = centre_peak_brightness();
-
+    const juce::Image snapped = snapshot();
     selector.setSnapEnabled(false);
-    CHECK(box_mean_brightness() < snapped_mean);
-    CHECK(centre_peak_brightness() > snapped_peak);
+    const juce::Image unsnapped = snapshot();
+
+    // The mark exists, lands inside the readout, and is narrow enough to be the value's own
+    // digits rather than a stroke across the control.
+    const juce::Rectangle<int> changed = changedRegion(snapped, unsnapped);
+    CHECK_FALSE(changed.isEmpty());
+    CHECK(box.getBounds().contains(changed));
+    CHECK(changed.getWidth() < box.getWidth() / 2);
+
+    // Nothing outside the value moves.
+    CHECK(regionIsIdentical(snapped, unsnapped, caption_region));
+    CHECK(regionIsIdentical(snapped, unsnapped, arrow_region));
+
     // A state, not a disable: the grid stays selectable while the indicator shows.
     CHECK(box.isEnabled());
 
+    // Snapping back leaves no trace anywhere, the struck value included.
     selector.setSnapEnabled(true);
-    CHECK(box_mean_brightness() == Catch::Approx(snapped_mean));
-    CHECK(centre_peak_brightness() == Catch::Approx(snapped_peak));
+    CHECK(regionIsIdentical(snapped, snapshot(), selector.getLocalBounds()));
 }
 
 // Verifies the default grid displays as 1/16 and entries forward the raw note value unchanged:

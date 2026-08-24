@@ -77,9 +77,11 @@ public:
     /*!
     \brief Shows whether the displayed value currently binds placement.
 
-    With snap off the readout draws quieted under a thin diagonal strike: the grid is still the
-    reference lattice and still selectable, but positions no longer land on it. The control stays
-    fully interactive — this is a state indicator, never a disable.
+    With snap off a thin diagonal strikes through the displayed value's digits, and nothing else
+    about the control changes: the grid is still the reference lattice and still selectable, but
+    positions no longer land on it. Only the number is marked, because only the number stopped
+    being true — the caption, the box, and the drop-down arrow all stay at full strength, so
+    nothing here can read as unavailable.
 
     \param snap_enabled True while grid snap is on.
     */
@@ -103,11 +105,11 @@ public:
     void resized() override;
 
     /*!
-    \brief Draws the snap-off indicator over the caption and combo box.
+    \brief Strikes through the displayed value while snap is off.
 
-    Over the children rather than behind them: the combo box paints its own chrome and text
-    through the look-and-feel, which the parent cannot re-color, so the quieting arrives as the
-    veil composite instead.
+    Over the children rather than behind them: the combo box paints its own text through the
+    look-and-feel, so the only way to mark the value is to draw across it afterwards. The strike is
+    fitted to the value's glyphs, which the combo box's own text label supplies.
 
     \param g Graphics context of this component.
     */
