@@ -50,9 +50,9 @@ funnel because flattening a claim to a plain pick can violate no rule; see the p
   step was its own entry) — and a run that replays back to its start ends at `dropTop` like the
   toggle, since an entry describing nothing is a dead Ctrl+Z on a document reported modified that
   is byte-identical to the file. The run keeps its STEPS rather than one summed delta (fixed
-  2026-08-23): a grid step moves the ring's END onto the adjacent grid line, so what it adds is
-  whatever reaches that line, and a summed delta carried a Ctrl fine-tuned remainder through every
-  later grid step. All three splices refuse when the top entry is the reachable clean
+  2026-08-23): a step moves the ring's END onto the adjacent line of the placement quantum's
+  lattice, so what it adds is whatever reaches that line, and a summed delta carried a remainder
+  through every later step. All three splices refuse when the top entry is the reachable clean
   state — the file holds what that entry produced, so rewriting or erasing it would make "return to
   clean" restore content the file does not have. A verb that must still act there pushes instead:
   the technique toggle's reversal becomes its own inverse entry (the tail still comes back, the

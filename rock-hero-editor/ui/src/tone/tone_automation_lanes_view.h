@@ -201,10 +201,10 @@ public:
     void setVisibleContentLeft(int content_left_x);
 
     /*!
-    \brief Sets the grid step used for snapped point placement.
-    \param note_value Grid step as a fraction of a whole note, shared with grid rendering.
+    \brief Sets the note value snapped point placement lands on.
+    \param placement_quantum Note value positions quantize to.
     */
-    void setGridNoteValue(common::core::Fraction note_value);
+    void setPlacementQuantum(common::core::Fraction placement_quantum);
 
     /*!
     \brief Replaces the rendered automation state, or defers it while a gesture is in flight.
@@ -434,10 +434,10 @@ private:
     // Returns the configured or default height for one lane key.
     [[nodiscard]] int laneHeight(const std::string& instance_id, const std::string& param_id) const;
 
-    // Converts a content x to an exact musical position: grid-snapped unless Ctrl bypasses, then
-    // quantized to the 1/960-beat fine grid so stored positions stay exact rationals.
+    // Converts a content x to an exact musical position on the placement quantum's lattice, so
+    // stored positions stay exact rationals whatever the grid is.
     [[nodiscard]] std::optional<common::core::GridPosition> musicalPositionForX(
-        float content_x, const juce::ModifierKeys& mods) const;
+        float content_x) const;
 
     // Converts a musical position to a content x for drawing, when the geometry is valid.
     [[nodiscard]] std::optional<float> xForSeconds(double seconds) const;
@@ -564,8 +564,8 @@ private:
     // Content x currently at the viewport's left edge, for pinned chips.
     int m_visible_content_left{0};
 
-    // Grid step for snapped placement, shared with the ruler and grid rendering.
-    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
+    // Note value snapped placement lands on, shared with every placing surface.
+    common::core::Fraction m_placement_quantum{core::g_default_tempo_grid_note_value};
 
     // Automation lanes for the selected tone.
     core::ToneAutomationViewState m_state{};

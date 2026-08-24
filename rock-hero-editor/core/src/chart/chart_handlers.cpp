@@ -434,9 +434,9 @@ std::vector<EditorController::Impl::AutomationLaneRow> EditorController::Impl::
 
 // Resolves the event's snapped musical position and the string lane under the pointer — the
 // chart's single placement seam (arm, Alt insert, and ghost all snap through it, mirroring
-// the lane's laneSnapPositionForX). Placement snaps to the displayed grid's exact rational by
-// default; Ctrl composes the 1/960-beat fine tier, uniform with the lane arm and placement
-// (the off-grid unification — snap default follows the data, the capability is universal).
+// the lane's laneSnapPositionForX). It snaps to the placement quantum's exact rational, which is
+// the displayed grid while snap is on and the tick lattice while it is off; no modifier composes
+// a second answer.
 std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl::chartPlacementAt(
     const ChartPointerEvent& event) const
 {
@@ -455,9 +455,7 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     }
 
     const common::core::GridPosition position =
-        event.modifiers.ctrl
-            ? fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds))
-            : nearestTempoGridPosition(tempo_map, m_grid_note_value, *clicked);
+        nearestTempoGridPosition(tempo_map, placementQuantum(), *clicked);
 
     // Lanes stack highest string on top; extra user lanes pad below the chart's strings.
     const float lane = (event.y - event.geometry.bounds_y) / event.geometry.lane_height;
@@ -469,13 +467,23 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     return std::pair{position, string};
 }
 
-// One grid step in beats at a position (the shared gridStepBeats seam under the session's
-// current grid). The grid step is the default move; the Ctrl fine tier (1/960 beat) is the uniform
-// precision escape hatch on both surfaces.
+// One GRID step in beats at a position: the session's grid note value scaled by the local meter.
+// This is the musical UNIT the user is authoring in, so it answers duration questions — the ring a
+// placement gives a new note is the standing one. It deliberately ignores grid snap: snap decides
+// where things go, never how long they are, and a tick-long default ring would be absurd.
 common::core::Fraction EditorController::Impl::chartGridStepBeats(
     common::core::GridPosition at) const
 {
     return gridStepBeats(session().song().tempo_map, m_grid_note_value, at.measure);
+}
+
+// One QUANTUM step in beats at a position: the same meter scaling applied to the placement
+// quantum. This is the position answer — how far a relative time nudge moves — and it is a tick
+// while snap is off, which is what makes the retired Ctrl fine move the ordinary move there.
+common::core::Fraction EditorController::Impl::chartQuantumStepBeats(
+    common::core::GridPosition at) const
+{
+    return gridStepBeats(session().song().tempo_map, placementQuantum(), at.measure);
 }
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
@@ -604,12 +612,10 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         const std::optional<common::core::TimePosition> clicked = timelineCursorPlacementTime(
             session().song().tempo_map,
-            m_grid_note_value,
+            placementQuantum(),
             event.geometry.visible_timeline,
             static_cast<int>(event.geometry.bounds_width),
-            event.x,
-            event.modifiers.ctrl ? TimelineCursorPlacementMode::Free
-                                 : TimelineCursorPlacementMode::SnapToGrid);
+            event.x);
         if (clicked.has_value())
         {
             runAction(EditorAction::SeekTimeline{*clicked});
@@ -898,7 +904,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     {
         armChartCaret(
             nearestTempoGridPosition(
-                session().song().tempo_map, m_grid_note_value, m_transport.position()),
+                session().song().tempo_map, placementQuantum(), m_transport.position()),
             std::clamp(chartMarkerString(), 1, tab->string_count));
         updateView();
         return;
@@ -929,7 +935,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
         // landing on one arms onto it (selecting it) exactly like landing on an occupied grid
         // slot. The grid stop comes from the shared adjacent-line primitive the lane point nudge
         // steps with, so the two surfaces can never land on different slots for the same verb.
-        stepped = adjacentTempoGridPosition(tempo_map, m_grid_note_value, caret.position, sign > 0);
+        stepped =
+            adjacentTempoGridPosition(tempo_map, placementQuantum(), caret.position, sign > 0);
         if (const std::optional<common::core::GridPosition> object_stop =
                 nextRowObjectStop(caret, sign > 0);
             object_stop.has_value())
@@ -976,7 +983,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::JumpChartCare
     const common::core::GridPosition reference =
         armed != nullptr
             ? armed->position
-            : nearestTempoGridPosition(tempo_map, m_grid_note_value, m_transport.position());
+            : nearestTempoGridPosition(tempo_map, placementQuantum(), m_transport.position());
 
     std::optional<common::core::GridPosition> destination;
     switch (target)
@@ -1071,12 +1078,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
     }
     else if (const ChartCaret* const caret = armedChartCaret())
     {
-        anchor = common::core::snapGridPosition(tempo_map, caret->position, m_grid_note_value);
+        anchor = common::core::snapGridPosition(tempo_map, caret->position, placementQuantum());
         focus = anchor;
     }
     else
     {
-        anchor = nearestTempoGridPosition(tempo_map, m_grid_note_value, m_transport.position());
+        anchor = nearestTempoGridPosition(tempo_map, placementQuantum(), m_transport.position());
         focus = anchor;
     }
 
@@ -1087,7 +1094,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
     {
         case TimeSelectionExtent::Grid:
         {
-            next_focus = adjacentTempoGridPosition(tempo_map, m_grid_note_value, focus, later);
+            next_focus = adjacentTempoGridPosition(tempo_map, placementQuantum(), focus, later);
             break;
         }
         case TimeSelectionExtent::Measure:
@@ -1145,7 +1152,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::ExtendTimeSel
 void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection& action)
 {
     const ChartStepDirection direction = action.direction;
-    const bool fine = action.fine;
     // The handlers below run full action dispatches that may reassign the selection variant or
     // the marker; the dispatched value is copied here so no handler ever holds a reference into
     // the object it (or a reentrant view callback) might replace. The lane branches are
@@ -1155,28 +1161,28 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
     if (const AutomationPointSelection* const point = selectedAutomationPoint())
     {
         const AutomationPointSelection selected = *point;
-        moveSelectedAutomationPoint(selected, direction, fine);
+        moveSelectedAutomationPoint(selected, direction);
         return;
     }
     if (!chartSelection().empty())
     {
-        moveChartSelection(direction, fine);
+        moveChartSelection(direction);
         return;
     }
     if (const ChartCaret* const caret = armedChartCaret();
         caret != nullptr && caret->lane.has_value())
     {
         const ChartCaret armed = *caret;
-        createAndNudgeLanePointAtCaret(armed, direction, fine);
+        createAndNudgeLanePointAtCaret(armed, direction);
     }
 }
 
-// Moves the selected chart notes: Left/Right by one grid step — or one 1/960-beat fine step, the
-// uniform precision tier; the move is relative either way, so an off-grid note keeps its offset
-// under grid steps — and Up/Down across strings (fine has no meaning on the discrete string axis).
+// Moves the selected chart notes: Left/Right by one placement-quantum step (a grid step while snap
+// is on, a tick while it is off), and Up/Down across strings. The time move is RELATIVE, so a note
+// sitting between lines keeps its offset rather than being pulled onto one — a move is not a snap.
 // A refused move (edge of the neck, occupied slot, grid origin collision) is a silent no-op — the
 // selection stays put, matching refuse-not-clamp everywhere else.
-void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bool fine)
+void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
@@ -1192,8 +1198,7 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bo
         case ChartStepDirection::Right:
         {
             const common::core::GridPosition reference = chartSelection().notes().front().position;
-            const common::core::Fraction step =
-                fine ? common::core::Fraction{1, 960} : chartGridStepBeats(reference);
+            const common::core::Fraction step = chartQuantumStepBeats(reference);
             beat_delta = direction == ChartStepDirection::Right
                              ? step
                              : common::core::Fraction{-step.numerator, step.denominator};
@@ -1601,19 +1606,18 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         /*set_exact=*/false)));
 }
 
-// Grows or shrinks the selection's rings by one grid step — moving each ring's END onto the
-// adjacent grid line — or by one 1/960-beat fine step, the uniform Ctrl precision tier on the
-// extent verbs, as ONE GESTURE (user ruling 2026-08-22): every press APPENDS its step to the run's
-// list, the whole selection is re-planned by replaying that list over the rings the gesture STARTED
-// at, and the run stays one undo entry that always describes start → now. That is what makes the
-// verb symmetric: a chord member pinned at its own bound on the way out rejoins its neighbours
-// exactly where it left them on the way back, instead of each step baking the clamp into the next
-// step's starting value.
+// Grows or shrinks the selection's rings by one step — moving each ring's END onto the adjacent
+// line of the placement quantum's lattice — as ONE GESTURE (user ruling 2026-08-22): every press
+// APPENDS its step to the run's list, the whole selection is re-planned by replaying that list over
+// the rings the gesture STARTED at, and the run stays one undo entry that always describes
+// start → now. That is what makes the verb symmetric: a chord member pinned at its own bound on the
+// way out rejoins its neighbours exactly where it left them on the way back, instead of each step
+// baking the clamp into the next step's starting value.
 //
-// The list replaced a single accumulated delta (user bug 2026-08-23): a grid step has no size to
-// sum, because what it adds is whatever reaches the next line from where the ring's end currently
-// sits — and a summed delta therefore carried a Ctrl fine-tuned remainder through every later grid
-// step, leaving the ring permanently off-grid.
+// The list replaced a single accumulated delta (user bug 2026-08-23): a step has no size to sum,
+// because what it adds is whatever reaches the next line from where the ring's end currently sits —
+// and a summed delta therefore carried a remainder through every later step, leaving the ring
+// permanently between lines.
 //
 // The gesture is live while the shared window proof holds (the same selection, and the burst record
 // still owning the history top), so it ends at every commit point the technique toggle ends at —
@@ -1622,7 +1626,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSustain& action)
 {
     const int direction = action.direction;
-    const bool fine = action.fine;
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty() ||
         direction == 0)
@@ -1630,22 +1633,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::AdjustChartSu
         return;
     }
 
-    // A grid step records the session's NOTE VALUE rather than a beat amount, because the planner
-    // snaps the ring's end onto that grid's own lines: the meter at whatever measure the end lands
-    // in scales the value there, so nothing here needs to know where any ring ends.
-    const ChartSustainStep step{
-        .grid_note_value =
-            fine ? std::optional<common::core::Fraction>{} : std::optional{m_grid_note_value},
-        .grow = direction > 0,
-    };
+    // The step records the NOTE VALUE it snapped by rather than a beat amount, because the planner
+    // snaps the ring's end onto that lattice's own lines: the meter at whatever measure the end
+    // lands in scales the value there, so nothing here needs to know where any ring ends.
+    const ChartSustainStep step{.note_value = placementQuantum(), .grow = direction > 0};
     // Bound once as a pointer so every read below is provably behind the null check, the shape this
     // file uses wherever an optional's guarantee has to survive intervening calls. A live gesture
     // and the burst record are present together — the gesture's own proofs demand the record — so
     // this pointer is exactly "a gesture is running". It dies with any reassignment of the window,
     // so the steps are copied out of it here, before anything below can touch that field.
     const std::vector<ChartSustainStep>* const live = liveChartSustainGestureSteps();
-    // Grid and fine steps mix freely inside one gesture; the list keeps them in the order they were
-    // pressed, which is the only order that replays what the user did.
+    // Steps made against different lattices mix freely inside one gesture (a grid change or a snap
+    // toggle mid-run); the list keeps them in the order they were pressed, which is the only order
+    // that replays what the user did.
     std::vector<ChartSustainStep> steps;
     if (live != nullptr)
     {
@@ -2001,7 +2001,8 @@ void EditorController::Impl::toggleChartLegato(const std::vector<ChartNoteKey>& 
 }
 
 // Sets the selection to the left-hand tap attack as one compound undo entry, uniform scope. The
-// stating verb beside the inferring toggle (Ctrl means precision): the fretting hand striking a
+// stating verb beside the inferring toggle (Shift+letter is the sibling technique, so Shift+T sits
+// beside plain T on the letter map): the fretting hand striking a
 // note from nowhere is a LOCAL statement, so no predecessor can justify it and plain H can never
 // produce it. planSetAttack already IS the mixed-validity policy: each note is retyped and asked of
 // the rule authority, so the open string with no node (E4's boundary) is skipped, a pinch's

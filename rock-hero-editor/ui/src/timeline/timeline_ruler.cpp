@@ -200,20 +200,20 @@ void TimelineRuler::setCursorPosition(
     repaint_flag_strip(m_cursor_position);
 }
 
-// Stores the tempo map that supplies anchors and click snapping, plus the grid note value
-// shared with the track grid and snapping. Like setTimelineView, the rebuild and repaint are
-// deferred to the setGridLines push owning-view callers issue after every grid change; rebuilding
-// here would run against grid lines scanned for the previous grid and be discarded unpainted.
+// Stores the tempo map that supplies anchors and click snapping, plus the note value clicks
+// quantize onto. Like setTimelineView, the rebuild and repaint are deferred to the setGridLines
+// push owning-view callers issue after every grid change; rebuilding here would run against grid
+// lines scanned for the previous grid and be discarded unpainted.
 void TimelineRuler::setGrid(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value)
+    const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum)
 {
-    if (m_tempo_map == tempo_map && m_grid_note_value == grid_note_value)
+    if (m_tempo_map == tempo_map && m_placement_quantum == placement_quantum)
     {
         return;
     }
 
     m_tempo_map = tempo_map;
-    m_grid_note_value = grid_note_value;
+    m_placement_quantum = placement_quantum;
 }
 
 // Stores the shared visible-span grid lines and rebuilds the cached ruler geometry from them.
@@ -284,12 +284,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 
     const float timeline_x = static_cast<float>(m_view_x) + event.position.x;
     const std::optional<common::core::TimePosition> position = core::timelineCursorPlacementTime(
-        m_tempo_map,
-        m_grid_note_value,
-        m_timeline_range,
-        m_content_width,
-        timeline_x,
-        placementModeFor(event.mods));
+        m_tempo_map, m_placement_quantum, m_timeline_range, m_content_width, timeline_x);
     if (position.has_value())
     {
         m_cursor_placement_callback(*position);

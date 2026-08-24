@@ -42,9 +42,6 @@ enum class ToneAutomationPointerPhase : std::uint8_t
 /*! \brief Modifier keys held during an automation-lane pointer event. */
 struct ToneAutomationPointerModifiers
 {
-    /*! \brief Precision: placement snap bypasses the visible grid to the 1/960-beat fine tier. */
-    bool ctrl{false};
-
     /*!
     \brief Authoring: over empty lane area, the neutral-create gate — a hover shows the on-curve
     insert ring and a press plants an on-curve point (§9b's Insert verb in its mouse form). Without

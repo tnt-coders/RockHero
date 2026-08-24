@@ -552,7 +552,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
     {
         // One shrink disconnects the tail. Mid-burst the claim is untouched — it simply plays as
         // the pick it sounds like.
-        controller.onChartSustainAdjustRequested(-1, false);
+        controller.onChartSustainAdjustRequested(-1);
         CHECK(note(0).sustain == common::core::Fraction{3});
         CHECK(note(1).attack == common::core::NoteAttack::Legato);
         CHECK(state->undo_history.labels.size() == entries_before + 1);
@@ -576,9 +576,9 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
         // Two shrinks with another verb between them, so they are two entries rather than one
         // gesture and undo lands between them: a duration run coalesces into a single entry, and
         // the verb in the middle is what ends the first run.
-        controller.onChartSustainAdjustRequested(-1, false);
+        controller.onChartSustainAdjustRequested(-1);
         controller.onChartTechniqueToggleRequested(ChartTechnique::PalmMute);
-        controller.onChartSustainAdjustRequested(-1, false);
+        controller.onChartSustainAdjustRequested(-1);
         CHECK(note(0).sustain == common::core::Fraction{2});
         const std::size_t entries_after_edits = state->undo_history.labels.size();
 
@@ -604,7 +604,7 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
     {
         // The file is resolved either way — the document writer serializes the resolved form — so
         // what the write verb's settle adds is that MEMORY matches the bytes it just produced.
-        controller.onChartSustainAdjustRequested(-1, false);
+        controller.onChartSustainAdjustRequested(-1);
         CHECK(note(1).attack == common::core::NoteAttack::Legato);
 
         controller.onSaveRequested();
@@ -797,7 +797,7 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
     {
         // Shrinking the middle note's tail breaks the claim after it, and the selection never
         // changes, so no settle has run yet when the next press lands.
-        controller.onChartSustainAdjustRequested(-1, false);
+        controller.onChartSustainAdjustRequested(-1);
         CHECK(note(2).attack == common::core::NoteAttack::Legato);
 
         // `H` claims the middle note's own connection and arms the toggle window.
@@ -932,7 +932,7 @@ TEST_CASE("EditorController settles at every ruled selection event", "[core][cha
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     const std::size_t entries_before = state->undo_history.labels.size();
-    controller.onChartSustainAdjustRequested(-1, false);
+    controller.onChartSustainAdjustRequested(-1);
     REQUIRE(note(2).attack == common::core::NoteAttack::Legato);
     REQUIRE(state->undo_history.labels.size() == entries_before + 1);
 

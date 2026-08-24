@@ -29,7 +29,7 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     // Select the string-1 note and give it a real tail first, so the toggle round trip is
     // field-exact (a zero sustain would legitimately gain the minimum gesture window).
     click(controller, 40.0f, 220.0f);
-    controller.onChartSustainAdjustRequested(1, false);
+    controller.onChartSustainAdjustRequested(1);
     const auto* chart = chartOrNull(controller);
     const common::core::ChartNote original = chart->notes[0];
 
@@ -132,7 +132,7 @@ TEST_CASE("EditorController toggles a palm mute with exact restoration", "[core]
 
     // A preceding entry so the undo below has somewhere to land past the toggle pair.
     click(controller, 40.0f, 220.0f);
-    controller.onChartSustainAdjustRequested(1, false);
+    controller.onChartSustainAdjustRequested(1);
     const auto* chart = chartOrNull(controller);
     const common::core::ChartNote original = chart->notes[0];
 

@@ -57,6 +57,11 @@ private:
         // tempo map.
         void setGridLines(const std::vector<core::TempoGridLine>& grid_lines);
 
+        // Stores whether grid snap is on, and repaints when it changes. The lane's grid ink is the
+        // mode's indicator: while snap is off the dots draw quieted, so the lattice still reads as
+        // a reference but stops claiming to bind placement.
+        void setGridSnap(bool grid_snap);
+
         // Stores the paused play-from-here column drawn BEHIND the track content (the marker
         // model: visible in every gap but never over a note), or absence during playback and
         // without a chart; repaints only the affected strips. The optional mask is the armed
@@ -78,6 +83,9 @@ private:
 
         // False while no project is loaded so the viewport itself owns empty-state drawing.
         bool m_project_loaded{false};
+
+        // Whether grid snap is on; false quiets the grid dots. Session default is on.
+        bool m_grid_snap{true};
 
         // Cached grid column positions per rank, rebuilt only when the owner pushes a fresh
         // visible-span scan.
@@ -190,16 +198,24 @@ public:
     void relayoutForContentHeightChange();
 
     /*!
-    \brief Stores the tempo map and grid note value used by the content grid and the ruler.
+    \brief Stores the grid facts the content canvas and the ruler need, in one push.
+
+    Three different jobs, which is why three values arrive together and none is derived here: the
+    grid note value draws the lines, the quantum is what the ruler's clicks land on, and the snap
+    flag decides whether the drawn lines are quieted.
 
     The map arrives by const& rather than the usual sink-by-value because every state push
     repeats it and the common unchanged case would otherwise copy the anchor vectors and derived
     index tables just to discard them.
 
     \param tempo_map Song-level tempo map used to render beat and measure grid lines.
-    \param grid_note_value Grid step as a fraction of a whole note.
+    \param grid_note_value Grid step as a fraction of a whole note, drawn as the lattice.
+    \param placement_quantum Note value positions quantize to.
+    \param grid_snap True while grid snap is on.
     */
-    void setGrid(const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value);
+    void setGrid(
+        const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+        common::core::Fraction placement_quantum, bool grid_snap);
 
     /*!
     \brief Stores coarse transport state pushed by the controller and handles Stop-button reset.
@@ -476,8 +492,8 @@ private:
     // Song-level tempo map used to render beat and measure grid lines.
     common::core::TempoMap m_tempo_map{};
 
-    // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
-    // Fraction default of 0/1 is a degenerate step.
+    // Grid step as a fraction of a whole note — the lattice the content canvas DRAWS. Initialized
+    // to the editor default because the Fraction default of 0/1 is a degenerate step.
     common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
 
     // Horizontal content span covered by the last shared grid scan, used to skip scroll-driven

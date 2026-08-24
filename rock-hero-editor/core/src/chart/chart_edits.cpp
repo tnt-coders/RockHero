@@ -28,7 +28,7 @@ namespace
 //
 // Two facts decide it, and nothing else. A TAP's node is a struck contact point, and a strike is a
 // strike whichever hand delivers it, so re-typing a tap carries the node into any attack that can
-// host it: Ctrl+H re-handing a tap harmonic lands on the left-hand-tap harmonic E13 names, and the
+// host it: Shift+T re-handing a tap harmonic lands on the left-hand-tap harmonic E13 names, and the
 // validation gate below still refuses a strike point past the neck ceiling. (The reverse re-hand,
 // left-hand tap back to Tap, still drops the node under the ownership test; no live verb sets Tap
 // today, and truing that direction is the note-view unification's business, not this verb's.)
@@ -239,10 +239,10 @@ template <typename Write>
 // way out would come back on a different ring than it left on. So the authored ring may sit past a
 // note's bound, or at or below zero, between steps; the caller resolves both.
 //
-// A GRID step moves the ring's END, an absolute position, onto the adjacent grid line strictly
-// beyond it — the same primitive the caret step and the lane nudge walk with, which is what makes a
-// fine-tuned end SNAP back onto the grid instead of carrying its remainder forever. A FINE step
-// adds the 1/960-beat tier to the ring itself.
+// A step moves the ring's END, an absolute position, onto the adjacent line of the step's own
+// lattice strictly beyond it — the same primitive the caret step and the lane nudge walk with,
+// which is what makes an end left between lines SNAP onto them instead of carrying its remainder
+// forever.
 //
 // Two degenerate ends are harmless and deliberately unguarded: an authored ring at or below zero
 // puts the end at or before the onset, where advanceGridPosition clamps at the grid origin and
@@ -255,17 +255,12 @@ template <typename Write>
     common::core::Fraction ring = start.sustain;
     for (const ChartSustainStep& step : steps)
     {
-        if (step.grid_note_value.has_value())
-        {
-            const common::core::GridPosition end =
-                common::core::advanceGridPosition(tempo_map, start.position, ring);
-            ring = common::core::beatDistance(
-                tempo_map,
-                start.position,
-                adjacentTempoGridPosition(tempo_map, *step.grid_note_value, end, step.grow));
-            continue;
-        }
-        ring = ring + common::core::Fraction{step.grow ? 1 : -1, g_fine_grid_denominator};
+        const common::core::GridPosition end =
+            common::core::advanceGridPosition(tempo_map, start.position, ring);
+        ring = common::core::beatDistance(
+            tempo_map,
+            start.position,
+            adjacentTempoGridPosition(tempo_map, step.note_value, end, step.grow));
     }
     return ring;
 }

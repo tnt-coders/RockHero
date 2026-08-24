@@ -166,25 +166,30 @@ sustain end, snap to a note value), while `tempo_grid_geometry.h` in editor/core
 editor's *timeline* questions — which grid lines are visible, which line is nearest this pixel,
 where does one keyboard step land.
 
-The editor's grid note value (a `Fraction` of a whole note, default 1/4) is the *shared
+The editor's grid note value (a `Fraction` of a whole note, default 1/16) is the *shared
 authority* for both drawing and snapping: `tempo_grid_geometry.cpp` computes visible grid lines
 and `nearestTempoGridPosition(...)` returns the exact rational `GridPosition` — the same math, so
-what you see is what you snap to. Ctrl bypasses to a 1/960-beat fine grid, uniformly across
-surfaces and input families: pointer placement, keyboard moves, and the sustain extent verb all
-compose the same fine tier (the off-grid unification). Pointer gestures must go through
+what you see is what you snap to.
+
+What a verb actually snaps ONTO is the **placement quantum**: `placementQuantumNoteValue(...)`,
+the one authority, returns the grid note value while grid snap is on and the tick lattice
+(`g_tick_quantum_note_value`, 1/3840 of a whole note — the MIDI PPQ tick) while it is off. Every
+verb that quantizes a time POSITION reads it, with no per-verb modifier opt-out; a verb needing a
+musical DURATION keeps reading the grid VALUE, because that is the unit the user authors in
+(`docs/plans/in-progress/grid-snap.md`). Pointer gestures must go through
 `musicalGridPositionForX` (see \ref guide_2d_views); keyboard stepping has its own single
 primitives in the same header — `gridStepBeats(...)` (one step's size at a measure) and
 `adjacentTempoGridPosition(...)` (the next line from any position: common core's
 `adjacentGridPosition` under the editor's note-value validity policy, exact-rational, so a coarse
-step from an off-grid start lands on the adjacent line, never overshoots, and a step back returns
-to the line it came from) — and `secondsAtGridPosition(...)` turns an exact position back into
-seconds for geometry.
+step from an off-lattice start lands on the adjacent line, never overshoots, and a step back
+returns to the line it came from) — and `secondsAtGridPosition(...)` turns an exact position back
+into seconds for geometry.
 
 The duration verb steps that same primitive, over the ring's END rather than a caret
-(`planAdjustSustain`, `chart_edits.h`): a grid step puts the end on the adjacent line, so a ring
-the fine tier left between lines snaps back onto the grid, while a fine step adds the 1/960 beat.
-That is why a duration gesture records its steps in order instead of summing them — a grid step has
-no size until you know where the end sits.
+(`planAdjustSustain`, `chart_edits.h`): a step puts the end on the adjacent line of the quantum's
+lattice, so a ring left between lines snaps back onto them. That is why a duration gesture records
+its steps in order — each carrying the note value it snapped by — instead of summing them: a step
+has no size until you know where the end sits.
 
 *Design in flux: making the tempo map user-visible/editable is active work
 (`docs/plans/in-progress/tone-track-tempo-map-plan.md`), and tempo-anchor authoring is an

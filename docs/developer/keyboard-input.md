@@ -183,6 +183,17 @@ through `TrackViewport::zoomByStep` — the keyboard twin of Ctrl+wheel, sharing
 clamp/recenter/report path. Their default chords are the `+`/`-` family (main-row and numpad
 shapes, plus the unshifted `=` convenience alias) — see the key-shape note under Decoding.
 
+`Ctrl+G` (`ToggleGridSnap`) is a path (a) command beside them, but it is not UI-only: it flips
+the editor's session grid-snap switch, which is the one fact behind the **placement quantum**
+(`placementQuantumNoteValue` in `tempo_grid_geometry.h`). With snap on, every verb that quantizes
+a time position lands on the session grid; with it off they land on the tick lattice
+(`g_tick_quantum_note_value`, 1/3840 of a whole note — the MIDI PPQ tick). There is no per-verb
+modifier tier: `Ctrl` composes nothing on a placement, on any surface. The switch is session-only,
+never persisted, and reset to on at every project boundary (see
+`docs/plans/in-progress/grid-snap.md`). A verb needing a musical DURATION — the ring a placement
+authors — keeps reading the grid VALUE, which is why the two are separate readers in the
+controller (`chartGridStepBeats` versus `chartQuantumStepBeats`).
+
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
@@ -201,12 +212,13 @@ PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
 `onTimeSelectionExtendRequested` (Shift+ the same navigation family: grid, measure, section,
 and chart-bound extends of the grid-locked `TimeSelection` — the range edge reuses the caret's
 shared destination helpers, so the two can never drift on the same motion),
-`onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction, fine)` (THE duration verb —
+`onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction)` (THE duration verb —
 a run of presses is one GESTURE: each press appends its step to the run's list, the selection
 re-plans by replaying that list over the rings the run started at, and the whole run stays one undo
-entry, ruled 2026-08-22; see \ref guide_undo. A grid step moves the ring's END onto the adjacent
-grid line — so a ring the Ctrl fine tier left between lines snaps back onto the grid — which is why
-the run records steps rather than summing them into one delta),
+entry, ruled 2026-08-22; see \ref guide_undo. A step moves the ring's END onto the adjacent line of
+the placement quantum's lattice — so a ring left between lines snaps back onto them — which is why
+the run records steps, each carrying the note value it snapped by, rather than summing them into
+one delta),
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartTechniqueToggleRequested(ChartTechnique)` (THE technique
 toggle verb — one method for palm mute, dead note, tremolo, vibrato, accent, ghost, pick slide,

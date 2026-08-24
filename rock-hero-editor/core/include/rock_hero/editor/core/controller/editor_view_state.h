@@ -660,6 +660,16 @@ struct EditorViewState
     common::core::Fraction grid_note_value{g_default_tempo_grid_note_value};
 
     /*!
+    \brief Whether grid snap is on, which is what decides the placement quantum.
+
+    A session fact, never persisted and reset to true at every project boundary. The view derives
+    the quantum from this and grid_note_value through the one authority
+    (\ref placementQuantumNoteValue) rather than snapping by its own rule, and quiets the surfaces
+    that say "grid" while it is false.
+    */
+    bool grid_snap{true};
+
+    /*!
     \brief Horizontal timeline scale to restore on a fresh project load.
 
     Zero means no per-project zoom is stored and the view keeps its default. The view applies

@@ -39,9 +39,10 @@ enum class ChartPointerPhase : std::uint8_t
 struct ChartPointerModifiers
 {
     /*!
-    \brief Toggle individual selection membership on a note press; on a playing-lane seek,
-    the ruler-family fine bypass. Chart placement itself is grid-native (settlement §11) and
-    has no precision tier.
+    \brief Toggle individual selection membership on a note press.
+
+    Its only meaning on this surface. Placement composes nothing from it: every position lands on
+    the one placement quantum, which grid snap alone moves.
     */
     bool ctrl{false};
 

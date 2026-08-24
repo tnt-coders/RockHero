@@ -19,6 +19,15 @@
 > `Shift`+letter is the related sibling technique — replacing per-key Guitar Pro compatibility.
 > Legato moved `H` → `L`, the left-hand tap `Ctrl+H` → `Shift+T`, and `H` was freed for the
 > harmonics. Rationale and the full map in the technique verb section.
+>
+> **Amended 2026-08-23 (user-signed): the `Ctrl` PRECISION tier is retired.** Off-grid authoring
+> is now a MODE, not a per-gesture modifier: `Ctrl+G` toggles a session grid-snap switch, and one
+> placement quantum (the grid note value while snap is on, the 1/3840-whole-note tick while it is
+> off) answers every position-quantizing verb on every surface. Every row below reading "fine",
+> "1/960", or "off-grid under `Ctrl`" is retired with it — the six `Ctrl+Alt…` commands are gone
+> and `Ctrl` composes nothing on a placement. The design is
+> `docs/plans/in-progress/grid-snap.md`; this matrix's affected rows are stale until it is folded
+> in.
 
 ## The rule this encodes
 
@@ -106,19 +115,20 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | Keybind | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
 | `Alt+←/→` | move note(s) in time (grid) | move point in time (grid) | `✗` (no keyboard) | Live |
-| `Ctrl+Alt+←/→` | move **1/960 fine** | move **1/960 fine** | `✗` | Live |
+| `Ctrl+Alt+←/→` | move **1/960 fine** | move **1/960 fine** | `✗` | **Retired 2026-08-23** — snap off + `Alt+←/→` |
 | `Alt+↑/↓` | move across **strings** | move **value** | `✗` | Live |
-| **`Ctrl+Alt+↑/↓`** | **`✗` (strings are discrete — no fine)** | **move fine value** | `✗` | Live |
+| **`Ctrl+Alt+↑/↓`** | **`✗` (strings are discrete — no fine)** | **move fine value** | `✗` | **Retired 2026-08-23** — the value tier went with the fine tier |
 | `Shift+Alt+←/→` | resize **sustain** (grid) | `—` (points have no extent) | `✗` (pointer edge-drag instead) | Live |
-| `Ctrl+Shift+Alt+←/→` | resize sustain **fine** | `—` | `✗` | Live |
+| `Ctrl+Shift+Alt+←/→` | resize sustain **fine** | `—` | `✗` | **Retired 2026-08-23** — snap off + `Shift+Alt+←/→` |
 | `Shift+Alt+↑/↓` | **fret shift** ±1 | `—` (no frets) | `✗` | Live |
 
-*(The `Ctrl+Alt+↑/↓` row is your example, now explicit: bound on lanes, unbound on the highway.)*
+*(The `Ctrl+Alt+↑/↓` row was your example of a chord bound on one surface and unbound on another;
+it is retired outright now, but the asymmetry it illustrated is still how the matrix reads.)*
 
-*(The two sustain rows are ONE verb and one gesture: held or repeated, the presses record a step
+*(The sustain row is ONE verb and one gesture: held or repeated, the presses record a step
 list, the whole selection re-plans by replaying it over the rings the run started at, and the run
-stays one undo entry — grid and fine steps mixing freely inside it, with a grid step moving the
-ring's END onto the adjacent grid line. Ruled 2026-08-22, steps 2026-08-23;
+stays one undo entry — each step moving the ring's END onto the adjacent line of the placement
+quantum's lattice, so a run may cross a snap toggle. Ruled 2026-08-22, steps 2026-08-23;
 `docs/plans/in-progress/note-sustain-model.md` ruling 8. The `Alt`+wheel duration rows below are
 the same verb through the pointer.)*
 
@@ -156,21 +166,21 @@ likely subsumes that one too by the same argument.
 | Gesture | Chart (highway) | Automation lanes | Tone strip | Status |
 |---|---|---|---|---|
 | **Click empty** | seek + arm caret at grid | seek + arm caret at grid | select region under cursor | Live |
-| **`Ctrl`+click empty** | arm caret **off-grid** | arm caret **off-grid** | (own meaning) | Live |
+| **`Ctrl`+click empty** | arm caret **off-grid** | arm caret **off-grid** | (own meaning) | **Retired 2026-08-23** — a plain click arms on the quantum, whichever it is |
 | **Click object** | select note + arm caret | select point + arm caret | select region | Live |
 | **`Ctrl`+click object** | **toggle** membership | **toggle** membership (scheduled) `✚` | select (**no toggle**) | Live · `✚` lanes |
 | **`Shift`+click** | time-range select (full-height span) | — same span — | — same span — | `▷52` |
 | **Double-click object** | select **chord** | **property editor** | **rename / pick tone** | Live |
 | **`Alt`+click** | insert fret-0 note | insert on-curve point | **split** region | Live |
-| **`Ctrl+Alt`+click** | insert **off-grid** | insert **off-grid** | split off-grid | Live |
+| **`Ctrl+Alt`+click** | insert **off-grid** | insert **off-grid** | split off-grid | **Retired 2026-08-23** — `Alt`+click inserts on the quantum |
 | **Drag on object** | move note (scheduled) `✚` | move point | move boundary | Live (lanes/tone) · `✚` chart |
-| **`Ctrl`+drag object** | move **off-grid** (scheduled) `✚` | move **off-grid** | move boundary off-grid | Live (lanes/tone) · `✚` chart |
+| **`Ctrl`+drag object** | move **off-grid** (scheduled) `✚` | move **off-grid** | move boundary off-grid | **Retired 2026-08-23** — a plain drag moves on the quantum |
 | **Edge-drag extent** | `✗` — chart sustain is `Alt`+wheel | `—` (no extent) | resize region | Live (tone) · chart uses `Alt`+wheel |
 | **Drag from empty (marquee)** | marquee select | marquee (scheduled) `✚` | `✗` | Live chart · `✚` lanes |
 | **`Alt`+drag from empty** | insert + place note | insert + place point | split + drag boundary | Live |
 | **`Alt` held (no gesture)** | reveal every visible note's **actual ring** — the lane redraws in the chart's actual form, so each ring is an ordinary tail | `✗` | `✗` | Live 2026-08-22 (chart only; mark signed 2026-08-23) |
 | **`Alt`+wheel** | duration (sustain / span) | `✗` | `✗` | Live (chart only) |
-| **`Ctrl+Alt`+wheel** | **fine** duration | `✗` | `✗` | Live (chart only) |
+| **`Ctrl+Alt`+wheel** | **fine** duration | `✗` | `✗` | **Retired 2026-08-23** — snap off + `Alt`+wheel |
 | **`Shift+Alt`+wheel** | fret shift ±1 | `✗` | `✗` | Live (chart only) |
 | **Right-click** | keybind-discovery menu (scheduled) `✚` | keybind-discovery menu | keybind-discovery menu | Live (lanes/tone) · `✚` chart |
 | **Ruler drag** | create time selection → feeds loop region | — same span — | — same span — | `▷47` |
@@ -190,6 +200,7 @@ likely subsumes that one too by the same argument.
 | `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |
 | `+` / `-` (main-row or numpad — numpad arrives as the same character key codes) · `=` / `_` convenience aliases | **grid** finer (`+`) / coarser (`-`) | Live (chord sets corrected 2026-07-21: `numberPad*` chords never matched on Windows and were removed; display-equal shapes group into one chip; `=`/`_` aliases kept until something better claims them) |
 | `Ctrl` + the same `+`/`-` family (incl. the `Ctrl+_` alias) | **zoom** in / out, marker-centered | Live (44f24ab6; chord sets corrected 2026-07-21) |
+| `Ctrl+G` | toggle **grid snap** — the session switch that picks the placement quantum (grid note value on, 1/3840-whole-note tick off). Session-only, never persisted, back ON at every project boundary. Indicated by the quieted grid dots and the veiled + struck grid readout; forwarded to the 3D preview window, because with snap off it is what the caret's arrows travel by | Live (`0x1905`, Grid & Zoom; exact-modifier matched so plain `G` stays the ghost-note technique) |
 | `[` / `]` | **free** — grid moved to `+/-` | `—` |
 | `L` | claimed by **legato** since the 2026-08-12 technique-letter amendment — the link/slide reservation fulfilled (see the technique verb table; `Shift+L` reserved there for the tie/slide-link verb) | Live |
 | `B` | reserved for **bend** (plan 40 Phase 7), no longer for the pencil — unbound (user 2026-08-07: "B for bend makes more sense than B for pencil"; `Alt` already *is* the held pencil quasimode for the pointer, so the pencil needed no letter) | `—` |

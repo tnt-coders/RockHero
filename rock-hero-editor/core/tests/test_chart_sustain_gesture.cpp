@@ -82,10 +82,20 @@ struct GestureFixture
                *state->undo_history.clean_position == state->undo_history.position;
     }
 
-    // One grid step of the duration verb, the shape every scenario repeats.
-    void step(int direction, bool fine = false)
+    // One step of the duration verb at the session's grid, the shape every scenario repeats.
+    void step(int direction)
     {
-        controller.onChartSustainAdjustRequested(direction, fine);
+        controller.onChartSustainAdjustRequested(direction);
+    }
+
+    // One step at the TICK lattice: snap off, step, snap back on. The gesture survives the toggle
+    // — its window proof reads the selection and the history top, neither of which a toggle
+    // moves — which is exactly what lets one run mix lattices.
+    void tickStep(int direction)
+    {
+        controller.onGridSnapToggleRequested();
+        step(direction);
+        controller.onGridSnapToggleRequested();
     }
 };
 
@@ -93,7 +103,7 @@ struct GestureFixture
 
 // Sustain growth stops at exact adjacency with the next onset on the note's OWN string (40-Q2-B,
 // the one bound on a ring), and a note on another string blocks nothing; shrinking stops one step
-// short of empty. The Ctrl fine tier composes on the same verb.
+// short of empty. A step at the tick lattice runs through the same verb.
 TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][chart]")
 {
     GestureFixture fixture;
@@ -134,12 +144,12 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
 
     // The click ENDS that gesture, which matters here: those six shrinks accumulated three steps
     // of overshoot past the hold, and inside one gesture a grow has to pay them back before the
-    // ring moves (the bound's own behaviour, in the other direction). The fine tier is what this
-    // section pins, so it gets a gesture of its own.
+    // ring moves (the bound's own behaviour, in the other direction). The tick lattice is what
+    // this section pins, so it gets a gesture of its own.
     click(fixture.controller, 40.0f, 220.0f);
-    fixture.step(1, /*fine=*/true);
+    fixture.tickStep(1);
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{961, 960});
-    fixture.step(-1, /*fine=*/true);
+    fixture.tickStep(-1);
     CHECK(fixture.ringAt(2, 1) == common::core::Fraction{1});
 }
 
@@ -149,7 +159,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
 //
 // The measure-3 note is the one this can be said of: its two-beat ring ends ON a grid line, and a
 // grid step from the lattice lands on the lattice, so the steps back retrace the steps out. From a
-// fine-tuned ring the first grid step snaps and the run cannot return — by design, pinned below.
+// ring left between lines the first grid step snaps, and the run cannot return — by design, below.
 TEST_CASE("A sustain gesture is one undo entry and round-trips exactly", "[core][chart]")
 {
     GestureFixture fixture;
@@ -268,11 +278,11 @@ TEST_CASE("An emptied ring holds and rejoins inside one gesture", "[core][chart]
     CHECK(fixture.undoEntryCount() == entries_before);
 }
 
-// The bug this verb's step list exists for (user 2026-08-23), end to end: a fine step nudges the
-// ring off the lattice, and the GRID step after it snaps the end onto the next line instead of
+// The bug this verb's step list exists for (user 2026-08-23), end to end: a tick step nudges the
+// ring off the grid, and the GRID step after it snaps the end onto the next line instead of
 // carrying that remainder — which a single accumulated delta could not do, because it had no idea
-// where the end sat. The two tiers still mix freely inside one gesture.
-TEST_CASE("Fine and grid steps mix inside one sustain gesture", "[core][chart]")
+// where the end sat. Steps on different lattices still mix freely inside one gesture.
+TEST_CASE("Tick and grid steps mix inside one sustain gesture", "[core][chart]")
 {
     GestureFixture fixture;
     REQUIRE(fixture.load());
@@ -280,14 +290,14 @@ TEST_CASE("Fine and grid steps mix inside one sustain gesture", "[core][chart]")
     click(fixture.controller, 80.0f, 220.0f);
     const std::size_t entries_before = fixture.undoEntryCount();
 
-    fixture.step(1, /*fine=*/true);
+    fixture.tickStep(1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{1921, 960});
-    // Three beats exactly, not 2881/960: the grid step lands on the grid line, wherever the fine
-    // tier had left the end.
+    // Three beats exactly, not 2881/960: the grid step lands on the grid line, wherever the tick
+    // step had left the end.
     fixture.step(1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{3});
     CHECK(fixture.undoEntryCount() == entries_before + 1);
-    fixture.step(-1, /*fine=*/true);
+    fixture.tickStep(-1);
     CHECK(fixture.ringAt(3, 1) == common::core::Fraction{2879, 960});
     // And back: the end sits a hair short of the line at three beats, so the line strictly before
     // it is the two-beat one the note started on — the run describes nothing and its entry goes.

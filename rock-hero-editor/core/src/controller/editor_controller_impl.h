@@ -144,6 +144,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onStopPressed();
     void onTimelineSeekRequested(common::core::TimePosition position);
     void onGridNoteValueChangeRequested(common::core::Fraction note_value);
+    void onGridSnapToggleRequested();
     void onTimelineZoomChanged(double pixels_per_second);
     void onWaveformVisibleChangeRequested(bool visible);
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
@@ -165,10 +166,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::ExtendTimeSelection& action);
     // The one selection-move intent (Alt+arrows): dispatches on the editor-wide selection's
     // kind — automation point, chart notes — and falls back to create-then-nudge at an armed
-    // empty lane caret slot. `fine` selects the 1/960-beat tier on the time axis (and the
-    // 0.001 value tier on lanes) — the uniform precision escape hatch, both surfaces.
+    // empty lane caret slot. The time axis steps by the placement quantum on every surface.
     void performActionImpl(const EditorAction::MoveSelection& action);
-    void moveChartSelection(ChartStepDirection direction, bool fine);
+    void moveChartSelection(ChartStepDirection direction);
     // The chart branch of the unified Delete dispatch (Impl-private since the per-surface
     // public intent retired with the precedence ladder).
     void deleteChartSelection();
@@ -280,9 +280,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Clears only the selection kinds that follow the cursor (tone region, automation point);
     // a chart selection deliberately survives seeks (the marker model's lifecycle split).
     void clearCursorCoupledSelection();
+    // The note value every position-quantizing verb on every surface snaps onto, from the two
+    // session facts through the one authority (placementQuantumNoteValue). A verb wanting a
+    // musical DURATION reads m_grid_note_value instead — see the quantum's own documentation.
+    [[nodiscard]] common::core::Fraction placementQuantum() const noexcept;
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(common::core::GridPosition at) const;
+    [[nodiscard]] common::core::Fraction chartQuantumStepBeats(common::core::GridPosition at) const;
     bool applyChartEditPlan(
         std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan,
         std::optional<std::vector<ChartNoteKey>> select_exactly = std::nullopt);
@@ -328,15 +333,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // onToneAutomationPointsEditRequested (the Delete-key dispatch for the automation alternative).
     void deleteSelectedAutomationPoint(const AutomationPointSelection& selection);
     // Moves the selected automation point (the move-intent dispatch for the automation
-    // alternative): Up/Down steps the value (one real state on a discrete lane, else 0.01 or
-    // 0.001 fine), Left/Right steps the time axis via steppedLaneNudgePosition. Refused moves
+    // alternative): Up/Down steps the value (one real state on a discrete lane, else 0.01),
+    // Left/Right steps the time axis via steppedLaneNudgePosition. Refused moves
     // (stale selection, map edge, neighbor collision, window edge) are silent no-ops.
     void moveSelectedAutomationPoint(
-        const AutomationPointSelection& selection, ChartStepDirection direction, bool fine);
+        const AutomationPointSelection& selection, ChartStepDirection direction);
     // One lane keyboard time-step through the beat axis so the result stays an exact rational:
-    // the adjacent tempo-grid line, or one 1/960-beat fine step.
+    // the adjacent line of the placement quantum's lattice.
     [[nodiscard]] common::core::GridPosition steppedLaneNudgePosition(
-        const common::core::GridPosition& from, bool later, bool fine) const;
+        const common::core::GridPosition& from, bool later) const;
     // The active tone region's time window — the span automation edits clamp inside (the lane
     // is authored per tone but edited per region instance). Empty when no region is active.
     [[nodiscard]] common::core::TimeRange activeToneRegionWindow() const;
@@ -399,6 +404,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekTimeline action);
     void performActionImpl(EditorAction::SetGridNoteValue action);
+    void performActionImpl(EditorAction::ToggleGridSnap action);
     void performActionImpl(const EditorAction::SelectArrangement& action);
     void performActionImpl(EditorAction::SelectToneRegion action);
     void performActionImpl(const EditorAction::CreateToneRegion& action);
@@ -565,6 +571,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void restoreProjectMarker(const EditorProjectCaret& caret);
     [[nodiscard]] common::core::Fraction gridNoteValueForOpenedProject(
         const std::filesystem::path& project_file) const;
+    // Establishes both grid session facts at a project boundary. The pair moves together — the
+    // grid value the boundary supplies, and snap back on — so no teardown can set one and forget
+    // the other.
+    void resetGridSession(common::core::Fraction note_value);
     [[nodiscard]] double timelineZoomForOpenedProject(
         const std::filesystem::path& project_file) const;
     void saveCurrentProjectMarkerBestEffort(std::string_view context);
@@ -755,6 +765,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // default because the Fraction default of 0/1 is a degenerate step. Restored per project
     // from app-local settings on open and reset to the default on close.
     common::core::Fraction m_grid_note_value{g_default_tempo_grid_note_value};
+
+    // Whether grid snap is on: the one fact behind the placement quantum. Session-only and
+    // deliberately unpersisted — resetGridSession puts it back on at every project boundary, and
+    // this initializer is that same rule at app launch.
+    bool m_grid_snap{true};
 
     // Horizontal timeline scale last reported by the view, persisted per project as app-local
     // resume state. Zero means no zoom has been reported or restored (view default applies).
@@ -997,7 +1012,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // A button-less lane hover: resolves the Alt insert ghost and publishes it when Alt is held
     // over an insertable lane slot while paused, else clears it. Inverts the event's raw pixel x
-    // through the placement seam (timelinePositionForX then the tempo grid, or the Ctrl fine tier)
+    // through the placement seam (timelinePositionForX then the placement quantum's lattice)
     // so the ghost lands on the exact slot an Alt+click would, and a hover that stays within one
     // grid slot leaves the ghost unchanged and pushes no view rebuild.
     void onToneAutomationPointerMove(const ToneAutomationPointerEvent& event);
@@ -1053,8 +1068,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // "grab the curve here and pull" is one keystroke and ONE undo entry. A refused time step
     // (map edge, neighbor collision, window edge) still creates at the caret itself: the grab
     // succeeded, only the pull refused.
-    void createAndNudgeLanePointAtCaret(
-        const ChartCaret& caret, ChartStepDirection direction, bool fine);
+    void createAndNudgeLanePointAtCaret(const ChartCaret& caret, ChartStepDirection direction);
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity

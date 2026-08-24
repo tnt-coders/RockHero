@@ -191,7 +191,7 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     // as its own entry before the sustain grows, and the next digit starts a fresh value —
     // provisional again, committed here by the caret step's own prologue.
     controller.onChartFretDigitTyped(2);
-    controller.onChartSustainAdjustRequested(1, false);
+    controller.onChartSustainAdjustRequested(1);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 2);
     controller.onChartFretDigitTyped(3);
@@ -894,13 +894,13 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     click(controller, 40.0f, 220.0f);
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
-    controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
+    controller.onSelectionMoveRequested(ChartStepDirection::Up);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].string == 1);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
 
     // Alt+Right moves one quarter-note step; the selection follows the moved note.
-    controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    controller.onSelectionMoveRequested(ChartStepDirection::Right);
     chart = chartOrNull(controller);
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
     CHECK(chart->notes[1].string == 1);
@@ -913,10 +913,10 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     CHECK(chart->notes[0].string == 1);
 }
 
-// The Ctrl fine tier on notes: Alt+Ctrl+Left/Right moves the selection by one 1/960-beat step, off
-// the grid; grid steps stay relative afterwards, so the offset rides along, and the fine step back
-// returns to the exact lattice slot.
-TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][chart]")
+// Off-grid authoring with snap off: Alt+Left/Right moves the selection by one tick (1/3840 whole
+// note, which is 1/960 beat in x/4); grid steps with snap back on stay relative, so the offset
+// rides along, and a tick step back with snap off returns to the exact lattice slot.
+TEST_CASE("EditorController moves the selection by one tick with grid snap off", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -935,7 +935,8 @@ TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][cha
     click(controller, 40.0f, 220.0f);
 
     // The moved note sorts after its untouched measure-2 chord mate once it carries an offset.
-    controller.onSelectionMoveRequested(ChartStepDirection::Right, true);
+    controller.onGridSnapToggleRequested();
+    controller.onSelectionMoveRequested(ChartStepDirection::Right);
     const auto* chart = chartOrNull(controller);
     CHECK(
         chart->notes[1].position ==
@@ -945,7 +946,8 @@ TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][cha
     CHECK(chart->notes[1].string == 1);
 
     // A grid step from the off-grid slot stays relative: the 1/960 offset rides along.
-    controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    controller.onGridSnapToggleRequested();
+    controller.onSelectionMoveRequested(ChartStepDirection::Right);
     chart = chartOrNull(controller);
     CHECK(
         chart->notes[1].position ==
@@ -953,8 +955,9 @@ TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][cha
             .measure = 2, .beat = 2, .offset = common::core::Fraction{1, 960}
         }));
 
-    // The fine step back lands exactly on the lattice again — no residue.
-    controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
+    // The tick step back lands exactly on the lattice again — no residue.
+    controller.onGridSnapToggleRequested();
+    controller.onSelectionMoveRequested(ChartStepDirection::Left);
     chart = chartOrNull(controller);
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
 }

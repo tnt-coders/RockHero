@@ -532,6 +532,8 @@ TEST_CASE(
 }
 
 // Out-of-bounds note-value intents are ignored so the published grid can never go degenerate.
+// The gate is the SELECTABLE bound, not the walkable one: the grid box is free text, and a lattice
+// the placement quantum may use is not thereby a grid the editor will draw line by line.
 TEST_CASE("EditorController ignores invalid grid note values", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -550,11 +552,97 @@ TEST_CASE("EditorController ignores invalid grid note values", "[core][editor-co
     controller.attachView(view);
 
     controller.onGridNoteValueChangeRequested(common::core::Fraction{});
-    controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 2048});
+    controller.onGridNoteValueChangeRequested(
+        common::core::Fraction{1, g_tick_quantum_denominator + 1});
+    // Walkable, but nobody's grid: typing the tick into the box would put the whole song's worth
+    // of tick lines through the line walk on every scroll.
+    controller.onGridNoteValueChangeRequested(g_tick_quantum_note_value);
+    controller.onGridNoteValueChangeRequested(
+        common::core::Fraction{1, g_max_tempo_grid_note_value_term + 1});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->grid_note_value == g_default_tempo_grid_note_value);
+}
+
+// Grid snap is a SESSION fact: on by default, flipped by its own intent, and published so the
+// lane's grid ink and the grid readout can quiet off the same value the placement quantum reads.
+TEST_CASE("EditorController toggles grid snap", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->grid_snap);
+
+    controller.onGridSnapToggleRequested();
+    CHECK_FALSE(state->grid_snap);
+    // The grid VALUE is untouched: snap decides where things land, never what the grid says.
+    CHECK(state->grid_note_value == g_default_tempo_grid_note_value);
+
+    controller.onGridSnapToggleRequested();
+    CHECK(state->grid_snap);
+}
+
+// Snap never persists and never carries across a project boundary: close, reopen, and import all
+// put it back on. The friction is the point — a mode entered for one note must not be inherited.
+TEST_CASE(
+    "EditorController resets grid snap at every project boundary", "[core][editor-controller]")
+{
+    const ScopedSettingsFile settings_file{"grid_snap_reset.settings"};
+    EditorSettings settings{settings_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .import_function = project_services.importFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+
+    controller.onGridSnapToggleRequested();
+    REQUIRE_FALSE(state->grid_snap);
+    controller.onCloseRequested();
+    CHECK_FALSE(state->project_loaded);
+    CHECK(state->grid_snap);
+
+    // Reopening the same project restores its stored grid VALUE but never a snap state, because
+    // nothing stores one.
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    controller.onGridSnapToggleRequested();
+    REQUIRE_FALSE(state->grid_snap);
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    CHECK(state->grid_snap);
+
+    controller.onGridSnapToggleRequested();
+    REQUIRE_FALSE(state->grid_snap);
+    project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
+    CHECK(state->project_loaded);
+    CHECK(state->grid_snap);
 }
 
 // Reopening a project restores its stored grid note value from app-local settings. The stored

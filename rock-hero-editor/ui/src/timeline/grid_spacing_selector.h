@@ -75,6 +75,17 @@ public:
     void setNoteValue(common::core::Fraction note_value);
 
     /*!
+    \brief Shows whether the displayed value currently binds placement.
+
+    With snap off the readout draws quieted under a thin diagonal strike: the grid is still the
+    reference lattice and still selectable, but positions no longer land on it. The control stays
+    fully interactive — this is a state indicator, never a disable.
+
+    \param snap_enabled True while grid snap is on.
+    */
+    void setSnapEnabled(bool snap_enabled);
+
+    /*!
     \brief Steps the grid one preset finer or coarser and emits the chosen value.
 
     Presets run coarse (1/4) to fine (1/128). A positive \p direction picks the coarsest preset
@@ -91,6 +102,17 @@ public:
     /*! \brief Lays out the caption and combo box within the component bounds. */
     void resized() override;
 
+    /*!
+    \brief Draws the snap-off indicator over the caption and combo box.
+
+    Over the children rather than behind them: the combo box paints its own chrome and text
+    through the look-and-feel, which the parent cannot re-color, so the quieting arrives as the
+    veil composite instead.
+
+    \param g Graphics context of this component.
+    */
+    void paintOverChildren(juce::Graphics& g) override;
+
 private:
     // Parses committed combo text and either emits a note value or reverts the display.
     void handleSelectionCommitted();
@@ -103,6 +125,9 @@ private:
 
     // Note value currently applied by the owner; the display reverts here on invalid entry.
     common::core::Fraction m_note_value{core::g_default_tempo_grid_note_value};
+
+    // Whether the displayed value currently binds placement; false draws the snap-off indicator.
+    bool m_snap_enabled{true};
 
     // Static "Grid" caption drawn left of the combo box.
     juce::Label m_caption;

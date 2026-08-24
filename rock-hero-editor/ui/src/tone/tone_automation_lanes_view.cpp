@@ -254,9 +254,9 @@ void ToneAutomationLanesView::setVisibleContentLeft(int content_left_x)
     repaint();
 }
 
-void ToneAutomationLanesView::setGridNoteValue(common::core::Fraction note_value)
+void ToneAutomationLanesView::setPlacementQuantum(common::core::Fraction placement_quantum)
 {
-    m_grid_note_value = note_value;
+    m_placement_quantum = placement_quantum;
 }
 
 void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& state)
@@ -581,10 +581,10 @@ float ToneAutomationLanesView::curveValueAt(
 }
 
 std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositionForX(
-    float content_x, const juce::ModifierKeys& mods) const
+    float content_x) const
 {
     return musicalGridPositionForX(
-        m_tempo_map, m_grid_note_value, m_visible_timeline, getWidth(), content_x, mods);
+        m_tempo_map, m_placement_quantum, m_visible_timeline, getWidth(), content_x);
 }
 
 std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
@@ -988,12 +988,12 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
             const core::ToneAutomationLaneViewState& lane = m_state.lanes[area->lane_index];
             hovered_lane_index = area->lane_index;
             // Under Alt the prospective on-curve insert previews its position and value next to the
-            // cursor, snapped exactly as the controller's ghost is (Ctrl composes for fine
-            // placement). Without Alt the lane area is the caret-arming click zone and shows none.
+            // cursor, snapped exactly as the controller's ghost is. Without Alt the lane area is
+            // the caret-arming click zone and shows none.
             if (event.mods.isAltDown())
             {
                 if (const std::optional<common::core::GridPosition> position =
-                        musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
+                        musicalPositionForX(static_cast<float>(event.getPosition().x));
                     position.has_value())
                 {
                     const double seconds = core::secondsAtGridPosition(m_tempo_map, *position);
@@ -1053,9 +1053,9 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     const std::optional<Hit> hit = hitAt(event.getPosition());
 
     // A left press is excluded for the same reason the chart lane excludes it: JUCE expands
-    // popupMenuClickModifier to (rightButton | ctrl) on macOS, and these lanes bind Ctrl as a
-    // pointer modifier (the handlers read modifiers.ctrl), so isPopupMenu() alone would raise a
-    // menu instead of the Ctrl gesture on that platform only.
+    // popupMenuClickModifier to (rightButton | ctrl) on macOS, so isPopupMenu() alone would raise
+    // this menu on a Ctrl+left-click there and nowhere else. The menu belongs to an actual right
+    // press on every platform.
     if (event.mods.isPopupMenu() && !event.mods.isLeftButtonDown())
     {
         // A right-click on a point offers its own menu; a right-click on a claimed lane zone (the
@@ -1358,7 +1358,6 @@ core::ToneAutomationPointerEvent ToneAutomationLanesView::makePointerEvent(
     pointer_event.y = static_cast<float>(event.getPosition().y);
     pointer_event.clicks = event.getNumberOfClicks();
     pointer_event.dragged_since_down = event.mouseWasDraggedSinceMouseDown();
-    pointer_event.modifiers.ctrl = event.mods.isCtrlDown();
     pointer_event.modifiers.alt = event.mods.isAltDown();
     pointer_event.modifiers.shift = event.mods.isShiftDown();
     // A resolved lane (Down/Move) names its identity, index, value shape, and the band-extent

@@ -73,10 +73,10 @@ public:
     void setVisibleTimelineRange(common::core::TimeRange visible_timeline) noexcept;
 
     /*!
-    \brief Stores the grid note value so click snapping matches the rendered timeline grid.
-    \param grid_note_value Grid step as a fraction of a whole note.
+    \brief Stores the placement quantum so click snapping matches every other placing surface.
+    \param placement_quantum Note value positions quantize to.
     */
-    void setGridNoteValue(common::core::Fraction grid_note_value) noexcept;
+    void setPlacementQuantum(common::core::Fraction placement_quantum) noexcept;
 
     /*!
     \brief Shows or clears the transient snap guide reported by a track-row drag.
@@ -166,9 +166,9 @@ private:
     // Tempo map owned by the editor view state, referenced to snap non-modified timeline clicks.
     const common::core::TempoMap& m_tempo_map;
 
-    // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
+    // Note value seek clicks quantize onto, initialized to the editor's default grid because the
     // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
+    common::core::Fraction m_placement_quantum{core::g_default_tempo_grid_note_value};
 
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};

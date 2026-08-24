@@ -16,8 +16,25 @@
 namespace rock_hero::editor::core
 {
 
-/*! \brief Inclusive upper bound for grid note-value numerator and denominator values. */
+/*! \brief Inclusive upper bound for the terms of a grid note value a user may select. */
 inline constexpr int g_max_tempo_grid_note_value_term = 128;
+
+/*!
+\brief Denominator of the tick lattice: the finest note value any editor verb places on.
+
+1/3840 of a whole note is 1/960 of a quarter note — the standard MIDI PPQ tick, far finer than
+audible resolution and still an exact rational. 3840 rather than 4096 because triplet grids need
+the factor of 3, so straight, triplet, and quintuplet subdivisions all land on the lattice.
+*/
+inline constexpr int g_tick_quantum_denominator = 3840;
+
+/*!
+\brief The tick lattice as a note value: what placement quantizes to while grid snap is off.
+
+A note value like any other, so the measure-anchored lattice arithmetic walks it unchanged. It is
+never a grid the user selects or the editor draws — only a lattice positions land on.
+*/
+inline constexpr common::core::Fraction g_tick_quantum_note_value{1, g_tick_quantum_denominator};
 
 /*!
 \brief The editor's default grid note value: the sixteenth-note grid.
@@ -29,13 +46,21 @@ supplied value is invalid, so rendering and snapping can never diverge.
 inline constexpr common::core::Fraction g_default_tempo_grid_note_value{1, 16};
 
 /*!
-\brief Reports whether a fraction is usable as the grid note value.
+\brief Reports whether a fraction is a lattice the measure walk and the snap lookup can use.
 
 The grid's authoritative unit is a note value expressed as a fraction of a whole note (1/8 means
-eighth notes in every meter). A valid note value is a positive fraction whose numerator and
-denominator each fall in [1, g_max_tempo_grid_note_value_term]. The default-constructed Fraction
-value of 0/1 is invalid, so every owner of a grid note value must initialize it explicitly; the
-editor default is g_default_tempo_grid_note_value.
+eighth notes in every meter). A usable lattice is a positive fraction whose numerator falls in
+[1, g_max_tempo_grid_note_value_term] — past that the walk's integer step arithmetic stops being
+worth trusting — and whose denominator falls in [1, g_tick_quantum_denominator], the finest lattice
+any verb places on. The default-constructed Fraction value of 0/1 is invalid, so every owner of a
+grid note value must initialize it explicitly; the editor default is
+g_default_tempo_grid_note_value.
+
+This is deliberately NOT the question the grid box asks, which is why there are two predicates and
+not one bound doing double duty. "Can the walk walk this" must admit the tick, because the
+placement quantum becomes exactly that note value while grid snap is off
+(\ref placementQuantumNoteValue). "May a user pick this as the drawn grid" must not
+(\ref isSelectableTempoGridNoteValue).
 
 \param note_value Grid step expressed as a fraction of a whole note.
 \return True when the note value can drive grid generation and snapping.
@@ -43,8 +68,52 @@ editor default is g_default_tempo_grid_note_value.
 [[nodiscard]] constexpr bool isValidTempoGridNoteValue(common::core::Fraction note_value) noexcept
 {
     return note_value.numerator >= 1 && note_value.numerator <= g_max_tempo_grid_note_value_term &&
-           note_value.denominator >= 1 &&
+           note_value.denominator >= 1 && note_value.denominator <= g_tick_quantum_denominator;
+}
+
+/*!
+\brief Reports whether a note value may be applied as the session's own grid.
+
+Every walkable lattice, minus the ones nobody means as a grid: nothing finer than one
+g_max_tempo_grid_note_value_term-th of a whole note. The session grid is the DRAWN one, generated
+and painted line by line across the visible span (\ref visibleTempoGridLines), which at full
+zoom-out is the whole song — so this bound is what keeps a typed 1/3840 out of the free-text grid
+box, where snapping alone (a binary search) would never have noticed it. The tick lattice placement
+falls back on is never drawn, which is exactly why it passes \ref isValidTempoGridNoteValue and
+fails here.
+
+\param note_value Grid step expressed as a fraction of a whole note.
+\return True when the note value may be applied as the session grid.
+*/
+[[nodiscard]] constexpr bool isSelectableTempoGridNoteValue(
+    common::core::Fraction note_value) noexcept
+{
+    return isValidTempoGridNoteValue(note_value) &&
            note_value.denominator <= g_max_tempo_grid_note_value_term;
+}
+
+/*!
+\brief The one placement quantum: the note value every position-quantizing verb snaps onto.
+
+The editor has exactly one answer to "what lattice does a position land on", and this is it —
+note insert, note move, the sustain gesture's steps, marker placement, tone-region endpoints, and
+every seek or caret click read it, with no per-verb opt-out. With snap on that is the session's
+own grid; with snap off it is the tick lattice, which is why turning snap off does not lose the
+precision the retired Ctrl tier used to reach (one step is one tick).
+
+It is a POSITION rule and only a position rule. A verb needing a musical DURATION default — a
+placed note's ring is the standing case — keeps reading the grid note value, because that is the
+unit the user is authoring in; a 1/3840 default ring would be absurd. When a site is ambiguous,
+ask whether the number is a place on the timeline or a length.
+
+\param grid_note_value The session's grid step as a fraction of a whole note.
+\param grid_snap True while grid snap is on.
+\return The note value positions quantize to.
+*/
+[[nodiscard]] constexpr common::core::Fraction placementQuantumNoteValue(
+    common::core::Fraction grid_note_value, bool grid_snap) noexcept
+{
+    return grid_snap ? grid_note_value : g_tick_quantum_note_value;
 }
 
 /*! \brief Musical rank of a tempo-grid line, ordered weakest to strongest. */
@@ -151,63 +220,23 @@ rather than an approximation in some fixed fine grid.
     const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
     common::core::TimePosition target);
 
-/*! \brief Controls whether cursor placement snaps to the tempo grid or keeps the click point. */
-enum class TimelineCursorPlacementMode : std::uint8_t
-{
-    /*! \brief Resolve the click to the exact time of the nearest tempo-grid line. */
-    SnapToGrid,
-
-    /*! \brief Keep the sub-pixel click point's own time. */
-    Free,
-};
-
 /*!
 \brief Converts a timeline-content x coordinate into a timeline seek position.
 
-Snap placement resolves the click to the exact time of the nearest tempo-grid line, so the seek
-target stays on the beat at any zoom level instead of being quantized to the clicked pixel. Free
-placement keeps the sub-pixel click point's time.
+Placement always resolves the click to the exact time of the nearest quantum line, so the seek
+target stays on the lattice at any zoom level instead of being quantized to the clicked pixel.
+A caller wanting the raw click time asks \ref timelinePositionForX directly.
 
 \param tempo_map Song tempo map supplying the snap grid.
-\param grid_note_value Grid step as a fraction of a whole note, shared with grid rendering.
+\param placement_quantum Note value positions quantize to (\ref placementQuantumNoteValue).
 \param visible_timeline Timeline range represented by the full timeline width.
 \param timeline_width Full timeline content width in pixels.
 \param timeline_x X coordinate in timeline-content coordinates.
-\param mode Whether placement should snap to the grid or stay at the click point.
 \return Timeline seek position, or empty for invalid timeline geometry.
 */
 [[nodiscard]] std::optional<common::core::TimePosition> timelineCursorPlacementTime(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
-    common::core::TimeRange visible_timeline, int timeline_width, float timeline_x,
-    TimelineCursorPlacementMode mode);
-
-/*!
-\brief Denominator of the fine placement grid used when precision bypasses the visible grid.
-
-1/960 of a beat keeps every stored position an exact rational at far finer than audible
-resolution: 960 is the standard MIDI PPQ resolution and divides every practical straight,
-triplet, and quintuplet subdivision. Ctrl composes it onto placements and moves on every
-surface — automation points, tone boundaries, ruler seeks, and chart-note verbs alike (the
-off-grid unification: snap default follows the data, the precision capability is uniform).
-*/
-inline constexpr int g_fine_grid_denominator = 960;
-
-/*!
-\brief Quantizes a fractional global-beat position to the exact rational 1/960-beat fine grid.
-
-The seam shared by the Ctrl placement gestures (tone boundaries, automation points, the lane
-caret arm) and playhead-anchored tone-marker insertion: it turns a seconds- or beat-derived
-double into a storable position that stays an exact rational (never a raw double) at
-sub-millisecond resolution. A caller that already holds an exact musical position should keep
-it verbatim rather than round-tripping through this — keyboard fine MOVES advance exact
-rationals relatively and have no caller here.
-
-\param tempo_map Song tempo map supplying the beat-to-measure mapping.
-\param global_beat Global beat position (whole beats plus fractional beat) to quantize.
-\return Exact musical position on the fine grid.
-*/
-[[nodiscard]] common::core::GridPosition fineGridPositionForBeat(
-    const common::core::TempoMap& tempo_map, double global_beat);
+    const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum,
+    common::core::TimeRange visible_timeline, int timeline_width, float timeline_x);
 
 /*!
 \brief One grid step in beats at a measure: the note value scaled by the local meter's unit.

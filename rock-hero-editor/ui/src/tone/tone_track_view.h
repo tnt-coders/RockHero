@@ -162,10 +162,10 @@ public:
     void setState(const core::ToneTrackViewState& state);
 
     /*!
-    \brief Sets the grid step edge drags snap to, shared with the ruler and grid rendering.
-    \param note_value Grid step as a fraction of a whole note.
+    \brief Sets the note value edge drags and inserts snap to, shared with every placing surface.
+    \param placement_quantum Note value positions quantize to.
     */
-    void setGridNoteValue(common::core::Fraction note_value);
+    void setPlacementQuantum(common::core::Fraction placement_quantum);
 
     /*!
     \brief Installs the callback that receives the transient edge-drag snap guide.
@@ -297,12 +297,12 @@ private:
     // Snaps a drag x to the tempo grid for the active edge, accepted only inside the open interval
     // that keeps both regions sharing the dragged boundary non-empty; empty when out of range.
     [[nodiscard]] std::optional<common::core::GridPosition> snappedGridPositionForDrag(
-        float x, const juce::ModifierKeys& mods) const;
+        float x) const;
 
     // Resolves an x to the snapped position a tone change would be inserted at, accepted only
     // strictly inside the given region (a change on an existing boundary splits nothing).
     [[nodiscard]] std::optional<common::core::GridPosition> insertPositionForX(
-        float x, std::size_t region_index, const juce::ModifierKeys& mods) const;
+        float x, std::size_t region_index) const;
 
     // Sets or clears the Alt-held ghost boundary line, repainting the strips it moves between.
     void setInsertGhostX(std::optional<float> ghost_x);
@@ -329,8 +329,8 @@ private:
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
 
-    // Grid step edge drags snap to, shared with the ruler and grid rendering.
-    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
+    // Note value edge drags and inserts snap to, shared with every placing surface.
+    common::core::Fraction m_placement_quantum{core::g_default_tempo_grid_note_value};
 
     // Content x of the visible viewport's left edge; region labels pin here as the row scrolls.
     int m_visible_content_left{0};

@@ -634,12 +634,12 @@ TEST_CASE(
     editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 1));
 
     // Alt+Up steps the value by 0.01 as one committed edit; the selection stays on the point.
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up);
     REQUIRE(editor.model().front().points.size() == 2);
     CHECK(std::abs(editor.model().front().points.back().norm_value - 0.81F) < 0.0001F);
 
     // Alt+Right moves to the adjacent grid line; the selection re-points to the new identity.
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 2));
     const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
     REQUIRE(selected != nullptr);
@@ -649,37 +649,39 @@ TEST_CASE(
     // the caret along — it stays on its object through the move.
     editor.controller.onToneAutomationLaneCaretRequested(
         g_instance, g_param, common::core::TimePosition{2.5});
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 3));
     const ToneAutomationLaneCaretRef* const moved_caret = laneCaretOrNull(editor.automation());
     REQUIRE(moved_caret != nullptr);
     CHECK(moved_caret->position == pointAt(2, 3));
 
-    // Ctrl+Alt+Left steps back one 1/960 beat: the point (and its caret) leave the lattice
-    // exactly.
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
-    const common::core::GridPosition fine_slot{
+    // With snap off, Alt+Left steps back one tick (1/3840 whole note, 1/960 beat in x/4): the
+    // point (and its caret) leave the grid exactly. Snap goes back on for the grid steps below.
+    editor.controller.onGridSnapToggleRequested();
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+    editor.controller.onGridSnapToggleRequested();
+    const common::core::GridPosition tick_slot{
         .measure = 2, .beat = 2, .offset = common::core::Fraction{959, 960}
     };
-    CHECK(editor.model().front().points.back().position == fine_slot);
-    const ToneAutomationLaneCaretRef* const fine_caret = laneCaretOrNull(editor.automation());
-    REQUIRE(fine_caret != nullptr);
-    CHECK(fine_caret->position == fine_slot);
+    CHECK(editor.model().front().points.back().position == tick_slot);
+    const ToneAutomationLaneCaretRef* const tick_caret = laneCaretOrNull(editor.automation());
+    REQUIRE(tick_caret != nullptr);
+    CHECK(tick_caret->position == tick_slot);
 
     // A grid step from the off-grid slot lands on the ADJACENT grid line — never jumping past
     // it (the shared adjacent-line primitive, matching the caret's own stepping rule); the
     // step that would land on the region's end boundary (4.0 s) is refused by the window
     // clamp.
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 3));
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 4));
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(editor.model().front().points.back().position == pointAt(2, 4));
 
     // At the map edge the step collapses: refused, nothing changes.
     editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(1, 1));
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     CHECK(editor.model().front().points.front().position == pointAt(1, 1));
 }
 
@@ -704,7 +706,7 @@ TEST_CASE(
 
     // Alt+Up creates ON the curve with the step baked in — one points edit, one undo entry —
     // and the new point becomes the selection.
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up);
     REQUIRE(editor.model().front().points.size() == 3);
     CHECK(editor.model().front().points[1].position == pointAt(2, 1));
     CHECK(std::abs(editor.model().front().points[1].norm_value - 0.51F) < 0.0001F);
@@ -736,7 +738,7 @@ TEST_CASE(
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     editor.controller.onNeutralInsertRequested();
     CHECK(editor.model().empty());
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up);
     CHECK(editor.model().empty());
 
     // One step back inside the window, the same verbs create as always.
@@ -792,15 +794,18 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
             common::core::ToneAutomationPoint{.position = pointAt(2, 2), .norm_value = 0.8F},
         });
 
-    // Selecting the (2,2) point arms the caret on it; the fine step slides both off the grid.
+    // Selecting the (2,2) point arms the caret on it; a tick step with snap off slides both off
+    // the grid, and snap goes back on so the plain arrows below step the grid again.
     editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 2));
-    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
-    const common::core::GridPosition fine_slot{
+    editor.controller.onGridSnapToggleRequested();
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
+    editor.controller.onGridSnapToggleRequested();
+    const common::core::GridPosition tick_slot{
         .measure = 2, .beat = 1, .offset = common::core::Fraction{959, 960}
     };
-    const ToneAutomationLaneCaretRef* const fine_caret = laneCaretOrNull(editor.automation());
-    REQUIRE(fine_caret != nullptr);
-    CHECK(fine_caret->position == fine_slot);
+    const ToneAutomationLaneCaretRef* const tick_caret = laneCaretOrNull(editor.automation());
+    REQUIRE(tick_caret != nullptr);
+    CHECK(tick_caret->position == tick_slot);
 
     // Plain Left steps to the (2,1) grid line — an empty slot, so the selection clears.
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
@@ -814,7 +819,7 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     const ToneAutomationLaneCaretRef* const right_caret = laneCaretOrNull(editor.automation());
     REQUIRE(right_caret != nullptr);
-    CHECK(right_caret->position == fine_slot);
+    CHECK(right_caret->position == tick_slot);
     const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
     REQUIRE(selected != nullptr);
     CHECK(selected->point_index == 1);
@@ -850,7 +855,7 @@ TEST_CASE(
             .lane_extents = {},
             .x = boundary_x,
             .y = 0.0F,
-            .modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = true},
+            .modifiers = ToneAutomationPointerModifiers{.alt = true},
         });
 
     const common::core::TempoMap& tempo_map = editor.controller.session().song().tempo_map;
@@ -928,7 +933,7 @@ TEST_CASE(
     down.x = boundary_x;
     down.y = pointerYForValue(0.5F);
     down.clicks = 1;
-    down.modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = false};
+    down.modifiers = ToneAutomationPointerModifiers{.alt = false};
     editor.controller.onToneAutomationPointerDown(down);
 
     const common::core::TempoMap& tempo_map = editor.controller.session().song().tempo_map;
@@ -970,17 +975,17 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "EditorController arms the lane caret on the Ctrl fine tier, matching lane placement",
+    "EditorController arms the lane caret on the placement quantum, snap on or off",
     "[core][tone-automation]")
 {
     AutomationEditor editor;
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
     REQUIRE(editor.automation().lanes.size() == 1);
 
-    // Routing the caret arm through the one placement snap (laneSnapPositionForX) means it now
-    // honors the Ctrl fine tier exactly as lane placement and the insert ghost do — Ctrl =
-    // precision, uniformly. This pixel inverts to an off-grid 2.13 s, so the
-    // coarse and fine snaps disagree.
+    // Routing the caret arm through the one placement snap (laneSnapPositionForX) means it reads
+    // the session's placement quantum exactly as lane placement and the insert ghost do — one
+    // lattice, no per-gesture modifier. This pixel inverts to an off-grid 2.13 s, so the grid and
+    // tick answers disagree and the test can tell which one the caret took.
     const common::core::TimeRange visible{
         .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
     };
@@ -996,17 +1001,17 @@ TEST_CASE(
         throw std::logic_error("placement seam mapped no time");
     }
 
-    // The nearest 1/4 line is measure 2 beat 1 (2.0 s); the fine tier keeps the off-grid 1/960-beat
-    // slot. Both are derived through the same helpers the controller's snap uses, so the
-    // expectation tracks the placement seam rather than a hand-computed fraction.
+    // The nearest 1/4 line is measure 2 beat 1 (2.0 s); the tick lattice keeps the off-grid slot.
+    // Both are derived through the same helper the controller's snap uses, so the expectation
+    // tracks the placement seam rather than a hand-computed fraction.
     const common::core::GridPosition coarse_slot =
         nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
-    const common::core::GridPosition fine_slot = fineGridPositionForBeat(
-        tempo_map, tempo_map.beatPositionAtSeconds(placement_time->seconds));
+    const common::core::GridPosition tick_slot =
+        nearestTempoGridPosition(tempo_map, g_tick_quantum_note_value, *placement_time);
     CHECK(coarse_slot == gridAt(2, 1));
-    CHECK(fine_slot != coarse_slot);
+    CHECK(tick_slot != coarse_slot);
 
-    const auto down = [&](bool ctrl) {
+    const auto down = [&] {
         ToneAutomationPointerEvent event;
         event.instance_id = g_instance;
         event.param_id = g_param;
@@ -1019,25 +1024,26 @@ TEST_CASE(
         event.x = off_grid_x;
         event.y = pointerYForValue(0.5F);
         event.clicks = 1;
-        event.modifiers = ToneAutomationPointerModifiers{.ctrl = ctrl, .alt = false};
+        event.modifiers = ToneAutomationPointerModifiers{.alt = false};
         return event;
     };
 
-    // Ctrl held: the caret arms on the fine tier's off-grid slot.
-    editor.controller.onToneAutomationPointerDown(down(true));
-    REQUIRE(editor.automation().lane_caret.has_value());
-    if (editor.automation().lane_caret.has_value())
-    {
-        CHECK(editor.automation().lane_caret->position == fine_slot);
-        CHECK(editor.automation().lane_caret->position != coarse_slot);
-    }
-
-    // Without Ctrl the same pixel arms on the coarse grid line: Ctrl is what selects the tier.
-    editor.controller.onToneAutomationPointerDown(down(false));
+    // Snap on (the session default): the same pixel arms on the coarse grid line.
+    editor.controller.onToneAutomationPointerDown(down());
     REQUIRE(editor.automation().lane_caret.has_value());
     if (editor.automation().lane_caret.has_value())
     {
         CHECK(editor.automation().lane_caret->position == coarse_slot);
+    }
+
+    // Snap off: the caret arms on the tick lattice instead — the mode is what selects the answer.
+    editor.controller.onGridSnapToggleRequested();
+    editor.controller.onToneAutomationPointerDown(down());
+    REQUIRE(editor.automation().lane_caret.has_value());
+    if (editor.automation().lane_caret.has_value())
+    {
+        CHECK(editor.automation().lane_caret->position == tick_slot);
+        CHECK(editor.automation().lane_caret->position != coarse_slot);
     }
 }
 
@@ -1061,7 +1067,7 @@ TEST_CASE(
             .lane_extents = {},
             .x = x,
             .y = 0.0F,
-            .modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = alt},
+            .modifiers = ToneAutomationPointerModifiers{.alt = alt},
         };
     };
 
@@ -1091,7 +1097,7 @@ TEST_CASE(
          common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
     REQUIRE(editor.automation().lanes.size() == 1);
 
-    const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
+    const ToneAutomationPointerModifiers alt{.alt = true, .shift = false};
 
     // Alt-press at x 100 (1.0 s, measure 1 beat 3 — halfway between the authored points) well below
     // the curve (y for 0.125): the new point lands ON the drawn curve (the 0.5 interpolation), not
@@ -1142,7 +1148,7 @@ TEST_CASE(
     // Grab the second point (x 200, value 0.75 -> y 15) and Shift-drag it far right and down. The
     // horizontal axis dominates (60 px vs 25 px), so Shift locks the value at 0.75 while the
     // position snaps: 260 px = 2.6 s snaps to the 2.5 s quarter-note line, measure 2 beat 2.
-    const ToneAutomationPointerModifiers shift{.ctrl = false, .alt = false, .shift = true};
+    const ToneAutomationPointerModifiers shift{.alt = false, .shift = true};
     editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
     editor.controller.onToneAutomationPointerDrag(dragEvent(260.0F, 40.0F, shift));
     editor.controller.onToneAutomationPointerUp(pointerEvent(260.0F, 40.0F, shift));
@@ -1304,7 +1310,7 @@ TEST_CASE(
     // but y 40 is far from the point handle at y 15, so it is an area press, not a grab). Placement
     // shares the keyboard Insert's occupied-slot refusal, so no
     // gesture arms and no duplicate lands.
-    const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
+    const ToneAutomationPointerModifiers alt{.alt = true, .shift = false};
     editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, 40.0F, alt));
     CHECK_FALSE(editor.automation().drag_preview.has_value());
     editor.controller.onToneAutomationPointerUp(pointerEvent(200.0F, 40.0F, alt));
@@ -1321,7 +1327,7 @@ TEST_CASE(
         {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
          common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
 
-    const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
+    const ToneAutomationPointerModifiers alt{.alt = true, .shift = false};
 
     // Over the occupied measure 2 beat 1 slot (x 200) the ring is hidden: an insert there would
     // no-op, so the affordance must not advertise it (§7, and the

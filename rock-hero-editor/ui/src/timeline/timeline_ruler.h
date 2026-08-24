@@ -110,16 +110,17 @@ public:
     void setCursorPosition(std::optional<common::core::TimePosition> cursor_position, bool paused);
 
     /*!
-    \brief Stores the tempo map that supplies anchors and click snapping, plus the grid step in
-    beats shared with the track grid and snapping.
+    \brief Stores the tempo map that supplies anchors and click snapping, plus the note value ruler
+    clicks quantize onto.
 
     Does not rebuild cached geometry by itself: callers must follow every grid change with a
-    setGridLines push, matching setTimelineView.
+    setGridLines push, matching setTimelineView. The drawn lines come from setGridLines, so the
+    ruler never needs the grid note value itself — only the quantum its clicks land on.
 
     \param tempo_map Song tempo map shared with the track grid and snapping.
-    \param grid_note_value Grid step as a fraction of a whole note.
+    \param placement_quantum Note value positions quantize to.
     */
-    void setGrid(const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value);
+    void setGrid(const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum);
 
     /*!
     \brief Stores the visible-span grid lines and rebuilds the cached ruler geometry from them.
@@ -224,9 +225,9 @@ private:
     // Tempo map used for ruler measure ticks and anchor positions.
     common::core::TempoMap m_tempo_map{};
 
-    // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
+    // Note value ruler clicks quantize onto, initialized to the editor's default grid because the
     // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
+    common::core::Fraction m_placement_quantum{core::g_default_tempo_grid_note_value};
 
     // Width of the scrollable timeline canvas that shares geometry with the grid.
     int m_content_width{0};

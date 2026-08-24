@@ -57,13 +57,14 @@ Three consequences keep the rows pixel-aligned:
 - **One snap function.** `musicalGridPositionForX(...)`
   (`rock-hero-editor/ui/src/timeline/timeline_cursor.h`) converts a pixel to an exact rational
   grid position for *every* gesture — cursor placement, tone-region boundaries, automation
-  points. Ctrl bypasses to the 1/960-beat fine grid — and that fine tier is uniform across
-  surfaces *and* input families (the off-grid unification): keyboard moves and the sustain
-  extent verb compose the same `fine` flag the pointer path uses. The keyboard's stepping has
-  its own single primitives next to the grid math (`gridStepBeats` and
+  points. It takes the **placement quantum**, not the grid value: `placementQuantumNoteValue(...)`
+  is the one authority, and `EditorView::setState` derives it once per push and hands the same
+  value to every placing surface, so no view can snap by a rule the controller did not use. No
+  modifier composes a second answer — grid snap (`Ctrl+G`) is the only thing that moves it. The
+  keyboard's stepping has its own single primitives next to the grid math (`gridStepBeats` and
   `adjacentTempoGridPosition` in `editor/core/timeline/tempo_grid_geometry.h` — the one
-  grid-step rule behind both the caret step and the lane nudge, exact-rational so a coarse step
-  from an off-grid position lands on the adjacent line). New gestures must go through these
+  step rule behind both the caret step and the lane nudge, exact-rational so a step from a
+  position between lines lands on the adjacent one). New gestures must go through these
   helpers, or their snapping will disagree with everyone else's.
 
 The pinned ruler stacks the **song-level** chip rows on top — sections, tempo markings, and time
@@ -346,7 +347,8 @@ the rule and the facts behind it.
 
 Renders the gap-free tone regions as spans with name chips pinned to the visible left edge, and
 carries the editing grammar for boundaries: click selects, edge-drag moves a shared boundary
-(snapped; Ctrl fine grid), Alt enters the insert quasimode with a ghost boundary, Esc cancels.
+(snapped to the placement quantum), Alt enters the insert quasimode with a ghost boundary, Esc
+cancels.
 Boundaries and the split ghost render on the tempo grid's own integer pixel columns
 (`gridAlignedX`; the ghost is a 1px column fill), so a preview sits exactly on the line it will
 commit to.

@@ -160,17 +160,9 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Move the selection down (`Alt+Down`). */
     SelectionMoveDown = 0x160C,
 
-    /*! \brief Move the selection one fine (1/960-beat) step left (`Ctrl+Alt+Left`). */
-    SelectionMoveFineLeft = 0x160D,
-
-    /*! \brief Move the selection one fine step right (`Ctrl+Alt+Right`). */
-    SelectionMoveFineRight = 0x160E,
-
-    /*! \brief Move the selection one fine step up (`Ctrl+Alt+Up`). */
-    SelectionMoveFineUp = 0x160F,
-
-    /*! \brief Move the selection one fine step down (`Ctrl+Alt+Down`). */
-    SelectionMoveFineDown = 0x1610,
+    // 0x160D-0x1610 were the fine-tier selection moves, retired with the Ctrl fine tier when grid
+    // snap took over off-grid placement (docs/plans/in-progress/grid-snap.md). The values stay
+    // spent: a stale persisted keymap naming one resolves to no spec and is dropped.
 
     /*! \brief Delete the selection, whatever its kind (`Delete`). */
     SelectionDelete = 0x1611,
@@ -181,11 +173,7 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Shorten the selected sustain one grid step (`Alt+Shift+Left`). */
     SustainShorten = 0x1702,
 
-    /*! \brief Lengthen the selected sustain one fine step (`Ctrl+Alt+Shift+Right`). */
-    SustainLengthenFine = 0x1703,
-
-    /*! \brief Shorten the selected sustain one fine step (`Ctrl+Alt+Shift+Left`). */
-    SustainShortenFine = 0x1704,
+    // 0x1703-0x1704 were the fine-tier sustain steps, retired with the rest of the Ctrl fine tier.
 
     /*! \brief Shift the selected notes' frets up (`Alt+Shift+Up`). */
     FretShiftUp = 0x1705,
@@ -267,6 +255,9 @@ enum class EditorCommandId : std::uint16_t
 
     /*! \brief Zoom the timeline out around the marker (`Ctrl+-`). */
     ZoomOut = 0x1904,
+
+    /*! \brief Flip grid snap, which decides the placement quantum (`Ctrl+G`). */
+    ToggleGridSnap = 0x1905,
 };
 
 /*!

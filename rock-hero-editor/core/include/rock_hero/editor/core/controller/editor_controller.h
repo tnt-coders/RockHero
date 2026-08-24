@@ -414,6 +414,9 @@ public:
     */
     void onGridNoteValueChangeRequested(common::core::Fraction note_value) override;
 
+    /*! \copydoc IEditorController::onGridSnapToggleRequested */
+    void onGridSnapToggleRequested() override;
+
     /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.
     \param pixels_per_second Horizontal timeline scale currently displayed.
@@ -455,7 +458,7 @@ public:
         TimeSelectionExtent extent, ChartStepDirection direction) override;
 
     /*! \copydoc IEditorController::onSelectionMoveRequested */
-    void onSelectionMoveRequested(ChartStepDirection direction, bool fine) override;
+    void onSelectionMoveRequested(ChartStepDirection direction) override;
 
     /*! \copydoc IEditorController::onSelectionDeleteRequested */
     void onSelectionDeleteRequested() override;
@@ -467,7 +470,7 @@ public:
     void onChartFretShiftRequested(int direction) override;
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
-    void onChartSustainAdjustRequested(int direction, bool fine) override;
+    void onChartSustainAdjustRequested(int direction) override;
 
     /*! \copydoc IEditorController::onChartTechniqueToggleRequested */
     void onChartTechniqueToggleRequested(ChartTechnique technique) override;

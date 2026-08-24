@@ -317,7 +317,7 @@ TEST_CASE("Visible tempo grid falls back to the default for invalid values", "[c
     CHECK(
         visibleTempoGridLines(
             map,
-            common::core::Fraction{1, 2048},
+            common::core::Fraction{1, g_tick_quantum_denominator + 1},
             g_one_measure_window,
             g_one_measure_width,
             0,
@@ -398,18 +398,59 @@ TEST_CASE("Nearest tempo grid time falls back to the default grid", "[core][temp
             map, g_default_tempo_grid_note_value, common::core::TimePosition{0.74}));
 }
 
-// Verifies the note-value bounds accept every supported grid and reject the degenerate default
-// and out-of-bound terms.
+// Verifies the note-value bounds accept every supported grid AND the tick quantum — the placement
+// lattice snap-off hands the same geometry — and reject the degenerate default and out-of-bound
+// terms.
 TEST_CASE("Tempo grid note-value validity bounds the supported grids", "[core][tempo-grid]")
 {
     CHECK(isValidTempoGridNoteValue(common::core::Fraction{1, 4}));
     CHECK(isValidTempoGridNoteValue(common::core::Fraction{1, 128}));
     CHECK(isValidTempoGridNoteValue(common::core::Fraction{3, 16}));
     CHECK(isValidTempoGridNoteValue(common::core::Fraction{128, 1}));
+    // The tick must pass, or the geometry layer's fallback would silently swap the placement
+    // quantum for the default grid the moment snap goes off.
+    CHECK(isValidTempoGridNoteValue(g_tick_quantum_note_value));
 
     CHECK_FALSE(isValidTempoGridNoteValue(common::core::Fraction{}));
-    CHECK_FALSE(isValidTempoGridNoteValue(common::core::Fraction{1, 2048}));
+    CHECK_FALSE(
+        isValidTempoGridNoteValue(common::core::Fraction{1, g_tick_quantum_denominator + 1}));
     CHECK_FALSE(isValidTempoGridNoteValue(common::core::Fraction{600000000, 1}));
+}
+
+// Verifies the selectable bound is the narrower of the two questions: every grid a user can pick
+// is walkable, but the lattices between 1/128 and the tick are walkable WITHOUT being pickable.
+// The grid box is free text, so this predicate is the only thing between a typed 1/3840 and a
+// drawn grid the line walk cannot afford.
+TEST_CASE("Selectable grid note values stop short of the tick", "[core][tempo-grid]")
+{
+    CHECK(isSelectableTempoGridNoteValue(common::core::Fraction{1, 4}));
+    CHECK(isSelectableTempoGridNoteValue(common::core::Fraction{3, 16}));
+    CHECK(isSelectableTempoGridNoteValue(common::core::Fraction{128, 1}));
+    CHECK(isSelectableTempoGridNoteValue(
+        common::core::Fraction{1, g_max_tempo_grid_note_value_term}));
+
+    // Walkable but not pickable: the whole band the placement quantum needs and the grid does not.
+    CHECK(isValidTempoGridNoteValue(g_tick_quantum_note_value));
+    CHECK_FALSE(isSelectableTempoGridNoteValue(g_tick_quantum_note_value));
+    CHECK(
+        isValidTempoGridNoteValue(common::core::Fraction{1, g_max_tempo_grid_note_value_term + 1}));
+    CHECK_FALSE(isSelectableTempoGridNoteValue(
+        common::core::Fraction{1, g_max_tempo_grid_note_value_term + 1}));
+
+    // Whatever the lattice rejects, selection rejects too.
+    CHECK_FALSE(isSelectableTempoGridNoteValue(common::core::Fraction{}));
+    CHECK_FALSE(isSelectableTempoGridNoteValue(common::core::Fraction{600000000, 1}));
+}
+
+// Verifies the placement quantum is the session grid while snap is on and the tick lattice while
+// it is off — the one authority every position-quantizing verb reads.
+TEST_CASE("Placement quantum follows grid snap", "[core][tempo-grid]")
+{
+    constexpr common::core::Fraction eighth{1, 8};
+    CHECK(placementQuantumNoteValue(eighth, true) == eighth);
+    CHECK(placementQuantumNoteValue(eighth, false) == g_tick_quantum_note_value);
+    // 1/3840 of a whole note is the MIDI PPQ tick: 1/960 of a quarter note.
+    CHECK(g_tick_quantum_note_value == common::core::Fraction{1, 3840});
 }
 
 // Verifies the grid keeps one musical duration across a denominator change: a quarter-note grid
@@ -501,36 +542,29 @@ TEST_CASE("Visible tempo grid restarts at downbeats in odd meters", "[core][temp
     CHECK(lines == expected);
 }
 
-// Verifies free placement keeps the exact click time while snap placement resolves to the
-// nearest grid line's exact time. Width 401 over [0, 4] makes column x equal x / 100 seconds.
-TEST_CASE("Timeline cursor placement snaps or keeps the click point by mode", "[core][tempo-grid]")
+// Verifies placement resolves to the quantum line's exact time, on the grid or on the tick lattice
+// depending on which quantum it is handed. Width 401 over [0, 4] makes column x equal x / 100
+// seconds, so a 1.4 s click is off the quarter grid and on the tick lattice.
+TEST_CASE("Timeline cursor placement snaps to the quantum it is given", "[core][tempo-grid]")
 {
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
 
-    const auto free_position = timelineCursorPlacementTime(
-        map,
-        g_quarter_note_grid,
-        g_one_measure_window,
-        g_one_measure_width,
-        150.0f,
-        TimelineCursorPlacementMode::Free);
-    REQUIRE(free_position.has_value());
-    if (free_position.has_value())
+    const auto grid_position = timelineCursorPlacementTime(
+        map, g_quarter_note_grid, g_one_measure_window, g_one_measure_width, 140.0f);
+    REQUIRE(grid_position.has_value());
+    if (grid_position.has_value())
     {
-        CHECK_THAT(free_position->seconds, Catch::Matchers::WithinULP(1.5, 0));
+        CHECK_THAT(grid_position->seconds, Catch::Matchers::WithinULP(1.0, 0));
     }
 
-    const auto snapped_position = timelineCursorPlacementTime(
-        map,
-        g_quarter_note_grid,
-        g_one_measure_window,
-        g_one_measure_width,
-        140.0f,
-        TimelineCursorPlacementMode::SnapToGrid);
-    REQUIRE(snapped_position.has_value());
-    if (snapped_position.has_value())
+    // The tick lattice keeps the click essentially where it landed: 1.4 s is an exact multiple of
+    // the 1/960-beat step at this tempo, so it survives the snap unchanged.
+    const auto tick_position = timelineCursorPlacementTime(
+        map, g_tick_quantum_note_value, g_one_measure_window, g_one_measure_width, 140.0f);
+    REQUIRE(tick_position.has_value());
+    if (tick_position.has_value())
     {
-        CHECK_THAT(snapped_position->seconds, Catch::Matchers::WithinULP(1.0, 0));
+        CHECK_THAT(tick_position->seconds, Catch::Matchers::WithinULP(1.4, 4));
     }
 }
 
@@ -542,12 +576,7 @@ TEST_CASE(
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
 
     const auto position = timelineCursorPlacementTime(
-        map,
-        g_quarter_note_grid,
-        g_one_measure_window,
-        g_one_measure_width,
-        150.0f,
-        TimelineCursorPlacementMode::SnapToGrid);
+        map, g_quarter_note_grid, g_one_measure_window, g_one_measure_width, 150.0f);
     REQUIRE(position.has_value());
     if (position.has_value())
     {
@@ -560,13 +589,8 @@ TEST_CASE("Timeline cursor placement rejects invalid geometry", "[core][tempo-gr
 {
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
 
-    const auto position = timelineCursorPlacementTime(
-        map,
-        g_quarter_note_grid,
-        g_one_measure_window,
-        0,
-        140.0f,
-        TimelineCursorPlacementMode::SnapToGrid);
+    const auto position =
+        timelineCursorPlacementTime(map, g_quarter_note_grid, g_one_measure_window, 0, 140.0f);
     CHECK_FALSE(position.has_value());
 }
 

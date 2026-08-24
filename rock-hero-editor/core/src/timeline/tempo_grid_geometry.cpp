@@ -420,20 +420,19 @@ common::core::GridPosition nearestTempoGridPosition(
 
 // Converts either overlay or ruler clicks through the same placement path. The click column first
 // becomes a timeline position, so snapping happens in musical time and the resulting seek is the
-// exact grid-line time instead of a value quantized to the pixel grid.
+// exact lattice time instead of a value quantized to the pixel grid.
 std::optional<common::core::TimePosition> timelineCursorPlacementTime(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
-    common::core::TimeRange visible_timeline, int timeline_width, float timeline_x,
-    TimelineCursorPlacementMode mode)
+    const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum,
+    common::core::TimeRange visible_timeline, int timeline_width, float timeline_x)
 {
     const std::optional<common::core::TimePosition> click_time =
         timelinePositionForX(timeline_x, visible_timeline, timeline_width);
-    if (!click_time.has_value() || mode == TimelineCursorPlacementMode::Free)
+    if (!click_time.has_value())
     {
         return click_time;
     }
 
-    return nearestTempoGridTime(tempo_map, grid_note_value, *click_time);
+    return nearestTempoGridTime(tempo_map, placement_quantum, *click_time);
 }
 
 common::core::Fraction gridStepBeats(
@@ -463,29 +462,6 @@ double secondsAtGridPosition(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
 {
     return tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
-}
-
-common::core::GridPosition fineGridPositionForBeat(
-    const common::core::TempoMap& tempo_map, double global_beat)
-{
-    // Quantize the fractional beat to the 1/960 fine grid so the stored position stays an exact
-    // rational instead of a raw double.
-    double whole_beats = 0.0;
-    const double beat_fraction = std::modf(std::max(0.0, global_beat), &whole_beats);
-    auto beat_index = static_cast<std::int64_t>(whole_beats);
-    int fine_steps =
-        static_cast<int>(std::lround(beat_fraction * static_cast<double>(g_fine_grid_denominator)));
-    if (fine_steps == g_fine_grid_denominator)
-    {
-        beat_index += 1;
-        fine_steps = 0;
-    }
-    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
-    return common::core::GridPosition{
-        .measure = measure,
-        .beat = beat,
-        .offset = common::core::Fraction{fine_steps, g_fine_grid_denominator},
-    };
 }
 
 } // namespace rock_hero::editor::core

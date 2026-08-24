@@ -503,8 +503,8 @@ TEST_CASE("EditorController steps the Esc ladder down", "[core][chart]")
 }
 
 // Off-grid notes are first-class caret stops (the union stop set): plain arrows step to the nearer
-// of the adjacent grid line and the row's next note, so a fine-placed note stays reachable from
-// the keyboard — and landing on it arms onto it.
+// of the adjacent grid line and the row's next note, so a note placed with snap off stays reachable
+// from the keyboard once snap is back on — and landing on it arms onto it.
 TEST_CASE("EditorController steps the caret onto off-grid notes", "[core][chart]")
 {
     FakeTransport transport;
@@ -522,10 +522,13 @@ TEST_CASE("EditorController steps the caret onto off-grid notes", "[core][chart]
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Slide the (2,1) string-1 note one fine step off the grid; the caret (armed on the note
-    // by the click) rides the fine move with it.
+    // Slide the (2,1) string-1 note one tick off the grid with snap off; the caret (armed on the
+    // note by the click) rides the move with it. Snap goes back on so the plain arrows below step
+    // the grid again.
     click(controller, 40.0f, 220.0f);
-    controller.onSelectionMoveRequested(ChartStepDirection::Right, true);
+    controller.onGridSnapToggleRequested();
+    controller.onSelectionMoveRequested(ChartStepDirection::Right);
+    controller.onGridSnapToggleRequested();
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});

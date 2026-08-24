@@ -30,11 +30,11 @@ void CursorOverlay::setVisibleTimelineRange(common::core::TimeRange visible_time
     m_visible_timeline = visible_timeline;
 }
 
-// Stores the grid note value pushed by EditorView::setState(), so click snapping always uses the
-// same grid the timeline and ruler render.
-void CursorOverlay::setGridNoteValue(common::core::Fraction grid_note_value) noexcept
+// Stores the placement quantum pushed by EditorView::setState(), so a seek click lands on the same
+// lattice every other placing surface uses.
+void CursorOverlay::setPlacementQuantum(common::core::Fraction placement_quantum) noexcept
 {
-    m_grid_note_value = grid_note_value;
+    m_placement_quantum = placement_quantum;
 }
 
 // Draws the time-selection wash (behind everything), then the cursor, then the snap guide; static
@@ -149,12 +149,7 @@ void CursorOverlay::mouseDown(const juce::MouseEvent& event)
     }
 
     const std::optional<common::core::TimePosition> position = core::timelineCursorPlacementTime(
-        m_tempo_map,
-        m_grid_note_value,
-        m_visible_timeline,
-        getWidth(),
-        event.position.x,
-        placementModeFor(event.mods));
+        m_tempo_map, m_placement_quantum, m_visible_timeline, getWidth(), event.position.x);
     if (position.has_value())
     {
         m_controller.onTimelineSeekRequested(*position);

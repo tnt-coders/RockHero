@@ -19,15 +19,20 @@ which columns and dot rows get drawn, never the geometry itself, so results stay
 of how much of the canvas repaints. The pinned ruler deliberately does not draw through this — it
 keeps its own solid ticks so the header reads as a ruler rather than more content.
 
+Quieted drawing is the grid-snap indicator: with snap off the same lattice draws at half its
+contrast against whichever row band each dot crosses, so it still reads as a reference while no
+longer claiming to bind placement.
+
 \param g Graphics context of the component being painted.
 \param subdivision_grid_x Subdivision-rank column x positions relative to the bounds' left edge.
 \param beat_grid_x Beat-rank column x positions relative to the bounds' left edge.
 \param measure_grid_x Measure-rank column x positions relative to the bounds' left edge.
 \param bounds Rectangle the dot columns fill vertically; also anchors the dot-row phase.
+\param quiet True to draw the lattice quieted (grid snap off).
 */
 void drawTempoGridDots(
     juce::Graphics& g, const std::vector<int>& subdivision_grid_x,
     const std::vector<int>& beat_grid_x, const std::vector<int>& measure_grid_x,
-    juce::Rectangle<int> bounds);
+    juce::Rectangle<int> bounds, bool quiet);
 
 } // namespace rock_hero::editor::ui

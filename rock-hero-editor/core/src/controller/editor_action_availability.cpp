@@ -67,6 +67,7 @@ namespace
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectToneRegion:
         {
             return false;
@@ -110,6 +111,7 @@ namespace
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
             case EditorAction::Id::SetGridNoteValue:
+            case EditorAction::Id::ToggleGridSnap:
             case EditorAction::Id::SelectArrangement:
             case EditorAction::Id::SelectToneRegion:
             case EditorAction::Id::CreateToneRegion:
@@ -203,6 +205,7 @@ namespace
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:
@@ -329,6 +332,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:

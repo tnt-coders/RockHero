@@ -300,7 +300,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
 
     const bool next_has_unsaved_changes = state->project.songConvertedOnLoad();
     const std::optional<EditorProjectMarker> next_marker = markerForOpenedProject(state->file);
-    m_grid_note_value = gridNoteValueForOpenedProject(state->file);
+    resetGridSession(gridNoteValueForOpenedProject(state->file));
     m_timeline_zoom_pixels_per_second = timelineZoomForOpenedProject(state->file);
     std::filesystem::path next_project_file{state->file};
 
@@ -450,7 +450,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_session.reset();
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
-        m_grid_note_value = g_default_tempo_grid_note_value;
+        resetGridSession(g_default_tempo_grid_note_value);
         m_timeline_zoom_pixels_per_second = 0.0;
         clearSelection();
         m_open_automation_lanes.clear();
@@ -471,7 +471,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     // A fresh import has no per-project grid note-value record to restore (no project path yet), so
     // the grid resets to the default instead of inheriting the replaced project's
     // spacing.
-    m_grid_note_value = g_default_tempo_grid_note_value;
+    resetGridSession(g_default_tempo_grid_note_value);
     m_timeline_zoom_pixels_per_second = 0.0;
     clearSelection();
     m_open_automation_lanes.clear();
@@ -903,7 +903,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         m_has_untracked_unsaved_changes = false;
         m_project_write_in_flight = false;
         m_session_faulted = false;
-        m_grid_note_value = g_default_tempo_grid_note_value;
+        resetGridSession(g_default_tempo_grid_note_value);
         m_timeline_zoom_pixels_per_second = 0.0;
         clearSelection();
         m_open_automation_lanes.clear();
@@ -924,7 +924,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
     m_has_untracked_unsaved_changes = false;
     m_project_write_in_flight = false;
     m_session_faulted = false;
-    m_grid_note_value = g_default_tempo_grid_note_value;
+    resetGridSession(g_default_tempo_grid_note_value);
     m_timeline_zoom_pixels_per_second = 0.0;
     clearSelection();
     m_open_automation_lanes.clear();
@@ -1489,17 +1489,29 @@ void EditorController::Impl::restoreProjectMarker(const EditorProjectCaret& care
 }
 
 // Chooses the grid note value restored for a project open from app-local editor settings, falling
-// back to the quarter-note default for unknown projects or out-of-bounds stored values.
+// back to g_default_tempo_grid_note_value for unknown projects or out-of-bounds stored values.
 common::core::Fraction EditorController::Impl::gridNoteValueForOpenedProject(
     const std::filesystem::path& project_file) const
 {
+    // Restoring is applying, so it asks the same question the grid box does: a settings file
+    // naming a value no one could have selected is out of bounds, not merely walkable.
     if (const auto saved_note_value = m_settings.projectGridNoteValueFor(project_file);
-        saved_note_value.has_value() && isValidTempoGridNoteValue(*saved_note_value))
+        saved_note_value.has_value() && isSelectableTempoGridNoteValue(*saved_note_value))
     {
         return *saved_note_value;
     }
 
     return g_default_tempo_grid_note_value;
+}
+
+// The one place a project boundary establishes the grid session, so the value and the snap switch
+// can never be set apart. Snap always comes back ON: it is session-only by design (nothing stores
+// it, and no project carries it), and a mode meant to be entered deliberately must not be
+// inherited by the next project — or by the same project reopened tomorrow.
+void EditorController::Impl::resetGridSession(const common::core::Fraction note_value)
+{
+    m_grid_note_value = note_value;
+    m_grid_snap = true;
 }
 
 // Chooses the timeline zoom restored for a project open from app-local editor settings, falling

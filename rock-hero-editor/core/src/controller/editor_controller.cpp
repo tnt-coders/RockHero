@@ -144,6 +144,10 @@ namespace
         {
             return "SetGridNoteValue";
         }
+        case EditorAction::Id::ToggleGridSnap:
+        {
+            return "ToggleGridSnap";
+        }
         case EditorAction::Id::ShowPluginBrowser:
         {
             return "ShowPluginBrowser";
@@ -366,6 +370,7 @@ namespace
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
             case EditorAction::Id::SetGridNoteValue:
+            case EditorAction::Id::ToggleGridSnap:
             case EditorAction::Id::SelectToneRegion:
             {
                 break;
@@ -399,6 +404,7 @@ namespace
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::ToggleGridSnap:
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::CreateToneRegion:
@@ -929,6 +935,11 @@ void EditorController::onGridNoteValueChangeRequested(common::core::Fraction not
     m_impl->onGridNoteValueChangeRequested(note_value);
 }
 
+void EditorController::onGridSnapToggleRequested()
+{
+    m_impl->onGridSnapToggleRequested();
+}
+
 void EditorController::onTimelineZoomChanged(double pixels_per_second)
 {
     m_impl->onTimelineZoomChanged(pixels_per_second);
@@ -990,9 +1001,9 @@ void EditorController::onTimeSelectionExtendRequested(
     m_impl->runAction(EditorAction::ExtendTimeSelection{.extent = extent, .direction = direction});
 }
 
-void EditorController::onSelectionMoveRequested(ChartStepDirection direction, bool fine)
+void EditorController::onSelectionMoveRequested(ChartStepDirection direction)
 {
-    m_impl->runAction(EditorAction::MoveSelection{.direction = direction, .fine = fine});
+    m_impl->runAction(EditorAction::MoveSelection{.direction = direction});
 }
 
 void EditorController::onSelectionDeleteRequested()
@@ -1010,9 +1021,9 @@ void EditorController::onChartFretShiftRequested(int direction)
     m_impl->runAction(EditorAction::ShiftChartFrets{.direction = direction});
 }
 
-void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
+void EditorController::onChartSustainAdjustRequested(int direction)
 {
-    m_impl->runAction(EditorAction::AdjustChartSustain{.direction = direction, .fine = fine});
+    m_impl->runAction(EditorAction::AdjustChartSustain{.direction = direction});
 }
 
 void EditorController::onChartTechniqueToggleRequested(const ChartTechnique technique)
@@ -1612,6 +1623,12 @@ void EditorController::Impl::onGridNoteValueChangeRequested(common::core::Fracti
     runAction(EditorAction::SetGridNoteValue{note_value});
 }
 
+// Routes the snap toggle as an action so it gates like the other timeline intents.
+void EditorController::Impl::onGridSnapToggleRequested()
+{
+    runAction(EditorAction::ToggleGridSnap{});
+}
+
 // Caches and persists the view-reported zoom as app-local per-project resume state. Zoom never
 // dirties project content and bypasses the action gate for the same reason cursor saves do.
 void EditorController::Impl::onTimelineZoomChanged(double pixels_per_second)
@@ -2147,7 +2164,10 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
 // republishes view state so the grid, ruler, and snapping move together.
 void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue action)
 {
-    if (!isValidTempoGridNoteValue(action.note_value) || action.note_value == m_grid_note_value)
+    // The SELECTABLE gate, not the lattice one: the grid box is free text, and this is the only
+    // thing standing between a typed 1/3840 and a drawn grid the line walk cannot afford.
+    if (!isSelectableTempoGridNoteValue(action.note_value) ||
+        action.note_value == m_grid_note_value)
     {
         return;
     }
@@ -2160,6 +2180,24 @@ void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue ac
             "save project grid note value");
     }
     updateView();
+}
+
+// Flips grid snap and republishes, so the placement quantum, the lane's grid ink, and the grid
+// readout all move together off the one fact. Nothing is written anywhere: snap is session-only by
+// design, and resetGridSession puts it back on at every project boundary — the mode is meant to be
+// entered deliberately and left behind, not inherited.
+void EditorController::Impl::performActionImpl(EditorAction::ToggleGridSnap /*action*/)
+{
+    m_grid_snap = !m_grid_snap;
+    updateView();
+}
+
+// The controller's read of the one quantum authority. Every position-quantizing verb across the
+// chart, tone, and timeline slices funnels here, which is what makes "one quantum, no per-verb
+// opt-outs" structural rather than a convention each handler has to remember.
+common::core::Fraction EditorController::Impl::placementQuantum() const noexcept
+{
+    return placementQuantumNoteValue(m_grid_note_value, m_grid_snap);
 }
 
 // Collects availability inputs using fresh controller snapshots for immediate action gates.
@@ -2366,6 +2404,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // list is small enough that per-push resolution needs no memoization.
     state.sections = makeSongSectionViews(session().song().sections, state.tempo_map);
     state.grid_note_value = m_grid_note_value;
+    state.grid_snap = m_grid_snap;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
     state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;

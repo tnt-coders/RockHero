@@ -68,41 +68,20 @@ std::optional<int> drawTimelineCursor(
     return cursor_column;
 }
 
-// One mapping for every timeline click site, so the snap-bypass modifier cannot drift between
-// the ruler and the content overlay.
-core::TimelineCursorPlacementMode placementModeFor(const juce::ModifierKeys& mods)
-{
-    return mods.isCtrlDown() ? core::TimelineCursorPlacementMode::Free
-                             : core::TimelineCursorPlacementMode::SnapToGrid;
-}
-
 std::optional<common::core::GridPosition> musicalGridPositionForX(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
-    common::core::TimeRange visible_timeline, int width, float content_x,
-    const juce::ModifierKeys& mods)
+    const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum,
+    common::core::TimeRange visible_timeline, int width, float content_x)
 {
-    const std::optional<common::core::TimePosition> clicked = core::timelineCursorPlacementTime(
-        tempo_map,
-        grid_note_value,
-        visible_timeline,
-        width,
-        content_x,
-        core::TimelineCursorPlacementMode::Free);
+    const std::optional<common::core::TimePosition> clicked =
+        core::timelinePositionForX(content_x, visible_timeline, width);
     if (!clicked.has_value())
     {
         return std::nullopt;
     }
 
-    // Snapped placements store the grid line's own exact musical address, so any grid value —
-    // including odd fractions like 1/13 that no fixed fine grid divides — round-trips exactly.
-    if (placementModeFor(mods) == core::TimelineCursorPlacementMode::SnapToGrid)
-    {
-        return core::nearestTempoGridPosition(tempo_map, grid_note_value, *clicked);
-    }
-
-    // Ctrl-free placements quantize the fractional beat to the shared 1/960 fine grid.
-    return core::fineGridPositionForBeat(
-        tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds));
+    // Placements store the lattice line's own exact musical address, so any grid value — including
+    // odd fractions like 1/13 that no fixed fine grid divides — round-trips exactly.
+    return core::nearestTempoGridPosition(tempo_map, placement_quantum, *clicked);
 }
 
 } // namespace rock_hero::editor::ui

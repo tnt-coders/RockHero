@@ -62,34 +62,21 @@ std::optional<int> drawTimelineCursor(
     juce::Colour color);
 
 /*!
-\brief Maps mouse modifiers to the cursor placement mode shared by every timeline click site.
-
-Ctrl keeps the exact click point; an unmodified click snaps to the tempo grid.
-
-\param mods Modifier state of the mouse event.
-\return Placement mode for timelineCursorPlacementTime.
-*/
-[[nodiscard]] core::TimelineCursorPlacementMode placementModeFor(const juce::ModifierKeys& mods);
-
-/*!
 \brief Resolves a timeline-content x to the exact musical position a placement gesture should use.
 
-Shared by every grid-snapping placement gesture (automation points and tone-region boundaries) so
-they snap identically. An unmodified gesture snaps to the tempo grid's own exact rational address
-(so any grid value round-trips), while Ctrl bypasses the visible grid and quantizes to a 1/960-beat
-fine grid, keeping the stored position an exact rational far finer than audible resolution.
+Shared by every placement gesture (automation points and tone-region boundaries) so they snap
+identically. The position is the quantum lattice's own exact rational address, so any grid value
+round-trips — including odd fractions like 1/13 that no fixed fine grid divides.
 
 \param tempo_map Song tempo map supplying the snap grid.
-\param grid_note_value Grid step as a fraction of a whole note, shared with grid rendering.
+\param placement_quantum Note value positions quantize to (\ref core::placementQuantumNoteValue).
 \param visible_timeline Timeline range represented by the full content width.
 \param width Full content width in pixels.
 \param content_x X coordinate in timeline-content coordinates.
-\param mods Modifier state of the gesture (Ctrl bypasses the visible grid).
 \return Exact musical position, or empty for invalid timeline geometry.
 */
 [[nodiscard]] std::optional<common::core::GridPosition> musicalGridPositionForX(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
-    common::core::TimeRange visible_timeline, int width, float content_x,
-    const juce::ModifierKeys& mods);
+    const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum,
+    common::core::TimeRange visible_timeline, int width, float content_x);
 
 } // namespace rock_hero::editor::ui

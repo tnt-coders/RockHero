@@ -12,6 +12,16 @@ bottom; implemented the same day). **Automation-lane pointer pipeline made contr
 two grammar-aligning fixes — occupied-slot refusal for mouse placement, Ctrl fine precision on the
 caret arm; amendment record at the bottom).
 
+> **Amended 2026-08-23 (user-signed): `Ctrl` no longer means PRECISION.** The 1/960-beat fine tier
+> is deleted outright. Off-grid authoring is a MODE, not a per-gesture modifier composition:
+> `Ctrl+G` flips a session grid-snap switch, and one **placement quantum** — the grid note value
+> while snap is on, the 1/3840-whole-note tick while it is off — answers every verb that quantizes
+> a time POSITION, on every surface, with no per-verb opt-out. A verb needing a musical DURATION
+> still reads the grid VALUE. Every line below that reads "fine", "1/960", "off-grid under `Ctrl`",
+> or `Ctrl+Alt+arrows` is retired; `Ctrl`'s surviving meanings on this model are REACH (navigation
+> and selection extension) and TOGGLE membership (clicking an existing object). The design is
+> `docs/plans/in-progress/grid-snap.md`; the affected rows here are stale until it is folded in.
+
 ## Goal
 
 One interaction grammar for inserting, deleting, and editing every object on the timeline — tone

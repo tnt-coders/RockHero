@@ -1,5 +1,6 @@
 #include "timeline/grid_spacing_selector.h"
 
+#include <algorithm>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
@@ -138,6 +139,67 @@ TEST_CASE("GridSpacingSelector steps the preset ladder", "[ui][grid-spacing]")
     selector.setNoteValue(common::core::Fraction{1, 2});   // coarser than every preset
     selector.stepNoteValue(-1);                            // inert (would have inverted to 1/4)
     CHECK(listener.chosen_count == count_before_ends);
+}
+
+// Verifies the snap-off indicator on the readout: the control is veiled and a strike crosses the
+// value, and both leave again when snap returns. The two marks say different things, so both are
+// pinned — the veil alone would be indistinguishable from a disabled control, which is why the
+// strike is sampled at the middle of the box, past the left-aligned value text where nothing else
+// is ever drawn.
+TEST_CASE("GridSpacingSelector marks the readout while snap is off", "[ui][grid-spacing]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingGridListener listener;
+    GridSpacingSelector selector{listener};
+    selector.setNoteValue(common::core::Fraction{1, 16});
+    selector.setBounds(0, 0, 220, 24);
+    auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
+
+    // Mean brightness over the combo box's own opaque chrome: the veil can only lower it, and one
+    // hairline strike is far too thin to lift it back.
+    const auto box_mean_brightness = [&selector, &box]() {
+        const juce::Image image = selector.createComponentSnapshot(selector.getLocalBounds());
+        const juce::Rectangle<int> bounds = box.getBounds();
+        float total = 0.0f;
+        for (int x = bounds.getX(); x < bounds.getRight(); ++x)
+        {
+            for (int y = bounds.getY(); y < bounds.getBottom(); ++y)
+            {
+                total += image.getPixelAt(x, y).getBrightness();
+            }
+        }
+
+        return total / static_cast<float>(std::max(1, bounds.getWidth() * bounds.getHeight()));
+    };
+
+    // Brightest pixel in a small window at the box's centre, which the diagonal crosses exactly.
+    const auto centre_peak_brightness = [&selector, &box]() {
+        const juce::Image image = selector.createComponentSnapshot(selector.getLocalBounds());
+        const juce::Rectangle<int> bounds = box.getBounds();
+        float peak = 0.0f;
+        for (int x = bounds.getCentreX() - 2; x <= bounds.getCentreX() + 2; ++x)
+        {
+            for (int y = bounds.getCentreY() - 2; y <= bounds.getCentreY() + 2; ++y)
+            {
+                peak = std::max(peak, image.getPixelAt(x, y).getBrightness());
+            }
+        }
+
+        return peak;
+    };
+
+    const float snapped_mean = box_mean_brightness();
+    const float snapped_peak = centre_peak_brightness();
+
+    selector.setSnapEnabled(false);
+    CHECK(box_mean_brightness() < snapped_mean);
+    CHECK(centre_peak_brightness() > snapped_peak);
+    // A state, not a disable: the grid stays selectable while the indicator shows.
+    CHECK(box.isEnabled());
+
+    selector.setSnapEnabled(true);
+    CHECK(box_mean_brightness() == Catch::Approx(snapped_mean));
+    CHECK(centre_peak_brightness() == Catch::Approx(snapped_peak));
 }
 
 // Verifies the default grid displays as 1/16 and entries forward the raw note value unchanged:

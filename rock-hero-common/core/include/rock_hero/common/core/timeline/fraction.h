@@ -86,9 +86,10 @@ struct Fraction
     friend constexpr Fraction operator+(const Fraction& lhs, const Fraction& rhs) noexcept
     {
         // 64-bit intermediates keep the cross-multiplied sum exact far past the bounded terms the
-        // chart grammar produces (1/960 fine grid, note values ≤ 1/128), then the reduced result
-        // narrows back to int through the normalizing constructor — the same headless-value
-        // stance as the zero-denominator collapse above.
+        // chart grammar produces (the 1/3840-whole-note tick lattice every position lands on,
+        // selectable grids no finer than 1/128), then the reduced result narrows back to int
+        // through the normalizing constructor — the same headless-value stance as the
+        // zero-denominator collapse above.
         const std::int64_t numerator_sum =
             (static_cast<std::int64_t>(lhs.numerator) * rhs.denominator) +
             (static_cast<std::int64_t>(rhs.numerator) * lhs.denominator);

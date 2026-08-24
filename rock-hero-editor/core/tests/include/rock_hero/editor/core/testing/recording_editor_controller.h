@@ -212,6 +212,12 @@ public:
         grid_note_value_change_count += 1;
     }
 
+    /*! \copydoc IEditorController::onGridSnapToggleRequested */
+    void onGridSnapToggleRequested() override
+    {
+        grid_snap_toggle_count += 1;
+    }
+
     /*! \copydoc IEditorController::onArrangementSelected */
     void onArrangementSelected(std::string arrangement_id) override
     {
@@ -256,7 +262,7 @@ public:
     {}
 
     /*! \copydoc IEditorController::onSelectionMoveRequested */
-    void onSelectionMoveRequested(ChartStepDirection /*direction*/, bool /*fine*/) override
+    void onSelectionMoveRequested(ChartStepDirection /*direction*/) override
     {}
 
     /*! \copydoc IEditorController::onChartFretDigitTyped */
@@ -274,7 +280,7 @@ public:
     }
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
-    void onChartSustainAdjustRequested(int direction, bool /*fine*/) override
+    void onChartSustainAdjustRequested(int direction) override
     {
         last_chart_sustain_direction = direction;
         chart_sustain_adjust_count += 1;
@@ -1024,6 +1030,9 @@ public:
 
     /*! \brief Number of grid note-value change intents received. */
     int grid_note_value_change_count{0};
+
+    /*! \brief Number of grid-snap toggle intents received. */
+    int grid_snap_toggle_count{0};
 
     /*! \brief Counts timeline zoom reports. */
     int timeline_zoom_change_count{0};

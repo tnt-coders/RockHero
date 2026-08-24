@@ -10,6 +10,15 @@ item #59, the arpeggio-bracket verb, the converter default of ruling 7, and whet
 **Authored** 2026-08-21 out of the span-end discussion (review item 13), the short-tail hole the
 user found in the 2D lane, and the MIDI-playback requirement.
 
+> **Amended 2026-08-23 (user-signed): the `Ctrl` 1/960 fine tier is deleted.** Off-grid authoring
+> is a session MODE (`Ctrl+G`) behind one **placement quantum** — the grid note value while snap is
+> on, the 1/3840-whole-note tick while it is off — read by every verb that quantizes a time
+> POSITION. Ruling 8's duration gesture is unchanged in shape: it still records a step LIST and
+> replays it. What changed is that a step has one tier instead of two, and it always moves the
+> ring's END onto the adjacent line of the quantum's lattice; the tick is what a fine adjustment
+> means now. Ruling 8 and its addendum below are rewritten to match. The design is
+> `docs/plans/in-progress/grid-snap.md`.
+
 ## The model in one paragraph
 
 `ChartNote::sustain` is the **actual duration the string rings** — Guitar Pro's notated duration at
@@ -446,7 +455,8 @@ corpus-wide.
    read), a shorter default would flatten a hammer-on the charter marked after it, and playback
    can honour the accent itself when it exists rather than the duration storing a convention.
 8. **The duration verb is a GESTURE** (ruled 2026-08-22, shipped the same day). A run of steps —
-   grid or the Ctrl fine tier, mixed freely — is recorded IN ORDER (amended 2026-08-23, see the
+   each against the placement quantum's lattice as it stood when that step was made, so a run may
+   span a snap toggle or a grid change — is recorded IN ORDER (amended 2026-08-23, see the
    addendum below; it was ONE accumulated `Fraction` delta as first shipped), and every selected
    note is recomputed by REPLAYING that run over its PRE-GESTURE ring: the answer clamped up at its
    own string's `sustainBoundOf`, and holding the ring it currently has when the replay is not
@@ -469,32 +479,35 @@ corpus-wide.
    opens a fresh gesture from the current rings. Both verbs share ONE window field
    (`m_chart_verb_window`, a variant), because at most one can ever be armed.
 
-   **Addendum — a grid step moves the ring's END, so the gesture keeps its STEPS** (user bug
-   2026-08-23, fixed the same day). The summed delta was wrong about what a grid step IS: fine-tune
-   a tail with Ctrl and every later grid step carried the remainder forever, so the tail never
-   returned to the grid the user was looking at. The two tiers move different things and only one
-   of them has a size:
+   **Addendum — a step moves the ring's END, so the gesture keeps its STEPS** (user bug
+   2026-08-23, fixed the same day; restated 2026-08-23 for the one placement quantum). The summed
+   delta was wrong about what a step IS: leave a tail's end between lines — the Ctrl fine tier
+   could do it then, snap-off placement can do it now — and every later grid step carried the
+   remainder forever, so the tail never returned to the grid the user was looking at. A step moves
+   a POSITION, and a position step has no size of its own:
 
-   - A **grid** step moves the ring's END — the onset plus the ring, an absolute grid position — to
-     the adjacent line strictly beyond it in the step's direction, through the ONE step primitive
-     the caret and the lane nudge already walk with (`adjacentTempoGridPosition`). From an on-grid
-     end that is exactly one grid step, as the delta was; from an off-grid end it snaps, ceiling
-     when growing and flooring when shrinking. No snapping rule is restated in the planner, and the
-     step carries the grid NOTE VALUE rather than a beat amount so the meter at whatever measure
-     the end lands in scales it (a quarter-note step is one beat in x/4 and two in x/8).
-   - A **fine** step adds ±1/960 of a beat to the ring itself, unchanged.
+   - A step moves the ring's END — the onset plus the ring, an absolute grid position — to the
+     adjacent line of the placement quantum's lattice strictly beyond it in the step's direction,
+     through the ONE step primitive the caret and the lane nudge already walk with
+     (`adjacentTempoGridPosition`). From an end already on that lattice it is exactly one step, as
+     the delta was; from an end between lines it snaps, ceiling when growing and flooring when
+     shrinking. No snapping rule is restated in the planner, and the step carries the NOTE VALUE
+     rather than a beat amount so the meter at whatever measure the end lands in scales it (a
+     quarter-note step is one beat in x/4 and two in x/8).
+   - With snap off that lattice is the tick, so a step is a 1/3840-whole-note nudge: what the fine
+     tier used to be, now reached by the mode rather than by a modifier.
 
    `ChartSustainGesture` therefore holds the step list, not a delta; `planAdjustSustain` takes it
    and replays it per note. Consequences, all intended and pinned by tests:
 
-   - Grid-only gestures from an ON-GRID ring, and fine-only gestures from any ring, stay exactly
-     reversible: each step lands on a lattice its opposite steps back through, and the bounds still
-     stay out of the replay.
-   - A grid step from a FINE-TUNED ring snaps by design, so reversing it lands on the grid line
-     BELOW, not on the off-grid ring the gesture started from. The grid step means "put the end on
-     the line"; a remainder surviving it is the bug.
-   - A chord whose members sit at different off-grid offsets snaps each member to its OWN next
-     line, because the replay runs per note from that note's own end.
+   - A gesture whose steps all share one lattice, from a ring already ON that lattice, stays
+     exactly reversible: each step lands where its opposite steps back through, and the bounds
+     still stay out of the replay.
+   - A step from a ring sitting BETWEEN that lattice's lines snaps by design, so reversing it lands
+     on the line BELOW, not on the ring the gesture started from. A step means "put the end on the
+     line"; a remainder surviving it is the bug.
+   - A chord whose members sit at different offsets snaps each member to its OWN next line, because
+     the replay runs per note from that note's own end.
    - A run that replays every note back to `base` is still NoChange, so the entry is still retired.
      The undo label names the entry's NET direction — the total change the replay makes to the
      selection's rings, start → now — because the entry describes the whole gesture: grow, grow,

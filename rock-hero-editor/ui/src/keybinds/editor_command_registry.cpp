@@ -257,22 +257,6 @@ namespace
         "Move Selection Down",
         "Selection",
         {chord(juce::KeyPress::downKey, alt)});
-    add(EditorCommandId::SelectionMoveFineLeft,
-        "Move Selection Left (Fine)",
-        "Selection",
-        {chord(juce::KeyPress::leftKey, command | alt)});
-    add(EditorCommandId::SelectionMoveFineRight,
-        "Move Selection Right (Fine)",
-        "Selection",
-        {chord(juce::KeyPress::rightKey, command | alt)});
-    add(EditorCommandId::SelectionMoveFineUp,
-        "Move Selection Up (Fine)",
-        "Selection",
-        {chord(juce::KeyPress::upKey, command | alt)});
-    add(EditorCommandId::SelectionMoveFineDown,
-        "Move Selection Down (Fine)",
-        "Selection",
-        {chord(juce::KeyPress::downKey, command | alt)});
     add(EditorCommandId::SelectionDelete,
         "Delete Selection",
         "Selection",
@@ -294,14 +278,6 @@ namespace
         "Shorten Sustain",
         "Authoring",
         {chord(juce::KeyPress::leftKey, alt | shift)});
-    add(EditorCommandId::SustainLengthenFine,
-        "Lengthen Sustain (Fine)",
-        "Authoring",
-        {chord(juce::KeyPress::rightKey, command | alt | shift)});
-    add(EditorCommandId::SustainShortenFine,
-        "Shorten Sustain (Fine)",
-        "Authoring",
-        {chord(juce::KeyPress::leftKey, command | alt | shift)});
     add(EditorCommandId::FretShiftUp,
         "Shift Frets Up",
         "Authoring",
@@ -409,6 +385,10 @@ namespace
         "Zoom Out",
         "Grid & Zoom",
         {chord('-', command), chord('-', command | shift)});
+    // Ctrl+G is the snap toggle rather than a grammar composition, because snap is a MODE and not
+    // a per-gesture tier: it belongs with the grid's own commands, not in the Alt authoring plane.
+    // Plain `G` is the ghost-note technique, and exact modifier matching keeps the two apart.
+    add(EditorCommandId::ToggleGridSnap, "Grid Snap", "Grid & Zoom", {chord('g', command)});
 
     return registry;
 }

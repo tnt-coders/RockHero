@@ -98,6 +98,19 @@ void TrackViewport::Content::setGridLines(const std::vector<core::TempoGridLine>
     repaint();
 }
 
+// Stores the snap state and repaints when it changes; the dots' color is the only thing it moves,
+// so the columns themselves never need rescanning.
+void TrackViewport::Content::setGridSnap(const bool grid_snap)
+{
+    if (m_grid_snap == grid_snap)
+    {
+        return;
+    }
+
+    m_grid_snap = grid_snap;
+    repaint();
+}
+
 // Stores the paused cursor column and its caret-square mask and repaints only the strips the
 // column leaves and enters — the same narrow-invalidation pattern the overlay and ruler
 // cursors use. The full-height strips cover mask-only changes at an unchanged column too.
@@ -151,7 +164,8 @@ void TrackViewport::Content::paint(juce::Graphics& g)
             juce::Rectangle<int>{
                 0, lanes_top, bounds.getWidth(), std::max(0, bounds.getHeight() - lanes_top)
             });
-        drawTempoGridDots(g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds);
+        drawTempoGridDots(
+            g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds, !m_grid_snap);
         // The paused play-from-here column (the marker model): drawn over the grid but BEHIND
         // every track-row component, so while editing it shows in every gap without ever covering
         // a note or its fret number. During playback the overlay's moving line takes over in front
@@ -307,10 +321,16 @@ void TrackViewport::setTimelineRange(common::core::TimeRange timeline_range)
     layoutScaledCanvas();
 }
 
-// Stores the tempo map and grid note value used by the content background grid and the ruler.
+// Stores the grid facts the content background grid and the ruler need, in one push.
 void TrackViewport::setGrid(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value)
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+    common::core::Fraction placement_quantum, bool grid_snap)
 {
+    // Snap moves independently of the drawn lattice (a toggle changes no line), so it is pushed
+    // before the early-out: the dots must requiet even when the map and the grid value are the
+    // same as last push.
+    m_content.setGridSnap(grid_snap);
+    m_timeline_ruler.setGrid(tempo_map, placement_quantum);
     if (m_tempo_map == tempo_map && m_grid_note_value == grid_note_value)
     {
         return;
@@ -318,7 +338,6 @@ void TrackViewport::setGrid(
 
     m_tempo_map = tempo_map;
     m_grid_note_value = grid_note_value;
-    m_timeline_ruler.setGrid(m_tempo_map, m_grid_note_value);
     refreshTimelineGrid();
 }
 

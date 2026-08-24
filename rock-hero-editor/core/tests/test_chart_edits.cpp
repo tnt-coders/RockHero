@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/testing/chart_fixture.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
 #include <vector>
 
@@ -41,17 +42,17 @@ namespace
 constexpr common::core::Fraction g_quarter_grid{1, 4};
 constexpr common::core::Fraction g_sixteenth_grid{1, 16};
 
-// One recorded step of a duration gesture: a grid step snapping onto a note value's lines, or one
-// step of the 1/960-beat fine tier. The two spellings exist so a scenario's step list reads as the
+// One recorded step of a duration gesture, snapping onto a note value's lines. The tick spelling is
+// the same step against the quantum snap-off leaves, named so a scenario's step list reads as the
 // run of presses it stands for.
 [[nodiscard]] ChartSustainStep gridStep(common::core::Fraction note_value, bool grow)
 {
-    return ChartSustainStep{.grid_note_value = note_value, .grow = grow};
+    return ChartSustainStep{.note_value = note_value, .grow = grow};
 }
 
-[[nodiscard]] ChartSustainStep fineStep(bool grow)
+[[nodiscard]] ChartSustainStep tickStep(bool grow)
 {
-    return ChartSustainStep{.grid_note_value = std::nullopt, .grow = grow};
+    return ChartSustainStep{.note_value = g_tick_quantum_note_value, .grow = grow};
 }
 
 // A valid scrape: fret 9 start, one turnaround waypoint, and the required slide-out terminal
@@ -648,14 +649,14 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
 }
 
 // The bug the step list exists for (user 2026-08-23): a GRID step moves the ring's END onto the
-// adjacent grid line, so a ring the Ctrl fine tier left between lines snaps onto the grid — ceiling
+// adjacent grid line, so a ring a tick step left between lines snaps onto the grid — ceiling
 // when growing, flooring when shrinking — instead of carrying its remainder forever, which is what
 // a summed beat delta did.
 TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
-    // A ring a fine step could have authored: one beat and a hair, ending between two grid lines.
+    // A ring a tick step could have authored: one beat and a hair, ending between two grid lines.
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 960})};
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
@@ -711,7 +712,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
             REQUIRE(reversed != nullptr);
             if (reversed != nullptr)
             {
-                // The fine remainder is gone for good, and that is the point: a grid step means
+                // The tick remainder is gone for good, and that is the point: a grid step means
                 // "put the end on the grid line", so the run cannot return to a ring between them.
                 CHECK(reversed->sustain == common::core::Fraction{1});
             }
@@ -719,12 +720,12 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
     }
 }
 
-// The two tiers in one run, and the asymmetry that follows from the law: a fine step nudges the
-// ring itself, the grid step after it SNAPS the end that nudge moved off the lattice, and a fine
+// Two lattices in one run, and the asymmetry that follows from the law: a tick step nudges the
+// ring by one tick, the grid step after it SNAPS the end that nudge moved off the grid, and a tick
 // step after THAT nudges the snapped ring off it again. Reversing the grid step therefore lands on
 // the line below rather than on the off-grid ring the run started from — the intended behaviour,
 // not a rounding artifact.
-TEST_CASE("planAdjustSustain snaps a fine-tuned ring on the next grid step", "[core][chart]")
+TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -745,17 +746,17 @@ TEST_CASE("planAdjustSustain snaps a fine-tuned ring on the next grid step", "[c
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
 
-    std::vector<ChartSustainStep> steps{fineStep(true)};
+    std::vector<ChartSustainStep> steps{tickStep(true)};
     CHECK(ringAfter(steps) == common::core::Fraction{1921, 960});
 
     steps.push_back(gridStep(g_quarter_grid, true));
     CHECK(ringAfter(steps) == common::core::Fraction{3});
 
-    steps.push_back(fineStep(true));
+    steps.push_back(tickStep(true));
     CHECK(ringAfter(steps) == common::core::Fraction{2881, 960});
 
     // Back one grid step: the end sits a hair past the line at 3, so the line strictly before it is
-    // the one at 3 itself — the fine nudge is what the grid step snaps away.
+    // the one at 3 itself — the tick nudge is what the grid step snaps away.
     steps.push_back(gridStep(g_quarter_grid, false));
     CHECK(ringAfter(steps) == common::core::Fraction{3});
 
@@ -768,7 +769,7 @@ TEST_CASE("planAdjustSustain snaps a fine-tuned ring on the next grid step", "[c
     CHECK(closed.error() == ChartPlanRefusal::NoChange);
 }
 
-// Each note replays the steps over its OWN end, so a chord whose members were fine-tuned to
+// Each note replays the steps over its OWN end, so a chord whose members were nudged to
 // different offsets snaps each member onto its own next line rather than sharing one answer.
 TEST_CASE("planAdjustSustain snaps each chord member to its own line", "[core][chart]")
 {
@@ -885,7 +886,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{6})};
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
-    // Assertion-free (read inside CHECK expressions), as in the fine-tuned run above.
+    // Assertion-free (read inside CHECK expressions), as in the tick-nudged run above.
     const auto ringAfter = [&](const std::vector<ChartSustainStep>& steps) {
         const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
         if (!plan.has_value())

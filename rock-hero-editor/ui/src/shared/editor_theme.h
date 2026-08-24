@@ -115,6 +115,64 @@ struct EditorTheme
 };
 
 /*!
+\brief How far a quieted editor mark falls toward its ground, and the near-black a veil uses.
+
+Quieting means one thing: HALVE the mark's contrast against the ground it sits on, so a viewer
+reads "still there, no longer binding" rather than "gone" or "disabled". The ground is whatever the
+mark happens to be drawn over, which is why the DISTANCE is the only number the two forms below
+share. A fixed ground constant cannot be that shared number: it is right only on a surface that
+happens to be exactly that color, and the timeline paints three different row bands under one grid
+(the tone row's 0xff1a1e25 is lighter and bluer than the near-black, so a mark pre-mixed toward the
+near-black lands on top of it and vanishes there).
+
+g_quiet_ground_argb is therefore not "the ground". It is only the near-black \ref quietingVeil
+composites toward, chosen so a veiled region darkens rather than washes out; \ref quieted needs no
+ground at all, because the compositor supplies the real one.
+
+The distance is a sighting value: it is set where the grid still reads as a reference lattice while
+plainly no longer claiming to bind placement.
+*/
+inline constexpr juce::uint32 g_quiet_ground_argb{0xff101010};
+inline constexpr float g_quiet_lean{0.5F};
+
+/*!
+\brief Quiets a color by halving its contrast against whatever it is painted onto.
+
+For a mark whose color is chosen before painting and that lands directly on its own opaque ground.
+The returned color is translucent, so the compositor puts it exactly halfway between the mark and
+that ground on every band, with no ground constant to state or to get wrong.
+
+The precondition is what makes it exact: nothing but the ground may lie underneath, and the mark
+must not overlap itself (a second pass over the same pixel would composite twice). A mark drawn
+over OTHER marks leans opaquely toward its own ground instead — the 2D tab lane's rule, where a
+tail, a lane line, or a chord fill sits beneath a note and translucency would reveal them. A mark
+already on the canvas is quieted with \ref quietingVeil.
+
+\param color Color the mark would draw at full strength.
+\return That color, translucent enough to land halfway to whatever it is drawn on.
+*/
+[[nodiscard]] inline juce::Colour quieted(juce::Colour color) noexcept
+{
+    return color.withMultipliedAlpha(1.0F - g_quiet_lean);
+}
+
+/*!
+\brief The translucent ground that quiets whatever is already painted beneath it.
+
+The same halving expressed as a composite, for quieting a region whose marks were drawn by someone
+else — a child component's chrome and text, which the parent cannot re-color. Compositing the
+near-black over the whole region halves every mark's contrast against its background, but it takes
+that background down with it, which is why this is the form for chrome rather than for a mark whose
+color the caller still owns (\ref quieted leaves the ground alone).
+
+\return The veil color to fill the region with.
+*/
+[[nodiscard]] inline juce::Colour quietingVeil() noexcept
+{
+    return juce::Colour{g_quiet_ground_argb}.withAlpha(g_quiet_lean);
+}
+
+/*!
 \brief Returns the active editor theme.
 
 The theme lives behind a function-local static built purely from hex literals, so it is safe to

@@ -1,5 +1,7 @@
 #include "grid_spacing_selector.h"
 
+#include "shared/editor_theme.h"
+
 #include <array>
 #include <cstddef>
 #include <optional>
@@ -16,10 +18,11 @@ constexpr int g_caption_width{36};
 
 // Note-value presets offered as quick selections beside free fraction entry: the power-of-two
 // ladder interleaved with the triplet subdivisions (1/6 = quarter triplets, 1/12 = eighth
-// triplets, 1/24 = sixteenth triplets), which grid-native chart authoring needs within reach
-// (off-grid placement is gone, so tuplets come from tuplet grids). The raw-fraction labels are a
-// recorded interim: friendlier REAPER-style names ("1/8 triplet") are a deferred decision in
-// docs/plans/in-progress/editing-interaction-model.md.
+// triplets, 1/24 = sixteenth triplets), which grid-native chart authoring needs within reach.
+// Turning snap off does not make these redundant: it quantizes to the tick, which is a lattice
+// fine enough to disappear, not a musical subdivision a tuplet can be placed against. The
+// raw-fraction labels are a recorded interim: friendlier REAPER-style names ("1/8 triplet") are a
+// deferred decision in docs/plans/in-progress/editing-interaction-model.md.
 constexpr std::array<common::core::Fraction, 9> g_note_value_presets{
     common::core::Fraction{1, 4},
     common::core::Fraction{1, 6},
@@ -109,6 +112,20 @@ void GridSpacingSelector::setNoteValue(common::core::Fraction note_value)
     refreshDisplayedNoteValue();
 }
 
+// Stores whether the displayed value binds placement and repaints the indicator when it changes.
+// The control itself is never disabled: the grid stays selectable with snap off, and a disabled
+// look would say the wrong thing.
+void GridSpacingSelector::setSnapEnabled(const bool snap_enabled)
+{
+    if (m_snap_enabled == snap_enabled)
+    {
+        return;
+    }
+
+    m_snap_enabled = snap_enabled;
+    repaint();
+}
+
 // Walks the preset ladder from the applied value in the requested direction (the +/- keyboard
 // step). A free-entry value between presets snaps to the nearest preset in the step direction; when
 // no preset lies strictly in that direction — already at or past the finest/coarsest preset — the
@@ -155,6 +172,31 @@ void GridSpacingSelector::resized()
     auto bounds = getLocalBounds();
     m_caption.setBounds(bounds.removeFromLeft(g_caption_width));
     m_note_value_box.setBounds(bounds.reduced(4, 0));
+}
+
+// The snap-off indicator: the whole readout leans toward the quieting ground, then a thin diagonal
+// crosses the value. Two marks rather than one because they say different things — the quieting
+// says "not binding right now", and the strike names the VALUE as the thing that is not binding,
+// which the quieting alone would leave ambiguous with a disabled control.
+void GridSpacingSelector::paintOverChildren(juce::Graphics& g)
+{
+    if (m_snap_enabled)
+    {
+        return;
+    }
+
+    g.setColour(quietingVeil());
+    g.fillRect(getLocalBounds());
+
+    const juce::Rectangle<float> value_bounds =
+        m_note_value_box.getBounds().toFloat().reduced(3.0F);
+    g.setColour(editorTheme().primary_text);
+    g.drawLine(
+        value_bounds.getX(),
+        value_bounds.getBottom(),
+        value_bounds.getRight(),
+        value_bounds.getY(),
+        1.0F);
 }
 
 // Emits parsed entries and reverts the display otherwise; the accepted value comes back through

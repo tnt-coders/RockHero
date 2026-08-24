@@ -7,6 +7,13 @@ anywhere else in the docs; on final settlement the results propagate to plan 40 
 editing), plan 42 (validation hooks), plan 52 (time-range selection), and
 `editing-interaction-model.md`, and this document dissolves into them.
 
+> **Amended 2026-08-23 (user-signed): the `Ctrl` 1/960 fine tier is deleted.** Off-grid placement
+> is now a session MODE (`Ctrl+G`) behind one placement quantum — the grid note value while snap is
+> on, the 1/3840-whole-note tick while it is off — read by every position-quantizing verb with no
+> per-verb opt-out. Sections below that make the fine tier part of a ruling (notably §11's
+> "Ctrl's one meaning is precision" amendment and §9b's `Ctrl+Alt+arrows` fine step) are superseded
+> by `docs/plans/in-progress/grid-snap.md`.
+
 ## 1. Onset groups and chord boxes — SETTLED
 
 - Any 2+ notes sharing an onset render as a chord box, in both the 2D tab and the 3D highway,

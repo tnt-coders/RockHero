@@ -3,6 +3,7 @@
 #include <memory>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::core
 {
@@ -588,10 +589,71 @@ TEST_CASE("EditorController publishes both chart forms together", "[core][chart]
     // show that immediately.
     const std::shared_ptr<const common::core::ChartViewState> before = state->tab_actual;
     click(controller, 40.0f, 220.0f);
-    controller.onChartSustainAdjustRequested(1, false);
+    controller.onChartSustainAdjustRequested(1);
     REQUIRE(state->tab_actual != nullptr);
     CHECK(state->tab_actual != before);
     CHECK(state->tab_actual->notes[0].end_seconds == Catch::Approx(2.5));
+}
+
+// The quantum-versus-grid-value distinction, on one verb: with snap off a placement's POSITION
+// lands on the tick lattice, while the ring it authors stays the session GRID step. A quantum-long
+// default would be a tick of sound, which is the mistake this pins against.
+TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const std::size_t notes_before = chartOrNull(controller)->notes.size();
+
+    // The fixture pins a quarter-note grid, which is one beat at 120 BPM 4/4 — the ring every
+    // placement below must author whatever snap says.
+    constexpr common::core::Fraction grid_step_beats{1};
+
+    // x = 203 inverts to a time BETWEEN quarter lines, so the two lattices give different answers
+    // and the assertions can tell which one the placement took.
+    constexpr float off_grid_x = 203.0f;
+    const common::core::TempoMap& tempo_map = controller.session().song().tempo_map;
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const std::optional<common::core::TimePosition> clicked = timelinePositionForX(
+        off_grid_x, geometry.visible_timeline, static_cast<int>(geometry.bounds_width));
+    REQUIRE(clicked.has_value());
+    if (!clicked.has_value())
+    {
+        return;
+    }
+    const common::core::GridPosition grid_slot =
+        nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *clicked);
+    const common::core::GridPosition tick_slot =
+        nearestTempoGridPosition(tempo_map, g_tick_quantum_note_value, *clicked);
+    REQUIRE(grid_slot != tick_slot);
+
+    // Snap on: the Alt+click plants on the grid line, ringing one grid step.
+    click(controller, off_grid_x, 100.0f, ChartPointerModifiers{.alt = true});
+    const common::core::Chart* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == notes_before + 1);
+    CHECK(chart->notes.back().position == grid_slot);
+    CHECK(chart->notes.back().sustain == grid_step_beats);
+
+    // Snap off: the same pixel plants on the TICK lattice — and the ring is unchanged, because a
+    // duration default reads the grid value, never the quantum.
+    controller.onGridSnapToggleRequested();
+    click(controller, off_grid_x, 140.0f, ChartPointerModifiers{.alt = true});
+    chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == notes_before + 2);
+    const common::core::ChartNote& off_grid_note = chart->notes.back();
+    CHECK(off_grid_note.position == tick_slot);
+    CHECK(off_grid_note.sustain == grid_step_beats);
 }
 
 } // namespace rock_hero::editor::core

@@ -697,6 +697,69 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
     }
 }
 
+// Verifies the grid-snap indicator on the canvas: with snap off the lattice keeps HALF its
+// contrast against every row band it crosses, and sinks into none of them. The tone row's
+// background is lighter and bluer than the waveform row's, so one pre-mixed near-black cannot
+// serve both — quieting composites against whatever is beneath for exactly that reason. The second
+// push also pins the ordering in TrackViewport::setGrid: a bare toggle repeats the tempo map and
+// the grid note value, so the dots have to requiet from a push that moves no line.
+TEST_CASE("EditorView quiets the tempo grid while snap is off", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1280, 800);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    view.setState(state);
+
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    // A sixteenth that is not a whole beat, so the sampled column carries the weakest
+    // (subdivision) ink — the rank a wrong quieting ground buries first.
+    const auto subdivision_x = cursorXForTimelinePosition(
+        common::core::TimePosition{0.25}, state.visible_timeline, track_content.getWidth());
+    REQUIRE(subdivision_x.has_value());
+    if (subdivision_x.has_value())
+    {
+        const int line_x = static_cast<int>(std::round(*subdivision_x));
+        const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
+        const int waveform_y = gridDotYAtOrAfter(arrangement_view.getHeight() / 2);
+        const int tone_row_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 10);
+        REQUIRE(tone_row_y < track_content.getHeight());
+
+        // Signed on purpose: every grid ink is lighter than every band, so quieting must lower
+        // this number without letting it reach zero. A ground-blind pre-mix drives it NEGATIVE on
+        // the tone row, which an absolute-difference check would happily pass.
+        const auto grid_contrast = [&track_content, line_x, background_x](int y) {
+            const juce::Image image =
+                track_content.createComponentSnapshot(track_content.getLocalBounds());
+            return image.getPixelAt(line_x, y).getBrightness() -
+                   image.getPixelAt(background_x, y).getBrightness();
+        };
+
+        const float waveform_snapped = grid_contrast(waveform_y);
+        const float tone_row_snapped = grid_contrast(tone_row_y);
+        REQUIRE(waveform_snapped > 0.0f);
+        REQUIRE(tone_row_snapped > 0.0f);
+
+        // The bare toggle: this push repeats the tempo map and the grid note value exactly, so the
+        // snap flag is the only thing new about it.
+        state.grid_snap = false;
+        view.setState(state);
+
+        const float waveform_quiet = grid_contrast(waveform_y);
+        const float tone_row_quiet = grid_contrast(tone_row_y);
+        CHECK(waveform_quiet > 0.0f);
+        CHECK(tone_row_quiet > 0.0f);
+        CHECK(waveform_quiet == Catch::Approx(waveform_snapped / 2.0f).margin(0.01));
+        CHECK(tone_row_quiet == Catch::Approx(tone_row_snapped / 2.0f).margin(0.01));
+    }
+}
+
 // Verifies zooming all the way out can fit a long timeline into the viewport.
 TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
 {
@@ -819,8 +882,9 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
         Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
 }
 
-// Verifies Ctrl-click keeps the free timeline placement path.
-TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-view]")
+// Verifies Ctrl composes NOTHING on a timeline seek: the grid-snap mode is the only thing that
+// moves the placement quantum, so a Ctrl-click lands exactly where the same plain click does.
+TEST_CASE("EditorView Ctrl-click seeks the same slot as a plain click", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -889,15 +953,17 @@ TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-
         }));
 
     CHECK(controller.timeline_seek_count == 1);
-    const auto last_seek_position = controller.last_seek_position;
-    REQUIRE(last_seek_position.has_value());
-    // Free placement keeps the sub-pixel click point's time over the 4-second visible range.
-    const auto max_column = static_cast<double>(cursor_overlay.getWidth() - 1);
-    const double expected_seconds =
-        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
-    if (last_seek_position.has_value())
+    const auto ctrl_seek_position = controller.last_seek_position;
+    REQUIRE(ctrl_seek_position.has_value());
+
+    // The same pixel without Ctrl: the two answers must be identical, which is the whole claim.
+    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
+    CHECK(controller.timeline_seek_count == 2);
+    const auto plain_seek_position = controller.last_seek_position;
+    REQUIRE(plain_seek_position.has_value());
+    if (ctrl_seek_position.has_value() && plain_seek_position.has_value())
     {
-        CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
+        CHECK(ctrl_seek_position->seconds == Catch::Approx(plain_seek_position->seconds));
     }
 }
 
@@ -1043,8 +1109,8 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
     }
 }
 
-// Verifies Ctrl-clicking the ruler keeps free cursor placement.
-TEST_CASE("EditorView ruler Ctrl-click forwards free position", "[ui][editor-view]")
+// Verifies the ruler follows the same rule as the content overlay: Ctrl composes nothing.
+TEST_CASE("EditorView ruler Ctrl-click seeks the same slot as a plain click", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1070,15 +1136,16 @@ TEST_CASE("EditorView ruler Ctrl-click forwards free position", "[ui][editor-vie
         }));
 
     CHECK(controller.timeline_seek_count == 1);
-    const auto last_seek_position = controller.last_seek_position;
-    REQUIRE(last_seek_position.has_value());
-    // Free placement keeps the sub-pixel click point's time over the 4-second visible range.
-    const auto max_column = static_cast<double>(track_content.getWidth() - 1);
-    const double expected_seconds =
-        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
-    if (last_seek_position.has_value())
+    const auto ctrl_seek_position = controller.last_seek_position;
+    REQUIRE(ctrl_seek_position.has_value());
+
+    timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
+    CHECK(controller.timeline_seek_count == 2);
+    const auto plain_seek_position = controller.last_seek_position;
+    REQUIRE(plain_seek_position.has_value());
+    if (ctrl_seek_position.has_value() && plain_seek_position.has_value())
     {
-        CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
+        CHECK(ctrl_seek_position->seconds == Catch::Approx(plain_seek_position->seconds));
     }
 }
 

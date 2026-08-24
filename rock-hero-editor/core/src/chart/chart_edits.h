@@ -156,24 +156,24 @@ rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
 /*!
-\brief One step of a duration gesture: which tier moves the ring's end, and which way.
+\brief One step of a duration gesture: the lattice its end lands on, and which way it moves.
 
-A gesture records its steps rather than their sum, because a GRID step has no size of its own to
-sum: it moves the ring's END onto the adjacent line of the tempo grid, so what it adds depends on
-where that end currently sits and on the meter of the measure it lands in. The fine tier is the one
-fixed quantity (1/960 of a beat), so a step is fully described by the grid it snaps to — or the
-absence of one — plus a direction.
+A gesture records its steps rather than their sum, because a step has no size of its own to sum: it
+moves the ring's END onto the adjacent line of a lattice, so what it adds depends on where that end
+currently sits and on the meter of the measure it lands in. A step is therefore fully described by
+the note value it snapped by plus a direction.
 */
 struct ChartSustainStep
 {
     /*!
-    \brief Grid note value the step snaps onto (a fraction of a whole note); empty for a fine step.
+    \brief Note value the step snaps onto: the placement quantum at the moment of the step.
 
-    The note VALUE, never a precomputed beat amount: the planner needs the grid to land on, and
-    `gridStepBeats` scales the value by the local meter (one 1/4 step is one beat in x/4 and two in
-    x/8), so a ring crossing a meter change still lands on that meter's own lines.
+    The note VALUE, never a precomputed beat amount: the planner needs the lattice to land on, and
+    the local meter scales the value there (one 1/4 step is one beat in x/4 and two in x/8), so a
+    ring crossing a meter change still lands on that meter's own lines. A gesture that spans a snap
+    toggle or a grid change replays each step on the lattice it was made against.
     */
-    std::optional<common::core::Fraction> grid_note_value;
+    common::core::Fraction note_value;
 
     /*! \brief True when the step lengthens the ring, false when it shortens it. */
     bool grow{};
@@ -192,15 +192,13 @@ far as each one can go. Stepping from the LIVE ring instead is what cannot do th
 floor would become the next step's starting value, and the selection would come back a different
 shape than it went out.
 
-The two tiers move different things, which is why the gesture keeps the steps and not one delta
-(user bug 2026-08-23):
-
-- A **grid** step moves the ring's END — the note's onset plus its ring, an absolute position — to
-  the adjacent tempo-grid line strictly beyond it in the step's direction, through the one keyboard
-  step primitive the caret and the lane nudge already share (\ref adjacentTempoGridPosition). From
-  an on-grid end that is exactly one grid step, as a summed delta was; from an off-grid end it
-  SNAPS, ceiling when growing and flooring when shrinking. No snapping rule is restated here.
-- A **fine** step adds 1/960 of a beat to the ring itself, the uniform Ctrl precision tier.
+A step moves a POSITION, not a length, which is why the gesture keeps the steps and not one delta
+(user bug 2026-08-23): it moves the ring's END — the note's onset plus its ring, an absolute
+position — to the adjacent lattice line strictly beyond it in the step's direction, through the one
+keyboard step primitive the caret and the lane nudge already share
+(\ref adjacentTempoGridPosition). From an on-lattice end that is exactly one step, as a summed
+delta was; from an end between lines it SNAPS, ceiling when growing and flooring when shrinking. No
+snapping rule is restated here.
 
 `base` is the stream the gesture started from. Each keyed note's pre-gesture ring is read from it,
 and the returned plan is diffed against it, so the plan always describes start → now and can replace
@@ -222,18 +220,17 @@ so a clamp never becomes the next step's starting value:
 Payload beyond a shortened ring is clipped with it, out of the PRE-GESTURE payload, so growing back
 restores what an earlier step's shrink clipped away.
 
-Three consequences of the grid step's law, all intended:
+Three consequences of the step's law, all intended:
 
-- A grid-only gesture from an ON-GRID ring, and a fine-only gesture from any ring, are exactly
-  reversible: every step lands on a lattice its opposite steps back through, and neither bound
+- A gesture whose steps all share one lattice, starting from a ring already ON that lattice, is
+  exactly reversible: every step lands where its opposite steps back through, and neither bound
   enters the replay to bake itself in.
-- A grid step from a FINE-TUNED ring snaps, so reversing it lands on the grid line below rather
-  than on the off-grid ring the gesture started from. That is the point of the verb: the grid step
-  means "put the end on the grid line", and a remainder that survived it would make the visible
+- A step from a ring that sits BETWEEN that lattice's lines snaps, so reversing it lands on the
+  line below rather than on the ring the gesture started from. That is the point of the verb: a
+  step means "put the end on the line", and a remainder that survived it would make the visible
   grid a lie for the rest of the session.
-- A chord whose members sit at different off-grid offsets snaps each member to its OWN next line,
-  because the replay runs per note from that note's own end. Members already sharing a line stay
-  together.
+- A chord whose members sit at different offsets snaps each member to its OWN next line, because
+  the replay runs per note from that note's own end. Members already sharing a line stay together.
 
 \param chart Chart being edited, live: the ring bounds, and the ring a floored note holds.
 \param tempo_map Tempo map supplying the beat axis and the meter each grid step lands in.

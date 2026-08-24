@@ -127,9 +127,9 @@ void ToneTrackView::setVisibleContentLeft(int content_left_x)
     repaint();
 }
 
-void ToneTrackView::setGridNoteValue(common::core::Fraction note_value)
+void ToneTrackView::setPlacementQuantum(common::core::Fraction placement_quantum)
 {
-    m_grid_note_value = note_value;
+    m_placement_quantum = placement_quantum;
 }
 
 void ToneTrackView::setSnapGuideCallback(SnapGuideCallback on_snap_guide)
@@ -290,8 +290,8 @@ void ToneTrackView::mouseMove(const juce::MouseEvent& event)
     std::optional<float> ghost_x;
     if (hit.has_value() && !hit->edge.has_value() && event.mods.isAltDown())
     {
-        if (const std::optional<common::core::GridPosition> position = insertPositionForX(
-                static_cast<float>(event.getPosition().x), hit->region_index, event.mods);
+        if (const std::optional<common::core::GridPosition> position =
+                insertPositionForX(static_cast<float>(event.getPosition().x), hit->region_index);
             position.has_value())
         {
             ghost_x = xForGridPosition(*position);
@@ -346,11 +346,9 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
     if (event.mods.isPopupMenu())
     {
         const std::optional<common::core::GridPosition> insert_position =
-            hit->edge.has_value() ? std::nullopt
-                                  : insertPositionForX(
-                                        static_cast<float>(event.getPosition().x),
-                                        hit->region_index,
-                                        juce::ModifierKeys{});
+            hit->edge.has_value()
+                ? std::nullopt
+                : insertPositionForX(static_cast<float>(event.getPosition().x), hit->region_index);
         showRegionContextMenu(region, insert_position);
         return;
     }
@@ -359,8 +357,8 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
     // boundary and commits the tone-change intent on release (a plain click commits in place).
     if (!hit->edge.has_value() && event.mods.isAltDown())
     {
-        if (const std::optional<common::core::GridPosition> position = insertPositionForX(
-                static_cast<float>(event.getPosition().x), hit->region_index, event.mods);
+        if (const std::optional<common::core::GridPosition> position =
+                insertPositionForX(static_cast<float>(event.getPosition().x), hit->region_index);
             position.has_value())
         {
             m_insert_drag =
@@ -438,7 +436,7 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
     if (m_insert_drag.has_value())
     {
         if (const std::optional<common::core::GridPosition> position = insertPositionForX(
-                static_cast<float>(event.getPosition().x), m_insert_drag->region_index, event.mods);
+                static_cast<float>(event.getPosition().x), m_insert_drag->region_index);
             position.has_value())
         {
             m_insert_drag->preview = *position;
@@ -464,7 +462,7 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
     }
 
     const std::optional<common::core::GridPosition> snapped =
-        snappedGridPositionForDrag(static_cast<float>(event.getPosition().x), event.mods);
+        snappedGridPositionForDrag(static_cast<float>(event.getPosition().x));
     if (!snapped.has_value())
     {
         // The snapped grid line fell outside the open interval that keeps both neighbors non-empty;
@@ -636,14 +634,14 @@ std::optional<ToneTrackView::RegionHit> ToneTrackView::hitAt(juce::Point<int> lo
     return std::nullopt;
 }
 
-// Resolves an x to the snapped position a tone change would be inserted at (sub-beat, Ctrl
-// bypasses to the fine grid), accepted only strictly inside the given region: a change landing on
-// an existing boundary would split nothing, so it resolves to empty.
+// Resolves an x to the snapped position a tone change would be inserted at (sub-beat, on the
+// placement quantum), accepted only strictly inside the given region: a change landing on an
+// existing boundary would split nothing, so it resolves to empty.
 std::optional<common::core::GridPosition> ToneTrackView::insertPositionForX(
-    float x, std::size_t region_index, const juce::ModifierKeys& mods) const
+    float x, std::size_t region_index) const
 {
     const std::optional<common::core::GridPosition> snapped = musicalGridPositionForX(
-        m_tempo_map, m_grid_note_value, m_visible_timeline, getWidth(), x, mods);
+        m_tempo_map, m_placement_quantum, m_visible_timeline, getWidth(), x);
     if (!snapped.has_value() || region_index >= m_state.regions.size())
     {
         return std::nullopt;
@@ -717,12 +715,11 @@ bool ToneTrackView::cancelActiveGesture()
     return true;
 }
 
-// Snaps a drag x to the tempo grid (sub-beat, Ctrl bypasses to the fine grid, exactly as the
-// automation lanes below), then accepts it only inside the open interval that keeps both regions
-// sharing the dragged boundary non-empty. Every draggable edge is an interior boundary (the first
-// region's start and the last region's end are pinned, so hit-testing never arms them).
-std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForDrag(
-    float x, const juce::ModifierKeys& mods) const
+// Snaps a drag x to the placement quantum (sub-beat, exactly as the automation lanes below), then
+// accepts it only inside the open interval that keeps both regions sharing the dragged boundary
+// non-empty. Every draggable edge is an interior boundary (the first region's start and the last
+// region's end are pinned, so hit-testing never arms them).
+std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForDrag(float x) const
 {
     if (!m_drag.has_value())
     {
@@ -730,7 +727,7 @@ std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForD
     }
 
     const std::optional<common::core::GridPosition> snapped = musicalGridPositionForX(
-        m_tempo_map, m_grid_note_value, m_visible_timeline, getWidth(), x, mods);
+        m_tempo_map, m_placement_quantum, m_visible_timeline, getWidth(), x);
     if (!snapped.has_value())
     {
         return std::nullopt;

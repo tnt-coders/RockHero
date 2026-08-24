@@ -204,6 +204,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::Stop:
             case core::EditorActionId::SeekTimeline:
             case core::EditorActionId::SetGridNoteValue:
+            case core::EditorActionId::ToggleGridSnap:
             case core::EditorActionId::SelectArrangement:
             case core::EditorActionId::SelectToneRegion:
             case core::EditorActionId::CreateToneRegion:
@@ -277,6 +278,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::Stop:
         case core::EditorActionId::SeekTimeline:
         case core::EditorActionId::SetGridNoteValue:
+        case core::EditorActionId::ToggleGridSnap:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::BeginPluginInsert:
         case core::EditorActionId::ScanPluginCatalog:
@@ -635,7 +637,13 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
     m_track_viewport->setTransportDisplayState(
         m_state.transport.play_pause_shows_pause_icon, m_state.transport.stop_enabled);
-    m_track_viewport->setGrid(m_state.tempo_map, m_state.grid_note_value);
+    // The placement quantum is derived ONCE per push, here, and handed to every surface that
+    // places; the two session facts go only where the grid itself is drawn or named. That is what
+    // keeps the view from ever snapping by a different rule than the controller did.
+    const common::core::Fraction placement_quantum =
+        core::placementQuantumNoteValue(m_state.grid_note_value, m_state.grid_snap);
+    m_track_viewport->setGrid(
+        m_state.tempo_map, m_state.grid_note_value, placement_quantum, m_state.grid_snap);
     if (shouldFocusCursorAfterStateChange(previous_state, m_state))
     {
         // Restored zoom applies before the recenter so centering math uses the restored scale.
@@ -648,6 +656,7 @@ void EditorView::setState(const core::EditorViewState& state)
     }
     m_transport_controls.setState(m_state.transport);
     m_grid_spacing_selector.setNoteValue(m_state.grid_note_value);
+    m_grid_spacing_selector.setSnapEnabled(m_state.grid_snap);
     m_grid_spacing_selector.setEnabled(m_state.project_loaded);
     if (previous_state.arrangement.choices != m_state.arrangement.choices)
     {
@@ -744,11 +753,11 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setSectionLabels(std::move(section_labels));
 
     m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
-    m_tone_track_view.setGridNoteValue(m_state.grid_note_value);
+    m_tone_track_view.setPlacementQuantum(placement_quantum);
     m_tone_track_view.setState(m_state.tone_track);
 
     m_tone_automation_lanes_view.setVisibleTimeline(m_state.visible_timeline);
-    m_tone_automation_lanes_view.setGridNoteValue(m_state.grid_note_value);
+    m_tone_automation_lanes_view.setPlacementQuantum(placement_quantum);
     // One scan resolves the active region for both consumers below: the lanes' editable
     // window (the lane is authored per tone but edited per region instance — the active
     // region defines the span) and the signal-chain header's tone name (the panel edits the
@@ -773,7 +782,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_signal_chain_panel.setToneDesignerState(m_state.tone_designer);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
-    m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);
+    m_cursor_overlay->setPlacementQuantum(placement_quantum);
     m_cursor_overlay->setTimeSelectionRange(m_state.time_selection);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
@@ -978,9 +987,9 @@ void EditorView::toggleUndoHistoryPanel()
     }
 }
 
-// Selection verbs follow the selection, not the pointer: with a chart selection active,
-// Alt+wheel (sustain — Ctrl composes the 1/960 fine step) and Alt+Shift+wheel (fret shift) act on
-// it wherever the pointer sits inside the editor window.
+// Selection verbs follow the selection, not the pointer: with a chart selection active, Alt+wheel
+// (sustain) and Alt+Shift+wheel (fret shift) act on it wherever the pointer sits inside the editor
+// window. One detent is one placement-quantum step — Ctrl composes nothing here any more.
 bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
@@ -998,7 +1007,7 @@ bool EditorView::dispatchSelectionWheel(
     }
     else
     {
-        m_controller.onChartSustainAdjustRequested(direction, event.mods.isCtrlDown());
+        m_controller.onChartSustainAdjustRequested(direction);
     }
     return true;
 }
@@ -1037,13 +1046,15 @@ void EditorView::togglePreviewWindow()
             m_transport,
             m_playback_clock,
             [this](const juce::KeyPress& key) {
-                // Transport keys, the preview toggle, the forward/backward song-navigation
-                // verbs, and the grid granularity pair (44-Q4: the paused preview follows the
-                // marker, so caret time travel is meaningful from this window — and the grid size
-                // is its travel speed, since arrows step grid slots). Editing shortcuts (delete,
-                // nudge, undo) stay with the main window, which shows the selection context.
-                // Resolved through the command mappings, not hardcoded chords, so future rebinds
-                // of rebindable commands stay honored.
+                // Transport keys, the preview toggle, the forward/backward song-navigation verbs,
+                // and everything that sets the caret's travel speed (44-Q4: the paused preview
+                // follows the marker, so caret time travel is meaningful from this window). Arrows
+                // step the PLACEMENT QUANTUM, so that speed is the grid pair AND the snap toggle:
+                // with snap off the grid size changes nothing and one arrow crawls a single tick,
+                // which without the toggle here would be unrecoverable without leaving the window.
+                // Editing shortcuts (delete, nudge, undo) stay with the main window, which shows
+                // the selection context. Resolved through the command mappings, not hardcoded
+                // chords, so future rebinds of rebindable commands stay honored.
                 static constexpr std::array g_preview_commands{
                     EditorCommandId::PlayPause,
                     EditorCommandId::TogglePreview3D,
@@ -1057,6 +1068,7 @@ void EditorView::togglePreviewWindow()
                     EditorCommandId::CaretJumpNextSection,
                     EditorCommandId::GridFiner,
                     EditorCommandId::GridCoarser,
+                    EditorCommandId::ToggleGridSnap,
                 };
                 const juce::CommandID command =
                     m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
@@ -1147,18 +1159,10 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(move_menu, EditorCommandId::SelectionMoveRight);
     add(move_menu, EditorCommandId::SelectionMoveUp);
     add(move_menu, EditorCommandId::SelectionMoveDown);
-    move_menu.addSeparator();
-    add(move_menu, EditorCommandId::SelectionMoveFineLeft);
-    add(move_menu, EditorCommandId::SelectionMoveFineRight);
-    add(move_menu, EditorCommandId::SelectionMoveFineUp);
-    add(move_menu, EditorCommandId::SelectionMoveFineDown);
 
     juce::PopupMenu sustain_menu;
     add(sustain_menu, EditorCommandId::SustainLengthen);
     add(sustain_menu, EditorCommandId::SustainShorten);
-    sustain_menu.addSeparator();
-    add(sustain_menu, EditorCommandId::SustainLengthenFine);
-    add(sustain_menu, EditorCommandId::SustainShortenFine);
 
     juce::PopupMenu fret_menu;
     add(fret_menu, EditorCommandId::FretShiftUp);
@@ -1181,6 +1185,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     juce::PopupMenu grid_menu;
     add(grid_menu, EditorCommandId::GridFiner);
     add(grid_menu, EditorCommandId::GridCoarser);
+    add(grid_menu, EditorCommandId::ToggleGridSnap);
     grid_menu.addSeparator();
     add(grid_menu, EditorCommandId::ZoomIn);
     add(grid_menu, EditorCommandId::ZoomOut);
@@ -1442,10 +1447,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::SelectionMoveRight:
         case EditorCommandId::SelectionMoveUp:
         case EditorCommandId::SelectionMoveDown:
-        case EditorCommandId::SelectionMoveFineLeft:
-        case EditorCommandId::SelectionMoveFineRight:
-        case EditorCommandId::SelectionMoveFineUp:
-        case EditorCommandId::SelectionMoveFineDown:
         case EditorCommandId::SelectionDelete:
         case EditorCommandId::ChartPickSlideToggle:
         case EditorCommandId::ChartLegatoToggle:
@@ -1458,8 +1459,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartVibratoToggle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
-        case EditorCommandId::SustainLengthenFine:
-        case EditorCommandId::SustainShortenFine:
         case EditorCommandId::FretShiftUp:
         case EditorCommandId::FretShiftDown:
         case EditorCommandId::NeutralInsert:
@@ -1479,6 +1478,13 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ZoomIn:
         case EditorCommandId::ZoomOut:
         {
+            break;
+        }
+        case EditorCommandId::ToggleGridSnap:
+        {
+            // Always active like its Grid & Zoom neighbors, but ticked: the menu is the one place
+            // the mode's state reads as words rather than as quieted grid ink.
+            info.setTicked(m_state.grid_snap);
             break;
         }
     }
@@ -1807,42 +1813,22 @@ bool EditorView::perform(const InvocationInfo& info)
         // falls back to create-then-nudge at an armed empty lane slot.
         case EditorCommandId::SelectionMoveLeft:
         {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Left, false);
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Left);
             return true;
         }
         case EditorCommandId::SelectionMoveRight:
         {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Right, false);
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Right);
             return true;
         }
         case EditorCommandId::SelectionMoveUp:
         {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Up, false);
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Up);
             return true;
         }
         case EditorCommandId::SelectionMoveDown:
         {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Down, false);
-            return true;
-        }
-        case EditorCommandId::SelectionMoveFineLeft:
-        {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Left, true);
-            return true;
-        }
-        case EditorCommandId::SelectionMoveFineRight:
-        {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Right, true);
-            return true;
-        }
-        case EditorCommandId::SelectionMoveFineUp:
-        {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Up, true);
-            return true;
-        }
-        case EditorCommandId::SelectionMoveFineDown:
-        {
-            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Down, true);
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Down);
             return true;
         }
 
@@ -1857,22 +1843,12 @@ bool EditorView::perform(const InvocationInfo& info)
 
         case EditorCommandId::SustainLengthen:
         {
-            m_controller.onChartSustainAdjustRequested(1, false);
+            m_controller.onChartSustainAdjustRequested(1);
             return true;
         }
         case EditorCommandId::SustainShorten:
         {
-            m_controller.onChartSustainAdjustRequested(-1, false);
-            return true;
-        }
-        case EditorCommandId::SustainLengthenFine:
-        {
-            m_controller.onChartSustainAdjustRequested(1, true);
-            return true;
-        }
-        case EditorCommandId::SustainShortenFine:
-        {
-            m_controller.onChartSustainAdjustRequested(-1, true);
+            m_controller.onChartSustainAdjustRequested(-1);
             return true;
         }
         case EditorCommandId::FretShiftUp:
@@ -1963,6 +1939,11 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::ZoomOut:
         {
             m_track_viewport->zoomByStep(-1);
+            return true;
+        }
+        case EditorCommandId::ToggleGridSnap:
+        {
+            m_controller.onGridSnapToggleRequested();
             return true;
         }
     }
@@ -2947,9 +2928,10 @@ void EditorView::createToneMarkerAtCursor()
     // The marker rule ("one position concept per transport state" — the play-from-the-marker
     // unification, extended to Ctrl+T): an armed caret IS the position, on either row family, so
     // the insert lands where play would pick up; the passive cursor is the transport position.
-    // Positions are kept precisely rather than re-rounded to the nearest whole beat — the
-    // fine-grid quantization preserves any position placed on a practical subdivision (a grid
-    // line, or a Ctrl-free fine position).
+    // Which lattice each path lands on is the same one either way, but only the lane caret can be
+    // taken verbatim: it carries an exact musical position, while a chart caret carries only
+    // seconds, so it is re-quantized like the transport's raw seconds are. That round trip returns
+    // the line the caret was placed on, or the current one if the quantum has moved since.
     if (m_state.tone_automation.lane_caret.has_value())
     {
         createToneMarkerAt(m_state.tone_automation.lane_caret->position);
@@ -2958,8 +2940,10 @@ void EditorView::createToneMarkerAtCursor()
     const double seconds = m_state.chart_edit.caret.has_value() ? m_state.chart_edit.caret->seconds
                                                                 : m_transport.position().seconds;
     createToneMarkerAt(
-        core::fineGridPositionForBeat(
-            m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(seconds)));
+        core::nearestTempoGridPosition(
+            m_state.tempo_map,
+            core::placementQuantumNoteValue(m_state.grid_note_value, m_state.grid_snap),
+            common::core::TimePosition{seconds}));
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at an exact musical position — the

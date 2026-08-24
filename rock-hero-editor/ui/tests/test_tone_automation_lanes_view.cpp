@@ -451,7 +451,6 @@ TEST_CASE(
         CHECK(std::is_eq(event.geometry.visible_timeline.start.seconds <=> 0.0));
         CHECK(std::is_eq(event.geometry.visible_timeline.end.seconds <=> 8.0));
         CHECK(event.modifiers.alt);
-        CHECK_FALSE(event.modifiers.ctrl);
     }
 
     // Moving onto an authored point (x 200, y 15) is not empty lane area, so the hover ends: the

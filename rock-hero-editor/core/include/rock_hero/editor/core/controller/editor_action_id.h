@@ -69,6 +69,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Set the timeline grid step as a note value. */
     SetGridNoteValue,
 
+    /*! \brief Flip the session's grid-snap switch, which decides the placement quantum. */
+    ToggleGridSnap,
+
     /*! \brief Switch the editor to another arrangement of the loaded song. */
     SelectArrangement,
 

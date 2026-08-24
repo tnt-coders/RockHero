@@ -153,6 +153,16 @@ public:
     virtual void onGridNoteValueChangeRequested(common::core::Fraction note_value) = 0;
 
     /*!
+    \brief Handles a request to flip grid snap, the session switch behind the placement quantum.
+
+    With snap on, every verb that quantizes a time position lands on the grid note value; with it
+    off they land on the tick lattice instead. The grid VALUE is untouched either way — it stays
+    displayed, stays selectable, and stays the musical unit a placement's default ring is measured
+    in. The switch is session-only: nothing persists it, and every project boundary resets it on.
+    */
+    virtual void onGridSnapToggleRequested() = 0;
+
+    /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.
 
     Zoom is app-local resume state like the cursor position: it never dirties project content and
@@ -294,21 +304,19 @@ public:
     \brief Handles a keyboard move of the one editor-wide selection (the Alt authoring
     modifier).
 
-    Dispatches on the selection's kind. Chart notes: Left/Right move the selection by one grid
-    step (one 1/960-beat step when \p fine — the uniform precision tier;
-    the move is relative either way, so off-grid notes keep their offsets), Up/Down move it
-    across string lanes; refused, never clamped, when any note would leave the neck or land on
-    an occupied slot, with the whole selection moving as one undo entry and 40-Q2-B truncation
-    of any overlaps it creates. An automation point: Left/Right step its time to the adjacent
-    grid line (1/960 beat fine), Up/Down step its value (one real state on a discrete lane,
-    else 0.01, 0.001 fine), clamped strictly between its neighbors and inside the active
-    region's window. With no selection but an armed caret on an empty lane slot, the arrow
-    creates an on-curve point with the step baked in — one keystroke, one undo entry.
+    Dispatches on the selection's kind. Chart notes: Left/Right move the selection by one
+    placement-quantum step (the move is RELATIVE, so a note between lines keeps its offset),
+    Up/Down move it across string lanes; refused, never clamped, when any note would leave the neck
+    or land on an occupied slot, with the whole selection moving as one undo entry and 40-Q2-B
+    truncation of any overlaps it creates. An automation point: Left/Right step its time to the
+    adjacent line of that same lattice, Up/Down step its value (one real state on a discrete lane,
+    else 0.01), clamped strictly between its neighbors and inside the active region's window. With
+    no selection but an armed caret on an empty lane slot, the arrow creates an on-curve point with
+    the step baked in — one keystroke, one undo entry.
 
     \param direction Move direction.
-    \param fine True when Ctrl requests the 1/960-beat / 0.001-value fine tier.
     */
-    virtual void onSelectionMoveRequested(ChartStepDirection direction, bool fine) = 0;
+    virtual void onSelectionMoveRequested(ChartStepDirection direction) = 0;
 
     /*!
     \brief Handles the Delete key: deletes the one editor-wide selection, whatever its kind.
@@ -349,17 +357,14 @@ public:
     /*!
     \brief Handles a request to grow or shrink the selected notes' sustains by one step.
 
-    One grid step by default — which moves each ring's END onto the adjacent tempo-grid line, so a
-    ring the fine tier left between lines snaps back onto the grid — or one 1/960-beat step when
-    \p fine, the uniform Ctrl precision tier on the extent verbs (the off-grid unification;
-    Ctrl+Alt+wheel and Ctrl+Shift+Alt+Left/Right compose it). Growth stops at exact adjacency with
-    the next onset on the note's OWN string, a ring a step would empty holds where it is, and a run
-    of presses is ONE gesture, replayed from the rings it started at onto one undo entry.
+    One placement-quantum step, which moves each ring's END onto the adjacent line of that lattice,
+    so a ring left between lines snaps back onto them. Growth stops at exact adjacency with the next
+    onset on the note's OWN string, a ring a step would empty holds where it is, and a run of
+    presses is ONE gesture, replayed from the rings it started at onto one undo entry.
 
     \param direction +1 to grow, -1 to shrink.
-    \param fine True when Ctrl requests the 1/960-beat fine step.
     */
-    virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
+    virtual void onChartSustainAdjustRequested(int direction) = 0;
 
     /*!
     \brief Handles a request to toggle one technique on the selected notes.
@@ -559,8 +564,8 @@ public:
     While paused with Alt held over an insertable empty lane slot the controller publishes the
     insert ghost — the hollow ring on the curve where an Alt+click would plant a point — snapping
     resolved exactly as the click itself would: the controller inverts the event's raw pixel x
-    through the same placement seam (timelinePositionForX then the tempo grid, Ctrl to the fine
-    tier), so the ring lands on the identical slot a click would, with no sub-pixel drift. Without
+    through the same placement seam (timelinePositionForX then the placement quantum's lattice),
+    so the ring lands on the identical slot a click would, with no sub-pixel drift. Without
     Alt, or while playing, any standing ghost clears. The hover never mutates the model or moves the
     marker. The lanes view resolves which lane the pointer is over and names it on the event.
 
@@ -588,7 +593,7 @@ public:
     /*!
     \brief Advances the in-flight move/insert drag's preview.
 
-    Snaps the position (Ctrl to the fine tier), clamps it between the moved point's neighbors and
+    Snaps the position to the placement quantum, clamps it between the moved point's neighbors and
     inside the editable window, pulls the value by the pointer's vertical delta from the press
     (Shift locks the dominant axis), and republishes the preview. A no-op without an active drag.
 

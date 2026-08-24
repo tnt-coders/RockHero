@@ -204,6 +204,17 @@ struct EditorAction
         common::core::Fraction note_value;
     };
 
+    /*!
+    \brief Flip the session's grid-snap switch.
+
+    Payload-free because the switch is a session fact with exactly two states and one verb: a
+    "set to X" payload would let a caller push a state the user did not ask for, and there is no
+    caller that wants one.
+    */
+    struct ToggleGridSnap
+    {
+    };
+
     /*! \brief Switch the editor to another arrangement of the loaded song. */
     struct SelectArrangement
     {
@@ -627,9 +638,6 @@ struct EditorAction
     {
         /*! \brief Which way the selection moves. */
         ChartStepDirection direction{};
-
-        /*! \brief True for the 1/960-beat (or 0.001 value) precision tier. */
-        bool fine{};
     };
 
     /*! \brief Delete the editor-wide selection, whatever its kind. */
@@ -656,14 +664,11 @@ struct EditorAction
         int direction{};
     };
 
-    /*! \brief Grow or shrink the selection's sustains by one grid or fine step. */
+    /*! \brief Grow or shrink the selection's sustains by one placement-quantum step. */
     struct AdjustChartSustain
     {
         /*! \brief +1 to grow, -1 to shrink. */
         int direction{};
-
-        /*! \brief True for the 1/960-beat fine step. */
-        bool fine{};
     };
 
     /*! \brief Set or clear one technique across the chart selection. */
@@ -697,9 +702,9 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        SelectArrangement, SelectToneRegion, CreateToneRegion, DeleteToneRegion, RenameTone,
-        MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
-        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        ToggleGridSnap, SelectArrangement, SelectToneRegion, CreateToneRegion, DeleteToneRegion,
+        RenameTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert,
+        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
         SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,

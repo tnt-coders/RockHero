@@ -47,7 +47,7 @@ void appendDottedTempoGridLine(
 void drawTempoGridDots(
     juce::Graphics& g, const std::vector<int>& subdivision_grid_x,
     const std::vector<int>& beat_grid_x, const std::vector<int>& measure_grid_x,
-    juce::Rectangle<int> bounds)
+    juce::Rectangle<int> bounds, const bool quiet)
 {
     if (bounds.isEmpty())
     {
@@ -80,19 +80,26 @@ void drawTempoGridDots(
     append_columns(beat_grid_x, beat_dots);
     append_columns(measure_grid_x, measure_dots);
 
+    // One ink rule for all three ranks: the theme color, quieted while snap is off. quieted() is
+    // translucent, so each dot lands halfway to the band it actually crosses — the canvas paints
+    // three different row backgrounds under one grid, and no single pre-mixed near-black reads
+    // correctly on all of them. Exact here because the layering contract puts nothing but those
+    // backgrounds beneath the dots, and visibleTempoGridLines emits each column once, so no dot
+    // ever composites over another. The three batched fills stay intact either way.
+    const auto ink = [quiet](const juce::Colour color) { return quiet ? quieted(color) : color; };
     if (!subdivision_dots.isEmpty())
     {
-        g.setColour(editorTheme().grid_subdivision);
+        g.setColour(ink(editorTheme().grid_subdivision));
         g.fillRectList(subdivision_dots);
     }
     if (!beat_dots.isEmpty())
     {
-        g.setColour(editorTheme().grid_beat);
+        g.setColour(ink(editorTheme().grid_beat));
         g.fillRectList(beat_dots);
     }
     if (!measure_dots.isEmpty())
     {
-        g.setColour(editorTheme().grid_measure);
+        g.setColour(ink(editorTheme().grid_measure));
         g.fillRectList(measure_dots);
     }
 }

@@ -61,12 +61,14 @@ namespace
     return static_cast<float>(nearest) / static_cast<float>(steps);
 }
 
-// One value keystroke's step: one real state on a discrete parameter, else 0.01 (0.001 fine).
-[[nodiscard]] float laneValueStep(bool is_discrete, int discrete_value_count, bool fine)
+// One value keystroke's step: one real state on a discrete parameter, else 0.01. A single step,
+// because the value axis is not a position axis — grid snap decides where things go in TIME and
+// says nothing about a knob, so it has no second tier to offer here.
+[[nodiscard]] float laneValueStep(bool is_discrete, int discrete_value_count)
 {
     return is_discrete && discrete_value_count >= 2
                ? 1.0F / static_cast<float>(discrete_value_count - 1)
-               : (fine ? 0.001F : 0.01F);
+               : 0.01F;
 }
 
 // Forgiving squared-distance radius for a point-handle press, matching the lanes view's
@@ -111,12 +113,12 @@ constexpr float g_tone_lane_point_hit_radius = 8.0F;
 }
 
 // Snaps a lane-local pixel x through the exact placement seam an Alt+click / drag commit uses:
-// timelinePositionForX inverts the pixel to a click time (÷ (width - 1), clamped), then the tempo
-// grid — nearestTempoGridPosition, or fineGridPositionForBeat under Ctrl. That is
-// musicalGridPositionForX bit-for-bit, the one snap authority the ghost already rides.
+// timelinePositionForX inverts the pixel to a click time (÷ (width - 1), clamped), then
+// nearestTempoGridPosition on the placement quantum. That is musicalGridPositionForX bit-for-bit,
+// the one snap authority the ghost already rides.
 [[nodiscard]] std::optional<common::core::GridPosition> laneSnapPositionForX(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
-    common::core::TimeRange visible_timeline, int content_width, float content_x, bool ctrl)
+    const common::core::TempoMap& tempo_map, common::core::Fraction placement_quantum,
+    common::core::TimeRange visible_timeline, int content_width, float content_x)
 {
     const std::optional<common::core::TimePosition> clicked =
         timelinePositionForX(content_x, visible_timeline, content_width);
@@ -124,9 +126,7 @@ constexpr float g_tone_lane_point_hit_radius = 8.0F;
     {
         return std::nullopt;
     }
-    return ctrl ? fineGridPositionForBeat(
-                      tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds))
-                : nearestTempoGridPosition(tempo_map, grid_note_value, *clicked);
+    return nearestTempoGridPosition(tempo_map, placement_quantum, *clicked);
 }
 
 } // namespace
@@ -1098,7 +1098,7 @@ void EditorController::Impl::onToneAutomationLaneCaretRequested(
     std::string instance_id, std::string param_id, common::core::TimePosition time)
 {
     const common::core::GridPosition position = nearestTempoGridPosition(
-        session().song().tempo_map, m_grid_note_value, session().timeline().clamp(time));
+        session().song().tempo_map, placementQuantum(), session().timeline().clamp(time));
     seekAndArmLaneCaret(
         position,
         AutomationLaneRow{.instance_id = std::move(instance_id), .param_id = std::move(param_id)});
@@ -1134,7 +1134,7 @@ void EditorController::Impl::seekAndArmLaneCaret(
 // would actually land — Alt held, not busy, and paused (armed-create is a paused-only gesture).
 // The event carries the raw lane-local pixel x plus the geometry it was mapped against, and the
 // snap runs through laneSnapPositionForX — the exact placement seam an Alt+click and the drag
-// commit share (timelinePositionForX ÷ (width - 1) then the tempo grid, Ctrl to the fine tier),
+// commit share (timelinePositionForX ÷ (width - 1) then the placement quantum's lattice),
 // so the ring lands on the identical slot the click would with no sub-pixel drift. The occupancy
 // gate that keeps the ring honest lives at publish time (deriveViewState, against the published
 // lanes): now that mouse placement refuses an occupied slot (onToneAutomationPointerDown's Alt
@@ -1148,11 +1148,10 @@ void EditorController::Impl::onToneAutomationPointerMove(const ToneAutomationPoi
     {
         if (const std::optional<common::core::GridPosition> position = laneSnapPositionForX(
                 session().song().tempo_map,
-                m_grid_note_value,
+                placementQuantum(),
                 event.geometry.visible_timeline,
                 event.geometry.content_width,
-                event.x,
-                event.modifiers.ctrl);
+                event.x);
             position.has_value())
         {
             ghost = ToneInsertGhost{
@@ -1268,18 +1267,17 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
 
     // Empty editable lane area. Both the plain caret arm and the Alt on-curve insert snap the pixel
     // through the one placement seam — laneSnapPositionForX (timelinePositionForX ÷ (width - 1)
-    // then the tempo grid, Ctrl to the fine tier) — mirroring the chart's single chartPlacementAt
+    // then the placement quantum's lattice) — mirroring the chart's single chartPlacementAt
     // consumed by both its caret arm and its Alt insert. So the caret lands on the identical slot
     // an Alt+click or the insert ghost would at the same pixel, erasing the ÷width slot-boundary
     // drift the shipped view armed the caret with. A degenerate geometry that maps no slot only
     // refreshes the dismissed ghost.
     const std::optional<common::core::GridPosition> position = laneSnapPositionForX(
         tempo_map,
-        m_grid_note_value,
+        placementQuantum(),
         event.geometry.visible_timeline,
         event.geometry.content_width,
-        event.x,
-        event.modifiers.ctrl);
+        event.x);
     if (!position.has_value())
     {
         refresh_dismissed_ghost();
@@ -1396,11 +1394,10 @@ void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPoi
     else if (
         const std::optional<common::core::GridPosition> position = laneSnapPositionForX(
             session().song().tempo_map,
-            m_grid_note_value,
+            placementQuantum(),
             drag.visible_timeline,
             drag.content_width,
-            clamped_x,
-            event.modifiers.ctrl);
+            clamped_x);
         position.has_value()
     )
     {
@@ -1659,7 +1656,7 @@ void EditorController::Impl::plantLanePoint(
 // is one keystroke and ONE undo entry. A caret over an existing point always publishes it as
 // the selection (arming re-derives), so reaching here means the slot is empty.
 void EditorController::Impl::createAndNudgeLanePointAtCaret(
-    const ChartCaret& caret, ChartStepDirection direction, bool fine)
+    const ChartCaret& caret, ChartStepDirection direction)
 {
     if (!caret.lane.has_value())
     {
@@ -1674,7 +1671,7 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
     common::core::GridPosition position = caret.position;
     if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
     {
-        const float step = laneValueStep(plan->is_discrete, plan->discrete_value_count, fine);
+        const float step = laneValueStep(plan->is_discrete, plan->discrete_value_count);
         value = snappedLaneValue(
             std::clamp(value + (direction == ChartStepDirection::Up ? step : -step), 0.0F, 1.0F),
             plan->is_discrete,
@@ -1686,8 +1683,7 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
         // caret itself: the grab succeeded, only the pull refused. The step clamps strictly
         // between the caret slot's neighboring points, like every point nudge.
         const bool later = direction == ChartStepDirection::Right;
-        const common::core::GridPosition stepped =
-            steppedLaneNudgePosition(caret.position, later, fine);
+        const common::core::GridPosition stepped = steppedLaneNudgePosition(caret.position, later);
         const double stepped_seconds = secondsAtGridPosition(session().song().tempo_map, stepped);
         const bool direction_ok = later ? caret.position < stepped : stepped < caret.position;
         const auto next_neighbor =
@@ -1707,19 +1703,13 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
     plantLanePoint(*caret.lane, std::move(*plan), position, value);
 }
 
-// One lane keyboard time-step, exact rational end to end: the adjacent tempo-grid line through
-// the shared adjacentTempoGridPosition primitive (the same walk the caret steps with), or one
-// relative 1/960-beat fine step — precisely reversible, like the chart note's fine move.
+// One lane keyboard time-step, exact rational end to end: the adjacent line of the placement
+// quantum's lattice through the shared adjacentTempoGridPosition primitive (the same walk the caret
+// steps with), so the two surfaces can never land on different slots for the same motion.
 common::core::GridPosition EditorController::Impl::steppedLaneNudgePosition(
-    const common::core::GridPosition& from, bool later, bool fine) const
+    const common::core::GridPosition& from, bool later) const
 {
-    const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    if (fine)
-    {
-        return common::core::advanceGridPosition(
-            tempo_map, from, common::core::Fraction{later ? 1 : -1, g_fine_grid_denominator});
-    }
-    return adjacentTempoGridPosition(tempo_map, m_grid_note_value, from, later);
+    return adjacentTempoGridPosition(session().song().tempo_map, placementQuantum(), from, later);
 }
 
 // The active tone region's time window — the span automation edits clamp inside. Resolved
@@ -1812,13 +1802,13 @@ void EditorController::Impl::deleteSelectedAutomationPoint(
 
 // Moves the selected automation point (the move-intent dispatch for the automation
 // alternative), replaying its lane's points with the change through the one points-edit
-// intent. Up/Down steps the value — one real state on a discrete parameter, else 0.01 (0.001
-// fine); Left/Right steps the time axis to the adjacent grid line (1/960 beat fine), refusing
-// steps that collapse (map edge) or reverse direction (nearest-line bounce-back) and clamping
-// strictly between the neighbors and inside the active region's window. Every refusal — stale
-// selection included — is a silent no-op.
+// intent. Up/Down steps the value — one real state on a discrete parameter, else 0.01; Left/Right
+// steps the time axis to the adjacent line of the placement quantum's lattice, refusing steps that
+// collapse (map edge) or reverse direction (nearest-line bounce-back) and clamping strictly between
+// the neighbors and inside the active region's window. Every refusal — stale selection included —
+// is a silent no-op.
 void EditorController::Impl::moveSelectedAutomationPoint(
-    const AutomationPointSelection& selection, ChartStepDirection direction, bool fine)
+    const AutomationPointSelection& selection, ChartStepDirection direction)
 {
     const std::vector<common::core::ToneAutomationPoint>* const lane_points =
         lanePointsFor(selection.instance_id, selection.param_id);
@@ -1849,7 +1839,7 @@ void EditorController::Impl::moveSelectedAutomationPoint(
             is_discrete = parameter->is_discrete;
             discrete_value_count = parameter->discrete_value_count;
         }
-        const float step = laneValueStep(is_discrete, discrete_value_count, fine);
+        const float step = laneValueStep(is_discrete, discrete_value_count);
         const float raw = point->norm_value + (direction == ChartStepDirection::Up ? step : -step);
         const float new_value =
             snappedLaneValue(std::clamp(raw, 0.0F, 1.0F), is_discrete, discrete_value_count);
@@ -1868,7 +1858,7 @@ void EditorController::Impl::moveSelectedAutomationPoint(
 
     const bool later = direction == ChartStepDirection::Right;
     const common::core::GridPosition new_position =
-        steppedLaneNudgePosition(selection.position, later, fine);
+        steppedLaneNudgePosition(selection.position, later);
     if (new_position == selection.position || (later && new_position < selection.position) ||
         (!later && selection.position < new_position))
     {
