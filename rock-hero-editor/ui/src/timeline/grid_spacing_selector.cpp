@@ -1,9 +1,8 @@
 #include "grid_spacing_selector.h"
 
-#include "shared/editor_theme.h"
-
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <ranges>
@@ -17,12 +16,9 @@ namespace
 // Width reserved for the static caption so the combo box gets the remaining strip space.
 constexpr int g_caption_width{36};
 
-// How far the snap-off strike sits inside the value's glyph bounds. Small and nonzero: the mark
-// has to read as struck text — a line through the digits and nothing else — rather than a slash
-// reaching for the widget's edges.
-constexpr float g_value_strike_inset{1.0F};
-
-// Thickness of that strike, thin enough to leave the digits legible underneath.
+// Thickness of the snap-off strike. One pixel is about 8% of the 12px digit ink height, which is
+// the weight a printed strikethrough carries; 2px was sighted and rejected — at this size it reads
+// as redaction, burying the digits instead of leaving them perfectly readable underneath.
 constexpr float g_value_strike_thickness{1.0F};
 
 // Note-value presets offered as quick selections beside free fraction entry: the power-of-two
@@ -227,7 +223,7 @@ void GridSpacingSelector::resized()
     m_note_value_box.setBounds(bounds.reduced(4, 0));
 }
 
-// The snap-off indicator: one thin diagonal through the value's own digits, and nothing else.
+// The snap-off indicator: one 1px horizontal rule through the value's own digits, and nothing else.
 //
 // It marks the VALUE, never the control. An earlier version quieted the whole readout under a veil
 // and ran the strike the width of the box; sighting rejected all of it. Darkening the surround
@@ -235,6 +231,14 @@ void GridSpacingSelector::resized()
 // "unavailable" when the grid is still fully selectable, and a stroke reaching across the drop-down
 // arrow read as "do not click this". A struck number says the one true thing — this figure is not
 // binding right now — and leaves everything that is still live looking live.
+//
+// Horizontal rather than diagonal, and that is a grammar choice, not a taste one. A diagonal
+// through a figure is the prohibition mark — the slash of a "no" sign — which says the value may
+// not be used, when it may: the grid is still fully selectable. The horizontal rule is the
+// strikethrough, which says a figure is no longer in force while leaving it perfectly readable,
+// and that is exactly the state. The diagonal was also geometry that moved with the text, since
+// its angle fell out of the value's own width — "1/4" struck steeply and "1/128" nearly flat —
+// so one fixed state was drawn as a varying mark. At zero degrees every value is struck alike.
 void GridSpacingSelector::paintOverChildren(juce::Graphics& g)
 {
     if (m_snap_enabled)
@@ -254,23 +258,42 @@ void GridSpacingSelector::paintOverChildren(juce::Graphics& g)
 
     // Glyph bounds arrive in the label's coordinates; the label sits in the combo box and the box
     // sits in this component, so both origins carry the mark up to where it is painted.
-    const juce::Rectangle<float> strike =
+    //
+    // The line spans that box exactly, with nothing added at either end. The fitted box is the
+    // text's ADVANCE box, so its edges already sit about a pixel outside the glyph ink — which is
+    // the overhang a printed strikethrough has, arrived at for free. A tuning constant here would
+    // only be a second, hand-kept opinion about a span the text metrics already state.
+    const juce::Rectangle<float> glyph_box =
         labelGlyphBounds(*value_label)
             .translated(
                 static_cast<float>(m_note_value_box.getX() + value_label->getX()),
-                static_cast<float>(m_note_value_box.getY() + value_label->getY()))
-            .reduced(g_value_strike_inset);
+                static_cast<float>(m_note_value_box.getY() + value_label->getY()));
 
-    // The value's own ink at full strength, exactly like a pen through a printed price: the mark
+    // One whole pixel row, and this is the whole trick. The fitted box's centre is fractional, and
+    // a 1px line drawn there splits across two rows at roughly half coverage each — which is the
+    // dimmed, half-strength treatment this indicator exists to avoid, arrived at by accident.
+    // Rounding the top edge to a whole pixel puts all of the ink on the single row nearest that
+    // centre, so the mark is as solid as the digits it crosses.
+    //
+    // The row comes from the fitted box and never from the value, so a fixed state is drawn in a
+    // fixed place: the box spans the font's line box, whose vertical extent is a font metric rather
+    // than a property of the characters, so its centre is the same at 1/4 and at 1/128. That centre
+    // lands within half a pixel of the digits' own middle, because the ascent's headroom above the
+    // digit tops and the descent's room below the baseline very nearly cancel; the row snap absorbs
+    // what is left.
+    const float strike_top = std::round(glyph_box.getCentreY() - (g_value_strike_thickness / 2.0F));
+
+    // The digits' own ink at full strength, exactly like a pen through a printed price: the mark
     // is what carries the state, so weakening it would drift back toward the "unavailable" look
-    // the indicator exists to avoid.
-    g.setColour(editorTheme().primary_text);
-    g.drawLine(
-        strike.getX(),
-        strike.getBottom(),
-        strike.getRight(),
-        strike.getY(),
-        g_value_strike_thickness);
+    // the indicator exists to avoid. The colour is read off the combo box, not off the editor
+    // theme, because the strike's correctness condition is "the same ink as the digits underneath"
+    // — the theme's primary_text is only the same white by coincidence of the look-and-feel's
+    // scheme, and two places that have to agree by hand are a defect waiting to happen.
+    g.setColour(m_note_value_box.findColour(juce::ComboBox::textColourId));
+    g.fillRect(
+        juce::Rectangle<float>{
+            glyph_box.getX(), strike_top, glyph_box.getWidth(), g_value_strike_thickness
+        });
 }
 
 // Emits parsed entries and reverts the display otherwise; the accepted value comes back through

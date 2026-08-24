@@ -480,3 +480,27 @@ ratio was rounded too hard.
 Do it when the fret axis is otherwise quiet. Roadmap 25-Q1 (a neck that compresses toward the
 body) is the natural moment to decide it, since a variable fret width is exactly what makes the
 two-anchor split matter rather than being a stylistic preference.
+
+## Found while replacing the grid readout's snap-off mark (2026-08-24)
+
+### The transport strip's combo boxes are outside the editor's one color seam
+
+`EditorTheme` is described as the single place editor colors are decided, but the surface the grid
+readout's snap-off strike lands on is not one of them. That readout is a `juce::ComboBox`, and its
+fill `0xff263238` and text `0xffffffff` come from JUCE's own dark scheme. Citations below are
+relative to `external/tracktion_engine/modules/juce/modules/juce_gui_basics/`: the two values are
+`widgetBackground` and `defaultText` in `lookandfeel/juce_LookAndFeel_V4.cpp:91` (positional scheme
+fields, whose enum order is at `lookandfeel/juce_LookAndFeel_V4.h:55-68`), routed to
+`ComboBox::backgroundColourId` and `ComboBox::textColourId` at `juce_LookAndFeel_V4.cpp:1390-1391`,
+and pushed into the value label at `widgets/juce_ComboBox.cpp:405`. Nothing in the project overrides
+either: `EditorTheme` (`rock-hero-editor/ui/src/shared/editor_theme.h:26`) names no combo-box role,
+and the `primary_text` white it does name (`:111`, `0xffffffff`) matches the digits only by
+coincidence of that scheme.
+
+Nothing to fix while there is one theme, and the strike itself is already safe — it reads its ink
+off the box, so the two whites cannot silently diverge. **The trigger is user-selectable themes**:
+at that point the strip's chrome would follow JUCE while every editor-drawn surface follows
+`EditorTheme`, and the readout would stop matching the timeline beside it. If a theme role is wanted
+for this mark when that happens, name it for the claim the mark makes — *a datum that is displayed
+but does not bind* — rather than borrowing `primary_text`, which would put the "same ink as the
+digits" rule in two places that have to agree by hand.

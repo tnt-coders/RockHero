@@ -79,7 +79,8 @@ to bind while snap is off, both derived from the one session fact:
 
 - the 2D lane's grid lines dim, through the editor's one quieting rule: **halve the mark's contrast
   against the ground it sits on**;
-- the grid readout beside them strikes through its **value**, and changes nothing else.
+- the grid readout beside them strikes through its **value** with a horizontal rule, and changes
+  nothing else.
 
 Grid spacing stays selectable while snap is off — the readout says "not binding right now", not
 "unavailable".
@@ -92,10 +93,28 @@ combo box, and the sighting rejected every part of that: the veil "darken[ed] an
 reference with grid snap off"; and crossing "the section with the drop down arrow itself makes it
 look kind of like the arrow is not supposed to be clicked anymore which is unintuitive". All three
 are the same error — marking the *control* to say something about the *value*. So the indicator is
-now one thin diagonal fitted to the value text's own glyphs, like a pen through a printed price,
-while the caption, the box, and the arrow render exactly as they do with snap on. The strike's
-geometry comes from the combo box's own text label rather than from restated layout, so it tracks
-the digits as the value changes width.
+now a one-pixel horizontal rule fitted to the value text's own glyphs, like a pen through a printed
+price, while the caption, the box, and the arrow render exactly as they do with snap on. The
+strike's geometry comes from the combo box's own text label rather than from restated layout, so it
+tracks the digits as the value changes width.
+
+**Horizontal, not diagonal** (corrected 2026-08-24). The mark first shipped as a thin diagonal and
+that was wrong twice over. A diagonal through a figure is the *prohibition* grammar — the slash of a
+"no" sign — which says the value may not be used, when it may; the horizontal rule is the
+*strikethrough* grammar, which says a figure is no longer in force while leaving it perfectly
+readable, and that is exactly the state. The diagonal's angle also fell out of the value's own
+width, so "1/4" was struck steeply and "1/128" nearly flat: one fixed state drawn as a varying mark.
+At zero degrees every value is struck alike.
+
+The rule is drawn on **one whole pixel row**, which is load-bearing rather than fussy. The digit
+band's centre is fractional, so a 1px line laid there spreads over two rows at about half coverage
+each — measurably, and visibly, the dimmed treatment this indicator exists to avoid, reached by
+accident instead of by choice. Rounding puts all of the ink on the single row nearest that centre
+(row 16 of the 32px strip, at every value), and the row is derived from the font's line box rather
+than from the characters, so it does not move as the number gets wider. The mark takes its colour
+from the combo box's own `ComboBox::textColourId`, not from `EditorTheme`, because its correctness
+condition is "the same ink as the digits underneath" — the theme's `primary_text` merely happens to
+be the same white today.
 
 The two surfaces still differ in *form* for the reason the quieting rule gives: the lane's dots are
 the editor's own marks, so it quiets them; the readout is a JUCE control whose chrome and text the

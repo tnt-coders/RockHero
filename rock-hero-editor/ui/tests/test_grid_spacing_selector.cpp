@@ -1,5 +1,6 @@
 #include "timeline/grid_spacing_selector.h"
 
+#include <array>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
@@ -65,6 +66,64 @@ public:
     }
 
     return changed;
+}
+
+// What a state mark actually laid down: where it landed, and how solidly.
+//
+// A 1px line drawn at a fractional y spreads over two rows at roughly half coverage each, which is
+// visually the quieting treatment rather than a strike. Height alone cannot tell those apart from a
+// deliberately soft mark, and colour alone cannot tell them apart from a solid one, so both facts
+// travel together.
+struct StrikeMeasurement
+{
+    // Smallest rectangle enclosing every pixel the mark changed.
+    juce::Rectangle<int> changed{};
+
+    // Changed pixels that are byte-exactly the mark's own colour.
+    int full_coverage_pixels{0};
+
+    // Changed pixels that are some blend of the mark's colour with what was underneath it.
+    int partial_coverage_pixels{0};
+};
+
+// Measures the mark one snapshot gained over another, given the colour the mark is drawn in.
+//
+// The first and last columns of the changed region are skipped: the strike spans the value text's
+// fitted advance box, whose ends are fractional, so those two columns are legitimately
+// part-covered. Every column between them sits over a gap between glyphs, and full coverage there
+// is exactly what separates a strikethrough from a veil.
+[[nodiscard]] StrikeMeasurement measureStrike(
+    const juce::Image& before, const juce::Image& after, juce::Colour ink)
+{
+    StrikeMeasurement measurement{
+        .changed = changedRegion(before, after),
+        .full_coverage_pixels = 0,
+        .partial_coverage_pixels = 0
+    };
+
+    for (int y = measurement.changed.getY(); y < measurement.changed.getBottom(); ++y)
+    {
+        for (int x = measurement.changed.getX() + 1; x < measurement.changed.getRight() - 1; ++x)
+        {
+            if (before.getPixelAt(x, y) == after.getPixelAt(x, y))
+            {
+                continue;
+            }
+
+            // A colour's packed ARGB word is its byte-exact identity, so the coverage question is
+            // decided on integers and never on component floats.
+            if (after.getPixelAt(x, y).getARGB() == ink.getARGB())
+            {
+                measurement.full_coverage_pixels += 1;
+            }
+            else
+            {
+                measurement.partial_coverage_pixels += 1;
+            }
+        }
+    }
+
+    return measurement;
 }
 
 } // namespace
@@ -226,6 +285,66 @@ TEST_CASE("GridSpacingSelector strikes only the value while snap is off", "[ui][
     // Snapping back leaves no trace anywhere, the struck value included.
     selector.setSnapEnabled(true);
     CHECK(regionIsIdentical(snapped, snapshot(), selector.getLocalBounds()));
+}
+
+// Verifies the snap-off mark is a strikethrough rather than a dimming, and that it is drawn on the
+// same row whatever the value reads.
+//
+// Both assertions are falsifiers for a specific way this mark degrades. The digit band's centre is
+// fractional, so a 1px line laid there covers two rows at about half strength each — measurably
+// the quieted look that sighting rejected, reached by accident rather than by choice; only a
+// whole-pixel row gives one row of the digits' own ink. And a row derived from the value rather
+// than from the font's line box would drift as the number got wider, drawing one fixed state as a
+// varying mark, which is exactly the defect the replaced diagonal had.
+TEST_CASE("GridSpacingSelector strikes one full-coverage row at every value", "[ui][grid-spacing]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingGridListener listener;
+    GridSpacingSelector selector{listener};
+
+    // The transport strip's own control height, because a mark that has to land on a whole pixel
+    // row is only proven at the size it actually ships at.
+    selector.setBounds(0, 0, 220, 32);
+    auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
+
+    // The strike is drawn in the digits' own ink, so the box is the single place both it and this
+    // assertion read that colour from; a theme colour that merely matches would have the test and
+    // the paint agreeing by hand.
+    const juce::Colour ink = box.findColour(juce::ComboBox::textColourId);
+
+    // The narrowest and the widest values the presets offer, with the default in between: the
+    // strike's row must not notice the difference.
+    const std::array<common::core::Fraction, 3> values{
+        common::core::Fraction{1, 4},
+        common::core::Fraction{1, 16},
+        common::core::Fraction{1, 128},
+    };
+
+    std::optional<int> first_row;
+    for (const common::core::Fraction value : values)
+    {
+        // Driven through the control's own API, so the mark is measured against the value the
+        // component really displays.
+        selector.setSnapEnabled(true);
+        selector.setNoteValue(value);
+        const juce::Image snapped = selector.createComponentSnapshot(selector.getLocalBounds());
+        selector.setSnapEnabled(false);
+        const juce::Image unsnapped = selector.createComponentSnapshot(selector.getLocalBounds());
+
+        const StrikeMeasurement measurement = measureStrike(snapped, unsnapped, ink);
+
+        // One row, fully inked. Two half-covered rows would be the dimming, not the strike.
+        CHECK(measurement.changed.getHeight() == 1);
+        CHECK(measurement.partial_coverage_pixels == 0);
+        CHECK(measurement.full_coverage_pixels > 0);
+
+        // The same row at every value.
+        if (!first_row.has_value())
+        {
+            first_row = measurement.changed.getY();
+        }
+        CHECK(first_row == std::optional{measurement.changed.getY()});
+    }
 }
 
 // Verifies the default grid displays as 1/16 and entries forward the raw note value unchanged:

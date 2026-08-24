@@ -77,11 +77,17 @@ public:
     /*!
     \brief Shows whether the displayed value currently binds placement.
 
-    With snap off a thin diagonal strikes through the displayed value's digits, and nothing else
-    about the control changes: the grid is still the reference lattice and still selectable, but
-    positions no longer land on it. Only the number is marked, because only the number stopped
-    being true — the caption, the box, and the drop-down arrow all stay at full strength, so
-    nothing here can read as unavailable.
+    With snap off a one-pixel horizontal rule strikes through the displayed value's digits, and
+    nothing else about the control changes: the grid is still the reference lattice and still
+    selectable, but positions no longer land on it. Only the number is marked, because only the
+    number stopped being true — the caption, the box, and the drop-down arrow all stay at full
+    strength, so nothing here can read as unavailable.
+
+    The rule is horizontal because that is the strikethrough grammar, which says a figure is no
+    longer in force while leaving it readable. A diagonal — the shape this first shipped with — is
+    the prohibition grammar instead, saying the value may not be used, and its angle came out of
+    the value's own width, so one fixed state was drawn steeply at 1/4 and nearly flat at 1/128.
+    It was sighted and rejected on both counts.
 
     \param snap_enabled True while grid snap is on.
     */
@@ -109,7 +115,10 @@ public:
 
     Over the children rather than behind them: the combo box paints its own text through the
     look-and-feel, so the only way to mark the value is to draw across it afterwards. The strike is
-    fitted to the value's glyphs, which the combo box's own text label supplies.
+    a horizontal rule fitted to the value's glyphs, which the combo box's own text label supplies,
+    and it is drawn on one whole pixel row at the digits' own ink: a line laid at the band's
+    fractional centre would spread across two rows at half coverage each and quietly turn the mark
+    into the dimming this indicator exists to avoid.
 
     \param g Graphics context of this component.
     */
