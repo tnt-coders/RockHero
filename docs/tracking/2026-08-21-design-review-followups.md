@@ -139,6 +139,16 @@ before that reading exists.
     make one convention correct is upstream: spans as half-open intervals whose last strum lies
     strictly inside (the importer would then never floor a span onto its last strum), which is a
     40-Q format/import policy decision for the user, not a drive-by.
+    **CLOSED 2026-08-23 (note-sustain-experiment): the decision dissolved.** The half-open
+    dissenter is gone — `sustainGrowthLimit` and `chartEffectiveSustains` were deleted when the
+    growth verbs moved onto `sustainBoundOf` (same-string, span-blind), so both surviving coverage
+    readers (span-extended holds, the repeat classifier) share the closed convention and nothing
+    needs one name. The format half is moot: `shapes`/`chords` left the format and the importer no
+    longer authors spans at all. `close_span`'s end rule stays and is not dead code even with
+    `sustain > 0` enforced: the last-strum floor guards the margin TRIM (a closer landing inside
+    the minimum-sustain-distance margin of the final restrike still pulls the trimmed end back
+    across it — a spacing fact durations cannot prevent), and strict positive sustain is exactly
+    what keeps the exact-adjacency fallback's result positive-length.
 14. **`planMoveNotes`' comment says a move off the grid is "refused, never clamped"; `advanceGridPosition`
     clamps to measure 1 beat 1**, so a lone note dragged left past bar 1 is silently repositioned.
     Either refuse when the destination clamps or correct the comment.
