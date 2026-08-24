@@ -68,6 +68,37 @@ it.
    2026-08-20 already proved the return: two decisions extracted, one live divergence found, 30
    lines removed. The architecture's Multi-TU Coordination Objects section blesses the shape.
 
+   **HALF DONE 2026-08-24** — stage 2 of the OPEN 1 sequence (stage 1 was item 6's allocation and
+   scan work). The eleven INDEPENDENT board passes are private member functions called from
+   `draw()` in painter order: lane border ribbons, hand-window light, tapping-hand light, beat
+   bars, hand-shape rails, string lines, fret lines, fretboard markers, capo, section labels,
+   strike glow. Eight take `(const FrameContext&)`; `drawStringLines`, `drawFretboardMarkers`,
+   and `drawCapo` read nothing frame-scope and so take nothing.
+
+   `FrameContext` holds ONLY what changes per frame: now, the drawn span (start and end), the
+   settled hand windows, the current window, and the visible shape spans. Per-state facts are
+   read from the renderer like any other member, because the passes are `Impl` members —
+   `state.options.mirrored` and `scroll_speed` directly, the board face's vertical extent through
+   `Impl::faceBottomY` / `Impl::faceTopY`, and the floor's distance fade through
+   `Impl::fadeBandZ` / `Impl::setFadeUniform`. `Impl::litTaps` replaces the shared `lit_taps`
+   lambda and `Impl::timeToZ` states the z mapping once (`draw()`'s surviving `time_to_z` lambda
+   delegates to it). `fadeBandZ` also ended a duplication the slice exposed: the fade band's two
+   z values were written once for the color-fade uniform and again, from the same two constants,
+   for the scrolling floor numbers that bake the fade into vertex color. `draw()` fell from 3,843
+   lines to 2,657.
+
+   Each pass sets every uniform and texture bind it draws with, which the audit found it already
+   did: no pass inherited a neighbour's ambient state, and the one place a uniform genuinely
+   differs between neighbouring passes (`u_accent_glow_params` at the box flush against the note
+   flush) is inside the part that did not move.
+
+   **Deferred to Phase C, gated on item 74**: the content scheduler — the notes region, the
+   chord/arpeggio boxes, the scrolling floor numbers, and the per-note loop — stays in `draw()`,
+   because those passes interleave through shared batches and a deferred flush rather than each
+   ending in one submit. The tail-glow accent batch split (item 74) is the trigger: it has to be
+   settled inside that machinery, and settling it there is when the scheduler gets read closely
+   enough to slice safely.
+
 ## Tier 2 — performance, measured by reading, not yet by a build
 
 **First measurement 2026-08-21 (`14a8daf4`):** the game's per-frame trace now carries

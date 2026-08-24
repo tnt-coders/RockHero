@@ -263,7 +263,17 @@ Adding a new *visual element* (a new marker, lane decoration, feedback effect):
 
 1. If it derives from chart/transport data, extend `HighwayViewState` and compute it in
    `makeHighwayViewState` — never derive musical data per-frame in the renderer.
-2. Add the drawer in `highway_renderer.cpp`, consuming only the state plus per-frame time.
+2. Add the drawer in `highway_renderer.cpp`, consuming only the state plus per-frame time. Board
+   furniture — anything that builds one batch and submits it — goes in as its own private
+   `drawXxx(const FrameContext&)` member (no parameter at all when nothing frame-scope is read),
+   called from `draw()` at the point in painter order where it must paint: the board view is
+   sequential and writes no depth, so submission order *is* the layering. Take only per-FRAME
+   facts from `FrameContext`; per-state ones — the metrics, the view state, the scroll speed, the
+   face extent, the scratch buffers — the pass reads from the renderer, because it is an `Impl`
+   member like any other. Set every uniform and texture bind the pass draws with inside it —
+   bgfx state is ambient until the next submit, so a pass that leans on a neighbour having set
+   one breaks the moment the neighbour moves. (Note content is different: it interleaves through
+   shared batches and a deferred flush, and still schedules inside `draw()` itself.)
 3. Extend the headless projection/camera tests; the renderer itself has GPU-free coverage via the
    Noop-backend tests (`test_render_device.cpp`).
 4. Both products pick the change up with no further wiring — that is the payoff of the seam.
