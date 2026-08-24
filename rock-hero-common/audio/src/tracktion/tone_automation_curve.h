@@ -45,6 +45,11 @@ normalised to `[0, 1]`.
 Clears the existing curve and rebuilds it from \p points (an empty span removes the curve). RockHero
 owns undo, so a null undo manager is passed to the backend.
 
+Segment shape is the backend's business, not the chart's, so it is derived from the parameter here:
+a stepped parameter's segments are written as holds, making the backend step at each point instead
+of ramping into it, and \p points' own `curve_shape` therefore applies to continuous parameters
+only.
+
 \param plugin Plugin owning the parameter.
 \param param_id Parameter id within the plugin.
 \param points Replacement curve points, normalised value, in ascending time.

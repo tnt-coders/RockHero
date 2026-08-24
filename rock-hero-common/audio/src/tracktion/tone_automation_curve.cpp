@@ -17,8 +17,10 @@ namespace
     return param_id == "dry level" || param_id == "wet level";
 }
 
-// Number of discrete values a stepped parameter exposes (0 when continuous), so the editor can
-// snap automation drags to real states like a DAW. Tracktion's own AutomatableParameter::
+// Number of states a stepped parameter exposes, so the editor can snap automation drags to real
+// states like a DAW. Zero means the parameter is not stepped — including the degenerate one-state
+// case, which has nothing to step between — so a nonzero count IS the "this parameter is stepped"
+// answer, and no caller restates that threshold. Tracktion's own AutomatableParameter::
 // isDiscrete()/getNumberOfStates() read VST2-only VSTXML metadata, so a VST3 toggle (e.g. a "wah
 // mode") reports as continuous.
 //
@@ -33,7 +35,8 @@ namespace
 {
     if (parameter.isDiscrete())
     {
-        return parameter.getNumberOfStates();
+        const int state_count = parameter.getNumberOfStates();
+        return state_count >= 2 ? state_count : 0;
     }
 
     auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(parameter.getPlugin());
@@ -99,7 +102,7 @@ namespace
         .param_id = parameter.paramID.toStdString(),
         .name = parameter.getParameterName().toStdString(),
         .group = group_name.toStdString(),
-        .is_discrete = value_count >= 2,
+        .is_discrete = value_count > 0,
         .discrete_value_count = value_count,
         .labels = std::move(labels),
         .default_norm_value =
@@ -207,6 +210,18 @@ bool writePluginParameterCurve(
         return false;
     }
 
+    // Tracktion reads a segment's shape from the EARLIER of its two points: 0.0 is a linear ramp,
+    // while +1.0 degenerates into a hold that steps exactly at the later point (getBezierEnds
+    // collapses the segment so both evaluators return the earlier value across all of it). A
+    // stepped parameter has to be written as holds, because no snapping happens on the way out:
+    // for a hosted VST3 Tracktion's own isDiscrete() is false (the VSTXML note above), so a ramp
+    // reaches the plugin raw and flips it at the plugin's own threshold - roughly halfway through
+    // the gap back to the previous point, which is early by a gap-dependent amount, and a
+    // multi-state parameter additionally sweeps through every state in between. Discreteness is
+    // the plugin's fact, not the chart's, so it is derived here at the one write seam rather than
+    // stored on every authored point.
+    const bool steps_between_points = discreteValueCount(*parameter) > 0;
+
     // RockHero owns undo through point-list mementos, so every backend edit passes a null undo
     // manager. Clearing then re-adding the whole point list is the simplest correct write.
     tracktion::AutomationCurve& curve = parameter->getCurve();
@@ -216,7 +231,7 @@ bool writePluginParameterCurve(
         curve.addPoint(
             tracktion::EditPosition{tracktion::TimePosition::fromSeconds(point.seconds)},
             parameter->valueRange.convertFrom0to1(point.norm_value),
-            point.curve_shape,
+            steps_between_points ? 1.0F : point.curve_shape,
             nullptr);
     }
     return true;

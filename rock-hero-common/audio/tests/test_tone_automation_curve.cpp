@@ -3,6 +3,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <memory>
 #include <vector>
@@ -84,7 +85,13 @@ TEST_CASE(
         {
             CHECK(read_back->at(index).seconds == Catch::Approx(points[index].seconds));
             CHECK(read_back->at(index).norm_value == Catch::Approx(points[index].norm_value));
-            CHECK(read_back->at(index).curve_shape == Catch::Approx(points[index].curve_shape));
+
+            // Segment shape is asserted against the derivation rule, not against the written
+            // point: the write seam derives shape from the parameter, writing holds only for a
+            // stepped one. This stand-in is continuous, so its segments must stay exactly linear
+            // ramps — a discreteValueCount change that starts reporting steps for a plain knob
+            // fails loudly here instead of silently re-shaping every continuous curve.
+            CHECK_THAT(read_back->at(index).curve_shape, Catch::Matchers::WithinULP(0.0F, 0));
         }
     }
 }
@@ -111,6 +118,40 @@ TEST_CASE(
     {
         CHECK(read_back->empty());
     }
+}
+
+// Pins the vendored-engine contract the stepped-parameter write depends on: a segment whose
+// EARLIER point carries curve shape +1 holds that point's value across the whole segment and steps
+// at the later point, never before it. The discrete branch of writePluginParameterCurve cannot run
+// headlessly (it needs a hosted plugin reporting discrete steps), so a submodule bump changing this
+// degeneracy is the realistic regression this guards.
+TEST_CASE("A curve shape of one holds until the next point", "[audio][tone-automation]")
+{
+    const ToneAutomationHarness harness;
+    const tracktion::Plugin::Ptr plugin = createChainStandIn(*harness.edit);
+    const std::vector<tracktion::Plugin::Ptr> chain{plugin};
+    const std::string param_id = listChainAutomatableParameters(chain).front().param_id;
+    const tracktion::AutomatableParameter::Ptr parameter =
+        plugin->getAutomatableParameterByID(juce::String{param_id});
+    REQUIRE(parameter != nullptr);
+
+    constexpr float value_low = 0.25F;
+    constexpr float value_high = 0.75F;
+    tracktion::AutomationCurve& curve = parameter->getCurve();
+    curve.clear(nullptr);
+    curve.addPoint(tracktion::TimePosition::fromSeconds(0.0), value_low, 1.0F, nullptr);
+    curve.addPoint(tracktion::TimePosition::fromSeconds(1.0), value_high, 1.0F, nullptr);
+
+    // The default is only returned for an empty curve, so reading it back would be a test bug.
+    constexpr float unused_default = -1.0F;
+    const auto value_at = [&curve](double seconds) {
+        return curve.getValueAt(tracktion::TimePosition::fromSeconds(seconds), unused_default);
+    };
+
+    CHECK_THAT(value_at(0.5), Catch::Matchers::WithinULP(value_low, 0));
+    CHECK_THAT(value_at(0.999), Catch::Matchers::WithinULP(value_low, 0));
+    CHECK_THAT(value_at(1.0), Catch::Matchers::WithinULP(value_low, 0));
+    CHECK_THAT(value_at(1.001), Catch::Matchers::WithinULP(value_high, 0));
 }
 
 TEST_CASE("Unresolved parameter ids fail cleanly", "[audio][tone-automation]")

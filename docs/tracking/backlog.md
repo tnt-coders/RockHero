@@ -392,6 +392,18 @@ remains:
   `common/core`, so the consolidation is a one-file edit: give the shared helper the slide-out clip
   behind its target parameter, or state why the presentation trim deliberately owns a narrower
   rule (it is still choosing where its end goes when it clips, which is the current answer).
+- **Each of the tone automation lane's discrete rules is stated twice** (found by the 2026-08-23
+  tone-automation review, re-verified against current code). The "drawn discrete curve holds the
+  previous state until the next point" evaluator is duplicated — the comment verbatim included —
+  between `tone_automation_projection.cpp` (model side) and `tone_automation_lanes_view.cpp`
+  (drawn side), and the state-snap math `k/(count-1)` is duplicated the same way between
+  `snappedLaneValue` (`tone_handlers.cpp`) and `ToneAutomationLanesView::snappedValueForLane`.
+  Both pairs additionally restate the "two states or more counts as stepped" threshold that
+  `tone_automation_curve.cpp` now states once, inside `discreteValueCount`. Both duplicated rules
+  are pure functions of the lane's points, so one shared authority the view calls removes them.
+  What invites the restatements is upstream: `is_discrete` is derived from
+  `discrete_value_count`, yet is carried beside it through the parameter descriptor, the lane
+  view state, and the pointer event, leaving every consumer free to re-derive it its own way.
 - Evaluate: the importer's no-landing degradation path forces a DOWNWARD trail-off even when the
   notated glide direction is known (consistent with the pre-existing no-landing path, so a
   deliberate change would touch both).

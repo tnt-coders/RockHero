@@ -51,7 +51,12 @@ Three units keep hosted plugins honest:
   \ref guide_musical_time).
 - `tone_automation_curve.{h,cpp}` — reads and writes tone-chain parameter automation curves on
   the Tracktion side; the musical truth lives in `song.json`, and the Tracktion curve is derived
-  from it.
+  from it. Its most surprising property: segment *shape* is derived here too, not carried by the
+  point. A stepped parameter (a pedal toggle, a mode switch) has its segments written as holds —
+  Tracktion's curve shape `+1`, read from the earlier of the two points — so the backend steps at
+  the later point instead of ramping into it and tripping the plugin's own flip threshold early.
+  A point's authored `curve_shape` therefore applies to continuous parameters only, and write and
+  read are not inverses for that one field.
 
 *Design in flux: tone parameter automation is under active development
 (`docs/plans/completed/tone-parameter-automation-plan.md`) — treat `tone_automation_curve`'s
