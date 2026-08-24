@@ -77,13 +77,29 @@ std::expected<void, LiveRigError> Engine::prepareToneTimeline(
     return {};
 }
 
-// Verified against the vendored engine (in-progress tone plan mechanism notes): parameter
-// streams follow the transport position while stopped or scrubbing, so branch gains snap to the
-// playhead after any seek or loop wrap without an explicit push. This hook stays a documented
-// no-op until a real resync gap shows up under test.
+// Pushes a playhead jump onto the rig's tone automation. Tracktion evaluates automation only while
+// the graph renders blocks (Plugin::applyToBufferWithAutomation), so a position change made with
+// the playback context released leaves every tone parameter reading its pre-jump value.
+// RackType::updateAutomatableParamPositions is the engine's public hook for exactly this: it walks
+// the rack's plugins and modifiers into AutomatableParameter::updateToFollowCurve, which reads the
+// curve directly rather than the audio-thread parameter stream, so it needs no running graph and
+// honours a single-point curve the stream discards. It deliberately bypasses
+// setAutomatableParamPosition's lastTime dedupe and its isReadingAutomation() gate;
+// prepareToneTimeline pins that flag on, so there is nothing left to gate against. One call covers
+// the whole rig because every tone plugin and every branch gain lives inside the single rack.
 std::expected<void, LiveRigError> Engine::setToneTimelinePosition(
-    common::core::TimePosition /*position*/)
+    common::core::TimePosition position)
 {
+    if (!m_impl->m_tone_rack.has_value() || m_impl->m_tone_rack->rack_type == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidRequest,
+            "Tone timeline requires a loaded live rig",
+        }};
+    }
+
+    m_impl->m_tone_rack->rack_type->updateAutomatableParamPositions(
+        tracktion::TimePosition::fromSeconds(position.seconds));
     return {};
 }
 

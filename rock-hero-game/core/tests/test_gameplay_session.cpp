@@ -557,7 +557,8 @@ public:
         return {};
     }
 
-    // Seek resync is not session-driven in Phase 2 (automation resyncs automatically).
+    // Seek resync is not session-driven: Engine::seek pushes the new position through this same
+    // port itself, so the session never calls it and the fake only has to satisfy the interface.
     [[nodiscard]] std::expected<void, common::audio::LiveRigError> setToneTimelinePosition(
         common::core::TimePosition /*position*/) override
     {

@@ -546,9 +546,14 @@ public:
         std::span<const common::core::ToneSwitchRegion> regions) override;
 
     /*!
-    \brief Seek/scrub resync hook; a no-op today because parameter streams resync automatically.
-    \param position New playhead position to resync the audible tone against.
-    \return Empty success.
+    \brief Resyncs the loaded rig's tone automation to a new playhead position.
+
+    Pushes \p position onto every automatable parameter in the tone rack, which is what keeps
+    tone switching and parameter automation truthful across a playhead jump made while the
+    graph is not rendering blocks.
+
+    \param position New playhead position to resync the rig against.
+    \return Empty success, or a typed failure when no live rig is loaded.
     */
     [[nodiscard]] std::expected<void, LiveRigError> setToneTimelinePosition(
         common::core::TimePosition position) override;

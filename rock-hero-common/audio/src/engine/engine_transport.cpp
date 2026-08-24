@@ -183,6 +183,11 @@ void Engine::seek(common::core::TimePosition position)
     m_impl->m_edit->getTransport().setPosition(
         tracktion::TimePosition::fromSeconds(clamped_seconds));
     m_impl->publishClockBoundary(common::core::TimePosition{clamped_seconds});
+
+    // A seek is a playhead discontinuity: the tone rig follows automation only while the graph
+    // renders blocks, so push the new position through the sanctioned resync. A failure here just
+    // means no rig is loaded, the normal state for a tone-less arrangement.
+    static_cast<void>(setToneTimelinePosition(common::core::TimePosition{clamped_seconds}));
 }
 
 // v1 accepts exactly 1.0: real speed control arrives with practice mode's time-stretch work over

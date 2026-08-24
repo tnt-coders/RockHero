@@ -1,5 +1,6 @@
 #include "live_rig/tone_document.h"
 #include "live_rig/tone_file.h"
+#include "tracktion/tone_branch_gain_plugin.h"
 
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
@@ -542,6 +543,49 @@ private:
     document.chain.push_back(std::move(record));
     REQUIRE(writeToneDocument(song_directory / tone_ref, document).has_value());
     return tone_ref;
+}
+
+// Reads the live rig's branch-gain values straight out of the backend graph, in branch order.
+//
+// The branch gain is a private structural plugin inside the tone rack, so no port exposes its
+// value and the tone-timeline resync has no other observable effect while the graph is released.
+// Walking Tracktion's own object graph keeps that observation in the test instead of adding a
+// test-only accessor to the engine. Only the harness's engine is alive during a test, and its
+// rack holds exactly one branch gain per loaded tone, in load-request order.
+[[nodiscard]] std::vector<float> readToneBranchGains()
+{
+    std::vector<float> gains;
+    for (const tracktion::Engine* const tracktion_engine : tracktion::Engine::getEngines())
+    {
+        if (tracktion_engine == nullptr)
+        {
+            continue;
+        }
+        for (const tracktion::Edit* const edit : tracktion_engine->getActiveEdits().getEdits())
+        {
+            if (edit == nullptr)
+            {
+                continue;
+            }
+            for (const tracktion::RackType* const rack : edit->getRackList().getTypes())
+            {
+                if (rack == nullptr)
+                {
+                    continue;
+                }
+                for (tracktion::Plugin* const plugin : rack->getPlugins())
+                {
+                    if (const auto* const branch_gain =
+                            dynamic_cast<const ToneBranchGainPlugin*>(plugin);
+                        branch_gain != nullptr)
+                    {
+                        gains.push_back(branch_gain->branchGainParameter()->getCurrentValue());
+                    }
+                }
+            }
+        }
+    }
+    return gains;
 }
 
 } // namespace
@@ -1817,6 +1861,98 @@ TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][int
         });
     REQUIRE_FALSE(unknown.has_value());
     CHECK(unknown.error().code == LiveRigErrorCode::InvalidRequest);
+}
+
+// Verifies a seek drags the baked tone schedule onto the new playhead position while stopped. A
+// headless test has no playback context, which is exactly the condition the resync exists for:
+// nothing renders blocks, so the branch gains only follow the curves if the seek pushes the
+// position onto them.
+TEST_CASE("Engine seek resyncs the tone timeline", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+    IToneTimelinePlayer& timeline = harness.engine;
+    ITransport& transport = harness.engine;
+
+    const auto first_ref = live_rig.mintEmptyTone(song_directory.path());
+    const auto second_ref = live_rig.mintEmptyTone(song_directory.path());
+    REQUIRE(first_ref.has_value());
+    REQUIRE(second_ref.has_value());
+
+    std::optional<std::expected<LiveRigLoadResult, LiveRigError>> loaded;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_refs = {*first_ref, *second_ref},
+            .audible_tone_ref = *first_ref,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&loaded](auto value) { loaded = std::move(value); });
+    REQUIRE(loaded.has_value());
+    if (!loaded.has_value())
+    {
+        return;
+    }
+    REQUIRE(loaded->has_value());
+
+    // The first tone owns [0, 4) and the second [4, 8), so the sought positions below sit well
+    // clear of the 10 ms crossfade at the boundary.
+    const std::vector<common::core::ToneSwitchRegion> schedule{
+        common::core::ToneSwitchRegion{
+            .time_range =
+                {.start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}},
+            .tone_document_ref = *first_ref,
+        },
+        common::core::ToneSwitchRegion{
+            .time_range =
+                {.start = common::core::TimePosition{4.0}, .end = common::core::TimePosition{8.0}},
+            .tone_document_ref = *second_ref,
+        },
+    };
+
+    constexpr float audible = 1.0F;
+    constexpr float silent = 0.0F;
+    constexpr float gain_tolerance = 1.0e-6F;
+    runMessageThreadSteps({
+        [&] { CHECK(timeline.prepareToneTimeline(song_directory.path(), schedule).has_value()); },
+        [&] {
+            // Baking settles the rig at the transport's current position (still the origin), so
+            // the first tone starts audible. This is the value the seek has to move: it is the
+            // whole state the rig would otherwise keep, because with no playback context nothing
+            // renders a block that would re-evaluate the curves.
+            const std::vector<float> baked_gains = readToneBranchGains();
+            CHECK(baked_gains.size() == 2);
+            if (baked_gains.size() == 2)
+            {
+                CHECK_THAT(baked_gains[0], Catch::Matchers::WithinAbs(audible, gain_tolerance));
+                CHECK_THAT(baked_gains[1], Catch::Matchers::WithinAbs(silent, gain_tolerance));
+            }
+
+            transport.seek(common::core::TimePosition{6.0});
+
+            // Deep inside the second tone's region: its branch is fully audible and the first
+            // tone's branch is silent.
+            const std::vector<float> sought_gains = readToneBranchGains();
+            CHECK(sought_gains.size() == 2);
+            if (sought_gains.size() == 2)
+            {
+                CHECK_THAT(sought_gains[0], Catch::Matchers::WithinAbs(silent, gain_tolerance));
+                CHECK_THAT(sought_gains[1], Catch::Matchers::WithinAbs(audible, gain_tolerance));
+            }
+
+            // And seeking back reverses it, so the resync tracks the curve rather than latching.
+            transport.seek(common::core::TimePosition{1.0});
+            const std::vector<float> rewound_gains = readToneBranchGains();
+            CHECK(rewound_gains.size() == 2);
+            if (rewound_gains.size() == 2)
+            {
+                CHECK_THAT(rewound_gains[0], Catch::Matchers::WithinAbs(audible, gain_tolerance));
+                CHECK_THAT(rewound_gains[1], Catch::Matchers::WithinAbs(silent, gain_tolerance));
+            }
+        },
+    });
 }
 
 // Verifies the rig load scans to completion and refuses ONCE with the complete missing-plugin

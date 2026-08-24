@@ -280,11 +280,13 @@ the submodule moves):
   `PluginNode` calling `applyToBufferWithAutomation`
   (`playback/graph/tracktion_RackNode.cpp:397`), so branch-gain curves inside the rack play back
   with no extra wiring.
-- **Seek resync is automatic.** When stopped or scrubbing, parameter streams follow
-  `TransportControl::getPosition()` (`plugins/tracktion_Plugin.cpp:676`), and the live-input
-  graph keeps processing while stopped, so branch gains snap to the playhead without an explicit
-  position push. Keep `setToneTimelinePosition` out of the first backend implementation; add it
-  only if a real resync gap shows up under test.
+- **Seek resync is automatic only while the graph renders.** When stopped or scrubbing, parameter
+  streams follow `TransportControl::getPosition()` (`plugins/tracktion_Plugin.cpp:676`), so branch
+  gains snap to the playhead as long as the live-input graph is processing. **Amendment
+  (2026-08-23):** that condition is not always met — with the playback context released, nothing
+  renders a block and every tone parameter keeps its pre-seek value. `Engine::seek` therefore
+  pushes the position through `setToneTimelinePosition`, which walks the rack via
+  `RackType::updateAutomatableParamPositions`; it is a real implementation now, not a no-op.
 - **Latency equals the worst branch — unless compensation is disabled, which it should be.**
   The graph auto-inserts `LatencyNode`s at sum points so parallel branches stay aligned
   (`tracktion_graph/nodes/tracktion_SummingNode.h`, `tracktion_ConnectedNode.h`), which would

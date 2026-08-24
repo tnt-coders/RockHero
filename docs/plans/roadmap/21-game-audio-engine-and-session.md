@@ -47,7 +47,9 @@ finalized (crossfade-envelope math `makeToneGainEnvelope` joined `makeToneSchedu
 common/core with 4 more unit tests; `IToneTimelinePlayer` implemented on Engine in
 src/engine/engine_tone_timeline.cpp — bake-once branch-gain curve writing over the loaded rack,
 automation-read gate enforced, `setToneTimelinePosition` a documented no-op per the verified
-auto-resync fact); 3c evidence: origin-point correctness unit-tested, wrap ≡ seek confirmed at
+auto-resync fact — since 2026-08-23 it is a real position push through
+`RackType::updateAutomatableParamPositions`, because the auto-resync only holds while the graph
+renders blocks); 3c evidence: origin-point correctness unit-tested, wrap ≡ seek confirmed at
 source by Phase 1's expert pass (verdict 5), no-rebuild-after-Ready structural (baking happens
 inside prepare, before the session reports Ready) — audible confirmation stays in Phase 6's
 soak; 3d per 21-Q1(A): rig load now scans to completion and refuses ONCE listing every
