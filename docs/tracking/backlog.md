@@ -292,33 +292,42 @@ verified against the code by the reviewer; re-verify before acting, since the tr
 
 ### The 3D highway and the game
 
-- **The windowing authority the project owns is applied to notes only.** `visibleEventRange` is
-  used at the note sites in `highway_renderer.cpp` (the highway-named forwarders were deleted
-  2026-08-10, and the chord groups now arrive windowed from the projection), but beats, fret-hand
-  positions, tap onsets, and shapes are still scanned full-song every frame — about twenty sites
-  by the later verification count; cite them by the loops' subjects, since the file's line numbers
-  have moved twice. Worst is `windowSampleTimes`, called per shape rail and per window-following
-  tail, each call allocating and walking every placement in the song then sorting and uniquing.
-  `lower_bound`/`upper_bound` over the ramp interval, the shape `highway_window.cpp` already uses.
-- **Per-frame allocation in the render path** (re-verified 2026-08-21 by the two-week design
-  review): `FrameScratch` now holds the note batches, but inside `draw()` the furniture batches
-  are still some thirty fresh vectors per frame (none reserving), the accented-tail column list
-  allocates per ribbon SEGMENT (hundreds of times per note per frame), and the modulated-tail
-  path allocates its wobble times, sample times, samples, lifts, and shaded vectors per note;
-  `floor_numbers` no longer `stable_sort`s, and `makeHighwayTailSampleTimes` is bounded by one
-  sample budget (2026-08-21), but it still allocates. All belong in `FrameScratch`, cleared in
-  `clearForFrame()`. The shape wanted is a pass whose batches live in `FrameScratch`, whose scan is
-  a bounded `visibleEventRange`, and which streams quads straight into its batch with no
-  intermediate sample vector — which the modulated-tail path above still needs.
-  Same review: seventeen whole-song scans remain
-  in `draw()` over arrays that are time-ascending and already have the bounded idiom beside them
-  (`handWindowMovesWithin` next to the bounded `windowSampleTimes`; the beat scan at one site
-  next to its `lower_bound` twin), four of them scanning from index 0 to now so their cost grows
-  with playback position; `StringLaneStyle` is derived per visible note with six of seven fields
-  unread; slide-run boundaries are recomputed per tail sample; and the tail-shade smoothing is
-  O(S x W) where two running sums make it O(S). In the 2D lane, the per-note bracket rescan and
-  the per-chip HarfBuzz shaping are per-song at minimum zoom, and the shapes' visible range still
-  scans from the song start for want of a prefix maximum of span ends.
+- ~~**The windowing authority the project owns is applied to notes only.**~~ — **FIXED 2026-08-24**
+  in `highway_renderer.cpp`: every whole-song scan in `draw()` is now bounded, each keeping its own
+  per-item test so the bound is a tight superset and never a second filter. Beats, section labels,
+  tapped chord boxes and the tap strike glow take the plain `lower_bound`/`upper_bound` clamp; the
+  two shape passes share one `visibleEventRange` over a new `shape_prefix_max`; the settled
+  hand-window collection and the window light's motion dim bound on ascending arrivals plus
+  `max_fhp_ramp_seconds`; and the five tap-light scans go through one `litTapOnsetRange` — the
+  tapping hand's `visibleEventRange`, over a new `tap_end_prefix_max` (the prefix maximum of the
+  light paths' end times) and `max_tap_ramp_seconds`. `handWindowMovesWithin` took the bound its
+  `windowSampleTimes` neighbour already had. **The `windowSampleTimes` half of this entry was
+  already STALE when written**: that function has filled the caller's buffer and binary-searched
+  its own start since the fhp-window-motion work — it neither allocates nor walks the whole song.
+  Still full-song by design and correctly so: the strike glow's forward spacing walks, which look
+  PAST the visible run for the next same-geometry strike and stop at the clamp horizon.
+- ~~**Per-frame allocation in the render path**~~ — **FIXED 2026-08-24**, with two named exceptions.
+  Every fresh vector inside `draw()` now lives in `FrameScratch` and is cleared in
+  `clearForFrame()`: the ten sequential furniture passes share one cleared-on-handout batch pair
+  per vertex layout (`colorBatch()` / `texturedBatch()`, which `drawOverlayRects` takes too), and
+  the hand windows, window-light slices (four parallel arrays folded into one record), bracket
+  batch list, box draw list, strike-glow onsets, accent-glow columns, and the modulated tail's
+  wobble times, samples, lifts and shades are members. `pushTailGlowSegment` takes its column
+  buffer as a parameter, so the per-ribbon-SEGMENT allocation is gone. The tail-shade smoothing is
+  now O(S) — three running sums plus a two-cursor window, since the tent weight is linear in a
+  sample's z; the window SET is bit-identical to the old outward walks and only the float summation
+  order changed. Two separate randomized cross-checks, not one: 20,000 tails showed 0 window-set
+  mismatches, and a 4,000-tail run measured the value divergence at worst 1.5e-10, against a 1/255
+  colour step of 3.9e-3. **The two exceptions:** `makeHighwayTailSampleTimes` returns its list by
+  value, so `sample_times` is still one allocation per MODULATED tail per frame — that branch is
+  gated on bend, vibrato, slide, tremolo or a moving open band, not on the tail being lit — until
+  that core seam fills a caller's buffer the way `windowSampleTimes` does; and each `BracketBatch`
+  still owns its own two vectors, so a visible arpeggio posture string allocates. Untouched and
+  still open from the same review: `StringLaneStyle` is derived per visible note with six of seven
+  fields unread, and slide-run boundaries are recomputed per tail sample. In the 2D lane, the
+  per-note bracket rescan and the per-chip HarfBuzz shaping are still per-song at minimum zoom,
+  and the shapes' visible range still scans from the song start for want of a prefix maximum of
+  span ends — exactly the table the highway just gained.
 - **The song-select menu has no viewport.** `rock-hero-game/ui/src/game/game.cpp` draws one row
   per library entry from a fixed origin. At 100 songs on 1080p, rows past 64 are off-screen, the
   key-hint footer never appears, and selecting song 80 puts the highlight bar at y = 1328 — the

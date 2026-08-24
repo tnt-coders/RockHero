@@ -82,14 +82,27 @@ read `content_cpu_ns` per frame from `%APPDATA%\Rock Hero\Rock Hero Game.log` (t
 one-second window, not the mean, is the number that matters). Nothing below should be tuned
 before that reading exists.
 
-6. **Per-frame allocation and whole-song scans in `draw()`** — the full inventory is now in
-   `backlog.md` under "Per-frame allocation in the render path" (re-verified 2026-08-21): ~30
-   unreserved furniture vectors per frame, a per-ribbon-SEGMENT column vector, five per-note
-   vectors on the modulated-tail path, 17 whole-song scans (four growing with playback position),
-   `StringLaneStyle` derived per note with six of seven fields unread, slide-run boundaries
-   recomputed per sample, and O(S²) tail-shade smoothing. Measure through
-   `.agents/rockhero-build.ps1 -Preset relwithdebinfo` before and after; the fixes are
-   `FrameScratch` members and the `lower_bound`/`upper_bound` idiom already in the file.
+6. **Per-frame allocation and whole-song scans in `draw()`** — **MOSTLY DONE 2026-08-24** (stage 1
+   of the OPEN 1 sequence; the pass slicing in item 5 is stage 2). The full inventory is in
+   `backlog.md` under "Per-frame allocation in the render path", now struck through with what
+   landed: every fresh vector in `draw()` moved into `FrameScratch` (ten sequential furniture
+   passes share one cleared-on-handout batch pair per vertex layout), `pushTailGlowSegment` takes
+   its column buffer as a parameter, the modulated tail's working set is banked, the tail-shade
+   smoothing is O(S) through three running sums, and every whole-song scan is bounded — including
+   the five tap-light scans, through a new `litTapOnsetRange` (the tapping hand's
+   `visibleEventRange`), and both shape passes, through a new `shape_prefix_max`. Two allocations
+   remain by design: `makeHighwayTailSampleTimes` returns by value (banking it needs an out-param
+   on that core seam), and each `BracketBatch` owns its own vectors. `StringLaneStyle` and the
+   per-sample slide-run boundaries are untouched. MEASURED 2026-08-24 (RelWithDebInfo, real
+   unattended playback of the self-authored technique-showcase package, 419 notes over 146 s,
+   two 22.4k-frame runs per side, 144 Hz / 6.94 ms budget, identical analyzer both sides):
+   pooled playback `content_cpu_ns` p50 0.149 → 0.107 ms (−27.9%), p99 0.437 → 0.372 ms
+   (−14.9%), p99.9 0.758 → 0.593 ms (−21.7%); frames over 0.5 ms 189 → 63; the dense band
+   (measures 45–49) fell from 76 to 12 over-0.5 ms frames in its worst bucket; at rest p50
+   0.115 → 0.084 ms with every percentile down. The after side's absolute max (1.304 ms) is one
+   isolated frame with no ramp on either side in a sparse bucket; excluding it the max is
+   0.799 ms (−28%). A dense-chart reading is still owed, gated on re-exported local packages
+   (the stale-package item).
 7. **The 2D lane at minimum zoom** — the per-note bracket rescan (O(notes × brackets)), a fresh
    HarfBuzz shaping pass per label chip, a `ScopedSaveState` + clip per visible note whose three
    consumers all early-out, a `TailCenterline` built and discarded for the dominant case, and the

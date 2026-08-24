@@ -666,14 +666,29 @@ constexpr double g_inlay_double_separation_fraction = 341.0 / 512.0;
 
 // True when the hand window moves anywhere inside a time span (some placement's ramp overlaps
 // it): geometry spanning the range must then sample the window instead of holding one extent.
+// Visits only the placements that can overlap the span, on the bounds windowSampleTimes states
+// below: arrivals ascend, so the walk starts past `from_seconds`, and once an arrival sits
+// `max_ramp_seconds` past `to_seconds` neither its own ramp nor any later one reaches back in.
 [[nodiscard]] bool handWindowMovesWithin(
-    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds)
+    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds,
+    const double max_ramp_seconds)
 {
-    return std::ranges::any_of(
-        state.chart.fret_hand_positions, [&](const common::core::FhpViewState& fhp) {
-            return fhp.ramp_seconds > 0.0 && fhp.seconds > from_seconds &&
-                   fhp.seconds - fhp.ramp_seconds < to_seconds;
-        });
+    const std::vector<common::core::FhpViewState>& fhps = state.chart.fret_hand_positions;
+    for (const common::core::FhpViewState& fhp : std::ranges::subrange(
+             std::ranges::upper_bound(
+                 fhps, from_seconds, std::ranges::less{}, &common::core::FhpViewState::seconds),
+             fhps.end()))
+    {
+        if (fhp.seconds - max_ramp_seconds >= to_seconds)
+        {
+            break;
+        }
+        if (fhp.ramp_seconds > 0.0 && fhp.seconds - fhp.ramp_seconds < to_seconds)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Finest time step a window ramp is sliced at, the slices per fret line of edge travel, and the
@@ -1113,12 +1128,17 @@ A BAND, not a box. Every vertex pins its local Y to zero, so only the X boundary
 and the rounded-box field reduces exactly to `|local_x| - half_w`. `half_h` is set equal to
 `half_w` for that reason: any value at least `half_w` yields the identical field, and matching them
 is the one choice that needs no constant of its own.
+
+`columns` is the caller's working buffer for that column set, cleared here and left holding this
+segment's columns. It is a parameter because this runs once per RIBBON SEGMENT — hundreds of times
+per note per frame on a long modulated tail — and a fresh vector each time was that many
+allocations on the deadline path.
 */
 void pushTailGlowSegment(
     std::vector<PosColorGlowVertex>& vertices, std::vector<std::uint16_t>& indices,
     const std::array<double, 4>& stations_a, const std::array<double, 4>& stations_b,
     const RibbonEnd& a, const RibbonEnd& b, const ArgbColor color, const double alpha_a,
-    const double alpha_b)
+    const double alpha_b, std::vector<double>& columns)
 {
     struct TailGlowEnd
     {
@@ -1147,7 +1167,7 @@ void pushTailGlowSegment(
     // positive toward the core, negative into the halo. A hard-edged segment carries a flat
     // emission, so one column pair spans silhouette to halo edge; a ramped segment gets the
     // bar strip's corner-clustered set.
-    std::vector<double> columns;
+    columns.clear();
     if (end_a.fade > 0.0 || end_b.fade > 0.0)
     {
         columns.reserve(15);
@@ -1166,7 +1186,7 @@ void pushTailGlowSegment(
     }
     else
     {
-        columns = {-g_accent_reach, 0.0};
+        columns.assign({-g_accent_reach, 0.0});
     }
 
     const auto vertex_at = [&](const TailGlowEnd& end, const double s, const double side) {
@@ -1604,10 +1624,102 @@ struct FloorNumber
     std::size_t build_index{0};
 };
 
+// One settled fret-hand window visible this frame; the span rules live at the hand_windows site
+// in draw().
+struct HandWindow
+{
+    double start_seconds;
+    double end_seconds;
+    int fret;
+    int width;
+};
+
+// One sampled slice of the hand-window light: its z and the two eased window edges there, plus
+// the motion dim the ramps write. One record rather than four parallel arrays, so a slice cannot
+// be half-written.
+struct WindowLightSlice
+{
+    double z;
+    double low_x;
+    double high_x;
+    double dim;
+};
+
+// One arpeggio bracket glyph awaiting its lane-dominant submission; the ordering rule lives at
+// the bracket_batches site in draw().
+struct BracketBatch
+{
+    int lane{0};
+    double span_start_seconds{0.0};
+    double span_end_seconds{0.0};
+    std::vector<PosColorUvVertex> vertices;
+    std::vector<std::uint16_t> indices;
+    bool submitted{false};
+};
+
+// One chord, arpeggio, or tapped box in the far-to-near draw list; the classification rules live
+// at the boxes site in draw().
+struct BoxDraw
+{
+    double start_seconds;
+    bool box_only;
+    bool with_top;
+    // The box's own dynamics. An arpeggio box never carries one: the bracket is a
+    // POSTURE — the hand holding a shape, not a strike — so emphasis belongs to the
+    // notes inside it, which state their own.
+    common::core::NoteEmphasis emphasis;
+    // The strum's two mute unanimities, straight off the group: a box speaks for the
+    // whole strum, so only a mute every member shares reaches it — one dead string in a
+    // palm-muted chord leaves this box palm muted. Each flag draws its own mark below,
+    // and a box unanimous in both wears both.
+    bool palm_mute;
+    bool dead;
+    const common::core::ShapeViewState* arpeggio_shape;
+    // A tapped chord box spans the taps' own fret extent instead of the fretting
+    // hand's window (right-hand-tap-lighting plan); null for left-hand boxes.
+    const common::core::HighwayTapOnsetViewState* tap;
+    // Build position, the sort's tiebreak: onset alone is not a total order (a
+    // tap-and-strum instant emits two boxes), and the deterministic build order is what
+    // keeps their overlap from flickering frame to frame.
+    std::size_t build_index;
+};
+
+// One sampled station of a modulated tail's centerline.
+struct TailSample
+{
+    std::array<double, 4> stations;
+    double x_offset;
+    double y;
+    double z;
+    double alpha;
+};
+
+// Running totals of a modulated tail's slope shades, indexed so entry i holds the sums over
+// samples [0, i). The tent weight is linear in a sample's z, so each of the three sums is one
+// term of the smoothed value — see the shade-smoothing site in draw().
+struct TailShadeSums
+{
+    double lift;
+    double lift_z;
+    double z;
+};
+
+// The two CPU-side buffers one board pass builds its batch in. Handed out already cleared (see
+// FrameScratch::colorBatch), so a pass that shares a buffer with an earlier pass cannot inherit
+// its geometry.
+template <typename Vertex> struct FrameBatch
+{
+    std::vector<Vertex>& vertices;
+    std::vector<std::uint16_t>& indices;
+};
+
 // Geometry and label scratch reused across frames, so a steady scene stops allocating on the
 // per-frame deadline path; within a frame the batches are still cleared per onset group exactly
-// as before. INVARIANT: every member is cleared in clearForFrame() at the top of draw() — a
-// missed clear draws last frame's content into this one.
+// as before. INVARIANT: every member is cleared before it is read. draw() clears all of them up
+// front through clearForFrame(); the shared pass buffers below are cleared a second time on
+// handout, which is what also covers drawOverlayRects — the other public entry point into this
+// scratch, which never calls clearForFrame(). A missed clear draws last frame's content into
+// this one.
 struct FrameScratch
 {
     std::vector<PosColorVertex> shadow_vertices;
@@ -1634,6 +1746,53 @@ struct FrameScratch
     std::vector<PendingMarker> pending_markers;
     std::vector<FloorNumber> floor_numbers;
 
+    // The board's furniture passes — lane ribbons, both hand lights, beat bars, shape rails,
+    // fret lines, inlays, capo, glyph text, strike glow — each build one batch, submit it, and
+    // are done, so they never hold geometry across one another and one buffer pair per vertex
+    // layout serves them all. Handed out through colorBatch()/texturedBatch(), which clear on
+    // handout: a shared buffer that a pass forgot to clear would draw the previous pass's
+    // geometry under this pass's program, so the clear is not left to the pass to remember.
+    std::vector<PosColorVertex> pass_color_vertices;
+    std::vector<std::uint16_t> pass_color_indices;
+    std::vector<PosColorUvVertex> pass_textured_vertices;
+    std::vector<std::uint16_t> pass_textured_indices;
+
+    std::vector<HandWindow> hand_windows;
+    std::vector<WindowLightSlice> window_light_slices;
+    std::vector<BracketBatch> bracket_batches;
+    std::vector<BoxDraw> boxes;
+    std::vector<double> window_edge_onsets;
+    // The accent light's column parameters, shared by the tail-glow segments and the open bar's
+    // glow strip: the two build the same corner-clustered set through openBarEmission, and never
+    // at the same time (a note's tail ribbon finishes before its head draws).
+    std::vector<double> glow_columns;
+    // The modulated tail's per-note working set, in build order.
+    std::vector<double> tail_wobble_times;
+    std::vector<TailSample> tail_samples;
+    std::vector<double> tail_lifts;
+    std::vector<TailShadeSums> tail_shade_sums;
+    std::vector<ArgbColor> tail_shaded;
+
+    [[nodiscard]] FrameBatch<PosColorVertex> colorBatch()
+    {
+        pass_color_vertices.clear();
+        pass_color_indices.clear();
+        return FrameBatch<PosColorVertex>{
+            .vertices = pass_color_vertices,
+            .indices = pass_color_indices,
+        };
+    }
+
+    [[nodiscard]] FrameBatch<PosColorUvVertex> texturedBatch()
+    {
+        pass_textured_vertices.clear();
+        pass_textured_indices.clear();
+        return FrameBatch<PosColorUvVertex>{
+            .vertices = pass_textured_vertices,
+            .indices = pass_textured_indices,
+        };
+    }
+
     void clearForFrame()
     {
         shadow_vertices.clear();
@@ -1659,6 +1818,21 @@ struct FrameScratch
         window_times.clear();
         pending_markers.clear();
         floor_numbers.clear();
+        pass_color_vertices.clear();
+        pass_color_indices.clear();
+        pass_textured_vertices.clear();
+        pass_textured_indices.clear();
+        hand_windows.clear();
+        window_light_slices.clear();
+        bracket_batches.clear();
+        boxes.clear();
+        window_edge_onsets.clear();
+        glow_columns.clear();
+        tail_wobble_times.clear();
+        tail_samples.clear();
+        tail_lifts.clear();
+        tail_shade_sums.clear();
+        tail_shaded.clear();
     }
 };
 
@@ -1724,12 +1898,23 @@ struct HighwayRenderer::Impl
     int displayed_count{0};
     int extra_lanes{0};
     std::vector<double> sustain_prefix_max;
+    // The same companion table for the hand-posture spans, which overlap freely like the notes'
+    // sustains: the shape passes bound their visible range through visibleEventRange with this.
+    std::vector<double> shape_prefix_max;
     // Natural-harmonic node series, derived once per chart revision like sustain_prefix_max:
     // the draw path labels and suppresses from this table instead of re-walking every note.
     std::vector<common::core::HighwayNodeSeries> node_series;
     // Longest FHP approach ramp, for windowSampleTimes' exact early-out: an arrival this far
     // past a window's end cannot reach back into it, and neither can any later arrival.
     double max_fhp_ramp_seconds{0.0};
+    // The tapping hand's counterpart of sustain_prefix_max and max_fhp_ramp_seconds, derived once
+    // per chart revision: the running maximum of the light paths' end times, and the longest tap
+    // rise. Tap light envelopes run from an onset's rise start to its path end plus a decay, and
+    // the paths overlap freely, so the prefix maximum is what bounds a span's first candidate
+    // (visibleEventRange's argument, applied to the hand that has no `end_seconds` field) and the
+    // longest rise is what bounds its last.
+    std::vector<double> tap_end_prefix_max;
+    double max_tap_ramp_seconds{0.0};
     FrameScratch scratch;
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
@@ -1746,6 +1931,41 @@ struct HighwayRenderer::Impl
     [[nodiscard]] int laneOf(const int chart_string) const noexcept
     {
         return common::core::displayedLane(chart_string, extra_lanes);
+    }
+
+    /*
+    The tap onsets whose light can reach [from_seconds, to_seconds], as a half-open index range —
+    visibleEventRange's answer for the tapping hand, which carries its extent in a path rather
+    than in an `end_seconds` field. A tap's light rises over `ramp_seconds` before its onset and
+    releases `decay_seconds` after its path ends, so:
+
+      - every onset before the first whose prefix maximum of path ends reaches back into the span
+        has released before it (the ends overlap freely, which is exactly why the bound is the
+        prefix maximum rather than the ends themselves), and
+      - every onset from the first whose rise cannot start by `to_seconds` — even at the longest
+        rise in the chart — begins after it, as do all later onsets.
+
+    Both tests are spelled with the same expressions the per-tap skips use, so the range is a
+    tight superset of what those skips keep and callers still run them: the range never drops a
+    tap the caller's own test would have kept, and a rounding tie only costs one skipped tap.
+    */
+    [[nodiscard]] std::pair<std::size_t, std::size_t> litTapOnsetRange(
+        const double from_seconds, const double to_seconds,
+        const double decay_seconds) const noexcept
+    {
+        const auto first = static_cast<std::size_t>(
+            std::ranges::partition_point(
+                tap_end_prefix_max,
+                [&](const double path_end) { return path_end + decay_seconds < from_seconds; }) -
+            tap_end_prefix_max.begin());
+        const auto last = static_cast<std::size_t>(
+            std::ranges::partition_point(
+                state.tap_onsets,
+                [&](const common::core::HighwayTapOnsetViewState& tap) {
+                    return tap.path.front().seconds - max_tap_ramp_seconds <= to_seconds;
+                }) -
+            state.tap_onsets.begin());
+        return {std::min(first, last), last};
     }
 
     void rebuildBoardFace();
@@ -1969,11 +2189,22 @@ void HighwayRenderer::setViewState(common::core::HighwayViewState state)
     m_impl->extra_lanes = m_impl->displayed_count - m_impl->state.chart.string_count;
     m_impl->sustain_prefix_max =
         common::core::makeSustainPrefixMax(m_impl->state.chart.display_hold_ends);
+    m_impl->shape_prefix_max = common::core::makeSustainPrefixMax(m_impl->state.chart.shapes);
     m_impl->node_series = common::core::makeHighwayNodeSeries(m_impl->state.chart.notes);
     m_impl->max_fhp_ramp_seconds = 0.0;
     for (const common::core::FhpViewState& fhp : m_impl->state.chart.fret_hand_positions)
     {
         m_impl->max_fhp_ramp_seconds = std::max(m_impl->max_fhp_ramp_seconds, fhp.ramp_seconds);
+    }
+    m_impl->tap_end_prefix_max = common::core::makeSustainPrefixMax(
+        m_impl->state.tap_onsets |
+        std::views::transform([](const common::core::HighwayTapOnsetViewState& tap) {
+            return tap.path.back().seconds;
+        }));
+    m_impl->max_tap_ramp_seconds = 0.0;
+    for (const common::core::HighwayTapOnsetViewState& tap : m_impl->state.tap_onsets)
+    {
+        m_impl->max_tap_ramp_seconds = std::max(m_impl->max_tap_ramp_seconds, tap.ramp_seconds);
     }
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
@@ -2120,21 +2351,30 @@ void HighwayRenderer::Impl::draw(
     // highwayHandWindowAt), so its span extends back to the span start even when the arrival
     // itself is far past the horizon. A chart with no placements gets the reference nut
     // window.
-    struct HandWindow
+    // Arrivals ascend and a window ends at the NEXT arrival's ramp start — never later than that
+    // arrival itself — so a placement whose successor arrives at or before the span start closes
+    // before the span and cannot show: the walk begins one placement before the first arrival
+    // past the span start. It ends at the first arrival at or past the span end, whose window
+    // opens past the span, as does every later one. Index 0 is the exception at both ends: its
+    // window is pre-held from the span start, so it is always a candidate when it is reached.
+    const std::vector<common::core::FhpViewState>& fhps = state.chart.fret_hand_positions;
+    const auto after_span_start = static_cast<std::size_t>(
+        std::ranges::upper_bound(
+            fhps, span_start_seconds, std::ranges::less{}, &common::core::FhpViewState::seconds) -
+        fhps.begin());
+    const auto at_span_end = static_cast<std::size_t>(
+        std::ranges::lower_bound(
+            fhps, span_end_seconds, std::ranges::less{}, &common::core::FhpViewState::seconds) -
+        fhps.begin());
+    const std::size_t first_window = after_span_start > 0 ? after_span_start - 1 : 0;
+    const std::size_t last_window = std::min(fhps.size(), std::max(at_span_end, std::size_t{1}));
+    std::vector<HandWindow>& hand_windows = scratch.hand_windows;
+    for (std::size_t index = first_window; index < last_window; ++index)
     {
-        double start_seconds;
-        double end_seconds;
-        int fret;
-        int width;
-    };
-    std::vector<HandWindow> hand_windows;
-    for (std::size_t index = 0; index < state.chart.fret_hand_positions.size(); ++index)
-    {
-        const common::core::FhpViewState& fhp = state.chart.fret_hand_positions[index];
+        const common::core::FhpViewState& fhp = fhps[index];
         const double window_start = index == 0 ? span_start_seconds : fhp.seconds;
-        const double window_end = index + 1 < state.chart.fret_hand_positions.size()
-                                      ? state.chart.fret_hand_positions[index + 1].seconds -
-                                            state.chart.fret_hand_positions[index + 1].ramp_seconds
+        const double window_end = index + 1 < fhps.size()
+                                      ? fhps[index + 1].seconds - fhps[index + 1].ramp_seconds
                                       : span_end_seconds;
         if (window_end <= span_start_seconds || window_start >= span_end_seconds ||
             window_end <= window_start)
@@ -2164,6 +2404,17 @@ void HighwayRenderer::Impl::draw(
     const common::core::HighwayHandWindow current_window =
         common::core::highwayHandWindowAt(state.chart.fret_hand_positions, now_seconds);
 
+    // The tap onsets whose light can reach a time span, as the taps themselves; litTapOnsetRange
+    // holds the bound and its proof. Every pass below keeps its own per-tap skip — this only
+    // spares each one the onsets that provably fail it, the way visibleEventRange spares the
+    // note sweep.
+    const auto lit_taps =
+        [&](const double from_seconds, const double to_seconds, const double decay_seconds) {
+            const auto [first, last] = litTapOnsetRange(from_seconds, to_seconds, decay_seconds);
+            return std::span<const common::core::HighwayTapOnsetViewState>(state.tap_onsets)
+                .subspan(first, last - first);
+        };
+
     // --- Lane border ribbons: one faded runway strip per fret line (Charter's floor
     // grid). Alpha tiers: bright for the current hand range, mid for any visible window's
     // range, faint elsewhere. ---
@@ -2184,13 +2435,11 @@ void HighwayRenderer::Impl::draw(
         // with the fretting hand's windows deduplicates itself, and the path union already
         // carries any tapped-slide morph — the eased-coverage machinery stays exclusive to the
         // current fretting-hand window's hit-line crossfade.
-        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap :
+             lit_taps(span_start_seconds, span_end_seconds, g_tap_light_decay_seconds))
         {
-            if (tap.path.front().seconds > span_end_seconds)
-            {
-                break; // onsets ascend, so nothing later is on screen
-            }
-            if (tap.path.back().seconds + g_tap_light_decay_seconds < span_start_seconds)
+            if (tap.path.front().seconds > span_end_seconds ||
+                tap.path.back().seconds + g_tap_light_decay_seconds < span_start_seconds)
             {
                 continue;
             }
@@ -2217,12 +2466,13 @@ void HighwayRenderer::Impl::draw(
         // past the extent's bounding lines, and lines take the max over taps, so hand overlap
         // deduplicates itself exactly like the other tiers.
         std::array<double, g_face_fret_count + 1> tap_coverage{};
-        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap :
+             lit_taps(now_seconds, now_seconds, g_tap_ribbon_decay_seconds))
         {
             const common::core::HighwayTapLightStation& front = tap.path.front();
             const common::core::HighwayTapLightStation& back = tap.path.back();
-            // Ramps vary per onset, so this cannot early-break on ascending onsets; the
-            // per-tap skip is a cheap POD compare. The ribbons use their own slower decay.
+            // Ramps vary per onset, so the bounded range is padded by the longest of them and
+            // the exact skip stays here; the ribbons use their own slower decay.
             if (front.seconds - tap.ramp_seconds > now_seconds ||
                 back.seconds + g_tap_ribbon_decay_seconds < now_seconds)
             {
@@ -2274,8 +2524,9 @@ void HighwayRenderer::Impl::draw(
         }
 
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
+        auto [vertices, indices] = scratch.colorBatch();
+        // One full-length strip per fret line, four vertices each.
+        vertices.reserve(static_cast<std::size_t>(4 * (g_face_fret_count + 1)));
         const double z0 = time_to_z(span_start_seconds);
         const double z1 = time_to_z(span_end_seconds);
         for (int line = 0; line <= g_face_fret_count; ++line)
@@ -2322,19 +2573,22 @@ void HighwayRenderer::Impl::draw(
             static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
         };
         bgfx::setUniform(window_light_params.get(), light_params.data());
-        std::vector<PosColorUvVertex> vertices;
-        std::vector<std::uint16_t> indices;
+        auto [vertices, indices] = scratch.texturedBatch();
         std::vector<double>& times = scratch.window_times;
         windowSampleTimes(state, span_start_seconds, span_end_seconds, max_fhp_ramp_seconds, times);
-        std::vector<double> zs(times.size());
-        std::vector<double> lows(times.size());
-        std::vector<double> highs(times.size());
-        for (std::size_t sample = 0; sample < times.size(); ++sample)
+        std::vector<WindowLightSlice>& slices = scratch.window_light_slices;
+        slices.clear();
+        slices.reserve(times.size());
+        for (const double seconds : times)
         {
-            const auto [low_x, high_x] = handWindowXAt(state, times[sample], metrics, mirrored);
-            zs[sample] = time_to_z(times[sample]);
-            lows[sample] = low_x;
-            highs[sample] = high_x;
+            const auto [low_x, high_x] = handWindowXAt(state, seconds, metrics, mirrored);
+            slices.push_back(
+                WindowLightSlice{
+                    .z = time_to_z(seconds),
+                    .low_x = low_x,
+                    .high_x = high_x,
+                    .dim = 1.0,
+                });
         }
         // Motion dim: the silhouette keeps the settled cross-section everywhere — the same
         // x-measured fade band along the whole eased contour — and the transition's fading
@@ -2344,8 +2598,21 @@ void HighwayRenderer::Impl::draw(
         // the dark middle of the sweep, and back into the arriving span (a per-sample speed dim
         // plateaued at maximum across most of a fast morph instead). The bell's depth scales
         // with the ramp's overall sweep steepness, so slow glides keep most of their glow.
-        std::vector<double> dims(times.size(), 1.0);
-        for (const common::core::FhpViewState& fhp : state.chart.fret_hand_positions)
+        //
+        // Placements ascend, so only a bounded run of them can dim this span: one arriving at or
+        // before the span start is skipped outright, and from the first whose arrival sits the
+        // longest ramp in the chart past the span end, no ramp — this one's or any later one's —
+        // still reaches back into the span. (windowSampleTimes above bounds itself the same way.)
+        for (const common::core::FhpViewState& fhp : std::ranges::subrange(
+                 std::ranges::upper_bound(
+                     fhps,
+                     span_start_seconds,
+                     std::ranges::less{},
+                     &common::core::FhpViewState::seconds),
+                 std::ranges::partition_point(
+                     fhps, [&](const common::core::FhpViewState& candidate) {
+                         return candidate.seconds - max_fhp_ramp_seconds < span_end_seconds;
+                     })))
         {
             if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= span_start_seconds ||
                 fhp.seconds - fhp.ramp_seconds >= span_end_seconds)
@@ -2371,18 +2638,21 @@ void HighwayRenderer::Impl::draw(
                 }
                 const double progress = (times[sample] - ramp_start) / fhp.ramp_seconds;
                 const double bell = std::sin(std::numbers::pi * progress);
-                dims[sample] = std::min(dims[sample], 1.0 - (depth * bell * bell));
+                double& dim = slices[sample].dim;
+                dim = std::min(dim, 1.0 - (depth * bell * bell));
             }
         }
         const double spill = g_window_light_falloff / 2.0;
-        for (std::size_t sample = 1; sample < times.size(); ++sample)
+        for (std::size_t sample = 1; sample < slices.size(); ++sample)
         {
-            const double za = zs[sample - 1];
-            const double zb = zs[sample];
-            const double low_a = lows[sample - 1];
-            const double low_b = lows[sample];
-            const double high_a = highs[sample - 1];
-            const double high_b = highs[sample];
+            const WindowLightSlice& slice_a = slices[sample - 1];
+            const WindowLightSlice& slice_b = slices[sample];
+            const double za = slice_a.z;
+            const double zb = slice_b.z;
+            const double low_a = slice_a.low_x;
+            const double low_b = slice_b.low_x;
+            const double high_a = slice_a.high_x;
+            const double high_b = slice_b.high_x;
             // Every fragment past the half-band spill outside both slice-end windows is fully
             // dark, so lanes entirely beyond it draw nothing.
             const double lit_x0 = std::min(low_a, low_b) - spill;
@@ -2398,8 +2668,8 @@ void HighwayRenderer::Impl::draw(
                 }
                 const ArgbColor lane_color =
                     isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
-                const std::uint32_t tint_a = packAbgr(lane_color, dims[sample - 1]);
-                const std::uint32_t tint_b = packAbgr(lane_color, dims[sample]);
+                const std::uint32_t tint_a = packAbgr(lane_color, slice_a.dim);
+                const std::uint32_t tint_b = packAbgr(lane_color, slice_b.dim);
                 const auto vertex = [&](const double x,
                                         const double z,
                                         const double low,
@@ -2439,8 +2709,7 @@ void HighwayRenderer::Impl::draw(
             static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
         };
         bgfx::setUniform(window_light_params.get(), light_params.data());
-        std::vector<PosColorUvVertex> vertices;
-        std::vector<std::uint16_t> indices;
+        auto [vertices, indices] = scratch.texturedBatch();
         const double spill = g_window_light_falloff / 2.0;
         // One strip segment between two instants, each end carrying its own alpha and
         // fractional fret extent (the soft x edges interpolate across the quad exactly like
@@ -2528,12 +2797,13 @@ void HighwayRenderer::Impl::draw(
                     vertex(lane_x0, zb, tint_b, low_x_b, high_x_b));
             }
         };
-        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap :
+             lit_taps(span_start_seconds, span_end_seconds, g_tap_light_decay_seconds))
         {
             const common::core::HighwayTapLightStation& front = tap.path.front();
             const common::core::HighwayTapLightStation& back = tap.path.back();
-            // Ramps vary per onset, so ascending onsets give no early break: each tap skips
-            // with two cheap POD compares instead.
+            // Ramps vary per onset, so the bounded range is padded by the longest of them and
+            // the exact skip stays here: two cheap POD compares.
             if (back.seconds + g_tap_light_decay_seconds < span_start_seconds ||
                 front.seconds - tap.ramp_seconds > span_end_seconds)
             {
@@ -2622,14 +2892,21 @@ void HighwayRenderer::Impl::draw(
     {
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
 
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        for (const common::core::HighwayBeatViewState& beat : state.beats)
+        auto [vertices, indices] = scratch.colorBatch();
+        // Beats ascend, so the two skip tests are the two ends of a binary-searched range — the
+        // same clamp the floor numbers' downbeat pass makes over the same list.
+        for (const common::core::HighwayBeatViewState& beat : std::ranges::subrange(
+                 std::ranges::lower_bound(
+                     state.beats,
+                     now_seconds - 0.2,
+                     std::ranges::less{},
+                     &common::core::HighwayBeatViewState::seconds),
+                 std::ranges::upper_bound(
+                     state.beats,
+                     span_end_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayBeatViewState::seconds)))
         {
-            if (beat.seconds < now_seconds - 0.2 || beat.seconds > span_end_seconds)
-            {
-                continue;
-            }
             const auto [x0, x1] = handWindowXAt(state, beat.seconds, metrics, mirrored);
             const double z = time_to_z(beat.seconds);
             const std::uint32_t solid = packAbgr(g_beat_bar_color);
@@ -2665,13 +2942,22 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
+    // Hand-posture spans reaching the board this frame. Spans ascend by start but overlap
+    // freely, so the range is visibleEventRange over the prefix maximum of their ends — the note
+    // sweep's own search, on the other list that carries a span. Both shape passes (the rails
+    // here and the arpeggio boxes below) clamp to the same [now, span end] and each still tests
+    // its own shapes, so the search is made once for both.
+    const auto [first_shape, last_shape] = common::core::visibleEventRange(
+        state.chart.shapes, shape_prefix_max, now_seconds, span_end_seconds);
+    const auto visible_shapes = std::span<const common::core::ShapeViewState>(state.chart.shapes)
+                                    .subspan(first_shape, last_shape - first_shape);
+
     // --- Hand-shape span rails: thick fading edge lines along each shape span at its hand
     // window's fret lines, riding the hit line while active (purple marks arpeggio spans). ---
     {
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        for (const common::core::ShapeViewState& shape : state.chart.shapes)
+        auto [vertices, indices] = scratch.colorBatch();
+        for (const common::core::ShapeViewState& shape : visible_shapes)
         {
             if (shape.end_seconds < now_seconds || shape.start_seconds > span_end_seconds)
             {
@@ -2836,16 +3122,7 @@ void HighwayRenderer::Impl::draw(
     // surface first regardless of z — so each bracket glyph draws over everything on lower
     // lanes (any onset) and yields only to groups containing notes on lanes above its own. The
     // box panels stay under all notes as before.
-    struct BracketBatch
-    {
-        int lane{0};
-        double span_start_seconds{0.0};
-        double span_end_seconds{0.0};
-        std::vector<PosColorUvVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        bool submitted{false};
-    };
-    std::vector<BracketBatch> bracket_batches;
+    std::vector<BracketBatch>& bracket_batches = scratch.bracket_batches;
 
     // --- Chord and arpeggio boxes: Charter's translucent panels at chord onsets, plus an
     // arpeggio-styled box (the same panel with the fretboard bracket notation overlaid) at each
@@ -2977,32 +3254,8 @@ void HighwayRenderer::Impl::draw(
         // as long as it is on screen; each chord group gets a plain box unless an arpeggio shape
         // starts at the same position, in which case the arpeggio box covers it (the chord's
         // note heads still render — nothing is suppressed).
-        struct BoxDraw
-        {
-            double start_seconds;
-            bool box_only;
-            bool with_top;
-            // The box's own dynamics. An arpeggio box never carries one: the bracket is a
-            // POSTURE — the hand holding a shape, not a strike — so emphasis belongs to the
-            // notes inside it, which state their own.
-            common::core::NoteEmphasis emphasis;
-            // The strum's two mute unanimities, straight off the group: a box speaks for the
-            // whole strum, so only a mute every member shares reaches it — one dead string in a
-            // palm-muted chord leaves this box palm muted. Each flag draws its own mark below,
-            // and a box unanimous in both wears both.
-            bool palm_mute;
-            bool dead;
-            const common::core::ShapeViewState* arpeggio_shape;
-            // A tapped chord box spans the taps' own fret extent instead of the fretting
-            // hand's window (right-hand-tap-lighting plan); null for left-hand boxes.
-            const common::core::HighwayTapOnsetViewState* tap;
-            // Build position, the sort's tiebreak: onset alone is not a total order (a
-            // tap-and-strum instant emits two boxes), and the deterministic build order is what
-            // keeps their overlap from flickering frame to frame.
-            std::size_t build_index;
-        };
-        std::vector<BoxDraw> boxes;
-        for (const common::core::ShapeViewState& shape : state.chart.shapes)
+        std::vector<BoxDraw>& boxes = scratch.boxes;
+        for (const common::core::ShapeViewState& shape : visible_shapes)
         {
             if (!shape.arpeggio || shape.end_seconds < now_seconds ||
                 shape.start_seconds > span_end_seconds)
@@ -3109,10 +3362,22 @@ void HighwayRenderer::Impl::draw(
         }
         // Tapped chord boxes (right-hand-tap-lighting plan): two or more taps struck together
         // get their own box on the taps' fret extent — the tapping hand's counterpart of the
-        // strummed box. Derived per onset; no repeat-box chain (taps are percussive).
-        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
+        // strummed box. Derived per onset; no repeat-box chain (taps are percussive). A box sits
+        // AT its onset with no envelope around it, so onsets ascending makes the two time skips
+        // the ends of a binary-searched range, exactly like the strummed groups' clamp above.
+        for (const common::core::HighwayTapOnsetViewState& tap : std::ranges::subrange(
+                 std::ranges::lower_bound(
+                     state.tap_onsets,
+                     now_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayTapOnsetViewState::seconds),
+                 std::ranges::upper_bound(
+                     state.tap_onsets,
+                     span_end_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwayTapOnsetViewState::seconds)))
         {
-            if (tap.count < 2 || tap.seconds < now_seconds || tap.seconds > span_end_seconds)
+            if (tap.count < 2)
             {
                 continue;
             }
@@ -3743,8 +4008,22 @@ void HighwayRenderer::Impl::draw(
         // upper members. A tapped glide then establishes each landing as its own new position
         // (matching the placements a fretting-hand glide carries at its targets): every path
         // station that changes the extent gets an arrival number of its own.
-        const common::core::HighwayTapOnsetViewState* previous_tap = nullptr;
-        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
+        //
+        // The one scan here that carries state across its subjects: `previous_tap` decides
+        // whether this onset repeats an established position, so the walk cannot simply start
+        // inside the window. It starts at the first onset that can push anything — every number
+        // it pushes sits at the onset or at a later path station, and push_target_number drops
+        // everything at or before now, so an onset whose whole path has passed pushes nothing —
+        // and seeds the carry from the onset immediately before it, which is exactly what the
+        // full walk would have held on arriving there. Ending the walk needs no carry at all:
+        // past the range's far bound every station is past the span end, and that bound is the
+        // looser padded one, so nothing that could still push a number is cut.
+        const auto [first_tap, last_tap] = litTapOnsetRange(now_seconds, span_end_seconds, 0.0);
+        const common::core::HighwayTapOnsetViewState* previous_tap =
+            first_tap > 0 ? &state.tap_onsets[first_tap - 1] : nullptr;
+        for (const common::core::HighwayTapOnsetViewState& tap :
+             std::span<const common::core::HighwayTapOnsetViewState>(state.tap_onsets)
+                 .subspan(first_tap, last_tap - first_tap))
         {
             const bool repeat_in_lit_run =
                 previous_tap != nullptr &&
@@ -4098,7 +4377,8 @@ void HighwayRenderer::Impl::draw(
             // An open band whose window moves under it must sample its stations along the tail
             // (the tail travels with the hand — fhp-window-motion plan).
             const bool open_band_moves =
-                common::core::openString(note) && handWindowMovesWithin(state, tail_from, tail_to);
+                common::core::openString(note) &&
+                handWindowMovesWithin(state, tail_from, tail_to, max_fhp_ramp_seconds);
             if (band_valid && !modulated && !open_band_moves)
             {
                 const auto ribbon_end = [&](const double seconds) {
@@ -4165,7 +4445,8 @@ void HighwayRenderer::Impl::draw(
                                 ribbon_end(b_seconds),
                                 emitterSpectrum(style.tail),
                                 tip_alpha(a_seconds),
-                                tip_alpha(b_seconds));
+                                tip_alpha(b_seconds),
+                                scratch.glow_columns);
                         }
                     }
                 };
@@ -4233,7 +4514,8 @@ void HighwayRenderer::Impl::draw(
                 const double tooth_start_cycles = teethed ? tooth_phase(tail_from) : 0.0;
                 const double tooth_span_cycles =
                     teethed ? tooth_phase(tail_to) - tooth_start_cycles : 0.0;
-                std::vector<double> wobble_times;
+                std::vector<double>& wobble_times = scratch.tail_wobble_times;
+                wobble_times.clear();
                 if (teethed)
                 {
                     for (int tooth = static_cast<int>(std::floor(tooth_start_cycles / 0.5)) + 1;;
@@ -4323,18 +4605,14 @@ void HighwayRenderer::Impl::draw(
                         scratch.window_times.begin(),
                         scratch.window_times.end());
                 }
+                // The one per-note allocation left on this path: makeHighwayTailSampleTimes
+                // returns its list, so banking it needs the core seam to fill a caller's buffer
+                // the way windowSampleTimes does.
                 const std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
                     note, tail_from, tail_to, uniform_count, wobble_times, g_tail_sample_cap);
 
-                struct TailSample
-                {
-                    std::array<double, 4> stations;
-                    double x_offset;
-                    double y;
-                    double z;
-                    double alpha;
-                };
-                std::vector<TailSample> samples;
+                std::vector<TailSample>& samples = scratch.tail_samples;
+                samples.clear();
                 samples.reserve(sample_times.size());
                 for (const double seconds : sample_times)
                 {
@@ -4372,7 +4650,8 @@ void HighwayRenderer::Impl::draw(
                 // pipeline, no shader involved. tanh saturation, not a hard clamp: the clamp's
                 // knee drew a visible hard-edged brightness band where a steep climb maxed
                 // out, while tanh rolls off smoothly at the same sensitivity.
-                std::vector<double> lifts(samples.size(), 0.0);
+                std::vector<double>& lifts = scratch.tail_lifts;
+                lifts.assign(samples.size(), 0.0);
                 for (std::size_t sample = 0; sample < samples.size(); ++sample)
                 {
                     const std::size_t before = sample > 0 ? sample - 1 : sample;
@@ -4391,45 +4670,84 @@ void HighwayRenderer::Impl::draw(
                 // window converts once): the brightness fades in and out across the same
                 // stretch of tail regardless of sample density or foreshortening, instead of
                 // snapping where the derivative crosses tanh's knee.
+                //
+                // Done with running sums rather than a walk out from each sample. The tent
+                // weight 1 - |z_j - z_i| / W is LINEAR in z_j, so a window's weighted total is
+                // just (W -+ z_i) * (sum of lifts) +- (sum of lifts * z), and its weight total
+                // the same expression with the lifts replaced by ones — three prefix sums, read
+                // in constant time per sample. Samples ascend in z, because
+                // makeHighwayTailSampleTimes sorts the times it returns and highwayTimeToZ is
+                // linear and increasing, so each window is a contiguous run whose ends only ever
+                // move forward: the same two ends the old outward walks found by stopping at
+                // their first miss, reached here by two cursors that never rewind. That turns an
+                // O(samples x window) pass into O(samples), which matters most exactly where the
+                // old shape was worst — a tail whose whole visible length fits inside the
+                // smoothing window made every sample walk every other one.
+                //
+                // That sort is load-bearing here in a way it was not before. The old walks
+                // rebuilt each sample's window from scratch, so one out-of-order sample would
+                // have spoiled only its own shade; a cursor that never rewinds carries the
+                // damage into every LATER sample instead, silently — hence the assert.
                 const double shade_window_z = std::abs(
                     time_to_z(now_seconds + g_tail_slope_shade_smooth_seconds) -
                     time_to_z(now_seconds));
-                std::vector<ArgbColor> shaded(samples.size(), style.tail);
+                std::vector<TailShadeSums>& shade_sums = scratch.tail_shade_sums;
+                shade_sums.assign(
+                    samples.size() + 1, TailShadeSums{.lift = 0.0, .lift_z = 0.0, .z = 0.0});
+                for (std::size_t sample = 0; sample < samples.size(); ++sample)
+                {
+                    assert(sample == 0 || samples[sample].z >= samples[sample - 1].z);
+                    const TailShadeSums& before = shade_sums[sample];
+                    shade_sums[sample + 1] = TailShadeSums{
+                        .lift = before.lift + lifts[sample],
+                        .lift_z = before.lift_z + (lifts[sample] * samples[sample].z),
+                        .z = before.z + samples[sample].z,
+                    };
+                }
+                // Sums over [from, to), the difference of the two running totals.
+                const auto sums_over = [&](const std::size_t from, const std::size_t to) {
+                    return TailShadeSums{
+                        .lift = shade_sums[to].lift - shade_sums[from].lift,
+                        .lift_z = shade_sums[to].lift_z - shade_sums[from].lift_z,
+                        .z = shade_sums[to].z - shade_sums[from].z,
+                    };
+                };
+                std::vector<ArgbColor>& shaded = scratch.tail_shaded;
+                shaded.assign(samples.size(), style.tail);
+                std::size_t window_first = 0;
+                std::size_t window_last = 0;
                 for (std::size_t sample = 0; sample < samples.size(); ++sample)
                 {
                     double lift = lifts[sample];
                     if (shade_window_z > 0.0)
                     {
-                        // Samples are time-ordered and z is monotone in time, so the window
-                        // walk outward from the sample stops at the first miss on each side.
-                        double total = lifts[sample];
-                        double total_weight = 1.0;
-                        const auto accumulate = [&](const std::size_t other) {
-                            const double distance = std::abs(samples[other].z - samples[sample].z);
-                            if (distance >= shade_window_z)
-                            {
-                                return false;
-                            }
-                            const double weight = 1.0 - (distance / shade_window_z);
-                            total += lifts[other] * weight;
-                            total_weight += weight;
-                            return true;
+                        const double z_here = samples[sample].z;
+                        const auto outside = [&](const std::size_t other) {
+                            return std::abs(samples[other].z - z_here) >= shade_window_z;
                         };
-                        // The decrement stays out of the condition so the index is not modified
-                        // and read in one expression (bugprone-inc-dec-in-conditions).
-                        for (std::size_t other = sample; other > 0;)
+                        while (window_first < sample && outside(window_first))
                         {
-                            --other;
-                            if (!accumulate(other))
-                            {
-                                break;
-                            }
+                            ++window_first;
                         }
-                        for (std::size_t other = sample + 1;
-                             other < samples.size() && accumulate(other);
-                             ++other)
+                        window_last = std::max(window_last, sample + 1);
+                        while (window_last < samples.size() && !outside(window_last))
                         {
+                            ++window_last;
                         }
+                        const TailShadeSums behind = sums_over(window_first, sample);
+                        const TailShadeSums ahead = sums_over(sample + 1, window_last);
+                        const auto behind_count = static_cast<double>(sample - window_first);
+                        const auto ahead_count = static_cast<double>(window_last - sample - 1);
+                        const double back_weight = shade_window_z - z_here;
+                        const double front_weight = shade_window_z + z_here;
+                        const double total =
+                            lifts[sample] + ((((back_weight * behind.lift) + behind.lift_z) +
+                                              ((front_weight * ahead.lift) - ahead.lift_z)) /
+                                             shade_window_z);
+                        const double total_weight =
+                            1.0 + ((((back_weight * behind_count) + behind.z) +
+                                    ((front_weight * ahead_count) - ahead.z)) /
+                                   shade_window_z);
                         lift = total / total_weight;
                     }
                     shaded[sample] =
@@ -4475,7 +4793,8 @@ void HighwayRenderer::Impl::draw(
                             end_b,
                             emitterSpectrum(tail_a),
                             a.alpha,
-                            b.alpha);
+                            b.alpha,
+                            scratch.glow_columns);
                     }
                 }
             }
@@ -4771,7 +5090,8 @@ void HighwayRenderer::Impl::draw(
                 };
                 const double glow_half_h = g_open_note_middle_half_thickness + g_accent_reach;
 
-                std::vector<double> columns;
+                std::vector<double>& columns = scratch.glow_columns;
+                columns.clear();
                 columns.reserve(24);
                 for (const double corner_s : {0.0, bar_fade})
                 {
@@ -5250,13 +5570,13 @@ void HighwayRenderer::Impl::draw(
         // hand's light path crosses light up while the tap is held or arriving soon. Per-line
         // array, so overlap with the fretting hand's windows deduplicates itself; the path
         // union carries any tapped-slide morph.
-        for (const common::core::HighwayTapOnsetViewState& tap : state.tap_onsets)
+        for (const common::core::HighwayTapOnsetViewState& tap : lit_taps(
+                 now_seconds,
+                 now_seconds + g_fret_active_horizon_seconds,
+                 g_tap_light_decay_seconds))
         {
-            if (tap.path.front().seconds > now_seconds + g_fret_active_horizon_seconds)
-            {
-                break; // onsets ascend, so nothing later reaches the horizon
-            }
-            if (tap.path.back().seconds + g_tap_light_decay_seconds < now_seconds)
+            if (tap.path.front().seconds > now_seconds + g_fret_active_horizon_seconds ||
+                tap.path.back().seconds + g_tap_light_decay_seconds < now_seconds)
             {
                 continue;
             }
@@ -5277,8 +5597,9 @@ void HighwayRenderer::Impl::draw(
 
         // Strike brightening lives wholly in the additive glow pass at the end of the frame;
         // the lines themselves carry only the inactive/active hand-window state.
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
+        auto [vertices, indices] = scratch.colorBatch();
+        // One quad per fret line, four vertices each.
+        vertices.reserve(static_cast<std::size_t>(4 * (g_face_fret_count + 1)));
         for (int line = 0; line <= g_face_fret_count; ++line)
         {
             const double x = common::core::highwayFretLineX(line, metrics, mirrored);
@@ -5313,8 +5634,7 @@ void HighwayRenderer::Impl::draw(
     // is transparent outside the dot, and the dot itself stays inside the grid.
     if (inlay_texture.isValid())
     {
-        std::vector<PosColorUvVertex> vertices;
-        std::vector<std::uint16_t> indices;
+        auto [vertices, indices] = scratch.texturedBatch();
         // Half-texel inset so the quad samples strictly inside the dot cell's texels; zero
         // dimensions (decode failed) fall back to no inset.
         const float half_texel_u =
@@ -5375,8 +5695,7 @@ void HighwayRenderer::Impl::draw(
     // 25-Q6): flat quads, no art. ---
     if (state.chart.capo > 0 && state.chart.capo <= g_face_fret_count)
     {
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
+        auto [vertices, indices] = scratch.colorBatch();
         const auto capo_line = static_cast<double>(state.chart.capo);
 
         const double nut_x = common::core::highwayFretLineX(0, metrics, mirrored);
@@ -5423,8 +5742,7 @@ void HighwayRenderer::Impl::draw(
 
     // --- Fret numbers and section labels through the glyph atlas. ---
     {
-        std::vector<PosColorUvVertex> glyph_vertices;
-        std::vector<std::uint16_t> glyph_indices;
+        auto [glyph_vertices, glyph_indices] = scratch.texturedBatch();
 
         const auto push_text = [&](const std::string_view text,
                                    const double left_x,
@@ -5449,12 +5767,20 @@ void HighwayRenderer::Impl::draw(
 
         // Section labels floating above the board at their arrival time.
         const double section_y = face_top_y + (metrics.string_distance * 1.5);
-        for (const common::core::HighwaySectionViewState& section : state.sections)
+        // Sections ascend and a label is drawn at its own instant, so the two skip tests are the
+        // two ends of a binary-searched range.
+        for (const common::core::HighwaySectionViewState& section : std::ranges::subrange(
+                 std::ranges::lower_bound(
+                     state.sections,
+                     now_seconds - 0.5,
+                     std::ranges::less{},
+                     &common::core::HighwaySectionViewState::seconds),
+                 std::ranges::upper_bound(
+                     state.sections,
+                     span_end_seconds,
+                     std::ranges::less{},
+                     &common::core::HighwaySectionViewState::seconds)))
         {
-            if (section.seconds < now_seconds - 0.5 || section.seconds > span_end_seconds)
-            {
-                continue;
-            }
             // Already upper-cased by the projection, which is where a pure function of the chart
             // belongs.
             (void)push_text(
@@ -5481,8 +5807,7 @@ void HighwayRenderer::Impl::draw(
     // per-onset with an inter-onset release clamp, so fast sections keep a discrete pop per strike
     // instead of fusing into a shimmer. ---
     {
-        std::vector<PosColorUvVertex> vertices;
-        std::vector<std::uint16_t> indices;
+        auto [vertices, indices] = scratch.texturedBatch();
         const double spill = g_hit_glow_falloff / 2.0;
         const double clamp_horizon = g_hit_glow_release_seconds + g_hit_glow_trough_guard_seconds;
 
@@ -5527,7 +5852,7 @@ void HighwayRenderer::Impl::draw(
         // deliberately dark (what the interior does instead is an open decision). Both kinds
         // share the same two strips, so their onsets collect here in ascending order and each
         // clamps against the next window-edge strike of either kind.
-        std::vector<double> window_edge_onsets;
+        std::vector<double>& window_edge_onsets = scratch.window_edge_onsets;
 
         // Fretting-hand onset clusters, walked over the glow's own onset window: glow tails
         // outlive the passed-note fade, so the pass binary-searches state.chart.notes directly
@@ -5695,18 +6020,30 @@ void HighwayRenderer::Impl::draw(
         // interior stays dark like the strummed boxes), a single tap pops its fret lines like a
         // fretted single. Same-geometry means the same fret extent; partially overlapping
         // extents are separate lights that max-resolve on any shared line.
-        for (std::size_t tap_index = 0; tap_index < state.tap_onsets.size(); ++tap_index)
+        //
+        // A tap's glow depends on its own onset alone (its path plays no part), so onsets
+        // ascending makes the lit ones one binary-searched run: from the first whose strike is
+        // still inside the release, up to the last that has already struck. The spacing walk
+        // below still reads onsets past that run — it looks FORWARD for the next same-geometry
+        // strike — which is why it indexes the whole list rather than the run.
+        const auto glow_first = static_cast<std::size_t>(
+            std::ranges::partition_point(
+                state.tap_onsets,
+                [&](const common::core::HighwayTapOnsetViewState& tap) {
+                    return now_seconds - tap.seconds >= g_hit_glow_release_seconds;
+                }) -
+            state.tap_onsets.begin());
+        const auto glow_last = static_cast<std::size_t>(
+            std::ranges::upper_bound(
+                state.tap_onsets,
+                now_seconds,
+                std::ranges::less{},
+                &common::core::HighwayTapOnsetViewState::seconds) -
+            state.tap_onsets.begin());
+        for (std::size_t tap_index = glow_first; tap_index < glow_last; ++tap_index)
         {
             const common::core::HighwayTapOnsetViewState& tap = state.tap_onsets[tap_index];
-            if (tap.seconds > now_seconds)
-            {
-                break; // onsets ascend
-            }
             const double since = now_seconds - tap.seconds;
-            if (since >= g_hit_glow_release_seconds)
-            {
-                continue;
-            }
             double spacing = std::numeric_limits<double>::infinity();
             for (std::size_t next = tap_index + 1; next < state.tap_onsets.size(); ++next)
             {
@@ -5807,8 +6144,10 @@ void HighwayRenderer::Impl::drawOverlayRects(
     };
     bgfx::setViewTransform(g_overlay_view, ortho.data(), nullptr);
 
-    std::vector<PosColorVertex> vertices;
-    std::vector<std::uint16_t> indices;
+    // The overlay is one more build-and-submit pass, on the same frame deadline as the board's,
+    // so it takes the same shared batch. Its buffers are handed out cleared, which is what makes
+    // reusing them across draw() and this second entry point safe.
+    auto [vertices, indices] = scratch.colorBatch();
     vertices.reserve(rects.size() * 4);
     indices.reserve(rects.size() * 6);
     for (const HighwayOverlayRect& rect : rects)
