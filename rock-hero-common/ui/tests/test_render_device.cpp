@@ -1,3 +1,5 @@
+#include "noop_render_device.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <expected>
 #include <rock_hero/common/ui/render/render_device.h>
@@ -7,18 +9,14 @@ namespace rock_hero::common::ui
 {
 
 // Proves the headless CI path (gate criterion S5): bgfx's Noop backend initializes with no GPU,
-// no window, and no platform data, runs frames, resizes, and shuts down cleanly.
+// no window, and no platform data, runs frames, and resizes. The device comes from the shared
+// accessor because bgfx cannot be initialized twice in one process (see noop_render_device.h),
+// which also moves the clean shutdown this case used to perform to process exit — still executed,
+// and a failure there still fails the run through the exit code.
 TEST_CASE("Render device runs headless frames on the Noop backend", "[ui][surface]")
 {
-    std::expected<RenderDevice, RenderDeviceError> device = RenderDevice::create(
-        RenderDeviceConfig{
-            .backend = RenderBackend::Noop,
-            .native_window_handle = nullptr,
-            .width = 64,
-            .height = 64,
-            .vsync = false,
-        });
-    REQUIRE(device.has_value());
+    RenderDevice* const device = sharedNoopDevice();
+    REQUIRE(device != nullptr);
 
     for (int frame = 0; frame < 4; ++frame)
     {

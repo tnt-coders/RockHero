@@ -274,8 +274,13 @@ Adding a new *visual element* (a new marker, lane decoration, feedback effect):
    bgfx state is ambient until the next submit, so a pass that leans on a neighbour having set
    one breaks the moment the neighbour moves. (Note content is different: it interleaves through
    shared batches and a deferred flush, and still schedules inside `draw()` itself.)
-3. Extend the headless projection/camera tests; the renderer itself has GPU-free coverage via the
-   Noop-backend tests (`test_render_device.cpp`).
+3. Extend the headless projection/camera tests — they are where a drawer's *decisions* are pinned.
+   The renderer itself has only a GPU-free crash net: `test_highway_renderer_smoke.cpp` creates it
+   against bgfx's Noop backend and encodes a few hundred frames across real view states, so a new
+   pass that reads past a vector, submits with a stale handle, or trips one of bgfx's own asserts
+   fails there. It cannot see draw counts, batch counts, paint order, or pixels — Noop reports no
+   statistics at all — so it never substitutes for a headless test of what the pass decided, nor
+   for looking at the board.
 4. Both products pick the change up with no further wiring — that is the payoff of the seam.
 5. **Answer the 2D lane in the same change.** The two surfaces must not diverge: never add highway
    notation the 2D tab cannot show, or 2D notation the highway cannot. If the element states a

@@ -62,11 +62,27 @@ it.
    data cannot silently drift — but the paint layer above it can (item 9). The ruling says fold
    before W10's build; W10 is still unbuilt. Tracked as the interface task and walkthrough W9-B.
 5. **Slice `HighwayRenderer::Impl::draw()` per pass.** One 3,966-line function, 22 banner-marked
-   passes, 48 lambdas, zero tests — and where every "same question, two answers" renderer defect
-   of this review lived (the unbounded scan 25 lines from its bounded twin, the `stable_sort`
-   beside the comment forbidding it, the ghosted holder that never dimmed). The head-mark hoist of
-   2026-08-20 already proved the return: two decisions extracted, one live divergence found, 30
-   lines removed. The architecture's Multi-TU Coordination Objects section blesses the shape.
+   passes, 48 lambdas, and — as reviewed — zero tests, which is where every "same question, two
+   answers" renderer defect of this review lived (the unbounded scan 25 lines from its bounded
+   twin, the `stable_sort` beside the comment forbidding it, the ghosted holder that never
+   dimmed). The head-mark hoist of 2026-08-20 already proved the return: two decisions extracted,
+   one live divergence found, 30 lines removed. The architecture's Multi-TU Coordination Objects
+   section blesses the shape.
+
+   **The "zero tests" clause is now qualified, not retired.** Stage 3 of the OPEN 1 sequence added
+   `rock-hero-common/ui/tests/test_highway_renderer_smoke.cpp`: one Catch2 case that creates the
+   renderer against a bgfx Noop device with the SHIPPED shader binaries and textures, then encodes
+   458 frames across real projected view states — the draw families in one fixture, a sweep from
+   before the content to past it, a resize and a content swap mid-sweep, a paused redraw at dt = 0,
+   an empty state, the overlay pass, and a 192-note accented-tremolo capacity probe for the class
+   of the historical 65535-vertex defect. Its whole signal is "no crash, no assert", which is real
+   because the debug preset compiles bgfx with `BX_CONFIG_DEBUG=1` and its internal asserts catch
+   API misuse. It proves NOTHING about the picture: Noop's `submit()` zeroes `Stats::numPrims` and
+   never writes `numDraw`, so draw counts, batch counts, paint order, and pixels are unreadable,
+   and a dropped batch is indistinguishable from a drawn one. So the slicing rationale stands
+   unchanged — the smoke suite is a crash net under the refactor, not coverage of what each pass
+   decides. Per-pass decision tests are still what the slice is for. (The suite is Windows-only:
+   shaderc's HLSL backend stages nothing elsewhere and the case reports a skip.)
 
    **HALF DONE 2026-08-24** — stage 2 of the OPEN 1 sequence (stage 1 was item 6's allocation and
    scan work). The eleven INDEPENDENT board passes are private member functions called from
