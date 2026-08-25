@@ -66,18 +66,52 @@ namespace
            color.getBlue() >= 250;
 }
 
+// True only for a FULLY covered white ink pixel, which isWhiteInk's tolerance deliberately is
+// not. The two answer different questions: isWhiteInk asks whether white ink reached a spot at
+// all, which wants slack for antialiasing; this asks whether a pixel is ink and NOTHING else,
+// which is the only form that says anything about the glyph's geometry.
+//
+// The distinction is what makes a row comparison portable. A partially covered pixel is a BLEND
+// of the ink and whatever lies under it, so how bright it lands depends on the backdrop: over a
+// ghost's faded note group the same coverage reads much closer to white than over an opaque one
+// (measured 2026-08-25 at the fret digit: 170/199/208 against 131/173/186 on the same row). Any
+// tolerance therefore crosses on a DIFFERENT row in the two images, and how different depends on
+// the platform's antialiasing ramp -- which is exactly how a 250-per-channel threshold agreed on
+// Windows and disagreed by five rows under FreeType. A fully covered pixel is the ink's own color
+// whatever is beneath it, so the first row that has one is a property of the glyph alone.
+[[nodiscard]] bool isSolidWhiteInk(juce::Colour color)
+{
+    return color == juce::Colour{0xffffffff};
+}
+
+// True when `color` lies nearer `first` than `second` in straight ARGB distance. Used where a
+// probe knows both colors an area can hold and needs to say which one a partially covered pixel
+// belongs to, without inventing a tolerance to compare against.
+[[nodiscard]] bool nearerTo(juce::Colour color, juce::Colour first, juce::Colour second)
+{
+    const auto distance = [](const juce::Colour lhs, const juce::Colour rhs) {
+        const int alpha = lhs.getAlpha() - rhs.getAlpha();
+        const int red = lhs.getRed() - rhs.getRed();
+        const int green = lhs.getGreen() - rhs.getGreen();
+        const int blue = lhs.getBlue() - rhs.getBlue();
+        return (alpha * alpha) + (red * red) + (green * green) + (blue * blue);
+    };
+    return distance(color, first) < distance(color, second);
+}
 // Half-width of the head's digit window. Narrower than the beside-head chip's own clearance from
 // the axis, so within it only the fret number can be white.
 constexpr int g_digit_window = 4;
 
-// Topmost row carrying digit ink inside that window.
+// Topmost row carrying SOLID digit ink inside that window; 0 when the digit never covers a pixel
+// fully. Solid rather than merely white-ish so the row means the same thing in every image the
+// callers compare -- see isSolidWhiteInk.
 [[nodiscard]] int topDigitInkRow(const juce::Image& image, int center_x, int center_y)
 {
     for (int y = center_y - 20; y <= center_y + 20; ++y)
     {
         for (int x = center_x - g_digit_window; x <= center_x + g_digit_window; ++x)
         {
-            if (isWhiteInk(image.getPixelAt(x, y)))
+            if (isSolidWhiteInk(image.getPixelAt(x, y)))
             {
                 return y;
             }
@@ -1686,9 +1720,18 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     const juce::Colour border{0xff87cefa};
-    // Renders one box and probes exact text-ink and ground pixels plus the frame's presence.
-    // The glyph cores and the fill's interior land at full strength, so those probe exactly;
-    // the one-pixel frame sits on fractional edges and antialiases everywhere, so it probes by
+    // Renders one box and probes the text ink, the ground and the frame's presence.
+    //
+    // The fill's interior lands at full strength, so the ground probes exactly. The GLYPHS do
+    // not: how much of an edge pixel a digit covers is the platform text rasterizer's business,
+    // and CoreText leaves the cores of digits this size a hair under full coverage, so exact
+    // equality counted one pixel on macOS where Windows counted plenty. A painted pixel is
+    // therefore classified to whichever of the two KNOWN colors it lies nearer -- the box has
+    // only these two, so nearer-to-ink is exactly 'this pixel is glyph'. That needs no
+    // tolerance to pick, and it cannot drift: every pixel that matched exactly still classifies
+    // as ink. Unpainted pixels are neither and are skipped.
+    //
+    // The one-pixel frame sits on fractional edges and antialiases everywhere, so it probes by
     // hue instead — the accent is the only blue-dominant ink in either image.
     const auto probe = [&border](
                            const bool light_plate,
@@ -1707,7 +1750,7 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
             for (int x = 160; x <= 240; ++x)
             {
                 const juce::Colour pixel = image.getPixelAt(x, y);
-                text_pixels += pixel == ink ? 1 : 0;
+                text_pixels += pixel.getAlpha() > 0 && nearerTo(pixel, ink, ground) ? 1 : 0;
                 border_pixels +=
                     pixel.getAlpha() > 0 && pixel.getBlue() > pixel.getRed() + 24 ? 1 : 0;
                 ground_pixels += pixel == ground ? 1 : 0;
