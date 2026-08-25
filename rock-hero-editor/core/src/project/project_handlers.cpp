@@ -349,18 +349,32 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     // may have arrived during the load window.
     finishBusyOperation();
 
-    // A load that had to normalize a chart says so ONCE, after the busy overlay is gone and the
-    // restored view is showing: what changed, where, and that the file is untouched until a save.
-    // Never a prompt before the fact — an un-normalized chart has nowhere to go — and never
-    // silent, which is the whole point of repairing instead of refusing.
-    if (m_project.has_value())
+    reportProjectLoadNotices();
+}
+
+// The one-shot news a completed open or import owes the charter, in one place so both finalizers
+// tell the same story. Shown after the busy overlay is gone and the restored view is up: what the
+// load repaired, and what it could not normalize. Never a prompt before the fact — an
+// un-normalized chart has nowhere to go — and never silent, which is the whole point of repairing
+// instead of refusing.
+void EditorController::Impl::reportProjectLoadNotices()
+{
+    if (!m_project.has_value())
     {
-        const std::string notice = loadConversionNoticeText(
-            session().song(), m_project->loadConversions(), common::core::Logger::logFile());
-        if (!notice.empty())
-        {
-            reportNotice("Chart updated to the current rules", notice);
-        }
+        return;
+    }
+
+    const std::string conversion_notice = loadConversionNoticeText(
+        session().song(), m_project->loadConversions(), common::core::Logger::logFile());
+    if (!conversion_notice.empty())
+    {
+        reportNotice("Chart updated to the current rules", conversion_notice);
+    }
+
+    const std::string audio_notice = unnormalizedAudioNoticeText(session().song());
+    if (!audio_notice.empty())
+    {
+        reportNotice("Backing audio not normalized", audio_notice);
     }
 }
 
@@ -496,6 +510,8 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
     finishBusyOperation();
+
+    reportProjectLoadNotices();
 }
 
 // Runs the shared project-load live-rig stage. Tone-bearing arrangements switch the busy overlay

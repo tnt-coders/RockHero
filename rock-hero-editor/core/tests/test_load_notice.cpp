@@ -1,10 +1,15 @@
 #include "project/load_notice.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <filesystem>
+#include <initializer_list>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/song/audio_normalization.h>
 #include <rock_hero/common/core/song/song.h>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -29,6 +34,28 @@ namespace
     {
         common::core::Arrangement arrangement;
         arrangement.part = part;
+        song.arrangements.push_back(std::move(arrangement));
+    }
+    return song;
+}
+
+// One arrangement per entry, each naming a backing file and whether its analysis produced a
+// normalization record. This is the state a completed open or import hands the notice builder.
+[[nodiscard]] common::core::Song songWithAudio(
+    std::initializer_list<std::pair<std::string_view, bool>> assets)
+{
+    common::core::Song song;
+    for (const auto& [file_name, normalized] : assets)
+    {
+        common::core::Arrangement arrangement;
+        arrangement.audio_asset.path = std::filesystem::path{"workspace"} / file_name;
+        if (normalized)
+        {
+            arrangement.audio_asset.normalization = common::core::AudioNormalization{
+                .gain_db = -4.0,
+                .validation_sha256 = std::string(64, 'a'),
+            };
+        }
         song.arrangements.push_back(std::move(arrangement));
     }
     return song;
@@ -106,6 +133,47 @@ TEST_CASE("Load conversion notice summarizes repairs and points at the log", "[c
         const std::string text =
             loadConversionNoticeText(songWithParts({common::core::Part::Lead}), conversions, {});
         CHECK(text.find("listed in the editor log.") != std::string::npos);
+    }
+}
+
+// The audio half of the same repairs-and-reports rule: audio that states no loudness reading gets
+// no gain, and the charter is told rather than blocked. The notice names the file, not the
+// workspace path it was extracted into, and says the level it plays at.
+TEST_CASE("Unnormalized audio notice names each unmeasured backing track", "[core][project]")
+{
+    SECTION("every asset normalized is no notice at all")
+    {
+        CHECK(unnormalizedAudioNoticeText(
+                  songWithAudio({{"backing.flac", true}, {"bass.flac", true}}))
+                  .empty());
+    }
+
+    SECTION("one unmeasured track reads as a sentence, not a list of one")
+    {
+        const std::string text =
+            unnormalizedAudioNoticeText(songWithAudio({{"silence.flac", false}}));
+        CHECK(text.find("silence.flac is silent or too quiet to measure") == 0);
+        CHECK(text.find("plays at its raw level") != std::string::npos);
+        CHECK(text.find("\n") == std::string::npos);
+    }
+
+    SECTION("only the unmeasured tracks are named")
+    {
+        const std::string text = unnormalizedAudioNoticeText(
+            songWithAudio({{"lead.flac", true}, {"silence.flac", false}}));
+        CHECK(text.find("silence.flac") != std::string::npos);
+        CHECK(text.find("lead.flac") == std::string::npos);
+    }
+
+    SECTION("several unmeasured tracks are listed once each")
+    {
+        const std::string text = unnormalizedAudioNoticeText(songWithAudio(
+            {{"silence.flac", false}, {"quiet.flac", false}, {"silence.flac", false}}));
+        CHECK(text.find("They play at their raw level") != std::string::npos);
+        CHECK(text.find("- silence.flac") != std::string::npos);
+        CHECK(text.find("- quiet.flac") != std::string::npos);
+        // A backing file shared by two arrangements is one line, not two.
+        CHECK(text.find("- silence.flac") == text.rfind("- silence.flac"));
     }
 }
 

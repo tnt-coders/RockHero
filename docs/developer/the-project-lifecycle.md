@@ -18,7 +18,11 @@ While a project is open, its contents live **extracted in a temp workspace direc
 `Project` object (`project.cpp`) uniquely owns — loaded audio paths point into the workspace,
 edits happen on the extracted copy, and the `.rhp` on disk is touched only at save. Loading also
 repairs backing-audio loudness-normalization metadata when stale (which counts as an unsaved
-change — see dirty tracking below).
+change — see dirty tracking below). Audio the analyzer cannot measure — digital silence, or a
+level under libebur128's -70 LUFS gate — is normalize-and-report like everything else here, not a
+refusal: `analyzeAudioForGainNormalization` answers with no record at all, the asset plays at its
+raw level, and `unnormalizedAudioNoticeText` tells the charter once at open through the same
+`IEditorView::showNotice` channel the chart-repair notice uses.
 
 Save and publish share one serializer: both write the song through the identical
 `writeRockSongPackageDirectory`, and the only difference is the archive root — save zips the

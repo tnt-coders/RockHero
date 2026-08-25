@@ -10,6 +10,7 @@
 #include <juce_cryptography/juce_cryptography.h>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/song/audio_normalization.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <string>
@@ -27,9 +28,10 @@ namespace
 // per-channel buffer small enough that interleaving stays cheap.
 constexpr int g_block_frames = 8192;
 
-// Loudness below this floor is treated as silent for the purposes of normalization. Anything
-// quieter has too little signal energy for libebur128 to produce a reliable integrated value.
-constexpr double g_silent_loudness_threshold_lufs = -70.0;
+// Integrated loudness at or below this floor counts as no reading at all. It is libebur128's
+// absolute gate: every block that quiet is discarded from the integration, so anything landing
+// here carries too little signal energy for a reliable integrated value.
+constexpr double g_measurable_loudness_floor_lufs = -70.0;
 
 // Version marker baked into the validation hash so changing the normalization algorithm (e.g.
 // target LUFS, gain formula, or peak strategy) can invalidate all existing hashes by bumping
@@ -168,6 +170,16 @@ struct LoudnessMeasurement
         .integrated_loudness_lufs = integrated,
         .sample_peak_dbfs = sample_peak_dbfs,
     };
+}
+
+// Reports whether an integrated-loudness reading can carry a gain. Digital silence reads as
+// negative infinity and a near-silent file reads at or below the gate; neither states a distance
+// from the target, so neither yields a gain. One predicate, so "silent" and "too quiet" are the
+// same question — measurement validity — rather than two rules that could disagree.
+[[nodiscard]] bool isMeasurableLoudness(double integrated_loudness_lufs) noexcept
+{
+    return std::isfinite(integrated_loudness_lufs) &&
+           integrated_loudness_lufs >= g_measurable_loudness_floor_lufs;
 }
 
 // Rounds a gain value to one decimal place (0.1 dB precision).
@@ -355,10 +367,6 @@ private:
         {
             return "Loudness measurement failed";
         }
-        case AudioNormalizationErrorCode::SilentInputCannotBeNormalized:
-        {
-            return "Input audio is effectively silent and cannot be normalized";
-        }
         case AudioNormalizationErrorCode::ValidationHashFailed:
         {
             return "Could not compute validation hash for audio file";
@@ -381,7 +389,7 @@ AudioNormalizationError::AudioNormalizationError(
 {}
 
 // Public boundary: analyzes a source file, computes gain, and produces validation hash.
-std::expected<common::core::AudioNormalization, AudioNormalizationError>
+std::expected<std::optional<common::core::AudioNormalization>, AudioNormalizationError>
 analyzeAudioForGainNormalization(
     const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)
 {
@@ -417,12 +425,11 @@ analyzeAudioForGainNormalization(
         return std::unexpected{std::move(measurement.error())};
     }
 
-    if (!std::isfinite(measurement->integrated_loudness_lufs) ||
-        measurement->integrated_loudness_lufs < g_silent_loudness_threshold_lufs)
+    // No reading means no gain, which is a result and not a failure: the asset plays at its raw
+    // level and the caller reports that. Refusing here failed the whole open or import.
+    if (!isMeasurableLoudness(measurement->integrated_loudness_lufs))
     {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::SilentInputCannotBeNormalized,
-        }};
+        return std::optional<common::core::AudioNormalization>{};
     }
 
     // Compute gain clamped so the loudest sample after gain does not exceed 0 dBFS.
@@ -437,10 +444,11 @@ analyzeAudioForGainNormalization(
         return std::unexpected{std::move(validation_sha256.error())};
     }
 
-    return common::core::AudioNormalization{
+    common::core::AudioNormalization normalization{
         .gain_db = gain_db,
         .validation_sha256 = std::move(*validation_sha256),
     };
+    return std::optional<common::core::AudioNormalization>{std::move(normalization)};
 }
 
 // Public boundary: validates stored normalization against the current audio file.

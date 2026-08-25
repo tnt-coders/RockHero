@@ -160,13 +160,13 @@ using common::core::Song;
 // Analyzes each unique source path and records the resulting normalization metadata so the
 // arrangement update pass can attach it without re-running the analyzer.
 [[nodiscard]] std::expected<
-    std::unordered_map<std::string, common::core::AudioNormalization>, ProjectError>
+    std::unordered_map<std::string, std::optional<common::core::AudioNormalization>>, ProjectError>
 analyzeImportedAudioAssets(
     const std::vector<std::filesystem::path>& unique_paths,
     const common::core::AudioNormalizationTarget& target,
     const AudioNormalizationAnalyzer& analyze_audio_normalization)
 {
-    std::unordered_map<std::string, common::core::AudioNormalization> results;
+    std::unordered_map<std::string, std::optional<common::core::AudioNormalization>> results;
     results.reserve(unique_paths.size());
 
     for (const std::filesystem::path& source_path : unique_paths)
@@ -185,7 +185,8 @@ analyzeImportedAudioAssets(
 // Attaches the analyzed normalization metadata to each arrangement's audio asset. Audio file paths
 // are unchanged; gain is applied during playback and waveform drawing.
 void attachNormalizationMetadata(
-    Song& song, const std::unordered_map<std::string, common::core::AudioNormalization>& results)
+    Song& song,
+    const std::unordered_map<std::string, std::optional<common::core::AudioNormalization>>& results)
 {
     for (Arrangement& arrangement : song.arrangements)
     {
@@ -194,6 +195,8 @@ void attachNormalizationMetadata(
         {
             continue;
         }
+        // Assigned even when the analysis produced no record, so a source package's stored gain
+        // cannot survive on an asset this import found unmeasurable.
         arrangement.audio_asset.normalization = entry->second;
     }
 }
@@ -209,7 +212,6 @@ void attachNormalizationMetadata(
     const std::vector<std::filesystem::path> unique_paths = collectUniqueAudioAssets(song);
     for (const std::filesystem::path& audio_path : unique_paths)
     {
-        std::optional<common::core::AudioNormalization> valid_normalization;
         const common::core::AudioNormalization* stored_normalization = nullptr;
         for (const Arrangement& arrangement : song.arrangements)
         {
@@ -223,13 +225,16 @@ void attachNormalizationMetadata(
             break;
         }
 
+        // The record this asset ends the load with. An empty optional is the analyzer's own
+        // answer for audio it cannot measure, never "nothing decided yet", so the assignment
+        // below is unconditional: a stale record must not outlive a re-analysis that found none.
+        std::optional<common::core::AudioNormalization> asset_normalization;
         if (stored_normalization != nullptr &&
             common::audio::validateAudioNormalization(audio_path, *stored_normalization))
         {
-            valid_normalization = *stored_normalization;
+            asset_normalization = *stored_normalization;
         }
-
-        if (!valid_normalization.has_value())
+        else
         {
             auto analyzed_normalization = analyze_audio_normalization(audio_path, target);
             if (!analyzed_normalization.has_value())
@@ -237,15 +242,15 @@ void attachNormalizationMetadata(
                 return std::unexpected{projectErrorFromNormalizationError(
                     analyzed_normalization.error())};
             }
-            valid_normalization = std::move(*analyzed_normalization);
+            asset_normalization = std::move(*analyzed_normalization);
         }
 
         for (Arrangement& arrangement : song.arrangements)
         {
             if (arrangement.audio_asset.path == audio_path &&
-                arrangement.audio_asset.normalization != valid_normalization)
+                arrangement.audio_asset.normalization != asset_normalization)
             {
-                arrangement.audio_asset.normalization = valid_normalization;
+                arrangement.audio_asset.normalization = asset_normalization;
                 updated = true;
             }
         }

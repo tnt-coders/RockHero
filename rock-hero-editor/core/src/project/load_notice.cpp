@@ -1,11 +1,13 @@
 #include "project/load_notice.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <filesystem>
 #include <map>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -55,6 +57,47 @@ std::string loadConversionNoticeText(
     }
     text += "\nEvery position is listed in the editor log";
     text += log_file.empty() ? "." : ":\n" + log_file.string();
+    return text;
+}
+
+std::string unnormalizedAudioNoticeText(const common::core::Song& song)
+{
+    // File names, first-seen order, deduplicated: arrangements commonly share one backing file,
+    // and the workspace directory those paths sit in is a temporary the charter never sees.
+    std::vector<std::string> names;
+    for (const common::core::Arrangement& arrangement : song.arrangements)
+    {
+        if (arrangement.audio_asset.normalization.has_value())
+        {
+            continue;
+        }
+
+        std::string name = arrangement.audio_asset.path.filename().string();
+        if (std::ranges::find(names, name) == names.end())
+        {
+            names.push_back(std::move(name));
+        }
+    }
+
+    if (names.empty())
+    {
+        return {};
+    }
+
+    // The one-file case is the common one and reads better as a sentence than as a list of one.
+    if (names.size() == 1)
+    {
+        return names.front() +
+               " is silent or too quiet to measure, so no normalization gain was applied. It "
+               "plays at its raw level.";
+    }
+
+    std::string text = "These backing tracks are silent or too quiet to measure, so no "
+                       "normalization gain was applied. They play at their raw level.\n";
+    for (const std::string& name : names)
+    {
+        text += "\n- " + name;
+    }
     return text;
 }
 

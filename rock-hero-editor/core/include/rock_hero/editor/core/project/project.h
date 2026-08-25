@@ -29,9 +29,9 @@ Production composition defaults this alias to common::audio::analyzeAudioForGain
 tests pass fakes that return a controlled AudioNormalization without touching the loudness
 analyzer.
 */
-using AudioNormalizationAnalyzer = std::function<
-    std::expected<common::core::AudioNormalization, common::audio::AudioNormalizationError>(
-        const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)>;
+using AudioNormalizationAnalyzer = std::function<std::expected<
+    std::optional<common::core::AudioNormalization>, common::audio::AudioNormalizationError>(
+    const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)>;
 
 /*!
 \brief Editor project package context.
@@ -71,6 +71,10 @@ public:
 
     /*!
     \brief Loads a Rock Hero project package into this project context.
+
+    Backing audio the analyzer cannot measure loads unnormalized rather than failing the open: its
+    asset carries no normalization record and plays at its raw level.
+
     \param path Filesystem path to an .rhp archive.
     \param target Loudness target loaded backing audio is analyzed against when metadata is stale.
     \param analyze_audio_normalization Function used to analyze stale or missing normalization.
@@ -87,7 +91,8 @@ public:
 
     Analyzes each unique backing audio file to compute LUFS-I gain normalization metadata. The
     audio files are kept as-is; gain is applied during playback and waveform drawing rather than
-    by rendering a new WAV.
+    by rendering a new WAV. Audio the analyzer cannot measure imports unnormalized rather than
+    failing the import, and any record the source package carried for it is dropped.
 
     \param source_path Song source to import.
     \param importer Importer that understands the source song format.

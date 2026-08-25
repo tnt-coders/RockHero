@@ -422,9 +422,10 @@ public:
         };
     }
 
-    // Records the input/target tuple and returns a synthetic normalization record.
+    // Records the input/target tuple and returns a synthetic normalization record, or nothing when
+    // the test is standing in for audio the real analyzer could not measure.
     [[nodiscard]] std::expected<
-        common::core::AudioNormalization, common::audio::AudioNormalizationError>
+        std::optional<common::core::AudioNormalization>, common::audio::AudioNormalizationError>
     invoke(const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)
     {
         invocations.push_back(
@@ -433,14 +434,22 @@ public:
                 .target = target,
             });
 
-        return common::core::AudioNormalization{
+        if (!yields_normalization)
+        {
+            return std::optional<common::core::AudioNormalization>{};
+        }
+
+        return std::optional<common::core::AudioNormalization>{common::core::AudioNormalization{
             .gain_db = -4.0,
             .validation_sha256 = std::string(64, 'a'),
-        };
+        }};
     }
 
     // Captured per-invocation data. Tests read this after Project::import returns.
     std::vector<FakeAnalyzeAudioInvocation> invocations;
+
+    // False stands in for silent or near-silent audio: the analysis succeeds with no record.
+    bool yields_normalization{true};
 };
 
 // Returns a fake analyzer that fails every invocation with the supplied error code so tests can
@@ -451,10 +460,11 @@ public:
 {
     return
         [error_code](const std::filesystem::path&, const common::core::AudioNormalizationTarget&) {
-            return std::
-                expected<common::core::AudioNormalization, common::audio::AudioNormalizationError>{
-                    std::unexpect, common::audio::AudioNormalizationError{error_code}
-                };
+            return std::expected<
+                std::optional<common::core::AudioNormalization>,
+                common::audio::AudioNormalizationError>{
+                std::unexpect, common::audio::AudioNormalizationError{error_code}
+            };
         };
 }
 
@@ -611,6 +621,29 @@ TEST_CASE("Project load surfaces AudioNormalizationFailed", "[core][project]")
     CHECK_FALSE(project.songConvertedOnLoad());
 }
 
+// Backing audio with no measurable loudness opens instead of failing: the asset carries no
+// normalization record and plays at its raw level. The fixture's own stored record is dropped
+// rather than kept, because a gain that no longer belongs to the audio is worse than none.
+TEST_CASE("Project load leaves unmeasurable backing audio unnormalized", "[core][project]")
+{
+    const TemporaryArchiveDirectory directory;
+    const std::filesystem::path path = directory.path() / "song.rhp";
+    writeChartedProjectPackage(path, "");
+
+    Project project;
+    FakeAnalyzeAudio fake_analyze;
+    fake_analyze.yields_normalization = false;
+    const auto result = project.load(path, {}, fake_analyze.function());
+
+    REQUIRE(result.has_value());
+    REQUIRE(result->arrangements.size() == 1);
+    CHECK_FALSE(result->arrangements.front().audio_asset.normalization.has_value());
+    CHECK(fake_analyze.invocations.size() == 1);
+    // The stored record went away, so memory no longer equals the file.
+    CHECK(project.songConvertedOnLoad());
+    CHECK(project.path() == path);
+}
+
 // Verifies .rock native song packages import into an unsaved editor project workspace.
 TEST_CASE("Project imports a native song package", "[core][project]")
 {
@@ -717,6 +750,29 @@ TEST_CASE("Project import surfaces AudioNormalizationFailed on analysis failure"
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ProjectErrorCode::AudioNormalizationFailed);
     CHECK(project.workspaceDirectory().empty());
+}
+
+// The import half of the same contract: unmeasurable backing audio imports unnormalized rather
+// than failing the import. This is the stress-package case — a fully silent backing track.
+TEST_CASE("Project import leaves unmeasurable backing audio unnormalized", "[core][project]")
+{
+    const TemporaryArchiveDirectory directory;
+    const std::filesystem::path path = directory.path() / "song.rock";
+    writeMinimalRockSongPackage(path);
+
+    FakeAnalyzeAudio fake_analyze;
+    fake_analyze.yields_normalization = false;
+
+    Project project;
+    RockSongImporter importer;
+    const auto result = project.import(
+        path, importer, common::core::AudioNormalizationTarget{}, fake_analyze.function());
+
+    REQUIRE(result.has_value());
+    REQUIRE(result->arrangements.size() == 1);
+    CHECK_FALSE(result->arrangements.front().audio_asset.normalization.has_value());
+    CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
+    CHECK(fake_analyze.invocations.size() == 1);
 }
 
 // Verifies explicit close reports cleanup success and clears the project context.

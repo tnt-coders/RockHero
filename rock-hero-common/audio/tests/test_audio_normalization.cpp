@@ -115,11 +115,18 @@ private:
     return path;
 }
 
-// Writes a fixture filled with zero samples to drive the silent-input branch.
+// Writes a fixture filled with zero samples to drive the unmeasurable-loudness branch.
 [[nodiscard]] std::filesystem::path writeSilentWav(const std::filesystem::path& path)
 {
     return writeSineWaveWav(path, 0.0);
 }
+
+// Amplitude of the near-silent fixture. A 1 kHz sine integrates to roughly -0.7 + 20*log10(a) - 3
+// LUFS, so 1e-4 lands near -84 LUFS: audible signal in every sample, far under libebur128's -70
+// LUFS absolute gate. 24-bit fixtures resolve it (one LSB is about 1.2e-7), which is the point —
+// the file is NOT digital silence, so it proves the branch keys on the measurement and not on a
+// zero test.
+constexpr double g_near_silent_amplitude = 1.0e-4;
 
 } // namespace
 
@@ -135,9 +142,12 @@ TEST_CASE(
     CHECK(result.error().code == AudioNormalizationErrorCode::InputFileMissing);
 }
 
-// Verifies silent inputs fail with SilentInputCannotBeNormalized instead of producing nonsense
-// gain.
-TEST_CASE("analyzeAudioForGainNormalization rejects silent input", "[audio][audio-normalization]")
+// Verifies digital silence analyzes to no normalization instead of failing the caller's load. A
+// gain is the distance from a reading to the target, and silence states no reading, so the honest
+// answer is that the asset keeps its raw level.
+TEST_CASE(
+    "analyzeAudioForGainNormalization yields no normalization for silent input",
+    "[audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSilentWav(temporary_directory.path() / "input.wav");
@@ -145,8 +155,25 @@ TEST_CASE("analyzeAudioForGainNormalization rejects silent input", "[audio][audi
     const auto result =
         analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code == AudioNormalizationErrorCode::SilentInputCannotBeNormalized);
+    REQUIRE(result.has_value());
+    CHECK_FALSE(result->has_value());
+}
+
+// Verifies the same answer for audio that is not digitally zero but still reads below the
+// analyzer's gate: the outcome keys on whether the measurement is usable, not on a zero test.
+TEST_CASE(
+    "analyzeAudioForGainNormalization yields no normalization for near-silent input",
+    "[audio][audio-normalization]")
+{
+    const TemporaryAudioDirectory temporary_directory;
+    const auto input_path =
+        writeSineWaveWav(temporary_directory.path() / "input.wav", g_near_silent_amplitude);
+
+    const auto result =
+        analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
+
+    REQUIRE(result.has_value());
+    CHECK_FALSE(result->has_value());
 }
 
 // Verifies analyzeAudioForGainNormalization computes a non-zero gain and a 64-char validation hash.
@@ -161,8 +188,12 @@ TEST_CASE(
         analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
     REQUIRE(result.has_value());
-    CHECK_THAT(result->gain_db, !Catch::Matchers::WithinULP(0.0, 0));
-    CHECK(result->validation_sha256.size() == 64);
+    REQUIRE(result->has_value());
+    if (result->has_value())
+    {
+        CHECK_THAT((*result)->gain_db, !Catch::Matchers::WithinULP(0.0, 0));
+        CHECK((*result)->validation_sha256.size() == 64);
+    }
 }
 
 // Verifies validateAudioNormalization confirms a freshly computed normalization record.
@@ -175,7 +206,11 @@ TEST_CASE("validateAudioNormalization confirms fresh analysis", "[audio][audio-n
         analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
     REQUIRE(normalization.has_value());
-    CHECK(validateAudioNormalization(input_path, *normalization));
+    REQUIRE(normalization->has_value());
+    if (normalization->has_value())
+    {
+        CHECK(validateAudioNormalization(input_path, **normalization));
+    }
 }
 
 // Verifies validateAudioNormalization rejects a normalization record with a tampered gain.
@@ -188,8 +223,12 @@ TEST_CASE("validateAudioNormalization rejects tampered gain", "[audio][audio-nor
         analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
     REQUIRE(normalization.has_value());
-    normalization->gain_db += 1.0;
-    CHECK_FALSE(validateAudioNormalization(input_path, *normalization));
+    REQUIRE(normalization->has_value());
+    if (normalization->has_value())
+    {
+        (*normalization)->gain_db += 1.0;
+        CHECK_FALSE(validateAudioNormalization(input_path, **normalization));
+    }
 }
 
 // Verifies the validation hash covers the raw backing audio bytes, not only the stored gain.
@@ -202,8 +241,12 @@ TEST_CASE("validateAudioNormalization rejects changed audio bytes", "[audio][aud
         analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
     REQUIRE(normalization.has_value());
-    [[maybe_unused]] const auto overwritten_path = writeSineWaveWav(input_path, 0.25);
-    CHECK_FALSE(validateAudioNormalization(input_path, *normalization));
+    REQUIRE(normalization->has_value());
+    if (normalization->has_value())
+    {
+        [[maybe_unused]] const auto overwritten_path = writeSineWaveWav(input_path, 0.25);
+        CHECK_FALSE(validateAudioNormalization(input_path, **normalization));
+    }
 }
 
 // Verifies validateAudioNormalization returns false for a missing input file.

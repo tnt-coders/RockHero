@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <optional>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <string>
 
@@ -31,9 +32,6 @@ enum class AudioNormalizationErrorCode : std::uint8_t
 
     /*! \brief The loudness analyzer reported an internal failure. */
     LoudnessMeasurementFailed,
-
-    /*! \brief The input is effectively silent and cannot be normalized. */
-    SilentInputCannotBeNormalized,
 
     /*! \brief The validation hash could not be computed for the input file. */
     ValidationHashFailed,
@@ -72,14 +70,22 @@ struct [[nodiscard]] AudioNormalizationError
 
 Measures integrated loudness (LUFS-I) and sample peak, computes the gain clamped so the loudest
 sample does not exceed 0 dBFS, rounds the gain to one decimal place, and produces a validation
-hash covering both the gain and the audio file content. The returned AudioNormalization is ready
-to persist on the AudioAsset.
+hash covering both the gain and the audio file content.
+
+Audio with no measurable integrated loudness is not a failure. A gain is only ever the distance
+from a reading to the target, so audio that produces no reading — digital silence, or a level so
+low that libebur128's absolute gate discards every block — has no gain to compute, and the honest
+answer is no normalization at all: the asset keeps its raw level. The result type is exactly
+\ref common::core::AudioAsset::normalization, so callers assign it straight through instead of
+restating a silence rule of their own.
 
 \param input Absolute path to the source audio file.
 \param target Loudness target the gain should be computed against.
-\return Normalization metadata including computed gain and validation hash, or a failure.
+\return Normalization metadata including computed gain and validation hash, an empty optional when
+        the audio has no measurable loudness, or a failure.
 */
-[[nodiscard]] std::expected<common::core::AudioNormalization, AudioNormalizationError>
+[[nodiscard]] std::expected<
+    std::optional<common::core::AudioNormalization>, AudioNormalizationError>
 analyzeAudioForGainNormalization(
     const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target);
 

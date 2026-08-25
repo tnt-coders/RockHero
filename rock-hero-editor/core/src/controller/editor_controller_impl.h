@@ -508,6 +508,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state,
         std::expected<void, common::audio::LiveRigError> rig_result);
+    void reportProjectLoadNotices();
     void cancelBusyOperation();
     void cancelPluginCatalogScan();
     void cancelActiveScanToken();
