@@ -2700,8 +2700,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 pending.text = std::to_string(m_chart_fret_entry->value);
                 pending.valid = m_chart_fret_entry->plan.has_value() ||
                                 m_chart_fret_entry->plan.error() != ChartPlanRefusal::Invalid;
-                if (const auto* const insert =
-                        std::get_if<Impl::ChartFretEntry::InsertAt>(&m_chart_fret_entry->target))
+                if (const auto* const insert = std::get_if<InsertAt>(&m_chart_fret_entry->target))
                 {
                     pending.at = ChartSlotViewState{
                         .seconds =
@@ -2714,7 +2713,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 {
                     pending.at = noteIndicesForKeys(
                         arrangement->chart->notes,
-                        std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target).keys);
+                        std::get<Retype>(m_chart_fret_entry->target).keys);
                 }
                 state.chart_edit.pending_fret = std::move(pending);
             }

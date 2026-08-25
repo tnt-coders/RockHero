@@ -1387,7 +1387,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> EditorController::Impl::repl
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
+    if (const auto* const insert = std::get_if<InsertAt>(&entry.target))
     {
         common::core::ChartNote note;
         note.position = insert->slot.position;
@@ -1399,7 +1399,7 @@ std::expected<ChartNotesEditPlan, ChartPlanRefusal> EditorController::Impl::repl
             std::move(note),
             chartGridStepBeats(insert->slot.position));
     }
-    const auto& retype = std::get<ChartFretEntry::Retype>(entry.target);
+    const auto& retype = std::get<Retype>(entry.target);
     if (retype.keys.empty())
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
@@ -1435,7 +1435,7 @@ void EditorController::Impl::settleChartFretEntry()
         // default selection follow. Bound before the call so the move and the sibling read never
         // share one argument list.
         std::optional<std::vector<ChartNoteKey>> select_exactly;
-        if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
+        if (const auto* const insert = std::get_if<InsertAt>(&entry.target))
         {
             select_exactly = std::vector<ChartNoteKey>{insert->slot};
         }
@@ -1530,7 +1530,7 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
     ChartFretEntry entry{
         .value = digit,
         .target =
-            ChartFretEntry::InsertAt{
+            InsertAt{
                 .slot = ChartNoteKey{.position = caret->position, .string = caret->string},
             },
         .armed_ms = now_ms,
@@ -1555,7 +1555,7 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     ChartFretEntry entry{
         .value = digit,
         .target =
-            ChartFretEntry::Retype{
+            Retype{
                 .keys = chartSelection().notes(),
                 .base_notes = chartNotesForKeys(chartSelection().notes()),
             },
