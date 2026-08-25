@@ -546,22 +546,6 @@ public:
         std::span<const common::core::ToneSwitchRegion> regions) override;
 
     /*!
-    \brief Resyncs the loaded rig's tone automation to a new playhead position.
-
-    Pushes \p position onto every automatable parameter in the tone rack, which is what keeps
-    tone switching and parameter automation truthful across a playhead jump made while the
-    graph is not rendering blocks.
-
-    Transport motion resyncs the rig on its own: every transport discontinuity runs the same
-    push, so ITransport callers never need this method.
-
-    \param position New playhead position to resync the rig against.
-    \return Empty success, or a typed failure when no live rig is loaded.
-    */
-    [[nodiscard]] std::expected<void, LiveRigError> setToneTimelinePosition(
-        common::core::TimePosition position) override;
-
-    /*!
     \brief Sets the edit-wide master gain through the always-present master volume plugin.
 
     Everything audible passes through this stage, including live-input monitoring, because both

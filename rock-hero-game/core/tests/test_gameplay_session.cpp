@@ -557,15 +557,6 @@ public:
         return {};
     }
 
-    // Seek resync is not session-driven: the engine resyncs the rig itself at every playhead
-    // discontinuity, from inside its own clock boundary rather than through this port, so the
-    // session never calls this and the fake only has to satisfy the interface.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setToneTimelinePosition(
-        common::core::TimePosition /*position*/) override
-    {
-        return {};
-    }
-
     // When set, prepareToneTimeline fails with a typed error.
     bool fail_prepare{false};
 

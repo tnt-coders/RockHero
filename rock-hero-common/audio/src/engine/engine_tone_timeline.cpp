@@ -95,8 +95,8 @@ tracktion::RackType* Engine::Impl::loadedToneRack() noexcept
 // prepareToneTimeline pins that flag on, so there is nothing left to gate against. One call covers
 // the whole rig because every tone plugin and every branch gain lives inside the single rack.
 //
-// This is the only place a position reaches the rack: publishClockBoundary calls it for every
-// playhead discontinuity, and the port method below wraps the same call in its typed refusal.
+// This is the only place a position reaches the rack, and publishClockBoundary is its only caller:
+// every playhead discontinuity runs through that boundary, so no port surface pushes position.
 void Engine::Impl::resyncToneAutomation(common::core::TimePosition position)
 {
     if (tracktion::RackType* const rack = loadedToneRack(); rack != nullptr)
@@ -104,26 +104,6 @@ void Engine::Impl::resyncToneAutomation(common::core::TimePosition position)
         rack->updateAutomatableParamPositions(
             tracktion::TimePosition::fromSeconds(position.seconds));
     }
-}
-
-// Port-level resync, for a caller that moves the playhead without going through the transport
-// port. Nothing in the tree does today: every transport discontinuity resyncs on its own through
-// publishClockBoundary, so a caller reaching here is asking for a resync no transport motion
-// implies. The typed refusal is all this adds over the helper — such a caller wants to be told
-// that no rig was loaded, where a transport boundary rightly ignores it.
-std::expected<void, LiveRigError> Engine::setToneTimelinePosition(
-    common::core::TimePosition position)
-{
-    if (m_impl->loadedToneRack() == nullptr)
-    {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::InvalidRequest,
-            "Tone timeline requires a loaded live rig",
-        }};
-    }
-
-    m_impl->resyncToneAutomation(position);
-    return {};
 }
 
 } // namespace rock_hero::common::audio

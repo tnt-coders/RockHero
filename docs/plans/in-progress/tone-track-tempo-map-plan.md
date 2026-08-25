@@ -198,9 +198,9 @@ timeline switching. Add a separate audio boundary when runtime tone switching is
 `prepareToneTimeline` does the real work up front: it builds the multi-tone graph, preloads every
 referenced tone, and bakes the region schedule into branch-gain automation on the audio timeline.
 After that, the backend schedules switching against the transport timeline, preferably through
-sample-accurate automation. There are no per-frame calls. `setToneTimelinePosition` exists only so
-a seek/scrub can resync the active tone to a new playhead position; it is not the playback switch
-path.
+sample-accurate automation. There are no per-frame calls. A seek/scrub resync is not a caller's job
+either: the engine runs it from inside its own clock boundary, so the port has no position-pushing
+method (see the 2026-08-25 amendment below).
 
 Likely shape:
 
@@ -219,10 +219,6 @@ public:
     virtual std::expected<void, LiveRigError> prepareToneTimeline(
         const std::filesystem::path& song_directory,
         std::span<const ToneSwitchRegion> regions) = 0;
-
-    // Resyncs the active tone after a seek/scrub. Not used during continuous playback.
-    virtual std::expected<void, LiveRigError> setToneTimelinePosition(
-        common::core::TimePosition position) = 0;
 };
 ```
 
@@ -284,9 +280,13 @@ the submodule moves):
   streams follow `TransportControl::getPosition()` (`plugins/tracktion_Plugin.cpp:676`), so branch
   gains snap to the playhead as long as the live-input graph is processing. **Amendment
   (2026-08-23):** that condition is not always met — with the playback context released, nothing
-  renders a block and every tone parameter keeps its pre-seek value. `Engine::seek` therefore
-  pushes the position through `setToneTimelinePosition`, which walks the rack via
-  `RackType::updateAutomatableParamPositions`; it is a real implementation now, not a no-op.
+  renders a block and every tone parameter keeps its pre-seek value. The engine therefore pushes
+  the position itself, walking the rack via `RackType::updateAutomatableParamPositions`.
+  **Amendment (2026-08-25):** that push lives inside the clock boundary
+  (`Impl::resyncToneAutomation`, called from `publishClockBoundary`), so every playhead
+  discontinuity resyncs from one place and no caller ever pushes a position. The port method that
+  used to expose that push (sketched above until this amendment) had no production caller and was
+  deleted; the port is prepare-only.
 - **Latency equals the worst branch — unless compensation is disabled, which it should be.**
   The graph auto-inserts `LatencyNode`s at sum points so parallel branches stay aligned
   (`tracktion_graph/nodes/tracktion_SummingNode.h`, `tracktion_ConnectedNode.h`), which would
