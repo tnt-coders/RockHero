@@ -68,7 +68,9 @@ TEST_CASE("EditorController legato toggle round-trips a mixed selection", "[core
     };
     FakeEditorView view;
     controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+    REQUIRE(loaded);
 
     const auto note_attack = [&](const std::size_t index) {
         return controller.session().currentArrangement()->chart->notes[index].attack;
@@ -231,7 +233,9 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
     };
     FakeEditorView view;
     controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+    REQUIRE(loaded);
 
     const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
         return controller.session().currentArrangement()->chart->notes[index];
@@ -370,7 +374,9 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
     };
     FakeEditorView view;
     controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+    REQUIRE(loaded);
 
     const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
         return controller.session().currentArrangement()->chart->notes[index];
@@ -537,7 +543,9 @@ TEST_CASE("EditorController settles a broken claim at the burst's end", "[core][
     };
     FakeEditorView view;
     controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+    REQUIRE(loaded);
 
     const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
         return controller.session().currentArrangement()->chart->notes[index];
@@ -668,7 +676,9 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
     };
     FakeEditorView view;
     controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+    REQUIRE(loaded);
 
     const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
         return controller.session().currentArrangement()->chart->notes[index];
@@ -780,7 +790,9 @@ TEST_CASE("EditorController closes its coalescing windows on a committing settle
     };
     FakeEditorView view;
     controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(chart));
+    REQUIRE(loaded);
 
     const auto note = [&](const std::size_t index) -> const common::core::ChartNote& {
         return controller.session().currentArrangement()->chart->notes[index];

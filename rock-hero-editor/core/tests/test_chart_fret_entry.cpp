@@ -286,7 +286,9 @@ TEST_CASE("EditorController keeps an invalid pending digit until it is settled",
     controller.attachView(view);
     common::core::Chart capo_chart = makeTestChart();
     capo_chart.tuning.capo = 2;
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart));
+    REQUIRE(loaded);
     static_cast<void>(pending.scheduler.runDelayed());
 
     click(controller, 40.0f, 220.0f);
@@ -355,7 +357,9 @@ TEST_CASE("EditorController keeps an invalid immediate digit pending red", "[cor
     {
         note.fret += 5;
     }
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart));
+    REQUIRE(loaded);
     static_cast<void>(pending.scheduler.runDelayed());
 
     click(controller, 40.0f, 220.0f);
@@ -400,7 +404,9 @@ TEST_CASE("EditorController Esc discards an invalid pending value, keeps caret",
     controller.attachView(view);
     common::core::Chart capo_chart = makeTestChart();
     capo_chart.tuning.capo = 2;
-    REQUIRE(loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart)));
+    const bool loaded =
+        loadChartArrangement(controller, project_services, audio, {}, std::move(capo_chart));
+    REQUIRE(loaded);
 
     click(controller, 40.0f, 220.0f);
     const EditorViewState* state = stateOrNull(view.last_state);

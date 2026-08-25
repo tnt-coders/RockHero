@@ -342,8 +342,9 @@ TEST_CASE("EditorController dead-note toggle skips a vibrato note", "[core][char
     controller.attachView(view);
     common::core::Chart chart_with_vibrato = makeTestChart();
     chart_with_vibrato.notes[0].vibrato = true;
-    REQUIRE(loadChartArrangement(
-        controller, project_services, audio, {}, std::move(chart_with_vibrato)));
+    const bool loaded = loadChartArrangement(
+        controller, project_services, audio, {}, std::move(chart_with_vibrato));
+    REQUIRE(loaded);
 
     // Marquee both measure-2 chord members: the vibrato note plus a plain one.
     controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));

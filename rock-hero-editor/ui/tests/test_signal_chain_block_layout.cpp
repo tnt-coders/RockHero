@@ -82,7 +82,8 @@ void previewDrop(
     REQUIRE(intent.has_value());
     if (intent.has_value())
     {
-        REQUIRE(layout.previewMove(source_index, std::move(*intent)));
+        const bool previewed = layout.previewMove(source_index, std::move(*intent));
+        REQUIRE(previewed);
     }
     CHECK(layout.activePlacement().blocks() == expected_blocks);
 }

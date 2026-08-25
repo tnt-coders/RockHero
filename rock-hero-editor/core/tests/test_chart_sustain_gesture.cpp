@@ -210,7 +210,8 @@ TEST_CASE("A blocked chord member diverges and rejoins in one gesture", "[core][
     common::core::Chart chart = makeTestChart();
     chart.notes[0].sustain = common::core::Fraction{1};
     chart.notes[1].sustain = common::core::Fraction{1};
-    REQUIRE(fixture.load(std::move(chart)));
+    const bool loaded = fixture.load(std::move(chart));
+    REQUIRE(loaded);
 
     // The double click selects the whole measure-2 onset: string 1 (bounded four beats later by its
     // own restrike) and string 2 (bounded by nothing).
