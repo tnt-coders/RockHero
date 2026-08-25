@@ -74,9 +74,9 @@ public:
     */
     std::size_t runDelayed()
     {
-        std::vector<std::function<void()>> due = std::move(m_delayed);
+        const std::vector<std::function<void()>> due = std::move(m_delayed);
         m_delayed.clear();
-        for (std::function<void()>& work : due)
+        for (const std::function<void()>& work : due)
         {
             work();
         }

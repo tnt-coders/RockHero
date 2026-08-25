@@ -244,7 +244,7 @@ TEST_CASE("Highway head marks carry their own roll behavior", "[ui][highway]")
     CHECK_FALSE(stack.marks.at(0).flipped);
     CHECK_FALSE(stack.marks.at(3).flipped);
 
-    common::core::NoteViewState hammer =
+    const common::core::NoteViewState hammer =
         noteWith(common::core::NoteAttack::Pick, common::core::LegatoMotion::Hammer);
     REQUIRE(highwayHeadMarks(hammer).count == 1);
     CHECK_FALSE(highwayHeadMarks(hammer).marks.at(0).flipped);

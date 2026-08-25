@@ -2266,7 +2266,7 @@ void paintTabLane(
         // be inside the group but outside the technique band, and a saved state still alive when
         // a transparency layer ends corrupts the composite silently on every renderer.
         {
-            juce::Graphics::ScopedSaveState technique_clip{g};
+            const juce::Graphics::ScopedSaveState technique_clip{g};
             // And they never leave the tail's INTERIOR — the band between the edge rails. Every
             // mark already COMPRESSES its geometry to fit it (the sine's and bend polyline's
             // swing, the diagonals' anchors), but stroke corners and antialiasing still overshoot

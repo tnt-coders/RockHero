@@ -1213,7 +1213,7 @@ TEST_CASE("Highway chord groups give repeating strums the box treatment", "[core
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
     const std::vector<ShapeViewState> shapes{chordShape(1.0, 3.0, posture)};
     const double epsilon_below = 1.0 - (g_onset_match_epsilon / 2.0);
-    std::vector<NoteViewState> notes{
+    const std::vector<NoteViewState> notes{
         chordNote(epsilon_below, 1, 3),
         chordNote(epsilon_below, 2, 5),
         chordNote(2.0, 1, 3),
@@ -1267,7 +1267,7 @@ TEST_CASE("Highway chord groups judge repeat marks by the resolved motion", "[co
 // third recorded regression (Charter blanks every dead chug; this board does not).
 TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core][highway]")
 {
-    std::vector<NoteViewState> restating{
+    const std::vector<NoteViewState> restating{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         deadened(chordNote(2.0, 1, 3)),
@@ -1278,7 +1278,7 @@ TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core
     CHECK(restated.groups[1].all_dead);
     CHECK(restated.groups[1].box_only);
 
-    std::vector<NoteViewState> fresh{
+    const std::vector<NoteViewState> fresh{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         deadened(chordNote(2.0, 1, 7)),
@@ -1291,7 +1291,7 @@ TEST_CASE("Highway chord groups blank a dead chug only when it restates", "[core
 
     // The palm resting on the strings does not stop a dead chug being one: the chug rule reads the
     // dead flag alone, so a both-muted restatement blanks exactly as the plain dead one does.
-    std::vector<NoteViewState> palmed{
+    const std::vector<NoteViewState> palmed{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         palmMuted(deadened(chordNote(2.0, 1, 3))),
@@ -1313,7 +1313,7 @@ TEST_CASE("Highway chord group hold caps resolve over the whole song", "[core][h
 {
     const std::vector<std::pair<int, int>> posture{{1, 3}, {2, 5}};
     const std::vector<ShapeViewState> shapes{chordShape(1.0, 2.5, posture)};
-    std::vector<NoteViewState> notes{
+    const std::vector<NoteViewState> notes{
         chordNote(1.0, 1, 3),
         chordNote(1.0, 2, 5),
         chordNote(2.0, 1, 3),

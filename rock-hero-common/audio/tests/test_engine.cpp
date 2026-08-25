@@ -573,7 +573,7 @@ private:
                 {
                     continue;
                 }
-                for (tracktion::Plugin* const plugin : rack->getPlugins())
+                for (const tracktion::Plugin* const plugin : rack->getPlugins())
                 {
                     if (const auto* const branch_gain =
                             dynamic_cast<const ToneBranchGainPlugin*>(plugin);
