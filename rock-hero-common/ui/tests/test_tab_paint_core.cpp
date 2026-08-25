@@ -229,7 +229,7 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
     };
     const TabNoteLayout layout = tabNoteLayout(referenceMetrics(6), probe);
 
-    const auto worstInBand =
+    const auto worst_in_band =
         [&plain, &accented](const int x_from, const int x_to, const int y_from, const int y_to) {
             int worst = 0;
             for (int x = x_from; x <= x_to; ++x)
@@ -258,10 +258,10 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
     const int mid_from = juce::roundToInt(layout.tail.x + (layout.tail.width * 0.6f));
 
     // The halo is present on BOTH rails.
-    CHECK(worstInBand(mid_from, mid_from + 4, tail_top - 4, tail_top - 1) > 0);
-    CHECK(worstInBand(mid_from, mid_from + 4, tail_bottom + 1, tail_bottom + 4) > 0);
+    CHECK(worst_in_band(mid_from, mid_from + 4, tail_top - 4, tail_top - 1) > 0);
+    CHECK(worst_in_band(mid_from, mid_from + 4, tail_bottom + 1, tail_bottom + 4) > 0);
     // And it stops with them: nothing past the tail's end, on any row the halo occupies.
-    CHECK(worstInBand(tail_end + 2, tail_end + 12, tail_top - 6, tail_bottom + 6) == 0);
+    CHECK(worst_in_band(tail_end + 2, tail_end + 12, tail_top - 6, tail_bottom + 6) == 0);
 }
 
 // The stated left-hand tap wears its own charting mark — the tap letter in the fretting hand's

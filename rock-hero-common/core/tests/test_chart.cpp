@@ -548,20 +548,20 @@ TEST_CASE("Chart harmonics are a node plus an attack", "[core][chart]")
 // said. Delete this with the tripwire once the corpus is re-imported.
 TEST_CASE("Chart document refuses the removed posture and span keys", "[core][chart]")
 {
-    const auto parseWithKey = [](const std::string& key_body) {
+    const auto parse_with_key = [](const std::string& key_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, )" + key_body +
             R"( "notes": [] })");
     };
-    const auto chords = parseWithKey(R"("chords": [],)");
+    const auto chords = parse_with_key(R"("chords": [],)");
     REQUIRE_FALSE(chords.has_value());
     CHECK(chords.error().message.find("re-import") != std::string::npos);
-    CHECK_FALSE(parseWithKey(R"("shapes": [],)").has_value());
+    CHECK_FALSE(parse_with_key(R"("shapes": [],)").has_value());
     // Populated, not just present: the refusal is about the key existing at all, so the shape of
     // its contents cannot make it load.
-    CHECK_FALSE(parseWithKey(R"("chords": [ { "frets": [0] } ],)").has_value());
+    CHECK_FALSE(parse_with_key(R"("chords": [ { "frets": [0] } ],)").has_value());
     // The control: the same document without them loads.
-    CHECK(parseWithKey("").has_value());
+    CHECK(parse_with_key("").has_value());
 }
 
 TEST_CASE("Chart document rejects unsupported versions", "[core][chart]")
@@ -608,44 +608,44 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
     // could notice. A numeric sustain read as no tail, a numeric attack as a plain pick, a numeric
     // mute flag as unmuted, a string fret as fret -1 (which validation does catch, unlike the
     // rest), and a string bend height as a flat zero-semitone bend.
-    const auto parseNote = [](const std::string& note_body) {
+    const auto parse_note = [](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
             R"( } ] })");
     };
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": 2)").has_value());
+        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": 2)").has_value());
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "attack": 7)")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "attack": 7)")
             .has_value());
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "palmMute": 1)")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "palmMute": 1)")
             .has_value());
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "dead": 1)")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "1/8", "dead": 1)")
             .has_value());
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": "3", "sustain": "1/8")").has_value());
+        parse_note(R"("position": "1:1", "string": 1, "fret": "3", "sustain": "1/8")").has_value());
     CHECK_FALSE(
-        parseNote(
+        parse_note(
             R"("position": "1:1", "string": 1, "fret": 3, "sustain": "1", "bend": [["0", "half"]])")
             .has_value());
     // And the well-typed forms of the same fields still load, so the check refuses types rather
     // than fields.
-    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "2")").has_value());
-    CHECK(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "attack": "tap")")
-            .has_value());
-    CHECK(parseNote(
+    CHECK(parse_note(R"("position": "1:1", "string": 1, "fret": 0, "sustain": "2")").has_value());
+    CHECK(parse_note(
+              R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "attack": "tap")")
+              .has_value());
+    CHECK(parse_note(
               R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "palmMute": true)")
               .has_value());
-    CHECK(parseNote(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "dead": true)")
+    CHECK(parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "dead": true)")
               .has_value());
 
     // The ring is REQUIRED, and absence is malformed rather than "no tail": reading a missing key
     // as zero would invent the one datum the model cannot derive, and every note of a chart
     // written before the duration model is missing exactly this.
-    const auto missing = parseNote(R"("position": "1:1", "string": 1, "fret": 5)");
+    const auto missing = parse_note(R"("position": "1:1", "string": 1, "fret": 5)");
     REQUIRE_FALSE(missing.has_value());
     CHECK(missing.error().code == ChartErrorCode::MalformedDocument);
     CHECK(missing.error().message.find("sustain") != std::string::npos);
@@ -673,57 +673,58 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
 // on the next save.
 TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
 {
-    const auto parseNote = [](const std::string& note_body) {
+    const auto parse_note = [](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
             R"( } ] })");
     };
-    const auto emphasisOf = [&](const std::string& note_body) {
-        const auto parsed = parseNote(note_body);
+    const auto emphasis_of = [&](const std::string& note_body) {
+        const auto parsed = parse_note(note_body);
         REQUIRE(parsed.has_value());
         REQUIRE(parsed->notes.size() == 1);
         return parsed->notes.front().emphasis;
     };
 
     CHECK(
-        emphasisOf(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8")") ==
+        emphasis_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8")") ==
         NoteEmphasis::Normal);
     CHECK(
-        emphasisOf(
+        emphasis_of(
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
             R"( "emphasis": "accent")") == NoteEmphasis::Accent);
     CHECK(
-        emphasisOf(
+        emphasis_of(
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
             R"( "emphasis": "ghost")") == NoteEmphasis::Ghost);
 
     // "normal" is the value absence already means, so spelling it is malformed like an explicit
     // "pick" attack, and an unknown token is a hard read error rather than a silent default.
     CHECK_FALSE(
-        parseNote(
+        parse_note(
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": "normal")")
             .has_value());
     CHECK_FALSE(
-        parseNote(
+        parse_note(
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": "loud")")
             .has_value());
     CHECK_FALSE(
-        parseNote(
+        parse_note(
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": true)")
             .has_value());
     // The empty string is not a token either. It reads back as the same "" the absent key gives,
     // so accepting it would let a present-but-meaningless field pass as the default.
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": "")")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "emphasis": "")")
             .has_value());
 
     // The tripwire: the removed key fails the load and names the fix, exactly as the removed
     // harmonic/touch keys do. Delete this with the tripwire once the corpus is re-imported.
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "accent": true)")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "accent": true)")
             .has_value());
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "accent": false)")
+        parse_note(
+            R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "accent": false)")
             .has_value());
 
     // Round trip: both named values survive a write and read, and a normal note writes no key at
@@ -778,13 +779,13 @@ TEST_CASE("Chart document reads the emphasis axis", "[core][chart]")
 // which is the state one exclusive mute axis could not express at all.
 TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
 {
-    const auto parseNote = [](const std::string& note_body) {
+    const auto parse_note = [](const std::string& note_body) {
         return parseChartDocument(
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] }, "notes": [ { )" + note_body +
             R"( } ] })");
     };
-    const auto mutesOf = [&](const std::string& note_body) {
-        const auto parsed = parseNote(note_body);
+    const auto mutes_of = [&](const std::string& note_body) {
+        const auto parsed = parse_note(note_body);
         REQUIRE(parsed.has_value());
         REQUIRE(parsed->notes.size() == 1);
         const ChartNote& note = parsed->notes.front();
@@ -792,17 +793,17 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     };
 
     CHECK(
-        mutesOf(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8")") ==
+        mutes_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8")") ==
         std::pair{false, false});
     CHECK(
-        mutesOf(
+        mutes_of(
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "palmMute": true)") ==
         std::pair{true, false});
     CHECK(
-        mutesOf(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "dead": true)") ==
+        mutes_of(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "dead": true)") ==
         std::pair{false, true});
     CHECK(
-        mutesOf(
+        mutes_of(
             R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8",)"
             R"( "palmMute": true, "dead": true)") == std::pair{true, true});
 
@@ -810,10 +811,10 @@ TEST_CASE("Chart document carries the two mutes independently", "[core][chart]")
     // exactly as the removed accent and harmonic/touch keys do. A silently ignored key would load
     // every muted note in the corpus as unmuted. Delete this once the corpus is re-imported.
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "mute": "palm")")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "mute": "palm")")
             .has_value());
     CHECK_FALSE(
-        parseNote(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "mute": "full")")
+        parse_note(R"("position": "1:1", "string": 1, "fret": 5, "sustain": "1/8", "mute": "full")")
             .has_value());
 
     // Round trip: every combination survives a write and read, and each flag is written only when

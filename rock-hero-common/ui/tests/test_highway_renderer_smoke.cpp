@@ -414,7 +414,7 @@ void drawFrames(
     HighwayRenderer& renderer, RenderDevice& device, const double first_now_seconds,
     const double step_seconds, const int frames)
 {
-    static constexpr std::array<HighwayOverlayRect, 2> overlay{
+    static constexpr std::array<HighwayOverlayRect, 2> g_overlay{
         HighwayOverlayRect{
             .left = 8.0F, .top = 8.0F, .right = 208.0F, .bottom = 72.0F, .abgr = 0x80202020
         },
@@ -426,7 +426,7 @@ void drawFrames(
     {
         const double now_seconds = first_now_seconds + (step_seconds * static_cast<double>(frame));
         renderer.draw(now_seconds, step_seconds, device.width(), device.height());
-        renderer.drawOverlayRects(overlay, device.width(), device.height());
+        renderer.drawOverlayRects(g_overlay, device.width(), device.height());
         device.submitFrame();
     }
 }

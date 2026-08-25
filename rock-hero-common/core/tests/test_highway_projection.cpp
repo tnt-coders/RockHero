@@ -1143,7 +1143,7 @@ TEST_CASE("Highway chord groups classify membership and mutes", "[core][highway]
 // wears both marks stacked rather than picking one.
 TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highway]")
 {
-    const auto mutesOf = [](std::vector<NoteViewState> notes) {
+    const auto mutes_of = [](const std::vector<NoteViewState>& notes) {
         const HighwayChordGrouping grouping = makeHighwayChordGroups(notes, {});
         REQUIRE(grouping.groups.size() == 1);
         const HighwayChordGroupViewState& group = grouping.groups.front();
@@ -1152,25 +1152,25 @@ TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highw
 
     // Unanimously palm muted, unanimously dead, and unanimously both.
     CHECK(
-        mutesOf({palmMuted(chordNote(1.0, 1, 3)), palmMuted(chordNote(1.0, 2, 5))}) ==
+        mutes_of({palmMuted(chordNote(1.0, 1, 3)), palmMuted(chordNote(1.0, 2, 5))}) ==
         std::pair{true, false});
     CHECK(
-        mutesOf({deadened(chordNote(1.0, 1, 3)), deadened(chordNote(1.0, 2, 5))}) ==
+        mutes_of({deadened(chordNote(1.0, 1, 3)), deadened(chordNote(1.0, 2, 5))}) ==
         std::pair{false, true});
     CHECK(
-        mutesOf(
+        mutes_of(
             {palmMuted(deadened(chordNote(1.0, 1, 3))),
              palmMuted(deadened(chordNote(1.0, 2, 5)))}) == std::pair{true, true});
 
     // A dead string inside a palm-muted chord: every member is palmed, only one is dead. The palm
     // unanimity survives the split the old single mute axis would have collapsed to nothing.
     CHECK(
-        mutesOf({palmMuted(chordNote(1.0, 1, 3)), palmMuted(deadened(chordNote(1.0, 2, 5)))}) ==
+        mutes_of({palmMuted(chordNote(1.0, 1, 3)), palmMuted(deadened(chordNote(1.0, 2, 5)))}) ==
         std::pair{true, false});
 
     // And a strum every member of which is dead while only one is palmed stays a dead strum.
     CHECK(
-        mutesOf({deadened(chordNote(1.0, 1, 3)), palmMuted(deadened(chordNote(1.0, 2, 5)))}) ==
+        mutes_of({deadened(chordNote(1.0, 1, 3)), palmMuted(deadened(chordNote(1.0, 2, 5)))}) ==
         std::pair{false, true});
 }
 
@@ -1179,7 +1179,7 @@ TEST_CASE("Highway chord groups fold the two mutes independently", "[core][highw
 // struck normally, and one accent among ghosts still makes the strum an accented one.
 TEST_CASE("Highway chord groups fold emphasis loud-wins, quiet-unanimous", "[core][highway]")
 {
-    const auto groupEmphasis = [](const std::vector<NoteEmphasis>& members) {
+    const auto group_emphasis = [](const std::vector<NoteEmphasis>& members) {
         std::vector<NoteViewState> notes;
         notes.reserve(members.size());
         for (std::size_t index = 0; index < members.size(); ++index)
@@ -1193,13 +1193,13 @@ TEST_CASE("Highway chord groups fold emphasis loud-wins, quiet-unanimous", "[cor
     };
 
     using enum NoteEmphasis;
-    CHECK(groupEmphasis({Normal, Normal}) == Normal);
-    CHECK(groupEmphasis({Ghost, Ghost, Ghost}) == Ghost);
+    CHECK(group_emphasis({Normal, Normal}) == Normal);
+    CHECK(group_emphasis({Ghost, Ghost, Ghost}) == Ghost);
     // A part-ghosted strum is not a quiet strum.
-    CHECK(groupEmphasis({Ghost, Normal}) == Normal);
-    CHECK(groupEmphasis({Accent, Normal}) == Accent);
+    CHECK(group_emphasis({Ghost, Normal}) == Normal);
+    CHECK(group_emphasis({Accent, Normal}) == Accent);
     // Loud outranks quiet the way it does on a single note carrying both claims.
-    CHECK(groupEmphasis({Accent, Ghost}) == Accent);
+    CHECK(group_emphasis({Accent, Ghost}) == Accent);
 }
 
 // The repeat chain (Charter's chord visibility rules): under a covering shape, a strum that

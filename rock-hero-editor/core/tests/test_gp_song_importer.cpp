@@ -1092,7 +1092,7 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
     // The accent bitset: 1 = staccato, 4 = heavy accent, 8 = accent. Both loud bits import as an
     // accent (the ruling that a heavy accent folds into the one loud tier for now), while
     // staccato is articulation rather than dynamics and never counts on its own.
-    const auto emphasisWithAccentBits = [&](const std::string& flags) {
+    const auto emphasis_with_accent_bits = [&](const std::string& flags) {
         const std::string gpif = fixtureWithReplacement(
             "<Note id=\"2\">", "<Note id=\"2\"><Accent>" + flags + "</Accent>");
         const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
@@ -1107,22 +1107,22 @@ TEST_CASE("Guitar Pro import maps accents and ghost notes onto emphasis", "[core
 
     SECTION("the accent bit imports as an accent")
     {
-        CHECK(emphasisWithAccentBits("8") == common::core::NoteEmphasis::Accent);
+        CHECK(emphasis_with_accent_bits("8") == common::core::NoteEmphasis::Accent);
     }
 
     SECTION("the heavy-accent bit imports as an accent too")
     {
-        CHECK(emphasisWithAccentBits("4") == common::core::NoteEmphasis::Accent);
+        CHECK(emphasis_with_accent_bits("4") == common::core::NoteEmphasis::Accent);
     }
 
     SECTION("staccato alone is not an accent")
     {
-        CHECK(emphasisWithAccentBits("1") == common::core::NoteEmphasis::Normal);
+        CHECK(emphasis_with_accent_bits("1") == common::core::NoteEmphasis::Normal);
     }
 
     SECTION("staccato riding an accent still reads as an accent")
     {
-        CHECK(emphasisWithAccentBits("9") == common::core::NoteEmphasis::Accent);
+        CHECK(emphasis_with_accent_bits("9") == common::core::NoteEmphasis::Accent);
     }
 
     SECTION("a note claiming both loud and quiet resolves to the louder claim")
@@ -4107,7 +4107,7 @@ TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core
         flat.origin_value = 100.0;
         flat.middle_value = 100.0;
         flat.destination_value = 100.0;
-        const auto built = importWithBend(flat);
+        const auto built = import_with_bend(flat);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE_FALSE(chart.notes.empty());
@@ -4126,7 +4126,7 @@ TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core
         rising.origin_value = 0.0;
         rising.middle_value = 50.0;
         rising.destination_value = 100.0;
-        const auto built = importWithBend(rising);
+        const auto built = import_with_bend(rising);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
@@ -4152,7 +4152,7 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
     };
     // Builds a one-note score and returns the built song, so each case below differs only in the
     // field it puts out of range.
-    const auto importWith = [&syncs](const GpNote& note, const int capo, const bool nine_strings) {
+    const auto import_with = [&syncs](const GpNote& note, const int capo, const bool nine_strings) {
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].capo = capo;
         if (nine_strings)

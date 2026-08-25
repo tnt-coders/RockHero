@@ -735,7 +735,7 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
 
     // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which no
     // step below expects, so the caller's own comparison fails.
-    const auto ringAfter = [&](const std::vector<ChartSustainStep>& steps) {
+    const auto ring_after = [&](const std::vector<ChartSustainStep>& steps) {
         const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
         if (!plan.has_value())
         {
@@ -747,18 +747,18 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
     };
 
     std::vector<ChartSustainStep> steps{tickStep(true)};
-    CHECK(ringAfter(steps) == common::core::Fraction{1921, 960});
+    CHECK(ring_after(steps) == common::core::Fraction{1921, 960});
 
     steps.push_back(gridStep(g_quarter_grid, true));
-    CHECK(ringAfter(steps) == common::core::Fraction{3});
+    CHECK(ring_after(steps) == common::core::Fraction{3});
 
     steps.push_back(tickStep(true));
-    CHECK(ringAfter(steps) == common::core::Fraction{2881, 960});
+    CHECK(ring_after(steps) == common::core::Fraction{2881, 960});
 
     // Back one grid step: the end sits a hair past the line at 3, so the line strictly before it is
     // the one at 3 itself — the tick nudge is what the grid step snaps away.
     steps.push_back(gridStep(g_quarter_grid, false));
-    CHECK(ringAfter(steps) == common::core::Fraction{3});
+    CHECK(ring_after(steps) == common::core::Fraction{3});
 
     // And one more puts the end back on the line the two-beat ring started on, so the whole run
     // describes nothing at all: NoChange, the answer that retires the gesture's entry. Only a run
@@ -887,7 +887,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
     const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     // Assertion-free (read inside CHECK expressions), as in the tick-nudged run above.
-    const auto ringAfter = [&](const std::vector<ChartSustainStep>& steps) {
+    const auto ring_after = [&](const std::vector<ChartSustainStep>& steps) {
         const auto plan = planAdjustSustain(chart, tempo_map, chart.notes, keys, steps);
         if (!plan.has_value())
         {
@@ -899,7 +899,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
     };
 
     // Beat 7 to the next downbeat is one beat, the short last gap of the measure.
-    CHECK(ringAfter({gridStep(g_quarter_grid, true)}) == common::core::Fraction{7});
+    CHECK(ring_after({gridStep(g_quarter_grid, true)}) == common::core::Fraction{7});
     // And back down onto beat 7 — not past it onto beat 5 — so the run describes nothing.
     const auto closed = planAdjustSustain(
         chart,
@@ -1069,33 +1069,33 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
     // Assertion-free on purpose: it is read inside CHECK expressions, and a Catch2 assertion
     // nested in another assertion's expression is the shape to avoid. A missing note reads as a
     // zero ring, which no step below expects, so the caller's own comparison fails.
-    const auto ringOf = [&](int string) {
+    const auto ring_of = [&](int string) {
         const common::core::ChartNote* const note =
             noteAt(live.notes, {.measure = 2, .beat = 1}, string);
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
 
     press(/*grow=*/true);
-    CHECK(ringOf(1) == common::core::Fraction{2});
-    CHECK(ringOf(2) == common::core::Fraction{2});
+    CHECK(ring_of(1) == common::core::Fraction{2});
+    CHECK(ring_of(2) == common::core::Fraction{2});
     press(/*grow=*/true);
-    CHECK(ringOf(1) == common::core::Fraction{3});
-    CHECK(ringOf(2) == common::core::Fraction{3});
+    CHECK(ring_of(1) == common::core::Fraction{3});
+    CHECK(ring_of(2) == common::core::Fraction{3});
 
     // A fourth beat would ring through the string-1 restrike, so that member pins at its bound
     // while its neighbour keeps going.
     press(/*grow=*/true);
-    CHECK(ringOf(1) == common::core::Fraction{3});
-    CHECK(ringOf(2) == common::core::Fraction{4});
+    CHECK(ring_of(1) == common::core::Fraction{3});
+    CHECK(ring_of(2) == common::core::Fraction{4});
 
     // Coming back, the pinned member leaves its bound on exactly the step that put it there — the
     // clamp never entered the replay, so it could not shorten the next step's starting value.
     press(/*grow=*/false);
-    CHECK(ringOf(1) == common::core::Fraction{3});
-    CHECK(ringOf(2) == common::core::Fraction{3});
+    CHECK(ring_of(1) == common::core::Fraction{3});
+    CHECK(ring_of(2) == common::core::Fraction{3});
     press(/*grow=*/false);
-    CHECK(ringOf(1) == common::core::Fraction{2});
-    CHECK(ringOf(2) == common::core::Fraction{2});
+    CHECK(ring_of(1) == common::core::Fraction{2});
+    CHECK(ring_of(2) == common::core::Fraction{2});
 
     // Back on the ring it started from, the gesture describes nothing, which is NoChange rather
     // than a plan describing nothing: the controller's answer is to take the gesture's undo entry
