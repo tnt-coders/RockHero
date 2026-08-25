@@ -144,6 +144,7 @@ private:
     [[nodiscard]] float targetLinearGain() const noexcept;
     void setTargetGainDb(float gain_db) noexcept;
     void setSmoothedGainTarget(float linear_gain) noexcept;
+    void seedSmoothedGainFromTarget() noexcept;
     void valueTreePropertyChanged(
         juce::ValueTree& changed_tree, const juce::Identifier& changed_property) override;
 

@@ -40,12 +40,11 @@ LiveRigGainPlugin::LiveRigGainPlugin(tracktion::PluginCreationInfo info)
     const Gain initial_gain = clampGain(Gain{static_cast<double>(m_gain_db.get())});
     m_gain_db = static_cast<float>(initial_gain.db);
     setTargetGainDb(static_cast<float>(initial_gain.db));
-    // Seeds the smoother's memory directly, mirroring initialise(). Routing through
-    // setSmoothedGainTarget here would make the constructor the one caller of an
+    // Seeds the smoother's memory directly, the same pairing initialise() performs. Routing
+    // through setSmoothedGainTarget here would make the constructor the one caller of an
     // audio-thread-only function -- and a no-op besides, since the epsilon guard sees the
     // default target unchanged.
-    m_last_target_linear_gain = targetLinearGain();
-    m_smoothed_gain.setCurrentAndTargetValue(m_last_target_linear_gain);
+    seedSmoothedGainFromTarget();
 }
 
 // Notifies Tracktion listeners before destruction.
@@ -109,12 +108,23 @@ int LiveRigGainPlugin::getNumOutputChannelsGivenInputs(int num_input_channels)
     return num_input_channels;
 }
 
+// Snaps the smoother onto the current target with no ramp, and remembers that target.
+//
+// The two writes are ONE act and live here alone: the remembered target is what the epsilon
+// guard in setSmoothedGainTarget compares against, so seeding the smoother without seeding the
+// memory (or the reverse) would make the next target change either a spurious ramp or a
+// silently dropped one. Construction and initialise() both start from the settled target.
+void LiveRigGainPlugin::seedSmoothedGainFromTarget() noexcept
+{
+    m_last_target_linear_gain = targetLinearGain();
+    m_smoothed_gain.setCurrentAndTargetValue(m_last_target_linear_gain);
+}
+
 // Prepares smoothing and starts from the current gain target.
 void LiveRigGainPlugin::initialise(const tracktion::PluginInitialisationInfo& info)
 {
     m_smoothed_gain.reset(info.sampleRate, g_smoothing_ramp_seconds);
-    m_last_target_linear_gain = targetLinearGain();
-    m_smoothed_gain.setCurrentAndTargetValue(m_last_target_linear_gain);
+    seedSmoothedGainFromTarget();
 }
 
 // Handles Tracktion graph reuse without allocating or mutating graph state.
