@@ -199,9 +199,9 @@ private:
     AtomicPlaybackClock m_playback_clock;
 
     // Message-thread republisher that refreshes audible playback time into the clock while the
-    // transport plays. Created on first boundary publish; started/stopped by boundary publishes
-    // so every play/pause/stop/load path keeps its lifecycle consistent. Reset explicitly in
-    // ~Engine before the edit dies because its tick dereferences m_edit.
+    // transport plays. Created on the first playing-state sync and started/stopped only by
+    // syncClockPlayingState(), so its lifecycle cannot disagree with the published flag. Reset
+    // explicitly in ~Engine before the edit dies because its tick dereferences m_edit.
     std::unique_ptr<juce::Timer> m_clock_republish_timer;
 
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
@@ -305,6 +305,17 @@ private:
     // Tears down the multi-tone rack state (instance removal is the track-plugin sweep's job).
     void resetToneRackState();
 
+    // Returns the loaded rig's rack, or null when no rig is loaded. The one authority for "a rig
+    // is loaded" on the tone-automation path: both the boundary resync's no-op and the port's
+    // typed refusal read it, so they cannot disagree about what a loadable rig is.
+    [[nodiscard]] tracktion::RackType* loadedToneRack() noexcept;
+
+    // Pushes a playhead position onto the loaded rig's tone automation, so branch gains and
+    // authored parameter lanes hold the value the curves say for that instant. The backend
+    // evaluates automation only while the graph renders blocks, so every playhead discontinuity
+    // must push instead. Does nothing without a loaded rig, the normal tone-less case.
+    void resyncToneAutomation(common::core::TimePosition position);
+
     // Starts the next plugin step: completes the load if all plugins are restored, otherwise
     // reports "Loading X" progress and yields before the heavy plugin construction.
     void beginNextPluginStep();
@@ -363,10 +374,16 @@ private:
     // Derives the current coarse transport state directly from Tracktion state.
     [[nodiscard]] TransportState currentTransportState() const noexcept;
 
-    // Publishes a message-thread boundary value into the playback clock: the given position, a
-    // fresh steady-clock capture stamp, and the current coarse playing flag. Also manages the
-    // playback republish timer so it runs exactly while the transport plays.
+    // Announces a playhead discontinuity at the given position: publishes it into the playback
+    // clock with a fresh steady-clock capture stamp and resyncs the loaded rig's tone automation.
+    // Every jump the audio graph did not render through goes here, so nothing that tracks the
+    // playhead can be left reading a pre-jump value. Message thread.
     void publishClockBoundary(common::core::TimePosition position);
+
+    // Publishes the coarse playing flag into the clock and runs the republish timer exactly while
+    // the transport plays. Called from both publishClockBoundary() and updateTransportState()
+    // because playback also starts and stops where the playhead does not move. Message thread.
+    void syncClockPlayingState(bool playing);
 
     // Republishes the current audible playback time into the clock with a fresh capture stamp.
     // Called by the republish timer at render-adjacent cadence while playing.
@@ -381,7 +398,10 @@ private:
     // Creates the edit and gives its two audio tracks explicit product roles.
     void createEdit();
 
-    // Derives coarse transport state from Tracktion and notifies listeners when it changes.
+    // Derives coarse transport state from Tracktion, syncs the clock's playing flag against it,
+    // and notifies listeners when it changes. Reached synchronously by the transport port's verbs
+    // and asynchronously by Tracktion's transport change broadcast, so it is the one seam that
+    // sees a stop or a resume issued anywhere in the engine.
     void updateTransportState();
 
     // Mirrors Tracktion transport and audio-device broadcasts into the project-owned surfaces.

@@ -16,6 +16,15 @@ TransportState Engine::Impl::currentTransportState() const noexcept
 void Engine::Impl::updateTransportState()
 {
     const TransportState current_state = currentTransportState();
+
+    // Ahead of the change guard on purpose. This is the only seam that sees playback stop or
+    // resume without the playhead moving -- a live-rig clear, save, or load releases the playback
+    // context in place, and the plugin host resumes the transport directly -- and none of those
+    // publishes a clock boundary. Gating the sync on the notified state changing would let the
+    // clock's own copy of the flag drift and never repair, which is the memo trap; the sync is an
+    // atomic store plus a timer check, so running it unconditionally costs nothing worth guarding.
+    syncClockPlayingState(current_state.playing);
+
     if (m_last_notified_transport_state == current_state)
     {
         return;
@@ -176,18 +185,23 @@ void Engine::pause()
 }
 
 // Moves Tracktion transport to the requested timeline position. Position-only motion is observed
-// through position(), not through the coarse state listener surface.
+// through position(), not through the coarse state listener surface. The boundary publish carries
+// the seek's other consequences, the tone-rig resync among them.
 void Engine::seek(common::core::TimePosition position)
 {
-    const double clamped_seconds = m_impl->clampToLoadedRange(position.seconds);
-    m_impl->m_edit->getTransport().setPosition(
-        tracktion::TimePosition::fromSeconds(clamped_seconds));
-    m_impl->publishClockBoundary(common::core::TimePosition{clamped_seconds});
+    auto& transport = m_impl->m_edit->getTransport();
+    transport.setPosition(
+        tracktion::TimePosition::fromSeconds(m_impl->clampToLoadedRange(position.seconds)));
 
-    // A seek is a playhead discontinuity: the tone rig follows automation only while the graph
-    // renders blocks, so push the new position through the sanctioned resync. A failure here just
-    // means no rig is loaded, the normal state for a tone-less arrangement.
-    static_cast<void>(setToneTimelinePosition(common::core::TimePosition{clamped_seconds}));
+    // Publish where the transport landed, not where the seek aimed. Tracktion writes the position
+    // property synchronously, so seeking to the end while playing runs the end-of-file auto-stop
+    // inside setPosition() above -- and that path has already rewound to zero and published its
+    // own boundary. Restating the requested position would then leave the clock, and the tone rack
+    // this drags with it, on end-of-song values with the playhead at the origin. play() and
+    // pause() read the transport back for the same reason.
+    m_impl->publishClockBoundary(
+        common::core::TimePosition{m_impl->clampToLoadedRange(
+            transport.getPosition().inSeconds())});
 }
 
 // v1 accepts exactly 1.0: real speed control arrives with practice mode's time-stretch work over

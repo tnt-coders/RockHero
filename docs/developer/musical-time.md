@@ -151,8 +151,14 @@ side-effecting `ITransport`:
 - `IPlaybackClock::snapshot()` returns `PlaybackClockSnapshot{position, capture time, rate,
   playing}` — wait-free from any thread (`AtomicPlaybackClock` stores integer nanoseconds and
   parts-per-million so every store is lock-free).
-- The engine publishes boundaries on every transport event and republishes at 60 Hz while
-  playing (`engine_clock.cpp`, `publishClockBoundary`).
+- The engine publishes a boundary at every playhead jump — construction, arrangement load,
+  arrangement clear, seek, play, pause, stop (`engine_clock.cpp`, `publishClockBoundary`). A
+  boundary also resyncs the loaded tone rig, because the backend evaluates automation only while
+  the graph renders blocks, so a jump made with no blocks rendering would leave every tone
+  parameter on its pre-jump value.
+- The playing flag and the 60 Hz republisher are a separate fact — playback can stop where the
+  playhead does not move — so they hang off `updateTransportState()` (`engine_transport.cpp`),
+  which sees stops issued outside the transport port too.
 - Consumers never use raw snapshots directly for animation: `PlaybackClockExtrapolator` advances
   the last snapshot to "now" with slew-limited correction and never moves backward during
   continuous play. The game's `FrameClock` wraps exactly this; the editor's vblank-driven views

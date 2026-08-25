@@ -552,6 +552,9 @@ public:
     tone switching and parameter automation truthful across a playhead jump made while the
     graph is not rendering blocks.
 
+    Transport motion resyncs the rig on its own: every transport discontinuity runs the same
+    push, so ITransport callers never need this method.
+
     \param position New playhead position to resync the rig against.
     \return Empty success, or a typed failure when no live rig is loaded.
     */

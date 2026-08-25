@@ -557,8 +557,9 @@ public:
         return {};
     }
 
-    // Seek resync is not session-driven: Engine::seek pushes the new position through this same
-    // port itself, so the session never calls it and the fake only has to satisfy the interface.
+    // Seek resync is not session-driven: the engine resyncs the rig itself at every playhead
+    // discontinuity, from inside its own clock boundary rather than through this port, so the
+    // session never calls this and the fake only has to satisfy the interface.
     [[nodiscard]] std::expected<void, common::audio::LiveRigError> setToneTimelinePosition(
         common::core::TimePosition /*position*/) override
     {
@@ -1079,7 +1080,6 @@ TEST_CASE(
                         .position =
                             common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}},
                         .norm_value = 0.25F,
-                        .curve_shape = 0.0F,
                     },
                     // A sub-beat position exercises the full musical-to-seconds conversion.
                     common::core::ToneAutomationPoint{
@@ -1090,7 +1090,6 @@ TEST_CASE(
                                 .offset = common::core::Fraction{1, 2},
                             },
                         .norm_value = 0.75F,
-                        .curve_shape = -0.5F,
                     },
                 },
         },
@@ -1102,7 +1101,6 @@ TEST_CASE(
                 common::core::ToneAutomationPoint{
                     .position = common::core::GridPosition{.measure = 1, .beat = 2, .offset = {}},
                     .norm_value = 0.5F,
-                    .curve_shape = 0.0F,
                 },
             },
         },
@@ -1150,7 +1148,6 @@ TEST_CASE(
         call.points.back().seconds ==
         Catch::Approx(tempo_map.secondsAtNote(2, 3, common::core::Fraction{1, 2})));
     CHECK(std::is_eq(call.points.back().norm_value <=> 0.75F));
-    CHECK(std::is_eq(call.points.back().curve_shape <=> -0.5F));
 }
 
 } // namespace rock_hero::game::core

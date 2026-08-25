@@ -77,6 +77,13 @@ std::expected<void, LiveRigError> Engine::prepareToneTimeline(
     return {};
 }
 
+// A rack is only ever assigned fully built, so a present optional holding a null rack type would
+// be a half-torn-down rig; returning null for it keeps that state harmless rather than fatal.
+tracktion::RackType* Engine::Impl::loadedToneRack() noexcept
+{
+    return m_tone_rack.has_value() ? m_tone_rack->rack_type.get() : nullptr;
+}
+
 // Pushes a playhead jump onto the rig's tone automation. Tracktion evaluates automation only while
 // the graph renders blocks (Plugin::applyToBufferWithAutomation), so a position change made with
 // the playback context released leaves every tone parameter reading its pre-jump value.
@@ -87,10 +94,27 @@ std::expected<void, LiveRigError> Engine::prepareToneTimeline(
 // setAutomatableParamPosition's lastTime dedupe and its isReadingAutomation() gate;
 // prepareToneTimeline pins that flag on, so there is nothing left to gate against. One call covers
 // the whole rig because every tone plugin and every branch gain lives inside the single rack.
+//
+// This is the only place a position reaches the rack: publishClockBoundary calls it for every
+// playhead discontinuity, and the port method below wraps the same call in its typed refusal.
+void Engine::Impl::resyncToneAutomation(common::core::TimePosition position)
+{
+    if (tracktion::RackType* const rack = loadedToneRack(); rack != nullptr)
+    {
+        rack->updateAutomatableParamPositions(
+            tracktion::TimePosition::fromSeconds(position.seconds));
+    }
+}
+
+// Port-level resync, for a caller that moves the playhead without going through the transport
+// port. Nothing in the tree does today: every transport discontinuity resyncs on its own through
+// publishClockBoundary, so a caller reaching here is asking for a resync no transport motion
+// implies. The typed refusal is all this adds over the helper — such a caller wants to be told
+// that no rig was loaded, where a transport boundary rightly ignores it.
 std::expected<void, LiveRigError> Engine::setToneTimelinePosition(
     common::core::TimePosition position)
 {
-    if (!m_impl->m_tone_rack.has_value() || m_impl->m_tone_rack->rack_type == nullptr)
+    if (m_impl->loadedToneRack() == nullptr)
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::InvalidRequest,
@@ -98,8 +122,7 @@ std::expected<void, LiveRigError> Engine::setToneTimelinePosition(
         }};
     }
 
-    m_impl->m_tone_rack->rack_type->updateAutomatableParamPositions(
-        tracktion::TimePosition::fromSeconds(position.seconds));
+    m_impl->resyncToneAutomation(position);
     return {};
 }
 

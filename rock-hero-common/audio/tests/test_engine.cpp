@@ -588,6 +588,82 @@ private:
     return gains;
 }
 
+// Branch-gain values a settled two-region schedule holds, and the slack allowed reading them back
+// through the parameter's current value.
+constexpr double g_audible_branch_gain = 1.0;
+constexpr double g_silent_branch_gain = 0.0;
+constexpr double g_branch_gain_tolerance = 1.0e-6;
+
+// Checks the loaded rig's two branch gains in load order, failing when the rack does not hold
+// exactly the two branches the resync tests load.
+void checkBranchGains(double first_branch_gain, double second_branch_gain)
+{
+    const std::vector<float> gains = readToneBranchGains();
+    CHECK(gains.size() == 2);
+    if (gains.size() != 2)
+    {
+        return;
+    }
+
+    CHECK_THAT(gains[0], Catch::Matchers::WithinAbs(first_branch_gain, g_branch_gain_tolerance));
+    CHECK_THAT(gains[1], Catch::Matchers::WithinAbs(second_branch_gain, g_branch_gain_tolerance));
+}
+
+// Mints two empty tones, loads them as a live rig, and returns the schedule that gives the first
+// branch [0, 4) and the second [4, 8). The positions the playhead-discontinuity tests jump to sit
+// well clear of the 10 ms crossfade at that boundary.
+//
+// Call this OUTSIDE runMessageThreadSteps: it asserts with REQUIRE, which the dispatch loop's
+// exception guard would swallow. The load itself completes inline through the synchronous yield
+// callback, so no dispatch loop is needed. Returns nothing when the load failed, having already
+// failed the test.
+[[nodiscard]] std::optional<std::vector<common::core::ToneSwitchRegion>> loadScheduledToneRig(
+    ILiveRig& live_rig, const std::filesystem::path& song_directory)
+{
+    const auto first_ref = live_rig.mintEmptyTone(song_directory);
+    const auto second_ref = live_rig.mintEmptyTone(song_directory);
+    REQUIRE(first_ref.has_value());
+    REQUIRE(second_ref.has_value());
+    if (!first_ref.has_value() || !second_ref.has_value())
+    {
+        return std::nullopt;
+    }
+
+    std::optional<std::expected<LiveRigLoadResult, LiveRigError>> loaded;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory,
+            .tone_document_refs = {*first_ref, *second_ref},
+            .audible_tone_ref = *first_ref,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&loaded](auto value) { loaded = std::move(value); });
+    REQUIRE(loaded.has_value());
+    if (!loaded.has_value())
+    {
+        return std::nullopt;
+    }
+    REQUIRE(loaded->has_value());
+    if (!loaded->has_value())
+    {
+        return std::nullopt;
+    }
+
+    return std::vector<common::core::ToneSwitchRegion>{
+        common::core::ToneSwitchRegion{
+            .time_range =
+                {.start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}},
+            .tone_document_ref = *first_ref,
+        },
+        common::core::ToneSwitchRegion{
+            .time_range =
+                {.start = common::core::TimePosition{4.0}, .end = common::core::TimePosition{8.0}},
+            .tone_document_ref = *second_ref,
+        },
+    };
+}
+
 } // namespace
 
 // Verifies normal app launches are not consumed as scanner child processes.
@@ -1871,88 +1947,105 @@ TEST_CASE("Engine seek resyncs the tone timeline", "[audio][engine][integration]
 {
     EngineTestHarness harness;
     const TemporarySongDirectory song_directory;
-    ILiveRig& live_rig = harness.engine;
     IToneTimelinePlayer& timeline = harness.engine;
     ITransport& transport = harness.engine;
 
-    const auto first_ref = live_rig.mintEmptyTone(song_directory.path());
-    const auto second_ref = live_rig.mintEmptyTone(song_directory.path());
-    REQUIRE(first_ref.has_value());
-    REQUIRE(second_ref.has_value());
-
-    std::optional<std::expected<LiveRigLoadResult, LiveRigError>> loaded;
-    live_rig.loadLiveRig(
-        LiveRigLoadRequest{
-            .song_directory = song_directory.path(),
-            .tone_document_refs = {*first_ref, *second_ref},
-            .audible_tone_ref = *first_ref,
-            .progress_callback = {},
-            .yield_callback = [](const auto& next) { next(); },
-        },
-        [&loaded](auto value) { loaded = std::move(value); });
-    REQUIRE(loaded.has_value());
-    if (!loaded.has_value())
+    const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
+        loadScheduledToneRig(harness.engine, song_directory.path());
+    if (!schedule.has_value())
     {
         return;
     }
-    REQUIRE(loaded->has_value());
 
-    // The first tone owns [0, 4) and the second [4, 8), so the sought positions below sit well
-    // clear of the 10 ms crossfade at the boundary.
-    const std::vector<common::core::ToneSwitchRegion> schedule{
-        common::core::ToneSwitchRegion{
-            .time_range =
-                {.start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}},
-            .tone_document_ref = *first_ref,
-        },
-        common::core::ToneSwitchRegion{
-            .time_range =
-                {.start = common::core::TimePosition{4.0}, .end = common::core::TimePosition{8.0}},
-            .tone_document_ref = *second_ref,
-        },
-    };
-
-    constexpr float audible = 1.0F;
-    constexpr float silent = 0.0F;
-    constexpr float gain_tolerance = 1.0e-6F;
     runMessageThreadSteps({
-        [&] { CHECK(timeline.prepareToneTimeline(song_directory.path(), schedule).has_value()); },
+        [&] { CHECK(timeline.prepareToneTimeline(song_directory.path(), *schedule).has_value()); },
         [&] {
             // Baking settles the rig at the transport's current position (still the origin), so
             // the first tone starts audible. This is the value the seek has to move: it is the
             // whole state the rig would otherwise keep, because with no playback context nothing
             // renders a block that would re-evaluate the curves.
-            const std::vector<float> baked_gains = readToneBranchGains();
-            CHECK(baked_gains.size() == 2);
-            if (baked_gains.size() == 2)
-            {
-                CHECK_THAT(baked_gains[0], Catch::Matchers::WithinAbs(audible, gain_tolerance));
-                CHECK_THAT(baked_gains[1], Catch::Matchers::WithinAbs(silent, gain_tolerance));
-            }
-
-            transport.seek(common::core::TimePosition{6.0});
+            checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
 
             // Deep inside the second tone's region: its branch is fully audible and the first
             // tone's branch is silent.
-            const std::vector<float> sought_gains = readToneBranchGains();
-            CHECK(sought_gains.size() == 2);
-            if (sought_gains.size() == 2)
-            {
-                CHECK_THAT(sought_gains[0], Catch::Matchers::WithinAbs(silent, gain_tolerance));
-                CHECK_THAT(sought_gains[1], Catch::Matchers::WithinAbs(audible, gain_tolerance));
-            }
+            transport.seek(common::core::TimePosition{6.0});
+            checkBranchGains(g_silent_branch_gain, g_audible_branch_gain);
 
             // And seeking back reverses it, so the resync tracks the curve rather than latching.
             transport.seek(common::core::TimePosition{1.0});
-            const std::vector<float> rewound_gains = readToneBranchGains();
-            CHECK(rewound_gains.size() == 2);
-            if (rewound_gains.size() == 2)
-            {
-                CHECK_THAT(rewound_gains[0], Catch::Matchers::WithinAbs(audible, gain_tolerance));
-                CHECK_THAT(rewound_gains[1], Catch::Matchers::WithinAbs(silent, gain_tolerance));
-            }
+            checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
         },
     });
+}
+
+// Verifies the stop-to-zero boundary resyncs the rig, not just a seek. Stop is a playhead
+// discontinuity like any other: it drops the position back to the origin, and with no playback
+// context nothing re-evaluates the curves, so the rig would keep the pre-stop tone audible unless
+// the boundary pushes the new position.
+TEST_CASE("Engine stop resyncs the tone timeline", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    IToneTimelinePlayer& timeline = harness.engine;
+    ITransport& transport = harness.engine;
+
+    const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
+        loadScheduledToneRig(harness.engine, song_directory.path());
+    if (!schedule.has_value())
+    {
+        return;
+    }
+
+    runMessageThreadSteps({
+        [&] { CHECK(timeline.prepareToneTimeline(song_directory.path(), *schedule).has_value()); },
+        [&] {
+            // Move the rig off the origin first, so the assertion after the stop can only pass
+            // because the stop itself dragged the automation back.
+            transport.seek(common::core::TimePosition{6.0});
+            checkBranchGains(g_silent_branch_gain, g_audible_branch_gain);
+
+            transport.stop();
+            CHECK_THAT(transport.position().seconds, Catch::Matchers::WithinAbs(0.0, 1.0e-9));
+            checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
+        },
+    });
+}
+
+// Verifies an arrangement load resyncs the rig. The load resets the playhead to the origin while
+// the rig stays loaded across it (a rig is session state, not arrangement state), so without the
+// boundary resync the rack would keep whatever tone the pre-load playhead had selected.
+//
+// Unlike its two siblings above this test runs no dispatch loop, and must not: the resync is
+// synchronous inside the load, while dispatching Tracktion's coalesced graph rebuild with the
+// fixture clip in place trips a vendored assert. The fixture is a loop with a root note in its
+// metadata, so Tracktion enables autoPitch on insert (tracktion_ClipOwner.cpp), and the resulting
+// pitch-sync reader is built by a call that moves a unique_ptr and reads it in the same argument
+// list (tracktion_WaveNode.cpp:2138), so the reader gets a null time-stretch source.
+TEST_CASE("Engine arrangement load resyncs the tone timeline", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    IToneTimelinePlayer& timeline = harness.engine;
+    ITransport& transport = harness.engine;
+    ISongAudio& audio = harness.engine;
+
+    const std::optional<std::vector<common::core::ToneSwitchRegion>> schedule =
+        loadScheduledToneRig(harness.engine, song_directory.path());
+    if (!schedule.has_value())
+    {
+        return;
+    }
+
+    REQUIRE(timeline.prepareToneTimeline(song_directory.path(), *schedule).has_value());
+
+    // Seek before the load, while no audio bounds the timeline. The fixture runs 4.0 s, so a
+    // post-load seek to 6.0 would clamp to 4.0 — the switch instant itself, mid-crossfade — and
+    // prove nothing.
+    transport.seek(common::core::TimePosition{6.0});
+    checkBranchGains(g_silent_branch_gain, g_audible_branch_gain);
+
+    (void)requireLoadedFixtureAudio(audio);
+    checkBranchGains(g_audible_branch_gain, g_silent_branch_gain);
 }
 
 // Verifies the rig load scans to completion and refuses ONCE with the complete missing-plugin
@@ -2398,6 +2491,28 @@ TEST_CASE("Engine clock publishes clamped seek positions", "[audio][engine][cloc
     CHECK(
         std::abs(harness.engine.position().seconds - harness.engine.snapshot().position.seconds) <
         1.0e-9);
+}
+
+// Seeking to the end while playing runs the end-of-file auto-stop inside Tracktion's synchronous
+// position write, which rewinds the transport to zero. The clock has to report where the transport
+// actually is: publishing the requested end position instead would strand the clock -- and the
+// tone rack a boundary publish drags with it -- on end-of-song values with the playhead at the
+// origin. Guarded on the transport actually entering play, which a headless device may refuse.
+TEST_CASE("Engine clock follows the auto-stop on a seek to the end", "[audio][engine][clock]")
+{
+    EngineTestHarness harness;
+    const common::core::TimeDuration duration = requireLoadedFixtureAudio(harness.engine);
+    REQUIRE(duration.seconds > 0.0);
+
+    harness.engine.play();
+    if (harness.engine.state().playing)
+    {
+        harness.engine.seek(common::core::TimePosition{duration.seconds});
+
+        CHECK(harness.engine.snapshot().position == common::core::TimePosition{});
+        CHECK(harness.engine.snapshot().position == harness.engine.position());
+        CHECK_FALSE(harness.engine.snapshot().playing);
+    }
 }
 
 // After each transport verb the clock's playing flag must agree with the listener-facing coarse

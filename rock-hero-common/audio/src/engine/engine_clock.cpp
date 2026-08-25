@@ -44,13 +44,36 @@ PlaybackClockSnapshot Engine::snapshot() const noexcept
     return m_impl->m_playback_clock.snapshot();
 }
 
-// Publishes a message-thread boundary value (construction, arrangement load, seek, play, pause,
-// stop) so the clock is useful before the first audio block and after playback ends. Boundary
-// publishes also own the republish timer's lifecycle: it runs exactly while playing.
+// The one authority for a playhead discontinuity (construction, arrangement load, arrangement
+// clear, seek, play, pause, stop). It publishes a message-thread boundary value so the clock is
+// useful before the first audio block and after playback ends, and resyncs the tone rig, which
+// follows its automation curves only while the graph renders blocks. Anything else that must
+// track the playhead across a jump belongs here too, for the same reason: this is the only place
+// that knows every jump happened.
+//
+// The playing flag is deliberately NOT that fact, and its authority is syncClockPlayingState()
+// below rather than this function: playback also stops where the playhead does not move -- a
+// live-rig clear, save, or load releases the playback context in place -- and no boundary fires
+// there, so updateTransportState() has to carry the flag. This function syncs it as well because
+// the end-of-file auto-stop publishes a boundary without notifying anyone synchronously.
 void Engine::Impl::publishClockBoundary(common::core::TimePosition position)
 {
     m_playback_clock.publishPosition(position, std::chrono::steady_clock::now().time_since_epoch());
-    const bool playing = currentTransportState().playing;
+    syncClockPlayingState(currentTransportState().playing);
+
+    // Costs one predicate on a tone-less session; a loaded rig gets its parameters dragged to the
+    // new position, which is what keeps rack values and the editor's readouts off a stale value
+    // after a stop or a load.
+    resyncToneAutomation(position);
+}
+
+// The one authority for the clock's playing flag and the republish timer, which are a single fact
+// -- "is the graph moving the playhead right now" -- and so are published together. Both call
+// sites reach it because neither alone sees every transition: a boundary publish covers the
+// auto-stop, which notifies nobody synchronously, and updateTransportState() covers a stop or a
+// resume issued outside the transport port, where the playhead never moves and no boundary fires.
+void Engine::Impl::syncClockPlayingState(bool playing)
+{
     m_playback_clock.publishPlaying(playing);
 
     if (m_clock_republish_timer == nullptr)
