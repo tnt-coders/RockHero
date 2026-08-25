@@ -32,9 +32,6 @@ struct ToneAutomationPointViewState
     /*! \brief Parameter value normalised to `[0, 1]`. */
     float norm_value{0.0F};
 
-    /*! \brief Segment shape toward the next point, in `[-1, 1]`; 0 is linear. */
-    float curve_shape{0.0F};
-
     /*!
     \brief Compares two point view states by their stored values.
     \param lhs Left-hand point view state.
@@ -45,11 +42,10 @@ struct ToneAutomationPointViewState
         const ToneAutomationPointViewState& lhs, const ToneAutomationPointViewState& rhs)
     {
         // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // seconds, norm_value, and curve_shape members. Exact equality is intended (the view echoes
-        // stored values back bit-identically for a dirty-checked republish).
+        // seconds and norm_value members. Exact equality is intended (the view echoes stored
+        // values back bit-identically for a dirty-checked republish).
         return lhs.position == rhs.position && std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.norm_value <=> rhs.norm_value) &&
-               std::is_eq(lhs.curve_shape <=> rhs.curve_shape);
+               std::is_eq(lhs.norm_value <=> rhs.norm_value);
     }
 };
 

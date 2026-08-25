@@ -103,13 +103,11 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
                     common::core::ToneAutomationPoint{
                         .position = {.measure = 1, .beat = 1, .offset = {}},
                         .norm_value = 0.2F,
-                        .curve_shape = 0.0F,
                     },
                     common::core::ToneAutomationPoint{
                         .position =
                             {.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}},
                         .norm_value = 0.8F,
-                        .curve_shape = 0.0F,
                     },
                 },
         },
@@ -119,7 +117,6 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
             .points = {common::core::ToneAutomationPoint{
                 .position = {.measure = 1, .beat = 1, .offset = {}},
                 .norm_value = 0.5F,
-                .curve_shape = 0.0F,
             }},
         },
     };

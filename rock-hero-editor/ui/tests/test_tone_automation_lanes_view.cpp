@@ -125,13 +125,11 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
             .position = {.measure = 1, .beat = 1, .offset = {}},
             .seconds = 0.0,
             .norm_value = 0.25F,
-            .curve_shape = 0.0F,
         },
         core::ToneAutomationPointViewState{
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .seconds = 2.0,
             .norm_value = 0.75F,
-            .curve_shape = 0.0F,
         },
     };
     core::ToneAutomationLaneViewState unresolved_lane;

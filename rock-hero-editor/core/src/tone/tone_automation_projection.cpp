@@ -185,7 +185,6 @@ ToneAutomationViewState makeToneAutomationViewState(
                         .position = point.position,
                         .seconds = secondsAtGridPosition(tempo_map, point.position),
                         .norm_value = point.norm_value,
-                        .curve_shape = point.curve_shape,
                     });
             }
         }

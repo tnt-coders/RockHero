@@ -69,9 +69,9 @@ TEST_CASE(
     const std::string param_id = parameters.front().param_id;
 
     const std::vector<AutomationCurvePoint> points{
-        AutomationCurvePoint{.seconds = 0.0, .norm_value = 0.25F, .curve_shape = 0.0F},
-        AutomationCurvePoint{.seconds = 1.5, .norm_value = 0.75F, .curve_shape = 0.0F},
-        AutomationCurvePoint{.seconds = 3.0, .norm_value = 1.0F, .curve_shape = 0.0F},
+        AutomationCurvePoint{.seconds = 0.0, .norm_value = 0.25F},
+        AutomationCurvePoint{.seconds = 1.5, .norm_value = 0.75F},
+        AutomationCurvePoint{.seconds = 3.0, .norm_value = 1.0F},
     };
     REQUIRE(writePluginParameterCurve(*plugin, param_id, points));
 
@@ -85,14 +85,21 @@ TEST_CASE(
         {
             CHECK(read_back->at(index).seconds == Catch::Approx(points[index].seconds));
             CHECK(read_back->at(index).norm_value == Catch::Approx(points[index].norm_value));
-
-            // Segment shape is asserted against the derivation rule, not against the written
-            // point: the write seam derives shape from the parameter, writing holds only for a
-            // stepped one. This stand-in is continuous, so its segments must stay exactly linear
-            // ramps — a discreteValueCount change that starts reporting steps for a plain knob
-            // fails loudly here instead of silently re-shaping every continuous curve.
-            CHECK_THAT(read_back->at(index).curve_shape, Catch::Matchers::WithinULP(0.0F, 0));
         }
+    }
+
+    // Segment shape left the port's vocabulary, so it is asserted against the backend curve where
+    // the write seam derives it: this stand-in is continuous, so every segment must be exactly a
+    // linear ramp. A discreteValueCount change that starts reporting steps for a plain knob fails
+    // loudly here instead of silently re-shaping every continuous curve.
+    const tracktion::AutomatableParameter::Ptr parameter =
+        plugin->getAutomatableParameterByID(juce::String{param_id});
+    REQUIRE(parameter != nullptr);
+    const tracktion::AutomationCurve& curve = parameter->getCurve();
+    REQUIRE(curve.getNumPoints() == static_cast<int>(points.size()));
+    for (int index = 0; index < curve.getNumPoints(); ++index)
+    {
+        CHECK_THAT(curve.getPointCurve(index), Catch::Matchers::WithinULP(0.0F, 0));
     }
 }
 
@@ -105,8 +112,8 @@ TEST_CASE(
     const std::string param_id = listChainAutomatableParameters(chain).front().param_id;
 
     const std::vector<AutomationCurvePoint> points{
-        AutomationCurvePoint{.seconds = 0.5, .norm_value = 0.3F, .curve_shape = 0.0F},
-        AutomationCurvePoint{.seconds = 2.0, .norm_value = 0.6F, .curve_shape = 0.0F},
+        AutomationCurvePoint{.seconds = 0.5, .norm_value = 0.3F},
+        AutomationCurvePoint{.seconds = 2.0, .norm_value = 0.6F},
     };
     REQUIRE(writePluginParameterCurve(*plugin, param_id, points));
     REQUIRE(writePluginParameterCurve(*plugin, param_id, {}));
@@ -162,7 +169,7 @@ TEST_CASE("Unresolved parameter ids fail cleanly", "[audio][tone-automation]")
     CHECK_FALSE(readPluginParameterCurve(*plugin, "not-a-real-parameter").has_value());
 
     const std::vector<AutomationCurvePoint> points{
-        AutomationCurvePoint{.seconds = 0.0, .norm_value = 0.5F, .curve_shape = 0.0F},
+        AutomationCurvePoint{.seconds = 0.0, .norm_value = 0.5F},
     };
     CHECK_FALSE(writePluginParameterCurve(*plugin, "not-a-real-parameter", points));
 }

@@ -19,6 +19,11 @@ namespace rock_hero::common::core
 
 The musical position is the source of truth; playback seconds are derived through the song tempo
 map, so points follow grid and tempo-map edits.
+
+A point carries no segment shape: the shape between two points is derived at the backend write
+seam from the parameter itself (a stepped parameter holds, a continuous one ramps linearly), so
+there is nothing per point to author or persist. Authored curve shapes are a planned continuous-
+parameter feature — see `docs/plans/todo/authored-curve-shapes.md`.
 */
 struct ToneAutomationPoint
 {
@@ -27,9 +32,6 @@ struct ToneAutomationPoint
 
     /*! \brief Parameter value normalised to `[0, 1]`. */
     float norm_value{0.0F};
-
-    /*! \brief Segment shape toward the next point, in `[-1, 1]`; 0 is linear. */
-    float curve_shape{0.0F};
 
     /*!
     \brief Compares two automation points for equal value.
@@ -41,10 +43,9 @@ struct ToneAutomationPoint
         const ToneAutomationPoint& lhs, const ToneAutomationPoint& rhs) noexcept
     {
         // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // floating members. Exact equality is intended; the ordering query expresses it warning-
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
         // free with identical semantics (NaN compares unequal either way).
-        return lhs.position == rhs.position && std::is_eq(lhs.norm_value <=> rhs.norm_value) &&
-               std::is_eq(lhs.curve_shape <=> rhs.curve_shape);
+        return lhs.position == rhs.position && std::is_eq(lhs.norm_value <=> rhs.norm_value);
     }
 };
 
@@ -81,7 +82,7 @@ struct ToneParameterAutomation
 
 Rules: non-empty plugin and parameter ids; at least one point; points at valid grid positions for
 \p tempo_map (existing measure/beat, offset in `[0, 1)`); strictly ascending positions; normalised
-values in `[0, 1]`; curve shapes in `[-1, 1]`.
+values in `[0, 1]`.
 
 \param automation Entry to check.
 \param tempo_map Tempo map that defines the valid musical grid.

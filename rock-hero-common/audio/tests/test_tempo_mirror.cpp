@@ -198,8 +198,8 @@ TEST_CASE(
     REQUIRE_FALSE(parameters.empty());
     const std::string param_id = parameters.front().param_id;
     const std::vector<AutomationCurvePoint> points{
-        AutomationCurvePoint{.seconds = 0.5, .norm_value = 0.25F, .curve_shape = 0.0F},
-        AutomationCurvePoint{.seconds = 2.5, .norm_value = 0.75F, .curve_shape = 0.0F},
+        AutomationCurvePoint{.seconds = 0.5, .norm_value = 0.25F},
+        AutomationCurvePoint{.seconds = 2.5, .norm_value = 0.75F},
     };
     REQUIRE(writePluginParameterCurve(*plugin, param_id, points));
 

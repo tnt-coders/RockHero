@@ -1494,7 +1494,6 @@ std::vector<common::core::ToneAutomationPoint> EditorController::Impl::
     const common::core::ToneAutomationPoint edited{
         .position = drag.preview_position,
         .norm_value = drag.preview_value,
-        .curve_shape = drag.is_new_point ? 0.0F : drag.points[drag.point_index].curve_shape,
     };
     const auto insert_at =
         std::ranges::find_if(points, [&edited](const common::core::ToneAutomationPoint& candidate) {

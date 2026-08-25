@@ -65,9 +65,9 @@ struct [[nodiscard]] AutomatableParamInfo
 \brief One automation curve point in edit-timeline seconds with a normalised value.
 
 \ref seconds is an absolute edit-timeline position; editor-core converts to and from musical
-positions through the song tempo map. \ref norm_value is normalised to `[0, 1]`. \ref curve_shape
-is the segment shape toward the next point, in `[-1, 1]` (0 is linear), and applies to a
-continuous parameter only — a stepped parameter's segments are always written as holds.
+positions through the song tempo map. \ref norm_value is normalised to `[0, 1]`. A point carries
+no segment shape: the shape between two points is the backend's own derivation from the parameter
+(see \ref IToneAutomation::writeParameterCurve).
 */
 struct [[nodiscard]] AutomationCurvePoint
 {
@@ -76,14 +76,6 @@ struct [[nodiscard]] AutomationCurvePoint
 
     /*! \brief Parameter value normalised to `[0, 1]`. */
     float norm_value{0.0F};
-
-    /*!
-    \brief Segment shape toward the next point, in `[-1, 1]`; 0 is linear.
-
-    Honoured for a continuous parameter only. A stepped parameter's segments are written as holds
-    whatever this says, so for one of those the value written here is not the value read back.
-    */
-    float curve_shape{0.0F};
 
     /*!
     \brief Compares two curve points by their stored values.
@@ -98,8 +90,7 @@ struct [[nodiscard]] AutomationCurvePoint
         // floating members. Exact equality is intended; the ordering query expresses it warning-
         // free with identical semantics (NaN compares unequal either way).
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
-               std::is_eq(lhs.norm_value <=> rhs.norm_value) &&
-               std::is_eq(lhs.curve_shape <=> rhs.curve_shape);
+               std::is_eq(lhs.norm_value <=> rhs.norm_value);
     }
 };
 
@@ -131,10 +122,6 @@ public:
     /*!
     \brief Reads the current automation curve points for one parameter.
 
-    Not the inverse of writeParameterCurve for \ref AutomationCurvePoint::curve_shape: a stepped
-    parameter's segments are written as holds, so every point of one reads back with shape `1`
-    whatever was written. Position and value do round-trip.
-
     \param tone_document_ref One of the tone references currently loaded into the live rig.
     \param instance_id Plugin instance whose parameter is read.
     \param param_id Parameter id within that plugin.
@@ -152,11 +139,10 @@ public:
     The existing curve is cleared and rebuilt from \p points; passing an empty span removes the
     curve. Points must be in ascending time. Editing while the transport plays is safe.
 
-    Segment shape is derived from the parameter rather than taken from \p points when the
-    parameter is stepped: its segments are written as holds so the backend steps at each point
-    instead of ramping into it, which would cross the plugin's own flip threshold early. Each
-    point's \ref AutomationCurvePoint::curve_shape is therefore honoured for a continuous
-    parameter only.
+    Segment shape is derived from the parameter, never carried by \p points: a stepped parameter's
+    segments are written as holds so the backend steps at each point instead of ramping into it,
+    which would cross the plugin's own flip threshold early, and a continuous parameter's segments
+    are written as linear ramps.
 
     \param tone_document_ref One of the tone references currently loaded into the live rig.
     \param instance_id Plugin instance whose parameter is written.

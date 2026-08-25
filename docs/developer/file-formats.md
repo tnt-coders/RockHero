@@ -120,9 +120,15 @@ unrepresentable. Region ids are session-scoped and never persisted. A `toneChang
 from `tones[]` is normalized in as an unnamed catalog entry.
 
 `toneAutomation[]`: `{plugin, param, points[]}` with at most one entry per (plugin, param);
-points are `{position: <grid token>, value: <normalized number>, shape}` (`shape` optional,
-`0` = linear, omitted on write when 0). Musical positions are the persisted truth; seconds are
-derived caches.
+points are `{position: <grid token>, value: <normalized number>}`. Musical positions are the
+persisted truth; seconds are derived caches. A point carries **no segment shape**: the shape
+between two points is derived at the Tracktion write seam from the parameter itself (stepped
+holds, continuous ramps linearly), so there is nothing per point to author or persist. The
+removed `shape` key is the one removed key that is **ignored** rather than refused — a refusal
+tripwire exists to stop a package whose authored data a reader would now silently discard, and
+`shape` was never authorable, so no package can carry one; nothing to re-import means nothing to
+fail loudly about. Authored shapes are a planned continuous-parameter feature
+(`docs/plans/todo/authored-curve-shapes.md`).
 
 *Design in flux: `toneAutomation` (and its interaction with `toneChanges`) belongs to the active
 automation plan (`docs/plans/completed/tone-parameter-automation-plan.md`).*
@@ -227,10 +233,10 @@ never in the manifest (see \ref guide_project_lifecycle).
   dropped-incomplete normalization, missing catalogs, defaulted fields) and reject only
   structural violations (bad ids, missing referenced files, malformed tokens, unknown enums,
   tempo-map rule breaks, non-FLAC audio).
-- **Round-trip stability**: default-valued optionals (`startOffset` 0, automation `shape` 0, FHP
-  `width` 4, false booleans, pick attacks) are omitted on write, so packages that predate a
-  feature round-trip byte-for-byte. ABSENT is what defaults — `startOffset` and automation
-  `shape` present with the wrong type are refused, not silently defaulted, because a wrong type is
-  a malformed document rather than an old one.
+- **Round-trip stability**: default-valued optionals (`startOffset` 0, FHP `width` 4, false
+  booleans, pick attacks) are omitted on write, so packages that predate a feature round-trip
+  byte-for-byte. ABSENT is what defaults — a `startOffset` present with the wrong type is
+  refused, not silently defaulted, because a wrong type is a malformed document rather than an
+  old one.
 - Save validates every chart/tone reference *before* any side effect, so a bad reference fails
   cleanly with nothing half-written.

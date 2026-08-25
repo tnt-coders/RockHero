@@ -1094,13 +1094,11 @@ TEST_CASE("Rock song package round-trips tone parameter automation", "[core][roc
                 ToneAutomationPoint{
                     .position = GridPosition{.measure = 1, .beat = 1, .offset = {}},
                     .norm_value = 0.25F,
-                    .curve_shape = 0.0F,
                 },
-                // A sub-beat position and non-linear shape exercise the full point grammar.
+                // A sub-beat position exercises the full point-position grammar.
                 ToneAutomationPoint{
                     .position = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
                     .norm_value = 0.75F,
-                    .curve_shape = -0.5F,
                 },
             },
         },
@@ -1136,12 +1134,10 @@ TEST_CASE(
                 ToneAutomationPoint{
                     .position = GridPosition{.measure = 2, .beat = 1, .offset = {}},
                     .norm_value = 0.5F,
-                    .curve_shape = 0.0F,
                 },
                 ToneAutomationPoint{
                     .position = GridPosition{.measure = 1, .beat = 1, .offset = {}},
                     .norm_value = 0.5F,
-                    .curve_shape = 0.0F,
                 },
             },
         },
@@ -1923,9 +1919,11 @@ TEST_CASE("Rock song package rejects duplicate section positions", "[core][rock-
     CHECK(read_song.error().message.find("sorted") != std::string::npos);
 }
 
-// Verifies a present-but-non-numeric automation shape is refused rather than read as the linear
-// default, which would silently straighten an authored curve.
-TEST_CASE("Rock song package rejects a non-numeric automation shape", "[core][rock-song-package]")
+// Pins the removed automation "shape" key as IGNORED, not refused — the opposite of the chart's
+// removed keys. A refusal tripwire protects authored data a reader would otherwise discard
+// silently, and shape was never authorable, so no package can carry any; the reader's standing
+// normalize-don't-reject rule governs instead. Any value, even a wrong-typed one, loads clean.
+TEST_CASE("Rock song package ignores a stale automation shape key", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -1964,9 +1962,14 @@ TEST_CASE("Rock song package rejects a non-numeric automation shape", "[core][ro
 
     const auto read_song = readSong(package_directory);
 
-    REQUIRE_FALSE(read_song.has_value());
-    CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
-    CHECK(read_song.error().message.find("shape") != std::string::npos);
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    const std::vector<ToneParameterAutomation>& automation =
+        read_song->arrangements.front().tone_automation;
+    REQUIRE(automation.size() == 1);
+    REQUIRE(automation.front().points.size() == 1);
+    CHECK(automation.front().points.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK_THAT(automation.front().points.front().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
 }
 
 } // namespace rock_hero::common::core

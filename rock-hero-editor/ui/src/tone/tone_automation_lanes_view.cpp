@@ -80,7 +80,6 @@ constexpr float g_unresolved_alpha = 0.35f;
             rock_hero::common::core::ToneAutomationPoint{
                 .position = point.position,
                 .norm_value = point.norm_value,
-                .curve_shape = point.curve_shape,
             });
     }
     return points;
@@ -1644,8 +1643,8 @@ void ToneAutomationLanesView::requestPointDelete(
 }
 
 // Emits the points-edit intent that replaces one point's position and value, echoing every other
-// point bit-identically and keeping the edited point's curve shape. Selects the edited point at
-// its new position before committing, so the synchronous state push keeps it selected.
+// point bit-identically. Selects the edited point at its new position before committing, so the
+// synchronous state push keeps it selected.
 void ToneAutomationLanesView::requestPointReplace(
     const std::string& instance_id, const std::string& param_id,
     const common::core::GridPosition& position, const common::core::GridPosition& new_position,
@@ -1657,11 +1656,11 @@ void ToneAutomationLanesView::requestPointReplace(
         {
             continue;
         }
-        const auto target =
-            std::ranges::find_if(lane.points, [&](const core::ToneAutomationPointViewState& p) {
+        const bool replaces_a_point =
+            std::ranges::any_of(lane.points, [&](const core::ToneAutomationPointViewState& p) {
                 return p.position == position;
             });
-        if (target == lane.points.end())
+        if (!replaces_a_point)
         {
             return;
         }
@@ -1671,7 +1670,6 @@ void ToneAutomationLanesView::requestPointReplace(
             common::core::ToneAutomationPoint{
                 .position = new_position,
                 .norm_value = new_value,
-                .curve_shape = target->curve_shape,
             });
         m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
         // Re-announce the selection at the edited point's new identity: the edit's state push

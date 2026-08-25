@@ -273,9 +273,7 @@ TEST_CASE(
     AutomationEditor editor;
     const std::vector<common::core::ToneAutomationPoint> points{
         common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
-        common::core::ToneAutomationPoint{
-            .position = pointAt(2, 1, 1), .norm_value = 0.8F, .curve_shape = 0.0F
-        },
+        common::core::ToneAutomationPoint{.position = pointAt(2, 1, 1), .norm_value = 0.8F},
     };
 
     editor.controller.onToneAutomationPointsEditRequested(g_instance, g_param, points);

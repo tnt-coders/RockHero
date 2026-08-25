@@ -193,7 +193,6 @@ std::optional<std::vector<AutomationCurvePoint>> readPluginParameterCurve(
             AutomationCurvePoint{
                 .seconds = curve.getPointTime(index).inSeconds(),
                 .norm_value = parameter->valueRange.convertTo0to1(curve.getPointValue(index)),
-                .curve_shape = curve.getPointCurve(index),
             });
     }
     return points;
@@ -218,9 +217,9 @@ bool writePluginParameterCurve(
     // reaches the plugin raw and flips it at the plugin's own threshold - roughly halfway through
     // the gap back to the previous point, which is early by a gap-dependent amount, and a
     // multi-state parameter additionally sweeps through every state in between. Discreteness is
-    // the plugin's fact, not the chart's, so it is derived here at the one write seam rather than
-    // stored on every authored point.
-    const bool steps_between_points = discreteValueCount(*parameter) > 0;
+    // the plugin's fact, not the chart's, so shape is derived here at the one write seam and no
+    // point carries one.
+    const float segment_shape = discreteValueCount(*parameter) > 0 ? 1.0F : 0.0F;
 
     // RockHero owns undo through point-list mementos, so every backend edit passes a null undo
     // manager. Clearing then re-adding the whole point list is the simplest correct write.
@@ -231,7 +230,7 @@ bool writePluginParameterCurve(
         curve.addPoint(
             tracktion::EditPosition{tracktion::TimePosition::fromSeconds(point.seconds)},
             parameter->valueRange.convertFrom0to1(point.norm_value),
-            steps_between_points ? 1.0F : point.curve_shape,
+            segment_shape,
             nullptr);
     }
     return true;

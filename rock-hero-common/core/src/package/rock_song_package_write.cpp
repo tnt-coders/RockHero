@@ -243,7 +243,8 @@ struct ArrangementDocumentEntry
 
 // Renders one plugin-parameter automation entry with its points inline. Musical positions are the
 // persisted truth (runtime seconds are derived through the tempo map), so points serialize as
-// grid-position tokens; the linear default shape is omitted.
+// grid-position tokens. A point is a position and a value only: segment shape is derived from the
+// parameter at the backend write seam, never stored.
 [[nodiscard]] std::string formatToneAutomationLine(const ToneParameterAutomation& automation)
 {
     std::string line = "{ \"plugin\": ";
@@ -262,11 +263,6 @@ struct ArrangementDocumentEntry
         line += jsonString(formatGridPositionToken(point.position));
         line += ", \"value\": ";
         line += formatJsonDouble(point.norm_value);
-        if (std::is_neq(point.curve_shape <=> 0.0F))
-        {
-            line += ", \"shape\": ";
-            line += formatJsonDouble(point.curve_shape);
-        }
         line += " }";
     }
     line += " ] }";

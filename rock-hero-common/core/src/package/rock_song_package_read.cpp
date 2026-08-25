@@ -683,25 +683,16 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                 }};
             }
 
-            // The writer omits the linear default, so an absent shape means 0. A PRESENT but
-            // non-numeric shape is refused rather than read as 0, which would silently straighten
-            // an authored curve; the range and finiteness of a numeric one are
-            // validateToneAutomationEntries' business below.
-            const juce::var& shape_json = Json::value(point_json, "shape");
-            const auto shape = Json::tryReadDouble(point_json, "shape");
-            if (!shape_json.isVoid() && !shape.has_value())
-            {
-                return std::unexpected{SongPackageError{
-                    SongPackageErrorCode::InvalidArrangement,
-                    "toneAutomation point shape must be a number at " + *position_text,
-                }};
-            }
-
+            // The removed "shape" key is IGNORED rather than refused, unlike the chart's removed
+            // keys. A refusal tripwire exists to stop a package whose authored data would now be
+            // silently discarded, and no package can carry that data: shape was never authorable,
+            // stayed 0 at every producer, and the writer omitted it at 0, so it was never written.
+            // Nothing to re-import means nothing to fail loudly about, and the reader's standing
+            // rule (normalize, don't reject) governs.
             entry.points.push_back(
                 ToneAutomationPoint{
                     .position = *position,
                     .norm_value = static_cast<float>(*value),
-                    .curve_shape = static_cast<float>(shape.value_or(0.0)),
                 });
         }
 

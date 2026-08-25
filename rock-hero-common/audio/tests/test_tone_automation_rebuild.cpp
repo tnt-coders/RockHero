@@ -32,7 +32,6 @@ using testing::ToneAutomationWriteCall;
             common::core::ToneAutomationPoint{
                 .position = common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}},
                 .norm_value = 0.25F,
-                .curve_shape = 0.0F,
             },
             common::core::ToneAutomationPoint{
                 .position =
@@ -42,7 +41,6 @@ using testing::ToneAutomationWriteCall;
                         .offset = common::core::Fraction{1, 2},
                     },
                 .norm_value = 0.75F,
-                .curve_shape = -0.5F,
             },
         },
     };
@@ -98,12 +96,10 @@ TEST_CASE(
     REQUIRE(points.size() == 2);
     CHECK(points.front().seconds == Catch::Approx(tempo_map.secondsAtNote(1, 1, {})));
     CHECK(std::is_eq(points.front().norm_value <=> 0.25F));
-    CHECK(std::is_eq(points.front().curve_shape <=> 0.0F));
     CHECK(
         points.back().seconds ==
         Catch::Approx(tempo_map.secondsAtNote(2, 3, common::core::Fraction{1, 2})));
     CHECK(std::is_eq(points.back().norm_value <=> 0.75F));
-    CHECK(std::is_eq(points.back().curve_shape <=> -0.5F));
 }
 
 TEST_CASE(

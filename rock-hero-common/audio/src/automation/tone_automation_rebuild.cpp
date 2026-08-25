@@ -43,7 +43,6 @@ std::vector<AutomationCurvePoint> derivedToneCurvePoints(
                 .seconds = tempo_map.secondsAtNote(
                     point.position.measure, point.position.beat, point.position.offset),
                 .norm_value = point.norm_value,
-                .curve_shape = point.curve_shape,
             });
     }
     return curve_points;

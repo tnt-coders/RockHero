@@ -111,10 +111,10 @@ TEST_CASE("Tone track rules reject invalid beats and ids and refs", "[core][tone
     CHECK(result.error().code == ToneTrackErrorCode::InvalidToneDocumentRef);
 }
 
-// The range guard is written as ranges the value must be INSIDE because every comparison against
+// The range guard is written as a range the value must be INSIDE because every comparison against
 // NaN is false: the excursion form accepted NaN, and the writer then emitted the bare token nan,
 // which bricked song.json. This validator is the only thing between a captured point and the file.
-TEST_CASE("Tone automation refuses non-finite point values", "[core][tone]")
+TEST_CASE("Tone automation refuses a non-finite point value", "[core][tone]")
 {
     const TempoMap tempo_map = makeTempoMap();
     ToneParameterAutomation automation{
@@ -123,16 +123,11 @@ TEST_CASE("Tone automation refuses non-finite point values", "[core][tone]")
         .points = {ToneAutomationPoint{
             .position = {.measure = 1, .beat = 1},
             .norm_value = 0.5F,
-            .curve_shape = 0.0F,
         }},
     };
     CHECK(isValidToneParameterAutomation(automation, tempo_map));
 
     automation.points.front().norm_value = std::numeric_limits<float>::quiet_NaN();
-    CHECK_FALSE(isValidToneParameterAutomation(automation, tempo_map));
-
-    automation.points.front().norm_value = 0.5F;
-    automation.points.front().curve_shape = std::numeric_limits<float>::quiet_NaN();
     CHECK_FALSE(isValidToneParameterAutomation(automation, tempo_map));
 }
 
