@@ -1,0 +1,735 @@
+# Arpeggio Authoring — The Held Shape a Note Stream Cannot State
+
+Status: **STORAGE DECIDED — option F, the fret-optional hold marker.** The one fork this document
+was written around was ruled 2026-08-25 (β stays in scope), so what remains below is not a menu: it
+is the record of why F, plus the build plan's pre-work list. Still not itself a build plan. The
+chord is final (`Shift+A`); **the verb's semantics are proposed, not ruled** — v1 was rejected and
+v2 (caret-anchored) awaits the final nod under option F.
+
+Written 2026-08-24 against `master` and reworked the same day against an adversarial review that
+re-verified every code citation and re-ran the corpus scan independently. The review's verdict on
+the first draft was that it **did not survive as written**: the framing axis was right, the code
+citations were right, but the recommended option authored a fret that is derivable in the case the
+user actually reported, the edit-consistency surface was unexamined, and the corpus table did not
+reproduce. Every correction is folded in below. Corpus counts are the re-run's, not the first
+draft's.
+
+## The scenario
+
+The fretting hand takes a full shape at an onset and holds it, but one member string is not struck
+until later. The user, 2026-08-25:
+
+> the only way we can guarantee that we can show arpeggio notation at the INITIAL onset of the
+> shape when a note in that shape doesn't show up until later in the note highway but the shape
+> should be held before then.
+
+Nothing sounds on that string before its strike. There is no ring to cross the onset, no onset to
+group with, no tail to fold in. The note stream contains no trace of the finger being down.
+
+Two variants, and they are not the same problem:
+
+- **(α) sounds later.** The member is struck at some later onset. A note exists; only its
+  *earlier* presence is missing. **This is the case the user reported.**
+- **(β) never sounds.** The member is held for the whole span and never picked — the ordinary
+  full-barre-under-a-four-string-pattern case. No note exists at all.
+
+The distance between α and β is the whole design. In α a note already carries the fret; in β
+nothing does. Whether β must be expressible at all was this document's one fork — **it is now
+ruled in**, so both cases ship, and the α/β split becomes a seam *inside* the chosen mechanism
+rather than a choice *between* mechanisms.
+
+## The fork, ruled — and the rulings around it
+
+Three things are decided and are not re-litigated below. The first decides the document.
+
+**(β) stays in scope — RULED 2026-08-25 (user).** The question was whether the chart must be able
+to state a fretting-hand member that never sounds anywhere in the span. Verbatim:
+
+> Yes it must. sometimes you hold the shape and never play a note in it. That is a real case.
+
+**This collapses the recommendation to option F, the fret-optional hold marker** — and specifically
+not the first draft's fret-carrying "silent stop" (option D), which authors a derivable fret in
+case α. Every conditional the rest of this document was written around is closed by that sentence.
+
+**Option A's storage does not lose; it survives inside F.** A marker with no fret **is** the
+relational claim A described — same storage of a *when* and not a *what*, same read-time
+resolution, same graceful degrade when nothing justifies it — and it is exactly what F stores in
+case α. What the ruling buys, and what A alone could never have given, is the authored fret in the
+one place no note can ever state it. (A's *gesture* — reach for the late note — did not survive;
+see the rejected v1 under the verb proposal. Only its record shape did.) So the option survey below
+is now the record of *why* F, not a menu, and the edit-consistency scoring is read as F's cost
+sheet rather than as a tiebreaker.
+
+**The chord is final: `Shift+A`** — **SIGNED 2026-08-25**, carried by
+`docs/plans/in-progress/keymap-matrix.md:246`. The verb is unbuilt, but the chord is not
+provisional and is not to be re-opened when the verb lands. It reads as A-for-arpeggio riding the
+`Shift` collision plane, not as an accent sibling. It displaced the heavy-accent reservation
+(`:247`), whose plan of record moved to a plain-`A` emphasis cycle (`:244`) on the ground that a
+magnitude is a step on an axis, not a sibling technique. §8's "a hotkey" therefore has its answer,
+and the letter-map question is closed.
+
+**Growth by a new string keeps splitting** (2026-08-25, user ruling; closes side question (i)
+below). The warrant is the user's, and it is stronger than the first draft's: *the
+partial-shape-then-add-finger gesture is legitimate and common.* Identical notes carry both hand
+intents, so the derivation's default must notate the literal notes and the verb must author the
+exception. This is not a side ruling — it is this document's thesis in the user's words, and it is
+why no read-time rule can ever recover the fact.
+
+## What the derivation does today
+
+`deriveChartShapes` (`rock-hero-common/core/src/chart/chart_shapes.cpp`) walks onset groups and
+keys an open span by its **articulation vector** — each string's whole presented note with position
+and duration neutralised (`articulationOf`, `:31`). A span continues only while the vector is
+identical (`:205`); anything else closes it (`:212`) and opens a new one.
+
+Three branches decide an onset's effect, on the count of *fretting-hand* strikes in it:
+
+| Branch | Line | Effect on the open span |
+|---|---|---|
+| `struck == 0` (tap-only onset) | `:167` | **transparent** — the span survives untouched |
+| `struck >= 2` (chord) | `:175` | continue if the articulation vector matches, else **close + reopen** |
+| `struck == 1` (lone note) | `:226` | **close**, unconditionally |
+
+Ring-through lives inside the `struck >= 2` branch only (`:178`–`:187`): a string with no strike at
+this onset whose previous note's **stored** ring crosses it folds its articulation in, so the held
+note joins the posture. It folds only the most recent note per string.
+`chartShapeArrivals` (`:247`) then classifies the span, asking the **presented** ring: fewer than
+two notes at the start (`:282`), any picking-hand onset inside the span (`:289`), or a posture
+string ringing unstruck at the start (`:307`) all make it an arpeggio.
+
+### Which sub-cases the rings actually cover
+
+Take an opening strum of two or more strings with long rings, and ask what happens when the missing
+member finally sounds.
+
+1. **Late member struck alone, others still ringing.** `struck == 1` → `:226` **closes the span at
+   the exact onset the shape is completed.** The late note joins no posture, gets no bracket, and
+   the span that preceded it never mentioned its fret. This is the motivating case, and the
+   derivation's answer is worse than "incomplete": the span dies at the moment of interest.
+2. **Late member struck inside a chord onset, others ringing.** Ring-through folds the ringing
+   members in, so the articulation vector *grows* by one entry → mismatch at `:205` → **split**
+   (the user's confirmed fact). Result: a first span whose posture omits the held fret, then a
+   second span that is correctly an arpeggio. The picture is right from the second onset onward and
+   wrong at the start — which is precisely what the user asked to fix.
+3. **Every member struck at every onset.** One span, chord box. Works, and is the case the
+   derivation was written for.
+4. **Rings do not reach.** Short chugs, dead strings (E25 removes a dead note's presented tail), or
+   a same-string re-strike clamp. Then even case 2's partial cover is unavailable: nothing connects,
+   and every onset is its own span or no span at all.
+5. **Right-hand taps over a held chord.** Works — but only because tap onsets are *declared*
+   invisible to the grouping (`:167`, rule 11). That is the tell: **the derivation already has a
+   mechanism for "hand holds, strings sound at staggered times", and it keys it on *which hand
+   strikes* rather than on the hand's continuity.** The scenario is the same musical fact with a
+   pick instead of a tapping finger, and the mechanism does not reach it.
+
+A truly one-note-at-a-time broken chord derives no span at all: a posture needs two simultaneous
+fretting-hand strikes (rule 10), and the guide says so — "no other arpeggio grouping is derived
+(broken-chord grouping waits for the corpus-informed pass)"
+(`docs/developer/the-project-lifecycle.md:325`). **This limit survives every option below.** See the
+recommendation.
+
+## Why it is underivable
+
+The derivation reads sound. The fact is about the hand. A finger resting on a fret makes no sound,
+produces no onset, and extends no ring, so no function of the note stream can distinguish:
+
+- a hand holding a six-string shape and picking four of it, from
+- a hand holding four strings and moving to the fifth later.
+
+Both stream identically — which is exactly the user's 2026-08-25 warrant for keeping the split. The
+only recoverable signals are proxies — the fret falls inside the current hand window, the shape
+matches a known voicing — and each is an *inference that asserts a claim*, wrong exactly when the
+player re-fingers. The project already draws that line: inference of this kind belongs to a
+**generator that writes an authored record at import** and that the user can correct
+(`generateFretHandPositions`, `gp_chart_builder.cpp:987`, called at `:2218`), never to a read-time
+derivation, which must state only what the data says.
+
+There is a second, sharper piece of evidence that the datum is missing rather than merely
+inconvenient. The arrival rule contains a compromise it was forced into:
+
+> A posture string that is merely silent at the start (a partial strum of the shape) does not make
+> an arpeggio. — `chart_shapes.h:141`
+
+That rule exists **only because "merely silent" and "known held" are indistinguishable today.**
+Supplying the missing fact does not add a branch to a clean design; it removes an ambiguity the
+current design had to paper over. Under the "simplicity yields only to correctness" test, that is
+the good direction: the yield buys back a compromise instead of creating one.
+
+## The display contract is already built
+
+Nothing new is needed on the drawing side, and this is the document's strongest verified claim.
+`ShapeViewState::strings` declares the contract (`chart_view_state.h:306`):
+
+> The whole held posture, stated whether or not a note sounds on the string: a posture is a claim
+> about the fretting hand, not about what is struck.
+
+The path is complete end to end. `chart_projection.cpp:202`–`:231` pushes **every** non-null
+`ChartPosture::frets` entry into `ShapeViewState::strings` — a fret with nothing sounding on it is
+already carried, not filtered. `tab_paint_core.cpp:2158`–`:2162` then documents the
+`head == nullptr` default in as many words: *"the silent-string case: the posture keeps the centre
+a fret number belongs in."* And the settled display rule
+(`docs/plans/in-progress/arpeggio-posture-display-options.md:18`, SETTLED 2026-08-14) already
+answers the un-sounding case: at the span start, a posture string where **nothing sounds** prints
+the posture fret **centred in the bracket at fret-number size**. The highway draws the same posture
+spatially as floor rails on the hand window's fret lines.
+
+Two consequences for any option below:
+
+- **The storage problem reduces to putting an entry in `ChartPosture::frets` at the span's start**
+  and keeping the span open. No renderer changes.
+- **But that is one layer, not the whole cost.** The posture digits are gated on the arpeggio
+  classification (`tab_paint_core.cpp:2116`, exactly `if (!shape.arpeggio) continue;`). So the
+  chosen mechanism must also flip the arrival, or the fact is stored and never shown — and *whether
+  the flip is derivable or must be authored is itself a discriminator between the options*. It is
+  scored in each option's cost column, not deferred to the questions list.
+
+## The prior ruling, and how much of it is left
+
+**§8 of `docs/plans/in-progress/chart-span-and-selection-model.md` — "Arpeggio conversion —
+SETTLED" (2026-07-17), at `:189`–`:195`:**
+
+> A hotkey converts an in-line placed note into an unplayed shape member: it adds the string/fret to
+> the span's template without adding a played note. Under template-relative classification this
+> flips the span to arpeggio automatically, and the existing posture rendering (unsounded template
+> members) displays it. This resolves the previously tabled "display a fuller shape than the notes
+> play" case without a dedicated template editor.
+
+The first draft pivoted on "§8's verb is still the right verb; only its storage needs a new home."
+That over-reads it. Read together with §2 (`:31`–`:42`), §8 rested on **four** things, and **three
+are dead**:
+
+1. **The verb** — a hotkey promoting a placed note to an unplayed member. **Survives**, and it now
+   has its key (`Shift+A`, signed 2026-08-25).
+2. **An authored template stored in the chart.** **Deleted** by note-sustain stage C, 2026-08-22
+   (`chart_document.cpp:471`–`:476` rationale, `:477`–`:482` refusal).
+3. **Extent by belonging to the span** — the template owned the whole span. **Deleted with it**,
+   which is why the extent question below exists at all.
+4. **Template-relative classification** — §2 `:32`: "a span is a chord span iff every onset group
+   inside it sounds the full template". **Deleted**, replaced by the ring-based arrival rule, which
+   is why the arrival flip is a cost at all.
+
+So §8 is **dissolved on storage, on extent, and on classification**, and it cannot simultaneously be
+treated as *binding on scope*. What actually survives is the verb, its now-signed key, and the fact
+that the user once wanted case β. Treating §8 as still binding β while declaring its premise dead
+would have been selective in exactly the direction that keeps a bigger recommendation alive — so
+the scope question was put back to the user rather than inherited, **and the user ruled β in on its
+own merits (2026-08-25), not on §8's authority.** The scope claim now rests on the fresh ruling;
+what §8 still contributes is only its verb, which the two-mood proposal below preserves intact.
+
+## The import angle
+
+Measured against the local Guitar Pro corpus, re-scanned independently (`score.gpif` extracted from
+each archive and grepped directly). Aggregate counts only — no song or artist is named anywhere in
+this document, per the corpus firewall.
+
+| GPIF construct | Where it sits | Corpus | Read by our importer? |
+|---|---|---|---|
+| `<Arpeggio>Up\|Down</Arpeggio>` | **Beat** element | 3 occurrences, 2 songs | No |
+| `<LetRing />` | **Note** element | 1061 occurrences, 46 songs | No |
+| `<Diagram` + `<Fingering>` | track-level `DiagramWorkingSet` | 52 / 49, 5 songs | No |
+| `<Chord>N</Chord>` beat reference | **Beat** element | **0 corpus-wide** | n/a |
+| `<Brush>` | — | **absent** | n/a |
+
+Denominator: **115 `.gp` files across 102 song folders.** The first draft said "102 `.gp` files" —
+it scanned one file per folder and missed 13. It also printed the let-ring tag as `<LetRing/>`,
+a spelling that occurs **zero** times; the real tag carries a space, `<LetRing />`. Both are
+corrected above. Importer blindness is confirmed by a repo-wide grep outside `build/` and
+`external/`: zero hits for `LetRing`, `<Arpeggio`, `DiagramWorkingSet`, or `"Brush"`.
+
+What this establishes:
+
+- **Guitar Pro cannot state the scenario.** Its arpeggio is a *rolled strum on a simultaneous
+  chord*: the sole `<Arpeggio>Down</Arpeggio>` beat inspected lists six note ids on one beat at one
+  position and the mark says "roll them". Onsets are not staggered in the data. There is no
+  construct for "held shape, staggered strikes".
+- **`<LetRing />` is a sound statement, not a hand statement.** It says a note rings past its
+  written value; it maps to `sustain`, which is MIDI truth. It must never be read as "the hand is
+  there" and it can never be inflated to force notation — that is the sustain model's core premise
+  (`chart.h:418`).
+- **The chord diagram is the authored posture, and it is provably a dictionary.** `<Diagram>`
+  carries per-string fret plus fingering, named, in a track-level collection — exactly the shape
+  `chart_shapes.h:26` predicts for names and fingerings ("a dictionary keyed by a posture"). The
+  first draft observed that no beat references one; the re-scan **proves** it: the beat-level
+  `<Chord>N</Chord>` reference occurs zero times corpus-wide, and every one of the 78 `<Chord>`
+  occurrences is the harmony spelling *inside* a `<Diagram>` item under the diagram/chord working
+  sets. It is a palette, not a timeline fact — not a hold statement, and it does not solve this.
+- **The synthesis hook is live and has a precedent.** If the importer ever honours `<Arpeggio>` by
+  spelling a rolled chord out into staggered onsets, it would be doing exactly what the tremolo
+  spell-out already does (`gp_chart_builder.cpp:485`–`:560`, one beat → N onsets, flowed through
+  positions, ties and tail rules). The difference is fatal: a tremolo stroke re-strikes **all**
+  strings, so every stroke keeps `struck >= 2` and the span survives. An arpeggio spell-out strikes
+  **one** string per stroke, so every stroke lands on `:226` and closes the span. **An arpeggio
+  spell-out is not implementable without the fact this document is about** — and if the fact exists,
+  the spell-out is exactly what writes it.
+- **§2's importer obligation already presumed such a source field** ("trim templates to the struck
+  strings unless the source marks the hand shape as an arpeggio — verify the exact source field in
+  the converter tool when implementing", `:39`–`:42`). If the external converter's source format
+  does carry a fuller-than-struck chord template with an arpeggio marking, the authored fact is
+  precisely its import target, and the converter is the first producer.
+
+Net: no GP import path today; a concrete, named future one; and the external converter is the
+likelier first producer. The mechanism must be writable by a generator, not only by a hand.
+
+## The options
+
+Every option must supply one thing: a posture member for a string that does not sound where the
+notation must show it. The survey was written against the span's *start*, which is the case that
+provoked it; the chosen option turned out to be more general than that (see the caret-anchored
+verb's consequence under F). They differ in what they store, where, what can go stale, and what an
+unrelated edit does to it.
+
+Letters A–E keep the meaning they had in the first draft, so a reader holding that draft is not
+lost. **X** and **F** are new: X is the strawman the first draft ruled out only implicitly, and F is
+the option the first draft's space jumped straight over.
+
+### X — A silent member inside the `notes` array (killed on sight)
+
+A `ChartNote` with a "not struck" flag, sitting in `chart.notes` with the real notes. Named
+explicitly because it is the first thing a reader proposes, and because §8's own wording
+("converts an in-line placed note into an unplayed shape member") reads like exactly this.
+
+- **Killed.** It pollutes *every* consumer that iterates notes — playback, scoring, hit-testing,
+  presentation, projection — each of which would need a new "…unless it is silent" guard, and each
+  of which is a place the guard can be forgotten with no compile error.
+- It also breaks the note invariant outright: `chart.h:427` — "Every note rings for some length, so
+  zero is not an encoding." A member that never sounds has no ring to state, so it can only be
+  encoded by weakening the one invariant that keeps `notes` honest.
+- Leaving this unnamed invites the re-walk this document exists to prevent.
+
+### A — A membership claim on the late note
+
+The late note carries a flag meaning "the shape this joins was already held". No reference, no id,
+no fret — resolved at read time exactly like `NoteAttack::Legato`, which is "a relational CLAIM and
+nothing more… read back from the predecessor by `resolveLegato` and is never stored, so no
+neighbour edit can leave a stale direction behind" (`chart.h:86`), and which degrades to a plain
+pick when the chart does not justify it (`chart_legato.cpp:33`–`:37`, `:85`).
+
+- **Verb.** Select the late note, press `Shift+A`. You author on the object you are looking at.
+- **Format.** One boolean on the note. Nothing else. No second array.
+- **Derivation.** At `:226`, a lone onset carrying the claim joins the open span instead of closing
+  it, and its fret folds into the open span's posture. The posture keying (`:200`) moves from span
+  open to `close_span` (`:102`), so the vector is built once when it is complete — a net
+  simplification of the existing code, not an addition.
+- **Arrival flip is derivable.** Once the late note is inside the span, "a posture string whose
+  first sounding note inside the span is later than the span start" is a statement about the
+  presented stream alone. `chartShapeArrivals` needs no new input and `ChartPosture` needs no
+  provenance. This is a real advantage and the first draft never stated it.
+- **Dangling.** None by construction. There is no reference. If no span is open on that string, the
+  claim is unjustified and the note draws as the plain note it sounds like — the legato precedent,
+  verbatim.
+- **Edit consistency.** Free on every axis (see the scoring below): the flag rides move, copy,
+  paste, transpose, quantize and delete without a single verb learning anything.
+- **Import.** A spell-out writes the flag on every stroke after the first. Clean.
+- **Rule strained.** None seriously. It stores *only a relational choice*, which is what the
+  derived-over-authored rule reserves for authoring.
+- **Limit, and how the ruling resolved it.** **A cannot express (β):** with no note there is nothing
+  to carry the flag. The first draft called that "fatal" on the strength of a §8 scope claim whose
+  premise the same draft declared dead, which was not a sound reason. The sound reason arrived
+  2026-08-25, when the user ruled β in on its own merits — so A cannot stand alone. **It is not
+  discarded.** Everything in this section is still live: F's α half *is* A, stored as a fret-absent
+  marker, and every advantage listed above is inherited there unchanged.
+
+### B — Authored posture-hold spans return
+
+Bring back a stored span with a stored posture, as `shapes`/`chords` were before stage C.
+
+- **Honest weighing:** stage C deleted these because "a document carrying them states a second,
+  unverifiable copy of something the notes already say" (`chart_document.cpp:471`). That reasoning
+  is untouched by this scenario. The scenario needs **one** fact the notes cannot say, not the whole
+  posture; storing the posture stores the other five strings twice, and the recurring-defect rule
+  ("a rule stated twice") fires on sight.
+- **Its one real advantage, stated plainly because the rules require it:** B is the only option that
+  gives a single intent carrier owning the whole span *including its extent*. That is exactly what
+  every per-onset option gives up and then pays for in the extent question below. It is not enough
+  to save B, but it is the reason the extent question is hard.
+- **Recommend against.** Listed so the ruling is on the record and the option is not re-walked.
+
+### C — A hand-data channel, FHP-style
+
+A stored channel of hand statements — "from position P the hand holds shape S" — beside
+`fret_hand_positions` in the format (`chart_document.cpp:511`).
+
+- **Buys:** it is arguably the truthful home. It *is* hand data, exactly like an FHP; FHPs are
+  already stored, already import-generated, already user-correctable, so the precedent is complete
+  and proven.
+- **Costs:** a *shape* channel stores a full fret vector, which restates the frets the notes already
+  give for the sounding members — B's defect wearing a different hat. Narrowing it to only the
+  non-sounding members makes it honest, but then it is no longer "a shape": it is a list of
+  individual held stops.
+- **Where it actually lands:** narrowed, C is not D — it is **F with extent-by-succession**, because
+  the FHP shape it borrows (`chart.h:789`: "where the hand sits on the neck **from this point on**",
+  `{position, fret, width}`, no duration) is precisely the candidate answer to the extent question.
+  The first draft collapsed C into D by assuming a hand channel must carry a full vector, and lost
+  that answer in the process.
+- **Interaction with FHP derivation:** an FHP is a *window* (`fret`, `width`); a posture is a
+  *stop per string*. They are different resolutions of the same subject and must not be merged: the
+  phrase-aware generator picks windows from note frets, and a held stop is one more fret it should
+  see. Any held-stop record must therefore be an *input* to FHP generation, not a second producer of
+  windows.
+
+### D — The fret-carrying silent stop (superseded by F)
+
+A shape member the hand takes without sounding it, stored as its own record keyed by
+`(position, string)` — the same key the note stream uses — **always carrying a fret**. This was the
+first draft's recommendation. It is recorded here with its defect so the ruling is on the record.
+
+- **Format.** A new top-level array beside `notes` and `fhps`:
+  `{ "position": "...", "string": n, "fret": f }`. No sustain field, no attack, no technique fields
+  — so "a silent member that rings" is **unrepresentable**, and `notes` keeps its invariant intact
+  (`chart.h:427`).
+- **Its whole defence was one invariant:** *a stop states only what no note states, and is refused
+  where a note already states it.* **That invariant is scoped to the same `(position, string)`, and
+  it says nothing about the same string at a later position inside the same span** — which is case
+  α, the case the user reported.
+- **So in α the chart carries two independently editable statements of one fret:** the stop at P,
+  and the note at P+n. Nothing keeps them equal. Concretely, `planRetypeFrets`
+  (`chart_edits.h:154`) transposes the *selected notes'* frets; a stop is not in `chart.notes`, so
+  transposing the chord silently leaves the stop on the old fret and the posture becomes a lie.
+  That is the project's recurring-defect shape — a rule stated twice — and D walks into the very
+  rule this document fires at B and C.
+- **And the second fret is not needed.** "The hand was already on this string at the span start"
+  *implies* the fret: if the finger had been on a different stop and moved, the hand was not holding
+  the shape. In α the authored datum is a **when**, not a **what**.
+- **The FHP analogy it claimed does not hold as stated.** An FHP is a *window* notes fall inside; it
+  is never contradicted by a note, only under-fit. A stop carrying a fret **is** contradicted
+  whenever α's two copies diverge. The analogy holds on "authored hand data, generator-written,
+  user-correctable" and breaks on exactly the restatement axis D was defending.
+- **Superseded by F**, which is D with the fret made optional and therefore absent in α.
+
+### F — The fret-optional hold marker (DECIDED 2026-08-25)
+
+A record in its own array:
+
+> `{ position, string, fret: optional }` — the fret is **required only** where nothing sounds on
+> that string anywhere inside the span (β), and **absent** where a later note in the span supplies
+> it (α).
+
+Meaning: *at this position the fretting hand takes this stop, silently.* One mechanism, both cases,
+and the smaller authored surface in the case that was actually reported. Note the record says
+nothing about a span — it is anchored to a `(position, string)` and nothing else. The span
+relationship is entirely read-time, which is what the caret-anchored verb below makes visible and
+what keeps the marker free of stored relational state.
+
+- **Verb.** §8's verb with its final chord, `Shift+A`, acting at the caret on whatever the slot
+  holds — see *The verb* below, which is a proposal and not yet ruled.
+- **Format.** One array. In α the record is `{position, string}` and carries **no fret at all**, so
+  there is nothing to diverge from the note that supplies it. In β the fret is present because no
+  note exists to state it — and, crucially, **no note can ever contradict it**, which is exactly
+  the property that made the FHP analogy sound in the first place. F repairs the analogy D broke.
+- **Derivation, and why it needs the same restructure A does.** The α marker's fret is resolved from
+  the first sounding note on that string inside the span — which is not known while the span is
+  open. So the posture keying moves from span open (`:200`) to `close_span` (`:102`), and the vector
+  is built once, when the span is complete. **That is the same move option A needs, and it is a net
+  simplification of existing code in both cases** — the posture is keyed once instead of per onset.
+- **Disjointness, correctly scoped.** The normaliser refuses an *authored fret* where any note
+  inside the span sounds on that string (that is what makes β's fret the irreducible residue), and
+  a marker that resolves to nothing at all is **inert** — it draws nothing, exactly like an
+  unjustified legato claim, rather than being refused at load. This matters because span extent is
+  derived: the normaliser does not derive spans today, and making marker validity span-relative
+  would give it a shape-derivation dependency. Inert-and-harmless follows the project's own
+  precedent and avoids that.
+- **Cost — the arrival flip, and it is β's cost specifically.** In α the flip is derivable exactly
+  as under A ("first sounding note inside the span is later than the span start"). In β nothing
+  sounds, so `chartShapeArrivals(presented_notes, shapes, postures, tempo_map)` cannot see the fact
+  at all and `ChartPosture` carries `std::vector<std::optional<int>> frets` with **no provenance** —
+  nothing distinguishes a fret that came from a strike, a ring-through, or a marker. So β forces one
+  of two unattractive choices, and **which one is unresolved**:
+  - a **new input** to `chartShapeArrivals` plus a per-span re-scan of the marker array — a second
+    place that must independently agree with the derivation's fold about which strings are held
+    (a rule stated twice, again); or
+  - **provenance on `ChartPosture`** — which changes the posture dedup key at
+    `chart_shapes.cpp:199`–`:200` (`posture_indices.try_emplace(frets, …)`: two spans with equal
+    frets but different provenance become one posture or two, and neither answer is obviously right)
+    and re-widens the posture that stage C just narrowed.
+- **Cost — a second array, and it is not free.** F inherits most of D's edit-consistency costs; it
+  removes exactly one of them (transpose divergence). See the scoring below. This is what the
+  ruling bought and what it cost: had β been ruled out, none of that edit surface would have been
+  worth paying, because A gives α for nothing. β is the only thing on the other side of the scale,
+  and the user put it there.
+- **Import.** A spell-out or the external converter writes markers for the members not yet struck —
+  fret omitted where the stroke that supplies it is in the same span. The FHP generator reads
+  resolved stops as extra frets.
+- **Rule strained.** It is authored data about the hand, three days after stage C deleted authored
+  data about the hand. The defence is narrower than D's and is what makes it hold: **a fret is
+  authored only where no note could ever state it.**
+
+#### The verb — PROPOSED v2, caret-anchored, awaiting the final nod
+
+**Not ruled.** The storage above is decided; this is not.
+
+**v1 was rejected by the user, 2026-08-25**, and the rejection is worth keeping because it sharpens
+the model. v1 proposed one chord disambiguated by the selected note's position relative to the
+shape's opening onset — author β by converting a note at the onset, author α by selecting the
+*late* note and having it grow a marker backwards to the shape's start. The user:
+
+> This doesn't sound like it would feel right. It really feels like something that would be
+> defined at the START of the onset manually, not later.
+
+That is right, and not merely on feel: the α gesture asked the charter to state a fact about
+position P while looking at position P+n, and let one keystroke write a record somewhere the caret
+was not. **v2 deletes the disambiguation, deletes the gesture on the late note, and anchors
+everything at the caret.**
+
+`Shift+A` acts at the caret, on whatever that slot holds:
+
+1. **Empty armed slot ⇒ author a fret-absent hold marker** at that `(position, string)`. It says
+   "the hand takes this stop here, silently" and states no fret, because it does not need to: a
+   later in-span note on that string supplies it at read time. Unjustified — no note ever arrives
+   on that string in the span — it is **gracefully inert**, drawn nowhere and refused nowhere,
+   exactly the degrade an unjustified legato claim already takes (`chart_legato.cpp:33`–`:37`).
+2. **A note at the slot ⇒ convert it.** The note leaves the stream and the marker carries its
+   fret. This is July §8's flow verbatim — "converts an in-line placed note into an unplayed shape
+   member" — and it is now **the only fret-carrying path there is.** It must be place-then-convert
+   for a concrete reason: **the only fret-stating flow the editor has is note insertion.** No other
+   gesture means "fret 5 on the A string", so the charter types the fret as a note where the finger
+   goes and then promotes it.
+3. **An existing marker ⇒ remove it**, restoring the note it came from when it was a conversion.
+   The symmetric toggle, two-state like every other mark, with no third state to explain.
+
+Every hand fact is therefore authored at the position it holds, by a charter looking at that
+position. There is no note-position-relative rule to learn and no action at a distance.
+
+**The generalization this falls out of, recorded as a consequence.** Once the verb is caret-
+anchored, **a marker is not inherently a span-start datum.** It states "the hand takes this stop
+here, silently" *wherever it is placed* — the span-start case is simply the common one, not the
+definition. That is strictly more general than the framing this document was built on, and it pays
+for itself immediately: **a mid-span silent arrival needs no extra rule.** A finger that comes down
+on a new string partway through a held shape — after the opening strum, before the string is ever
+picked — is the same record at a different position, and the derivation folds it into the posture
+by the same path. Nothing special-cases the span's first onset.
+
+Read together with the ruling that growth by a new string keeps splitting, the division of labour
+is complete and symmetric: the derivation splits wherever the hand's continuity is unprovable, and
+one caret-anchored verb joins wherever the charter says so — at the span's start or anywhere
+inside it.
+
+### E — Infer it from the hand window
+
+No new data: assume a later note's fret is held from the span start when it lies inside the current
+FHP window and the shape is otherwise stable.
+
+- **Costs:** it manufactures a claim, and is wrong exactly where re-fingering happens — the case a
+  player most needs to see, and the case the user's 2026-08-25 ruling says is common. As a
+  *read-time* rule it violates the derivation's contract. As an *import-time generator* writing a
+  marker the user can correct, it is not an alternative to F but a producer for it. Listed for
+  completeness and for that reading.
+
+## Edit consistency — the axis the first draft omitted
+
+The first draft's "Dangling: nothing to dangle" is true of *references* and irrelevant to the
+actual risk, which is positional coupling across a second array. For an authoring feature this is
+the dominant cost axis, and it is the axis on which A's storage half costs nothing and β's array
+costs real work.
+
+**First, what the caret anchor kills.** Under the v2 verb the marker stores **no reference to a
+span, no id, and no reference to any note** — only a `(position, string)` and an optional fret. Its
+entire relationship to a shape is computed at read time. So **no edit anywhere can leave stale
+relational state**, because none is stored: the worst an unrelated edit can do is leave a marker
+unjustified, and an unjustified marker is gracefully inert. That is the legato precedent holding
+end to end, and it removes the whole class of concern the first draft gestured at with "dangling".
+What remains below is **ordinary positional coupling** — the same coupling a note already has with
+its own position — which is verb plumbing, not a correctness hazard.
+
+- **`ChartNoteKey` is `{position, string}`** (`chart_selection.h:23`), and its doc comment states
+  its warrant explicitly (`:20`): *"Unique by chart validation (one note per (position, string))."*
+  Any second array keyed the same way reuses that identity space for a second object kind. Either
+  `ChartSelection` becomes a note-or-marker selection — touching `replaceWith` (`:66`, `:72`),
+  `toggle` (`:88`), `applyBox` (`:95`), the group-click, and the documented key→index **linear
+  merge against the note stream** (`:54`) — or markers are unselectable, which contradicts the
+  verb's own premise and the editor-visibility question below.
+- **Undo has no home for the convert case.** The undo entry is `ChartNotesEdit final : IEdit`
+  (`chart_edits.h:565`) carrying `ChartNotesEditPlan { removed, inserted }` of
+  `std::vector<ChartNote>` (`:33`), applied by `applyChartNotesChange` (`:554`). Converting a
+  placed note into an unplayed member removes a note **and** adds a marker in one gesture. That
+  crosses both arrays, so it is neither a `ChartNotesEdit` nor a hypothetical `ChartMarkersEdit`; it
+  needs a composite edit or a widened plan. The other two verb cases — authoring on an empty slot,
+  removing a marker — touch the marker array alone and need no composite. The first draft asked
+  which *key* the verb gets and never asked what the *edit* is.
+- **Move leaves the marker behind, and it goes quiet rather than wrong.** `planMoveNotes`
+  (`chart_edits.h:121`) operates on `ChartNoteKey`s over `chart.notes`. Drag the opening chord and
+  the marker stays at the position the charter put it, which under the caret anchor is arguably
+  what the charter said — but no span opens there any more, so it falls silently inert and the
+  notation quietly loses the hand fact. This is the softest form of the problem (nothing becomes
+  *false*, only invisible), and the fix is ordinary: the move verb should carry markers along with
+  the notes it moves, which means teaching it a second array.
+- **Move must also learn a new refusal.** `planMoveNotes` today refuses a destination "occupied by
+  an unmoved note" (`:108`). Disjointness makes a marker an occupied slot too. Unstated in the first
+  draft.
+- **Copy/paste, quantize, string-shift** — every range verb must be taught about the second array or
+  the markers desync from the notes they belong to.
+
+Scored:
+
+| Surface | A — claim on the note | D — fret-carrying stop | F — fret-optional marker |
+|---|---|---|---|
+| `ChartNoteKey` identity | untouched | collides | collides |
+| Undo plan shape | unchanged | crosses both arrays | crosses both arrays |
+| `planMoveNotes` | rides along | orphans it; new refusal | goes quiet; new refusal |
+| `planRetypeFrets` | rides along | **silent divergence in α** | nothing to diverge |
+| Range verbs (paste, quantize) | free | each verb taught | each verb taught |
+| Arrival flip | derivable | authored | derivable in α, authored in β |
+| Unjustified after an edit | draws as a plain note | dropped | inert, draws nothing |
+
+"Unchanged" on the undo row means `ChartNotesEditPlan` needs no widening at all; "authored" on the
+arrival row means the new input or the `ChartPosture` provenance described under F.
+
+**With the fork ruled, the table is no longer a tiebreaker — it is F's cost sheet.** A pays nothing
+on any row; F pays four rows and buys β; D pays five and buys nothing A and F do not. The four rows
+F pays are now build-plan work items, not arguments.
+
+## Recommendation
+
+**Decided, not conditional: the storage is option F, the fret-optional hold marker.** The fork it
+hung on was ruled 2026-08-25 — β stays in scope — so this section states a decision.
+
+The principle it rests on is the first draft's, and it survives: **the datum is a fact about the
+fretting hand, and the note stream is a record of sound.** Everything the sound record can say stays
+derived — the posture's struck members, the ring-through members, the span extent, the box/bracket
+classification. What F adds to that principle is the part D missed: **in α the sound record already
+says the fret**, so the authored datum is a *when*, not a *what*, and a fret is authored only in β,
+where no note could ever contradict it. That is the narrowest possible retreat from
+derived-over-authored, and it is the only version of the retreat the FHP precedent actually
+supports.
+
+**Option A is not a rejected alternative — it is F's α half.** A fret-absent marker is precisely the
+relational claim A proposed, so every one of A's advantages is inherited: no fret to go stale, a
+derivable arrival flip, and degrade-to-plain-note when nothing justifies it. The ruling did not
+choose F *over* A; it added the one case A structurally could not carry, and F is the smallest
+record that carries both.
+
+**What the ruling cost, stated plainly.** β is the whole reason a second array is worth its edit
+surface. Had β been ruled out, A would have delivered the reported case for nothing — no
+`ChartNoteKey` widening, no composite undo, no verb re-education, no authored fret anywhere. That
+those four rows are now on the bill is not a defect in F; it is the price of the case the user says
+is real, and it is the yield-is-a-finding note this document owes: the extra complexity buys exactly
+one thing, and it buys nothing else.
+
+**Do not adopt B** (its deletion rationale is unchanged), **D** (superseded by F), or **X** (it
+breaks the note invariant and pollutes every note consumer). **E is a producer for F, not a rival.**
+
+**Carry this limit into the ruling, whichever branch wins.** Neither option delivers the general
+broken chord. A posture needs two simultaneous fretting-hand strikes (rule 10), and a hold marker is
+not a strike (see the pre-work list), so a shape can never *open* on held members alone. Both
+options cover exactly one shape: **one opened by a ≥2-string strike and completed later.** Side
+question (ii) below extends that span across later lone re-picks, but it cannot *open* one either. A
+passage picked strictly one string at a time from its first note — never two together — therefore
+still derives no span at all and remains parked behind the corpus-informed pass
+(`the-project-lifecycle.md:325`). Measured against the user's word *"guarantee"*, that gap belongs
+in the ruling, not buried in the survey.
+
+## The derivation side question
+
+Independent of any verb, two things in the walk deserve their own ruling. One of them now has one.
+
+**(i) A posture growing by a new string keeps splitting — RULED 2026-08-25 (user).** Recorded above
+under "Rulings already made". The reason is the user's: the partial-shape-then-add-finger gesture is
+legitimate and common, identical notes carry both intents, so the default notates the literal notes
+and the verb authors the exception. The derivation's split is not a defect; it is the derivation
+refusing to assert what it cannot know, and the authored fact is precisely what converts a split
+into a growth. Derivation splits; authoring joins.
+
+**(ii) A lone re-pick of a string already in the open posture should not close the span.**
+Recommend **change**. Today `:226` closes the span for any single-string onset. But when the lone
+onset's string is already a posture member with matching articulation, and at least one other member
+is still ringing (presented), the hand demonstrably has not left the shape — and *every fact needed
+to know that is already in the stream*. This is derivable, needs no authoring, and it is the true
+one-note-at-a-time broken chord over a held shape.
+
+(i) and (ii) compose exactly with the verb. With (ii) in place, a marker authored at the shape's
+onset puts the late string **into** the posture, so the late strike is a re-pick of a posture member
+and joins the span instead of killing it. Neither is a patch for the other: (ii) fixes what the
+stream can prove, the marker supplies what it cannot. Note also what (ii) does **not** solve — a
+string that was never in the posture — which is the clean boundary between the derivable and the
+authored, and the reason the authored surface stays as small as one marker.
+
+**(ii) is a ruling, not a fix, and it reaches further than extent.** The obvious visible change is a
+chord box whose extent now covers a following single-string pick of one of its own members instead
+of ending at it. The second-order change is **classification**: lengthening the span moves
+`span_end` (`chart_shapes.cpp:292`), which widens the `held_under_right_hand` scan at `:294`–`:300`.
+A tap that previously fell *after* a span can now fall *inside* it and flip a box to an arpeggio. So
+(ii) can change how an existing chart *reads*, not merely how far its bracket runs.
+
+## Pre-work the build plan must settle
+
+Two entries left this list when they were ruled: **the fork** (β stays in scope — the storage
+shape is settled) and **the chord** (`Shift+A`, signed). Both are recorded in the rulings section.
+Nothing remaining here blocks the storage shape; every item is wiring, and every item should be
+answered before the first line of the build plan is written.
+
+1. **Does a hold marker count toward rule 10's two-string threshold?** One struck string plus one
+   marker — is that a shape, or a single note beside a held finger? Proposed: **no**, a marker is
+   not a strike; a shape still needs two sounding fretting-hand members. The corollary is the limit
+   carried into the recommendation: a shape can never open on markers alone, so a marker always
+   attaches to a shape opened by sound.
+2. **Does a lone re-pick need matching articulation to join (side question (ii))?** A palm-muted
+   re-pick of a held chord member: same hand position, different articulation. Rule 11 splits chords
+   on articulation; is a lone re-pick the same question or a different one?
+3. **What ends a run of held members?** Three candidates, and the first draft considered only two:
+   - **Per onset** — the marker repeats at every strum. Compact to define, but it converts one hand
+     fact into **N authored copies that must agree by hand**, and by the derivation's own rule ("a
+     strum that drops it splits") a forgotten copy silently changes the notation. That is the
+     recurring-defect shape again.
+   - **Carry until the span closes** — compact to author, but it introduces a second extent concept
+     beside the span, and the span already owns extent.
+   - **Extent by succession — the FHP precedent** (`chart.h:789`: "where the hand sits on the neck
+     **from this point on**"; `FretHandPosition` is `{position, fret, width}` with **no duration**).
+     A held member states itself from its position until the next statement on that string. This
+     needs no second duration axis *and* no repetition, and it is the narrow form of option C.
+     **This is the candidate the first draft missed**, and it should be weighed first.
+4. **How does the arrival learn about a β marker?** Carried here from F's cost column, where the
+   cost is stated: `chartShapeArrivals` cannot see markers and `ChartPosture` carries no
+   provenance, so β needs either a new input to the arrivals function or provenance on the posture
+   (which moves the dedup key at `chart_shapes.cpp:199`–`:200`). What is open is only *which*; that
+   the flip must happen is settled by the display gate at `tab_paint_core.cpp:2116`. Note this is a
+   β-only cost: in α the flip stays derivable from the presented stream.
+5. **Editor visibility and selection.** An authored marker must be visible and selectable in the
+   editor's own lane even where the display rule would not print it (outside an arpeggio bracket, or
+   before the span resolves), or it becomes invisible state — but selectability is what forces the
+   `ChartNoteKey` widening scored above. Is the charting-mark law the right home (editor-only mark,
+   merged surfaces elsewhere), as it is for the `LeftTap` light-T?
+6. **What is the undo entry?** The convert case removes a note **and** inserts a marker in one
+   gesture, so a single entry spans both arrays and fits no existing `IEdit`
+   (`ChartNotesEdit` carries only `ChartNotesEditPlan`, which carries only
+   `std::vector<ChartNote>`). Composite edit, or a widened plan carrying both arrays? The proposed
+   verb makes this unavoidable rather than hypothetical: authoring an empty slot and removing a
+   marker touch the marker array alone, but **convert** and its restoring toggle cross both.
+7. **Who writes the first one?** Hand-authoring only, or does the external converter emit markers
+   from its source format's fuller-than-struck chord templates on day one (§2's unverified field)?
+   If the converter emits them, the format lands before the verb does.
+
+## Grounding index
+
+- `rock-hero-common/core/src/chart/chart_shapes.cpp` — `:31` articulation key, `:102` `close_span`,
+  `:167` tap transparency, `:175` chord branch, `:178`–`:187` ring-through (stored ring, most recent
+  note per string), `:199`–`:200` posture dedup key, `:205` span merge, `:212` split, `:226`
+  lone-onset close, `:247` arrivals, `:282`/`:289`/`:307` the three arpeggio triggers, `:292`
+  `span_end`, `:294`–`:300` the right-hand scan window (ii) widens.
+- `rock-hero-common/core/include/rock_hero/common/core/chart/chart_shapes.h` — `:26` postures are
+  derived and carry no name/fingering, `:141` the "merely silent" compromise.
+- `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h` — `:86` the legato claim
+  precedent, `:298` `rightHandOnset`, `:418`–`:431` sustain is MIDI truth and strictly positive
+  (`:427` the zero-ring invariant), `:789`–`:799` `FretHandPosition` and its extent-by-succession
+  shape.
+- `rock-hero-common/core/include/rock_hero/common/core/chart/chart_view_state.h:306` — the posture
+  contract the derivation cannot currently satisfy (the field itself is `:310`).
+- `rock-hero-common/core/src/chart/chart_projection.cpp:202`–`:231` — every non-null posture fret is
+  pushed into `ShapeViewState::strings`; a silent posture string already reaches the view.
+- `rock-hero-common/ui/src/tab/tab_paint_core.cpp:2116` — `if (!shape.arpeggio) continue;`, the gate
+  the arrival flip must pass; `:2158`–`:2162` — the documented silent-string default.
+- `rock-hero-common/core/src/chart/chart_document.cpp:471`–`:476` — stage C's deletion rationale;
+  `:477`–`:482` the loud-refusal tripwire; `:511` the `fhps` channel shape.
+- `rock-hero-editor/core/src/chart/chart_selection.h` — `:20`/`:23` `ChartNoteKey` and its
+  uniqueness warrant, `:54` the linear-merge invariant, `:66`/`:72`/`:88`/`:95` the growth verbs.
+- `rock-hero-editor/core/src/chart/chart_edits.h` — `:33` `ChartNotesEditPlan`, `:108`/`:121`
+  `planMoveNotes` and its occupied-slot refusal, `:154` `planRetypeFrets`, `:554`
+  `applyChartNotesChange`, `:565` `ChartNotesEdit`.
+- `rock-hero-editor/core/src/project/gp_chart_builder.cpp:485`–`:560` — the tremolo spell-out, the
+  precedent for synthesising staggered onsets; `:987`/`:2218` the FHP generator.
+- `docs/developer/the-project-lifecycle.md:273`–`:333` — rules 10 to 12a, the maintained spec
+  (`:325` the parked broken-chord grouping).
+- `docs/plans/in-progress/chart-span-and-selection-model.md` — `:31`–`:42` §2 classification and the
+  importer obligation, `:189`–`:195` §8 arpeggio conversion (the prior ruling).
+- `docs/plans/in-progress/arpeggio-posture-display-options.md:18`–`:25` — the settled display rule
+  that already handles an un-sounding posture string.
+- `docs/plans/in-progress/keymap-matrix.md:244`/`:246`/`:247` — the `A` emphasis-cycle plan of
+  record, the signed `Shift+A` arpeggio hold, and the superseded heavy-accent reservation.

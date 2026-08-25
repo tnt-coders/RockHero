@@ -513,3 +513,20 @@ at that point the strip's chrome would follow JUCE while every editor-drawn surf
 for this mark when that happens, name it for the claim the mark makes — *a datum that is displayed
 but does not bind* — rather than borrowing `primary_text`, which would put the "same ink as the
 digits" rule in two places that have to agree by hand.
+
+## Backing clip: pin autoTempo/autoPitch off at arrangement load
+
+Found 2026-08-25 during the clock-boundary work. `Engine::setActiveArrangement`
+(`rock-hero-common/audio/src/engine/engine_song_audio.cpp`) pins the backing clip's sync type to
+`syncAbsolute` and proxying off, but never pins `autoTempo`/`autoPitch` off. Tracktion enables
+`autoPitch` on insert whenever the source file's loop metadata carries a root note
+(`tracktion_ClipOwner.cpp:283`), so a user asset with loop metadata gets its backing track
+time-stretched and pitch-shifted to the edit's tempo and pitch sequence -- the exact hazard
+`syncAbsolute` exists to prevent, and RockHero's tempo authority makes the edit sequence
+meaningless for audio. Today that path can also abort outright in debug: the vendored
+`tracktion_WaveNode.cpp:2138` (twin at `:2152`) passes `std::move(timeStretchReader)` and
+`timeStretchReader.get()` in one argument list -- unsequenced, and MSVC nulls the source before
+the getter runs, tripping the assert at `:984` (hit for real by a loop-annotated test fixture;
+documented in `test_engine.cpp`'s load test). The fix is two property pins beside the existing
+`syncAbsolute` pin; the vendored bug then stays unreachable from our product code.
+

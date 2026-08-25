@@ -15,10 +15,10 @@
 > reset-all defaults as the fallback.
 >
 > **Amended 2026-08-12 (user-signed): the technique letter map.** The typed technique family now
-> follows one rule — the plain letter is the first letter of our own verb's name, and
-> `Shift`+letter is the related sibling technique — replacing per-key Guitar Pro compatibility.
-> Legato moved `H` → `L`, the left-hand tap `Ctrl+H` → `Shift+T`, and `H` was freed for the
-> harmonics. Rationale and the full map in the technique verb section.
+> follows one rule — the plain letter is the first letter of our own verb's name — replacing
+> per-key Guitar Pro compatibility. Legato moved `H` → `L`, the left-hand tap `Ctrl+H` →
+> `Shift+T`, and `H` was freed for the harmonics. Rationale and the full map in the technique verb
+> section, which also states once what the `Shift` plane itself means (2026-08-25).
 >
 > **Amended 2026-08-23 (user-signed): the `Ctrl` PRECISION tier is retired.** Off-grid authoring
 > is now a MODE, not a per-gesture modifier: `Ctrl+G` toggles a session grid-snap switch, and one
@@ -214,40 +214,54 @@ retype a fret already do. That is the interaction model's law — *plain input n
 mutation passes a gate*, applied per input family — not a new rule. So these are **plain letters**.
 
 **The letter map (amended 2026-08-12, user-signed).** One rule instead of per-key Guitar Pro
-compatibility: **the plain letter is the first letter of our own verb's name, and `Shift`+letter is
-the related sibling technique** — `L`/`Shift+L` legato / link-with-travel, `T`/`Shift+T` right/left
-tap (mirroring the plates' one-letter-two-polarities hand signature), `H`/`Shift+H` natural/pinch
-harmonic, `M`/`Shift+M` palm/full mute, `V`/`Shift+V` vibrato/wide. `Ctrl`+letter stays out of the
-typed family entirely: it is the app-command plane (`Ctrl+S/O/W/Q/T`, the reserved `Ctrl+D`).
+compatibility: **the plain letter is the first letter of our own verb's name** — `L` legato,
+`T` tap (mirroring the plates' one-letter-two-polarities hand signature), `H` natural harmonic,
+`M` palm mute, `V` vibrato — with those same letters' second slots taken by `Shift+L`
+link-with-travel, `Shift+T` the left-hand tap, `Shift+H` the pinch harmonic and `Shift+V` the wide
+vibrato. `Ctrl`+letter stays out of the typed family entirely: it is the app-command plane
+(`Ctrl+S/O/W/Q/T`, the reserved `Ctrl+D`).
 Guitar Pro familiarity is weighed, not binding: where GP's key matches our *semantics* it survives —
 `L` is GP's "Tie note", the destination-stored backward link, exactly this model's claim shape, and
 `V`/`B`/`A` line up too — and where it conflicts it is dropped: GP's `H` links the selected note
 FORWARD to the next, so an H habit here authored a silent off-by-one link, the worst of both
 worlds. The freed `H` now means the loudest first-letter mnemonic in the map instead (Harmonic).
 
+**The `Shift` plane — stated once (signed 2026-08-25).** The LETTER is the index; `Shift` is that
+letter's second slot. `Shift` is not a semantic operator in this map — it is a disambiguator: the
+letter carries all the meaning, and `Shift` says only which claimant of that letter you mean, with
+the plain key going to the meaning a charter reaches for first. That is why a sibling (`Shift+H`),
+a collision (`Shift+X`), and a different verb entirely (`Shift+A`) share the plane without sharing
+a kind — and never needed to. This **supersedes the separate sibling reading (2026-08-12) and
+collision reading (2026-08-18) as their superset**; both stay true as instances, so the rows below
+keep their own local reasoning (why this key for this verb) and no longer restate what the plane
+means. Corpus check behind the plain-key half: the plain key holds the letter's more-reached-for
+meaning in five of the map's six letter pairs, with `Shift+L` inverted — a ranking question carried
+into W10's build, not a rebind today.
+
 **Settled 2026-08-07, amended 2026-08-12:**
 
 | Keybind | Verb | Status |
 |---|---|---|
 | `L` | **legato** — one verb for hammer-on and pull-off, because **no direction is stored**: the note claims a connection to its same-string predecessor and which way that runs is read back by `resolveLegato` (amended 2026-08-11, `legato-final-spec.md`). Three things gate the claim beyond the frets: the judged fret is the predecessor's **released** one (its last waypoint, or a scrape's slide-out end), the predecessor must still be **ringing** at this onset (strict adjacency against its stored ring, 2026-08-22), and a fret-hand-harmonic predecessor is disqualified outright. Then the released fret picks the motion — higher = pull, lower = hammer — and a claim nothing justifies is refused rather than guessed, plays as the pick it sounds like where it already stands, and is flattened at the next settle. When the hold is the only thing missing, the verb authors the connection itself (the D14 assist): the plan grows the predecessor's ring to the successor's onset in the same undo entry — which is exactly the furthest a manual drag could take it — and skips a gesture-carrying predecessor (a scrape or a slide-out) whose tail is authored geometry. While the selection and history still prove the previous press was this verb's own, a second press reverses it exactly — grown tails included — leaving no trace (ruling 4's true toggle), and when a save between the presses made that entry the file's clean state the reversal pushes the exact inverse as a new entry instead of erasing it, so the tail still returns while "return to clean" stays truthful. Otherwise the press means apply-or-clear — **applying wins whenever it changes anything**, and the clear flattens the stored claims only, so a left-hand tap riding the selection keeps its attack — and a press that only skipped reports the count and the dominant reason | **Live** (`planSetLegato` + `ChartLegatoToggle`, labelled "Toggle Legato", default chord plain `L` since 2026-08-12, shipped on `H` 2026-08-07 to 2026-08-12 — verified in `editor_command_registry.cpp`). **Correction 2026-08-12:** the old note here claimed GP binds `H` "the same way" — the chord matched but the direction did not. GP's `H` is origin-stored and links the selected note forward; this claim is destination-stored and reaches backward, which is the shape of GP's "Tie note" (`L`) — the reason for the move |
-| `Shift+L` | **tie / slide-link** — the `L` verb extended with travel: on an equal-fret junction with no technique change, a tie whose settled truth is one longer sustain (the tie never enters the format); on different frets it authors the connecting slide on the predecessor's tail. Apply-or-clear toggle at parity with `L` — clearing an existing link IS the slide break, dissolving W6's separate break verb. GP's own `Shift+L` ("tie the beat") is subsumed by the uniform-scope law, so the slot is vacated by our design, not stolen. Full design + open rulings: `technique-review-walkthrough.md` W10 | reserved 2026-08-12 (verb unbuilt) |
+| `Shift+L` | **tie / slide-link** — the `L` verb extended with travel: on an equal-fret junction with no technique change, a tie whose settled truth is one longer sustain (the tie never enters the format); on different frets it authors the connecting slide on the predecessor's tail. Apply-or-clear toggle at parity with `L` — clearing an existing link IS the slide break, dissolving W6's separate break verb. GP's own `Shift+L` ("tie the beat") is subsumed by the uniform-scope law, so the slot is vacated by our design, not stolen. W10 also inherits the map's one inverted pair: on `L` it is the `Shift` meaning a charter reaches for more often (the 5-of-6 corpus check above), so W10 rules whether these two slots stay this way round. Full design + open rulings: `technique-review-walkthrough.md` W10 | reserved 2026-08-12 (verb unbuilt) |
 | `T` | **tap** — the right-hand tap attack; the dark-T plate's letter | reserved 2026-08-12 (verb unbuilt) |
 | `Shift+T` | **left-hand tap** — the **sole author of the left-hand tap**, the one statement no predecessor can justify or withdraw, valid across E4's domain (positive sounding position) and able to override a standing connection claim. The chord mirrors the notation's own family structure — the charting marks give both taps ONE letter with plate fill polarity as the hand signature, so the keymap does the same: plain `T` for the right hand, `Shift+T` for the left (moved off `Ctrl+H` 2026-08-12; `Ctrl` is the app-command plane). There is deliberately no second stating verb, a pull-off to a higher fret being physically impossible. Plain `L` can never produce this attack and its clear never destroys one — which is what makes the claim/statement split policeable rather than a convention. Under the derived-direction model the statement is its own stored value (`LeftTap`), so no neighbour edit and no settle sweep can withdraw it | **Live** (`ChartLeftTap`, labelled "Left-Hand Tap" since 2026-08-11 with its command id value retained, default chord `Shift+T` since 2026-08-12, `Ctrl+H` before — verified in `editor_command_registry.cpp`). The verb is `planSetAttack(LeftTap)`: its written-form validity check yields the ruled domain from the one rule authority — the no-node open string is the sole skip, an open-string pinch's bridge-side graze refuses to re-hand, and a tap harmonic's strike point carries into E13's form. Since 2026-08-12 the stored statement wears its own charting mark in the 2D lane: the tap letter on the LIGHT plate - fill polarity is the plate family's hand signature (55-Q1's corrected basis), so the right-hand tap's dark T and this light T share a letter without colliding. Editor-only by the charting-mark law; the 3D surfaces stay merged |
 | `Shift+X` | **pick-slide toggle** — converts the selection to or from the scrape attack | **Live but UNBOUND** (`planSetAttack` + `ChartPickSlideToggle`), deliberately registered with **no default chord**: the verb shipped with plan 55 while the signed keymap never assigned it one, and inventing one in the registry would be an unsigned keymap decision. Reachable through the chart's context menu (the Actions dialog binds chords, it does not invoke — the walkthrough's W9-I states this correctly), and the user can bind it a chord there. **SIGNED `Shift+X` 2026-08-18 (W9-I closed)**, and bound the same day. Both natural
 first letters were taken by plate letters that outrank a name letter — `P` is pop's plate, `S`
 is slap's — so the scrape takes the `X` family instead: `X` is standard tab's dead-note glyph and
 is becoming the full mute's own letter (pending #38's two-flag ruling), and a full mute and a
-scrape are both UNPITCHED NOISE, which makes `Shift+X` a real kinship rather than a letter
-collision. The `Shift` plane already resolves a collision elsewhere in this map (`Shift+V` is
-contested between wide vibrato and the whammy bar), so this is precedent, not a new exception |
-| `V` | **vibrato** | **Live 2026-08-19** (`ChartVibratoToggle`, verb `planSetNoteFlag`). Settled long before that: **`Shift+V` reserved for a *wide* vibrato** (2026-08-12: `Shift` is the sibling modifier, superseding the earlier `Alt+V` float) — still a possibility rather than a decision: the field is a bool today, so a width distinction would need the format to carry one. 2026-08-13: `Shift+V` is also the recorded **whammy-bar alternative** (see the `W` reservation) — if wide vibrato is dropped or width becomes tunable data, whammy may claim this chord instead |
-| `A` | **accent** | settled, conditional on `A` not being wanted elsewhere. Checked 2026-08-07: plain `A` and `;` are both unassigned everywhere in this matrix, the interaction model and the registry; "select all" would be `Ctrl+A`, which is a different chord, and the arpeggio reading is derived rather than authored so it needs no key. **Live 2026-08-18** (`ChartAccentToggle`, verb `planSetEmphasis`) |
-| `G` | **ghost note** — the quiet end of the emphasis axis | **SIGNED and Live 2026-08-18** (user: *"Ghost should be G not Shift+A"*, `ChartGhostToggle`). Two PLAIN letters rather than a `Shift` pair, for a reason worth stating because it looks like a sibling and is not: the ghost and the accent are opposite POLES of one three-valued field, neither a modified form of the other, while this map's `Shift` plane states a modified form of the plain key's technique. That is the same conclusion the two mutes reached on `M`/`X`, by a different route — they are independent flags, these are opposite poles, and neither shape is what `Shift` means |
-| `Shift+A` | **heavy accent** — RESERVED, unbuilt and possibly never built | reserved 2026-08-18 (user: *"Shift+A may someday be HEAVY accent"*). This is the `Shift` plane used exactly as intended: a magnitude variant of the plain key's own technique, the same shape as `Shift+V`'s wide vibrato, and it is why the ghost could not have this chord. Like wide vibrato it would need the format to carry the extra value — `NoteEmphasis` has three today, and `isAccented` is already written as "every emphasis above normal" so a fourth would light up every consumer without a hunt |
+scrape are both UNPITCHED NOISE, which makes `Shift+X` a real kinship rather than a bare letter
+collision. Either way the chord is X's second claimant (the plane statement above); `Shift+V`,
+contested between wide vibrato and the whammy bar, was the standing precedent |
+| `V` | **vibrato** | **Live 2026-08-19** (`ChartVibratoToggle`, verb `planSetNoteFlag`). Settled long before that: **`Shift+V` reserved for a *wide* vibrato** (2026-08-12: wide vibrato is `V`'s second claimant, superseding the earlier `Alt+V` float) — still a possibility rather than a decision: the field is a bool today, so a width distinction would need the format to carry one. 2026-08-13: `Shift+V` is also the recorded **whammy-bar alternative** (see the `W` reservation) — if wide vibrato is dropped or width becomes tunable data, whammy may claim this chord instead |
+| `A` | **accent** | settled, conditional on `A` not being wanted elsewhere. Checked 2026-08-07: plain `A` and `;` are both unassigned everywhere in this matrix, the interaction model and the registry; "select all" would be `Ctrl+A`, which is a different chord. **Live 2026-08-18** (`ChartAccentToggle`, verb `planSetEmphasis`). CORRECTED 2026-08-25: the old note's claim that "the arpeggio reading is derived rather than authored so it needs no key" lost its premise — a silently-held shape member is underivable (identical notes carry both hand intents), so arpeggio membership IS authored and took `Shift+A` below. If a heavy accent ever lands, its plan of record is plain `A` cycling the emphasis axis (normal → accent → heavy) rather than a chord: a magnitude is a step on the axis, not a separate verb needing a chord, and `isAccented` already reads "every emphasis above normal" |
+| `G` | **ghost note** — the quiet end of the emphasis axis | **SIGNED and Live 2026-08-18** (user: *"Ghost should be G not Shift+A"*, `ChartGhostToggle`). Two PLAIN letters rather than a `Shift` pair, for a reason worth stating because it looks like a sibling and is not: the ghost and the accent are opposite POLES of one three-valued field, and each owns its own first letter, so neither has to claim the other's second slot. That is the same conclusion the two mutes reached on `M`/`X`, by a different route — they are independent flags, these are opposite poles, and in both cases two letters were free |
+| `Shift+A` | **arpeggio hold** — promote a note to a silently-held member of the earlier shape ("my finger was already there"); the underivable fact the bracket needs to state a shape from its initial onset when a member is not struck until later. Design + storage-shape options: `docs/plans/todo/arpeggio-authoring.md` | **SIGNED 2026-08-25** (verb unbuilt; user: *"'A' for arpeggio just makes more sense"* — chosen over `Shift+S`'s fact-stating mnemonic with the accent-adjacency mispress hazard weighed and accepted). Takes `A`'s second slot — A-for-arpeggio, not an accent sibling, which the plane statement above makes unremarkable. Displaces the heavy-accent reservation, whose plan of record moves to the plain-`A` emphasis cycle (see the `A` row): a magnitude is a step on the axis, not a separate verb needing a chord. Superseded reservation kept for the record below |
+| ~~`Shift+A`~~ | ~~**heavy accent** — RESERVED, unbuilt and possibly never built~~ | superseded 2026-08-25 by the arpeggio hold above — reserved 2026-08-18 (user: *"Shift+A may someday be HEAVY accent"*). This is the `Shift` plane used exactly as intended: a magnitude variant of the plain key's own technique, the same shape as `Shift+V`'s wide vibrato, and it is why the ghost could not have this chord. Like wide vibrato it would need the format to carry the extra value — `NoteEmphasis` has three today, and `isAccented` is already written as "every emphasis above normal" so a fourth would light up every consumer without a hunt |
 | `H` | **natural harmonic** — freed by legato's move; the strongest first-letter mnemonic in the map (GP's `Y` is legacy). A GP `H` habit now authors a loud, visible, undoable wrong mark instead of the silent off-by-one link it authored before — an improvement even for the habit it breaks | reserved 2026-08-12 (verb unbuilt) |
 | `Shift+H` | **pinch harmonic** — the natural harmonic's sibling | reserved 2026-08-12 (verb unbuilt) |
 | `M` | **palm mute** — the picking hand damping at the bridge; pitched but damped. Moving the mutes to `M` is what keeps `P` free for pop | **Live 2026-08-18** (`ChartPalmMuteToggle`, verb `planSetMute`) |
-| `X` | **dead note** — the fretting hand's full mute: unpitched, percussive. AMENDED 2026-08-18, off `Shift+M`: the two mutes stopped being siblings when the user ruled they may be set INDEPENDENTLY on one note (a dead string inside a palm-muted chord), and `Shift` means "the related sibling technique" throughout this map. Two independent properties need two plain letters, and `X` is the strongest mnemonic available — standard tab writes a dead note as an X, which is also the glyph our own lane draws. The field is named `dead` in the format for the same reason | **Live 2026-08-18** (`ChartDeadNoteToggle`, verb `planSetMute`) |
+| `X` | **dead note** — the fretting hand's full mute: unpitched, percussive. AMENDED 2026-08-18, off `Shift+M`: the two mutes stopped being siblings when the user ruled they may be set INDEPENDENTLY on one note (a dead string inside a palm-muted chord), and nothing forced them to share one letter's two slots. Two independent properties take two plain letters, and `X` is the strongest mnemonic available — standard tab writes a dead note as an X, which is also the glyph our own lane draws. The field is named `dead` in the format for the same reason | **Live 2026-08-18** (`ChartDeadNoteToggle`, verb `planSetMute`) |
 | `S` | **slap** — the S plate's letter (GP's `S` is its legato slide; slides live on `Shift+L` here, so no collision) | reserved 2026-08-12 (verb unbuilt) |
 | `P` | **pop** — the P plate's letter | reserved 2026-08-12 (verb unbuilt) |
 
@@ -255,20 +269,18 @@ contested between wide vibrato and the whammy bar), so this is precedent, not a 
 
 - **The mutes take two plain letters, not a sibling pair.** AMENDED 2026-08-18: `M` palm, `X` dead
   (was `M` / `Shift+M`). The user's ruling that a note may carry both mutes at once makes them
-  independent properties rather than two values of one, and this map's `Shift` plane means
-  "sibling", which two independently-settable flags are not. **Both verbs shipped 2026-08-18 on
-  those chords**, through one `planSetMute` taking a field selector; the emphasis pair (`A` / `G`)
-  landed the same day and reached the same two-plain-letters answer by a different route, so the
-  `Shift` plane has now declined two different non-sibling shapes — independent flags, and
-  opposite poles of one axis.
-  `Shift+X` (the pick slide, below) is unaffected — it rides the X FAMILY rather than being the
-  dead note's sibling, which is exactly the collision-resolution reading the `Shift` plane already
-  carries for `Shift+V`.
+  independent properties rather than two values of one, and each has its own free letter — neither
+  had to sit in the other's second slot. **Both verbs shipped 2026-08-18 on those chords**, through
+  one `planSetMute` taking a field selector; the emphasis pair (`A` / `G`) landed the same day and
+  reached the same two-plain-letters answer by a different route — two different shapes,
+  independent flags and opposite poles of one axis, both answered by two plain letters.
+  `Shift+X` (the pick slide, below) is unaffected — it is X's second claimant rather than the dead
+  note's sibling, which the plane statement above covers.
 
 - ~~**A chord for the pick-slide toggle.**~~ **CLOSED 2026-08-18 at `Shift+X`** (the row above
-  carries the reasoning). The letter map's `Shift` plane is hereby read as resolving letter
-  COLLISIONS as well as siblings, so nobody reads `Shift+X` as a claim that a scrape is a kind of
-  full mute.
+  carries the reasoning). Nobody should read `Shift+X` as a claim that a scrape is a kind of full
+  mute — the 2026-08-25 plane statement above says why in general: `Shift` names a claimant of the
+  letter, not a kind.
 - **`;` as an alias for accent.** The only argument for it is familiarity to Guitar Pro users, and
   that premise is unverified: the search that suggested it also claimed `[` was Guitar Pro's palm
   mute, which is wrong (`[` starts a repeat section there). Verify Guitar Pro's real accent key from

@@ -290,10 +290,20 @@ namespace
         "Insert Note / Point",
         "Authoring",
         {chord(juce::KeyPress::insertKey)});
-    // Shift+X rides the X FAMILY rather than claiming a scrape is a kind of dead note: the Shift
-    // plane resolves letter COLLISIONS as well as naming siblings, and a scrape and a full mute
-    // are both unpitched noise, which makes the shared letter a real kinship. `P` stayed free for
-    // pop, so the mutes moved to M/X and left the scrape here.
+    // The `Shift` plane, stated once for the technique block (signed 2026-08-25; supersedes the
+    // separate sibling and collision readings as their superset — both stay true as instances).
+    // The LETTER is the index; `Shift` is that letter's second slot. `Shift` is not a semantic
+    // operator in this map — it is a disambiguator: the letter carries all the meaning, and
+    // `Shift` says only which claimant of that letter you mean, with the plain key going to the
+    // meaning a charter reaches for first. That is why a sibling (`Shift+H`), a collision
+    // (`Shift+X`), and a different verb entirely (`Shift+A`) share the plane without sharing a
+    // kind — and never needed to. The per-key comments below state only their own local facts;
+    // the full map and its record live in `docs/plans/in-progress/keymap-matrix.md`.
+    //
+    // `Shift+X` is the X letter's second claimant rather than a claim that a scrape is a kind of
+    // dead note; a scrape and a full mute are both unpitched noise, so the shared letter is a
+    // real kinship. `P` stayed free for pop, so the mutes moved to `M`/`X` and left the scrape
+    // here.
     add(EditorCommandId::ChartPickSlideToggle,
         "Toggle Pick Slide",
         "Authoring",
@@ -308,34 +318,29 @@ namespace
     add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('l')});
     // The charting marks already declare the tap family — one letter T, plate fill polarity as the
     // hand signature — so the keymap mirrors the visible structure: plain T is reserved for the
-    // right-hand tap, Shift+T states the left-hand one. Shift+letter is the typed family's sibling
-    // modifier; Ctrl stays the app-command plane (Save/Open/tone change), which is why the earlier
-    // Ctrl+H default moved here.
+    // right-hand tap, Shift+T states the left-hand one. Ctrl stays the app-command plane
+    // (Save/Open/tone change), which is why the earlier Ctrl+H default moved here.
     add(EditorCommandId::ChartLeftTap, "Left-Hand Tap", "Authoring", {chord('t', shift)});
-    // Two PLAIN letters rather than a sibling pair: the mutes are independent properties a note
-    // may carry at once (a dead string inside a palm-muted chord), and `Shift` means "the related
-    // sibling technique" everywhere else in this map, which a pair could only misstate. `M` is the
-    // palm; `X` is what standard tab writes a dead note as and what both our surfaces draw, which
-    // is also why the format field is named `dead`.
+    // Two PLAIN letters rather than one letter with a `Shift` slot: the mutes are independent
+    // properties a note may carry at once (a dead string inside a palm-muted chord), and each has
+    // its own free letter, so neither has to claim the other's second slot. `M` is the palm; `X`
+    // is what standard tab writes a dead note as and what both our surfaces draw, which is also
+    // why the format field is named `dead`.
     add(EditorCommandId::ChartPalmMuteToggle, "Toggle Palm Mute", "Authoring", {chord('m')});
     add(EditorCommandId::ChartDeadNoteToggle, "Toggle Dead Note", "Authoring", {chord('x')});
-    // Dynamics rather than technique, and two PLAIN letters rather than a `Shift` pair. `A` was
-    // settled for the accent 2026-08-07; the ghost takes `G` (user 2026-08-18). The two are
-    // opposite POLES of one axis rather than one being a variant of the other, and this map's
-    // `Shift` plane states a MODIFIED form of the plain key's technique — so the pole reading
-    // would have misused it, exactly as it would have for the two independent mutes on `M`/`X`.
-    //
-    // `Shift+A` is deliberately left unbound rather than merely unused: it is reserved for a
-    // possible HEAVY accent, which is a magnitude variant of `A` and therefore precisely what the
-    // plane is for. That is the same shape `Shift+V` already carries for a wide vibrato, and
-    // spending the chord on the ghost would have closed it off.
+    // Dynamics rather than technique, and two PLAIN letters rather than one letter with a `Shift`
+    // slot. `A` was settled for the accent 2026-08-07; the ghost takes `G` (user 2026-08-18): the
+    // two are opposite POLES of one axis, and each has its own first letter, so neither has to
+    // claim the other's second slot. `A`'s second slot is spoken for anyway — `Shift+A` is signed
+    // for the arpeggio hold (2026-08-25, verb unbuilt; see keymap-matrix.md). A heavy accent, if
+    // it ever lands, is plain `A` cycling the emphasis axis rather than a chord.
     add(EditorCommandId::ChartAccentToggle, "Toggle Accent", "Authoring", {chord('a')});
     add(EditorCommandId::ChartGhostToggle, "Toggle Ghost Note", "Authoring", {chord('g')});
     // `V` is vibrato's own first letter and was settled 2026-08-12; `Shift+V` stays reserved for a
-    // WIDE vibrato, the magnitude variant the Shift plane is for. Tremolo could not have its own
-    // first letter — `T` is the tap's — so it takes `R` for REPEAT (user 2026-08-19), which is what
-    // the technique is: both surfaces already describe the teeth as "repeated attacks", so the
-    // mnemonic states the rule rather than borrowing a spare letter.
+    // WIDE vibrato, `V`'s second claimant. Tremolo could not have its own first letter — `T` is
+    // the tap's — so it takes `R` for REPEAT (user 2026-08-19), which is what the technique is:
+    // both surfaces already describe the teeth as "repeated attacks", so the mnemonic states the
+    // rule rather than borrowing a spare letter.
     add(EditorCommandId::ChartVibratoToggle, "Toggle Vibrato", "Authoring", {chord('v')});
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
 
