@@ -236,10 +236,13 @@ item ships, mark it and name the commit.
   closed** (W9-L reverted 2026-08-10, W9-A ruled and shipped 2026-08-11, W9-B ruled 2026-08-13 —
   the fold tracked as its own work item, W9-C ruled and SHIPPED 2026-08-13, W9-D ruled 2026-08-13 —
   which uncovered W13), then W9-E, H, I (2026-08-18/20) and W9-J (2026-08-20, with the
-  open-string slide rules), leaving three: W9-F, G, K. W9-K is pre-answered by the
-  whammy-channel ruling in `docs/plans/todo/whammy-bar-support.md`, and W9-F should be ruled
-  together with W9-D's open glyph choice — both are the one question of how 2D says *pitched* versus
-  *falls away*. Nothing else from that review is waiting: the rest was fixed in place on 2026-08-10.
+  open-string slide rules), then **W9-K RATIFIED 2026-08-25** (the whammy-channel pre-answer signed:
+  bend amounts are ≥ 0 and the validator refuses a negative — build pending), leaving two: W9-F,
+  open and to be ruled together with W9-D's open glyph choice — both are the one question of how 2D
+  says *pitched* versus *falls away* — and W9-G, which reached mid-discussion on 2026-08-25 (the
+  inherit-at-junctions/split-to-change frame was presented; the user redirected into the tail-model
+  question before ruling — see W13's 2026-08-26 update) and waits on the bend study with it.
+  Nothing else from that review is waiting: the rest was fixed in place on 2026-08-10.
 - [ ] **W10 — The tie/slide-link verb (`Shift+L`) and the split-tail law (opened AND fully ruled
   2026-08-12 — ready to build).** Design and the three signed rulings in the W10 section below:
   the split head's attack (stored `Legato`, derived `Continuation` motion, struck/unstruck verb
@@ -297,6 +300,38 @@ item ships, mark it and name the commit.
   model, before W9-D's glyph choice hardens, and before the W9-B fold freezes the shared element
   types — a fold that bakes today's `{offset, fret}` waypoint into the shared view state would have
   to be reopened.
+
+  **ADVANCED 2026-08-25/26 — the ranged suspicion is CONFIRMED and the question is now a two-way
+  substrate fork, decided by the bend study.** The full analysis record is
+  `docs/plans/todo/tail-event-model.md`; what is settled and what is open:
+
+  - **Settled: vibrato is interval state, never whole-note.** User-established, all binding: a tail
+    may carry MULTIPLE vibrato regions; vibrato DURING a slide is legal ("rare but real"); a
+    delayed start mid-hold and an END mid-hold are both legal. The whole-note bool and the
+    importer's OR-smear at both merge sites (`gp_chart_builder.cpp:1628`, `:2057`) are recorded
+    defects — the smear draws the sine over the travel on both surfaces today.
+    `chart_presentation.h:44`'s "cannot change mid-sustain" premise is overruled and needs the
+    matching correction when the model builds.
+  - **Settled: the non-negotiables.** Waypoints/state points MUST become selectable; bends MUST be
+    authorable anchored at a waypoint; `Shift+L` on a waypoint DISCONNECTS it from its note (user
+    ask, joining W10's scope; the split-produces-an-unstruck-tie default is the orchestrator's
+    proposal, unruled). The editor shows a selectable point at every state change, with the
+    clear-then-linger-until-settle-then-dissolve behavior the user specified — achievable under
+    EITHER substrate below (stored stops, or handles derived from span edges), so the editing
+    experience does not pick the winner.
+  - **Settled: the dissolve law generalizes** (the user's own formulation, superseding the
+    path-only form signed 2026-08-13 in `2d-bend-waypoint-redesign.md`): a pending point dissolves
+    at settle iff it changes NEITHER the path function NOR the state.
+  - **Open — the substrate:** (S) interval spans stored on the note
+    (`"vibrato": [[start,end],…]`, `slides[]` unchanged) versus (W) technique-bearing stops
+    (`slides[]` generalizing into stops that carry state; the current slide save format possibly
+    dissolving entirely — the user is open to that). Split/merge is parity once the booleans die
+    (spans partition and rebase exactly as bend points already rebase at the merge sites); the
+    per-stop validator/normalize rework is a COST, not a wall (the user rejected it as a
+    justification). **The decider is the bend-editing design study** (the parked
+    `2d-bend-waypoint-redesign.md` restarts as its vehicle): compound bends, carryover at stops,
+    and the 2D lane's tight vertical space are the questions whose answers prefer one substrate —
+    "bends really throw the biggest monkey wrench into BOTH of these designs" (user).
 - [x] **W14 — Legato after a DEAD note, and after a SCRAPE — RULED, SHIPPED, HALF-REVERSED, and
   SETTLED 2026-08-20.** Three rulings in one day, recorded in order because the reversal is
   the lesson:
@@ -570,6 +605,12 @@ the options with the agent's recommendation.
   layered head with a plain white number and neither the X nor the mute plate the onset head gets, so
   a muted slide's continuation asserts a pitched landing. Partly mitigated by the linked fill reading
   darker. Options: the mute restates at every junction, or it is a once-at-the-onset property.
+  **MID-DISCUSSION 2026-08-25, unruled.** The proposed frame — the mute restates at every junction
+  of an UNSPLIT gesture as derived display (a head stating a fret must state the sound's character
+  or it lies), with a change of character authored by the split verb — was presented, and the user
+  redirected into the tail-substrate question before ruling: the frame's "inheritance" premise
+  depends on what a junction point IS, which is exactly what the bend study decides (W13's
+  2026-08-26 update). Rule after that study, with the frame kept as the candidate.
 - [x] **W9-H — Is the scrape toggle a true ON/OFF? RULED 2026-08-18: YES, and SHIPPED.** The
   user: *"pressing Shift+X a second time should restore exactly what the note had before. Once you
   change selection or move the caret then the change is committed and the toggle behavior goes
@@ -615,7 +656,16 @@ the options with the agent's recommendation.
   terminal through the same low-endpoint authority the direction chooser already used
   (`pickSlideDefaultLowFret`) — under a high capo it used to synthesize a terminal the new rule
   refuses.
-- [ ] **W9-K — Is a negative bend amount legal?** Nothing validates a bend's AMOUNT: the rules check
+- [x] **W9-K — Is a negative bend amount legal? RATIFIED 2026-08-25: NO — bend amounts are ≥ 0 and
+  the validator refuses a negative.** The whammy-channel pre-answer in
+  `docs/plans/todo/whammy-bar-support.md` was signed as written ("Ratify it"): dips and dives belong
+  to the whammy's own model field, a finger cannot lower pitch, so a negative bend amount is a data
+  error, not a technique — refused loudly beside the existing offset checks. No drawing question
+  survives (nothing legal renders below the tail; deep dives arrive with the whammy's twist
+  notation). Build pending: the validation rule plus a test ride the next validator-touching
+  commit. The original question below is kept for the record.
+
+  ORIGINAL: Nothing validates a bend's AMOUNT: the rules check
   only offsets and the reader takes the value raw. A negative one renders a chip with no number at
   all (the formatter's fraction lookup clamps to an empty string), so the mark says a bend exists and
   refuses to say how much. A downward bend is a real technique on a vibrato bar, so this is a format
@@ -669,6 +719,15 @@ changes (fret or technique)**. A technique verb pressed with the armed caret on 
 creates a head there — the predecessor's tail shortens to the split, the new note carries the
 remainder and the technique. Technique verbs thereby gain the digits' own three-rung ladder: apply
 to the selection, else split-the-tail at the armed caret, else inert.
+
+**ADDENDUM 2026-08-26 — the disconnect joins the verb's scope (user ask).** `Shift+L` with a
+selected WAYPOINT disconnects that waypoint from its note ("to make it feel consistent" — the
+split-tail law applied at the waypoint instead of a bare tail point): the note's path ends there
+and a new head takes the remainder. The orchestrator's proposed default — the split product is an
+unstruck tie, so the sound is unchanged and a second press can make it struck — is PROPOSED, not
+ruled. Prerequisite: selectable waypoints (W13's 2026-08-26 update carries the non-negotiables);
+the substrate the bend study picks decides what the disconnected point's data looks like, so build
+this clause with that study's outcome in hand.
 
 **RULED 2026-08-12 — the split head's attack (user-signed):**
 

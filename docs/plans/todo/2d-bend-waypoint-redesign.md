@@ -115,4 +115,9 @@ so the redesign inherits them when revived:
   plain note's tail keeps the fret-0 insert. **The waypoint-commit law** (user-signed 2026-08-13):
   a pending waypoint commits at settle only if it changes the path function (a fret change, or a
   hold boundary that alters when travel resumes) and otherwise dissolves — junk waypoints are
-  unrepresentable by construction.
+  unrepresentable by construction. **GENERALIZED 2026-08-25 by the law's own author** (in the
+  tail-model discussion; the user, describing clearing vibrato from a state point): a pending
+  point dissolves at settle iff it changes NEITHER the path function NOR the state — so a point
+  whose only job was a since-cleared technique lingers selectable until the gesture settles, then
+  dissolves, and vibrato-into-vibrato leaves no point. When this plan restarts as the bend study's
+  vehicle (`tail-event-model.md` §8), the law reads in this generalized form.

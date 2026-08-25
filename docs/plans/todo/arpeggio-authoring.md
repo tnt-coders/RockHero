@@ -3,7 +3,7 @@
 Status: **STORAGE DECIDED — option F, the fret-optional hold marker.** The one fork this document
 was written around was ruled 2026-08-25 (β stays in scope), so what remains below is not a menu: it
 is the record of why F, plus the build plan's pre-work list. Still not itself a build plan. The
-chord is final (`Shift+A`); **the verb's semantics are proposed, not ruled** — v1 was rejected and
+chord is final (`N`, re-signed from `Shift+A` the same day); **the verb's semantics are proposed, not ruled** — v1 was rejected and
 v2 (caret-anchored) awaits the final nod under option F.
 
 Written 2026-08-24 against `master` and reworked the same day against an adversarial review that
@@ -60,10 +60,13 @@ see the rejected v1 under the verb proposal. Only its record shape did.) So the 
 is now the record of *why* F, not a menu, and the edit-consistency scoring is read as F's cost
 sheet rather than as a tiebreaker.
 
-**The chord is final: `Shift+A`** — **SIGNED 2026-08-25**, carried by
-`docs/plans/in-progress/keymap-matrix.md:246`. The verb is unbuilt, but the chord is not
-provisional and is not to be re-opened when the verb lands. It reads as A-for-arpeggio riding the
-`Shift` collision plane, not as an accent sibling. It displaced the heavy-accent reservation
+**The chord is final: `N`** — first signed `Shift+A` on 2026-08-25 and **RE-SIGNED to plain `N`
+the same day** (user: *"N could stand for something like 'Note Type'? … This is a common enough
+thing that I like having a bare key for it, not Shift modified"*; `N` verified unclaimed in the
+matrix and the registry). `Shift+A` reverts to its heavy-accent reservation, and the keymap matrix
+carries both signings. The verb is unbuilt, but the chord is not provisional and is not to be
+re-opened when the verb lands. The brief `Shift+A` tenancy had displaced the heavy-accent
+reservation
 (`:247`), whose plan of record moved to a plain-`A` emphasis cycle (`:244`) on the ground that a
 magnitude is a step on an axis, not a sibling technique. §8's "a hotkey" therefore has its answer,
 and the letter-map question is closed.
@@ -199,7 +202,7 @@ That over-reads it. Read together with §2 (`:31`–`:42`), §8 rested on **four
 are dead**:
 
 1. **The verb** — a hotkey promoting a placed note to an unplayed member. **Survives**, and it now
-   has its key (`Shift+A`, signed 2026-08-25).
+   has its key (`N`, re-signed from `Shift+A` 2026-08-25).
 2. **An authored template stored in the chart.** **Deleted** by note-sustain stage C, 2026-08-22
    (`chart_document.cpp:471`–`:476` rationale, `:477`–`:482` refusal).
 3. **Extent by belonging to the span** — the template owned the whole span. **Deleted with it**,
@@ -304,7 +307,7 @@ nothing more… read back from the predecessor by `resolveLegato` and is never s
 neighbour edit can leave a stale direction behind" (`chart.h:86`), and which degrades to a plain
 pick when the chart does not justify it (`chart_legato.cpp:33`–`:37`, `:85`).
 
-- **Verb.** Select the late note, press `Shift+A`. You author on the object you are looking at.
+- **Verb.** Select the late note, press the verb's chord. You author on the object you are looking at.
 - **Format.** One boolean on the note. Nothing else. No second array.
 - **Derivation.** At `:226`, a lone onset carrying the claim joins the open span instead of closing
   it, and its fret folds into the open span's posture. The posture keying (`:200`) moves from span
@@ -410,7 +413,7 @@ nothing about a span — it is anchored to a `(position, string)` and nothing el
 relationship is entirely read-time, which is what the caret-anchored verb below makes visible and
 what keeps the marker free of stored relational state.
 
-- **Verb.** §8's verb with its final chord, `Shift+A`, acting at the caret on whatever the slot
+- **Verb.** §8's verb with its final chord, `N`, acting at the caret on whatever the slot
   holds — see *The verb* below, which is a proposal and not yet ruled.
 - **Format.** One array. In α the record is `{position, string}` and carries **no fret at all**, so
   there is nothing to diverge from the note that supplies it. In β the fret is present because no
@@ -470,7 +473,7 @@ position P while looking at position P+n, and let one keystroke write a record s
 was not. **v2 deletes the disambiguation, deletes the gesture on the late note, and anchors
 everything at the caret.**
 
-`Shift+A` acts at the caret, on whatever that slot holds:
+`N` acts at the caret, on whatever that slot holds:
 
 1. **Empty armed slot ⇒ author a fret-absent hold marker** at that `(position, string)`. It says
    "the hand takes this stop here, silently" and states no fret, because it does not need to: a
@@ -652,7 +655,7 @@ A tap that previously fell *after* a span can now fall *inside* it and flip a bo
 ## Pre-work the build plan must settle
 
 Two entries left this list when they were ruled: **the fork** (β stays in scope — the storage
-shape is settled) and **the chord** (`Shift+A`, signed). Both are recorded in the rulings section.
+shape is settled) and **the chord** (`N`, re-signed from `Shift+A`). Both are recorded in the rulings section.
 Nothing remaining here blocks the storage shape; every item is wiring, and every item should be
 answered before the first line of the build plan is written.
 
@@ -732,4 +735,4 @@ answered before the first line of the build plan is written.
 - `docs/plans/in-progress/arpeggio-posture-display-options.md:18`–`:25` — the settled display rule
   that already handles an un-sounding posture string.
 - `docs/plans/in-progress/keymap-matrix.md:244`/`:246`/`:247` — the `A` emphasis-cycle plan of
-  record, the signed `Shift+A` arpeggio hold, and the superseded heavy-accent reservation.
+  record, the arpeggio hold re-signed to `N`, and the restored heavy-accent reservation.
