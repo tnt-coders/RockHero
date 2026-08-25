@@ -244,7 +244,7 @@ void writeChartedProjectPackage(
     const std::filesystem::path& path, const std::string& note_properties)
 {
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
-    const std::string attack_property = note_properties;
+
     writeArchive(
         path,
         std::vector{
@@ -256,7 +256,7 @@ void writeChartedProjectPackage(
                             R"( "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
                             R"( "notes": [ { "position": "1:2", "string": 1, "fret": 5,)"
                             R"( "sustain": "1/8")" +
-                            attack_property + R"( } ] })",
+                            note_properties + R"( } ] })",
             },
             ArchiveEntry{
                 .path = "song/song.json",
