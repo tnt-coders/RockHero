@@ -145,6 +145,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimelineSeekRequested(common::core::TimePosition position);
     void onGridNoteValueChangeRequested(common::core::Fraction note_value);
     void onGridSnapToggleRequested();
+    void onGridSnapWarningDecision(GridSnapWarningDecision decision);
     void onTimelineZoomChanged(double pixels_per_second);
     void onWaveformVisibleChangeRequested(bool visible);
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
@@ -771,6 +772,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // deliberately unpersisted — resetGridSession puts it back on at every project boundary, and
     // this initializer is that same rule at app launch.
     bool m_grid_snap{true};
+
+    // True while a toggle that would turn snapping off is waiting on the user's answer to the
+    // warning. Session state like the switch itself, and just as unpersisted: the warning is
+    // unconditional, so nothing about grid snap — the switch or the asking — is stored anywhere.
+    bool m_grid_snap_warning_prompt{false};
 
     // Horizontal timeline scale last reported by the view, persisted per project as app-local
     // resume state. Zero means no zoom has been reported or restored (view default applies).

@@ -417,6 +417,9 @@ public:
     /*! \copydoc IEditorController::onGridSnapToggleRequested */
     void onGridSnapToggleRequested() override;
 
+    /*! \copydoc IEditorController::onGridSnapWarningDecision */
+    void onGridSnapWarningDecision(GridSnapWarningDecision decision) override;
+
     /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.
     \param pixels_per_second Horizontal timeline scale currently displayed.

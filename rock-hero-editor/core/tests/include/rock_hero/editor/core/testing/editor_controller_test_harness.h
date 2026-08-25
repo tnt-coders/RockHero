@@ -2011,6 +2011,22 @@ mints one.
 }
 
 /*!
+\brief Turns grid snap off the way the UI does: the toggle asks, and the answer applies.
+
+Turning snapping off is a two-step path in production — the toggle raises the warning prompt and
+only the confirming decision moves the switch — so tests that need free placement go through both
+steps rather than restating the gate. Turning snapping back ON is still one plain toggle call,
+because that direction is never gated.
+
+\param controller Controller under test.
+*/
+inline void turnGridSnapOff(EditorController& controller)
+{
+    controller.onGridSnapToggleRequested();
+    controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
+}
+
+/*!
 \brief Adds the default known plugin through the same browser route used by production UI.
 \param controller Controller under test.
 \param plugin_id Opaque plugin candidate ID selected through the browser.

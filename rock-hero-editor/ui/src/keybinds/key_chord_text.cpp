@@ -233,6 +233,21 @@ juce::String keyChordText(const juce::KeyPress& key)
     return keyChordText(key, &liveLayoutShiftedCharacter);
 }
 
+juce::String commandChordText(
+    juce::ApplicationCommandManager& command_manager, EditorCommandId command)
+{
+    // Display-equal chords (OS key-shape twins like Shift+'=' and the numpad-arrival '+')
+    // render once — they are one logical key to the user.
+    juce::StringArray chord_texts;
+    for (const juce::KeyPress& key :
+         command_manager.getKeyMappings()->getKeyPressesAssignedToCommand(toJuceCommandId(command)))
+    {
+        chord_texts.addIfNotAlreadyThere(keyChordText(key));
+    }
+
+    return chord_texts.joinIntoString(", ");
+}
+
 void addEditorCommandItem(
     juce::PopupMenu& menu, juce::ApplicationCommandManager& command_manager,
     EditorCommandId command)
@@ -247,7 +262,7 @@ void addEditorCommandItem(
     }
 
     // Mirrors PopupMenu::addCommandItem's construction, with one change: the shortcut text is
-    // pre-filled through keyChordText, because the popup derives its own raw
+    // pre-filled through commandChordText, because the popup derives its own raw
     // getTextDescription text only when this field arrives empty.
     juce::ApplicationCommandInfo info{*registered};
     const juce::ApplicationCommandTarget* const target =
@@ -260,16 +275,7 @@ void addEditorCommandItem(
     item.isEnabled =
         target != nullptr && (info.flags & juce::ApplicationCommandInfo::isDisabled) == 0;
     item.isTicked = (info.flags & juce::ApplicationCommandInfo::isTicked) != 0;
-
-    // Display-equal chords (OS key-shape twins like Shift+'=' and the numpad-arrival '+')
-    // render once — they are one logical key to the user.
-    juce::StringArray chord_texts;
-    for (const juce::KeyPress& key :
-         command_manager.getKeyMappings()->getKeyPressesAssignedToCommand(command_id))
-    {
-        chord_texts.addIfNotAlreadyThere(keyChordText(key));
-    }
-    item.shortcutKeyDescription = chord_texts.joinIntoString(", ");
+    item.shortcutKeyDescription = commandChordText(command_manager, command);
 
     menu.addItem(std::move(item));
 }

@@ -83,6 +83,22 @@ enum class GameAudioRecommendationDecision : std::uint8_t
 };
 
 /*!
+\brief User choice returned from the warning shown before grid snap turns off.
+
+There is no third "dismissed" alternative on purpose: every way of leaving the dialog that is not
+the explicit confirmation — the recommended button, Return, Escape, closing the window — resolves
+to KeepSnappingOn, so a warning the user did not answer can never turn snapping off.
+*/
+enum class GridSnapWarningDecision : std::uint8_t
+{
+    /*! \brief Proceed into free placement: turn grid snapping off. */
+    TurnSnappingOff,
+
+    /*! \brief Leave grid snapping on (the recommended path). */
+    KeepSnappingOn,
+};
+
+/*!
 \brief Describes the unsaved-changes prompt the view should present.
 
 The prompt only appears in view state when the controller has a deferred action waiting on the
@@ -668,6 +684,17 @@ struct EditorViewState
     that say "grid" while it is false.
     */
     bool grid_snap{true};
+
+    /*!
+    \brief True while the warning that precedes turning grid snap off should be shown.
+
+    Raised by a toggle that would turn snapping OFF, in place of flipping the switch; a toggle that
+    turns snapping back on never raises it. The view presents the warning and answers through
+    IEditorController::onGridSnapWarningDecision, which is the only path that can turn snapping
+    off. Nothing suppresses it: the warning is deliberately unconditional, matching a mode that
+    stores nothing anywhere and is meant to be entered one deliberate time at a time.
+    */
+    bool grid_snap_warning_prompt{false};
 
     /*!
     \brief Horizontal timeline scale to restore on a fresh project load.

@@ -526,7 +526,7 @@ TEST_CASE("EditorController steps the caret onto off-grid notes", "[core][chart]
     // note by the click) rides the move with it. Snap goes back on so the plain arrows below step
     // the grid again.
     click(controller, 40.0f, 220.0f);
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     controller.onSelectionMoveRequested(ChartStepDirection::Right);
     controller.onGridSnapToggleRequested();
     const EditorViewState* state = stateOrNull(view.last_state);

@@ -11,6 +11,7 @@
 #include "shared/editor_theme.h"
 #include "shared/themed_message_box.h"
 #include "timeline/cursor_overlay.h"
+#include "timeline/grid_snap_warning_dialog.h"
 #include "timeline/timeline_cursor.h"
 #include "timeline/track_viewport.h"
 
@@ -790,6 +791,7 @@ void EditorView::setState(const core::EditorViewState& state)
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentGameAudioUnavailablePromptIfNeeded(m_state.game_audio_unavailable_prompt);
     presentGameAudioRecommendationIfNeeded(m_state.game_audio_recommendation_prompt);
+    presentGridSnapWarningIfNeeded(m_state.grid_snap_warning_prompt);
     presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_audio_device_failure_overlay.setPrompt(m_state.audio_device_failure_prompt);
@@ -2438,6 +2440,29 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
                 showAudioDeviceSettingsWindow();
             }
             m_controller.onGameAudioRecommendationDecision(decision, suppress_future);
+        });
+}
+
+// Opens the grid-snap warning once per controller request and routes its single decision back.
+// The dialog belongs to the main editor window even when the toggle was pressed in the 3D preview
+// (which forwards the command here), because this window is where the mode's consequences show.
+void EditorView::presentGridSnapWarningIfNeeded(bool prompt_requested)
+{
+    if (!prompt_requested)
+    {
+        m_grid_snap_warning_presented = false;
+        return;
+    }
+
+    if (m_grid_snap_warning_presented)
+    {
+        return;
+    }
+
+    m_grid_snap_warning_presented = true;
+    GridSnapWarningDialog::show(
+        *this, m_command_manager, [this](core::GridSnapWarningDecision decision) {
+            m_controller.onGridSnapWarningDecision(decision);
         });
 }
 

@@ -218,6 +218,16 @@ public:
         grid_snap_toggle_count += 1;
     }
 
+    /*!
+    \brief Records decisions emitted by the grid-snap warning dialog.
+    \param decision User-selected warning decision.
+    */
+    void onGridSnapWarningDecision(GridSnapWarningDecision decision) override
+    {
+        last_grid_snap_warning_decision = decision;
+        grid_snap_warning_decision_count += 1;
+    }
+
     /*! \copydoc IEditorController::onArrangementSelected */
     void onArrangementSelected(std::string arrangement_id) override
     {
@@ -1033,6 +1043,12 @@ public:
 
     /*! \brief Number of grid-snap toggle intents received. */
     int grid_snap_toggle_count{0};
+
+    /*! \brief Last decision received from the grid-snap warning dialog. */
+    std::optional<GridSnapWarningDecision> last_grid_snap_warning_decision{};
+
+    /*! \brief Number of grid-snap warning decisions received. */
+    int grid_snap_warning_decision_count{0};
 
     /*! \brief Counts timeline zoom reports. */
     int timeline_zoom_change_count{0};

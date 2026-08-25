@@ -935,7 +935,7 @@ TEST_CASE("EditorController moves the selection by one tick with grid snap off",
     click(controller, 40.0f, 220.0f);
 
     // The moved note sorts after its untouched measure-2 chord mate once it carries an offset.
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     controller.onSelectionMoveRequested(ChartStepDirection::Right);
     const auto* chart = chartOrNull(controller);
     CHECK(
@@ -956,7 +956,7 @@ TEST_CASE("EditorController moves the selection by one tick with grid snap off",
         }));
 
     // The tick step back lands exactly on the lattice again — no residue.
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     controller.onSelectionMoveRequested(ChartStepDirection::Left);
     chart = chartOrNull(controller);
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));

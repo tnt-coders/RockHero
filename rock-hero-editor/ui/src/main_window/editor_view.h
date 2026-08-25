@@ -328,6 +328,9 @@ private:
     // Opens or releases the startup game-audio recommendation dialog from controller state.
     void presentGameAudioRecommendationIfNeeded(bool prompt_requested);
 
+    // Opens or releases the warning that precedes turning grid snap off, from controller state.
+    void presentGridSnapWarningIfNeeded(bool prompt_requested);
+
     // Presents or closes the input calibration prompt from controller state.
     void presentInputCalibrationPromptIfNeeded(
         const std::optional<core::InputCalibrationPrompt>& prompt);
@@ -673,6 +676,9 @@ private:
     // True while the controller's current recommendation request has been presented; the
     // self-deleting standard alert owns its own teardown, so only the dedup flag lives here.
     bool m_game_audio_recommendation_presented{false};
+
+    // Same dedup flag for the controller's current grid-snap warning request.
+    bool m_grid_snap_warning_presented{false};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};

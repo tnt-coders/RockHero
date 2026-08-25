@@ -588,12 +588,71 @@ TEST_CASE("EditorController toggles grid snap", "[core][editor-controller]")
     REQUIRE(state != nullptr);
     CHECK(state->grid_snap);
 
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     CHECK_FALSE(state->grid_snap);
     // The grid VALUE is untouched: snap decides where things land, never what the grid says.
     CHECK(state->grid_note_value == g_default_tempo_grid_note_value);
 
     controller.onGridSnapToggleRequested();
+    CHECK(state->grid_snap);
+}
+
+// Turning snapping OFF is asked about first, every time: an accidental Ctrl+G otherwise lands the
+// user in free placement with nothing but quieted grid ink to say so. Turning it back ON is never
+// gated, and nothing suppresses the warning — there is no stored flag to suppress it with.
+TEST_CASE("EditorController warns before grid snap turns off", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->grid_snap_warning_prompt);
+
+    // The toggle raises the warning INSTEAD of flipping the switch.
+    controller.onGridSnapToggleRequested();
+    CHECK(state->grid_snap_warning_prompt);
+    CHECK(state->grid_snap);
+
+    // Keeping snapping on — the recommended answer, and the one every non-confirming close path
+    // reports — clears the prompt and leaves the session exactly as it was.
+    controller.onGridSnapWarningDecision(GridSnapWarningDecision::KeepSnappingOn);
+    CHECK_FALSE(state->grid_snap_warning_prompt);
+    CHECK(state->grid_snap);
+
+    // Confirming is the only path that turns snapping off.
+    controller.onGridSnapToggleRequested();
+    REQUIRE(state->grid_snap_warning_prompt);
+    controller.onGridSnapWarningDecision(GridSnapWarningDecision::TurnSnappingOff);
+    CHECK_FALSE(state->grid_snap_warning_prompt);
+    CHECK_FALSE(state->grid_snap);
+
+    // Turning snapping back on asks nothing...
+    controller.onGridSnapToggleRequested();
+    CHECK_FALSE(state->grid_snap_warning_prompt);
+    CHECK(state->grid_snap);
+
+    // ...and the next attempt to turn it off warns again, because no answer is remembered.
+    controller.onGridSnapToggleRequested();
+    CHECK(state->grid_snap_warning_prompt);
+    CHECK(state->grid_snap);
+
+    // A pending question belongs to the session that raised it, so a project boundary drops it
+    // along with the fact it asks about.
+    controller.onCloseRequested();
+    CHECK_FALSE(state->grid_snap_warning_prompt);
     CHECK(state->grid_snap);
 }
 
@@ -623,7 +682,7 @@ TEST_CASE(
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
 
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     REQUIRE_FALSE(state->grid_snap);
     controller.onCloseRequested();
     CHECK_FALSE(state->project_loaded);
@@ -632,12 +691,12 @@ TEST_CASE(
     // Reopening the same project restores its stored grid VALUE but never a snap state, because
     // nothing stores one.
     REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     REQUIRE_FALSE(state->grid_snap);
     REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
     CHECK(state->grid_snap);
 
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     REQUIRE_FALSE(state->grid_snap);
     project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
     controller.onImportRequested(std::filesystem::path{"song.rock"});

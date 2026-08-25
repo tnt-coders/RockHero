@@ -81,6 +81,8 @@ target_sources(
             src/timeline/arrangement_view.h
             src/timeline/cursor_overlay.cpp
             src/timeline/cursor_overlay.h
+            src/timeline/grid_snap_warning_dialog.cpp
+            src/timeline/grid_snap_warning_dialog.h
             src/timeline/grid_spacing_selector.cpp
             src/timeline/grid_spacing_selector.h
             src/timeline/tempo_grid_dots.cpp

@@ -36,7 +36,10 @@ the world may have changed while the dialog sat open.
 5. **View render**: show through `showThemedDialogModally` (`themed_message_box.h`) — it owns
    the `SafePointer` liveness guard, delivers the result only while the owner lives, and gives
    Return/Esc their button meanings. Track presented-prompt identity so a re-derivation doesn't
-   re-open the same dialog.
+   re-open the same dialog. The fixed-shape boxes put Return on the first button and Esc on the
+   last; when the safe answer must own BOTH (a prompt that discourages what it is asking about),
+   build the window directly and give that one button both shortcuts, mapping every other modal
+   result — including the 0 of a bare dismissal — to it (`GridSnapWarningDialog`).
 6. **Tests**: prompt appears under the triggering conditions; each decision value resolves
    correctly; the stale case (state changed while the prompt was open) is handled; no prompt
    re-presents on an unchanged re-derivation.

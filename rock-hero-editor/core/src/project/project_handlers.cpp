@@ -1528,6 +1528,9 @@ void EditorController::Impl::resetGridSession(const common::core::Fraction note_
 {
     m_grid_note_value = note_value;
     m_grid_snap = true;
+    // A question about the old session's switch must not be answerable into the new one, so the
+    // pending warning resets with the fact it asks about.
+    m_grid_snap_warning_prompt = false;
 }
 
 // Chooses the timeline zoom restored for a project open from app-local editor settings, falling

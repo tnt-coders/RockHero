@@ -93,7 +93,7 @@ struct GestureFixture
     // moves — which is exactly what lets one run mix lattices.
     void tickStep(int direction)
     {
-        controller.onGridSnapToggleRequested();
+        turnGridSnapOff(controller);
         step(direction);
         controller.onGridSnapToggleRequested();
     }

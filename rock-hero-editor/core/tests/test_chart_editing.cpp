@@ -647,7 +647,7 @@ TEST_CASE("Grid snap moves the insert position but never the insert's ring", "[c
 
     // Snap off: the same pixel plants on the TICK lattice — and the ring is unchanged, because a
     // duration default reads the grid value, never the quantum.
-    controller.onGridSnapToggleRequested();
+    turnGridSnapOff(controller);
     click(controller, off_grid_x, 140.0f, ChartPointerModifiers{.alt = true});
     chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == notes_before + 2);

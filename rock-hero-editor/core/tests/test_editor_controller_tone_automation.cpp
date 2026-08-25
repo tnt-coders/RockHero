@@ -657,7 +657,7 @@ TEST_CASE(
 
     // With snap off, Alt+Left steps back one tick (1/3840 whole note, 1/960 beat in x/4): the
     // point (and its caret) leave the grid exactly. Snap goes back on for the grid steps below.
-    editor.controller.onGridSnapToggleRequested();
+    turnGridSnapOff(editor.controller);
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     editor.controller.onGridSnapToggleRequested();
     const common::core::GridPosition tick_slot{
@@ -797,7 +797,7 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
     // Selecting the (2,2) point arms the caret on it; a tick step with snap off slides both off
     // the grid, and snap goes back on so the plain arrows below step the grid again.
     editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 2));
-    editor.controller.onGridSnapToggleRequested();
+    turnGridSnapOff(editor.controller);
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left);
     editor.controller.onGridSnapToggleRequested();
     const common::core::GridPosition tick_slot{
@@ -1037,7 +1037,7 @@ TEST_CASE(
     }
 
     // Snap off: the caret arms on the tick lattice instead — the mode is what selects the answer.
-    editor.controller.onGridSnapToggleRequested();
+    turnGridSnapOff(editor.controller);
     editor.controller.onToneAutomationPointerDown(down());
     REQUIRE(editor.automation().lane_caret.has_value());
     if (editor.automation().lane_caret.has_value())

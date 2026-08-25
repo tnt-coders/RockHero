@@ -139,6 +139,43 @@ window forwards the caret verbs because paused preview follows the marker, and t
 change that, so leaving the toggle out would strand the caret until the user went back to the
 authoring window.
 
+## Turning it off asks first
+
+Added 2026-08-25, on the user's ruling. `Ctrl+G` is one slip from a chord people press for other
+things, and the mode it enters announces itself only through quieted grid ink and a struck-through
+readout — so an accidental press leaves a charter in free placement, confused, with no idea what
+they did. The user's call: *"the first time a user turns the grid off it should display a warning
+that disabling the grid is HIGHLY DISCOURAGED"*, refined twice — the warning offers *"options to
+continue or turn the grid back on which should be marked as 'recommended'"*, and then the
+suppression checkbox was dropped outright: *"get rid of the don't warn again checkbox. It's a lot
+of extra code and I REALLY want to discourage turning the grid off so having the popup ALWAYS
+happen is actually probably preferred."*
+
+So the warning is **unconditional**, and only on the way OFF:
+
+- The toggle action raises `EditorViewState::grid_snap_warning_prompt` **instead of** flipping the
+  switch; the view presents `GridSnapWarningDialog` and answers through
+  `onGridSnapWarningDecision`, which is the only path that can turn snapping off. Turning snapping
+  back on is never gated and never asks.
+- The recommended button (**"Keep Snapping On (Recommended)"**) carries both Return and Escape, and
+  every other way out of the dialog — closing the window, any dismissal — reports it too. Only a
+  deliberate press of **"Turn Snapping Off"** enters the mode.
+- The copy names the binding, because an accidental press is exactly the case where the user does
+  not know what they pressed: *"Grid Snap (Ctrl · G), which you just triggered, turns snapping off:
+  everything you place would land on a raw 1/3840-note tick instead of on the grid. Free placement
+  is for micro-timing fixes and is almost never what you want while charting. Use Grid Snap
+  (Ctrl · G) again to turn snapping back on."* The chord is read live from the mapping set
+  (`commandChordText`), so a rebind cannot make the dialog lie; with every chord unbound the copy
+  falls back to the bare command name and stays grammatical.
+- The gate lives in the **action**, not in the view, so the toggle forwarded from the 3D preview
+  window is warned about exactly like the one typed in the authoring window (the dialog belongs to
+  the main editor window either way), and no dialog appears for a toggle the availability gate was
+  going to reject anyway.
+
+Dropping the checkbox kept the mode's own shape intact: with no suppression flag, **nothing about
+grid snap is stored anywhere** — not the switch, not the asking. The pending question is session
+state like the switch, and `resetGridSession` clears it with the fact it asks about.
+
 ## What is deleted
 
 The `Ctrl` fine tier, in full:
@@ -158,7 +195,8 @@ With snap off, one wheel detent or one arrow press *is* one tick, so the time ax
 
 - **No new `Ctrl` behavior.** The modifier is freed, deliberately, and stays free. In particular
   the "sustain grows across the next onset under `Ctrl`" idea is out of scope here.
-- **No persistence, no settings entry, no project-format field.** Session-only means session-only.
+- **No persistence, no settings entry, no project-format field.** Session-only means session-only —
+  the off-warning adds no stored flag either, which is precisely why it is unconditional.
 - **The value axis is not a position axis.** Automation values keep their single step (one discrete
   state, else 0.01); the 0.001 tier goes with the rest of the fine tier rather than surviving as
   the last `Ctrl` composition.

@@ -159,8 +159,23 @@ public:
     off they land on the tick lattice instead. The grid VALUE is untouched either way — it stays
     displayed, stays selectable, and stays the musical unit a placement's default ring is measured
     in. The switch is session-only: nothing persists it, and every project boundary resets it on.
+
+    Turning snapping ON happens immediately. Turning it OFF does not: the request raises
+    EditorViewState::grid_snap_warning_prompt instead, and only the user's answer to that warning
+    can move the switch (see onGridSnapWarningDecision).
     */
     virtual void onGridSnapToggleRequested() = 0;
+
+    /*!
+    \brief Handles the user's answer to the warning shown before grid snap turns off.
+
+    Clears the prompt either way; TurnSnappingOff additionally flips the switch. Nothing is
+    persisted, so the next request to turn snapping off warns again — free placement is a mode the
+    editor asks about every single time.
+
+    \param decision Decision selected by the user.
+    */
+    virtual void onGridSnapWarningDecision(GridSnapWarningDecision decision) = 0;
 
     /*!
     \brief Reports the timeline zoom the view now displays so it can be persisted.

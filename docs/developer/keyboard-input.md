@@ -194,6 +194,19 @@ never persisted, and reset to on at every project boundary (see
 authors — keeps reading the grid VALUE, which is why the two are separate readers in the
 controller (`chartGridStepBeats` versus `chartQuantumStepBeats`).
 
+It is also the one command whose keystroke does not always take effect: turning snapping OFF is
+**warned about first, every time**. `performActionImpl(ToggleGridSnap)` raises
+`EditorViewState::grid_snap_warning_prompt` instead of flipping the switch, `EditorView` presents
+`GridSnapWarningDialog` (warning register, "Keep Snapping On (Recommended)" carrying both Return
+and Escape), and only `onGridSnapWarningDecision(TurnSnappingOff)` moves the switch — every other
+way out of the dialog reports `KeepSnappingOn`. Turning snapping back on is never gated. The gate
+lives in the action, not in the view, so the `Ctrl+G` the 3D preview window forwards is warned
+about exactly like the one typed in the authoring window; the dialog belongs to the main editor
+window either way. Nothing suppresses the warning and nothing records it — see the ruling in
+`docs/plans/in-progress/grid-snap.md`. The dialog's copy names the binding itself (an accidental
+press is exactly the case where the user does not know what they pressed), reading it live from
+the mapping set through `commandChordText`, so a rebind moves the dialog's text with the menus'.
+
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,

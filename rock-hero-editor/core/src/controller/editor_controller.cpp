@@ -940,6 +940,11 @@ void EditorController::onGridSnapToggleRequested()
     m_impl->onGridSnapToggleRequested();
 }
 
+void EditorController::onGridSnapWarningDecision(GridSnapWarningDecision decision)
+{
+    m_impl->onGridSnapWarningDecision(decision);
+}
+
 void EditorController::onTimelineZoomChanged(double pixels_per_second)
 {
     m_impl->onTimelineZoomChanged(pixels_per_second);
@@ -2186,9 +2191,34 @@ void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue ac
 // readout all move together off the one fact. Nothing is written anywhere: snap is session-only by
 // design, and resetGridSession puts it back on at every project boundary — the mode is meant to be
 // entered deliberately and left behind, not inherited.
+//
+// Turning snapping OFF is asked about first: the toggle raises the warning prompt instead of
+// flipping, because Ctrl+G is one key away from a mode almost nobody wants and an accidental press
+// otherwise lands the user in it with nothing but quieted grid ink to say so. The warning is
+// unconditional and unsuppressable, which is why this handler needs no stored flag to consult.
 void EditorController::Impl::performActionImpl(EditorAction::ToggleGridSnap /*action*/)
 {
-    m_grid_snap = !m_grid_snap;
+    if (m_grid_snap)
+    {
+        m_grid_snap_warning_prompt = true;
+        updateView();
+        return;
+    }
+
+    m_grid_snap = true;
+    updateView();
+}
+
+// Applies the user's answer to that warning: the only path that can turn snapping off. Every
+// non-confirming close resolves to KeepSnappingOn at the dialog, so this handler simply clears the
+// prompt and moves the switch when — and only when — the user chose the off path.
+void EditorController::Impl::onGridSnapWarningDecision(GridSnapWarningDecision decision)
+{
+    m_grid_snap_warning_prompt = false;
+    if (decision == GridSnapWarningDecision::TurnSnappingOff)
+    {
+        m_grid_snap = false;
+    }
     updateView();
 }
 
@@ -2405,6 +2435,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.sections = makeSongSectionViews(session().song().sections, state.tempo_map);
     state.grid_note_value = m_grid_note_value;
     state.grid_snap = m_grid_snap;
+    state.grid_snap_warning_prompt = m_grid_snap_warning_prompt;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
     state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;

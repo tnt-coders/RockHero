@@ -201,4 +201,32 @@ TEST_CASE("addEditorCommandItem dedupes display-equal chords", "[ui][keybinds]")
     CHECK(iterator.getItem().shortcutKeyDescription == expected_texts.joinIntoString(", "));
 }
 
+// commandChordText reads the LIVE mapping set, which is what lets copy that names a binding — the
+// grid-snap warning's "Grid Snap (Ctrl · G)" — follow a rebind instead of lying about it. An
+// unbound command yields an empty string so callers can drop the phrase rather than print "()".
+TEST_CASE("commandChordText names the live binding", "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setState(core::EditorViewState{});
+
+    const juce::CommandID snap_command = toJuceCommandId(EditorCommandId::ToggleGridSnap);
+    CHECK(
+        commandChordText(view.commandManager(), EditorCommandId::ToggleGridSnap) ==
+        keyChordText(chord('g', juce::ModifierKeys::commandModifier)));
+
+    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    mappings.removeKeyPress(snap_command, 0);
+    CHECK(commandChordText(view.commandManager(), EditorCommandId::ToggleGridSnap).isEmpty());
+
+    // A rebind is followed, not remembered from the defaults.
+    mappings.addKeyPress(snap_command, chord('j', juce::ModifierKeys::shiftModifier));
+    CHECK(
+        commandChordText(view.commandManager(), EditorCommandId::ToggleGridSnap) ==
+        keyChordText(chord('j', juce::ModifierKeys::shiftModifier)));
+}
+
 } // namespace rock_hero::editor::ui

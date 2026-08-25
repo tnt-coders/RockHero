@@ -60,7 +60,22 @@ menu shortcut text — must route through this function so the surfaces can neve
 [[nodiscard]] juce::String keyChordText(const juce::KeyPress& key);
 
 /*!
-\brief Adds a command-backed menu item whose shortcut text uses `keyChordText`.
+\brief Formats every chord currently bound to a command as one display string.
+
+The live mapping set is the source, never the registry defaults, so a rebind moves every surface
+that names the binding — menu shortcut columns and dialog copy alike — at once. Display-equal
+chords (OS key-shape twins like Shift+'=' and the numpad-arrival '+') render once, because they
+are one logical key to the user.
+
+\param command_manager Manager the command is registered with.
+\param command The registered command whose binding should be named.
+\return Comma-separated chord text, or an empty string when nothing is bound to the command.
+*/
+[[nodiscard]] juce::String commandChordText(
+    juce::ApplicationCommandManager& command_manager, EditorCommandId command);
+
+/*!
+\brief Adds a command-backed menu item whose shortcut text uses `commandChordText`.
 
 Mirrors `juce::PopupMenu::addCommandItem` (name, enablement, and tick state from the command
 info; invocation through the manager) but pre-fills the item's shortcut text from this unit's
