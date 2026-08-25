@@ -66,22 +66,16 @@ namespace
            color.getBlue() >= 250;
 }
 
-// True only for a FULLY covered white ink pixel, which isWhiteInk's tolerance deliberately is
-// not. The two answer different questions: isWhiteInk asks whether white ink reached a spot at
-// all, which wants slack for antialiasing; this asks whether a pixel is ink and NOTHING else,
-// which is the only form that says anything about the glyph's geometry.
-//
-// The distinction is what makes a row comparison portable. A partially covered pixel is a BLEND
-// of the ink and whatever lies under it, so how bright it lands depends on the backdrop: over a
-// ghost's faded note group the same coverage reads much closer to white than over an opaque one
-// (measured 2026-08-25 at the fret digit: 170/199/208 against 131/173/186 on the same row). Any
-// tolerance therefore crosses on a DIFFERENT row in the two images, and how different depends on
-// the platform's antialiasing ramp -- which is exactly how a 250-per-channel threshold agreed on
-// Windows and disagreed by five rows under FreeType. A fully covered pixel is the ink's own color
-// whatever is beneath it, so the first row that has one is a property of the glyph alone.
-[[nodiscard]] bool isSolidWhiteInk(juce::Colour color)
+// How white one pixel is, on a single scale: the weakest of its four channels, so a pixel scores
+// high only when it is opaque AND unblended toward any hue. What matters is not the number but
+// that it rises monotonically with how much white ink covers the pixel, over ANY backdrop.
+[[nodiscard]] int whiteness(juce::Colour color)
 {
-    return color == juce::Colour{0xffffffff};
+    return std::min(
+        {static_cast<int>(color.getAlpha()),
+         static_cast<int>(color.getRed()),
+         static_cast<int>(color.getGreen()),
+         static_cast<int>(color.getBlue())});
 }
 
 // True when `color` lies nearer `first` than `second` in straight ARGB distance. Used where a
@@ -98,20 +92,53 @@ namespace
     };
     return distance(color, first) < distance(color, second);
 }
+
 // Half-width of the head's digit window. Narrower than the beside-head chip's own clearance from
 // the axis, so within it only the fret number can be white.
 constexpr int g_digit_window = 4;
 
-// Topmost row carrying SOLID digit ink inside that window; 0 when the digit never covers a pixel
-// fully. Solid rather than merely white-ish so the row means the same thing in every image the
-// callers compare -- see isSolidWhiteInk.
+// Topmost row carrying the digit's densest ink inside that window; 0 when nothing is painted
+// there at all.
+//
+// The row is located by each image's OWN peak whiteness rather than by any fixed ink test, and
+// that is what makes it comparable ACROSS images. How white a partially covered pixel lands
+// depends on what lies beneath it: over a ghost's faded note group the same coverage reads much
+// closer to white than over an opaque one (measured 2026-08-25 at the fret digit -- 170/199/208
+// against 131/173/186 on the same row). Any absolute test therefore crosses on a DIFFERENT row in
+// two images of the SAME glyph, by however much the platform's antialiasing ramp says, which is
+// how a 250-per-channel threshold agreed on Windows and disagreed by five rows under FreeType.
+//
+// Whiteness rises with coverage in both composites, so the row where it peaks is the row the
+// glyph covers most -- a property of the glyph, not of the backdrop or the rasterizer. And a
+// maximum always exists, so this cannot come up empty on a rasterizer that never fully covers a
+// pixel, which is where demanding a solid pixel failed on CoreText.
 [[nodiscard]] int topDigitInkRow(const juce::Image& image, int center_x, int center_y)
 {
+    int peak = 0;
+    bool painted = false;
     for (int y = center_y - 20; y <= center_y + 20; ++y)
     {
         for (int x = center_x - g_digit_window; x <= center_x + g_digit_window; ++x)
         {
-            if (isSolidWhiteInk(image.getPixelAt(x, y)))
+            const juce::Colour pixel = image.getPixelAt(x, y);
+            if (pixel.getAlpha() == 0)
+            {
+                continue;
+            }
+            painted = true;
+            peak = std::max(peak, whiteness(pixel));
+        }
+    }
+    if (!painted)
+    {
+        return 0;
+    }
+    for (int y = center_y - 20; y <= center_y + 20; ++y)
+    {
+        for (int x = center_x - g_digit_window; x <= center_x + g_digit_window; ++x)
+        {
+            const juce::Colour pixel = image.getPixelAt(x, y);
+            if (pixel.getAlpha() > 0 && whiteness(pixel) == peak)
             {
                 return y;
             }
