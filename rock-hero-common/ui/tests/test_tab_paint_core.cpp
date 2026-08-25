@@ -114,12 +114,11 @@ constexpr int g_digit_window = 4;
             const juce::Colour from_lhs = lhs.getPixelAt(x, y);
             const juce::Colour from_rhs = rhs.getPixelAt(x, y);
             worst = std::max(
-                worst,
-                std::max(
-                    {std::abs(from_lhs.getAlpha() - from_rhs.getAlpha()),
-                     std::abs(from_lhs.getRed() - from_rhs.getRed()),
-                     std::abs(from_lhs.getGreen() - from_rhs.getGreen()),
-                     std::abs(from_lhs.getBlue() - from_rhs.getBlue())}));
+                {worst,
+                 std::abs(from_lhs.getAlpha() - from_rhs.getAlpha()),
+                 std::abs(from_lhs.getRed() - from_rhs.getRed()),
+                 std::abs(from_lhs.getGreen() - from_rhs.getGreen()),
+                 std::abs(from_lhs.getBlue() - from_rhs.getBlue())});
         }
     }
     return worst;
@@ -239,12 +238,11 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
                     const juce::Colour from_plain = plain.getPixelAt(x, y);
                     const juce::Colour from_accented = accented.getPixelAt(x, y);
                     worst = std::max(
-                        worst,
-                        std::max(
-                            {std::abs(from_plain.getAlpha() - from_accented.getAlpha()),
-                             std::abs(from_plain.getRed() - from_accented.getRed()),
-                             std::abs(from_plain.getGreen() - from_accented.getGreen()),
-                             std::abs(from_plain.getBlue() - from_accented.getBlue())}));
+                        {worst,
+                         std::abs(from_plain.getAlpha() - from_accented.getAlpha()),
+                         std::abs(from_plain.getRed() - from_accented.getRed()),
+                         std::abs(from_plain.getGreen() - from_accented.getGreen()),
+                         std::abs(from_plain.getBlue() - from_accented.getBlue())});
                 }
             }
             return worst;
@@ -1265,7 +1263,8 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
     constexpr std::array<int, 4> open_columns{150, 160, 170, 180};
 
     // Topmost inked row of the tail in a column, which is the band's upper edge there.
-    const auto top_row = [&lane_y](const juce::Image& image, const int x) {
+    // lane_y is constexpr, so it needs no capture.
+    const auto top_row = [](const juce::Image& image, const int x) {
         for (int y = lane_y - 20; y <= lane_y + 20; ++y)
         {
             if (image.getPixelAt(x, y).getAlpha() != 0)
