@@ -4082,9 +4082,9 @@ TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core
     };
     // A quarter note that shift-slides (flag 1 = shift) into a re-picked landing a quarter later,
     // with the bend shape under test, plus the landing itself.
-    const auto importWithBend = [&syncs](const GpBend& bend) {
+    const auto import_with_bend = [&syncs](const GpBend& bend) {
         GpScore score = makeLinearScore(1, syncs);
-        GpNote sliding{.string = 0, .fret = 5};
+        GpNote sliding{.string = 0, .fret = 5, .harmonic_type = ""};
         sliding.slide_flags = 1;
         sliding.bend = bend;
         score.tracks[0].bars.push_back(
@@ -4092,7 +4092,8 @@ TEST_CASE("Guitar Pro import keeps a bend and a shift slide on one note", "[core
                 .voices = {
                     {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {sliding}},
                      GpBeat{
-                         .duration_whole = Fraction{1, 4}, .notes = {GpNote{.string = 0, .fret = 9}}
+                         .duration_whole = Fraction{1, 4},
+                         .notes = {GpNote{.string = 0, .fret = 9, .harmonic_type = ""}}
                      }}
                 }
             });
@@ -4166,7 +4167,8 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
 
     SECTION("a capo past the last usable fret")
     {
-        const auto built = importWith(GpNote{.string = 0, .fret = 3}, 40, false);
+        const auto built =
+            import_with(GpNote{.string = 0, .fret = 3, .harmonic_type = ""}, 40, false);
         REQUIRE(built.has_value());
         CHECK(built->arrangements.front().chart.tuning.capo == 12);
         CHECK(anyNoteContains(built->notes, "capo at fret 40"));
@@ -4174,7 +4176,8 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
 
     SECTION("a string the tuning does not have")
     {
-        const auto built = importWith(GpNote{.string = 8, .fret = 3}, 0, false);
+        const auto built =
+            import_with(GpNote{.string = 8, .fret = 3, .harmonic_type = ""}, 0, false);
         REQUIRE(built.has_value());
         CHECK(built->arrangements.front().chart.notes.empty());
         CHECK(anyNoteContains(built->notes, "string the tuning does not have"));
@@ -4182,7 +4185,8 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
 
     SECTION("more strings than the model speaks about")
     {
-        const auto built = importWith(GpNote{.string = 0, .fret = 3}, 0, true);
+        const auto built =
+            import_with(GpNote{.string = 0, .fret = 3, .harmonic_type = ""}, 0, true);
         REQUIRE(built.has_value());
         CHECK(built->arrangements.front().chart.tuning.strings.size() == 8);
         CHECK(anyNoteContains(built->notes, "more than 8 strings"));
@@ -4192,7 +4196,8 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
     {
         // Capo 12 plus a fret-24 note is absolute fret 36, past the cap the model bounds notes
         // by (g_max_fret, the drawn board's 24).
-        const auto built = importWith(GpNote{.string = 0, .fret = 24}, 12, false);
+        const auto built =
+            import_with(GpNote{.string = 0, .fret = 24, .harmonic_type = ""}, 12, false);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
@@ -4205,15 +4210,19 @@ TEST_CASE("Guitar Pro import survives every out-of-range field", "[core][gp-impo
     {
         // The node carries the fretting finger, so the neck is its ceiling; a high partial's
         // bridge-side alternate plus a capo pushes it past the last fret.
-        GpNote harmonic{.string = 0, .fret = 0};
+        GpNote harmonic{.string = 0, .fret = 0, .harmonic_type = ""};
         harmonic.harmonic_type = "Natural";
         harmonic.harmonic_fret = 24.0;
-        const auto built = importWith(harmonic, 12, false);
+        const auto built = import_with(harmonic, 12, false);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
-        REQUIRE(chart.notes[0].harmonic_node.has_value());
-        CHECK(*chart.notes[0].harmonic_node <= common::core::harmonicNodeCeiling(chart.notes[0]));
+        const common::core::ChartNote& only = chart.notes[0];
+        REQUIRE(only.harmonic_node.has_value());
+        if (only.harmonic_node.has_value())
+        {
+            CHECK(*only.harmonic_node <= common::core::harmonicNodeCeiling(only));
+        }
     }
 }
 
