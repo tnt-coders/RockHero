@@ -1851,12 +1851,12 @@ struct FrameScratch
 struct FrameContext
 {
     // Playback song time for this frame; the origin every time-to-z conversion measures from.
-    double now_seconds;
+    double now_seconds{0.0};
 
     // The drawn span of song time: from the passed-note fade behind the hit line out to the
     // visibility horizon, which is where the visible-range searches clamp.
-    double span_start_seconds;
-    double span_end_seconds;
+    double span_start_seconds{0.0};
+    double span_end_seconds{0.0};
 
     // The settled fret-hand windows visible this frame, in arrival order.
     std::span<const HandWindow> hand_windows;
@@ -5146,7 +5146,7 @@ void HighwayRenderer::Impl::drawLaneBorderRibbons(const FrameContext& frame)
     setFadeUniform();
     auto [vertices, indices] = scratch.colorBatch();
     // One full-length strip per fret line, four vertices each.
-    vertices.reserve(static_cast<std::size_t>(4 * (g_face_fret_count + 1)));
+    vertices.reserve(4 * (static_cast<std::size_t>(g_face_fret_count) + 1));
     const double z0 = timeToZ(frame, frame.span_start_seconds);
     const double z1 = timeToZ(frame, frame.span_end_seconds);
     for (int line = 0; line <= g_face_fret_count; ++line)
@@ -5715,7 +5715,7 @@ void HighwayRenderer::Impl::drawFretLines(const FrameContext& frame)
     // the lines themselves carry only the inactive/active hand-window state.
     auto [vertices, indices] = scratch.colorBatch();
     // One quad per fret line, four vertices each.
-    vertices.reserve(static_cast<std::size_t>(4 * (g_face_fret_count + 1)));
+    vertices.reserve(4 * (static_cast<std::size_t>(g_face_fret_count) + 1));
     for (int line = 0; line <= g_face_fret_count; ++line)
     {
         const double x = common::core::highwayFretLineX(line, metrics, mirrored);
