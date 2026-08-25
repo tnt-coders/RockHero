@@ -113,21 +113,23 @@ destruction; hiding only stops vblank ticks). If a future need for genuine re-in
 (multiple independent bgfx surfaces, teardown/rebuild), the remedy is a recipe-shadow patch
 resetting `s_renderFrameCalled` in `shutdown`, or per-window framebuffers under one device.
 
-### Deterministic frame misses in accented-open-tail sections land on the present side — trigger: pacing complaints in open-tail-heavy songs, or fullscreen/high-resolution testing
+### Deterministic dropped flips in the open-tail stress section, blocked inside bgfx::frame — trigger: pacing complaints in real play, or taking up the accent-batch split
 
 Found by the 2026-08-24 scheduler stress measurement (self-authored adversarial chart,
-RelWithDebInfo, real playback, two agreeing runs). The sections dominated by lit accented open
-tails dropped 0.35–0.54% of their frames past 1.5× the 144 Hz refresh, reproducing at
-near-identical song times across runs — deterministic, not scheduler jitter. The content CPU is
-exonerated: none of the fifteen costliest content frames missed a refresh (the worst, 3.6 ms,
-landed inside 7.4 ms), while the frames that did miss carried ordinary content cost, some as low
-as 0.15 ms. The misses are paid after encoding — submit/GPU/present — and their confinement to
-exactly the two big open-tail-geometry sections points at open-tail overdraw (the lit band is the
-widest blended geometry the board draws). Measured windowed at 1296×759; the cost scales with
-covered pixels, so fullscreen or 4K would worsen it. Same measurement's cost ranking, for
+RelWithDebInfo, real playback) and re-characterized by the min-spec proxy runs the same day. The
+open-tail stress section drops ~0.35% of its frames as exactly one missed flip (delta ≈ two
+refresh periods), recurring every ~1.80 s — which is NOT the chart's 2.00 s bar period — at
+near-identical song times across runs. Everything cheap to suspect is measured out: content CPU
+is ordinary on the missed frames (the costliest content frames never miss); an overdraw
+explanation is REFUTED — at 3.8× the covered pixels the miss rate did not grow (S4 identical,
+S9 fell to zero) and the GPU never left idle clocks (~11% at 270 MHz); the rate is also
+invariant to CPU class (E-core-pinned runs match). The frame thread is blocked inside
+bgfx::frame() with 12–14 ms of vsync wait, and the async logger cannot block it. Root cause
+open — submit/present scheduling, not fill rate, not encode cost. Still-valid cost ranking for
 whoever picks this up: per-frame content cost tracks the lit accented open-tail branch, not note
 count (66-note and 312-note sections cost the same 1.7 ms median), so that branch — also the
-home of the accent-batch split item — is where both the CPU and the overdraw work would aim.
+home of the accent-batch split item — is where scheduler-side work would aim, and this item
+should be investigated whenever that code is opened.
 
 ## Shared scene models
 
