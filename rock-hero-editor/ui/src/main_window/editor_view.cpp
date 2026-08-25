@@ -804,10 +804,13 @@ void EditorView::showError(const std::string& message)
         this, "Could not complete request", juce::String::fromUTF8(message.c_str()));
 }
 
-// Presents controller-reported news that is not a failure as a one-shot dialog.
+// Presents controller-reported news that is not a failure as a one-shot dialog. A warning box
+// rather than an info box because the channel's register is caution, not FYI: every notice names
+// something the load settled without asking — a chart repaired, audio left unnormalized — that the
+// charter has to weigh before saving over the original.
 void EditorView::showNotice(const std::string& title, const std::string& message)
 {
-    showThemedInfoBox(
+    showThemedWarningBox(
         this, juce::String::fromUTF8(title.c_str()), juce::String::fromUTF8(message.c_str()));
 }
 

@@ -42,31 +42,18 @@ void showThemedDialogModally(
 /*!
 \brief Shows the editor's themed warning box with a single OK button.
 
+The editor's whole one-way-message register: a request that failed, and equally news of something
+the editor settled without asking that the user still has to weigh. There is deliberately no info
+box beside it — nothing the editor says one-way is a bare FYI.
+
 \param associated_component Component whose top-level window the box is positioned over; may be
        null for a screen-centered box.
-\param title Window title naming what went wrong.
+\param title Window title naming what the user must heed.
 \param message Canonical user-facing text to display.
 \param on_dismissed Called once when the box is dismissed through any path (the OK button, Return,
        or Escape), unless associated_component was destroyed first; may be empty.
 */
 void showThemedWarningBox(
-    juce::Component* associated_component, const juce::String& title, const juce::String& message,
-    std::function<void()> on_dismissed = {});
-
-/*!
-\brief Shows the editor's themed informational box with a single OK button.
-
-The warning box's sibling for news that is not a failure; identical keyboard rules (Return and
-Escape both dismiss).
-
-\param associated_component Component whose top-level window the box is positioned over; may be
-       null for a screen-centered box.
-\param title Window title naming the event.
-\param message Canonical user-facing text to display.
-\param on_dismissed Called once when the box is dismissed through any path, unless
-       associated_component was destroyed first; may be empty.
-*/
-void showThemedInfoBox(
     juce::Component* associated_component, const juce::String& title, const juce::String& message,
     std::function<void()> on_dismissed = {});
 

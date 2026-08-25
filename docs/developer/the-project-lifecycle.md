@@ -22,7 +22,9 @@ change — see dirty tracking below). Audio the analyzer cannot measure — digi
 level under libebur128's -70 LUFS gate — is normalize-and-report like everything else here, not a
 refusal: `analyzeAudioForGainNormalization` answers with no record at all, the asset plays at its
 raw level, and `unnormalizedAudioNoticeText` tells the charter once at open through the same
-`IEditorView::showNotice` channel the chart-repair notice uses.
+`IEditorView::showNotice` channel the chart-repair notice uses. That channel presents as a warning
+box, not an info box — both of its notices report something the load settled without asking, which
+the charter has to weigh before saving over the original.
 
 Save and publish share one serializer: both write the song through the identical
 `writeRockSongPackageDirectory`, and the only difference is the archive root — save zips the

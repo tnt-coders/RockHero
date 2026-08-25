@@ -139,6 +139,12 @@ public:
     \param message User-facing error message.
     */
     void showError(const std::string& message) override;
+
+    /*!
+    \brief Presents a one-shot load notice as a warning box.
+    \param title Window title naming the event.
+    \param message User-facing notice body.
+    */
     void showNotice(const std::string& title, const std::string& message) override;
 
     /*!
