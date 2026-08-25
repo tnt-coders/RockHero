@@ -218,13 +218,17 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
         REQUIRE(presented.size() == saved.size());
         // The margin equals the whole gap, so the trim wants a zero-length tail; the gesture needs
         // somewhere to travel, so it compresses onto the window instead of vanishing.
-        CHECK(presented[0].sustain == g_minimum_slide_window);
-        REQUIRE(presented[0].slide_out.has_value());
+        // Bound once rather than indexed per assertion: each presented[0] is a separate
+        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
+        // the guard, so the guard only reaches the access through a single name.
+        const ChartNote& first = presented[0];
+        CHECK(first.sustain == g_minimum_slide_window);
+        REQUIRE(first.slide_out.has_value());
         // The if-guard duplicates the REQUIRE on purpose: Catch2's macro is opaque to clang-tidy's
         // unchecked-optional-access analysis, and this is its canonical flow-visible form.
-        if (presented[0].slide_out.has_value())
+        if (first.slide_out.has_value())
         {
-            CHECK(presented[0].slide_out->offset == g_minimum_slide_window);
+            CHECK(first.slide_out->offset == g_minimum_slide_window);
         }
     }
 
@@ -241,13 +245,17 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
         REQUIRE(presented.size() == saved.size());
         // The margin line lands exactly on the surviving waypoint, so the trail-off takes the
         // first legal offset past it — one minimum window on — rather than sitting on it.
-        CHECK(presented[0].sustain == Fraction{3, 8});
-        REQUIRE(presented[0].slide_out.has_value());
-        if (presented[0].slide_out.has_value())
+        // Bound once rather than indexed per assertion: each presented[0] is a separate
+        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
+        // the guard, so the guard only reaches the access through a single name.
+        const ChartNote& first = presented[0];
+        CHECK(first.sustain == Fraction{3, 8});
+        REQUIRE(first.slide_out.has_value());
+        if (first.slide_out.has_value())
         {
-            CHECK(presented[0].slide_out->offset == Fraction{3, 8});
+            CHECK(first.slide_out->offset == Fraction{3, 8});
         }
-        CHECK(presented[0].slides.size() == 1);
+        CHECK(first.slides.size() == 1);
     }
 }
 
@@ -270,13 +278,17 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
-        REQUIRE(presented[0].slide_out.has_value());
+        // Bound once rather than indexed per assertion: each presented[0] is a separate
+        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
+        // the guard, so the guard only reaches the access through a single name.
+        const ChartNote& first = presented[0];
+        REQUIRE(first.slide_out.has_value());
         // The single leg starts at the onset, so it has room to end on the margin line exactly and
         // gives up no spacing at all.
-        CHECK(presented[0].sustain == Fraction{7, 4});
-        if (presented[0].slide_out.has_value())
+        CHECK(first.sustain == Fraction{7, 4});
+        if (first.slide_out.has_value())
         {
-            CHECK(presented[0].slide_out->offset == presented[0].sustain);
+            CHECK(first.slide_out->offset == first.sustain);
         }
     }
 
@@ -292,18 +304,22 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
-        REQUIRE(presented[0].slide_out.has_value());
+        // Bound once rather than indexed per assertion: each presented[0] is a separate
+        // operator[] call, which the unchecked-optional-access analysis cannot tie back to
+        // the guard, so the guard only reaches the access through a single name.
+        const ChartNote& first = presented[0];
+        REQUIRE(first.slide_out.has_value());
         // The turnaround at 15/8 is already past the margin line at 7/4, so the last leg cannot
         // yield the margin and splits the remaining distance to the onset instead.
-        CHECK(presented[0].sustain == Fraction{31, 16});
-        if (presented[0].slide_out.has_value())
+        CHECK(first.sustain == Fraction{31, 16});
+        if (first.slide_out.has_value())
         {
-            CHECK(presented[0].slide_out->offset == presented[0].sustain);
+            CHECK(first.slide_out->offset == first.sustain);
         }
         // Inside the margin by design — the sanctioned exception — but still strictly before the
         // onset it is crowded against, which is what the halving always guarantees.
-        CHECK(presented[0].sustain > Fraction{7, 4});
-        CHECK(presented[0].sustain < Fraction{2});
+        CHECK(first.sustain > Fraction{7, 4});
+        CHECK(first.sustain < Fraction{2});
     }
 }
 

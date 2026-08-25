@@ -1011,15 +1011,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
         return;
     }
 
+    // Bound directly under the has_value guard above, before any call: nothing in this function
+    // touches the project optional (every write to it is a project open, close, or reload), and
+    // binding here keeps that guarantee visible to clang-tidy's optional tracking, which cannot
+    // carry the guard across the settle below.
+    const Project& project = *m_project;
+
     // Departing an arrangement settles the chart being left, and it must happen before the song is
     // copied below: the copy is what the reloaded session is rebuilt from, so a claim left broken
     // here would ride into the new session and out to the next write.
     static_cast<void>(settleChartLegato());
-
-    // Bound once behind the has_value guard above: nothing in this function touches the project
-    // optional, and the named reference keeps that guarantee visible to clang-tidy's optional
-    // tracking across the calls below.
-    const Project& project = *m_project;
 
     // Capture the outgoing arrangement's rig into its tone files so switching back restores any
     // unsaved tone edits; the capture also flushes pending plugin state.

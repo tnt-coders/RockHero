@@ -1142,9 +1142,13 @@ TEST_CASE("The plectrum table matches the shipped pick-slide art", "[ui][tab-pai
     }
     REQUIRE(top.has_value());
     REQUIRE(bottom.has_value());
+    if (!top.has_value() || !bottom.has_value())
+    {
+        return;
+    }
     const double height = *bottom - *top;
     const double center_y = (*top + *bottom) / 2.0;
-    double widest_left = static_cast<double>(cell_size);
+    auto widest_left = static_cast<double>(cell_size);
     double widest_right = 0.0;
     for (int y = 0; y < cell_size; ++y)
     {
@@ -1177,6 +1181,10 @@ TEST_CASE("The plectrum table matches the shipped pick-slide art", "[ui][tab-pai
         const std::optional<double> upper = right_crossing(row_below + 1);
         REQUIRE(lower.has_value());
         REQUIRE(upper.has_value());
+        if (!lower.has_value() || !upper.has_value())
+        {
+            return;
+        }
         const double weight = row - row_below;
         const double crossing = (*lower * (1.0 - weight)) + (*upper * weight);
         const double measured_x = (crossing - center_x) / height;

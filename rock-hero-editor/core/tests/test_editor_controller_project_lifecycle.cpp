@@ -1285,11 +1285,14 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
     // is left exactly as authored.
     controller.onChartCaretJumpRequested(ChartCaretJump::ChartStart);
     controller.onSelectionDeleteRequested();
-    REQUIRE(controller.session().currentArrangement()->chart.has_value());
-    REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 1);
-    REQUIRE(
-        controller.session().currentArrangement()->chart->notes.front().attack ==
-        common::core::NoteAttack::Legato);
+    const common::core::Arrangement* const displayed = controller.session().currentArrangement();
+    REQUIRE(displayed != nullptr);
+    REQUIRE(displayed->chart.has_value());
+    if (displayed->chart.has_value())
+    {
+        REQUIRE(displayed->chart->notes.size() == 1);
+        REQUIRE(displayed->chart->notes.front().attack == common::core::NoteAttack::Legato);
+    }
 
     controller.onArrangementSelected(std::string{g_bass_arrangement_id});
     REQUIRE(controller.session().currentArrangement() != nullptr);
@@ -1303,8 +1306,11 @@ TEST_CASE("EditorController settles the departed chart on an arrangement switch"
         });
     REQUIRE(lead != controller.session().song().arrangements.end());
     REQUIRE(lead->chart.has_value());
-    REQUIRE(lead->chart->notes.size() == 1);
-    CHECK(lead->chart->notes.front().attack == common::core::NoteAttack::Pick);
+    if (lead->chart.has_value())
+    {
+        REQUIRE(lead->chart->notes.size() == 1);
+        CHECK(lead->chart->notes.front().attack == common::core::NoteAttack::Pick);
+    }
 }
 
 // Save As keys the displayed arrangement to the chosen path so a pre-first-save selection survives.

@@ -476,12 +476,13 @@ TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[c
     CHECK(slide_out->offset == Fraction{1, 2});
     CHECK(chart.notes[1].sustain == Fraction{1, 2});
     const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
-    REQUIRE(presented[1].slide_out.has_value());
-    if (presented[1].slide_out.has_value())
+    const common::core::ChartNote& second = presented[1];
+    REQUIRE(second.slide_out.has_value());
+    if (second.slide_out.has_value())
     {
-        CHECK(presented[1].slide_out->offset == Fraction{1, 4});
+        CHECK(second.slide_out->offset == Fraction{1, 4});
     }
-    CHECK(presented[1].sustain == Fraction{1, 4});
+    CHECK(second.sustain == Fraction{1, 4});
 
     // The natural walk is untouched by the gesture (no rule-9 drag), but the exit pass dips
     // the window with the trail-off — the fret-3 exit pulls the anchor down at the compressed
@@ -550,12 +551,13 @@ TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "
     CHECK(slide_out->offset == Fraction{1, 2});
     CHECK(dip.sustain == Fraction{1, 2});
     const std::vector<common::core::ChartNote> presented = presentedNotesOf(chart, song->tempo_map);
-    REQUIRE(presented[1].slide_out.has_value());
-    if (presented[1].slide_out.has_value())
+    const common::core::ChartNote& second = presented[1];
+    REQUIRE(second.slide_out.has_value());
+    if (second.slide_out.has_value())
     {
-        CHECK(presented[1].slide_out->offset == Fraction{1, 4});
+        CHECK(second.slide_out->offset == Fraction{1, 4});
     }
-    CHECK(presented[1].sustain == Fraction{1, 4});
+    CHECK(second.sustain == Fraction{1, 4});
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -1974,8 +1976,12 @@ TEST_CASE(
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
-        REQUIRE(chart.notes[0].slide_out.has_value());
-        CHECK(chart.notes[0].slide_out->fret == common::core::firstPlayableFret(0));
+        const common::core::ChartNote& only = chart.notes[0];
+        REQUIRE(only.slide_out.has_value());
+        if (only.slide_out.has_value())
+        {
+            CHECK(only.slide_out->fret == common::core::firstPlayableFret(0));
+        }
         // The floor was authored, not repaired: nothing for the normalizer to report.
         CHECK_FALSE(anyNoteContains(built->notes, "on or below the capo"));
     }
@@ -1990,9 +1996,13 @@ TEST_CASE(
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 1);
-        CHECK(chart.notes[0].fret == 5);
-        REQUIRE(chart.notes[0].slide_out.has_value());
-        CHECK(chart.notes[0].slide_out->fret == common::core::firstPlayableFret(3));
+        const common::core::ChartNote& only = chart.notes[0];
+        CHECK(only.fret == 5);
+        REQUIRE(only.slide_out.has_value());
+        if (only.slide_out.has_value())
+        {
+            CHECK(only.slide_out->fret == common::core::firstPlayableFret(3));
+        }
         CHECK_FALSE(anyNoteContains(built->notes, "on or below the capo"));
     }
 }
@@ -2145,11 +2155,12 @@ TEST_CASE("Guitar Pro import stores whole payloads that presentation trims", "[c
         CHECK(terminal->fret != chart.notes[0].fret);
         const std::vector<common::core::ChartNote> presented =
             presentedNotesOf(chart, built->tempo_map);
-        CHECK(presented[0].sustain == Fraction{1, 4});
-        REQUIRE(presented[0].slide_out.has_value());
-        if (presented[0].slide_out.has_value())
+        const common::core::ChartNote& first = presented[0];
+        CHECK(first.sustain == Fraction{1, 4});
+        REQUIRE(first.slide_out.has_value());
+        if (first.slide_out.has_value())
         {
-            CHECK(presented[0].slide_out->offset == presented[0].sustain);
+            CHECK(first.slide_out->offset == first.sustain);
         }
     }
 }

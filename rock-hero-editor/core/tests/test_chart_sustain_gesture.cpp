@@ -448,10 +448,11 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
     REQUIRE(chart != nullptr);
     if (chart != nullptr)
     {
-        REQUIRE(chart->notes[2].slide_out.has_value());
-        if (chart->notes[2].slide_out.has_value())
+        const common::core::ChartNote& slid = chart->notes[2];
+        REQUIRE(slid.slide_out.has_value());
+        if (slid.slide_out.has_value())
         {
-            CHECK(chart->notes[2].slide_out->offset == common::core::g_minimum_slide_window);
+            CHECK(slid.slide_out->offset == common::core::g_minimum_slide_window);
         }
     }
 

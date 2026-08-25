@@ -272,11 +272,12 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         click(controller, 40.0f, 140.0f);
 
         controller.onChartLeftTapRequested();
-        CHECK(note(2).attack == common::core::NoteAttack::LeftTap);
-        REQUIRE(note(2).harmonic_node.has_value());
-        if (note(2).harmonic_node.has_value())
+        const common::core::ChartNote& tapped = note(2);
+        CHECK(tapped.attack == common::core::NoteAttack::LeftTap);
+        REQUIRE(tapped.harmonic_node.has_value());
+        if (tapped.harmonic_node.has_value())
         {
-            CHECK(*note(2).harmonic_node == Catch::Approx(12.0));
+            CHECK(*tapped.harmonic_node == Catch::Approx(12.0));
         }
     }
 
@@ -285,11 +286,12 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         click(controller, 40.0f, 100.0f);
 
         controller.onChartLeftTapRequested();
-        CHECK(note(3).attack == common::core::NoteAttack::LeftTap);
-        REQUIRE(note(3).harmonic_node.has_value());
-        if (note(3).harmonic_node.has_value())
+        const common::core::ChartNote& tapped = note(3);
+        CHECK(tapped.attack == common::core::NoteAttack::LeftTap);
+        REQUIRE(tapped.harmonic_node.has_value());
+        if (tapped.harmonic_node.has_value())
         {
-            CHECK(*note(3).harmonic_node == Catch::Approx(17.0));
+            CHECK(*tapped.harmonic_node == Catch::Approx(17.0));
         }
     }
 
@@ -298,11 +300,12 @@ TEST_CASE("EditorController Ctrl+H states the left-hand tap", "[core][chart]")
         click(controller, 40.0f, 60.0f);
 
         controller.onChartLeftTapRequested();
-        CHECK(note(4).attack == common::core::NoteAttack::Pinch);
-        REQUIRE(note(4).harmonic_node.has_value());
-        if (note(4).harmonic_node.has_value())
+        const common::core::ChartNote& tapped = note(4);
+        CHECK(tapped.attack == common::core::NoteAttack::Pinch);
+        REQUIRE(tapped.harmonic_node.has_value());
+        if (tapped.harmonic_node.has_value())
         {
-            CHECK(*note(4).harmonic_node == Catch::Approx(24.0));
+            CHECK(*tapped.harmonic_node == Catch::Approx(24.0));
         }
     }
 }
@@ -444,10 +447,14 @@ TEST_CASE("EditorController legato toggle window and the connection assist", "[c
         controller.onChartTechniqueToggleRequested(ChartTechnique::Legato);
 
         // Nothing changed at all: no claim, no growth, and the trail-off's own geometry intact.
+        const common::core::ChartNote& carrier = note(3);
         CHECK(note(4).attack == common::core::NoteAttack::Pick);
-        CHECK(note(3).sustain == common::core::Fraction{1});
-        REQUIRE(note(3).slide_out.has_value());
-        CHECK(note(3).slide_out->fret == 12);
+        CHECK(carrier.sustain == common::core::Fraction{1});
+        REQUIRE(carrier.slide_out.has_value());
+        if (carrier.slide_out.has_value())
+        {
+            CHECK(carrier.slide_out->fret == 12);
+        }
 
         // An all-skipped press leaves nothing behind at all: no undo entry, and no dialog either
         // (the skip count travels on the planner's return, not through the error seam).
@@ -688,9 +695,24 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
         return common::core::chartConnections(current.notes, controller.session().song().tempo_map)
             .legato[index];
     };
+    // The live note count. Reached through one guarded access rather than repeating the
+    // currentArrangement() chain at each assertion: the optional-access analysis cannot tie a
+    // guard on one call of that chain to the dereference on the next. Zero when no chart is
+    // loaded, which no scenario here expects, so the caller's own comparison fails.
+    const auto note_count = [&]() -> std::size_t {
+        const common::core::Arrangement* const arrangement =
+            controller.session().currentArrangement();
+        if (arrangement == nullptr || !arrangement->chart.has_value())
+        {
+            return 0;
+        }
+        return arrangement->chart->notes.size();
+    };
 
-    const common::core::ChartNote claim_bytes = note(1);
-    const common::core::ChartNote tap_bytes = note(2);
+    // Deliberate copies, not references: the assertions below compare the LIVE notes against
+    // these after a delete and an undo, so a reference would alias what it is meant to witness.
+    const auto claim_bytes = common::core::ChartNote{note(1)};
+    const auto tap_bytes = common::core::ChartNote{note(2)};
     CHECK(resolution(1) == common::core::LegatoMotion::Pull);
     CHECK(resolution(2) == common::core::LegatoMotion::Hammer);
 
@@ -703,7 +725,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
     SECTION("mid-burst the orphaned claim is byte-identical and simply resolves to nothing")
     {
         controller.onSelectionDeleteRequested();
-        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 2);
+        REQUIRE(note_count() == 2);
         CHECK(note(0) == claim_bytes);
         CHECK(resolution(0) == common::core::LegatoMotion::Unjustified);
         CHECK(note(1) == tap_bytes);
@@ -712,7 +734,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
         // Undo puts the predecessor back and the mark returns with it — nothing re-authored it,
         // because nothing had unwritten it.
         controller.onUndoRequested();
-        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 3);
+        REQUIRE(note_count() == 3);
         CHECK(note(1) == claim_bytes);
         CHECK(resolution(1) == common::core::LegatoMotion::Pull);
         CHECK(note(2) == tap_bytes);
@@ -722,7 +744,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
     {
         controller.onSelectionDeleteRequested();
         controller.onChartEscapePressed();
-        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 2);
+        REQUIRE(note_count() == 2);
         CHECK(note(0).attack == common::core::NoteAttack::Pick);
         CHECK(note(1) == tap_bytes);
 
@@ -731,7 +753,7 @@ TEST_CASE("EditorController orphans a claim without rewriting it", "[core][chart
         REQUIRE_FALSE(state->undo_history.labels.empty());
         CHECK(state->undo_history.labels.back() == "Delete Note");
         controller.onUndoRequested();
-        REQUIRE(controller.session().currentArrangement()->chart->notes.size() == 3);
+        REQUIRE(note_count() == 3);
         CHECK(note(1) == claim_bytes);
         CHECK(resolution(1) == common::core::LegatoMotion::Pull);
     }
