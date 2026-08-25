@@ -1,6 +1,7 @@
 #include "chart/chart_document.h"
 
 #include <algorithm>
+#include <array>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/shared/json.h>
@@ -63,17 +64,20 @@ namespace
         std::string_view key;
         bool (*matches)(const juce::var&);
     };
-    constexpr ScalarRule scalar_rules[]{
-        {"string", [](const juce::var& v) { return v.isInt(); }},
-        {"fret", [](const juce::var& v) { return v.isInt(); }},
-        {"sustain", [](const juce::var& v) { return v.isString(); }},
-        {"attack", [](const juce::var& v) { return v.isString(); }},
-        {"palmMute", [](const juce::var& v) { return v.isBool(); }},
-        {"dead", [](const juce::var& v) { return v.isBool(); }},
-        {"harmonicNode", [](const juce::var& v) { return v.isDouble() || v.isInt(); }},
-        {"vibrato", [](const juce::var& v) { return v.isBool(); }},
-        {"tremolo", [](const juce::var& v) { return v.isBool(); }},
-        {"emphasis", [](const juce::var& v) { return v.isString(); }},
+    constexpr std::array scalar_rules{
+        ScalarRule{.key = "string", .matches = [](const juce::var& v) { return v.isInt(); }},
+        ScalarRule{.key = "fret", .matches = [](const juce::var& v) { return v.isInt(); }},
+        ScalarRule{.key = "sustain", .matches = [](const juce::var& v) { return v.isString(); }},
+        ScalarRule{.key = "attack", .matches = [](const juce::var& v) { return v.isString(); }},
+        ScalarRule{.key = "palmMute", .matches = [](const juce::var& v) { return v.isBool(); }},
+        ScalarRule{.key = "dead", .matches = [](const juce::var& v) { return v.isBool(); }},
+        ScalarRule{
+            .key = "harmonicNode",
+            .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); }
+        },
+        ScalarRule{.key = "vibrato", .matches = [](const juce::var& v) { return v.isBool(); }},
+        ScalarRule{.key = "tremolo", .matches = [](const juce::var& v) { return v.isBool(); }},
+        ScalarRule{.key = "emphasis", .matches = [](const juce::var& v) { return v.isString(); }},
     };
     for (const auto& [key, matches] : scalar_rules)
     {
