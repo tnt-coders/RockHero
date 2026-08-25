@@ -14,7 +14,7 @@ std::expected<juce::Image, StructuralArtError> decodeStructuralArtPng(
         return std::unexpected(StructuralArtError::UndecodableImage);
     }
     juce::MemoryInputStream stream{png_bytes.data(), png_bytes.size(), false};
-    const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
+    juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
     if (decoded.isNull())
     {
         return std::unexpected(StructuralArtError::UndecodableImage);
