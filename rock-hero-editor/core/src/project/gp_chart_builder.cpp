@@ -1667,7 +1667,7 @@ void resolveSlideOutExits(
         // A note naming a string the tuning does not have cannot be placed at all: the lane it
         // belongs on does not exist. Dropped and counted, rather than carried to validation, which
         // would refuse the song.
-        if (source.string < 0 || source.string >= static_cast<int>(chart.tuning.strings.size()))
+        if (source.string < 0 || std::cmp_greater_equal(source.string, chart.tuning.strings.size()))
         {
             ++notes_off_the_instrument;
             continue;
