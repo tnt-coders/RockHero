@@ -80,7 +80,9 @@ TEST_CASE("Highway atlas legato cell mirrors within its own bounds", "[ui][highw
     // is testing.
     CHECK(cell[1] < cell[3]);
     const float row_height = 64.0F / 320.0F;
-    const auto row = static_cast<float>(g_head_cell_legato / 4);
+    // Four head cells per atlas row, so the row index is an integer division by intent.
+    const int row_index = g_head_cell_legato / 4;
+    const auto row = static_cast<float>(row_index);
     CHECK_THAT(cell[1], Catch::Matchers::WithinAbs((row * row_height) + (0.5F / 320.0F), 1e-7));
     CHECK_THAT(
         cell[3], Catch::Matchers::WithinAbs(((row + 1.0F) * row_height) - (0.5F / 320.0F), 1e-7));
