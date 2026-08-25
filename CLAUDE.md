@@ -294,6 +294,7 @@ all:
 | `-Wmissing-designated-field-initializers` | omitted aggregate fields accepted | GCC, Clang |
 | `-Wshadow` against an *inherited* base member | silent | GCC |
 | `-Wunused-function` on internal-linkage helpers | unused anonymous-namespace functions accepted | GCC, Clang |
+| `-Wrange-loop-construct` on a structured binding | silent | **GCC only** — `for (const auto [a, b] : ...)` copies each element, and GCC diagnoses that hidden copy even for a trivially copyable `pair<bool, bool>`. Clang and MSVC both stay quiet, so neither a local build nor macOS CI reproduces it, and a clang-tidy pass carrying the Clang flag set does not either. Bind with `const auto&` |
 | `bugprone-unchecked-optional-access` | partial against the MSVC STL, which is worse than silent: a local run reports some sites and misses others in the same sweep (a large Catch2 suite reported none while CI found four), so a clean local run proves nothing | CI lint |
 | `bugprone-use-after-move` | zero findings against the MSVC STL | CI lint |
 | A Catch2 assertion macro carrying a `std::move` | silent | CI lint — `INTERNAL_CATCH_TEST` mentions its expression a *second* time in the `while ((void)0, (false) && ...)` clause. The re-mention never runs, but `bugprone-use-after-move` sees a moved-from read. Hoist the call into a named `const` and assert on the name |

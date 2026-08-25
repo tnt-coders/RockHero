@@ -126,7 +126,7 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
             // the both-muted note included, which no single mute axis could hand the shed.
             // Spelled as pairs rather than two nested loops to keep the nesting (and the column
             // budget) of the block below unchanged.
-            for (const auto [palm_mute, dead] : std::to_array<std::pair<bool, bool>>(
+            for (const auto& [palm_mute, dead] : std::to_array<std::pair<bool, bool>>(
                      {{false, false}, {true, false}, {false, true}, {true, true}}))
             {
                 for (const bool node : {false, true})
