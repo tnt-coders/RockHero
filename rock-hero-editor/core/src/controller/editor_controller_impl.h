@@ -98,48 +98,6 @@ struct InsertUndoPreparationRollbackResult
     std::string detail;
 };
 
-// The pending fret entry's and the chart verb window's sum-type ALTERNATIVES.
-//
-// They sit at namespace scope rather than nested inside Impl for a language reason, not a
-// taste one. A default member initializer written in a NESTED class is not parsed until the
-// OUTERMOST enclosing class completes, so while Impl is still being defined these types are
-// not yet regarded as default-constructible. libstdc++ constrains std::variant's default
-// constructor on exactly that trait, so nesting them made the variant members below
-// ill-formed under clang + libstdc++ while GCC and MSVC accepted them. At namespace scope
-// each one's initializers complete with its own class, before any variant names it.
-
-// An entry begun on an empty armed caret: settling applies ONE insert carrying the
-// combined fret at the slot (undo removes the note), and the pending box draws there.
-struct InsertAt
-{
-    ChartNoteKey slot{};
-};
-
-// An entry begun over the selection: settling retypes `keys` from `base_notes`, the
-// pre-entry values, so a widened value never compounds on its own earlier digit.
-struct Retype
-{
-    std::vector<ChartNoteKey> keys{};
-    std::vector<common::core::ChartNote> base_notes{};
-};
-
-// What the next press of the verb that armed the window needs to know: the technique a second
-// press would reverse (the legato plan's ruling 4, extended to the scrape 2026-08-18), or the
-// duration gesture's steps so far (user ruling 2026-08-22).
-struct ChartTechniqueToggle
-{
-    ChartTechnique technique{};
-};
-
-// The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
-// grid line, so its size depends on where that end sits and there is no delta to accumulate
-// (user bug 2026-08-23 — a summed delta left a fine-tuned ring off-grid forever). The planner
-// replays the list over each note's pre-gesture ring; the list IS the gesture.
-struct ChartSustainGesture
-{
-    std::vector<ChartSustainStep> steps;
-};
-
 // Owns every implementation detail that does not need to be part of the public controller type.
 struct EditorController::Impl final : private common::audio::ITransport::Listener,
                                       private common::audio::IAudioDeviceConfiguration::Listener
@@ -868,9 +826,34 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // history-position proofs, and no half-typed value a surface could ever show.
     struct ChartFretEntry
     {
+        // An entry begun on an empty armed caret: settling applies ONE insert carrying the
+        // combined fret at the slot (undo removes the note), and the pending box draws there.
+        struct InsertAt
+        {
+            ChartNoteKey slot{};
+        };
+        // An entry begun over the selection: settling retypes `keys` from `base_notes`, the
+        // pre-entry values, so a widened value never compounds on its own earlier digit.
+        struct Retype
+        {
+            std::vector<ChartNoteKey> keys{};
+            std::vector<common::core::ChartNote> base_notes{};
+        };
 
         int value{};
-        std::variant<InsertAt, Retype> target{};
+        // Deliberately WITHOUT a member initializer, on two counts that agree.
+        //
+        // An entry always knows which beginning it is. An entry with no target is not a state any
+        // verb can produce, so leaving it unconstructible by default is that illegal state made
+        // unrepresentable rather than merely unused; every construction site names .target.
+        //
+        // It is also what keeps this compiling on a strict standard library. An initializer here
+        // would instantiate std::variant's default constructor at CLASS scope, where InsertAt's
+        // own initializers are not yet parsed -- a nested class's are delayed until the OUTERMOST
+        // enclosing class completes -- so libstdc++, which constrains that constructor on
+        // is_default_constructible_v of the first alternative, rejected it where GCC and MSVC
+        // accepted it. With no initializer, no such constructor is ever instantiated here.
+        std::variant<InsertAt, Retype> target;
         // What settling would apply: a plan, or WHY there is none. NoChange settles silently (a
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
@@ -906,6 +889,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
 
+    // What the next press of the verb that armed the window needs to know: the technique a second
+    // press would reverse (the legato plan's ruling 4, extended to the scrape 2026-08-18), or the
+    // duration gesture's steps so far (user ruling 2026-08-22).
+    struct ChartTechniqueToggle
+    {
+        ChartTechnique technique{};
+    };
+
+    // The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
+    // grid line, so its size depends on where that end sits and there is no delta to accumulate
+    // (user bug 2026-08-23 — a summed delta left a fine-tuned ring off-grid forever). The planner
+    // replays the list over each note's pre-gesture ring; the list IS the gesture.
+    struct ChartSustainGesture
+    {
+        std::vector<ChartSustainStep> steps;
+    };
+
     // The chart verbs' coalescing window over the entry m_chart_notes_top names: while the
     // selection still matches and that record still owns the history top, the next press of the
     // SAME verb continues what the last one started instead of stacking a second entry — a
@@ -924,7 +924,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     struct ChartVerbWindow
     {
         std::vector<ChartNoteKey> keys;
-        std::variant<ChartTechniqueToggle, ChartSustainGesture> verb{};
+        // No member initializer, for both of the reasons spelled out at ChartFretEntry::target:
+        // an armed window always has a verb, and an initializer here would instantiate the
+        // variant's default constructor at class scope, which a strict standard library refuses.
+        std::variant<ChartTechniqueToggle, ChartSustainGesture> verb;
     };
     std::optional<ChartVerbWindow> m_chart_verb_window{};
 
