@@ -42,8 +42,11 @@ inline constexpr std::array<juce::Point<float>, 16> g_plectrum_half_outline{
     juce::Point<float>{0.24245f, -0.46738f},
     juce::Point<float>{0.33336f, -0.43214f},
     juce::Point<float>{0.36367f, -0.40898f},
-    // NOLINTNEXTLINE(modernize-use-std-numbers) — a measured coordinate that happens to sit
-    // within the check's tolerance of log10(e).
+    // A measured coordinate that happens to sit within the check's tolerance of log10(e); it is
+    // traced art, not that constant, so the suppression stays and the value does not move. The
+    // marker has to be the LAST comment line before the point: NOLINTNEXTLINE covers the line
+    // immediately after itself, so a trailing explanation line would absorb it.
+    // NOLINTNEXTLINE(modernize-use-std-numbers)
     juce::Point<float>{0.43366f, -0.33332f},
     juce::Point<float>{0.46071f, -0.27271f},
     juce::Point<float>{0.46821f, -0.24240f},
