@@ -154,7 +154,7 @@ TEST_CASE("Unnormalized audio notice names each unmeasured backing track", "[cor
             unnormalizedAudioNoticeText(songWithAudio({{"silence.flac", false}}));
         CHECK(text.find("silence.flac is silent or too quiet to measure") == 0);
         CHECK(text.find("plays at its raw level") != std::string::npos);
-        CHECK(text.find("\n") == std::string::npos);
+        CHECK(text.find('\n') == std::string::npos);
     }
 
     SECTION("only the unmeasured tracks are named")
