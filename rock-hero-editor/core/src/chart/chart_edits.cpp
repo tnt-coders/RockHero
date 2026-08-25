@@ -187,7 +187,7 @@ template <typename Write>
 [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planNoteWrite(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, const std::string_view label,
-    const StrandedStrikeRepair stranded, Write&& write)
+    const StrandedStrikeRepair stranded, const Write& write)
 {
     if (keys.empty())
     {
