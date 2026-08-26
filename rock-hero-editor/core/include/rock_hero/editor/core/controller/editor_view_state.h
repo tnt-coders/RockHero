@@ -508,6 +508,15 @@ struct ChartEditViewState
     /*! \brief Ascending indices of selected notes in the tab projection's note order. */
     std::vector<std::size_t> selected_notes{};
 
+    /*!
+    \brief Ascending indices of selected hold markers in the tab projection's marker order.
+
+    The selection unit spans both authored arrays, so it publishes as two index lists over the two
+    projected ones rather than one list a consumer would have to split by kind
+    (\ref common::core::ChartViewState::hold_markers).
+    */
+    std::vector<std::size_t> selected_hold_markers{};
+
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};
 

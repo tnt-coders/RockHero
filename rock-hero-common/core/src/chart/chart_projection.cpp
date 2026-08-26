@@ -104,7 +104,8 @@ ChartViewState makeChartViewState(
     // (`docs/plans/in-progress/note-sustain-model.md`). It is derived from the saved form, so a
     // pick slide's in-memory overrides (chart.h) are already stripped and the scrape draws as the
     // scrape it is.
-    const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
+    const ChartResolutions resolutions =
+        chartResolutions(chart.notes, chart.hold_markers, tempo_map);
     const std::vector<ChartNote>& presented_notes = resolutions.presented_notes;
 
     // The ONE place the form is read. It selects the stream the per-note VIEW fields below come
@@ -186,6 +187,19 @@ ChartViewState makeChartViewState(
                 });
         }
         state.notes.push_back(std::move(view));
+    }
+
+    // The authored markers, resolved but NOT interpreted: what each one contributes reaches the
+    // surfaces through the posture below, so this carries only where the authored record sits.
+    state.hold_markers.reserve(chart.hold_markers.size());
+    for (const ChartHoldMarker& marker : chart.hold_markers)
+    {
+        state.hold_markers.push_back(
+            HoldMarkerViewState{
+                .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                    globalBeatPosition(tempo_map, marker.position)),
+                .string = marker.string,
+            });
     }
 
     state.shapes.reserve(resolutions.shapes.size());

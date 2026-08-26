@@ -93,7 +93,9 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     return connections;
 }
 
-ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+ChartResolutions chartResolutions(
+    const std::vector<ChartNote>& notes, const std::vector<ChartHoldMarker>& hold_markers,
+    const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
@@ -103,7 +105,8 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     // different picture of the same chart. The order is the dependency order — the spans are read
     // from the presented articulation, and the holds are answered against the spans.
     resolutions.presented_notes = presentedChartNotes(saved_notes, tempo_map);
-    ChartShapes derived = deriveChartShapes(saved_notes, resolutions.presented_notes, tempo_map);
+    ChartShapes derived =
+        deriveChartShapes(saved_notes, resolutions.presented_notes, hold_markers, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
     resolutions.holds =

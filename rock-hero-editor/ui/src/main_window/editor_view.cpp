@@ -239,6 +239,7 @@ constexpr int g_track_viewport_min_height{80};
             case core::EditorActionId::AdjustChartSustain:
             case core::EditorActionId::ToggleChartTechnique:
             case core::EditorActionId::SetChartLeftTap:
+            case core::EditorActionId::ToggleChartHoldMarker:
             {
                 return "Save your tone before continuing?";
             }
@@ -315,6 +316,7 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::AdjustChartSustain:
         case core::EditorActionId::ToggleChartTechnique:
         case core::EditorActionId::SetChartLeftTap:
+        case core::EditorActionId::ToggleChartHoldMarker:
         {
             return "Save changes before continuing?";
         }
@@ -1158,6 +1160,7 @@ void EditorView::showChartDiscoveryMenu(juce::Point<int> position)
     add(note_menu, EditorCommandId::ChartGhostToggle);
     add(note_menu, EditorCommandId::ChartVibratoToggle);
     add(note_menu, EditorCommandId::ChartTremoloToggle);
+    add(note_menu, EditorCommandId::ChartHoldMarkerToggle);
 
     juce::PopupMenu move_menu;
     add(move_menu, EditorCommandId::SelectionMoveLeft);
@@ -1462,6 +1465,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         case EditorCommandId::ChartGhostToggle:
         case EditorCommandId::ChartTremoloToggle:
         case EditorCommandId::ChartVibratoToggle:
+        case EditorCommandId::ChartHoldMarkerToggle:
         case EditorCommandId::SustainLengthen:
         case EditorCommandId::SustainShorten:
         case EditorCommandId::FretShiftUp:
@@ -1706,6 +1710,14 @@ bool EditorView::perform(const InvocationInfo& info)
             if (hasChart())
             {
                 m_controller.onChartTechniqueToggleRequested(core::ChartTechnique::Vibrato);
+            }
+            return true;
+        }
+        case EditorCommandId::ChartHoldMarkerToggle:
+        {
+            if (hasChart())
+            {
+                m_controller.onChartHoldMarkerToggleRequested();
             }
             return true;
         }

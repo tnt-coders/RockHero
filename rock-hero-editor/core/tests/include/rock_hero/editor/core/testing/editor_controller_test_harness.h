@@ -1210,7 +1210,8 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
     }
 
     // Returns the configured parameter's current value, mirroring the listing metadata.
-    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError>
+    readParameterBaselineNormValue(
         const std::string& /*tone_document_ref*/, const std::string& instance_id,
         const std::string& param_id) const override
     {
@@ -1218,7 +1219,7 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         {
             if (parameter.instance_id == instance_id && parameter.param_id == param_id)
             {
-                return parameter.current_norm_value;
+                return parameter.baseline_norm_value;
             }
         }
         return std::unexpected{common::audio::ToneAutomationError{

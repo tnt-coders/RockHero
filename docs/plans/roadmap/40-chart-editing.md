@@ -28,7 +28,7 @@ the first chart-mutation intent (Phase 3/4) — no public route can bump the rev
 exists; the session-level behavior is covered now.
 **Phase 3 complete 2026-07-16** (after plan 30 Phase 2 landed the paint core + manifest per
 30-Q2): headless selection/caret in editor-core (`src/chart/chart_selection.{h,cpp}` —
-`ChartNoteKey` (position, string) sorted-unique container with replace/toggle/add/box ops and
+`ChartSlotKey` (position, string) sorted-unique container with replace/toggle/add/box ops and
 key→projection-index resolution; `chart_hit_testing.{h,cpp}` resolving pixels through the shared
 layout manifest, heads-over-tails with nearest-onset tie-breaks); pointer intents
 `onChartPointerDown/Drag/Up(ChartPointerEvent)` carrying the painted `TabLaneGeometry` (new
@@ -54,7 +54,7 @@ navigable, seek works on empty space, zero chart mutations.
 edit machinery in editor-core `src/chart/chart_edits.{h,cpp}`: pure planners build the intended
 note stream, apply the 40-Q2-B normalization (any sustain ringing across the next same-string
 onset truncates to exact adjacency, bend/slide payloads clipped with it), and diff into a
-removed/inserted `ChartNotesEditPlan`; `ChartNotesEdit` replays the plan in either direction
+removed/inserted `ChartEditPlan`; `ChartEdit` replays the plan in either direction
 through `Session::currentChart()` (revision bump → every projection rebuilds), so apply, undo,
 and redo are the same primitive and truncations ride the same single undo entry by construction.
 Shipped verbs: **Alt+click/press-drag-release inserts** at the snapped release point carrying
@@ -356,6 +356,15 @@ format-side decisions) and the design docs — a fresh session needs no other co
   arpeggio flag on templates (format change through plan 10). **Recommendation: A.** B authors
   what is derivable and adds a mode; C reintroduces a flag the format deliberately dropped.
   Revisit B as a convenience generator later if authoring pain proves real.
+  **A still stands, with one clause of its warrant now narrower (2026-08-26).** "The format
+  already derives arpeggio rendering from note arrival" is true of everything except one fact:
+  a fretting-hand member that never sounds, which no function of a note stream can distinguish
+  from an absent one. That single fact is now authored as `chart.holdMarkers[]` and flips the
+  span's arrival — but it is not C: no flag, no template, no arpeggio-ness stored anywhere. What
+  is stored is one silent STOP, and the classification stays derived from it. No dedicated editor
+  arrived either; the verb is one caret-anchored key (`N`). Record:
+  `docs/plans/todo/arpeggio-authoring.md`; maintained spec: rule 12b in
+  `docs/developer/the-project-lifecycle.md`.
 - **Q2 — Same-string sustain overlap semantics on edit — SETTLED (B), shipped in Phase 4.**
   Options were: (A) reject the edit; (B) auto-truncate the earlier note's sustain to the new
   onset, captured in the same undo entry; (C) allow overlap and only warn. B is implemented and

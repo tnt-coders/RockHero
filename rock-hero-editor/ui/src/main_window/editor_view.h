@@ -102,7 +102,7 @@ public:
         /*! \brief Live-input source sampled by the calibration popup. */
         const common::audio::ILiveInput& live_input;
 
-        /*! \brief Automation port polled read-only by live-tracking automation lanes. */
+        /*! \brief Automation port polled read-only for each automation lane's anchor value. */
         const common::audio::IToneAutomation& tone_automation;
     };
 

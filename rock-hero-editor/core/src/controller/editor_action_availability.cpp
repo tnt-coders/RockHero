@@ -50,6 +50,7 @@ namespace
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
+        case EditorAction::Id::ToggleChartHoldMarker:
         {
             return true;
         }
@@ -149,6 +150,7 @@ namespace
             case EditorAction::Id::AdjustChartSustain:
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::SetChartLeftTap:
+            case EditorAction::Id::ToggleChartHoldMarker:
             {
                 return false;
             }
@@ -300,6 +302,13 @@ namespace
         {
             return conditions.has_chart && conditions.has_chart_selection;
         }
+        // The arpeggio hold verb is CARET-anchored, not selection-scoped: what it acts on is
+        // whatever the armed slot holds, so an armed caret is its whole precondition and a
+        // multi-object selection neither widens nor enables it.
+        case EditorAction::Id::ToggleChartHoldMarker:
+        {
+            return conditions.has_chart && conditions.has_armed_caret;
+        }
     }
 
     return false;
@@ -368,6 +377,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
+        case EditorAction::Id::ToggleChartHoldMarker:
         {
             return false;
         }

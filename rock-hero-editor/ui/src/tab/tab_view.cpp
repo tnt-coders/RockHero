@@ -339,6 +339,34 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
+    // Authored hold marks: a filled dot on the slot where the charter said the fretting hand
+    // takes a stop silently. The chord-diagram idiom, in the arpeggio hand-shape mark's own colour
+    // because the bracket this feeds is what the mark is FOR — and deliberately carrying no
+    // number, since the resolved stop already prints inside that bracket and a second copy would
+    // be one fret drawn from two places. Smaller than a head so it reads as an authoring mark
+    // beside the notation rather than a glyph competing with it, and drawn at exactly the extent
+    // the layout manifest hit-tests, so nothing undrawn is clickable. Editor-shell furniture: the
+    // game's tab strips render the posture, never this.
+    const juce::Colour hold_mark = common::ui::tabShapeMarkColor(/*arpeggio=*/true);
+    for (std::size_t index = 0; index < tab.hold_markers.size(); ++index)
+    {
+        const common::ui::TabHoldMarkerLayout layout =
+            common::ui::tabHoldMarkerLayout(metrics, tab.hold_markers[index]);
+        g.setColour(hold_mark);
+        g.fillEllipse(layout.box.x, layout.box.y, layout.box.width, layout.box.height);
+        // The same accent ring the selected heads wear, traced on the mark's own silhouette.
+        if (std::ranges::binary_search(m_edit.selected_hold_markers, index))
+        {
+            g.setColour(accent);
+            g.drawEllipse(
+                layout.box.x,
+                layout.box.y,
+                layout.box.width,
+                layout.box.height,
+                overlayRingStroke(layout.extent));
+        }
+    }
+
     // The in-flight marquee: translucent accent fill with a crisp border.
     if (m_edit.marquee.has_value())
     {

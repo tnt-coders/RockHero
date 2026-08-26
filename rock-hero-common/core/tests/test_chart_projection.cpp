@@ -617,4 +617,26 @@ TEST_CASE("Chart projection gives a hold waypoint the margin morph", "[core][cha
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
+// The authored hold markers reach the projection resolved to seconds and NOTHING else: what a
+// marker contributes is already in the span's posture, so carrying its fret here would be one
+// stop drawn from two places. The editor lane's authoring mark is the only reader.
+TEST_CASE("Chart projection resolves hold markers to seconds", "[core][chart]")
+{
+    Arrangement arrangement = makeArrangementWithChart();
+    Chart* const chart = chartOrNull(arrangement);
+    REQUIRE(chart != nullptr);
+    chart->hold_markers = {
+        ChartHoldMarker{.position = GridPosition{.measure = 2, .beat = 1}, .string = 3, .fret = {}},
+        ChartHoldMarker{.position = GridPosition{.measure = 3, .beat = 1}, .string = 4, .fret = 7},
+    };
+
+    const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
+    REQUIRE(state.hold_markers.size() == 2);
+    // Measure 2 beat 1 is 2.0s and measure 3 beat 1 is 4.0s under the default 120 BPM 4/4 map.
+    CHECK_THAT(state.hold_markers[0].seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+    CHECK(state.hold_markers[0].string == 3);
+    CHECK_THAT(state.hold_markers[1].seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
+    CHECK(state.hold_markers[1].string == 4);
+}
+
 } // namespace rock_hero::common::core

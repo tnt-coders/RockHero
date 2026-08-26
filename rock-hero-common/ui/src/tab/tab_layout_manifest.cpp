@@ -35,4 +35,20 @@ TabNoteLayout tabNoteLayout(
     return layout;
 }
 
+TabHoldMarkerLayout tabHoldMarkerLayout(
+    const TabLaneGeometry& geometry, const common::core::HoldMarkerViewState& marker) noexcept
+{
+    TabHoldMarkerLayout layout;
+    layout.center_x = geometry.x(marker.seconds);
+    layout.center_y = geometry.laneY(marker.string);
+    layout.extent = geometry.holdMarkerSize();
+    layout.box = TabLayoutRect{
+        .x = layout.center_x - layout.extent / 2.0f,
+        .y = layout.center_y - layout.extent / 2.0f,
+        .width = layout.extent,
+        .height = layout.extent,
+    };
+    return layout;
+}
+
 } // namespace rock_hero::common::ui

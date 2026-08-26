@@ -288,6 +288,10 @@ namespace
         {
             return "SetChartLeftTap";
         }
+        case EditorAction::Id::ToggleChartHoldMarker:
+        {
+            return "ToggleChartHoldMarker";
+        }
     }
 
     return "Unknown";
@@ -353,6 +357,7 @@ namespace
             case EditorAction::Id::AdjustChartSustain:
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::SetChartLeftTap:
+            case EditorAction::Id::ToggleChartHoldMarker:
             {
                 return "input-calibration-prompt";
             }
@@ -479,6 +484,10 @@ namespace
         case EditorAction::Id::SetChartLeftTap:
         {
             return conditions.has_chart ? "no-chart-selection" : "no-chart";
+        }
+        case EditorAction::Id::ToggleChartHoldMarker:
+        {
+            return conditions.has_chart ? "no-armed-caret" : "no-chart";
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
@@ -1039,6 +1048,11 @@ void EditorController::onChartTechniqueToggleRequested(const ChartTechnique tech
 void EditorController::onChartLeftTapRequested()
 {
     m_impl->runAction(EditorAction::SetChartLeftTap{});
+}
+
+void EditorController::onChartHoldMarkerToggleRequested()
+{
+    m_impl->runAction(EditorAction::ToggleChartHoldMarker{});
 }
 
 void EditorController::onChartEscapePressed()
@@ -2639,6 +2653,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, chartSelection());
+            state.chart_edit.selected_hold_markers =
+                selectedHoldMarkerIndices(arrangement->chart->hold_markers, chartSelection());
             // The marker publishes plainly from its state — armed ⟹ paused is structural
             // (play and the transport listener demote), so no transport check re-derives it
             // here. The caret publishes whenever armed, empty slot or note alike: the square
@@ -2712,7 +2728,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 }
                 else
                 {
-                    pending.at = noteIndicesForKeys(
+                    pending.at = slotIndicesForKeys(
                         arrangement->chart->notes,
                         std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target).keys);
                 }
@@ -2761,6 +2777,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // propagating then.
     state.selection_present =
         !state.chart_edit.selected_notes.empty() ||
+        !state.chart_edit.selected_hold_markers.empty() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {
             return region.selected;

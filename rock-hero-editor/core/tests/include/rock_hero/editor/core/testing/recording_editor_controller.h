@@ -308,6 +308,12 @@ public:
         chart_left_tap_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartHoldMarkerToggleRequested */
+    void onChartHoldMarkerToggleRequested() override
+    {
+        chart_hold_marker_toggle_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override
     {}
@@ -794,6 +800,9 @@ public:
 
     /*! \brief Number of onChartLeftTapRequested() intents received. */
     int chart_left_tap_count{0};
+
+    /*! \brief Number of onChartHoldMarkerToggleRequested() intents received. */
+    int chart_hold_marker_toggle_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

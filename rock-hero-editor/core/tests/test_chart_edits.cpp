@@ -32,9 +32,9 @@ namespace
     return common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
 }
 
-[[nodiscard]] ChartNoteKey keyAt(common::core::GridPosition position, int string)
+[[nodiscard]] ChartSlotKey keyAt(common::core::GridPosition position, int string)
 {
-    return ChartNoteKey{.position = position, .string = string};
+    return ChartSlotKey{.position = position, .string = string};
 }
 
 // The grids the duration-gesture scenarios step on. Against the 4/4 map above a quarter-note grid
@@ -70,10 +70,9 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
 // joint contract: a plan that applies and saves but cannot re-load is exactly the
 // silent-corruption class the scrape work exists to close.
 void applyAndValidate(
-    common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const ChartNotesEditPlan& plan)
+    common::core::Chart& chart, const common::core::TempoMap& tempo_map, const ChartEditPlan& plan)
 {
-    REQUIRE(applyChartNotesChange(chart, plan.removed, plan.inserted).has_value());
+    REQUIRE(applyChartChange(chart, plan).has_value());
     CHECK(common::core::validateChartRules(chart, tempo_map).has_value());
 }
 
@@ -236,9 +235,10 @@ TEST_CASE("planInsertNote adds a note on an empty slot", "[core][chart]")
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        CHECK(plan->removed.empty());
-        REQUIRE(plan->inserted.size() == 1);
-        const common::core::ChartNote* added = noteAt(plan->inserted, {.measure = 4, .beat = 1}, 1);
+        CHECK(plan->notes.removed.empty());
+        REQUIRE(plan->notes.inserted.size() == 1);
+        const common::core::ChartNote* added =
+            noteAt(plan->notes.inserted, {.measure = 4, .beat = 1}, 1);
         REQUIRE(added != nullptr);
         CHECK(added->fret == 5);
         CHECK(plan->label == "Insert Note");
@@ -258,10 +258,10 @@ TEST_CASE("planInsertNote replaces a note on an occupied slot", "[core][chart]")
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        REQUIRE(plan->removed.size() == 1);
-        CHECK(plan->removed.front().fret == 3);
-        REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted.front().fret == 9);
+        REQUIRE(plan->notes.removed.size() == 1);
+        CHECK(plan->notes.removed.front().fret == 3);
+        REQUIRE(plan->notes.inserted.size() == 1);
+        CHECK(plan->notes.inserted.front().fret == 9);
     }
 }
 
@@ -280,8 +280,8 @@ TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "
     REQUIRE(uncrowded.has_value());
     if (uncrowded.has_value())
     {
-        REQUIRE(uncrowded->inserted.size() == 1);
-        CHECK(uncrowded->inserted.front().sustain == common::core::Fraction{1, 2});
+        REQUIRE(uncrowded->notes.inserted.size() == 1);
+        CHECK(uncrowded->notes.inserted.front().sustain == common::core::Fraction{1, 2});
     }
 
     // The fixture's string-1 note at measure 3 beat 1 is struck a quarter beat after this slot, so
@@ -295,7 +295,7 @@ TEST_CASE("planInsertNote rings for the grid step, clamped at the next onset", "
     if (crowded.has_value())
     {
         const common::core::ChartNote* placed =
-            noteAt(crowded->inserted, {.measure = 2, .beat = 4, .offset = {3, 4}}, 1);
+            noteAt(crowded->notes.inserted, {.measure = 2, .beat = 4, .offset = {3, 4}}, 1);
         REQUIRE(placed != nullptr);
         CHECK(placed->sustain == common::core::Fraction{1, 4});
     }
@@ -350,12 +350,12 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
     {
         // The earlier note is re-emitted with its sustain cut to the onset distance and the bend
         // point past the new tail dropped.
-        REQUIRE(plan->removed.size() == 1);
-        CHECK(plan->removed.front().sustain == common::core::Fraction{2});
-        CHECK(plan->removed.front().bend.size() == 2);
+        REQUIRE(plan->notes.removed.size() == 1);
+        CHECK(plan->notes.removed.front().sustain == common::core::Fraction{2});
+        CHECK(plan->notes.removed.front().bend.size() == 2);
 
         const common::core::ChartNote* truncated =
-            noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(truncated != nullptr);
         CHECK(truncated->sustain == common::core::Fraction{1});
         REQUIRE(truncated->bend.size() == 1);
@@ -363,71 +363,73 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
 
         // The placed note is inserted alongside the truncated one.
         const common::core::ChartNote* placed =
-            noteAt(plan->inserted, {.measure = 1, .beat = 2}, 1);
+            noteAt(plan->notes.inserted, {.measure = 1, .beat = 2}, 1);
         REQUIRE(placed != nullptr);
         CHECK(placed->fret == 7);
     }
 }
 
 // Deleting matching keys removes their full values and labels with the plural count.
-TEST_CASE("planDeleteNotes removes matching keys and labels the count", "[core][chart]")
+TEST_CASE("planDeleteSelection removes matching keys and labels the count", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
 
     // Keys must arrive sorted (the binary-search precondition): the two measure-2 onset members.
-    const std::vector<ChartNoteKey> pair{
+    const std::vector<ChartSlotKey> pair{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
-    const auto plan = planDeleteNotes(chart, makeTempoMap(), pair);
+    const auto plan = planDeleteSelection(chart, makeTempoMap(), pair, {});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        CHECK(plan->removed.size() == 2);
-        CHECK(plan->inserted.empty());
+        CHECK(plan->notes.removed.size() == 2);
+        CHECK(plan->notes.inserted.empty());
         CHECK(plan->label == "Delete 2 Notes");
     }
 
     // A single key uses the singular label.
-    const std::vector<ChartNoteKey> single{keyAt({.measure = 3, .beat = 1}, 1)};
-    const auto single_plan = planDeleteNotes(chart, makeTempoMap(), single);
+    const std::vector<ChartSlotKey> single{keyAt({.measure = 3, .beat = 1}, 1)};
+    const auto single_plan = planDeleteSelection(chart, makeTempoMap(), single, {});
     REQUIRE(single_plan.has_value());
     if (single_plan.has_value())
     {
-        CHECK(single_plan->removed.size() == 1);
+        CHECK(single_plan->notes.removed.size() == 1);
         CHECK(single_plan->label == "Delete Note");
     }
 }
 
 // A key matching no note deletes nothing, so the plan is empty.
-TEST_CASE("planDeleteNotes returns nullopt when no key matches", "[core][chart]")
+TEST_CASE("planDeleteSelection returns nullopt when no key matches", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
 
-    const std::vector<ChartNoteKey> missing{keyAt({.measure = 5, .beat = 1}, 1)};
-    CHECK_FALSE(planDeleteNotes(chart, makeTempoMap(), missing).has_value());
+    const std::vector<ChartSlotKey> missing{keyAt({.measure = 5, .beat = 1}, 1)};
+    CHECK_FALSE(planDeleteSelection(chart, makeTempoMap(), missing, {}).has_value());
 }
 
 // A move that would carry a note off either end of the string range is refused whole, never
 // clamped onto the nearest lane.
-TEST_CASE("planMoveNotes refuses a move off the fret neck", "[core][chart]")
+TEST_CASE("planMoveSelection refuses a move off the fret neck", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     // String 1 shifted down one lane leaves the neck below string 1.
-    CHECK_FALSE(planMoveNotes(chart, tempo_map, keys, common::core::Fraction{}, -1, "Move Notes")
-                    .has_value());
+    CHECK_FALSE(
+        planMoveSelection(chart, tempo_map, keys, {}, common::core::Fraction{}, -1, "Move Notes")
+            .has_value());
 
     // Shifted up past the six-string range leaves the neck above string 6.
-    CHECK_FALSE(planMoveNotes(chart, tempo_map, keys, common::core::Fraction{}, 6, "Move Notes")
-                    .has_value());
+    CHECK_FALSE(
+        planMoveSelection(chart, tempo_map, keys, {}, common::core::Fraction{}, 6, "Move Notes")
+            .has_value());
 }
 
 // A move that would leave the grid's start is refused outright, never clamped: the grid arithmetic
 // clamps at measure 1 beat 1, and a LONE note used to be silently repositioned there (only a
 // converging pair was caught, by colliding at the origin).
-TEST_CASE("planMoveNotes refuses a move off the grid's start", "[core][chart]")
+TEST_CASE("planMoveSelection refuses a move off the grid's start", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -438,34 +440,37 @@ TEST_CASE("planMoveNotes refuses a move off the grid's start", "[core][chart]")
     const common::core::TempoMap tempo_map = makeTempoMap();
 
     // One note, two beats left of beat 2: clamping would land it on beat 1 as if it had moved one.
-    CHECK_FALSE(planMoveNotes(
+    CHECK_FALSE(planMoveSelection(
                     chart,
                     tempo_map,
                     {keyAt({.measure = 1, .beat = 2}, 1)},
+                    {},
                     common::core::Fraction{-2},
                     0,
                     "Move Notes")
                     .has_value());
     // The same note one beat left lands exactly on the origin, which is a legal destination.
-    CHECK(planMoveNotes(
+    CHECK(planMoveSelection(
               chart,
               tempo_map,
               {keyAt({.measure = 1, .beat = 2}, 1)},
+              {},
               common::core::Fraction{-1},
               0,
               "Move Notes")
               .has_value());
 
     // Two notes that would both clamp to the origin are refused too (they would also collide).
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1), keyAt({.measure = 1, .beat = 3}, 1)
     };
-    CHECK_FALSE(planMoveNotes(chart, tempo_map, keys, common::core::Fraction{-10}, 0, "Move Notes")
-                    .has_value());
+    CHECK_FALSE(
+        planMoveSelection(chart, tempo_map, keys, {}, common::core::Fraction{-10}, 0, "Move Notes")
+            .has_value());
 }
 
 // A move whose destination is already held by an unmoved note is refused.
-TEST_CASE("planMoveNotes refuses landing on an unmoved note", "[core][chart]")
+TEST_CASE("planMoveSelection refuses landing on an unmoved note", "[core][chart]")
 {
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -474,30 +479,32 @@ TEST_CASE("planMoveNotes refuses landing on an unmoved note", "[core][chart]")
         makeTestNote({.measure = 1, .beat = 2}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
 
     // The first note advanced one beat lands on the second, unmoved note's slot.
-    CHECK_FALSE(planMoveNotes(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes")
-                    .has_value());
+    CHECK_FALSE(
+        planMoveSelection(chart, tempo_map, keys, {}, common::core::Fraction{1}, 0, "Move Notes")
+            .has_value());
 }
 
 // A move onto a free slot plans a removal of the origin and an insertion at the destination,
 // carrying the label through.
-TEST_CASE("planMoveNotes moves a note to a free slot", "[core][chart]")
+TEST_CASE("planMoveSelection moves a note to a free slot", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     const auto plan =
-        planMoveNotes(chart, tempo_map, keys, common::core::Fraction{1}, 0, "Move Notes");
+        planMoveSelection(chart, tempo_map, keys, {}, common::core::Fraction{1}, 0, "Move Notes");
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        REQUIRE(plan->removed.size() == 1);
-        CHECK(noteAt(plan->removed, {.measure = 2, .beat = 1}, 1) != nullptr);
-        REQUIRE(plan->inserted.size() == 1);
-        const common::core::ChartNote* moved = noteAt(plan->inserted, {.measure = 2, .beat = 2}, 1);
+        REQUIRE(plan->notes.removed.size() == 1);
+        CHECK(noteAt(plan->notes.removed, {.measure = 2, .beat = 1}, 1) != nullptr);
+        REQUIRE(plan->notes.inserted.size() == 1);
+        const common::core::ChartNote* moved =
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 2}, 1);
         REQUIRE(moved != nullptr);
         CHECK(moved->fret == 3);
         CHECK(plan->label == "Move Notes");
@@ -505,21 +512,24 @@ TEST_CASE("planMoveNotes moves a note to a free slot", "[core][chart]")
 }
 
 // Empty keys, a zero delta, and keys that match nothing all plan no move.
-TEST_CASE("planMoveNotes returns nullopt for no-op inputs", "[core][chart]")
+TEST_CASE("planMoveSelection returns nullopt for no-op inputs", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
-    CHECK_FALSE(planMoveNotes(chart, tempo_map, {}, common::core::Fraction{1}, 0, "Move Notes")
-                    .has_value());
-    CHECK_FALSE(planMoveNotes(chart, tempo_map, keys, common::core::Fraction{}, 0, "Move Notes")
-                    .has_value());
+    CHECK_FALSE(
+        planMoveSelection(chart, tempo_map, {}, {}, common::core::Fraction{1}, 0, "Move Notes")
+            .has_value());
+    CHECK_FALSE(
+        planMoveSelection(chart, tempo_map, keys, {}, common::core::Fraction{}, 0, "Move Notes")
+            .has_value());
 
     // A key present in the request but absent from the chart moves nothing.
-    const std::vector<ChartNoteKey> absent{keyAt({.measure = 9, .beat = 1}, 1)};
-    CHECK_FALSE(planMoveNotes(chart, tempo_map, absent, common::core::Fraction{1}, 0, "Move Notes")
-                    .has_value());
+    const std::vector<ChartSlotKey> absent{keyAt({.measure = 9, .beat = 1}, 1)};
+    CHECK_FALSE(
+        planMoveSelection(chart, tempo_map, absent, {}, common::core::Fraction{1}, 0, "Move Notes")
+            .has_value());
 }
 
 // Set-exact mode assigns the typed fret to every note in the snapshot.
@@ -532,9 +542,9 @@ TEST_CASE("planRetypeFrets sets an exact fret on every note", "[core][chart]")
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        CHECK(plan->removed.size() == 2);
-        REQUIRE(plan->inserted.size() == 2);
-        for (const common::core::ChartNote& note : plan->inserted)
+        CHECK(plan->notes.removed.size() == 2);
+        REQUIRE(plan->notes.inserted.size() == 2);
+        for (const common::core::ChartNote& note : plan->notes.inserted)
         {
             CHECK(note.fret == 9);
         }
@@ -554,10 +564,12 @@ TEST_CASE("planRetypeFrets transposes from the lowest fret", "[core][chart]")
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        const common::core::ChartNote* low = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+        const common::core::ChartNote* low =
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
         REQUIRE(low != nullptr);
         CHECK(low->fret == 5);
-        const common::core::ChartNote* high = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
+        const common::core::ChartNote* high =
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(high != nullptr);
         CHECK(high->fret == 7);
         CHECK(plan->label == "Transpose to Fret 5");
@@ -619,7 +631,7 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
         makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{3}),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
     const std::vector<ChartSustainStep> steps{
@@ -632,9 +644,9 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
     {
         // The one-beat ring's end reaches its own onset on the first step and would pass it on the
         // second, so it is left exactly as it was; deleting the note is the verb for removing it.
-        CHECK(noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1) == nullptr);
+        CHECK(noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1) == nullptr);
         const common::core::ChartNote* shrunk =
-            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(shrunk != nullptr);
         CHECK(shrunk->sustain == common::core::Fraction{1});
         CHECK(plan->label == "Shrink Sustain");
@@ -642,7 +654,7 @@ TEST_CASE("planAdjustSustain holds a ring the steps would empty", "[core][chart]
 
     // With nothing left that can shrink, the press changes nothing at all: NoChange, the same
     // answer every planner gives for an empty diff.
-    const std::vector<ChartNoteKey> only_short{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> only_short{keyAt({.measure = 2, .beat = 1}, 1)};
     const auto unchanged = planAdjustSustain(chart, tempo_map, chart.notes, only_short, steps);
     REQUIRE_FALSE(unchanged.has_value());
     CHECK(unchanged.error() == ChartPlanRefusal::NoChange);
@@ -659,7 +671,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
     // A ring a tick step could have authored: one beat and a hair, ending between two grid lines.
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{961, 960})};
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     SECTION("a grid grow ceilings onto the next line")
     {
@@ -669,7 +681,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
         if (plan.has_value())
         {
             const common::core::ChartNote* const grown =
-                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
             REQUIRE(grown != nullptr);
             if (grown != nullptr)
             {
@@ -687,7 +699,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
         if (plan.has_value())
         {
             const common::core::ChartNote* const shrunk =
-                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
             REQUIRE(shrunk != nullptr);
             if (shrunk != nullptr)
             {
@@ -708,7 +720,7 @@ TEST_CASE("planAdjustSustain snaps an off-grid ring onto the grid", "[core][char
         if (plan.has_value())
         {
             const common::core::ChartNote* const reversed =
-                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
             REQUIRE(reversed != nullptr);
             if (reversed != nullptr)
             {
@@ -731,7 +743,7 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{2})};
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which no
     // step below expects, so the caller's own comparison fails.
@@ -742,7 +754,7 @@ TEST_CASE("planAdjustSustain snaps a tick-nudged ring on the next grid step", "[
             return common::core::Fraction{};
         }
         const common::core::ChartNote* const note =
-            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
 
@@ -784,7 +796,7 @@ TEST_CASE("planAdjustSustain snaps each chord member to its own line", "[core][c
         makeTestNote({.measure = 2, .beat = 1}, 2, 0, common::core::Fraction{2879, 960}),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
 
@@ -794,9 +806,9 @@ TEST_CASE("planAdjustSustain snaps each chord member to its own line", "[core][c
     if (plan.has_value())
     {
         const common::core::ChartNote* const low =
-            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
         const common::core::ChartNote* const high =
-            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(low != nullptr);
         REQUIRE(high != nullptr);
         if (low != nullptr && high != nullptr)
@@ -827,7 +839,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     // Half a beat: an end between the lines of every grid this test steps.
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{1, 2})};
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     SECTION("an eighth-note grid lines up with the beat")
     {
@@ -837,7 +849,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
         if (plan.has_value())
         {
             const common::core::ChartNote* const grown =
-                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
             REQUIRE(grown != nullptr);
             if (grown != nullptr)
             {
@@ -854,7 +866,7 @@ TEST_CASE("planAdjustSustain steps the grid the meter derives in 6/8", "[core][c
         if (plan.has_value())
         {
             const common::core::ChartNote* const grown =
-                noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
             REQUIRE(grown != nullptr);
             if (grown != nullptr)
             {
@@ -884,7 +896,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{6})};
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     // Assertion-free (read inside CHECK expressions), as in the tick-nudged run above.
     const auto ring_after = [&](const std::vector<ChartSustainStep>& steps) {
@@ -894,7 +906,7 @@ TEST_CASE("planAdjustSustain reverses a grid step exactly in 7/8", "[core][chart
             return common::core::Fraction{};
         }
         const common::core::ChartNote* const note =
-            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
         return note != nullptr ? note->sustain : common::core::Fraction{};
     };
 
@@ -924,7 +936,7 @@ TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[cor
         makeTestNote({.measure = 1, .beat = 3}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
     const std::vector<ChartSustainStep> steps{
         gridStep(g_quarter_grid, true),
         gridStep(g_quarter_grid, true),
@@ -935,7 +947,8 @@ TEST_CASE("planAdjustSustain grows a tail to its own string's next onset", "[cor
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        const common::core::ChartNote* grown = noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
+        const common::core::ChartNote* grown =
+            noteAt(plan->notes.inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(grown != nullptr);
         // Two beats to its own string's restrike, and the string-2 onset one beat in blocks
         // nothing; the third step past the bound reports the bound.
@@ -953,7 +966,7 @@ TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][cha
     // The measure-3 note rings two beats with no same-string successor, so no bound is involved.
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto grown = planAdjustSustain(
         chart,
@@ -967,7 +980,7 @@ TEST_CASE("planAdjustSustain labels the entry by its net direction", "[core][cha
     if (grown.has_value())
     {
         const common::core::ChartNote* const note =
-            noteAt(grown->inserted, {.measure = 3, .beat = 1}, 1);
+            noteAt(grown->notes.inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(note != nullptr);
         if (note != nullptr)
         {
@@ -1004,7 +1017,7 @@ TEST_CASE("planAdjustSustain leaves a tail already at the bound alone", "[core][
         makeTestNote({.measure = 1, .beat = 3}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 1, .beat = 1}, 1)};
 
     const auto plan =
         planAdjustSustain(chart, tempo_map, chart.notes, keys, {gridStep(g_quarter_grid, true)});
@@ -1018,7 +1031,7 @@ TEST_CASE("planAdjustSustain plans nothing for no-op inputs", "[core][chart]")
 {
     const common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto no_keys =
         planAdjustSustain(chart, tempo_map, chart.notes, {}, {gridStep(g_quarter_grid, true)});
@@ -1047,7 +1060,7 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
         makeTestNote({.measure = 2, .beat = 4}, 1, 0),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
     const std::vector<common::core::ChartNote> base = chart.notes;
@@ -1063,7 +1076,7 @@ TEST_CASE("planAdjustSustain replays a chord from the gesture's start", "[core][
         if (plan.has_value())
         {
             live.notes = base;
-            REQUIRE(applyChartNotesChange(live, plan->removed, plan->inserted).has_value());
+            REQUIRE(applyChartChange(live, *plan).has_value());
         }
     };
     // Assertion-free on purpose: it is read inside CHECK expressions, and a Catch2 assertion
@@ -1117,7 +1130,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][c
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {makeTestNote({.measure = 2, .beat = 1}, 1, 0, common::core::Fraction{3})};
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
     const std::vector<common::core::ChartNote> base = chart.notes;
 
     common::core::Chart live = chart;
@@ -1129,7 +1142,7 @@ TEST_CASE("planAdjustSustain holds an emptied ring at its live value", "[core][c
         if (plan.has_value())
         {
             live.notes = base;
-            REQUIRE(applyChartNotesChange(live, plan->removed, plan->inserted).has_value());
+            REQUIRE(applyChartChange(live, *plan).has_value());
         }
     };
     // Assertion-free (read inside CHECK expressions): a missing note reads as a zero ring, which
@@ -1175,7 +1188,7 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     common::core::Chart chart = makeTestChart();
     chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
     const std::vector<common::core::ChartNote> base = chart.notes;
 
     common::core::Chart live = chart;
@@ -1189,7 +1202,7 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
         if (plan.has_value())
         {
             live.notes = base;
-            REQUIRE(applyChartNotesChange(live, plan->removed, plan->inserted).has_value());
+            REQUIRE(applyChartChange(live, *plan).has_value());
         }
     };
 
@@ -1233,14 +1246,20 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
 }
 
 // Applying a removal-and-insertion whose preconditions hold swaps in the new stream.
-TEST_CASE("applyChartNotesChange applies a removal and insertion", "[core][chart]")
+TEST_CASE("applyChartChange applies a removal and insertion", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const std::vector<common::core::ChartNote> to_remove{chart.notes[0]};
     const std::vector<common::core::ChartNote> to_insert{makeTestNote(
         {.measure = 4, .beat = 1}, 1, 2)};
 
-    const auto result = applyChartNotesChange(chart, to_remove, to_insert);
+    const auto result = applyChartChange(
+        chart,
+        ChartEditPlan{
+            .notes = {.removed = to_remove, .inserted = to_insert},
+            .hold_markers = {},
+            .label = {},
+        });
     CHECK(result.has_value());
     CHECK(chart.notes.size() == 3);
     CHECK(noteAt(chart.notes, {.measure = 2, .beat = 1}, 1) == nullptr);
@@ -1251,7 +1270,7 @@ TEST_CASE("applyChartNotesChange applies a removal and insertion", "[core][chart
 
 // A removal whose full value no longer matches the chart is rejected and the chart is left
 // untouched.
-TEST_CASE("applyChartNotesChange rejects a stale removal", "[core][chart]")
+TEST_CASE("applyChartChange rejects a stale removal", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const common::core::Chart original = chart;
@@ -1259,7 +1278,13 @@ TEST_CASE("applyChartNotesChange rejects a stale removal", "[core][chart]")
     const std::vector<common::core::ChartNote> to_remove{makeTestNote(
         {.measure = 2, .beat = 1}, 1, 99)};
 
-    const auto result = applyChartNotesChange(chart, to_remove, {});
+    const auto result = applyChartChange(
+        chart,
+        ChartEditPlan{
+            .notes = {.removed = to_remove, .inserted = {}},
+            .hold_markers = {},
+            .label = {},
+        });
     CHECK_FALSE(result.has_value());
     if (!result.has_value())
     {
@@ -1270,7 +1295,7 @@ TEST_CASE("applyChartNotesChange rejects a stale removal", "[core][chart]")
 
 // A valid removal followed by an insertion that collides with a surviving note rejects the whole
 // change: the chart is untouched, proving the preflight is atomic.
-TEST_CASE("applyChartNotesChange rejects a colliding insertion atomically", "[core][chart]")
+TEST_CASE("applyChartChange rejects a colliding insertion atomically", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const common::core::Chart original = chart;
@@ -1280,7 +1305,13 @@ TEST_CASE("applyChartNotesChange rejects a colliding insertion atomically", "[co
     const std::vector<common::core::ChartNote> to_insert{makeTestNote(
         {.measure = 2, .beat = 1}, 2, 8)};
 
-    const auto result = applyChartNotesChange(chart, to_remove, to_insert);
+    const auto result = applyChartChange(
+        chart,
+        ChartEditPlan{
+            .notes = {.removed = to_remove, .inserted = to_insert},
+            .hold_markers = {},
+            .label = {},
+        });
     CHECK_FALSE(result.has_value());
     if (!result.has_value())
     {
@@ -1299,7 +1330,7 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
     note.tremolo = true;
     note.palm_mute = true;
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
@@ -1307,7 +1338,7 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
     if (plan.has_value())
     {
         const common::core::ChartNote* scrape =
-            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(scrape != nullptr);
         CHECK(scrape->attack == common::core::NoteAttack::PickSlide);
         CHECK(scrape->fret == 7);
@@ -1325,7 +1356,7 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         CHECK(plan->label == "Pick Slide");
         // The latents are legal in memory but the rules gate binds documents, so the oracle
         // is the SAVED form: the writer omits the overrides and the reparse passes clean.
-        REQUIRE(applyChartNotesChange(chart, plan->removed, plan->inserted).has_value());
+        REQUIRE(applyChartChange(chart, *plan).has_value());
         const auto saved =
             common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
         REQUIRE(saved.has_value());
@@ -1346,7 +1377,7 @@ TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]
     common::core::Chart chart = makeTestChart();
     chart.notes[0].dead = true; // measure 2 / string 1, fret 3
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1),
         keyAt({.measure = 2, .beat = 1}, 2),
     };
@@ -1357,10 +1388,10 @@ TEST_CASE("planSetAttack skips a note any per-note rule refuses", "[core][chart]
     if (plan.has_value())
     {
         // The unmuted partner converts; the dead note is left exactly as it was.
-        REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted.front().string == 2);
-        CHECK(plan->inserted.front().attack == common::core::NoteAttack::Pinch);
-        CHECK(noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1) == nullptr);
+        REQUIRE(plan->notes.inserted.size() == 1);
+        CHECK(plan->notes.inserted.front().string == 2);
+        CHECK(plan->notes.inserted.front().attack == common::core::NoteAttack::Pinch);
+        CHECK(noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1) == nullptr);
         applyAndValidate(chart, tempo_map, *plan);
     }
 }
@@ -1379,7 +1410,7 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
         makeTestNote({.measure = 2, .beat = 1}, 2, 7, common::core::Fraction{1, 2}),
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
 
@@ -1388,7 +1419,8 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        const common::core::ChartNote* stub = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+        const common::core::ChartNote* stub =
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 1);
         REQUIRE(stub != nullptr);
         CHECK(stub->sustain == pickSlideDefaultSustainBeats(4));
         CHECK(stub->sustain > common::core::g_minimum_slide_window);
@@ -1400,7 +1432,8 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
             CHECK(stub->slide_out->offset == stub->sustain);
         }
 
-        const common::core::ChartNote* kept = noteAt(plan->inserted, {.measure = 2, .beat = 1}, 2);
+        const common::core::ChartNote* kept =
+            noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 2);
         REQUIRE(kept != nullptr);
         CHECK(kept->sustain == common::core::Fraction{1, 2});
 
@@ -1415,7 +1448,7 @@ TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][c
     common::core::Chart chart = makeTestChart();
     chart.notes[2].fret = 14;
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
@@ -1423,7 +1456,7 @@ TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][c
     if (plan.has_value())
     {
         const common::core::ChartNote* scrape =
-            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(scrape != nullptr);
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
@@ -1447,7 +1480,7 @@ TEST_CASE("planSetAttack floors the default scrape terminal above the capo", "[c
     }
     chart.notes[2].fret = 20;
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
@@ -1455,7 +1488,7 @@ TEST_CASE("planSetAttack floors the default scrape terminal above the capo", "[c
     if (plan.has_value())
     {
         const common::core::ChartNote* scrape =
-            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(scrape != nullptr);
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
@@ -1476,7 +1509,7 @@ TEST_CASE("planSetAttack round-trips a toggled note exactly", "[core][chart]")
     chart.notes[2].vibrato = true;
     const common::core::ChartNote original = chart.notes[2];
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto enter =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
@@ -1485,7 +1518,7 @@ TEST_CASE("planSetAttack round-trips a toggled note exactly", "[core][chart]")
     {
         return;
     }
-    REQUIRE(applyChartNotesChange(chart, enter->removed, enter->inserted).has_value());
+    REQUIRE(applyChartChange(chart, *enter).has_value());
 
     const auto exit =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide");
@@ -1494,7 +1527,7 @@ TEST_CASE("planSetAttack round-trips a toggled note exactly", "[core][chart]")
     {
         return;
     }
-    REQUIRE(applyChartNotesChange(chart, exit->removed, exit->inserted).has_value());
+    REQUIRE(applyChartChange(chart, *exit).has_value());
 
     const common::core::ChartNote* restored = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(restored != nullptr);
@@ -1507,7 +1540,7 @@ TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
     common::core::Chart chart = makeTestChart();
     chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     CHECK_FALSE(
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
@@ -1530,7 +1563,7 @@ TEST_CASE("planSetNoteFlag inherits each flag's own per-note rule", "[core][char
     // A tap harmonic and a plain note, selected together.
     chart.notes[0].attack = common::core::NoteAttack::Tap;
     chart.notes[0].harmonic_node = 17.0;
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1),
         keyAt({.measure = 2, .beat = 1}, 2),
     };
@@ -1541,8 +1574,8 @@ TEST_CASE("planSetNoteFlag inherits each flag's own per-note rule", "[core][char
     if (tremolo.has_value())
     {
         // Only the plain note takes it; the tap harmonic is skipped rather than the edit refused.
-        CHECK(tremolo->inserted.size() == 1);
-        CHECK(std::ranges::all_of(tremolo->inserted, [](const common::core::ChartNote& note) {
+        CHECK(tremolo->notes.inserted.size() == 1);
+        CHECK(std::ranges::all_of(tremolo->notes.inserted, [](const common::core::ChartNote& note) {
             return note.tremolo && !note.harmonic_node.has_value();
         }));
         applyAndValidate(chart, tempo_map, *tremolo);
@@ -1557,10 +1590,11 @@ TEST_CASE("planSetNoteFlag inherits each flag's own per-note rule", "[core][char
     REQUIRE(vibrato.has_value());
     if (vibrato.has_value())
     {
-        CHECK(vibrato->inserted.size() == 1);
-        CHECK(std::ranges::none_of(vibrato->inserted, [](const common::core::ChartNote& note) {
-            return note.dead;
-        }));
+        CHECK(vibrato->notes.inserted.size() == 1);
+        CHECK(
+            std::ranges::none_of(vibrato->notes.inserted, [](const common::core::ChartNote& note) {
+                return note.dead;
+            }));
         applyAndValidate(dead_chart, tempo_map, *vibrato);
     }
 }
@@ -1573,7 +1607,7 @@ TEST_CASE("planSetEmphasis moves a note along one axis", "[core][chart]")
 {
     common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     const auto ghost =
         planSetEmphasis(chart, tempo_map, keys, common::core::NoteEmphasis::Ghost, "Ghost Note");
@@ -1624,7 +1658,7 @@ TEST_CASE("planSetNoteFlag writes one mute without disturbing the other", "[core
 {
     common::core::Chart chart = makeTestChart();
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     const auto palm =
         planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute");
@@ -1688,16 +1722,16 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     constexpr std::size_t held = 2;
     const common::core::Fraction ring = chart.notes[held].sustain;
     REQUIRE(ring.numerator > 0);
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto dead =
         planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::Dead, true, "Dead Note");
     REQUIRE(dead.has_value());
     if (dead.has_value())
     {
-        REQUIRE(dead->inserted.size() == 1);
-        CHECK(dead->inserted.front().dead);
-        CHECK(dead->inserted.front().sustain == ring);
+        REQUIRE(dead->notes.inserted.size() == 1);
+        CHECK(dead->notes.inserted.front().dead);
+        CHECK(dead->notes.inserted.front().sustain == ring);
         applyAndValidate(chart, tempo_map, *dead);
     }
 
@@ -1716,8 +1750,8 @@ TEST_CASE("planSetNoteFlag leaves a deadened note's ring alone", "[core][chart]"
     REQUIRE(grown.has_value());
     if (grown.has_value())
     {
-        REQUIRE(grown->inserted.size() == 1);
-        CHECK(grown->inserted.front().sustain == ring + common::core::Fraction{1});
+        REQUIRE(grown->notes.inserted.size() == 1);
+        CHECK(grown->notes.inserted.front().sustain == ring + common::core::Fraction{1});
     }
 }
 
@@ -1733,7 +1767,7 @@ TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][char
     chart.notes[0].vibrato = true;       // measure 2 / string 1
     chart.notes[2].harmonic_node = 12.0; // measure 3 / string 1, fret 7
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 2, .beat = 1}, 1),
         keyAt({.measure = 2, .beat = 1}, 2),
         keyAt({.measure = 3, .beat = 1}, 1),
@@ -1747,14 +1781,14 @@ TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][char
         return;
     }
     // The vibrato note is skipped; the plain note AND the harmonic both take the X.
-    REQUIRE(dead->inserted.size() == 2);
-    CHECK(std::ranges::none_of(dead->inserted, [](const common::core::ChartNote& note) {
+    REQUIRE(dead->notes.inserted.size() == 2);
+    CHECK(std::ranges::none_of(dead->notes.inserted, [](const common::core::ChartNote& note) {
         return note.vibrato;
     }));
-    CHECK(std::ranges::all_of(dead->inserted, [](const common::core::ChartNote& note) {
+    CHECK(std::ranges::all_of(dead->notes.inserted, [](const common::core::ChartNote& note) {
         return note.dead;
     }));
-    CHECK(std::ranges::any_of(dead->inserted, [](const common::core::ChartNote& note) {
+    CHECK(std::ranges::any_of(dead->notes.inserted, [](const common::core::ChartNote& note) {
         return note.harmonic_node.has_value();
     }));
     applyAndValidate(chart, tempo_map, *dead);
@@ -1765,7 +1799,7 @@ TEST_CASE("planSetNoteFlag skips notes the dead-note rule refuses", "[core][char
     if (palm.has_value())
     {
         // A palm-muted harmonic is ordinary, and so is a palm-muted vibrato.
-        CHECK(palm->inserted.size() == 3);
+        CHECK(palm->notes.inserted.size() == 3);
         applyAndValidate(chart, tempo_map, *palm);
     }
 }
@@ -1779,7 +1813,7 @@ TEST_CASE("planSetNoteFlag leaves a pick slide unmuted", "[core][chart]")
     common::core::Chart chart = makeTestChart();
     chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     CHECK_FALSE(planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute")
                     .has_value());
@@ -1793,7 +1827,7 @@ TEST_CASE("planSetNoteFlag returns nullopt when nothing changes", "[core][chart]
     common::core::Chart chart = makeTestChart();
     chart.notes[0].palm_mute = true;
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
 
     CHECK_FALSE(planSetNoteFlag(chart, tempo_map, keys, ChartNoteFlag::PalmMute, true, "Palm Mute")
                     .has_value());
@@ -1811,13 +1845,13 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     // Asserts the retyped note carries the expected start with the fixture's authored path
     // untouched, and that the applied chart still passes the whole-chart rules gate.
     const auto check_path_kept = [](const common::core::Chart& chart,
-                                    const std::expected<ChartNotesEditPlan, ChartPlanRefusal>& plan,
+                                    const std::expected<ChartEditPlan, ChartPlanRefusal>& plan,
                                     const int expected_start) {
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
-            REQUIRE(plan->inserted.size() == 1);
-            const common::core::ChartNote& retyped = plan->inserted.front();
+            REQUIRE(plan->notes.inserted.size() == 1);
+            const common::core::ChartNote& retyped = plan->notes.inserted.front();
             CHECK(retyped.fret == expected_start);
             REQUIRE(retyped.slides.size() == 1);
             CHECK(retyped.slides[0].fret == chart.notes.front().slides[0].fret);
@@ -1934,10 +1968,10 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fre
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
-        REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted.front().fret == 7);
-        REQUIRE(plan->inserted.front().slides.size() == 1);
-        CHECK(plan->inserted.front().slides[0].fret == 7);
+        REQUIRE(plan->notes.inserted.size() == 1);
+        CHECK(plan->notes.inserted.front().fret == 7);
+        REQUIRE(plan->notes.inserted.front().slides.size() == 1);
+        CHECK(plan->notes.inserted.front().slides[0].fret == 7);
 
         common::core::Chart applied = chart;
         applyAndValidate(applied, makeTempoMap(), *plan);
@@ -1951,7 +1985,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
     common::core::Chart chart = makeTestChart();
     chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     SECTION("shrink compresses the terminal onto the new end")
     {
@@ -1962,7 +1996,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
         if (plan.has_value())
         {
             const common::core::ChartNote* scrape =
-                noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 4});
             REQUIRE(scrape->slides.size() == 1);
@@ -1988,7 +2022,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
         if (plan.has_value())
         {
             const common::core::ChartNote* scrape =
-                noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 2});
             REQUIRE(scrape->slide_out.has_value());
@@ -2009,7 +2043,7 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
         if (plan.has_value())
         {
             const common::core::ChartNote* scrape =
-                noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+                noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::g_minimum_slide_window);
             // The turnaround no longer fits inside the floored window; the terminal alone rides.
@@ -2038,7 +2072,7 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     scrape.slide_out = common::core::SlideOut{.offset = common::core::Fraction{1}, .fret = 3};
     chart.notes[2] = scrape;
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     // Shrink to half a beat: only the first turnaround survives, and the terminal fret 3 would sit
     // still against it, so the earlier differing fret 12 terminates instead.
@@ -2048,7 +2082,7 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     if (plan.has_value())
     {
         const common::core::ChartNote* shrunk =
-            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(shrunk != nullptr);
         CHECK(shrunk->sustain == common::core::Fraction{1, 2});
         REQUIRE(shrunk->slides.size() == 1);
@@ -2084,7 +2118,7 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
     if (plan.has_value())
     {
         const common::core::ChartNote* truncated =
-            noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
+            noteAt(plan->notes.inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(truncated != nullptr);
         CHECK(truncated->sustain == common::core::Fraction{1, 2});
         REQUIRE(truncated->slide_out.has_value());
@@ -2122,7 +2156,7 @@ TEST_CASE("planSetAttack refuses a scrape on a slide that holds a fret", "[core]
         common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto plan =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
@@ -2143,7 +2177,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
         common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 9}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+    const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
 
     const auto enter =
         planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
@@ -2154,7 +2188,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     }
     // The tremolo latent makes the in-memory chart deliberately dirty, so validate the saved
     // form rather than the raw stream.
-    REQUIRE(applyChartNotesChange(chart, enter->removed, enter->inserted).has_value());
+    REQUIRE(applyChartChange(chart, *enter).has_value());
     const auto saved =
         common::core::parseChartDocument(common::core::chartDocumentText(chart, tempo_map));
     REQUIRE(saved.has_value());
@@ -2207,7 +2241,7 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
     chart.notes[0].sustain = common::core::Fraction{1};
     chart.notes[2].sustain = common::core::Fraction{1};
 
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
         keyAt({.measure = 1, .beat = 4}, 2),
     };
@@ -2216,13 +2250,13 @@ TEST_CASE("planSetLegato claims a connection in both directions", "[core][chart]
     REQUIRE(planned.plan.has_value());
     if (planned.plan.has_value())
     {
-        REQUIRE(planned.plan->inserted.size() == 2);
+        REQUIRE(planned.plan->notes.inserted.size() == 2);
         // Insertions stay in chart order: the string-1 climb first, then the string-2 fall. BOTH
         // carry the same attack — the direction lives only in the resolution.
-        CHECK(planned.plan->inserted[0].string == 1);
-        CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
-        CHECK(planned.plan->inserted[1].string == 2);
-        CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
+        CHECK(planned.plan->notes.inserted[0].string == 1);
+        CHECK(planned.plan->notes.inserted[0].attack == common::core::NoteAttack::Legato);
+        CHECK(planned.plan->notes.inserted[1].string == 2);
+        CHECK(planned.plan->notes.inserted[1].attack == common::core::NoteAttack::Legato);
 
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *planned.plan);
@@ -2325,7 +2359,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeScrape({.measure = 1, .beat = 3}, 2),
         };
         chart.notes[1].attack = common::core::NoteAttack::Tap;
-        const std::vector<ChartNoteKey> keys{
+        const std::vector<ChartSlotKey> keys{
             keyAt({.measure = 1, .beat = 2}, 1),
             keyAt({.measure = 1, .beat = 3}, 2),
         };
@@ -2359,10 +2393,10 @@ TEST_CASE(
         {
             // The grown predecessor rides the same plan: its tail ends exactly at the margin
             // point before the onset (two beats less the quarter-beat margin in 4/4).
-            REQUIRE(planned.plan->inserted.size() == 2);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{2});
-            CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Pick);
-            CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
+            REQUIRE(planned.plan->notes.inserted.size() == 2);
+            CHECK(planned.plan->notes.inserted[0].sustain == common::core::Fraction{2});
+            CHECK(planned.plan->notes.inserted[0].attack == common::core::NoteAttack::Pick);
+            CHECK(planned.plan->notes.inserted[1].attack == common::core::NoteAttack::Legato);
         }
     }
 
@@ -2379,9 +2413,9 @@ TEST_CASE(
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
         {
-            REQUIRE(planned.plan->inserted.size() == 2);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{2});
-            CHECK(planned.plan->inserted[1].attack == common::core::NoteAttack::Legato);
+            REQUIRE(planned.plan->notes.inserted.size() == 2);
+            CHECK(planned.plan->notes.inserted[0].sustain == common::core::Fraction{2});
+            CHECK(planned.plan->notes.inserted[1].attack == common::core::NoteAttack::Legato);
         }
     }
 
@@ -2398,7 +2432,7 @@ TEST_CASE(
             makeTestNote({.measure = 2, .beat = 1}, 1, 5),
             makeTestNote({.measure = 2, .beat = 1}, 2, 7),
         };
-        const std::vector<ChartNoteKey> keys{
+        const std::vector<ChartSlotKey> keys{
             keyAt({.measure = 2, .beat = 1}, 1),
             keyAt({.measure = 2, .beat = 1}, 2),
         };
@@ -2406,11 +2440,11 @@ TEST_CASE(
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
         {
-            REQUIRE(planned.plan->inserted.size() == 4);
-            CHECK(planned.plan->inserted[0].sustain == common::core::Fraction{4});
-            CHECK(planned.plan->inserted[1].sustain == common::core::Fraction{4});
-            CHECK(planned.plan->inserted[2].attack == common::core::NoteAttack::Legato);
-            CHECK(planned.plan->inserted[3].attack == common::core::NoteAttack::Legato);
+            REQUIRE(planned.plan->notes.inserted.size() == 4);
+            CHECK(planned.plan->notes.inserted[0].sustain == common::core::Fraction{4});
+            CHECK(planned.plan->notes.inserted[1].sustain == common::core::Fraction{4});
+            CHECK(planned.plan->notes.inserted[2].attack == common::core::NoteAttack::Legato);
+            CHECK(planned.plan->notes.inserted[3].attack == common::core::NoteAttack::Legato);
         }
     }
 
@@ -2478,9 +2512,9 @@ TEST_CASE("planSetLegato leaves every harmonic node where it found it", "[core][
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
         {
-            REQUIRE(planned.plan->inserted.size() == 1);
-            CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
-            CHECK(planned.plan->inserted[0].harmonic_node.has_value());
+            REQUIRE(planned.plan->notes.inserted.size() == 1);
+            CHECK(planned.plan->notes.inserted[0].attack == common::core::NoteAttack::Legato);
+            CHECK(planned.plan->notes.inserted[0].harmonic_node.has_value());
         }
     }
 
@@ -2537,7 +2571,7 @@ TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[cor
     };
     chart.notes[0].sustain = common::core::Fraction{1};
 
-    const std::vector<ChartNoteKey> keys{
+    const std::vector<ChartSlotKey> keys{
         keyAt({.measure = 1, .beat = 2}, 1),
         keyAt({.measure = 1, .beat = 2}, 2),
     };
@@ -2546,9 +2580,9 @@ TEST_CASE("planSetLegato applies to the resolvable subset of a selection", "[cor
     if (planned.plan.has_value())
     {
         // Only the resolvable note changes; the other keeps its pick and stays out of the plan.
-        REQUIRE(planned.plan->inserted.size() == 1);
-        CHECK(planned.plan->inserted[0].string == 1);
-        CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
+        REQUIRE(planned.plan->notes.inserted.size() == 1);
+        CHECK(planned.plan->notes.inserted[0].string == 1);
+        CHECK(planned.plan->notes.inserted[0].attack == common::core::NoteAttack::Legato);
     }
     CHECK(planned.skipped == 1);
     CHECK(planned.reason == ChartLegatoSkip::NoPredecessor);
@@ -2587,8 +2621,8 @@ TEST_CASE("planSetLegato asks the claim's own question of a left-hand tap", "[co
         REQUIRE(planned.plan.has_value());
         if (planned.plan.has_value())
         {
-            REQUIRE(planned.plan->inserted.size() == 1);
-            CHECK(planned.plan->inserted[0].attack == common::core::NoteAttack::Legato);
+            REQUIRE(planned.plan->notes.inserted.size() == 1);
+            CHECK(planned.plan->notes.inserted[0].attack == common::core::NoteAttack::Legato);
         }
     }
 }
@@ -2618,8 +2652,8 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     if (plan.has_value())
     {
         // Only the tail is in the plan: the claim is untouched, and the chart stays valid with it.
-        REQUIRE(plan->inserted.size() == 1);
-        CHECK(plan->inserted[0].sustain == common::core::Fraction{1});
+        REQUIRE(plan->notes.inserted.size() == 1);
+        CHECK(plan->notes.inserted[0].sustain == common::core::Fraction{1});
         applyAndValidate(chart, tempo_map, *plan);
         CHECK(chart.notes[1].attack == common::core::NoteAttack::Legato);
         const common::core::ChartConnections connections =
@@ -2631,32 +2665,86 @@ TEST_CASE("a shrink leaves its broken claim for the settle sweep", "[core][chart
     // The sweep is what ends the transience, and it can be expressed against any base: against the
     // current stream it is a one-note plan, and against the PRE-BURST stream it carries the tail
     // change too, which is how the settle folds into the burst's own undo entry.
-    const std::vector<common::core::ChartNote> pre_burst = {
+    common::core::Chart pre_burst = chart;
+    pre_burst.notes = {
         makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{2}),
         chart.notes[1],
     };
-    const auto settled = planSettleLegato(chart, tempo_map, chart.notes, "Settle Legato");
+    const auto settled = planSettleLegato(chart, tempo_map, chart, "Settle Legato");
     REQUIRE(settled.has_value());
     if (settled.has_value())
     {
-        REQUIRE(settled->inserted.size() == 1);
-        CHECK(settled->inserted[0].attack == common::core::NoteAttack::Pick);
+        REQUIRE(settled->notes.inserted.size() == 1);
+        CHECK(settled->notes.inserted[0].attack == common::core::NoteAttack::Pick);
         CHECK(settled->label == "Settle Legato");
 
         // Idempotent, and silent when there is nothing to settle: that emptiness is exactly what
         // tells the controller to leave its coalescing windows armed.
         common::core::Chart clean = chart;
-        REQUIRE(applyChartNotesChange(clean, settled->removed, settled->inserted).has_value());
-        CHECK_FALSE(planSettleLegato(clean, tempo_map, clean.notes, "Settle Legato").has_value());
+        REQUIRE(applyChartChange(clean, *settled).has_value());
+        CHECK_FALSE(planSettleLegato(clean, tempo_map, clean, "Settle Legato").has_value());
     }
     const auto folded = planSettleLegato(chart, tempo_map, pre_burst, "Shrink Sustain");
     REQUIRE(folded.has_value());
     if (folded.has_value())
     {
-        REQUIRE(folded->inserted.size() == 2);
-        CHECK(folded->inserted[0].sustain == common::core::Fraction{1});
-        CHECK(folded->inserted[1].attack == common::core::NoteAttack::Pick);
+        REQUIRE(folded->notes.inserted.size() == 2);
+        CHECK(folded->notes.inserted[0].sustain == common::core::Fraction{1});
+        CHECK(folded->notes.inserted[1].attack == common::core::NoteAttack::Pick);
         CHECK(folded->label == "Shrink Sustain");
+    }
+}
+
+// The fold REPLACES the entry it folds into, and the caller walks the live chart back through that
+// entry's own reversal first — which takes every authored array with it. So the settled plan has to
+// restate every array's difference from the pre-burst chart, not only the notes the sweep rewrote.
+// The burst that makes this visible is the arpeggio hold's convert case: it deletes a note and
+// authors a marker, and a note-only settled plan would leave the note deleted and the marker gone.
+TEST_CASE("the settle fold carries every array the burst moved", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    common::core::Chart pre_burst;
+    pre_burst.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    pre_burst.notes = {
+        makeTestNote({.measure = 1, .beat = 1}, 3, 5, common::core::Fraction{2}),
+        makeTestNote({.measure = 1, .beat = 3}, 3, 7),
+    };
+    pre_burst.notes[1].attack = common::core::NoteAttack::Legato;
+
+    // The burst: the ringing note is converted into a fret-carrying marker, which leaves the claim
+    // behind it with nothing to connect to. Mid-burst that is legal and transient — the sweep at
+    // the next settle point is what flattens it.
+    common::core::Chart burst = pre_burst;
+    burst.notes.erase(burst.notes.begin());
+    burst.hold_markers = {
+        common::core::ChartHoldMarker{
+            .position = {.measure = 1, .beat = 1},
+            .string = 3,
+            .fret = 5,
+        },
+    };
+
+    const auto settled = planSettleLegato(burst, tempo_map, pre_burst, "Arpeggio Hold");
+    REQUIRE(settled.has_value());
+    if (settled.has_value())
+    {
+        // The marker half is the burst's own, restated: the entry this replaces described it, and
+        // after the replacement nothing else does.
+        REQUIRE(settled->hold_markers.inserted.size() == 1);
+        CHECK(settled->hold_markers.inserted.front() == burst.hold_markers.front());
+        CHECK(settled->hold_markers.removed.empty());
+
+        // Applied to the pre-burst chart — which is exactly where the caller's walk-back leaves the
+        // live chart — the plan lands on the burst's own state with the claim flattened.
+        common::core::Chart applied = pre_burst;
+        REQUIRE(applyChartChange(applied, *settled).has_value());
+        CHECK(applied.hold_markers == burst.hold_markers);
+        REQUIRE(applied.notes.size() == 1);
+        CHECK(applied.notes.front().attack == common::core::NoteAttack::Pick);
+
+        // And one undo of the folded entry takes the whole burst back, both arrays at once.
+        REQUIRE(applyChartChange(applied, settled->reversed()).has_value());
+        CHECK(applied == pre_burst);
     }
 }
 
@@ -2694,10 +2782,10 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             if (retyped.has_value())
             {
                 const auto struck = std::ranges::find_if(
-                    retyped->inserted,
+                    retyped->notes.inserted,
                     [](const common::core::ChartNote& note) { return note.fret == 0; });
-                REQUIRE(struck != retyped->inserted.end());
-                if (struck != retyped->inserted.end())
+                REQUIRE(struck != retyped->notes.inserted.end());
+                if (struck != retyped->notes.inserted.end())
                 {
                     CHECK(struck->attack == common::core::NoteAttack::Pick);
                 }
@@ -2726,9 +2814,9 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             REQUIRE(stranded.has_value());
             if (stranded.has_value())
             {
-                REQUIRE(stranded->inserted.size() == 1);
-                CHECK(stranded->inserted[0].fret == 0);
-                CHECK(stranded->inserted[0].attack == common::core::NoteAttack::Pick);
+                REQUIRE(stranded->notes.inserted.size() == 1);
+                CHECK(stranded->notes.inserted[0].fret == 0);
+                CHECK(stranded->notes.inserted[0].attack == common::core::NoteAttack::Pick);
                 applyAndValidate(chart, tempo_map, *stranded);
             }
 
@@ -2744,12 +2832,200 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             REQUIRE(kept.has_value());
             if (kept.has_value())
             {
-                REQUIRE(kept->inserted.size() == 1);
-                CHECK(kept->inserted[0].attack == attack);
+                REQUIRE(kept->notes.inserted.size() == 1);
+                CHECK(kept->notes.inserted[0].attack == attack);
                 applyAndValidate(noded, tempo_map, *kept);
             }
         }
     }
+}
+
+// The verb's three cases, at the planner. Case 1 states a WHEN and no WHAT; case 2 is the only
+// fret-carrying path there is; case 3 is case 1's inverse. Every one of them passes the shared
+// finalize, so a result the document reader would reject refuses here.
+TEST_CASE("planToggleHoldMarker authors, converts and removes", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("an empty slot gains a fret-less marker")
+    {
+        const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3};
+        const auto plan = planToggleHoldMarker(chart, tempo_map, slot);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            CHECK(plan->notes.removed.empty());
+            CHECK(plan->notes.inserted.empty());
+            REQUIRE(plan->hold_markers.inserted.size() == 1);
+            CHECK_FALSE(plan->hold_markers.inserted.front().fret.has_value());
+            applyAndValidate(chart, tempo_map, *plan);
+        }
+    }
+
+    SECTION("a note is converted, and the marker carries its fret")
+    {
+        const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1};
+        const auto plan = planToggleHoldMarker(chart, tempo_map, slot);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->notes.removed.size() == 1);
+            CHECK(plan->notes.removed.front().fret == 3);
+            CHECK(plan->notes.inserted.empty());
+            REQUIRE(plan->hold_markers.inserted.size() == 1);
+            CHECK(plan->hold_markers.inserted.front().fret == std::optional{3});
+            applyAndValidate(chart, tempo_map, *plan);
+        }
+    }
+
+    SECTION("an existing marker is removed and nothing is restored")
+    {
+        chart.hold_markers = {common::core::ChartHoldMarker{
+            .position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3, .fret = {}
+        }};
+        const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3};
+        const auto plan = planToggleHoldMarker(chart, tempo_map, slot);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->hold_markers.removed.size() == 1);
+            CHECK(plan->hold_markers.inserted.empty());
+            CHECK(plan->notes.removed.empty());
+            CHECK(plan->notes.inserted.empty());
+            applyAndValidate(chart, tempo_map, *plan);
+        }
+    }
+}
+
+// Disjointness is enforced by the SHARED finalize rather than by a rule each planner restates, so
+// a note planner that never mentions markers still cannot plant one on a marker's slot.
+TEST_CASE("The plan gate refuses a note on a hold marker's slot", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    chart.hold_markers = {common::core::ChartHoldMarker{
+        .position = {.measure = 4, .beat = 1, .offset = {}}, .string = 1, .fret = 5
+    }};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto refused = planInsertNote(
+        chart,
+        tempo_map,
+        makeTestNote({.measure = 4, .beat = 1}, 1, 2),
+        common::core::Fraction{1, 4});
+    REQUIRE_FALSE(refused.has_value());
+    if (!refused.has_value())
+    {
+        CHECK(refused.error() == ChartPlanRefusal::Invalid);
+    }
+}
+
+// Both range verbs read both arrays. Deleting takes the markers the keys name and labels what it
+// actually removed; moving carries them and refuses a destination either array occupies.
+TEST_CASE("The range verbs read both authored arrays", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    chart.hold_markers = {common::core::ChartHoldMarker{
+        .position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3, .fret = {}
+    }};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartSlotKey> marker_key{
+        ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3}
+    };
+
+    SECTION("deleting a marker alone names the marker")
+    {
+        const auto plan = planDeleteSelection(chart, tempo_map, {}, marker_key);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            CHECK(plan->label == "Delete Hold Marker");
+            CHECK(plan->notes.removed.empty());
+            CHECK(plan->hold_markers.removed.size() == 1);
+            applyAndValidate(chart, tempo_map, *plan);
+        }
+    }
+
+    SECTION("a mixed delete names the selection rather than counting one kind for both")
+    {
+        const std::vector<ChartSlotKey> note_key{
+            ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1}
+        };
+        const auto plan = planDeleteSelection(chart, tempo_map, note_key, marker_key);
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            CHECK(plan->label == "Delete Selection");
+            CHECK(plan->notes.removed.size() == 1);
+            CHECK(plan->hold_markers.removed.size() == 1);
+        }
+    }
+
+    SECTION("a moved marker rides along with the notes")
+    {
+        const std::vector<ChartSlotKey> note_key{
+            ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1}
+        };
+        const auto plan = planMoveSelection(
+            chart, tempo_map, note_key, marker_key, common::core::Fraction{1}, 0, "Move Selection");
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            REQUIRE(plan->hold_markers.inserted.size() == 1);
+            CHECK(
+                plan->hold_markers.inserted.front().position ==
+                common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
+            CHECK(plan->notes.inserted.size() == 1);
+            applyAndValidate(chart, tempo_map, *plan);
+        }
+    }
+
+    SECTION("a note moved onto a marker's slot is refused")
+    {
+        const std::vector<ChartSlotKey> note_key{
+            ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 2}
+        };
+        const auto refused = planMoveSelection(
+            chart, tempo_map, note_key, {}, common::core::Fraction{}, 1, "Move Note");
+        REQUIRE_FALSE(refused.has_value());
+        if (!refused.has_value())
+        {
+            CHECK(refused.error() == ChartPlanRefusal::Invalid);
+        }
+    }
+}
+
+// The plan crosses both arrays as ONE atomic gesture, so undoing it is the same primitive run
+// backwards and a failed precondition in either half leaves the whole chart untouched.
+TEST_CASE("A plan crossing both arrays applies and reverses atomically", "[core][chart]")
+{
+    common::core::Chart chart = makeTestChart();
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const ChartSlotKey slot{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1};
+    const auto plan = planToggleHoldMarker(chart, tempo_map, slot);
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    REQUIRE(applyChartChange(chart, *plan).has_value());
+    CHECK(chart.notes.size() == 2);
+    CHECK(chart.hold_markers.size() == 1);
+
+    REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+    CHECK(chart == original);
+
+    // A stale removal in the MARKER half rejects the whole change, the note half included.
+    common::core::Chart other = makeTestChart();
+    ChartEditPlan stale = *plan;
+    stale.hold_markers.removed = {common::core::ChartHoldMarker{
+        .position = {.measure = 9, .beat = 1, .offset = {}}, .string = 1, .fret = {}
+    }};
+    const auto rejected = applyChartChange(other, stale);
+    CHECK_FALSE(rejected.has_value());
+    CHECK(other == original);
 }
 
 } // namespace rock_hero::editor::core

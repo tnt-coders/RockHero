@@ -274,8 +274,10 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
 under it, so `common::core::deriveChartShapes` (`chart/chart_shapes.h`) derives every span and
 posture from the note stream wherever they are read, once per chart revision inside
-`chartResolutions`. Rules 10 to 12a below are that derivation's maintained plain-English spec —
-this page is where they are stated, and `chart_shapes.h` points here rather than restating them.
+`chartResolutions`. The one authored input is `chart.holdMarkers[]` (rule 12b) — the single posture
+fact no function of a note stream can distinguish. Rules 10 to 12b below are that derivation's
+maintained plain-English spec — this page is where they are stated, and `chart_shapes.h` points
+here rather than restating them.
 
 One consequence of the move is worth naming: the derivation now sees the SETTLED stream, where the
 importer ran before `normalizeChart`. A strum whose notes carried something the rules refuse — a
@@ -308,7 +310,14 @@ now it reads as what it is, and merges with its identically-played neighbours.
     longer joins a later posture. A mixed onset (a fretting-hand note struck under simultaneous
     right-hand taps, the two-hand-tapping staple) counts only its non-tap members: one left-hand
     note is an ordinary single onset, two or more are a chord. An isolated strum gets a span of
-    its own ring.
+    its own ring. **One single-string onset is excepted:** a lone *re-pick* of a string the open
+    span already holds — by sound with unchanged articulation, or by a hold marker (rule 12b) —
+    does not close the span when at least one OTHER member is still ringing (the presented ring,
+    for rule 12's own reason). The hand has demonstrably not left the shape, so the span extends
+    over the re-pick instead of dying at it, and this is what makes the one-note-at-a-time broken
+    chord over a held shape derivable at all. It only ever EXTENDS a span, never opens one — and
+    because a longer span widens rule 12's right-hand scan, a tap that used to fall after a span
+    can now fall inside it and turn a box into an arpeggio.
 12. **A fully-strummed span is a chord box; a ring-through span or a held chord under tapping is
     an arpeggio.** A note still ringing through a chord's onset (tie-held from before, not
     re-struck) joins the derived posture on its string — the posture asks the STORED ring, because
@@ -321,9 +330,12 @@ now it reads as what it is, and merges with its identically-played neighbours.
     arpeggio shapes). A **tapped note sounding anywhere within the span** also flips a box to a
     held arpeggio (user rule 2026-07-28): the fretting hand holds the shape while the right hand
     taps above it, so the notation shows the chord is sustained through the tapping. A posture
-    string that is merely silent at the start (a partial strum of the shape) keeps the chord box;
-    no other arpeggio grouping is derived (broken-chord grouping waits for the corpus-informed
-    pass).
+    string that is merely silent at the start (a partial strum of the shape) keeps the chord box —
+    "merely silent" and "known held" are different claims, and rule 12b is what tells them apart;
+    no other arpeggio grouping is derived. A figure picked one string at a time from its FIRST
+    note still opens no span at all — rule 11's re-pick exception EXTENDS a shape and cannot open
+    one, and rule 10 needs two strings sounding together — so that grouping waits for the
+    corpus-informed pass.
 12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
     merging can stretch a strum's ring past the next event, but the shape's box never follows
     it: when a new posture (or a non-chord onset) closes a span, the closed span's end trims to
@@ -334,6 +346,27 @@ now it reads as what it is, and merges with its identically-played neighbours.
     reaches its final restrike even when events crowd closer than the margin; a span that
     would still lose all length (a single short strum crowded inside the margin) falls back to
     exact adjacency, ending at the earlier of its own ring and the closing onset.
+12b. **A hold marker states the one posture member the notes cannot.** A finger resting on a fret
+    makes no sound, extends no ring, and produces no onset, so a hand holding a six-string shape
+    and picking four of it streams *identically* to a hand holding four and moving to the fifth
+    later. Both are real playing (user ruling 2026-08-25, which is also why growth by a new string
+    keeps SPLITTING rather than being read as one shape), so the derivation notates the literal
+    notes and `chart.holdMarkers[]` is how a charter states the other reading, authored by the
+    arpeggio hold verb (`N`, \ref guide_keyboard), which acts on whatever the chart caret's slot
+    holds rather than on the selection, since a fact about the hand is stated at the position it
+    holds. A marker lying
+    inside a derived span joins that span's posture on its string, and the span then arrives as an
+    **arpeggio** — the bracket is the only mark with a place to print a fret nothing struck. Its
+    own fret is used where it carries one; otherwise the fret comes from the first note that
+    sounds on that string later in the same span, so the chart never holds two editable copies of
+    one fret. A marker that resolves to nothing — no span covers it, its position falls past the
+    span's own end, its string is already stated by sound, or nothing supplies its fret — is
+    **inert**: it changes no posture and draws nowhere, exactly as an unjustified connection claim
+    plays as the pick it sounds like. **A marker is not a strike:** rule 10's two-string threshold
+    still counts SOUNDING fretting-hand members only, so a shape can never open on held fingers
+    alone and a marker only ever joins one that sound opened. Because a marker's fret can arrive
+    from a note later in the span, the posture is keyed when the span CLOSES rather than at each
+    onset.
 
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):

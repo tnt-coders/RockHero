@@ -319,7 +319,8 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         return {};
     }
 
-    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError>
+    readParameterBaselineNormValue(
         const std::string&, const std::string&, const std::string&) const override
     {
         return 0.0F;

@@ -279,6 +279,37 @@ namespace
     return note;
 }
 
+[[nodiscard]] std::expected<ChartHoldMarker, ChartError> readHoldMarker(
+    const juce::var& marker_json)
+{
+    auto position = readPosition(marker_json);
+    if (!position.has_value())
+    {
+        return std::unexpected{std::move(position.error())};
+    }
+    // Typed exactly like the note scalars, and for the same reason: a wrong-typed `fret` read as
+    // absent would silently turn an authored stop into "ask the notes for it", which then resolves
+    // to nothing and draws nothing — a marker that vanished with no word said.
+    for (const char* const key : {"string", "fret"})
+    {
+        const juce::var& property = Json::value(marker_json, key);
+        if (!property.isVoid() && !property.isInt())
+        {
+            return std::unexpected{malformed(
+                "chart hold marker \"" + std::string{key} + "\" has the wrong type")};
+        }
+    }
+    return ChartHoldMarker{
+        .position = *position,
+        .string = Json::readOptionalInt(marker_json, "string", 0),
+        // Absence is the α form and carries meaning, so there is no default to read: the stop comes
+        // from the note that supplies it.
+        .fret = Json::value(marker_json, "fret").isVoid()
+                    ? std::nullopt
+                    : std::optional{Json::readOptionalInt(marker_json, "fret", 0)},
+    };
+}
+
 // ---- writer -------------------------------------------------------------------------------
 
 void appendJsonString(std::string& out, const std::string& text)
@@ -423,6 +454,21 @@ void appendJsonString(std::string& out, const std::string& text)
     return line;
 }
 
+[[nodiscard]] std::string holdMarkerLine(const ChartHoldMarker& marker)
+{
+    std::string line = R"({ "position": ")" + formatGridPositionToken(marker.position) + '"';
+    line += ", \"string\": " + std::to_string(marker.string);
+    // Omitted where a note in the span supplies it. Absence is a MEANING here rather than a
+    // defaulted value — writing the resolved fret out would author exactly the second copy this
+    // record exists not to hold.
+    if (marker.fret.has_value())
+    {
+        line += ", \"fret\": " + std::to_string(*marker.fret);
+    }
+    line += " }";
+    return line;
+}
+
 } // namespace
 
 std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
@@ -512,6 +558,21 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
         return std::unexpected{malformed("chart notes must be sorted by position and string")};
     }
 
+    const juce::var& markers_json = Json::value(root, "holdMarkers");
+    if (markers_json.isArray())
+    {
+        chart.hold_markers.reserve(static_cast<std::size_t>(markers_json.size()));
+        for (int index = 0; index < markers_json.size(); ++index)
+        {
+            auto marker = readHoldMarker(markers_json[index]);
+            if (!marker.has_value())
+            {
+                return std::unexpected{std::move(marker.error())};
+            }
+            chart.hold_markers.push_back(*marker);
+        }
+    }
+
     const juce::var& fhps_json = Json::value(root, "fhps");
     if (fhps_json.isArray())
     {
@@ -588,6 +649,7 @@ namespace
     };
 
     append_array("notes", chart.notes, noteLine);
+    append_array("holdMarkers", chart.hold_markers, holdMarkerLine);
     append_array("fhps", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
         std::string line = R"({ "position": ")" + formatGridPositionToken(fhp.position) +
                            R"(", "fret": )" + std::to_string(fhp.fret);

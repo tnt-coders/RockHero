@@ -124,6 +124,17 @@ AutomationPointSelection, TimeSelection>` (`editor/core/src/controller/editor_se
 Making a selection anywhere replaces it everywhere — two live selections are unrepresentable —
 and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active.
 
+Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
+holds `ChartSelectionKey{kind, slot}` values, where the kind names which authored array the object
+lives in (`ChartSelectableKind`: a note, or a hold marker) and the slot is the `(position, string)`
+both arrays are keyed by (`chart_selection.h`). One sorted-unique sequence per kind, one
+kind-agnostic set of mutations over them, so every verb reads its own kind's operand as a plain
+list and a verb a kind has no meaning for simply reads an empty one. Adding a kind is an
+enumerator plus one arm of `ChartSelection::slotsFor` — for a selectable the *slot* names. A
+selectable the slot cannot name costs more than an arm: a note's own waypoints are many per note
+and identified by `(slot, offset)`, so the unified waypoint model has to widen `ChartSelectionKey`
+itself, and with it every mutation written over `std::vector<ChartSlotKey>`.
+
 **Adding a selection kind is the highest silent-fan-out change in the editor.** Because dispatch
 is `std::visit`/`holds_alternative`, a new alternative compiles clean nearly everywhere it is
 forgotten. The touchpoints:
@@ -194,7 +205,10 @@ base color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefo
 all color strings through it. The glyph renderer itself is the **shared notation paint core**
 in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
 `TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head/tail
-in pixels" for hit testing, and `tab_paint_core.h` — the one designated juce_graphics-bearing
+in pixels" for hit testing (and the same for a hold marker's editor mark, whose geometry lives
+there beside the head's even though the paint core never draws it — the editor's overlay painter
+and the editor's hit testing both read it, and a second copy would be the drift the unit exists to
+prevent), and `tab_paint_core.h` — the one designated juce_graphics-bearing
 common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
 surface so editor widgets and tests are unaffected; the paint core's pixel output is pinned by

@@ -82,10 +82,11 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }};
     }
 
-    // No posture or span rules: both are derived from the notes (deriveChartShapes), so there is
-    // no authored value here that could be wrong. The posture's capo floor and board ceiling come
-    // with the frets it reads — every one of them belongs to a note this validator has already
-    // judged — and a derived span's length and order are properties of the walk that built it.
+    // No posture or span rules: both are derived from the notes and the hold markers
+    // (deriveChartShapes), so there is no authored span here that could be wrong. The posture's
+    // capo floor and board ceiling come with the frets it reads — every one of them belongs to a
+    // note or a marker this validator judges — and a derived span's length and order are
+    // properties of the walk that built it.
 
     const FretHandPosition* previous_fhp = nullptr;
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
@@ -127,7 +128,9 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         return notes_result;
     }
 
-    return std::expected<void, ChartError>{};
+    // After the notes, because the marker rules read them: a marker's whole legality is its own
+    // range plus the slot no note may already hold.
+    return validateChartHoldMarkers(chart.hold_markers, chart.notes, chart.tuning, tempo_map);
 }
 
 std::string_view chartRepairText(const ChartRepair repair)
@@ -400,6 +403,19 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     return repairs;
 }
 
+std::vector<ChartRepair> normalizeChartHoldMarker(ChartHoldMarker& marker)
+{
+    // Bound to a local so the optional check and the access are provably the same object
+    // (bugprone-unchecked-optional-access cannot track a member through a mutation).
+    std::optional<int>& fret = marker.fret;
+    if (!fret.has_value() || *fret <= g_max_fret)
+    {
+        return {};
+    }
+    fret = g_max_fret;
+    return {ChartRepair::FretPastBoard};
+}
+
 std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
@@ -459,6 +475,12 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
                 .where = positionText(chart.notes[index].position) + " string " +
                          std::to_string(chart.notes[index].string),
             });
+    }
+    for (ChartHoldMarker& marker : chart.hold_markers)
+    {
+        record(
+            normalizeChartHoldMarker(marker),
+            positionText(marker.position) + " string " + std::to_string(marker.string));
     }
     for (FretHandPosition& position : chart.fret_hand_positions)
     {
@@ -649,6 +671,76 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = std::string{chartRepairText(repairs.front())} + " at " +
                        positionText(note.position),
         }};
+    }
+    return std::expected<void, ChartError>{};
+}
+
+std::expected<void, ChartError> validateChartHoldMarkers(
+    const std::vector<ChartHoldMarker>& markers, const std::vector<ChartNote>& notes,
+    const ChartTuning& tuning, const TempoMap& tempo_map)
+{
+    const int string_count = std::min(static_cast<int>(tuning.strings.size()), g_max_chart_strings);
+    const ChartHoldMarker* previous_marker = nullptr;
+    for (const ChartHoldMarker& marker : markers)
+    {
+        if (marker.string < 1 || marker.string > string_count ||
+            !isValidGridPosition(marker.position, tempo_map))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidHoldMarker,
+                .message = "hold marker is out of range at " + positionText(marker.position),
+            }};
+        }
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = marker.fret;
+        // The stop's floor, the note's rule verbatim: 0 is the open string capo'd or not, and the
+        // frets a capo covers do not exist to take. A lift would invent the stop the author meant,
+        // which is why this is a refusal here and a repair nowhere.
+        if (fret.has_value() &&
+            (*fret < 0 || (*fret != 0 && *fret < firstPlayableFret(tuning.capo))))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidHoldMarker,
+                .message = "hold marker fret must be 0 or above the capo at " +
+                           positionText(marker.position),
+            }};
+        }
+        if (previous_marker != nullptr && !chartHoldMarkerOrderLess(*previous_marker, marker))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidHoldMarker,
+                .message = "hold markers must be sorted by position and string with unique slots"
+                           " at " +
+                           positionText(marker.position),
+            }};
+        }
+        previous_marker = &marker;
+
+        // Disjointness. Where a note sounds, the note IS the statement — a marker there would be a
+        // second, independently editable copy of a fret the stream already gives, which is the one
+        // thing this record exists not to be.
+        const auto at_position = std::ranges::equal_range(
+            notes, marker.position, std::ranges::less{}, &ChartNote::position);
+        if (std::ranges::find(at_position, marker.string, &ChartNote::string) != at_position.end())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidHoldMarker,
+                .message = "hold marker sits where a note already sounds at " +
+                           positionText(marker.position),
+            }};
+        }
+
+        // Everything else a marker can break is a repair the normalizer owns, asked exactly once.
+        ChartHoldMarker normal = marker;
+        if (const std::vector<ChartRepair> repairs = normalizeChartHoldMarker(normal);
+            !repairs.empty())
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidHoldMarker,
+                .message = std::string{chartRepairText(repairs.front())} + " at " +
+                           positionText(marker.position),
+            }};
+        }
     }
     return std::expected<void, ChartError>{};
 }

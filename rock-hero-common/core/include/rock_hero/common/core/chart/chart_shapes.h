@@ -23,10 +23,13 @@ posture. The array is \ref g_max_chart_strings long — the model's own bound on
 not a statement about the tuning — so a chart with fewer strings simply leaves the top slots
 empty, and two postures always compare by their held frets alone.
 
-Derived, never authored — the frets an onset's struck members hold plus whatever was still ringing
-across it (\ref deriveChartShapes). Chord names and fingerings carry no field here because nothing
-writes one; when they are authored they become a dictionary keyed by a posture rather than members
-of it.
+Derived, never authored — the frets an onset's struck members hold, plus whatever was still ringing
+across it, plus the stops a \ref ChartHoldMarker says the hand takes silently
+(\ref deriveChartShapes). A fret carries no provenance here on purpose: the posture is what the hand
+holds, and where a given stop came from is the SPAN's question (\ref ChartShape::silent_member), so
+two spans holding identical frets stay one deduplicated posture however each was learned. Chord
+names and fingerings carry no field here because nothing writes one; when they are authored they
+become a dictionary keyed by a posture rather than members of it.
 */
 struct ChartPosture
 {
@@ -60,6 +63,21 @@ struct ChartShape
 
     /*! \brief Index into the posture table derived alongside (\ref ChartShapes::postures). */
     std::size_t posture{0};
+
+    /*!
+    \brief True when a posture member of this span came from a hold marker rather than from sound.
+
+    The one fact the arrival rule (\ref chartShapeArrivals) cannot re-derive from the notes, and the
+    reason it is carried here instead of asked again: this walk is what resolved the markers, so
+    stating the answer on the span it resolved them into is one authority publishing its result,
+    where a second scan of the marker array beside the arrival would be the same rule written twice
+    and free to disagree.
+
+    It is what flips the span to an arpeggio. The bracket is the only mark that states a posture
+    fret at all — a chord box draws the notes' own heads — so a span carrying a silently-held member
+    must arrive as an arpeggio or the authored fact is stored and never shown.
+    */
+    bool silent_member{false};
 
     /*!
     \brief Compares two spans by their stored fields.
@@ -106,6 +124,23 @@ following event trims to the minimum-sustain-distance margin before it
 an exact-adjacency fallback when even that would leave no length — the same margin every other
 element keeps.
 
+A lone onset does NOT close a span when it is a re-pick of a string that span already holds — by
+sound with unchanged articulation, or by an authored hold — and at least one other member is still
+ringing. The hand demonstrably has not left the shape, and every fact needed to know that is
+already in the stream, so this is derived rather than authored: it is the one-note-at-a-time broken
+chord over a held shape. It cannot OPEN a span, only extend one, which is also what widens the
+span's right-hand scan and can turn a following box into an arpeggio.
+
+A \ref ChartHoldMarker lying inside a derived span joins that span's posture on its string — the
+one thing here that is authored rather than read off the sound, because no function of a note
+stream can distinguish a held finger from an absent one. Its fret is its own where it carries one,
+and otherwise comes from the first note that sounds on that string later in the same span; a marker
+that resolves to no fret at all, or that lies where no span covers it, contributes nothing and is
+inert. A marker never opens a span and never counts toward the two-string threshold: it is a held
+finger, not a strike. Because a marker's fret may only be known once the span is complete, the
+posture is keyed at the span's CLOSE rather than at each onset — which is also why one span now
+keys one posture instead of every strum re-keying the same one.
+
 Articulation is read from the PRESENTED notes and span extent from the stored rings, which is the
 split the box states: what the chord LOOKS like is what the surfaces draw (a tail the presentation
 rules compressed carries a compressed gesture, and two strums that draw identically are one box),
@@ -117,13 +152,15 @@ The maintained plain-English spec is "Posture and shape derivation" in
 \param saved_notes Note stream in SAVED form, sorted by (position, string); read for its rings.
 \param presented_notes The same notes through \ref presentedChartNotes, in the same order and of
                        the same size; read for the articulation two strums are compared by.
+\param hold_markers Silently-held shape members, sorted by (position, string)
+                    (\ref Chart::hold_markers).
 \param tempo_map Tempo map supplying the exact beat axis and the meter at each closing onset.
 
 \return The derived spans and the posture table they index.
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
     const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,
-    const TempoMap& tempo_map);
+    const std::vector<ChartHoldMarker>& hold_markers, const TempoMap& tempo_map);
 
 /*!
 \brief Classifies every shape span as an arpeggio or a strummed chord box.
@@ -135,11 +172,16 @@ the notation draws. Neither is authored, so neither has a rule a document could 
 The arrival rule shared by the highway and tab projections: a span is an arpeggio when fewer
 than two notes strike at its start, when a posture string is still ringing there without being
 re-struck (an earlier note's PRESENTED tail crosses the span start on a posture string with no
-onset at it), or when a picking-hand onset — a tap or a pick slide — sounds anywhere within the
-span. A strum under held content is picking around it, and a held chord under two-hand tapping is
-sustained through the taps rather than fully strummed, so the shape renders as brackets around
-individual notes instead of one strummed box. A posture string that is merely silent at the start
-(a partial strum of the shape) does not make an arpeggio.
+onset at it), when a picking-hand onset — a tap or a pick slide — sounds anywhere within the
+span, or when the span holds a silently-held member (\ref ChartShape::silent_member). A strum under
+held content is picking around it, and a held chord under two-hand tapping is sustained through the
+taps rather than fully strummed, so the shape renders as brackets around individual notes instead
+of one strummed box.
+
+A posture string that is merely SILENT at the start — a partial strum of the shape — still does not
+make an arpeggio, and that clause is no longer a compromise: "merely silent" and "known held" used
+to be indistinguishable, which is the whole reason the rule had to pick one; a hold marker is what
+tells them apart, and it says so on the span rather than being guessed at here.
 
 Asked of the PRESENTED stream (\ref presentedChartNotes), like every other fact a surface draws:
 the question is what still SOUNDS across the span start, and a dead string's stored ring is timing

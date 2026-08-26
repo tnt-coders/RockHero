@@ -80,4 +80,34 @@ the layout or the paint core reads, so every drawn ribbon is hit-testable and no
 [[nodiscard]] TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
+/*! \brief Pixel layout of one editor hold-marker mark. */
+struct TabHoldMarkerLayout
+{
+    /*! \brief Horizontal slot position: the mark's center column. */
+    float center_x{};
+
+    /*! \brief Vertical lane center: the mark's center row. */
+    float center_y{};
+
+    /*! \brief Rendered mark extent, as \ref TabLaneGeometry::holdMarkerSize reports it. */
+    float extent{};
+
+    /*! \brief Bounding rectangle of the mark — its drawn extent, and its clickable one. */
+    TabLayoutRect box{};
+};
+
+/*!
+\brief Computes the pixel layout of one hold-marker mark under the given lane geometry.
+
+The mark is editor furniture rather than notation, so the paint core never draws it — but its
+geometry belongs here beside the head's, because the editor's overlay painter and the editor's hit
+testing both read it and a second copy would be the drift this unit exists to prevent.
+
+\param geometry Lane geometry the lane is painted with.
+\param marker Seconds-resolved hold marker to lay out.
+\return Per-marker layout in the lane bounds' pixel space.
+*/
+[[nodiscard]] TabHoldMarkerLayout tabHoldMarkerLayout(
+    const TabLaneGeometry& geometry, const common::core::HoldMarkerViewState& marker) noexcept;
+
 } // namespace rock_hero::common::ui

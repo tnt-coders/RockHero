@@ -683,6 +683,16 @@ struct EditorAction
     {
     };
 
+    /*!
+    \brief Author, convert or remove a silently-held shape member at the chart caret.
+
+    Carries no payload because the verb is CARET-anchored: the slot the caret sits on is the whole
+    operand, and passing one would let a caller state a position the charter is not looking at.
+    */
+    struct ToggleChartHoldMarker
+    {
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
 
@@ -709,7 +719,7 @@ struct EditorAction
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertAtCaret, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
-        ToggleChartTechnique, SetChartLeftTap>;
+        ToggleChartTechnique, SetChartLeftTap, ToggleChartHoldMarker>;
 };
 
 /*!

@@ -186,13 +186,27 @@ fiat.
   selection) and is **strictly grid-locked** on pointer *and* keyboard: a boundary is never off-grid
   (`Ctrl`+ruler-drag = measure-snap, not off-grid; amends plan 47). Transfers to plan 52.
 
-## 8. Arpeggio conversion — SETTLED
+## 8. Arpeggio conversion — SETTLED, then SUPERSEDED ON STORAGE and BUILT 2026-08-26
 
 - A hotkey converts an in-line placed note into an unplayed shape member: it adds the
   string/fret to the span's template without adding a played note. Under template-relative
   classification this flips the span to arpeggio automatically, and the existing posture
   rendering (unsounded template members) displays it. This resolves the previously tabled
   "display a fuller shape than the notes play" case without a dedicated template editor.
+
+> **What survived, and what did not.** The VERB above is exactly what shipped — `N`, the arpeggio
+> hold, converting a placed note into a silently-held member — and the display half is unchanged
+> too: the posture already carried un-sounding strings to the surfaces. **Three of this section's
+> four premises are dead**, all of them killed by note-sustain stage C (2026-08-22) rather than by
+> the verb: the authored TEMPLATE it wrote into left the format, EXTENT-by-belonging-to-a-template
+> went with it, and template-relative CLASSIFICATION was replaced by the ring-based arrival rule.
+> So the member is stored as a `chart.holdMarkers[]` record — `{position, string, fret?}`, keyed by
+> a slot and nothing else, resolved against the derived span at read time — and the arpeggio flip
+> is carried on the span the derivation resolved it into rather than falling out of a template
+> comparison. §2's "arpeggio conversion flips the span automatically" bullet is stale for the same
+> reason and by the same date. The full record of why, including the options that lost, is
+> `docs/plans/todo/arpeggio-authoring.md`; the maintained spec is rule 12b in
+> `docs/developer/the-project-lifecycle.md`.
 
 ## 9. The caret model — SETTLED (2026-07-17, evening; the Guitar Pro editing posture)
 

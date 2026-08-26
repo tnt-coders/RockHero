@@ -341,6 +341,21 @@ growth verb now grows to exact adjacency with the next onset on the note's OWN s
 nothing to reconcile. (§5's member-tail question, if it ever builds, now asks whether a SPAN may
 outlive a member's ring, which is a hold question rather than a truncation one.)
 
+### The (ii) witness condition — a lone re-pick continues a span only while another member still rings — trigger: a real figure reads as wrongly split at a re-pick
+
+Side-ruling (ii) (signed 2026-08-26, `docs/plans/todo/arpeggio-authoring.md`) continues an open
+span through a lone re-pick of a held member. Its witness condition requires some *other*
+member's presented ring to still be sounding at the re-pick; without one, the re-pick starts
+fresh rather than resurrecting the span across silence. The user settled this half of the rule
+without fully signing it (2026-08-26): "I'm not 100% sure on this one but I think we can settle
+on this for now and decisively rule later if it looks off." **Trigger**: a real imported or
+authored broken figure whose bracket ends at a lone re-pick the charter reads as still inside
+the shape — the hand demonstrably held the chord but every ring had ended (short-ring staccato
+figures are the likely case). **Remedy**: bring the concrete case to the user for the decisive
+ruling; the candidate relaxations are a time bound in place of the ring witness, or dropping the
+condition — in which case the guard against resurrecting spans across silence must come from
+somewhere else, stated in the record.
+
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong

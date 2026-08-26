@@ -171,16 +171,28 @@ answer it must be able to give: `planSettleLegato`'s flatten can exactly cancel 
 diffed against, and the caller still has to commit that — walking the chart back to the plan's base
 is what removes the claim. Its `nullopt` therefore carries the one thing left that is not a plan
 (the sweep found nothing to flatten), where collapsing the empty diff into `NoChange` would have
-told the caller to do nothing. Every other planner, `planAdjustSustain` included, keeps the
+told the caller to do nothing. Its base is a whole **chart state** rather than a note stream, and
+for a reason every fold-shaped planner inherits: the entry it replaces may have moved any authored
+array, and the caller walks the live chart back through that entry's own reversal — which takes
+every array with it — so a plan restating only the notes would silently drop the other halves.
+
+Every other planner, `planAdjustSustain` included, keeps the
 `expected` shape: a gesture whose replayed steps put every ring back where it started needs no
 plan to describe it, because the answer to `NoChange` there is to take the gesture's undo entry back
 out — not to commit an entry that describes nothing.
 
-Exemplar: `ChartNotesEditPlan` with the eight planners — `planInsertNote` / `planDeleteNotes` /
-`planMoveNotes` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` /
-`planSettleLegato` —
-applied by `applyChartNotesChange` and replayed by
-`ChartNotesEdit` (`editor/core/src/chart/chart_edits.h`). One of them returns more than a plan:
+Exemplar: `ChartEditPlan` with the nine planners — `planInsertNote` / `planDeleteSelection` /
+`planMoveSelection` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` /
+`planSettleLegato` / `planToggleHoldMarker` —
+applied by `applyChartChange` and replayed by
+`ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan spans BOTH authored arrays (the notes
+and the hold markers) rather than one per array, because a single gesture can cross them — the
+arpeggio hold verb takes a note out of the stream and puts a silently-held stop in its place — and
+one user gesture is one undo entry. A composite of two edits would need an order between its halves,
+which is a rule two sides must agree on by hand; a widened plan has none, and `ChartEditPlan`'s own
+`reversed()` is the single statement of what "backwards" means for every array at once.
+
+One of the nine returns more than a plan:
 `planSetLegato` answers `ChartLegatoPlan{plan, skipped, reason}`, because the notes it turned down
 and why are things the planner already knew, so carrying them costs no second pass and no separate
 predicate to keep in step. (Nothing displays them yet — the editor has no non-modal notice channel —

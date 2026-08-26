@@ -27,11 +27,15 @@ overlay UI.
 
 Every undoable domain contributes an `*_edits.h` family of small memento structs:
 `signal_chain_edits.h` (insert/remove/move/placement/display-type/state/gain),
-`chart_edits.h` (one plan-replaying note edit per gesture —
-insert/delete/move/retype/sustain/legato/attack, all seven authoring planners funnelled through the
-same finalize step, plus the settle sweep's `planSettleLegato`, which deliberately bypasses that
-funnel because flattening a claim to a plain pick can violate no rule; see the plan/apply split in
-\ref guide_patterns),
+`chart_edits.h` (one plan-replaying chart edit per gesture —
+insert/delete/move/retype/sustain/legato/attack/arpeggio-hold, all eight authoring planners
+funnelled through the same finalize step, plus the settle sweep's `planSettleLegato`, which
+deliberately bypasses that funnel because flattening a claim to a plain pick can violate no rule;
+see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` spans BOTH authored arrays,
+the notes and the hold markers, because the arpeggio hold verb's conversion takes a note out of
+one and puts a marker into the other in a single gesture; a composite of two edits would need an
+order between its halves, and `applyChartChange` rebuilds both arrays on copies before swapping
+either in, so a failed precondition anywhere leaves the chart entirely untouched),
 `tone_region_edits.h` (create/delete/resize/rename/boundary-move/reset),
 `tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
 (document replace, tone import). Capture rules that keep fidelity:

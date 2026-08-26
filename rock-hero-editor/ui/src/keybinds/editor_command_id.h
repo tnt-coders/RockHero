@@ -214,6 +214,9 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Toggle vibrato on the selected notes (`V`). */
     ChartVibratoToggle = 0x1711,
 
+    /*! \brief Author, convert or remove a silently-held shape member at the caret (`N`). */
+    ChartHoldMarkerToggle = 0x1712,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

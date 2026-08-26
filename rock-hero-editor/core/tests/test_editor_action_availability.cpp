@@ -261,6 +261,7 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK_FALSE(isActionAvailable(ActionId::ExtendTimeSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartHoldMarker, conditions));
     CHECK(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK(isActionAvailable(ActionId::DeleteSelection, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::InsertAtCaret, conditions));
@@ -282,9 +283,13 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     CHECK(isActionAvailable(ActionId::AdjustChartSustain, conditions));
     CHECK(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
     CHECK(isActionAvailable(ActionId::SetChartLeftTap, conditions));
+    // The arpeggio hold is the map's one CARET-anchored verb, so a selection does not enable it:
+    // it acts on whatever the armed slot holds, and there is no armed slot yet.
+    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartHoldMarker, conditions));
 
     conditions.has_armed_caret = true;
     CHECK(isActionAvailable(ActionId::InsertAtCaret, conditions));
+    CHECK(isActionAvailable(ActionId::ToggleChartHoldMarker, conditions));
 
     // The caret moves are paused-only; the edits on a selection are not gated on the transport
     // because play clears the chart selection structurally.
@@ -298,8 +303,10 @@ TEST_CASE("Chart actions follow chart, transport, and selection state", "[core][
     conditions.busy = true;
     CHECK_FALSE(isActionAvailable(ActionId::TypeChartFretDigit, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ToggleChartTechnique, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ToggleChartHoldMarker, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MoveSelection, conditions));
     CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartTechnique));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::ToggleChartHoldMarker));
 }
 
 } // namespace rock_hero::editor::core

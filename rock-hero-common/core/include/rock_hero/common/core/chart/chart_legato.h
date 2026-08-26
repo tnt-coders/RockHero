@@ -197,15 +197,20 @@ The connections come from \ref chartConnections, so the walk that answers them i
 both the callers that want the whole picture and the callers that want a claim.
 
 The spans come from the same stream rather than from a caller, which is what makes them impossible
-to disagree with it: a caller holding a stale span list has nowhere to pass it.
+to disagree with it: a caller holding a stale span list has nowhere to pass it. The hold markers
+ride alongside for the same reason — they are the one posture input the note stream cannot carry
+(\ref ChartHoldMarker), and a span derived without the chart's own markers would be a second,
+quieter picture of the same chart.
 
 \param notes Note stream sorted by (position, string).
+\param hold_markers Silently-held shape members from the same chart (\ref Chart::hold_markers).
 \param tempo_map Song tempo map supplying the beat axis.
 
 \return The resolutions; every per-note vector is index-parallel to `notes`.
 */
 [[nodiscard]] ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+    const std::vector<ChartNote>& notes, const std::vector<ChartHoldMarker>& hold_markers,
+    const TempoMap& tempo_map);
 
 /*!
 \brief Flattens every legato claim the chart no longer justifies to a plain pick — the settle sweep.

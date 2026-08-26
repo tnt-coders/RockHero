@@ -521,6 +521,29 @@ struct ChartNote
 };
 
 /*!
+\brief The chart's SLOT order: ascending position, then ascending string.
+
+A `(position, string)` pair is a slot, and both of the chart's authored per-string arrays — the
+notes and the hold markers — are kept in this order with no array holding one slot twice. Stated
+once here and delegated to by each array's own order (\ref chartNoteOrderLess,
+\ref chartHoldMarkerOrderLess) because the two arrays SHARE the slot space: a marker is refused
+where a note already sounds, so an order the two spelled differently would be a rule stated twice
+about the same slot.
+
+\param lhs_position Left-hand position.
+\param lhs_string Left-hand string.
+\param rhs_position Right-hand position.
+\param rhs_string Right-hand string.
+\return True when the left slot comes strictly before the right one.
+*/
+[[nodiscard]] constexpr bool chartSlotOrderLess(
+    const GridPosition& lhs_position, const int lhs_string, const GridPosition& rhs_position,
+    const int rhs_string) noexcept
+{
+    return lhs_position < rhs_position || (lhs_position == rhs_position && lhs_string < rhs_string);
+}
+
+/*!
 \brief The chart's note order: ascending onset, then ascending string.
 
 Every note stream is kept in this order — the validator refuses one that is not, the editor's
@@ -533,7 +556,78 @@ so it is stated once. Two notes equal under it are the same slot, which no chart
 */
 [[nodiscard]] constexpr bool chartNoteOrderLess(const ChartNote& lhs, const ChartNote& rhs) noexcept
 {
-    return lhs.position < rhs.position || (lhs.position == rhs.position && lhs.string < rhs.string);
+    return chartSlotOrderLess(lhs.position, lhs.string, rhs.position, rhs.string);
+}
+
+/*!
+\brief One stop the fretting hand takes SILENTLY: the shape member no note can state.
+
+The one fact about the fretting hand the note stream structurally cannot carry. A finger resting
+on a fret makes no sound, produces no onset and extends no ring, so a hand holding a six-string
+shape and picking four of it streams identically to a hand holding four and moving to the fifth
+later. Both are real playing, so the derivation must notate the literal notes (user ruling
+2026-08-25) and this record is how a charter states the other reading. Derivation splits where the
+hand's continuity is unprovable; this joins where the charter says so.
+
+Anchored to a `(position, string)` and nothing else: it names no span, no note and no id, so its
+whole relationship to a shape is resolved at read time (\ref deriveChartShapes) and no edit
+anywhere can leave stale relational state behind — there is none to leave. A marker nothing
+justifies is gracefully INERT: it draws nowhere and is refused nowhere, which is the unjustified
+connection claim's degrade kept verbatim (\ref NoteAttack::Legato).
+
+The fret is optional, and which case is which is the whole design:
+
+- **Absent** where a later note on that string inside the same span sounds the stop. The note
+  already states the fret, so the authored datum is a *when* and not a *what*; storing a second
+  copy of a fret the notes give would be two independently editable statements of one fact, which
+  a transpose of the chord alone would silently break.
+- **Present** where nothing sounds on that string anywhere inside the span — the full barre under
+  a four-string pattern. No note exists to state it, so no note can ever contradict it, which is
+  exactly what makes the authored fret honest here and dishonest above.
+
+A marker is not a strike. It never OPENS a shape — that still takes two sounding fretting-hand
+members — so it only ever joins a shape sound already opened.
+
+The design record is `docs/plans/todo/arpeggio-authoring.md`.
+*/
+struct ChartHoldMarker
+{
+    /*! \brief Musical position at which the hand takes the stop. */
+    GridPosition position;
+
+    /*! \brief One-based string, counted from the lowest-pitched string. */
+    int string{1};
+
+    /*!
+    \brief The stop taken, when no note inside the span can state it; absent when one does.
+
+    Zero is the open string here as everywhere else, and it is a legitimate authored value: a chord
+    diagram marks an open string as part of the voicing, and an open member that is never struck is
+    precisely a claim nothing sounds. What is NOT legitimate is a fret a note already gives, which
+    is why the absent form exists at all.
+    */
+    std::optional<int> fret{};
+
+    /*!
+    \brief Compares two hold markers by their stored fields.
+    \param lhs Left-hand marker.
+    \param rhs Right-hand marker.
+    \return True when both markers store equal values.
+    */
+    friend bool operator==(const ChartHoldMarker& lhs, const ChartHoldMarker& rhs) = default;
+};
+
+/*!
+\brief The hold-marker array's order: the chart's slot order (\ref chartSlotOrderLess).
+
+\param lhs Left-hand marker.
+\param rhs Right-hand marker.
+\return True when lhs comes strictly before rhs in the chart's order.
+*/
+[[nodiscard]] constexpr bool chartHoldMarkerOrderLess(
+    const ChartHoldMarker& lhs, const ChartHoldMarker& rhs) noexcept
+{
+    return chartSlotOrderLess(lhs.position, lhs.string, rhs.position, rhs.string);
 }
 
 /*!
@@ -842,10 +936,11 @@ struct ChartTuning
 /*!
 \brief The true tab of one arrangement.
 
-Notes say what sounds; the hand placements say where the hand sits. What the hand HOLDS — the
-chord boxes and arpeggio brackets both surfaces draw — is derived from the notes rather than stored
-beside them (\ref deriveChartShapes), because a span is a statement about the notes under it and a
-stored one could only ever disagree with them. There is exactly one chart per arrangement —
+Notes say what sounds; the hand placements say where the hand sits; the hold markers say the one
+thing about the hand that neither can — a stop taken without being sounded. What the hand HOLDS —
+the chord boxes and arpeggio brackets both surfaces draw — is derived from those three rather than
+stored beside them (\ref deriveChartShapes), because a span is a statement about the notes under it
+and a stored one could only ever disagree with them. There is exactly one chart per arrangement —
 difficulty is a derived rating, never authored variants.
 */
 struct Chart
@@ -855,6 +950,15 @@ struct Chart
 
     /*! \brief Every sounding onset, sorted by (position, string). */
     std::vector<ChartNote> notes;
+
+    /*!
+    \brief Silently-held shape members, sorted by (position, string) and disjoint from \ref notes.
+
+    The authored half of the posture: everything a derivation can read off the sound stays derived,
+    and this carries only what no sound records (\ref ChartHoldMarker). Disjoint because the two
+    arrays share one slot space — where a note sounds, the note is the statement.
+    */
+    std::vector<ChartHoldMarker> hold_markers;
 
     /*! \brief Fret-hand positions, sorted by position. */
     std::vector<FretHandPosition> fret_hand_positions;

@@ -266,6 +266,48 @@ lines — aligns to; a head itself keeps the node's exact fractional position.
     return fretFor(note.fret, note.harmonic_node, note.attack);
 }
 
+/*!
+\brief One authored hold marker resolved to a timeline second.
+
+The AUTHORED record, not what it resolves to: the stop a resolved marker contributes is already in
+the span's posture (\ref ShapeViewState::strings), and stating it twice would put one fret on two
+independently drawn surfaces. What this carries is only "an authored silent hold lives at this
+slot", which is what an editing surface needs to draw a mark on it, hit-test it, and select it —
+including where the display rule prints nothing at all, because a marker nothing justifies is inert
+and would otherwise be invisible authored state.
+
+**The 3D board and the game do not read this.** It is the 2D lane's authoring affordance, drawn by
+the editor as its own overlay under the charting-mark law; every surface shows the marker's EFFECT
+through the posture instead. It travels in the shared projection rather than beside it because it
+is chart content resolved to seconds, and one producer for that is the rule
+(\ref ChartViewState::display_hold_ends carries the same asymmetry the other way round).
+*/
+struct HoldMarkerViewState
+{
+    /*! \brief Absolute position the hand takes the stop. */
+    double seconds{0.0};
+
+    /*! \brief One-based chart string (unshifted, like \ref NoteViewState::string). */
+    int string{1};
+
+    /*!
+    \brief Compares two hold-marker entries by their stored fields.
+
+    Hand-written rather than defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+    seconds member. Exact equality is intended; the ordering query expresses it warning-free with
+    identical semantics (NaN compares unequal either way).
+
+    \param lhs Left-hand entry.
+    \param rhs Right-hand entry.
+    \return True when both entries store equal values.
+    */
+    friend constexpr bool operator==(
+        const HoldMarkerViewState& lhs, const HoldMarkerViewState& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
+    }
+};
+
 /*! \brief What the hand holds on one string under a shape span. */
 struct ShapeStringViewState
 {
@@ -436,6 +478,14 @@ struct ChartViewState
     as it is held.
     */
     std::vector<double> display_hold_ends;
+
+    /*!
+    \brief Authored hold markers in ascending (position, string) order — the editor lane's own.
+
+    Carried for the 2D editing surface alone (\ref HoldMarkerViewState); the board draws nothing
+    from it, because what a marker MEANS already reaches every surface through the posture.
+    */
+    std::vector<HoldMarkerViewState> hold_markers;
 
     /*! \brief Hand-posture spans in ascending start order. */
     std::vector<ShapeViewState> shapes;

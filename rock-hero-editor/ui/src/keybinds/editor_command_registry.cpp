@@ -295,9 +295,11 @@ namespace
     // The LETTER is the index; `Shift` is that letter's second slot. `Shift` is not a semantic
     // operator in this map — it is a disambiguator: the letter carries all the meaning, and
     // `Shift` says only which claimant of that letter you mean, with the plain key going to the
-    // meaning a charter reaches for first. That is why a sibling (`Shift+H`), a collision
-    // (`Shift+X`), and a different verb entirely (`Shift+A`) share the plane without sharing a
-    // kind — and never needed to. The per-key comments below state only their own local facts;
+    // meaning a charter reaches for first. That is why a sibling (`Shift+H`) and a collision
+    // (`Shift+X`) share the plane without sharing a kind — and never needed to. (`Shift+A` held a
+    // third kind of claimant, the arpeggio hold, for part of 2026-08-25 before that verb re-signed
+    // to plain `N`; the rule absorbed it without a third example, which is the rule working.)
+    // The per-key comments below state only their own local facts;
     // the full map and its record live in `docs/plans/in-progress/keymap-matrix.md`.
     //
     // `Shift+X` is the X letter's second claimant rather than a claim that a scrape is a kind of
@@ -331,9 +333,10 @@ namespace
     // Dynamics rather than technique, and two PLAIN letters rather than one letter with a `Shift`
     // slot. `A` was settled for the accent 2026-08-07; the ghost takes `G` (user 2026-08-18): the
     // two are opposite POLES of one axis, and each has its own first letter, so neither has to
-    // claim the other's second slot. `A`'s second slot is spoken for anyway — `Shift+A` is signed
-    // for the arpeggio hold (2026-08-25, verb unbuilt; see keymap-matrix.md). A heavy accent, if
-    // it ever lands, is plain `A` cycling the emphasis axis rather than a chord.
+    // claim the other's second slot. `Shift+A` held the arpeggio hold for part of 2026-08-25 and
+    // is back to its heavy-accent RESERVATION, the hold having re-signed to plain `N` the same day
+    // (see keymap-matrix.md). A heavy accent, if it ever lands, is plain `A` cycling the emphasis
+    // axis rather than a chord.
     add(EditorCommandId::ChartAccentToggle, "Toggle Accent", "Authoring", {chord('a')});
     add(EditorCommandId::ChartGhostToggle, "Toggle Ghost Note", "Authoring", {chord('g')});
     // `V` is vibrato's own first letter and was settled 2026-08-12; `Shift+V` stays reserved for a
@@ -343,6 +346,12 @@ namespace
     // rule rather than borrowing a spare letter.
     add(EditorCommandId::ChartVibratoToggle, "Toggle Vibrato", "Authoring", {chord('v')});
     add(EditorCommandId::ChartTremoloToggle, "Toggle Tremolo", "Authoring", {chord('r')});
+    // A BARE letter for a verb that is neither a technique nor a dynamic: `N` for "note type", the
+    // conversion between a sounding note and a silently-held shape member (user 2026-08-25, after
+    // a same-day `Shift+A` signing — a common charting verb earns a bare key). The letter was
+    // verified unclaimed across the matrix and this registry, so it collides with nothing and
+    // reserves nothing.
+    add(EditorCommandId::ChartHoldMarkerToggle, "Arpeggio Hold", "Authoring", {chord('n')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

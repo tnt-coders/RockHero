@@ -1,10 +1,57 @@
 # Arpeggio Authoring — The Held Shape a Note Stream Cannot State
 
-Status: **STORAGE DECIDED — option F, the fret-optional hold marker.** The one fork this document
-was written around was ruled 2026-08-25 (β stays in scope), so what remains below is not a menu: it
-is the record of why F, plus the build plan's pre-work list. Still not itself a build plan. The
-chord is final (`N`, re-signed from `Shift+A` the same day); **the verb's semantics are proposed, not ruled** — v1 was rejected and
-v2 (caret-anchored) awaits the final nod under option F.
+Status: **STORAGE DECIDED — option F, the fret-optional hold marker — and BUILT 2026-08-26.** The
+one fork this document was written around was ruled 2026-08-25 (β stays in scope), so what remains
+below is not a menu: it is the record of why F, plus the pre-work list the build then answered.
+This was never itself a build plan; it is now the design record BEHIND a shipped feature, and the
+survey sections stay in their original tense deliberately — they record why the decision went the
+way it did, not what the code looks like today.
+
+**What shipped** (uncommitted at the time of writing; three stages, all verified green):
+
+| Half | Where | State |
+|---|---|---|
+| `Chart::hold_markers` / `"holdMarkers"`, reader, writer, validator, normalizer | `chart.h`, `chart_document.cpp`, `chart_rules.cpp` | built |
+| Read-time resolution + the arrival flip (`ChartShape::silent_member`) | `chart_shapes.cpp` | built |
+| Side ruling (ii), the lone re-pick that keeps the span | `chart_shapes.cpp` | built |
+| The `N` verb, v2 as proposed below (caret-anchored, three cases) | `chart_edits.cpp`, `chart_handlers.cpp`, the keybind surfaces | built |
+| Selection widened to `(kind, slot)`; move and delete read both arrays | `chart_selection.h`, `chart_edits.cpp` | built |
+| The editor's own authoring mark (2D lane overlay) | `tab_layout_manifest.cpp`, `tab_view.cpp` | built |
+
+**Still open, and each is a sign-off rather than unbuilt wiring:**
+
+1. **The shipped verb semantics want the user's nod.** The chord is final (`N`, re-signed from
+   `Shift+A` 2026-08-25). v1 was rejected; **v2 below was built as proposed**, which is what the
+   record asked for, but the user has not yet used it — so the sighting pass is where v2 stops
+   being a proposal.
+2. **A fret-carrying marker's authored fret does not transpose — and that is EVERY converted
+   marker, not β alone.** The cost sheet below scores `planRetypeFrets` as "nothing to diverge" for
+   F on the reasoning that α authors no fret. The shipped verb's case 2 falsifies the premise: it
+   copies the fret off the note it converts, because place-then-convert is the only fret-stating
+   flow the editor has, so an α marker made the ordinary way carries a fret too. Retype a chord
+   whose low member is any fret-carrying marker and the barre stays where it was. Left as this
+   record has it rather than improvised; the gap is stated at `planRetypeFrets` in `chart_edits.h`.
+   Needs a ruling — carry a selected fret-carrying marker through the fret verb, or leave it
+   note-only — and the cost sheet reads differently now that the population is every converted
+   marker rather than only the never-sounded ones.
+
+   The same premise runs one step further, and it is the other half of what wants ruling: F's
+   storage rule says the fret is "absent where a later note in the span supplies it", and **nothing
+   enforces that** — validation is slot-scoped (deliberately, see the disjointness note under F)
+   and the normalizer only clamps past-board, so a converted α marker's fret sits beside the note
+   that supplies it as a second, independently editable copy. The derivation now refuses to let the
+   two disagree in the one place it can see them — a lone re-pick at a different stop no longer
+   joins the span (side ruling (ii), condition 1) — but the record is still free to hold both.
+3. **The mark's look is unsigned.** A filled dot in the arpeggio hand-shape colour at 0.6 x head
+   size, carrying no digit (the bracket already prints the resolved stop). Nothing here or in the
+   display ruling picks a glyph; it is a sighting item.
+4. **A typed digit with only markers selected does nothing.** Silent, like every other
+   uniform-scope skip, and correct under item 2's default — but it is a keystroke that visibly
+   does nothing, worth a look at sighting.
+
+One law moved to make room, and it is recorded where it lives rather than only here: the
+uniform-scope law (`docs/plans/in-progress/editing-interaction-model.md`) gained its first
+exception, because `N` is caret-anchored and every other chart verb is selection-scoped.
 
 Written 2026-08-24 against `master` and reworked the same day against an adversarial review that
 re-verified every code citation and re-ran the corpus scan independently. The review's verdict on
@@ -456,9 +503,11 @@ what keeps the marker free of stored relational state.
   data about the hand. The defence is narrower than D's and is what makes it hold: **a fret is
   authored only where no note could ever state it.**
 
-#### The verb — PROPOSED v2, caret-anchored, awaiting the final nod
+#### The verb — v2, caret-anchored: BUILT 2026-08-26 exactly as proposed here
 
-**Not ruled.** The storage above is decided; this is not.
+**Built, not yet used.** The storage above was decided first; this was proposed and then built
+unchanged, so what is still open is the user's nod on how it FEELS, not what it does. The three
+cases below are the shipped `planToggleHoldMarker`.
 
 **v1 was rejected by the user, 2026-08-25**, and the rejection is worth keeping because it sharpens
 the model. v1 proposed one chord disambiguated by the selected note's position relative to the
@@ -652,21 +701,71 @@ of ending at it. The second-order change is **classification**: lengthening the 
 A tap that previously fell *after* a span can now fall *inside* it and flip a box to an arpeggio. So
 (ii) can change how an existing chart *reads*, not merely how far its bracket runs.
 
-## Pre-work the build plan must settle
+**(ii) SIGNED by the user 2026-08-26** — and in their reading it was never in question: "repicking
+something that is already within the span definitively continues the span unless you pick something
+OUTSIDE the span. … I thought that was already understood." The rule operationalizes "within the
+span" two ways, both confirmed as the intended reading: a re-pick at a *different stop* is outside
+(the hand moved — rule 11's precedent), and the span must still be audibly held (another member's
+presented ring is the witness; a lone strike after the shape went silent starts fresh rather than
+resurrecting a span across silence). The second condition is **settled-for-now, not fully signed**
+(user, same day: "I'm not 100% sure on this one but I think we can settle on this for now and
+decisively rule later if it looks off") — it carries a watch item in
+`docs/tracking/watch-items.md` whose trigger is a real figure reading as wrongly split at a
+re-pick.
+
+**Built 2026-08-26, and the build found it is not optional after all.** This
+record calls (i) and (ii) composable with the verb; they are stronger than that. **α is
+structurally unreachable without (ii).** Any onset that adds a string to an open span either splits
+it (a chord: the articulation vector grows) or closes it (a lone note: the `struck == 1` path), so
+before (ii) no note could ever be "inside the span" to supply an absent fret. The marker work alone
+therefore ships **β only**; (ii) is what makes the case the user actually reported work, and
+without it the α resolution path is unreachable code. That is this record's own "the yield is a
+finding" note, arriving from the opposite direction: the extra ruling did not add complexity, it
+made half the feature reachable.
+
+Measured on the local corpus (aggregate only, no names): across two packages carrying 419 and 1230
+notes and no hold markers at all, (ii) changed exactly **one span's extent, by one beat**,
+reclassified nothing and split or merged nothing. **That sample is too thin to quote as safety**
+(the review's verdict, accepted): two packages of a ~100-package corpus, neither chosen for
+containing the figure (ii) targets, zero markers exercised, and the census rig was deleted, so the
+number is not reproducible. The ruling stands on the synthetic evidence and the user's word; the
+record may not claim "no existing chart reads differently" until a checked-in `[.local-corpus]`
+hidden-tag census (plan 23's shape, `ROCKHERO_CORPUS_DIR`, wanted twice now) runs the full corpus
+counting three things — spans whose extent moved, arrivals that flipped, and spans containing a
+lone re-pick at all; the third says whether the sample could detect anything.
+
+## Pre-work the build plan must settle — ALL SEVEN ANSWERED BY THE BUILD
 
 Two entries left this list when they were ruled: **the fork** (β stays in scope — the storage
 shape is settled) and **the chord** (`N`, re-signed from `Shift+A`). Both are recorded in the rulings section.
-Nothing remaining here blocks the storage shape; every item is wiring, and every item should be
-answered before the first line of the build plan is written.
+Nothing remaining here blocked the storage shape; every item was wiring, and every item was to be
+answered before the first line of the build plan was written.
+
+**Each question below keeps its original wording, with the answer the build settled appended.**
+Four were answered as this record proposed; item 4 was answered with a third option this record did
+not list, and item 3 chose the middle candidate rather than the one weighed first.
 
 1. **Does a hold marker count toward rule 10's two-string threshold?** One struck string plus one
    marker — is that a shape, or a single note beside a held finger? Proposed: **no**, a marker is
    not a strike; a shape still needs two sounding fretting-hand members. The corollary is the limit
    carried into the recommendation: a shape can never open on markers alone, so a marker always
    attaches to a shape opened by sound.
+   **ANSWERED as proposed** — a marker is not a strike. Test: *"a marker where no span is open
+   derives nothing at all"*.
 2. **Does a lone re-pick need matching articulation to join (side question (ii))?** A palm-muted
    re-pick of a held chord member: same hand position, different articulation. Rule 11 splits chords
    on articulation; is a lone re-pick the same question or a different one?
+   **ANSWERED: yes, the same question** — a member the SOUND states must be re-picked identically,
+   per rule 11's precedent and this record's own (ii) wording. A member the chart HOLDS silently
+   has no articulation to match, because nothing ever sounded it, so there the authored claim is
+   the whole test. That second half is what makes α reachable at all — see the (ii) ruling above.
+   **The claim being the whole test means all of it**: a claim that carries a fret states where the
+   finger is, so a lone re-pick at a DIFFERENT stop is a different hand and splits, exactly as the
+   sound branch splits on a changed articulation. Only a fret-absent claim is tested by string
+   alone, because there the re-pick is what supplies the fret. Without that half the authored stop
+   would override the note contradicting it — the bracket printing the claim's fret at the span
+   start while the note inside it sounds another, which is option D's silent divergence arriving
+   through the door slot-scoped disjointness leaves open.
 3. **What ends a run of held members?** Three candidates, and the first draft considered only two:
    - **Per onset** — the marker repeats at every strum. Compact to define, but it converts one hand
      fact into **N authored copies that must agree by hand**, and by the derivation's own rule ("a
@@ -679,28 +778,72 @@ answered before the first line of the build plan is written.
      A held member states itself from its position until the next statement on that string. This
      needs no second duration axis *and* no repetition, and it is the narrow form of option C.
      **This is the candidate the first draft missed**, and it should be weighed first.
+
+   **ANSWERED: span-scoped — the middle candidate, not the FHP one weighed first.** A marker
+   contributes to exactly the one span its position falls inside, for that span's whole extent. The
+   objection to it ("a second extent concept beside the span") turned out to be backwards: the
+   marker introduces no extent of its own at all — the span owns extent and the marker is simply
+   inside it or not — whereas extent-by-succession WOULD have added a second axis, one that runs
+   per string and past every span boundary. Nothing is authored twice and nothing leaks into a
+   later span; succession stays adoptable later without a format change, because this is purely
+   read-time. A marker in the gap after the shape stopped ringing is inert: the bracket its fret
+   would print under never reaches it.
 4. **How does the arrival learn about a β marker?** Carried here from F's cost column, where the
    cost is stated: `chartShapeArrivals` cannot see markers and `ChartPosture` carries no
    provenance, so β needs either a new input to the arrivals function or provenance on the posture
    (which moves the dedup key at `chart_shapes.cpp:199`–`:200`). What is open is only *which*; that
    the flip must happen is settled by the display gate at `tab_paint_core.cpp:2116`. Note this is a
    β-only cost: in α the flip stays derivable from the presented stream.
+   **ANSWERED with a third option this record did not list, and it is better than both it did:**
+   the derivation PUBLISHES the fact on the span it resolved the markers into
+   (`ChartShape::silent_member`). Neither unattractive choice is taken — the arrivals function gets
+   no new input and `ChartPosture` gets no provenance, so the dedup key at `:199`–`:200` is
+   untouched. One authority states its own result; a second marker scan beside the arrival would
+   have been the rule stated twice and free to disagree. (The cheaper inference "a posture string
+   neither struck nor presented-ringing at the start must have come from a marker" was considered
+   and rejected: it is *almost* true, but a dead note whose stored ring folds through would falsely
+   flip existing marker-free charts.)
 5. **Editor visibility and selection.** An authored marker must be visible and selectable in the
    editor's own lane even where the display rule would not print it (outside an arpeggio bracket, or
    before the span resolves), or it becomes invisible state — but selectability is what forces the
    `ChartNoteKey` widening scored above. Is the charting-mark law the right home (editor-only mark,
    merged surfaces elsewhere), as it is for the `LeftTap` light-T?
+   **ANSWERED: yes, the charting-mark law.** The mark is an editor-only 2D overlay; every other
+   surface shows the marker's EFFECT through the posture. The widening landed as
+   `ChartNoteKey` → `ChartSlotKey` plus a `ChartSelectableKind`, so the selection unit is
+   `(kind, slot)` and growth is an enumerator plus one arm — **for a selectable a SLOT names.**
+   The record originally added "which is what the unified waypoint model reuses"; that promise is
+   withdrawn as overstated. A note's waypoints are many per note and identified by
+   `(slot, offset)`, so `(kind, slot)` cannot name two of them, and every mutation plus each
+   `slotsFor` arm is written over `std::vector<ChartSlotKey>`. The waypoint model inherits the kind
+   axis and the per-kind operand shape, not a free extension point — it will widen the key itself.
 6. **What is the undo entry?** The convert case removes a note **and** inserts a marker in one
    gesture, so a single entry spans both arrays and fits no existing `IEdit`
    (`ChartNotesEdit` carries only `ChartNotesEditPlan`, which carries only
    `std::vector<ChartNote>`). Composite edit, or a widened plan carrying both arrays? The proposed
    verb makes this unavoidable rather than hypothetical: authoring an empty slot and removing a
    marker touch the marker array alone, but **convert** and its restoring toggle cross both.
+   **ANSWERED: the widened plan, not a composite.** `ChartEditPlan` carries one
+   `ChartArrayChange` per authored array and one `reversed()`, and the apply rebuilds both arrays
+   on copies before swapping either in, so a failed precondition anywhere leaves the chart wholly
+   untouched. The reason is the one this record keeps firing on elsewhere: a composite would need
+   an order between its halves, and an order is a rule two sides must agree on by hand.
 7. **Who writes the first one?** Hand-authoring only, or does the external converter emit markers
    from its source format's fuller-than-struck chord templates on day one (§2's unverified field)?
    If the converter emits them, the format lands before the verb does.
+   **ANSWERED: hand-authoring only.** The verb shipped and no producer writes a marker; the
+   converter's §2 field is still unverified. Nothing in the format or the reader presumes a
+   generator, so a converter that later emits markers needs no format change.
 
 ## Grounding index
+
+**Every line number below is from 2026-08-24, BEFORE the build, and the build moved most of them.**
+They are kept because they ground the record's argument in the code as it stood when the decision
+was made; they are not a map of the current tree. Four names in the editor entries were renamed by
+the build and the old spellings no longer exist anywhere: `ChartNoteKey` → `ChartSlotKey` (paired
+with `ChartSelectableKind` into `ChartSelectionKey`), `ChartNotesEditPlan` → `ChartEditPlan`,
+`ChartNotesEdit` → `ChartEdit`, `applyChartNotesChange` → `applyChartChange`, `planMoveNotes` →
+`planMoveSelection`, and `planDeleteNotes` → `planDeleteSelection`.
 
 - `rock-hero-common/core/src/chart/chart_shapes.cpp` — `:31` articulation key, `:102` `close_span`,
   `:167` tap transparency, `:175` chord branch, `:178`–`:187` ring-through (stored ring, most recent

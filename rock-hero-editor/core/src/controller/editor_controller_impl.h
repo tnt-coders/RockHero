@@ -14,6 +14,7 @@ definitions, no state added just to make a translation-unit split work.
 
 #include "busy/busy_operation_workflow.h"
 #include "chart/chart_edits.h"
+#include "chart/chart_hit_testing.h"
 #include "chart/chart_selection.h"
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
@@ -155,6 +156,44 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerUp(const ChartPointerEvent& event);
     void onChartPointerMove(const ChartPointerEvent& event);
     void onChartPointerExit();
+    // What the next press of the verb that armed the window needs to know: the technique a second
+    // press would reverse (the legato plan's ruling 4, extended to the scrape 2026-08-18), or the
+    // duration gesture's steps so far (user ruling 2026-08-22).
+    struct ChartTechniqueToggle
+    {
+        ChartTechnique technique{};
+
+        friend constexpr bool operator==(
+            const ChartTechniqueToggle& lhs, const ChartTechniqueToggle& rhs) noexcept = default;
+    };
+
+    // The arpeggio hold verb's own window. Carries nothing: the verb acts on the caret's slot, and
+    // the window's whole job is to say "the last press was this verb", so a second press reverses
+    // the entry exactly — which is the ONLY way a conversion can put the note it took back, since
+    // the marker it wrote stores no ring, attack or technique to rebuild one from.
+    struct ChartHoldMarkerToggle
+    {
+        friend constexpr bool operator==(
+            const ChartHoldMarkerToggle& lhs, const ChartHoldMarkerToggle& rhs) noexcept = default;
+    };
+
+    // The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
+    // grid line, so its size depends on where that end sits and there is no delta to accumulate
+    // (user bug 2026-08-23 — a summed delta left a fine-tuned ring off-grid forever). The planner
+    // replays the list over each note's pre-gesture ring; the list IS the gesture.
+    struct ChartSustainGesture
+    {
+        std::vector<ChartSustainStep> steps;
+
+        friend bool operator==(const ChartSustainGesture& lhs, const ChartSustainGesture& rhs) =
+            default;
+    };
+
+    // The verb one window belongs to, compared as a whole so "is this press the same verb" is one
+    // equality rather than a per-verb unwrap each caller could spell differently.
+    using ChartVerbWindowVerb =
+        std::variant<ChartTechniqueToggle, ChartHoldMarkerToggle, ChartSustainGesture>;
+
     void performActionImpl(const EditorAction::StepChartCaret& action);
     // Caret leap to a derived musical position (Home/End, PageUp/Down): resolves an absolute or
     // section-relative destination from the tempo map and song sections and arms the caret there,
@@ -198,26 +237,28 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void armOrSettleChartFretEntry(ChartFretEntry entry);
     void scheduleChartFretEntryWake();
     // One authority for what a pending entry would apply, run in full on every keystroke.
-    [[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> replanChartFretEntry(
+    [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> replanChartFretEntry(
         const ChartFretEntry& entry) const;
     // The full note values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
-        const std::vector<ChartNoteKey>& keys) const;
+        const std::vector<ChartSlotKey>& keys) const;
     void performActionImpl(const EditorAction::ShiftChartFrets& action);
     void performActionImpl(const EditorAction::AdjustChartSustain& action);
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
+    void performActionImpl(const EditorAction::ToggleChartHoldMarker& action);
     // The body both mute verbs share, so the uniform-scope law and the toggle window are written
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.
-    void toggleChartLegato(const std::vector<ChartNoteKey>& keys);
+    void toggleChartLegato(const std::vector<ChartSlotKey>& keys);
     void disarmChartVerbWindow() noexcept;
     // The proof every coalescing window rests on, written once for both verbs: the window's
     // selection is still the live one, and the entry it names is still the history top this burst
     // pushed. Any push, undo, or redo moves the cursor and retires the record, so the position IS
     // the ownership proof.
-    [[nodiscard]] bool chartVerbWindowHolds(const std::vector<ChartNoteKey>& armed_keys) const;
-    [[nodiscard]] bool reverseTechniqueToggleWindow(ChartTechnique technique);
+    [[nodiscard]] bool chartVerbWindowHolds(const std::vector<ChartSelectionKey>& armed_keys) const;
+    [[nodiscard]] bool reverseChartVerbWindow(
+        const ChartVerbWindowVerb& pressed, std::string_view revert_label);
     // The steps of the duration gesture this press continues, or nullptr when the press starts one.
     // Adds the fold's own precondition to the shared proof: a save mid-gesture makes the entry the
     // file's clean state, which replaceTop refuses to rewrite, so the gesture ends there and the
@@ -228,7 +269,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the history (dropTop) and walks the chart to the stream that entry was applied to, so a run
     // that replays back to its start leaves neither a dead undo step nor a modified document
     // identical to the saved file.
-    void retireChartSustainGesture(const ChartNotesEditPlan& applied);
+    void retireChartSustainGesture(const ChartEditPlan& applied);
     void onChartEscapePressed();
     // The Esc ladder itself, so the press can always end with the settle sweep whichever rung
     // consumed it (true = a rung consumed the press).
@@ -240,12 +281,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // which is what closes both coalescing windows.
     bool settleChartLegato();
     [[nodiscard]] const common::core::ChartViewState* displayedTabProjection() const;
-    [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
+    [[nodiscard]] std::optional<ChartSelectionKey> chartSelectionKeyAt(
+        const ChartHitTarget& target) const;
     void clearChartEditingState();
     // True when a chart note already occupies the given slot (one binary search over the
     // (position, string)-sorted notes). The insert-legality test shared by caret arming, the
     // Alt+click insert, and the insert ghost's honesty gate.
-    [[nodiscard]] bool chartSlotOccupied(common::core::GridPosition position, int string) const;
+    [[nodiscard]] std::optional<ChartSelectableKind> chartSlotObject(
+        common::core::GridPosition position, int string) const;
     // Plants a note at an empty slot and makes it the selection with the caret armed on it — the
     // shared primitive behind the Alt+click neutral-create (fret 0) and any future placement. A
     // no-op when the slot is occupied (planInsertNote refuses).
@@ -290,8 +333,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::core::Fraction chartGridStepBeats(common::core::GridPosition at) const;
     [[nodiscard]] common::core::Fraction chartQuantumStepBeats(common::core::GridPosition at) const;
     bool applyChartEditPlan(
-        std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan,
-        std::optional<std::vector<ChartNoteKey>> select_exactly = std::nullopt);
+        std::expected<ChartEditPlan, ChartPlanRefusal> plan,
+        std::optional<std::vector<ChartSelectionKey>> select_exactly = std::nullopt);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
     [[nodiscard]] std::string activeToneDocumentRef() const;
@@ -806,7 +849,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         float current_y{};
         bool marquee{false};
         // Set when Down hit a glyph; the gesture then owns selection instead of click-vs-marquee.
-        std::optional<std::size_t> hit_note{};
+        std::optional<ChartHitTarget> hit_target{};
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
 
@@ -830,13 +873,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // combined fret at the slot (undo removes the note), and the pending box draws there.
         struct InsertAt
         {
-            ChartNoteKey slot{};
+            ChartSlotKey slot{};
         };
         // An entry begun over the selection: settling retypes `keys` from `base_notes`, the
         // pre-entry values, so a widened value never compounds on its own earlier digit.
         struct Retype
         {
-            std::vector<ChartNoteKey> keys{};
+            std::vector<ChartSlotKey> keys{};
             std::vector<common::core::ChartNote> base_notes{};
         };
 
@@ -858,7 +901,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // valid no-op), Invalid discards — the distinction the planners' refusal channel exists
         // for, and what the entry box's red text reads. Defaulted to NoChange rather than
         // std::expected's value-state default, which would be an empty-but-valid plan.
-        std::expected<ChartNotesEditPlan, ChartPlanRefusal> plan{
+        std::expected<ChartEditPlan, ChartPlanRefusal> plan{
             std::unexpected{ChartPlanRefusal::NoChange}
         };
         // Tick of the arming keystroke: the injected clock is the authority for the window, so
@@ -884,27 +927,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // own to agree with this one by hand.
     struct ChartNotesTopEntry
     {
-        ChartNotesEditPlan plan{};
+        ChartEditPlan plan{};
         std::size_t history_position{};
     };
     std::optional<ChartNotesTopEntry> m_chart_notes_top{};
-
-    // What the next press of the verb that armed the window needs to know: the technique a second
-    // press would reverse (the legato plan's ruling 4, extended to the scrape 2026-08-18), or the
-    // duration gesture's steps so far (user ruling 2026-08-22).
-    struct ChartTechniqueToggle
-    {
-        ChartTechnique technique{};
-    };
-
-    // The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
-    // grid line, so its size depends on where that end sits and there is no delta to accumulate
-    // (user bug 2026-08-23 — a summed delta left a fine-tuned ring off-grid forever). The planner
-    // replays the list over each note's pre-gesture ring; the list IS the gesture.
-    struct ChartSustainGesture
-    {
-        std::vector<ChartSustainStep> steps;
-    };
 
     // The chart verbs' coalescing window over the entry m_chart_notes_top names: while the
     // selection still matches and that record still owns the history top, the next press of the
@@ -923,11 +949,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // state no verb can produce and every disarm site would have to remember.
     struct ChartVerbWindow
     {
-        std::vector<ChartNoteKey> keys;
+        // The whole selection, kind-tagged: the arpeggio hold verb's own entry leaves a MARKER
+        // selected where a note was, so a note-only proof would call the window dead exactly when
+        // the reversal has to work.
+        std::vector<ChartSelectionKey> keys;
         // No member initializer, for both of the reasons spelled out at ChartFretEntry::target:
         // an armed window always has a verb, and an initializer here would instantiate the
         // variant's default constructor at class scope, which a strict standard library refuses.
-        std::variant<ChartTechniqueToggle, ChartSustainGesture> verb;
+        ChartVerbWindowVerb verb;
     };
     std::optional<ChartVerbWindow> m_chart_verb_window{};
 

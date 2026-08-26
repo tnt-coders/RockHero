@@ -422,6 +422,22 @@ public:
     virtual void onChartLeftTapRequested() = 0;
 
     /*!
+    \brief Handles a request to author, convert or remove a silently-held shape member.
+
+    The arpeggio hold verb, and the only chart verb anchored at the CARET rather than at the
+    selection: a fact about the fretting hand is authored at the position it holds, by a charter
+    looking at that position. It acts on whatever the armed slot holds — an empty slot gains a
+    fret-less hold marker (a later in-span note supplies the stop), a note is CONVERTED into a
+    marker carrying its fret, and a marker is removed. One undo entry either way, crossing both
+    authored arrays when the gesture does; a second press inside the verb's own window reverses
+    the first exactly, which is the only thing that can restore a converted note's ring, attack
+    and techniques.
+
+    Silent when no caret is armed: pressing it in the passive state is not an error.
+    */
+    virtual void onChartHoldMarkerToggleRequested() = 0;
+
+    /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
 
     The Esc ladder (the marker model): an in-flight pointer gesture (marquee or

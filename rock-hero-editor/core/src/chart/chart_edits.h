@@ -1,12 +1,18 @@
 /*!
 \file chart_edits.h
-\brief Chart note edit planning and the concrete undo edit applied through the editor history.
+\brief Chart edit planning and the concrete undo edit applied through the editor history.
 
-Every mutation follows one shape: a pure planner builds the note stream the edit should produce,
-normalizes same-string sustain overlaps per 40-Q2-B (the earlier note auto-truncates, payloads
-clipped to the shortened sustain, all inside the same undo entry), and diffs against the current
-stream into a removed/inserted plan. Applying, undoing, and redoing are then the same primitive
-run in opposite directions, so undo round-trips are exact by construction.
+Every mutation follows one shape: a pure planner builds the authored arrays the edit should
+produce, normalizes same-string sustain overlaps per 40-Q2-B (the earlier note auto-truncates,
+payloads clipped to the shortened sustain, all inside the same undo entry), and diffs against the
+current arrays into a removed/inserted plan. Applying, undoing, and redoing are then the same
+primitive run in opposite directions, so undo round-trips are exact by construction.
+
+A plan spans BOTH authored arrays — the notes and the hold markers — because one gesture can cross
+them: the arpeggio hold verb takes a placed note out of the stream and puts a silently-held stop in
+its place, and that is one user gesture and therefore one undo entry. Widening the plan rather than
+composing two edits is what keeps the round-trip exact by construction: a composite would have an
+order between its halves, and an order is a rule two sides must agree on by hand.
 */
 
 #pragma once
@@ -29,17 +35,68 @@ run in opposite directions, so undo round-trips are exact by construction.
 namespace rock_hero::editor::core
 {
 
-/*! \brief One planned chart-note mutation: full values removed and inserted, plus its label. */
-struct [[nodiscard]] ChartNotesEditPlan
-{
-    /*! \brief Notes removed from the stream, full values in chart order. */
-    std::vector<common::core::ChartNote> removed;
+/*!
+\brief One authored array's planned change: full values removed and inserted, in chart slot order.
 
-    /*! \brief Notes inserted into the stream, full values in chart order. */
-    std::vector<common::core::ChartNote> inserted;
+\tparam Record Authored chart record type — a note or a hold marker.
+*/
+template <typename Record> struct ChartArrayChange
+{
+    /*! \brief Records removed from the array, full values in chart slot order. */
+    std::vector<Record> removed;
+
+    /*! \brief Records inserted into the array, full values in chart slot order. */
+    std::vector<Record> inserted;
+
+    /*!
+    \brief Compares two array changes by their stored values.
+    \param lhs Left-hand change.
+    \param rhs Right-hand change.
+    \return True when both changes store equal values.
+    */
+    friend bool operator==(const ChartArrayChange& lhs, const ChartArrayChange& rhs) = default;
+};
+
+/*! \brief One planned chart mutation across every authored array, plus its label. */
+struct [[nodiscard]] ChartEditPlan
+{
+    /*! \brief The change to the note stream. */
+    ChartArrayChange<common::core::ChartNote> notes;
+
+    /*! \brief The change to the hold-marker array. */
+    ChartArrayChange<common::core::ChartHoldMarker> hold_markers;
 
     /*! \brief User-visible undo label. */
     std::string label;
+
+    /*!
+    \brief Reports whether the plan describes no change at all.
+    \return True when no authored array gains or loses a record.
+    */
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return notes.removed.empty() && notes.inserted.empty() && hold_markers.removed.empty() &&
+               hold_markers.inserted.empty();
+    }
+
+    /*!
+    \brief The plan that walks the chart back: every array's halves swapped, the label kept.
+
+    The one statement of what "backwards" means, so undo, the verb-toggle reversal and the sustain
+    gesture's retirement share it instead of each swapping the halves by hand — three copies that a
+    second array would have to be added to three times, silently leaving markers behind wherever
+    one was missed.
+
+    \return The inverse plan.
+    */
+    [[nodiscard]] ChartEditPlan reversed() const
+    {
+        return ChartEditPlan{
+            .notes = {.removed = notes.inserted, .inserted = notes.removed},
+            .hold_markers = {.removed = hold_markers.inserted, .inserted = hold_markers.removed},
+            .label = label,
+        };
+    }
 };
 
 /*!
@@ -79,49 +136,90 @@ overwritten rather than read, so there is only one channel for it.
 current grid step.
 \return The plan; NoChange when the placement changes nothing, Invalid when the gate refuses it.
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planInsertNote(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     common::core::ChartNote note, common::core::Fraction default_sustain);
 
 /*!
-\brief Plans deleting the notes matching the given keys.
+\brief Plans the arpeggio hold verb at one slot: the caret-anchored three-case toggle.
 
-Funnels through the shared finalize like every note plan, so the whole-matrix gate refuses a
-deletion that would leave the chart invalid. A survivor whose CONNECTION the deletion broke keeps
-its claim and simply plays as a pick until the next settle flattens it (\ref planSettleLegato) —
-relational truths are not the burst's business.
+The `N` verb, and it acts on WHATEVER the slot holds rather than on the selection, which is what
+makes every hand fact authored at the position it holds by a charter looking at that position
+(`docs/plans/todo/arpeggio-authoring.md`, verb v2):
+
+- **An empty slot** gains a fret-ABSENT marker: "the hand takes this stop here, silently", stating
+  no fret because a later in-span note on that string supplies it at read time. A marker nothing
+  ever justifies is gracefully inert — drawn nowhere, refused nowhere.
+- **A note** is CONVERTED: the note leaves the stream and the marker carries its fret. This is the
+  only fret-carrying path there is, and it must be place-then-convert because note insertion is the
+  editor's only fret-stating flow — the charter types the fret where the finger goes and promotes
+  it. Both arrays move, in one plan, so the gesture is one undo entry.
+- **A marker** is removed. Removing it is case 1's inverse; restoring the NOTE a conversion took is
+  the verb window's business at the call site (the same reversal every technique toggle uses), not
+  a third case here — the marker stores no note to put back, and inventing one would author a ring
+  and an attack the charter never typed.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
-\param keys Notes to delete, sorted ascending (the ChartSelection order — lookups binary-search
-this precondition); keys with no matching note are skipped.
-\return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
+\param slot Slot the caret is armed on.
+\return The plan; Invalid when the gate refuses the result (an off-grid slot, a string the tuning
+        lacks, or a converted fret the capo covers).
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planDeleteNotes(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planToggleHoldMarker(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys);
+    const ChartSlotKey& slot);
 
 /*!
-\brief Plans moving the keyed notes by an exact beat delta and/or a string delta.
+\brief Plans deleting the selected notes and hold markers.
 
-Refused (empty) when any moved note would leave the chart's string range or land on a slot
-occupied by an unmoved note — validation-preserving edits only, never clamped. Overlaps created
-at the destinations truncate per 40-Q2-B.
+Funnels through the shared finalize like every plan, so the whole-matrix gate refuses a deletion
+that would leave the chart invalid. A survivor whose CONNECTION the deletion broke keeps its claim
+and simply plays as a pick until the next settle flattens it (\ref planSettleLegato) — relational
+truths are not the burst's business.
+
+Deleting a marker needs no such care in the other direction: a marker stores no reference to
+anything, so removing one can leave nothing stale behind — only a span that stops claiming a stop
+it was never sounding.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the shared finalize.
+\param note_keys Notes to delete, sorted ascending (the ChartSelection order — lookups
+binary-search this precondition); keys with no matching note are skipped.
+\param marker_keys Hold markers to delete, sorted ascending, same precondition.
+\return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys);
+
+/*!
+\brief Plans moving the keyed notes and hold markers by an exact beat delta and/or a string delta.
+
+Refused (empty) when any moved record would leave the chart's string range or land on a slot an
+unmoved record occupies — validation-preserving edits only, never clamped. Overlaps created at the
+destinations truncate per 40-Q2-B.
+
+Markers ride along with the notes rather than staying put, and the occupancy test spans BOTH
+arrays, because the two share one slot space: a marker left behind by a moved chord goes silently
+inert (no span opens where it sits any more), which loses the hand fact without making anything
+false — the quietest possible failure and therefore the one worth designing out. Disjointness is
+also why a destination an unmoved MARKER holds is refused exactly like one an unmoved note holds.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis.
-\param keys Notes to move, sorted ascending (the ChartSelection order — lookups binary-search
+\param note_keys Notes to move, sorted ascending (the ChartSelection order — lookups binary-search
 this precondition).
+\param marker_keys Hold markers to move, sorted ascending, same precondition.
 \param beat_delta Signed exact beat delta.
 \param string_delta Signed string-lane delta.
 \param label User-visible undo label.
 \return The plan; NoChange when nothing moves or changes, Invalid when a destination leaves the
         neck, collides, or fails the gate.
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planMoveNotes(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta, int string_delta,
-    std::string_view label);
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys,
+    common::core::Fraction beat_delta, int string_delta, std::string_view label);
 
 /*!
 \brief Plans retyping a snapshot of selected notes toward a typed fret target.
@@ -142,6 +240,16 @@ either mode (the fret-verb law: every waypoint was placed on its fret on purpose
 start retyped onto its first path position refuses through the finalize gate's always-traveling
 rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 
+A selected HOLD MARKER is skipped, under the uniform-scope law that already skips a note no rule
+lets take the write: the verb is a note verb, and a marker authored on an EMPTY slot carries no
+fret at all — its stop is read back from the note that sounds it, so a transpose of that note moves
+both with nothing to keep in step (`docs/plans/todo/arpeggio-authoring.md`, the edit-consistency
+scoring). The case that scoring does not cover is a marker whose fret IS authored, and it is not
+only the never-sounded one the record scores: the toggle's CONVERT case copies the fret off the
+note it takes, so every marker made that way carries one too. A transpose of the chord around any
+of them leaves that stop where it was. That is left as the design record has it rather than
+improvised here.
+
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of the notes being retyped.
@@ -151,7 +259,7 @@ rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
         when the gate refuses the result. The split is what lets the pending entry paint a
         refused value red without painting a valid no-op red.
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planRetypeFrets(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
@@ -177,6 +285,15 @@ struct ChartSustainStep
 
     /*! \brief True when the step lengthens the ring, false when it shortens it. */
     bool grow{};
+
+    /*!
+    \brief Compares two steps by their stored values.
+    \param lhs Left-hand step.
+    \param rhs Right-hand step.
+    \return True when both steps store equal values.
+    */
+    friend constexpr bool operator==(
+        const ChartSustainStep& lhs, const ChartSustainStep& rhs) noexcept = default;
 };
 
 /*!
@@ -244,9 +361,9 @@ binary-search this precondition).
         edit at all — the caller's answer is to RETIRE the entry it pushed rather than replace it
         with one that describes nothing; Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planAdjustSustain(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, const std::vector<ChartNoteKey>& keys,
+    const std::vector<common::core::ChartNote>& base, const std::vector<ChartSlotKey>& keys,
     const std::vector<ChartSustainStep>& steps);
 
 /*! \brief Why an `H` press left a selected note as it found it. */
@@ -287,7 +404,7 @@ press had nothing to say".
 struct [[nodiscard]] ChartLegatoPlan
 {
     /*! \brief The planned change, or empty when no selected note gained a claim. */
-    std::optional<ChartNotesEditPlan> plan;
+    std::optional<ChartEditPlan> plan;
 
     /*! \brief How many selected notes the resolver refused a claim for. */
     int skipped{0};
@@ -325,7 +442,7 @@ guard: the resolver disqualifies it outright, so its ring is never the only bloc
 */
 [[nodiscard]] ChartLegatoPlan planSetLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, std::string_view label);
+    const std::vector<ChartSlotKey>& keys, std::string_view label);
 
 /*!
 \brief Plans flattening every legato claim the chart no longer justifies — the settle sweep's plan.
@@ -335,14 +452,20 @@ turns it into an undo entry. Nothing else here is relational, which is why the s
 points instead of inside \ref finalizePlan — mid-burst a broken claim simply displays as the pick it
 plays as, and the burst stays one undo step.
 
-`base` is the stream the returned plan is expressed against, which is not always the current chart:
-folding the flatten into the burst's own entry needs a plan spanning the whole burst, so the caller
-passes the pre-burst stream and reverses the burst before applying. A caller pushing the flatten as
-its own entry passes `chart.notes`.
+`base` is the chart state the returned plan is expressed against, which is not always the current
+chart: folding the flatten into the burst's own entry needs a plan spanning the whole burst, so the
+caller passes the pre-burst chart and reverses the burst before applying. A caller pushing the
+flatten as its own entry passes the chart itself.
+
+It is the whole CHART rather than its note stream because the entry a fold replaces may have moved
+EITHER authored array — a hold-marker conversion is a legal burst. The sweep rewrites notes alone,
+so every other array's half is simply the difference between the two states, and diffing it here is
+what keeps the replaced entry's markers from being dropped (or its converted note resurrected) when
+the caller walks the chart back through the burst's reversal.
 
 \param chart Chart being settled; its notes are swept and its shapes supply the hold test.
 \param tempo_map Tempo map supplying the beat axis.
-\param base Stream the plan is diffed against.
+\param base Chart state the plan is diffed against.
 \param label User-visible undo label.
 
 \return The planned change, or empty when THE SWEEP found nothing to flatten — which is exactly when
@@ -350,9 +473,9 @@ its own entry passes `chart.notes`.
         flatten exactly cancelled the burst it is diffed against); that is still a commit, because
         walking the chart to `base` is what removes the claim.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planSettleLegato(
+[[nodiscard]] std::optional<ChartEditPlan> planSettleLegato(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, std::string_view label);
+    const common::core::Chart& base, std::string_view label);
 
 /*!
 \brief Plans setting the keyed notes' attack, with the pick-slide entry and exit special cases.
@@ -375,9 +498,9 @@ binary-search this precondition).
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
         Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetAttack(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, common::core::NoteAttack attack, std::string_view label);
+    const std::vector<ChartSlotKey>& keys, common::core::NoteAttack attack, std::string_view label);
 
 /*!
 \brief Which of a note's independent boolean techniques a toggle verb writes.
@@ -469,9 +592,9 @@ binary-search this precondition).
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
         Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetNoteFlag(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetNoteFlag(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, ChartNoteFlag which, bool value, std::string_view label);
+    const std::vector<ChartSlotKey>& keys, ChartNoteFlag which, bool value, std::string_view label);
 
 /*!
 \brief Plans setting the keyed notes' emphasis to one value of the axis.
@@ -497,9 +620,9 @@ binary-search this precondition).
 \return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal),
         Invalid when the gate refuses the result.
 */
-[[nodiscard]] std::expected<ChartNotesEditPlan, ChartPlanRefusal> planSetEmphasis(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetEmphasis(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartNoteKey>& keys, common::core::NoteEmphasis value,
+    const std::vector<ChartSlotKey>& keys, common::core::NoteEmphasis value,
     std::string_view label);
 
 /*!
@@ -522,9 +645,9 @@ struct ChartTechniqueLaw
     \brief Plans setting (`set`) or clearing the technique across `keys` under `label`, with the
     per-note eligibility the planner owns.
     */
-    std::expected<ChartNotesEditPlan, ChartPlanRefusal> (*plan)(
+    std::expected<ChartEditPlan, ChartPlanRefusal> (*plan)(
         const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-        const std::vector<ChartNoteKey>& keys, bool set, std::string_view label);
+        const std::vector<ChartSlotKey>& keys, bool set, std::string_view label);
 };
 
 /*!
@@ -541,33 +664,36 @@ resolver justifies — so asking for it is a caller error, not a row.
 [[nodiscard]] ChartTechniqueLaw chartTechniqueLaw(ChartTechnique technique);
 
 /*!
-\brief Applies a removed/inserted note change atomically to a chart.
+\brief Applies a whole planned change atomically to a chart, across every authored array.
 
-Verifies every removed note still matches by full value and every inserted slot is free, then
-swaps in the new stream; a failed precondition leaves the chart untouched.
+Verifies every removed record still matches by full value and every inserted slot is free, then
+swaps in the new arrays; a failed precondition anywhere leaves the chart entirely untouched, which
+is what makes a plan crossing the two arrays one atomic gesture rather than two that could half
+apply.
+
+Applying the plan's own \ref ChartEditPlan::reversed walks the chart back, so undo, redo and the
+verb-toggle reversal are this one primitive run in opposite directions.
 
 \param chart Chart to mutate.
-\param to_remove Full note values to remove.
-\param to_insert Full note values to insert, keeping (position, string) order.
+\param plan Planned change to apply forwards.
 \return Empty success, or PreflightRejected when the chart no longer matches the plan.
 */
-[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyChartNotesChange(
-    common::core::Chart& chart, const std::vector<common::core::ChartNote>& to_remove,
-    const std::vector<common::core::ChartNote>& to_insert);
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyChartChange(
+    common::core::Chart& chart, const ChartEditPlan& plan);
 
-/*! \brief Inverse-command edit replaying a planned chart-note change in either direction. */
-struct [[nodiscard]] ChartNotesEdit final : IEdit
+/*! \brief Inverse-command edit replaying a planned chart change in either direction. */
+struct [[nodiscard]] ChartEdit final : IEdit
 {
     /*!
-    \brief Captures a planned chart-note change.
+    \brief Captures a planned chart change.
     \param plan_value The applied plan whose directions this edit replays.
     */
-    explicit ChartNotesEdit(ChartNotesEditPlan plan_value)
+    explicit ChartEdit(ChartEditPlan plan_value)
         : plan(std::move(plan_value))
     {}
 
     /*!
-    \brief Removes the inserted notes and restores the removed ones.
+    \brief Removes the inserted records and restores the removed ones.
     \param context Apply-time editor/audio dependencies.
     \return Empty success, or the non-commit failure that should abort the transition.
     */
@@ -587,7 +713,7 @@ struct [[nodiscard]] ChartNotesEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 
     /*! \brief The applied plan replayed by undo and redo. */
-    ChartNotesEditPlan plan;
+    ChartEditPlan plan;
 };
 
 } // namespace rock_hero::editor::core

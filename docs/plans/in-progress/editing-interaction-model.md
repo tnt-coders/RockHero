@@ -271,7 +271,16 @@ Verified against the vendored JUCE source — everything needed ships in
   follows the containment hierarchy (note ⊂ chord ⊂ span, 2026-07-17): click selects the
   note, double-click its chord, span-rail click the whole span; Ctrl+click toggles individual
   notes; marquee stays geometrically precise by design; Shift+click selects a time range
-  (plan 52). Scope is always the selection, never the verb (the uniform-scope law, §9a).
+  (plan 52). Scope is always the selection, never the verb (the uniform-scope law, §9a) —
+  with ONE exception, and it is an exception about what is being authored rather than a hole
+  in the law: the arpeggio hold verb (`N`) is CARET-anchored, because a fact about the
+  fretting hand has to be stated at the position it holds, by a charter looking at that
+  position. Its first design reached from a later note to write a record where the caret was
+  not, and the user rejected exactly that (2026-08-25: *"It really feels like something that
+  would be defined at the START of the onset manually, not later"*), which is what the caret
+  anchor answers. So `N` acts on whatever the armed slot holds and a multi-object selection
+  neither widens it nor enables it; every other verb still reads the selection.
+  Design record: `docs/plans/todo/arpeggio-authoring.md`.
   Typed digits SET every selected note to the exact value — what you type is what appears
   (multi-digit window; Ctrl+digit and Alt+digit unbound).
   Alt+Shift+wheel SHIFTS the selection's frets by one per tick, shape-preserving (chords and

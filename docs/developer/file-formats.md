@@ -156,14 +156,18 @@ like every other format.
 | `notes[].bend` | [fraction, number][] | opt | Offset + semitone pairs. |
 | `notes[].slides[]` | object[] | opt | Pitched curve waypoints `{offset: <fraction> req, fret (-1)}` — legato junctions, holds, and shift-slide glides; never sits on a later onset of the string (a shift glide ends the minimum sustain distance before its re-picked landing, at exactly the sustain end). |
 | `notes[].slideOut` | object | opt | Unpitched slide-out `{offset: <fraction> req, fret (-1)}`: pressure releases and the pitch falls away — no landing note exists, so the gesture owns its end offset and gestured fret. Absent = the tail just ends. |
+| `holdMarkers[]` | object[] | opt | `{position req, string (0), fret — OPTIONAL, no default}`. One stop the fretting hand takes **silently**: the shape member no note stream can carry, since a finger resting on a fret makes no sound and extends no ring. Anchored to a `(position, string)` and nothing else — it names no span, no note and no id, so its whole relationship to a shape is resolved at read time (`deriveChartShapes`) and no edit can strand relational state. The fret's ABSENCE is a meaning, not a default: absent, the stop comes from the first note that sounds on that string later in the same span (so the chart never holds two editable copies of one fret); present, nothing sounds on that string anywhere in the span, so no note can ever contradict it. A marker that resolves to nothing — no span covers it, or nothing supplies its fret — is **inert**: it draws nowhere and is refused nowhere, the same degrade an unjustified `legato` claim takes. Rules: sorted by (position, string) with unique slots, **disjoint from `notes[]`** (where a note sounds, the note is the statement), fret `0` or above the capo and on the board. Design record: `docs/plans/todo/arpeggio-authoring.md`. |
 | `fhps[]` | object[] | opt | `{position req, fret (0), width (4; omitted when 4)}`. |
 
 The removed `chords[]` and `shapes[]` keys are **refused** rather than ignored, so an un-reimported
 package fails to load with a message naming the fix. Hand-posture spans and the postures they held
-are derived from the notes wherever they are read (`deriveChartShapes`), because a span is a
-statement about the notes under it and a stored one could only ever disagree with them. Chord names
-and fingerings went with them — nothing authored either; when they are authored they become a
-dictionary keyed by a posture rather than fields on one.
+are derived from the notes and the hold markers wherever they are read (`deriveChartShapes`),
+because a span is a statement about the notes under it and a stored one could only ever disagree
+with them. Chord names and fingerings went with them — nothing authored either; when they are
+authored they become a dictionary keyed by a posture rather than fields on one. `holdMarkers[]` is
+the one exception and a narrow one: it carries the single posture fact no function of the note
+stream can distinguish, because a hand holding six strings and picking four streams identically to
+a hand holding four.
 
 Unknown enum tokens are hard read errors; chart *rules* (ordering against the tempo map) are
 validated after load, not by the parser. The one exception is the note array's own ORDER: `notes[]`
@@ -171,6 +175,12 @@ must be sorted by (position, string), and the parser refuses a stream that is no
 reordering it — because the normalizer that runs before validation binary-searches the stream for
 each note's next same-string onset. Duplicate onsets stay validation's, which is where the rest of
 the same rule lives.
+
+`holdMarkers[]` shares that slot space rather than owning one of its own: a `(position, string)`
+pair is a **slot**, and the two arrays are each sorted by it, each unique in it, and disjoint from
+each other. One authority spells the order (`chartSlotOrderLess`), because two spellings of it would
+be a rule stated twice about the same slot. Unlike the notes, marker order is refused by
+*validation* rather than by the parser — nothing between the two binary-searches the marker array.
 
 **No note references** (updated 2026-07-23, superseding the short-lived `slideEnd: "next"`
 adjacency terminal): payloads never reference other notes — not by ID (which would make

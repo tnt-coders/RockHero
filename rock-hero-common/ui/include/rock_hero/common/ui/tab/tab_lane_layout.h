@@ -99,6 +99,22 @@ struct TabLaneGeometry
         return note_height + 1.0f;
     }
 
+    /*!
+    \brief Rendered extent of an editor hold-marker mark: the head's own box, scaled down.
+
+    Derived from \ref headSize rather than from the note height directly, so the mark tracks the
+    head it sits beside at every lane size. Deliberately smaller than a head: the mark says "an
+    authored silent hold lives at this slot", which is furniture beside the notation rather than a
+    glyph competing with it — and the same value bounds both the drawn dot and the rectangle that
+    hit-tests it, so nothing undrawn is clickable.
+
+    \return Hold-marker mark extent in pixels.
+    */
+    [[nodiscard]] float holdMarkerSize() const noexcept
+    {
+        return headSize() * 0.6f;
+    }
+
     /*! \brief Sustain tail height; odd so the tail centers on the string line. */
     float tail_height{};
 

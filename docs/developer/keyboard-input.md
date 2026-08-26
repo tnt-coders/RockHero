@@ -215,7 +215,8 @@ else. Their `perform` cases route to dedicated controller intents, and since 202
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`SetChartLeftTap`) — so path (b) is path (a) with a different trigger: the availability policy
+`SetChartLeftTap`, `ToggleChartHoldMarker`) — so path (b) is path (a) with a different trigger:
+the availability policy
 owns the busy gate, the chart/transport/selection preconditions, and the logging, and
 `runAction`'s prologue settles the pending fret entry for all of them (the digit alone is exempt,
 since it extends the entry). What stays per-verb is reading its own operand. Esc remains a direct
@@ -240,7 +241,15 @@ through the resolver; uniform scope over the selection, one compound undo entry,
 window — all SILENT when they apply nothing, because the view's only reporting seam is a modal
 error box and "nothing to do" is not an error — legato counts its skips and their dominant reason
 in `ChartLegatoPlan` for the non-modal channel W5 will build, and shows nothing until then),
-`onChartLeftTapRequested`, `onChartEscapePressed` —
+`onChartLeftTapRequested`,
+`onChartHoldMarkerToggleRequested` (the arpeggio hold verb, `N` — the one chart verb anchored at
+the CARET rather than at the selection, because a fact about the fretting hand is authored at the
+position it holds: an empty armed slot gains a fret-less hold marker, a note is CONVERTED into a
+marker carrying its fret, and a marker is removed. One undo entry either way, crossing both
+authored arrays when the gesture does; a second press inside the verb's own window reverses the
+first exactly, which is the only thing that can restore a converted note's ring and techniques.
+Silent with no caret armed),
+`onChartEscapePressed` —
 implemented in editor core against the
 marker state machine: `ChartMarker = std::variant<ChartCursor, ChartCaret>`
 (`rock-hero-editor/core/src/controller/editor_controller_impl.h`), always present, exactly one
