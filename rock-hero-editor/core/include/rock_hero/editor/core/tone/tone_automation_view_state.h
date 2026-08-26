@@ -79,12 +79,15 @@ struct ToneAutomationLaneViewState
     bool resolved{true};
 
     /*!
-    \brief Parameter's live value at projection time, normalised to `[0, 1]`.
+    \brief The lane's derived anchor value at projection time, normalised to `[0, 1]`.
 
-    Lanes without authored points render this as a flat tracking line (the view refreshes it at
-    render cadence through the live-value provider); authored lanes ignore it.
+    Every lane implicitly begins at the truth the tone state already holds: the parameter's
+    pre-automation value (`AutomatableParamInfo::baseline_norm_value`), drawn as a read-only
+    anchor at the lane's start and prepended to the backend curve by the write seam. A lane with
+    no authored points is just the anchor, so its flat full-width line is this value too. The view
+    refreshes it at render cadence through the automation port, so it follows a knob turn.
     */
-    float live_norm_value{0.0F};
+    float anchor_norm_value{0.0F};
 
     /*!
     \brief Parameter's default value, normalised to `[0, 1]`; a double-click resets a point here.
@@ -104,14 +107,14 @@ struct ToneAutomationLaneViewState
         const ToneAutomationLaneViewState& lhs, const ToneAutomationLaneViewState& rhs)
     {
         // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // live_norm_value and default_norm_value members. Exact equality is intended (a
+        // anchor_norm_value and default_norm_value members. Exact equality is intended (a
         // dirty-checked republish of the same projected lane).
         return lhs.instance_id == rhs.instance_id && lhs.param_id == rhs.param_id &&
                lhs.name == rhs.name && lhs.plugin_name == rhs.plugin_name &&
                lhs.is_discrete == rhs.is_discrete &&
                lhs.discrete_value_count == rhs.discrete_value_count &&
                lhs.resolved == rhs.resolved &&
-               std::is_eq(lhs.live_norm_value <=> rhs.live_norm_value) &&
+               std::is_eq(lhs.anchor_norm_value <=> rhs.anchor_norm_value) &&
                std::is_eq(lhs.default_norm_value <=> rhs.default_norm_value) &&
                lhs.points == rhs.points;
     }

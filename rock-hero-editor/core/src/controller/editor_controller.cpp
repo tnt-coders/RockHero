@@ -1984,6 +1984,7 @@ EditorEditContext EditorController::Impl::editContext() noexcept
         .plugin_host = m_plugin_host,
         .live_rig = m_live_rig,
         .tone_automation = m_tone_automation,
+        .tone_plugin_bindings = m_tone_plugin_bindings,
         .output_gain_db = m_output_gain_db,
         .tone_designer = m_tone_designer,
     };
@@ -2566,10 +2567,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
         }
 
         // The in-flight move/insert drag preview resolves against the published lanes exactly like
-        // the ghost — located by (instance, parameter) — and is published only once the drag has
-        // produced a preview (moved, or an insert from the press), so a plain point click that only
-        // selects publishes none. The view paints it in place of the moved point.
-        if (m_tone_automation_drag.has_value() && m_tone_automation_drag->moved)
+        // the ghost — located by (instance, parameter) — and is published only once the gesture
+        // holds a live edit (it moved, or it is the Alt insert that authored on its press), so a
+        // plain point click that only selects, and an anchor press that authors nothing, publish
+        // none. The view paints it in place of the moved point.
+        if (m_tone_automation_drag.has_value() && m_tone_automation_drag->hasLiveEdit())
         {
             const ToneAutomationDrag& drag = *m_tone_automation_drag;
             for (std::size_t lane_index = 0; lane_index < state.tone_automation.lanes.size();
@@ -2584,7 +2586,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                     .lane_index = lane_index,
                     .position = drag.preview_position,
                     .value = drag.preview_value,
-                    .is_new_point = drag.is_new_point,
+                    .is_new_point = drag.createsPoint(),
                     .source_point_index = drag.point_index,
                 };
                 break;

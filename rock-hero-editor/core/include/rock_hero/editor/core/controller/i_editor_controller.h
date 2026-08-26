@@ -523,9 +523,10 @@ public:
     /*!
     \brief Handles a request to open an automation lane for a tone-chain plugin parameter.
 
-    Opening a lane authors nothing: the lane tracks the parameter's live value until the first
-    point is added, so the sound never changes and the line never surprises. Session-scoped and
-    not undoable — an open lane with no points is a view arrangement, not an edit.
+    Opening a lane authors nothing: the lane shows only its derived anchor — the parameter's
+    pre-automation value from the tone state — until the first point is added, so the sound never
+    changes and the line never surprises. Session-scoped and not undoable: an open lane with no
+    points is a view arrangement, not an edit.
 
     \param instance_id Plugin instance owning the parameter.
     \param param_id Parameter id within the plugin.
@@ -610,11 +611,14 @@ public:
     /*!
     \brief Handles a primary-button press inside an automation lane.
 
-    The controller re-resolves the point-vs-empty-area hit from the event geometry and the lane's
-    points, then arms the matching gesture: a press on a point begins a move drag (selecting it on a
-    release that never moved); Alt on empty lane area begins an on-curve insert placement, refused
-    when the snapped slot is already occupied; plain empty lane area arms the lane caret there. A
-    double-click's second press is left to the view's value editor.
+    The controller re-resolves the point-vs-anchor-vs-empty-area hit from the event geometry and
+    the lane's points, then arms the matching gesture: a press on a point begins a move drag
+    (selecting it on a release that never crossed the drag threshold); a press on the lane's
+    derived anchor begins an insert placement at the lane start, likewise held until the threshold
+    is crossed, so a bare click there authors nothing; Alt on empty lane area begins an on-curve
+    insert placement that authors from the press itself, refused when the snapped slot is already
+    occupied; plain empty lane area arms the lane caret there. A double-click's second press is
+    left to the view's value editor.
 
     \param event Lane-local pointer state (pressed lane identity, geometry, extents, pixel x/y,
     click count, modifiers).
@@ -635,9 +639,11 @@ public:
     /*!
     \brief Ends the in-flight move/insert drag.
 
-    A drag that moved commits its replacement point list as one undoable edit and selects the
-    landed point; a press that never moved selects the pressed point instead. Clears the gesture and
-    its preview. A no-op without an active drag.
+    A gesture holding a live edit — one that moved, plus the Alt insert, which authors from its
+    press — commits its replacement point list as one undoable edit and selects the landed point.
+    A press that produced none runs the click verb of what it grabbed instead: a point selects,
+    and the anchor falls through to the plain lane-area click at that pixel (seek and arm the
+    caret). Clears the gesture and its preview. A no-op without an active drag.
 
     \param event Lane-local pointer state; only the live pixel x/y and modifiers are read.
     */

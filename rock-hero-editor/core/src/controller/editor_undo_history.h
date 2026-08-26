@@ -10,7 +10,9 @@
 #include <expected>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -92,6 +94,16 @@ struct [[nodiscard]] EditorEditContext
 
     /*! \brief Tone parameter automation boundary used by tone-automation curve edits. */
     common::audio::IToneAutomation& tone_automation;
+
+    /*!
+    \brief Durable plugin id to live instance bindings, for whole-arrangement curve re-derivation.
+
+    An edit that restores plugin state moves the tone-state values every automation lane is
+    anchored on, so it re-derives the arrangement's curves; resolving a persisted entry's durable
+    plugin id to the instance holding it needs this map.
+    */
+    const std::unordered_map<std::string, common::audio::ToneAutomationBinding>&
+        tone_plugin_bindings;
 
     /*! \brief Controller-owned output-gain mirror refreshed after output-gain undo/redo. */
     double& output_gain_db;

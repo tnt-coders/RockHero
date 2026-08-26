@@ -19,6 +19,7 @@
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
+#include <rock_hero/editor/core/tone/tone_automation_pointer.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -70,11 +71,6 @@ namespace
                ? 1.0F / static_cast<float>(discrete_value_count - 1)
                : 0.01F;
 }
-
-// Forgiving squared-distance radius for a point-handle press, matching the lanes view's
-// g_point_hit_radius so the controller re-resolves the point-vs-empty-area hit against the same
-// pixels the view's hitAt filtered on.
-constexpr float g_tone_lane_point_hit_radius = 8.0F;
 
 // The lanes view's ÷width forward pixel map (xForSeconds), replicated so the ported move/insert
 // drag hit-tests and window-clamps against the same pixels the view did. This is a forward map for
@@ -337,7 +333,7 @@ void EditorController::Impl::onToneCreateNewRequested(
     runAction(EditorAction::CreateNewTone{position, std::move(name)});
 }
 
-// Opens a session-scoped tracking lane; nothing is authored, so this is a direct view-state
+// Opens a session-scoped open lane; nothing is authored, so this is a direct view-state
 // mutation (like selection), not an undoable action.
 void EditorController::Impl::onToneAutomationLaneAddRequested(
     const std::string& instance_id, std::string param_id)
@@ -380,7 +376,7 @@ void EditorController::Impl::onToneAutomationLaneAddRequested(
     updateView();
 }
 
-// Closes an open tracking lane. Authored lanes are unaffected: their removal is an undoable
+// Closes a session-scoped open lane. Authored lanes are unaffected: their removal is an undoable
 // points edit, and the projection subsumes any matching open entry while points exist.
 void EditorController::Impl::onToneAutomationLaneRemoveRequested(
     const std::string& instance_id, const std::string& param_id)
@@ -986,25 +982,6 @@ void EditorController::Impl::mergeToneChainIdentities(
     }
 }
 
-// Rewrites every derived playback curve from the arrangement's musical automation. Runs after a
-// rig load (the curves were stripped from persisted plugin state) and would run after any future
-// tempo-map edit; the shared rebuild skips entries whose plugin is not currently loaded, which
-// reconcile on the next load that resolves them.
-void EditorController::Impl::rebuildToneAutomationCurves()
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr)
-    {
-        return;
-    }
-
-    common::audio::rebuildToneAutomationCurves(
-        editContext().tone_automation,
-        arrangement->tone_automation,
-        session().song().tempo_map,
-        m_tone_plugin_bindings);
-}
-
 // Replaces a tone-chain plugin parameter's automation and records its inverse. The arrangement's
 // musical points are the persisted truth; the derived playback curve is rewritten best-effort, and
 // an edit whose points match the current model records nothing.
@@ -1180,13 +1157,16 @@ void EditorController::Impl::onToneAutomationPointerExit()
     updateView();
 }
 
-// A primary-button press inside a lane, re-resolving the point-vs-empty-area hit the view forwarded
-// (the view already peeled off the pure-view zones — name chips, resize bands, the "+" picker, and
-// right-clicks — so a forwarded press is a point handle or empty editable area, the latter already
-// gated inside the window). The controller owns the gesture from here: a point grab begins a move
-// drag (a click that never moves selects on release); Alt on empty area begins an on-curve insert,
-// refused on an occupied slot; plain empty area arms the lane caret. A double-click's second press
-// belongs to the view's value editor, so it never arms a stray drag here.
+// A primary-button press inside a lane, re-resolving the point-vs-anchor-vs-empty-area hit the view
+// forwarded (the view already peeled off the zones it owns outright — name chips, resize bands, the
+// "+" picker, and right-clicks — so a forwarded press is a point handle, the lane's derived anchor,
+// or empty editable area, the last already gated inside the window). The controller owns the
+// gesture from here: a point grab begins a move drag (a click that never moves selects on release);
+// an anchor press begins an insert drag at the lane start that stays a click until the drag
+// threshold, so a bare click there authors nothing; Alt on empty area begins an on-curve insert
+// that authors from the press, refused on an occupied slot; plain empty area arms the lane caret.
+// A double-click's second press belongs to the view's value editor, so it never arms a stray drag
+// here.
 void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPointerEvent& event)
 {
     if (isBusy() || event.clicks >= 2 || event.lane_index >= event.lane_extents.size())
@@ -1228,7 +1208,7 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
             const float dx = event.x - *point_x;
             const float dy = event.y - laneValueBandY((*points)[index].norm_value, extent);
             if (((dx * dx) + (dy * dy)) <=
-                (g_tone_lane_point_hit_radius * g_tone_lane_point_hit_radius))
+                (g_tone_lane_handle_grab_radius * g_tone_lane_handle_grab_radius))
             {
                 grabbed = index;
                 break;
@@ -1259,10 +1239,45 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
             .is_discrete = event.lane_is_discrete,
             .discrete_value_count = event.lane_discrete_value_count,
             .moved = false,
-            .is_new_point = false,
+            .origin = ToneLaneDragOrigin::PointHandle,
         };
         refresh_dismissed_ghost();
         return;
+    }
+
+    // The anchor is the lane's derived start value, drawn read-only at the timeline origin. It is
+    // a handle like a point handle, not empty area — the one place the Alt-authors law does not
+    // reach, so no Alt is needed here — and like a point handle it stays a CLICK until the pointer
+    // crosses the drag threshold. Crossing it authors a real point at the lane start carrying the
+    // anchor's own value, which the drag then pulls, because wanting a different start value is
+    // authored data, not a change to what the tone state says. A press that never crosses authors
+    // nothing at all and falls through on release to the plain lane-area click (see the Up
+    // handler): a point that only restates the tone state's own value is still an edit the user
+    // did not ask for, and the lane already says that value without it. The plan runs through the
+    // same creation seam every other placement uses, whose on-curve landing at the lane start IS
+    // the anchor's own value, so the anchor adds no second creation rule. The parameter lookup is
+    // a port call, so the cheap column test prunes it first; a press that misses (or a plan that
+    // refuses) falls through to the empty-area verbs below.
+    if (const std::optional<float> anchor_x = laneXForSeconds(
+            toneAutomationAnchorSeconds(),
+            event.geometry.visible_timeline,
+            event.geometry.content_width);
+        anchor_x.has_value() && std::abs(event.x - *anchor_x) <= g_tone_lane_handle_grab_radius)
+    {
+        if (const std::optional<common::audio::AutomatableParamInfo> parameter =
+                paramInfoFor(activeToneDocumentRef(), event.instance_id, event.param_id);
+            parameter.has_value())
+        {
+            const float dx = event.x - *anchor_x;
+            const float dy = event.y - laneValueBandY(parameter->baseline_norm_value, extent);
+            if (((dx * dx) + (dy * dy)) <=
+                    (g_tone_lane_handle_grab_radius * g_tone_lane_handle_grab_radius) &&
+                beginLanePointInsertDrag(
+                    event, extent, toneAutomationAnchorPosition(), ToneLaneDragOrigin::Anchor))
+            {
+                return;
+            }
+        }
     }
 
     // Empty editable lane area. Both the plain caret arm and the Alt on-curve insert snap the pixel
@@ -1294,30 +1309,37 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
         return;
     }
 
-    // Alt on empty area begins an on-curve insert placement. planLanePointAtCaret resolves the
-    // lane's points, the on-curve landing value, and the value shape, and refuses an occupied slot
-    // — the same neutral-create plan the keyboard Insert runs, so mouse placement shares its
-    // occupied-slot refusal and can never plant a duplicate. The point lands ON the curve (silent
-    // until pulled) and the drag phase pulls the value by the pointer's delta.
+    // Alt on empty area begins an on-curve insert placement — the same neutral-create plan the
+    // keyboard Insert runs (occupied slot, window edge, and unresolved parameter all refuse), so
+    // mouse placement can never plant a duplicate. The point lands ON the curve (silent until
+    // pulled) and the drag phase pulls the value by the pointer's delta.
+    if (!beginLanePointInsertDrag(event, extent, *position, ToneLaneDragOrigin::EmptyArea))
+    {
+        refresh_dismissed_ghost();
+    }
+}
+
+bool EditorController::Impl::beginLanePointInsertDrag(
+    const ToneAutomationPointerEvent& event, const ToneAutomationLaneExtent& extent,
+    common::core::GridPosition position, ToneLaneDragOrigin origin)
+{
     std::optional<LanePointPlan> plan = planLanePointAtCaret(
         ChartCaret{
-            .position = *position,
+            .position = position,
             .lane = AutomationLaneRow{.instance_id = event.instance_id, .param_id = event.param_id},
         });
     if (!plan.has_value())
     {
-        // Occupied slot (or nothing to land on): refuse, exactly as the keyboard Insert does.
-        refresh_dismissed_ghost();
-        return;
+        return false;
     }
     std::size_t insert_index = 0;
-    while (insert_index < plan->points.size() && plan->points[insert_index].position < *position)
+    while (insert_index < plan->points.size() && plan->points[insert_index].position < position)
     {
         ++insert_index;
     }
-    // The on-curve landing snaps to a discrete parameter's states, matching the shipped view's
-    // curveValueAt: a continuous or non-empty-lane value passes through unchanged, but the first
-    // point on a discrete tracking lane lands on a real state rather than the raw live value.
+    // The on-curve landing snaps to a discrete parameter's states, matching the view's
+    // curveValueAt: a continuous value passes through unchanged, but a point on a discrete lane
+    // lands on a real state rather than a raw interpolated one.
     const float landing_value =
         snappedLaneValue(plan->value, event.lane_is_discrete, event.lane_discrete_value_count);
     m_tone_automation_drag = ToneAutomationDrag{
@@ -1328,19 +1350,23 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
         .visible_timeline = event.geometry.visible_timeline,
         .content_width = event.geometry.content_width,
         .value_band = extent,
-        .preview_position = *position,
+        .preview_position = position,
         .preview_value = landing_value,
-        .start_position = *position,
+        .start_position = position,
         .start_value = landing_value,
         .press_x = event.x,
         .press_y = event.y,
         .is_discrete = event.lane_is_discrete,
         .discrete_value_count = event.lane_discrete_value_count,
-        .moved = true,
-        .is_new_point = true,
+        .moved = false,
+        .origin = origin,
     };
-    // Publish the on-curve preview point immediately (the view repaints on the Alt press today).
+    // One refresh for both effects a press has on the lane's overlays: the Alt insert's on-curve
+    // preview point publishes from the press (that gesture has its edit in hand at once), and any
+    // Alt-hover ghost the press dismissed disappears with it. An anchor press publishes no preview
+    // until its drag begins — the anchor bar simply stays a bar under a click that authors nothing.
     updateView();
+    return true;
 }
 
 // Advances the in-flight move/insert drag preview, ported verbatim from the lanes view's mouseDrag:
@@ -1357,11 +1383,13 @@ void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPoi
     }
     ToneAutomationDrag& drag = *m_tone_automation_drag;
 
-    // A grabbed existing point stays a click until the pointer crosses the framework's click→drag
-    // threshold, so the micro-jiggle inside a click can never commit an accidental move (an insert
-    // moves from the press). The signal is JUCE's own mouseWasDraggedSinceMouseDown, carried on the
-    // event, so the timing component (a long press) is honored exactly as the shipped view did.
-    if (!drag.moved && !drag.is_new_point && !event.dragged_since_down)
+    // A gesture that arrived with no edit in hand — a grabbed existing point, or a press on the
+    // lane's anchor — stays a click until the pointer crosses the framework's click→drag threshold,
+    // so the micro-jiggle inside a click can never commit an accidental move or author a stray
+    // point. The Alt insert authored on its press and moves with the pointer from there. The signal
+    // is JUCE's own mouseWasDraggedSinceMouseDown, carried on the event, so the timing component (a
+    // long press) is honored exactly as the shipped view did.
+    if (!drag.hasLiveEdit() && !event.dragged_since_down)
     {
         return;
     }
@@ -1413,7 +1441,8 @@ void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPoi
                 blocked = true;
             }
         }
-        const std::size_t next_index = drag.is_new_point ? drag.point_index : drag.point_index + 1;
+        const std::size_t next_index =
+            drag.createsPoint() ? drag.point_index : drag.point_index + 1;
         if (next_index < drag.points.size() && !(*position < drag.points[next_index].position))
         {
             blocked = true;
@@ -1443,10 +1472,11 @@ void EditorController::Impl::onToneAutomationPointerDrag(const ToneAutomationPoi
     updateView();
 }
 
-// Ends the in-flight move/insert drag, ported from the lanes view's mouseUp: a gesture that moved
-// commits its replacement list (one undoable edit) and selects the landed point, and a press that
-// never moved selects the pressed point instead. Clearing the gesture before the commit lets its
-// state push apply immediately rather than rebuilding against a stale preview.
+// Ends the in-flight move/insert drag, ported from the lanes view's mouseUp: a gesture holding a
+// live edit commits its replacement list (one undoable edit) and selects the landed point, and a
+// press that never produced one runs the click verb of whatever it grabbed. Clearing the gesture
+// before the commit lets its state push apply immediately rather than rebuilding against a stale
+// preview.
 void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPointerEvent& /*event*/)
 {
     if (!m_tone_automation_drag.has_value())
@@ -1458,7 +1488,7 @@ void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPoint
     // A release ends any hover preview too, matching the tab lane's release.
     m_tone_insert_ghost.reset();
 
-    if (drag.moved || drag.is_new_point)
+    if (drag.hasLiveEdit())
     {
         // The commit runs synchronously and pushes fresh state; with the gesture already cleared
         // that push applies immediately rather than deferring. The follow-up selection arms the
@@ -1467,6 +1497,30 @@ void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPoint
             drag.instance_id, drag.param_id, toneAutomationDragCommitPoints(drag));
         onToneAutomationPointSelectRequested(
             drag.instance_id, drag.param_id, drag.preview_position);
+        return;
+    }
+
+    // No live edit: the press never crossed the drag threshold, so the release runs the click verb
+    // of what was grabbed.
+    if (drag.origin == ToneLaneDragOrigin::Anchor)
+    {
+        // An anchor click authors nothing (see the Down handler) and falls through to the plain
+        // lane-area click at the pressed pixel — §9b's seek and caret arm. The slot is re-derived
+        // through the one placement seam from the geometry frozen at Down, so it is the identical
+        // slot a plain click at that pixel would have armed. A degenerate geometry maps no slot,
+        // and the click simply does nothing.
+        if (const std::optional<common::core::GridPosition> position = laneSnapPositionForX(
+                session().song().tempo_map,
+                placementQuantum(),
+                drag.visible_timeline,
+                drag.content_width,
+                drag.press_x);
+            position.has_value())
+        {
+            seekAndArmLaneCaret(
+                *position,
+                AutomationLaneRow{.instance_id = drag.instance_id, .param_id = drag.param_id});
+        }
         return;
     }
 
@@ -1485,7 +1539,7 @@ std::vector<common::core::ToneAutomationPoint> EditorController::Impl::
     points.reserve(drag.points.size() + 1);
     for (std::size_t index = 0; index < drag.points.size(); ++index)
     {
-        if (!drag.is_new_point && index == drag.point_index)
+        if (!drag.createsPoint() && index == drag.point_index)
         {
             continue;
         }
@@ -1581,22 +1635,20 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
         return std::nullopt;
     }
 
-    // The landing value comes from the drawn curve; an unauthored lane lands on the live
-    // tracking line, which needs the parameter's current value from the port. The value shape
-    // rides along so the evaluation holds steps exactly as the lane draws them.
-    std::optional<float> fallback;
-    if (const std::optional<common::audio::AutomatableParamInfo> parameter =
-            paramInfoFor(activeToneDocumentRef(), caret.lane->instance_id, caret.lane->param_id);
-        parameter.has_value())
-    {
-        fallback = parameter->current_norm_value;
-        plan.is_discrete = parameter->is_discrete;
-        plan.discrete_value_count = parameter->discrete_value_count;
-    }
-    if (plan.points.empty() && !fallback.has_value())
+    // The landing value comes from the drawn curve, which begins at the lane's derived anchor —
+    // the parameter's pre-automation value from the tone state — so an unauthored lane lands on
+    // the anchor's flat line. The value shape rides along so the evaluation holds steps exactly as
+    // the lane draws them. A parameter that no longer resolves has neither an anchor nor a live
+    // chain slot to write into, so creation refuses there instead of inventing a landing value.
+    const std::optional<common::audio::AutomatableParamInfo> parameter =
+        paramInfoFor(activeToneDocumentRef(), caret.lane->instance_id, caret.lane->param_id);
+    if (!parameter.has_value())
     {
         return std::nullopt;
     }
+    plan.is_discrete = parameter->is_discrete;
+    plan.discrete_value_count = parameter->discrete_value_count;
+
     // Snap the on-curve landing to a real discrete state so every creation path (keyboard Insert,
     // mouse Alt-insert, create-and-nudge) plants a legal value on a stepped parameter; snapping is
     // a no-op for continuous parameters.
@@ -1606,7 +1658,7 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
             session().song().tempo_map,
             caret.position,
             plan.is_discrete,
-            fallback.value_or(0.0F)),
+            parameter->baseline_norm_value),
         plan.is_discrete,
         plan.discrete_value_count);
     return plan;

@@ -100,13 +100,13 @@ public:
     }
 
     /*!
-    \brief Returns a fixed live value (never driven by curve-rebuild callers).
+    \brief Returns a fixed baseline value (never driven by curve-rebuild callers).
     \param tone_document_ref Ignored.
     \param instance_id Ignored.
     \param param_id Ignored.
     \return Zero.
     */
-    [[nodiscard]] std::expected<float, ToneAutomationError> readParameterNormValue(
+    [[nodiscard]] std::expected<float, ToneAutomationError> readParameterBaselineNormValue(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const override
     {

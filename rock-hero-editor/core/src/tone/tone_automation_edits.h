@@ -50,6 +50,23 @@ void rewriteDerivedToneCurve(
     const std::vector<common::core::ToneAutomationPoint>& points);
 
 /*!
+\brief Re-derives every playback curve in the current arrangement from its musical points.
+
+The one re-derivation authority. Each written curve is anchored on the parameter's pre-automation
+value AT WRITE TIME (\ref common::audio::IToneAutomation::writeParameterCurve), so a curve is stale
+the moment that value moves — which is why this runs not only after a rig load and a tempo-map
+edit, but after every settled plugin edit, where a knob turn or a restored chunk moved it. Without
+that the lane would draw an anchor the audio path does not play.
+
+Deliberately whole-arrangement rather than per-parameter: re-deriving an entry whose baseline did
+not move rewrites the identical curve, and the alternative — deciding which entries a plugin edit
+could have touched — is a second rule that would have to agree with the first by hand.
+
+\param context Edit context carrying the session, automation port, and plugin bindings.
+*/
+void rebuildDerivedToneCurves(const EditorEditContext& context);
+
+/*!
 \brief Replaces one tone-chain plugin parameter's automation points, undoably.
 
 The memento captures the full musical point list before and after; undo and redo write the model

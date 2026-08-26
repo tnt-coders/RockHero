@@ -1,5 +1,6 @@
 #include "controller/editor_controller_impl.h"
 #include "signal_chain/signal_chain_edits.h"
+#include "tone/tone_automation_edits.h"
 
 #include <algorithm>
 #include <cassert>
@@ -257,6 +258,12 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
     undo_edit->after_state = std::move(edit.after);
     undo_edit->label_hint = std::move(edit.label_hint);
     pushUndoEntry(std::move(undo_edit));
+    // A settled knob gesture moved this plugin's tone-state values, and every automation lane is
+    // anchored on one of them, so the derived curves are re-derived against the new baselines.
+    // This is the only baseline move the editor can see honestly: the gate that produced this edit
+    // rejects plugin-initiated value changes, which is what keeps a plugin echoing an automated
+    // value back at us out of the written curve.
+    rebuildDerivedToneCurves(editContext());
     updateView();
 }
 

@@ -10,7 +10,9 @@
 #include <cstdint>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace rock_hero::editor::ui
 {
@@ -30,9 +32,21 @@ constexpr int g_value_band_inset = 5;
 // Bottom strip of each lane that drags vertical resize; matches the tone row's edge grab width.
 constexpr int g_resize_band_height = 6;
 
-// Point handles draw small but hit-test forgiving (squared-distance test).
+// Point handles draw small but hit-test forgiving; the forgiving radius is the shared
+// g_tone_lane_handle_grab_radius, since the controller re-resolves a press against it.
 constexpr float g_point_draw_radius = 4.0f;
-constexpr int g_point_hit_radius = 8;
+
+// Horizontal slack around the repaint clip when building the curve path: a mark whose center sits
+// just outside the clip still inks pixels inside it, so segments and heads are built from a little
+// further out than the clip itself. Covers the widest mark a lane draws (a point's radius plus its
+// stroke); deliberately not the grab radius, which is an input-policy number that happens to match.
+constexpr int g_curve_clip_margin = 8;
+
+// The lane's derived anchor: an upright bar, not a round handle, so it never reads as one of the
+// authored points it sits among. Quieter than a point because it is derived, but still visible
+// enough to invite the drag that authors a real point in its place.
+constexpr float g_anchor_bar_width = 2.0f;
+constexpr float g_anchor_alpha = 0.7f;
 
 // Chips pin to the visible left edge so lane names and "+" stay on screen at any zoom.
 constexpr int g_chip_inset_x = 6;
@@ -60,6 +74,17 @@ const juce::Colour g_dim_overlay{juce::Colours::black.withAlpha(0.35f)};
 
 // Alpha applied to a lane whose plugin or parameter no longer resolves.
 constexpr float g_unresolved_alpha = 0.35f;
+
+// The forgiving grab circle every lane handle shares — authored points and the derived anchor
+// alike — so one mark can never be easier to hit than another. The controller re-resolves a
+// forwarded press against the same radius and the same ÷width geometry.
+[[nodiscard]] bool withinGrabRadius(juce::Point<int> local_point, float handle_x, float handle_y)
+{
+    const float dx = static_cast<float>(local_point.x) - handle_x;
+    const float dy = static_cast<float>(local_point.y) - handle_y;
+    return ((dx * dx) + (dy * dy)) <=
+           (core::g_tone_lane_handle_grab_radius * core::g_tone_lane_handle_grab_radius);
+}
 
 // Copies a lane's published points into model form, echoing every point bit-identically and
 // skipping at most one position — the shared base of the view's points-edit intents, so a
@@ -182,18 +207,19 @@ ToneAutomationLanesView::ToneAutomationLanesView(
     , m_tempo_map(tempo_map)
     , m_tone_automation(tone_automation)
     , m_vblank_attachment(this, [this] {
-        repaintMovedTrackingLanes();
-        // An unauthored lane's caret rides the live value, so the square (and its mask) can move
-        // with no state push; republish each frame (a no-op while the square is stationary).
+        repaintMovedAnchorLanes();
+        // A lane caret rides the drawn curve, which begins at the anchor, so the square (and its
+        // mask) can move with no state push; republish each frame (a no-op while it is stationary).
         publishCaretMask();
     })
 {
     setOpaque(false);
 }
 
-// Repaints only the unauthored lanes whose live value moved since the last frame, so tracking
-// costs nothing while every lane is authored or the knob is untouched.
-void ToneAutomationLanesView::repaintMovedTrackingLanes()
+// Repaints only the lanes whose anchor moved since the last frame, so tracking the knob costs
+// nothing while it is untouched. Every resolved lane is polled, not just unauthored ones: the
+// anchor is drawn on all of them, and on an unauthored lane it is also the flat line's value.
+void ToneAutomationLanesView::repaintMovedAnchorLanes()
 {
     // Vblank callbacks fire regardless of visibility, so gate the poll itself.
     if (!isShowing() || m_state.tone_document_ref.empty())
@@ -204,12 +230,12 @@ void ToneAutomationLanesView::repaintMovedTrackingLanes()
     for (std::size_t lane_index = 0; lane_index < m_state.lanes.size(); ++lane_index)
     {
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[lane_index];
-        if (!lane.points.empty() || !lane.resolved)
+        if (!lane.resolved)
         {
             continue;
         }
-        const float value = trackingValueFor(lane);
-        auto& drawn = m_drawn_tracking_values[{lane.instance_id, lane.param_id}];
+        const float value = anchorValueFor(lane);
+        auto& drawn = m_drawn_anchor_values[{lane.instance_id, lane.param_id}];
         if (std::abs(drawn - value) < 0.0005f)
         {
             continue;
@@ -219,16 +245,16 @@ void ToneAutomationLanesView::repaintMovedTrackingLanes()
     }
 }
 
-float ToneAutomationLanesView::trackingValueFor(const core::ToneAutomationLaneViewState& lane) const
+float ToneAutomationLanesView::anchorValueFor(const core::ToneAutomationLaneViewState& lane) const
 {
-    if (const auto live = m_tone_automation.readParameterNormValue(
+    if (const auto baseline = m_tone_automation.readParameterBaselineNormValue(
             m_state.tone_document_ref, lane.instance_id, lane.param_id);
-        live.has_value())
+        baseline.has_value())
     {
-        return *live;
+        return *baseline;
     }
     // An unreadable parameter (tone not loaded) keeps the value the projection last reported.
-    return lane.live_norm_value;
+    return lane.anchor_norm_value;
 }
 
 void ToneAutomationLanesView::setVisibleTimeline(common::core::TimeRange visible_timeline)
@@ -395,7 +421,10 @@ int ToneAutomationLanesView::totalHeight() const
 
 bool ToneAutomationLanesView::wantsPointerAt(juce::Point<int> local_point) const
 {
-    return hitAt(local_point).has_value();
+    // Alt only reorders the pinned chip against the lane area beneath it, and both orderings agree
+    // on the question asked here — whether the lanes claim the pixel at all — so this resolves
+    // without it rather than reaching for the live modifier state.
+    return hitAt(local_point, false).has_value();
 }
 
 std::vector<ToneAutomationLanesView::LaneExtent> ToneAutomationLanesView::laneExtents() const
@@ -539,44 +568,42 @@ std::optional<juce::Range<float>> ToneAutomationLanesView::caretMaskYRange() con
     return juce::Range<float>{square->getY() - 1.0f, square->getBottom() + 1.0f};
 }
 
-// Mirrors the paint path exactly: linear segments between points on a continuous lane, held
-// steps on a discrete one, flat extension outside the authored span, and the live tracking line
-// when nothing is authored yet — so a point placed at this value lands visually and audibly ON
-// the drawn curve.
+core::ToneAutomationCurveSample ToneAutomationLanesView::laneAnchorSample(
+    const core::ToneAutomationLaneViewState& lane) const
+{
+    return core::ToneAutomationCurveSample{
+        .seconds = core::toneAutomationAnchorSeconds(),
+        .norm_value = anchorValueFor(lane),
+    };
+}
+
+std::vector<core::ToneAutomationCurveSample> ToneAutomationLanesView::laneCurveSamples(
+    const core::ToneAutomationLaneViewState& lane)
+{
+    std::vector<core::ToneAutomationCurveSample> samples;
+    samples.reserve(lane.points.size());
+    for (const core::ToneAutomationPointViewState& point : lane.points)
+    {
+        samples.push_back(
+            core::ToneAutomationCurveSample{
+                .seconds = point.seconds,
+                .norm_value = point.norm_value,
+            });
+    }
+    return samples;
+}
+
 float ToneAutomationLanesView::curveValueAt(
     const core::ToneAutomationLaneViewState& lane, double seconds) const
 {
-    if (lane.points.empty())
-    {
-        return snappedValueForLane(trackingValueFor(lane), lane);
-    }
-    if (seconds <= lane.points.front().seconds)
-    {
-        return lane.points.front().norm_value;
-    }
-    if (seconds >= lane.points.back().seconds)
-    {
-        return lane.points.back().norm_value;
-    }
-    for (std::size_t index = 1; index < lane.points.size(); ++index)
-    {
-        const core::ToneAutomationPointViewState& next = lane.points[index];
-        if (seconds > next.seconds)
-        {
-            continue;
-        }
-        const core::ToneAutomationPointViewState& previous = lane.points[index - 1];
-        if (lane.is_discrete)
-        {
-            // The drawn discrete curve holds the previous state until the next point.
-            return previous.norm_value;
-        }
-        const double span = next.seconds - previous.seconds;
-        const float mix =
-            span > 0.0 ? static_cast<float>((seconds - previous.seconds) / span) : 1.0F;
-        return snappedValueForLane(std::lerp(previous.norm_value, next.norm_value, mix), lane);
-    }
-    return lane.points.back().norm_value;
+    // Raw, never snapped: this reports what the lane DRAWS, and the drawn curve carries the raw
+    // anchor and the raw authored values (the backend curve is written from the same numbers). A
+    // discrete lane's anchor can sit off-state — the tone state's value is the plugin's, not the
+    // chart's — and snapping here would put the caret square and the readout at a different height
+    // from the anchor bar they are supposed to sit on. Creation snaps instead, at the one seam
+    // that makes a point: the controller's landing value.
+    return core::toneAutomationCurveValueAtSeconds(
+        laneAnchorSample(lane), laneCurveSamples(lane), seconds, lane.is_discrete);
 }
 
 std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositionForX(
@@ -586,8 +613,50 @@ std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositi
         m_tempo_map, m_placement_quantum, m_visible_timeline, getWidth(), content_x);
 }
 
-std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
+bool ToneAutomationLanesView::withinAnchorGrab(
+    const core::ToneAutomationLaneViewState& lane, const LaneExtent& extent,
     juce::Point<int> local_point) const
+{
+    // No mark, nothing to grab: an authored point on (or before) the anchor's slot already states
+    // the lane's value there, so paint draws that point instead of the anchor bar.
+    if (!lane.points.empty() && lane.points.front().seconds <= core::toneAutomationAnchorSeconds())
+    {
+        return false;
+    }
+    const std::optional<float> anchor_x = xForSeconds(core::toneAutomationAnchorSeconds());
+    if (!anchor_x.has_value())
+    {
+        return false;
+    }
+    // Reading the anchor's value is a port call, so the cheap column test prunes it first — the
+    // same order the controller's matching test uses.
+    if (std::abs(static_cast<float>(local_point.x) - *anchor_x) >
+        core::g_tone_lane_handle_grab_radius)
+    {
+        return false;
+    }
+    return withinGrabRadius(
+        local_point, *anchor_x, valueBandY(valueBandFor(extent), anchorValueFor(lane)));
+}
+
+std::optional<std::size_t> ToneAutomationLanesView::laneIndexOf(const Hit& hit)
+{
+    return std::visit(
+        []<typename Zone>(const Zone& zone) -> std::optional<std::size_t> {
+            if constexpr (std::is_same_v<Zone, PlusChipHit>)
+            {
+                return std::nullopt;
+            }
+            else
+            {
+                return zone.lane_index;
+            }
+        },
+        hit);
+}
+
+std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
+    juce::Point<int> local_point, bool alt_down) const
 {
     if (m_state.tone_document_ref.empty())
     {
@@ -604,21 +673,27 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
         }
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[lane_index];
 
-        // The pinned name chip is the lane's handle: it claims the pointer on every lane —
-        // including unresolved ones — so the lane menu (Remove Lane) stays reachable now that
-        // plain clicks on empty lane area pass through to the seek overlay.
-        if (laneChipBounds(lane_index, extent).contains(local_point))
-        {
-            return Hit{LaneChipHit{.lane_index = lane_index}};
-        }
+        // The pinned name chip is the lane menu's only home, so it has to stay hittable — but it
+        // is pinned OVER the lane's own content, and a mark drawn on top of a target must never
+        // shadow it. That is the same principle that resolves point handles ahead of the resize
+        // band, generalised: the chip yields to every target beneath it, so it is resolved last
+        // and claims only what would otherwise do nothing but arm the caret.
+        const bool over_chip = laneChipBounds(lane_index, extent).contains(local_point);
 
         if (!lane.resolved)
         {
-            // Disabled lanes are otherwise inert; the overlay keeps click-to-seek over them.
+            // A disabled lane has no points, no anchor, and no editable area — the chip is its
+            // only target, so its lane menu (Remove Lane) stays reachable and the rest of the row
+            // keeps the overlay's click-to-seek.
+            if (over_chip)
+            {
+                return Hit{LaneChipHit{.lane_index = lane_index}};
+            }
             return std::nullopt;
         }
 
-        // Point handles win over the resize band so a point at value 0 stays grabbable.
+        // Point handles win over everything drawn around them: a point at value 0 stays grabbable
+        // under the resize band, and a point near the lane start stays grabbable under the chip.
         for (std::size_t point_index = 0; point_index < lane.points.size(); ++point_index)
         {
             const std::optional<float> x = xForSeconds(lane.points[point_index].seconds);
@@ -626,15 +701,36 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
             {
                 continue;
             }
-            const float value_y =
-                valueBandY(valueBandFor(extent), lane.points[point_index].norm_value);
-            const float dx = static_cast<float>(local_point.x) - *x;
-            const float dy = static_cast<float>(local_point.y) - value_y;
-            if ((dx * dx) + (dy * dy) <=
-                static_cast<float>(g_point_hit_radius * g_point_hit_radius))
+            if (withinGrabRadius(
+                    local_point,
+                    *x,
+                    valueBandY(valueBandFor(extent), lane.points[point_index].norm_value)))
             {
                 return Hit{PointHit{.lane_index = lane_index, .point_index = point_index}};
             }
+        }
+
+        // Editable lane area is a hit with or without Alt (§9b): with Alt down it is the insert
+        // quasimode's target, and a plain click seeks and arms the caret on the lane — the
+        // row-axis form of the chart lane's empty click. Outside the editable window the area
+        // stays with the seek overlay, and so does whatever part of the anchor's grab falls out
+        // there: a press could not author past the window edge anyway, since creation refuses it.
+        const std::optional<float> window_start = xForSeconds(m_editable_window.start.seconds);
+        const std::optional<float> window_end = xForSeconds(m_editable_window.end.seconds);
+        const bool in_window = window_start.has_value() && window_end.has_value() &&
+                               static_cast<float>(local_point.x) >= *window_start &&
+                               static_cast<float>(local_point.x) < *window_end;
+
+        // The derived anchor's grab is a handle too — its drag authors the lane's start point — so
+        // like a point handle it outruns both marks drawn across it: the resize band, which an
+        // anchor at value 0 reaches into, and the chip pinned over the lane start where the anchor
+        // always sits. It also outruns Alt, because the anchor is the one place the Alt-authors
+        // law does not reach; resolving it as its own zone (rather than as lane area) is what
+        // keeps the hover from offering an insert the press would refuse. The controller
+        // re-resolves the press against the same circle.
+        if (in_window && withinAnchorGrab(lane, extent, local_point))
+        {
+            return Hit{LaneAnchorHit{.lane_index = lane_index}};
         }
 
         if (local_point.y >= extent.top + extent.height - g_resize_band_height)
@@ -642,17 +738,16 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
             return Hit{ResizeBandHit{.lane_index = lane_index}};
         }
 
-        // Empty editable lane area is a hit with or without Alt (§9b): with Alt down it is the
-        // insert quasimode's target, and a plain click seeks and arms the caret on the lane —
-        // the row-axis form of the chart lane's empty click. Outside the editable window the
-        // area stays with the seek overlay.
-        const std::optional<float> window_start = xForSeconds(m_editable_window.start.seconds);
-        const std::optional<float> window_end = xForSeconds(m_editable_window.end.seconds);
-        if (window_start.has_value() && window_end.has_value() &&
-            static_cast<float>(local_point.x) >= *window_start &&
-            static_cast<float>(local_point.x) < *window_end)
+        // Bare lane area takes its pixel back from the chip only under Alt, where a press inserts
+        // instead of merely arming the caret. Everything else beneath the chip has claimed its
+        // pixel above, so what is left for the chip is exactly the area that offers nothing else.
+        if (in_window && (!over_chip || alt_down))
         {
             return Hit{LaneAreaHit{.lane_index = lane_index}};
+        }
+        if (over_chip)
+        {
+            return Hit{LaneChipHit{.lane_index = lane_index}};
         }
         return std::nullopt;
     }
@@ -753,17 +848,42 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         }
 
         // Project the drawn points to lane pixels once, then extend the curve flat to both canvas
-        // edges: the parameter holds its first/last value outside the authored points, so a
-        // single seeded point reads as a full-length line rather than an isolated dot.
+        // edges: the parameter holds its first/last value outside them, so a single seeded point
+        // reads as a full-length line rather than an isolated dot.
+        //
+        // The lane's derived anchor leads the list. It is where the curve genuinely begins — the
+        // parameter's pre-automation value, which the write seam prepends to the backend curve —
+        // so the segment into the first authored point is drawn, not flattened, and a lane with no
+        // authored points is simply the anchor's own flat line. An authored point on (or before)
+        // the anchor's slot already states the lane's value there, so no anchor mark is drawn for
+        // it. An unresolved lane has no readable parameter, so it shows no anchor either.
         struct CurvePoint
         {
             float x{};
             float y{};
             bool authored{};
+            bool anchor{};
             bool selected{};
         };
         std::vector<CurvePoint> curve_points;
-        curve_points.reserve(drawn.size() + 2);
+        curve_points.reserve(drawn.size() + 3);
+        if (lane.resolved)
+        {
+            const core::ToneAutomationCurveSample anchor = laneAnchorSample(lane);
+            m_drawn_anchor_values[{lane.instance_id, lane.param_id}] = anchor.norm_value;
+            if (const std::optional<float> anchor_x = xForSeconds(anchor.seconds);
+                anchor_x.has_value() && (drawn.empty() || drawn.front().seconds > anchor.seconds))
+            {
+                curve_points.push_back(
+                    CurvePoint{
+                        .x = *anchor_x,
+                        .y = value_to_y(anchor.norm_value),
+                        .authored = false,
+                        .anchor = true,
+                        .selected = false,
+                    });
+            }
+        }
         for (const DrawnPoint& point : drawn)
         {
             const std::optional<float> x = xForSeconds(point.seconds);
@@ -776,6 +896,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     .x = *x,
                     .y = value_to_y(point.norm_value),
                     .authored = true,
+                    .anchor = false,
                     .selected = point.selected,
                 });
         }
@@ -787,32 +908,25 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     .x = std::min(-1.0f, curve_points.front().x),
                     .y = curve_points.front().y,
                     .authored = false,
+                    .anchor = false,
+                    .selected = false,
                 });
             curve_points.push_back(
                 CurvePoint{
                     .x = std::max(static_cast<float>(getWidth()) + 1.0f, curve_points.back().x),
                     .y = curve_points.back().y,
                     .authored = false,
+                    .anchor = false,
+                    .selected = false,
                 });
-        }
-        else if (drawn.empty() && lane.resolved)
-        {
-            // An open lane with no authored points tracks the parameter's live value as a flat
-            // full-width line, so the lane always shows what the plugin is actually doing.
-            const float tracking_value = trackingValueFor(lane);
-            m_drawn_tracking_values[{lane.instance_id, lane.param_id}] = tracking_value;
-            const float y = value_to_y(tracking_value);
-            curve_points.push_back(CurvePoint{.x = -1.0f, .y = y, .authored = false});
-            curve_points.push_back(
-                CurvePoint{.x = static_cast<float>(getWidth()) + 1.0f, .y = y, .authored = false});
         }
 
         // The playhead strip repaints every lane each frame with a narrow clip, so only the
         // points whose segments can intersect the clip build the stroked path.
         juce::Path curve;
         bool path_started = false;
-        const auto clip_left = static_cast<float>(clip.getX() - g_point_hit_radius);
-        const auto clip_right = static_cast<float>(clip.getRight() + g_point_hit_radius);
+        const auto clip_left = static_cast<float>(clip.getX() - g_curve_clip_margin);
+        const auto clip_right = static_cast<float>(clip.getRight() + g_curve_clip_margin);
         std::optional<float> previous_x;
         float previous_y = 0.0f;
         for (const CurvePoint& point : curve_points)
@@ -857,6 +971,26 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     graphics.drawEllipse(
                         point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius, 1.5f);
                 }
+            }
+            else if (point.anchor && point.x >= clip_left && point.x <= clip_right)
+            {
+                // The anchor is derived, not authored, so it reads as a different KIND of mark: an
+                // upright bar sitting on the curve rather than a round grabbable handle. It cannot
+                // be selected or deleted. What it answers is a DRAG, which authors a real point in
+                // its place at the anchor's own value and pulls it off the anchor from there — a
+                // bare click authors nothing and leaves the bar exactly as it is — so the bar is
+                // quieter than a point but still visibly a handle. Drawn one point-diameter tall
+                // so it never outgrows the points it stands among.
+                const float half_height = g_point_draw_radius;
+                graphics.setColour(
+                    editorTheme().accent.withMultipliedAlpha(lane_alpha * g_anchor_alpha));
+                graphics.fillRect(
+                    juce::Rectangle<float>{
+                        point.x - (g_anchor_bar_width * 0.5f),
+                        point.y - half_height,
+                        g_anchor_bar_width,
+                        2.0f * half_height
+                    });
             }
         }
         graphics.setColour(editorTheme().accent.withMultipliedAlpha(lane_alpha));
@@ -962,13 +1096,15 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
 
 void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition());
+    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods.isAltDown());
 
     // Resolve the hover readout and the hover intent. The insert ghost is controller-owned now
     // (published through m_state.insert_ghost); the view forwards every lane-area hover and lets
     // the controller resolve snap + occupancy, exactly like the tab lane's chart ghost. Hovering a
     // point shows its position and value; the Alt-held insert zone shows the prospective on-curve
-    // point the same way; any other zone shows none.
+    // point the same way; any other zone shows none. The anchor is one of those other zones: it
+    // answers a drag rather than a click, so a hover over it forwards no lane-area hover and the
+    // ghost ring stays off the one pixel neighbourhood where Alt would not author.
     std::optional<ValueReadout> readout;
     std::optional<std::size_t> hovered_lane_index;
     if (hit.has_value())
@@ -1025,9 +1161,11 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
         setMouseCursor(juce::MouseCursor::NormalCursor);
         return;
     }
-    if (std::holds_alternative<PointHit>(*hit) || std::holds_alternative<PlusChipHit>(*hit) ||
-        std::holds_alternative<LaneChipHit>(*hit))
+    if (std::holds_alternative<PointHit>(*hit) || std::holds_alternative<LaneAnchorHit>(*hit) ||
+        std::holds_alternative<PlusChipHit>(*hit) || std::holds_alternative<LaneChipHit>(*hit))
     {
+        // The anchor takes the point handle's cursor, with or without Alt: it is a grabbable mark,
+        // and the copy cursor would promise the insert its press does not perform.
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
     }
     else if (std::holds_alternative<ResizeBandHit>(*hit))
@@ -1049,7 +1187,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 
 void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition());
+    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods.isAltDown());
 
     // A left press is excluded for the same reason the chart lane excludes it: JUCE expands
     // popupMenuClickModifier to (rightButton | ctrl) on macOS, so isPopupMenu() alone would raise
@@ -1057,9 +1195,9 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     // press on every platform.
     if (event.mods.isPopupMenu() && !event.mods.isLeftButtonDown())
     {
-        // A right-click on a point offers its own menu; a right-click on a claimed lane zone (the
-        // name chip or the resize band) offers lane removal. Empty lane area belongs to the seek
-        // overlay now, so the chip is the lane's always-reachable handle.
+        // A right-click on a point offers its own menu; a right-click on any other claimed lane
+        // zone (the name chip, the resize band, the lane area) offers lane removal. The chip is
+        // the one zone every lane has, resolved or not, so the menu is always reachable.
         if (const auto* const point_hit = hit.has_value() ? std::get_if<PointHit>(&*hit) : nullptr)
         {
             showPointMenu(*point_hit);
@@ -1067,21 +1205,10 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         else if (hit.has_value())
         {
             // Every lane-zone hit already carries its row: use the stored index rather than
-            // re-deriving the lane from y a second time.
-            std::optional<std::size_t> lane_index;
-            if (const auto* const chip = std::get_if<LaneChipHit>(&*hit))
-            {
-                lane_index = chip->lane_index;
-            }
-            else if (const auto* const band = std::get_if<ResizeBandHit>(&*hit))
-            {
-                lane_index = band->lane_index;
-            }
-            else if (const auto* const area = std::get_if<LaneAreaHit>(&*hit))
-            {
-                lane_index = area->lane_index;
-            }
-            if (lane_index.has_value())
+            // re-deriving the lane from y a second time. The "+" chip names none, and offers no
+            // lane to remove.
+            if (const std::optional<std::size_t> lane_index = laneIndexOf(*hit);
+                lane_index.has_value())
             {
                 showLaneMenu(*lane_index);
             }
@@ -1100,7 +1227,8 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    // The name chip is the lane handle: a plain click opens the lane menu.
+    // The name chip is the lane menu's only home: a plain click over it opens the menu, wherever
+    // hitAt did not hand the pixel to a target beneath it.
     if (const auto* const chip = std::get_if<LaneChipHit>(&*hit))
     {
         showLaneMenu(chip->lane_index);
@@ -1118,16 +1246,17 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    // A press on a point handle or empty editable lane area forwards to the controller, which owns
-    // the gesture: it re-resolves point-vs-area from the same geometry and arms a point move, an
-    // Alt-insert placement (refused on an occupied slot), or the lane caret, and publishes any
-    // preview back. The resize band, name chip, "+" picker, and right-clicks are handled above, so
-    // only these two editing zones reach here. The hover readout already carries the on-curve value
-    // an Alt-insert lands at, so the press leaves it in place; a drag advance refreshes it.
-    const std::size_t lane_index = std::holds_alternative<PointHit>(*hit)
-                                       ? std::get<PointHit>(*hit).lane_index
-                                       : std::get<LaneAreaHit>(*hit).lane_index;
-    m_listener.onToneAutomationPointerDown(makePointerEvent(event, lane_index));
+    // A press on a point handle, the derived anchor, or editable lane area forwards to the
+    // controller, which owns the gesture: it re-resolves point-vs-anchor-vs-area from the same
+    // geometry and arms a point move, an anchor drag, an Alt-insert placement (refused on an
+    // occupied slot), or the lane caret, and publishes any preview back. The resize band, name
+    // chip, "+" picker, and right-clicks are handled above, so only those editing zones reach
+    // here. The hover readout already carries the on-curve value an Alt-insert lands at, so the
+    // press leaves it in place; a drag advance refreshes it.
+    if (const std::optional<std::size_t> lane_index = laneIndexOf(*hit); lane_index.has_value())
+    {
+        m_listener.onToneAutomationPointerDown(makePointerEvent(event, *lane_index));
+    }
 }
 
 void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
@@ -1300,7 +1429,7 @@ bool ToneAutomationLanesView::beginCaretValueEntry(int digit)
 
 void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition());
+    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods.isAltDown());
     if (!hit.has_value())
     {
         return;
@@ -1499,9 +1628,9 @@ void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
                 return;
             }
             // An authored lane's points are cleared first (one undoable edit that drops the
-            // arrangement entry); the open-lane close then removes any session tracking lane so the
-            // row disappears instead of falling back to a live-tracking lane. The close is a no-op
-            // for a package-loaded authored lane that never had an open entry.
+            // arrangement entry); the open-lane close then removes any session-scoped open lane so
+            // the row disappears instead of falling back to an anchor-only lane. The close is a
+            // no-op for a package-loaded authored lane that never had an open entry.
             const auto lane = std::ranges::find_if(
                 m_state.lanes, [&](const core::ToneAutomationLaneViewState& candidate) {
                     return candidate.instance_id == instance_id && candidate.param_id == param_id;

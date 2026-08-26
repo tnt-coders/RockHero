@@ -1,6 +1,7 @@
 #include "controller/editor_controller_impl.h"
 #include "project/load_notice.h"
 #include "shared/editor_controller_logging.h"
+#include "tone/tone_automation_edits.h"
 
 #include <cassert>
 #include <cmath>
@@ -585,7 +586,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 // Load-fresh plugin identities key the arrangement's musical automation; merge
                 // them, then rebuild the derived playback curves the sidecars no longer carry.
                 mergeToneChainIdentities(rig_result->tone_chains);
-                rebuildToneAutomationCurves();
+                rebuildDerivedToneCurves(editContext());
                 m_loaded_tone_refs.clear();
                 m_loaded_tone_refs.reserve(rig_result->tone_chains.size());
                 for (const common::audio::LoadedToneChainIdentities& chain :
@@ -595,7 +596,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 }
                 // One-way host-tempo mirror so hosted plugins see the song's real tempo map
                 // instead of the backend default. A future tempo-editing flow must re-mirror
-                // after every tempo-map change alongside rebuildToneAutomationCurves().
+                // after every tempo-map change alongside rebuildDerivedToneCurves().
                 m_song_audio.mirrorTempoMap(session().song().tempo_map);
                 static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
                 if (!report_progress)

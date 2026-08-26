@@ -63,6 +63,21 @@ void rewriteDerivedToneCurve(
         points);
 }
 
+void rebuildDerivedToneCurves(const EditorEditContext& context)
+{
+    const common::core::Arrangement* const arrangement = context.session.currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return;
+    }
+
+    common::audio::rebuildToneAutomationCurves(
+        context.tone_automation,
+        arrangement->tone_automation,
+        context.session.song().tempo_map,
+        context.tone_plugin_bindings);
+}
+
 std::expected<void, EditorUndoFailureCode> ToneAutomationPointsEdit::undo(
     EditorEditContext& context) const
 {

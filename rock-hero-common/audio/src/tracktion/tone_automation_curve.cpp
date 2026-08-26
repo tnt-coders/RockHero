@@ -73,6 +73,31 @@ namespace
     return 0;
 }
 
+// The parameter's pre-automation value: what the tone state says this knob is, independent of any
+// automation currently driving it. Tracktion keeps this separately from the played value —
+// updateFromAutomationSources() writes only currentBaseValue/currentValue and never the explicit
+// value, and the attached-value write-back deliberately skips updateParameterFromValue
+// (tracktion_AutomatableParameter.cpp:1227-1234) — so it survives playback, while getCurrentValue()
+// would report whatever the curve happens to hold at the instant of the read. A plugin state
+// restore sets it from the restored plugin (refreshParameterValues -> valueChangedByPlugin), and a
+// knob turn from either side sets it too, so it tracks the tone state rather than a stale snapshot.
+// Clamped because setParameter() stores the raw value without clipping to the parameter's range.
+//
+// The guarantee holds inside Tracktion, but it rests on one condition outside it: a hosted plugin
+// that ECHOES a host-set parameter value back reaches this same setParameter() path
+// (ExternalAutomatableParameter::handleAsyncUpdate -> valueChangedByPlugin), and its only guard is
+// edit.isLoading() || hasActiveModifierAssignments() — modifier sources, never the parameter's own
+// curve (tracktion_ExternalAutomatableParameter.h:320-331, tracktion_AutomatableParameter.cpp:
+// 1120-1124). So an echoing plugin can push a value the CURVE produced into the tone state's slot
+// while the transport plays. Tracktion documents that plugins do this ("Some plugins send spurious
+// parameter value changes"), and nothing on our side can tell an echo from a knob turn — which is
+// why the written curve is re-anchored only at gesture-settled plugin edits, never at a raw read.
+[[nodiscard]] float baselineNormValue(const tracktion::AutomatableParameter& parameter)
+{
+    return std::clamp(
+        parameter.valueRange.convertTo0to1(parameter.getCurrentExplicitValue()), 0.0F, 1.0F);
+}
+
 // Reads every automatable fact the editor needs about one plugin parameter into its view-facing
 // descriptor. The discrete flag, step labels, and step count all derive from one value count so
 // they cannot disagree.
@@ -107,7 +132,7 @@ namespace
         .labels = std::move(labels),
         .default_norm_value =
             default_value.has_value() ? parameter.valueRange.convertTo0to1(*default_value) : 0.0F,
-        .current_norm_value = parameter.valueRange.convertTo0to1(parameter.getCurrentValue()),
+        .baseline_norm_value = baselineNormValue(parameter),
         .plugin_name = plugin_name,
     };
 }
@@ -225,6 +250,33 @@ bool writePluginParameterCurve(
     // manager. Clearing then re-adding the whole point list is the simplest correct write.
     tracktion::AutomationCurve& curve = parameter->getCurve();
     curve.clear(nullptr);
+
+    // Every lane implicitly begins at the truth the tone state already holds, so a non-empty write
+    // is anchored: one point at the timeline origin carrying the lane's value THERE. That is the
+    // parameter's pre-automation value, unless an authored point already sits at the origin, whose
+    // value is then what the lane genuinely starts at (a point before the origin is unreachable —
+    // musical positions start at measure 1 beat 1 — and takes the same branch).
+    //
+    // Without the anchor Tracktion holds a curve's FIRST point's value across everything before
+    // it, so one authored point at bar 20 would retroactively drag the parameter to its future
+    // value from the very start. Anchoring unconditionally also keeps every authored lane at two
+    // or more backend points, which matters twice over: AutomationIterator::isEmpty() discards a
+    // single-point curve outright (the parameter would not be automated at all), and
+    // setParameterValue() silently REWRITES a lone point to follow a knob turn
+    // (tracktion_AutomatableParameter.cpp:1439-1440). When an authored point does sit on the
+    // origin the anchor duplicates its time, which is exactly how a constant curve has to be
+    // spelled — the iterator reads a zero-length segment as the later point's value
+    // (tracktion_AutomatableParameter.cpp:1786-1788), and both points carry the same value anyway.
+    if (!points.empty())
+    {
+        const float anchor_norm_value = points.front().seconds > 0.0 ? baselineNormValue(*parameter)
+                                                                     : points.front().norm_value;
+        curve.addPoint(
+            tracktion::EditPosition{tracktion::TimePosition{}},
+            parameter->valueRange.convertFrom0to1(anchor_norm_value),
+            segment_shape,
+            nullptr);
+    }
     for (const AutomationCurvePoint& point : points)
     {
         curve.addPoint(
@@ -236,7 +288,7 @@ bool writePluginParameterCurve(
     return true;
 }
 
-std::optional<float> readPluginParameterNormValue(
+std::optional<float> readPluginParameterBaselineNormValue(
     tracktion::Plugin& plugin, const std::string& param_id)
 {
     const tracktion::AutomatableParameter::Ptr parameter =
@@ -245,7 +297,7 @@ std::optional<float> readPluginParameterNormValue(
     {
         return std::nullopt;
     }
-    return parameter->getCurrentNormalisedValue();
+    return baselineNormValue(*parameter);
 }
 
 std::optional<std::string> formatPluginParameterValue(

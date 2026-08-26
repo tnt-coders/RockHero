@@ -174,11 +174,15 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         return {};
     }
 
-    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+    // The parameter's tone-state value, which every lane's derived anchor draws at.
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError>
+    readParameterBaselineNormValue(
         const std::string&, const std::string&, const std::string&) const override
     {
-        return 0.0F;
+        return baseline_norm_value;
     }
+
+    float baseline_norm_value{0.0F};
 
     // Formats the value as a stable "[0.NN]" token so readout tests can assert the exact value the
     // gesture is producing, independent of any real plugin's units.
@@ -309,6 +313,152 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
     CHECK(harness.view.wantsPointerAt({10, (2 * 56) + 12}));
     // The rest of the "+" strip does not.
     CHECK_FALSE(harness.view.wantsPointerAt({400, (2 * 56) + 12}));
+}
+
+TEST_CASE(
+    "Lanes view keeps a plain chip press over empty area on the chip",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+
+    // (10, 11) is inside lane 0's pinned name chip (x from 6, the lane's rows 4..20) and over
+    // nothing else: the lane's authored points sit at (0, 35) and (200, 15), and its anchor gives
+    // way to the point already on the lane start. So this pixel is the chip's, and a plain press
+    // there opens the lane menu — the chip's only job, and the lane menu's only home.
+    //
+    // Probed as a hover rather than a press because the press raises a PopupMenu, which needs a
+    // desktop these headless tests do not have. A chip hover forwards Exit (only lane area
+    // forwards Move), shows no readout, and takes the chip's own cursor; mouseDown's chip arm is
+    // the one line that follows from the same hit.
+    harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 10.0f, 11.0f));
+    CHECK(harness.listener.pointer_move_count == 0);
+    CHECK(harness.listener.pointer_exit_count == 1);
+    CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
+    CHECK(harness.view.getMouseCursor() == juce::MouseCursor::PointingHandCursor);
+}
+
+TEST_CASE(
+    "Lanes view resolves lane handles ahead of the marks drawn over them",
+    "[ui][tone-automation-lanes]")
+{
+    SECTION("a point handle inside the chip stays grabbable")
+    {
+        LanesHarness harness;
+
+        // One point at 0.1 s (x 10 of 800 across the 8 s window) and value 0.85 (y 11 in the
+        // 5..45 band) — inside the chip rectangle the previous case pinned. Only the pixel matters
+        // to the hit test; the slot rides along so the readout can name it.
+        core::ToneAutomationViewState state = makeState();
+        state.lanes.front().points = {
+            core::ToneAutomationPointViewState{
+                .position = {.measure = 1, .beat = 1, .offset = {}},
+                .seconds = 0.1,
+                .norm_value = 0.85F,
+            },
+        };
+        harness.view.setState(state);
+
+        // The press reaches the controller (which selects or moves the point) instead of raising
+        // the lane menu, and the hover names that point's own value.
+        harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 10.0f, 11.0f));
+        CHECK(harness.listener.pointer_down_count == 1);
+        harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 10.0f, 11.0f));
+        const std::optional<juce::String> readout = harness.view.valueReadoutTextForTest();
+        REQUIRE(readout.has_value());
+        if (readout.has_value())
+        {
+            CHECK(readout->contains("[0.85]"));
+        }
+        CHECK(harness.view.getMouseCursor() == juce::MouseCursor::PointingHandCursor);
+    }
+
+    SECTION("the derived anchor's grab inside the chip stays grabbable")
+    {
+        LanesHarness harness;
+
+        // An unauthored lane draws its anchor at the timeline origin (x 0) at the parameter's
+        // tone-state value; 0.85 puts it at y 11. (7, 11) is inside the chip and inside the
+        // anchor's 8 px grab, so the anchor's drag-to-author wins the pixel.
+        harness.tone_automation.baseline_norm_value = 0.85F;
+        core::ToneAutomationViewState state = makeState();
+        state.lanes.front().points.clear();
+        harness.view.setState(state);
+
+        harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 7.0f, 11.0f));
+        CHECK(harness.listener.pointer_down_count == 1);
+    }
+
+    SECTION("the derived anchor at value 0 stays grabbable under the resize band")
+    {
+        LanesHarness harness;
+
+        // A parameter whose tone-state value is 0 (a gain at minimum, a toggle off) draws its
+        // anchor on the band floor, y 45, and its 8 px grab reaches into the lane's bottom resize
+        // strip (y 50 and below) — the same collision that puts point handles ahead of that strip.
+        harness.tone_automation.baseline_norm_value = 0.0F;
+        core::ToneAutomationViewState state = makeState();
+        state.lanes.front().points.clear();
+        harness.view.setState(state);
+
+        harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 0.0f, 50.0f));
+        CHECK(harness.listener.pointer_down_count == 1);
+    }
+
+    SECTION("Alt over the chip is the insert quasimode, not the menu")
+    {
+        LanesHarness harness;
+
+        // Same chip pixel as the plain-press case, with Alt held: the press forwards to the
+        // controller's insert branch, and the hover already says so with the copy cursor.
+        const juce::ModifierKeys alt_hover{juce::ModifierKeys::altModifier};
+        harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 10.0f, 11.0f, alt_hover));
+        CHECK(harness.listener.pointer_move_count == 1);
+        CHECK(harness.view.getMouseCursor() == juce::MouseCursor::CopyingCursor);
+
+        harness.view.mouseDown(
+            testing::makeMouseDownEvent(harness.view, 10.0f, 11.0f, g_alt_click));
+        REQUIRE(harness.listener.pointer_down_count == 1);
+        REQUIRE(harness.listener.last_pointer_event.has_value());
+        if (harness.listener.last_pointer_event.has_value())
+        {
+            CHECK(harness.listener.last_pointer_event->modifiers.alt);
+            CHECK(harness.listener.last_pointer_event->lane_index == 0);
+        }
+    }
+}
+
+TEST_CASE(
+    "Lanes view offers the anchor as a handle rather than the insert quasimode",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+
+    // An unauthored lane draws its anchor at the timeline origin (x 0) at the parameter's
+    // tone-state value; 0.85 puts it at y 11.
+    harness.tone_automation.baseline_norm_value = 0.85F;
+    core::ToneAutomationViewState state = makeState();
+    state.lanes.front().points.clear();
+    harness.view.setState(state);
+
+    // The anchor answers a DRAG, so a click on it authors nothing — and the hover must not promise
+    // otherwise. Even with Alt held it takes the point handle's cursor, forwards no lane-area hover
+    // (which is what publishes the controller's insert ring), and offers no on-curve readout.
+    const juce::ModifierKeys alt_hover{juce::ModifierKeys::altModifier};
+    harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 7.0f, 11.0f, alt_hover));
+    CHECK(harness.listener.pointer_move_count == 0);
+    CHECK(harness.listener.pointer_exit_count == 1);
+    CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
+    CHECK(harness.view.getMouseCursor() == juce::MouseCursor::PointingHandCursor);
+
+    // Discriminating control: the same row and the same y, one pixel-neighbourhood further along
+    // the lane (x 20, outside the anchor's 8 px grab). That IS the insert quasimode's target — the
+    // pinned chip covers this pixel too and yields to it under Alt — so the copy cursor and the
+    // forwarded hover come back. What suppressed them above was the anchor's circle, not the row,
+    // the height, or the chip.
+    harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 20.0f, 11.0f, alt_hover));
+    CHECK(harness.listener.pointer_move_count == 1);
+    CHECK(harness.view.valueReadoutTextForTest().has_value());
+    CHECK(harness.view.getMouseCursor() == juce::MouseCursor::CopyingCursor);
 }
 
 TEST_CASE(
@@ -503,6 +653,59 @@ TEST_CASE(
     // With no view-owned gesture active the cancel reports unhandled, so the editor's Esc ladder
     // falls through to the controller (which cancels its own point drag through the drag preview).
     CHECK_FALSE(harness.view.cancelActiveGesture());
+}
+
+TEST_CASE("Lanes view draws the derived anchor at the lane start", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    harness.tone_automation.baseline_norm_value = 0.5F;
+
+    // A lane with no authored points is exactly its anchor: an upright bar at the lane start plus
+    // the flat line the anchor's value extends across the row.
+    core::ToneAutomationViewState state;
+    state.tone_document_ref = "tones/x/tone.json";
+    core::ToneAutomationLaneViewState lane;
+    lane.instance_id = "instance-a";
+    lane.param_id = "gain";
+    lane.name = "Gain";
+    lane.resolved = true;
+    state.lanes = {std::move(lane)};
+    harness.view.setState(state);
+
+    const juce::Image image{juce::Image::ARGB, 800, 200, true, juce::SoftwareImageType{}};
+    juce::Graphics graphics{image};
+    harness.view.paint(graphics);
+
+    // Value 0.5 in the 56 px lane's {top 5, height 40} value band draws at y 25, and the anchor bar
+    // is a point-diameter tall, so it inks 3 px above the curve at the lane start.
+    constexpr int anchor_y = 25;
+    CHECK(static_cast<int>(image.getPixelAt(0, anchor_y - 3).getAlpha()) > 0);
+    // Discriminating: the flat line is far thinner than the bar, so the same height further along
+    // the lane is blank — the ink at the lane start is the bar, not the line. Sampled at x 200,
+    // inside the editable window: past it (x >= 400 here) the out-of-window dim overlay inks every
+    // pixel, which would make the control pass for the wrong reason.
+    CHECK(static_cast<int>(image.getPixelAt(200, anchor_y - 3).getAlpha()) == 0);
+    CHECK(static_cast<int>(image.getPixelAt(200, anchor_y).getAlpha()) > 0);
+}
+
+TEST_CASE(
+    "Lanes view draws no anchor where a point already starts the lane",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness; // The shared state's first lane already carries a point at 0 s.
+    harness.tone_automation.baseline_norm_value = 0.5F;
+    harness.view.setState(makeState());
+
+    const juce::Image image{juce::Image::ARGB, 800, 200, true, juce::SoftwareImageType{}};
+    juce::Graphics graphics{image};
+    harness.view.paint(graphics);
+
+    // The authored point on the lane's start slot states the lane's value there (0.25 -> y 35), so
+    // no anchor mark is drawn for the tone state's 0.5 (y 25) that would otherwise sit above it.
+    CHECK(static_cast<int>(image.getPixelAt(0, 22).getAlpha()) == 0);
+    // The authored point itself is drawn where it belongs, so the blank above is a missing anchor
+    // rather than a blank lane.
+    CHECK(static_cast<int>(image.getPixelAt(0, 35).getAlpha()) > 0);
 }
 
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")

@@ -342,7 +342,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::string activeToneName() const;
     void mergeToneChainIdentities(
         const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains);
-    void rebuildToneAutomationCurves();
     [[nodiscard]] std::vector<std::string> captureStableIds();
     // The one port lookup of a parameter's metadata by (instance, param); every consumer
     // (undo labels, landing-value shape, value stepping) resolves through it.
@@ -1097,7 +1096,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The resolved ingredients for planting a point at an armed lane caret's slot: the lane's
     // existing points, the on-curve landing value at the caret, and the parameter's value
-    // shape. Null when the slot is occupied or nothing can land (no points and no live value).
+    // shape. Null when the slot is occupied, lies outside the region window, or the parameter
+    // no longer resolves (nothing to land on and nowhere to write).
     struct LanePointPlan
     {
         std::vector<common::core::ToneAutomationPoint> points;
@@ -1107,6 +1107,33 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     // Non-const only because the session exposes its automation entries mutably.
     [[nodiscard]] std::optional<LanePointPlan> planLanePointAtCaret(const ChartCaret& caret);
+
+    // What a lane press grabbed, which is the one thing that varies between the three gestures a
+    // lane press can start (see ToneAutomationDrag): it decides whether the gesture arrives with
+    // an edit already in hand (only the Alt insert does — the Alt-authors law), and what a release
+    // that never crossed the drag threshold does instead of committing.
+    enum class ToneLaneDragOrigin : std::uint8_t
+    {
+        // An existing point handle: an unmoved release selects that point.
+        PointHandle,
+
+        // Empty editable lane area under Alt: the press itself authors, so there is no unmoved
+        // release to answer for.
+        EmptyArea,
+
+        // The lane's derived anchor bar: an unmoved release authors nothing and falls through to
+        // the plain lane-area click (seek and arm the caret).
+        Anchor,
+    };
+
+    // Arms a new-point insert drag at one lane slot. The shared body of the Alt press on empty
+    // lane area and the press on the lane's derived anchor, so both run the one creation plan
+    // (its occupied-slot, window, and unresolved-parameter refusals included); \p origin is what
+    // separates them, deciding whether the press already authors or stays a click until the drag
+    // threshold. False when the plan refused and nothing was armed.
+    [[nodiscard]] bool beginLanePointInsertDrag(
+        const ToneAutomationPointerEvent& event, const ToneAutomationLaneExtent& extent,
+        common::core::GridPosition position, ToneLaneDragOrigin origin);
 
     // Plants a planned point (sorted insert, points-edit intent, select) — the shared creation
     // tail of the Insert verb and the Alt+arrow create-then-nudge.
@@ -1150,7 +1177,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     std::vector<std::string> m_loaded_tone_refs{};
 
     // Session-scoped automation lanes opened by the picker that have no authored points yet;
-    // they track the parameter's live value. Not persisted and not undoable (a lane with no
+    // they show only their derived anchor. Not persisted and not undoable (a lane with no
     // points is a view arrangement, not an edit). Cleared with the session.
     std::vector<OpenAutomationLane> m_open_automation_lanes{};
 
@@ -1192,10 +1219,25 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // Value shape captured at Down so discrete lanes snap their pull to real states.
         bool is_discrete{false};
         int discrete_value_count{0};
-        // Latches once the pointer travels past the click threshold (or true from Down for an
-        // insert); until then a point grab is still a click and publishes no preview.
+        // Latches once the drag preview has advanced; until then the gesture is still a click.
         bool moved{false};
-        bool is_new_point{false};
+        ToneLaneDragOrigin origin{ToneLaneDragOrigin::PointHandle};
+
+        // True while the gesture has an edit in hand: one that advanced its preview, plus the Alt
+        // insert, whose press authors on its own (the Alt law). It is what publishes the preview
+        // and what commits on release, so the two can never disagree about whether the gesture
+        // produced anything.
+        [[nodiscard]] bool hasLiveEdit() const
+        {
+            return moved || origin == ToneLaneDragOrigin::EmptyArea;
+        }
+
+        // True when the previewed point is not in `points` yet, so index arithmetic against that
+        // frozen list partitions around it instead of replacing an entry.
+        [[nodiscard]] bool createsPoint() const
+        {
+            return origin != ToneLaneDragOrigin::PointHandle;
+        }
     };
     std::optional<ToneAutomationDrag> m_tone_automation_drag{};
 

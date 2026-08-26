@@ -2,6 +2,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <compare>
 #include <cstdlib>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
@@ -49,7 +50,8 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         return {};
     }
 
-    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError>
+    readParameterBaselineNormValue(
         const std::string&, const std::string&, const std::string&) const override
     {
         return 0.0F;
@@ -86,7 +88,7 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         .is_discrete = false,
         .labels = {},
         .default_norm_value = 0.0F,
-        .current_norm_value = 0.0F,
+        .baseline_norm_value = 0.0F,
         .plugin_name = {},
     };
 }
@@ -136,6 +138,59 @@ TEST_CASE("secondsAtGridPosition converts exact fractions", "[core][tone-automat
             common::core::GridPosition{
                 .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}
             }) == Catch::Approx(2.25));
+}
+
+TEST_CASE("A lane's curve begins at its derived anchor", "[core][tone-automation]")
+{
+    const ToneAutomationCurveSample anchor{.seconds = 0.0, .norm_value = 0.2F};
+    const std::vector<ToneAutomationCurveSample> authored{
+        ToneAutomationCurveSample{.seconds = 2.0, .norm_value = 1.0F},
+    };
+
+    // Before the authored point the lane holds the anchor and ramps into the point, instead of
+    // sitting at the point's future value from the very start.
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, authored, 0.0, false),
+        Catch::Matchers::WithinULP(0.2F, 0));
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, authored, 1.0, false),
+        Catch::Matchers::WithinAbs(0.6F, 1e-5));
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, authored, 2.0, false),
+        Catch::Matchers::WithinULP(1.0F, 0));
+    // Flat past the last authored point, and flat before the anchor.
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, authored, 9.0, false),
+        Catch::Matchers::WithinULP(1.0F, 0));
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, authored, -1.0, false),
+        Catch::Matchers::WithinULP(0.2F, 0));
+
+    // A discrete lane holds the anchor's state and steps at the authored point — the drawn
+    // sibling of the backend's hold-shaped segments.
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, authored, 1.999, true),
+        Catch::Matchers::WithinULP(0.2F, 0));
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, authored, 2.0, true),
+        Catch::Matchers::WithinULP(1.0F, 0));
+
+    // An unauthored lane is just the anchor's flat line.
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, {}, 3.0, false),
+        Catch::Matchers::WithinULP(0.2F, 0));
+
+    // An authored point on the anchor's own slot states the lane's value there instead, so the
+    // anchor contributes nothing — the drawn sibling of the write seam's collision rule.
+    const std::vector<ToneAutomationCurveSample> at_origin{
+        ToneAutomationCurveSample{.seconds = 0.0, .norm_value = 0.9F},
+    };
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, at_origin, 0.0, false),
+        Catch::Matchers::WithinULP(0.9F, 0));
+    CHECK_THAT(
+        toneAutomationCurveValueAtSeconds(anchor, at_origin, 3.0, false),
+        Catch::Matchers::WithinULP(0.9F, 0));
 }
 
 TEST_CASE(

@@ -602,7 +602,7 @@ public:
     \param tone_document_ref One of the tone references currently loaded into the live rig.
     \param instance_id Plugin instance whose parameter is written.
     \param param_id Parameter id within that plugin.
-    \param points Replacement curve points, normalised value, in ascending time.
+    \param points Replacement authored curve points, normalised value, in ascending time.
     \return Empty success, or a typed failure.
     */
     [[nodiscard]] std::expected<void, ToneAutomationError> writeParameterCurve(
@@ -610,13 +610,13 @@ public:
         const std::string& param_id, std::span<const AutomationCurvePoint> points) override;
 
     /*!
-    \brief Reads one tone-chain plugin parameter's current live value, normalised to `[0, 1]`.
+    \brief Reads one tone-chain parameter's pre-automation value, normalised to `[0, 1]`.
     \param tone_document_ref One of the tone references currently loaded into the live rig.
     \param instance_id Plugin instance whose parameter is read.
     \param param_id Parameter id within that plugin.
-    \return The current normalised value, or a typed failure.
+    \return The pre-automation normalised value, or a typed failure.
     */
-    [[nodiscard]] std::expected<float, ToneAutomationError> readParameterNormValue(
+    [[nodiscard]] std::expected<float, ToneAutomationError> readParameterBaselineNormValue(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const override;
 

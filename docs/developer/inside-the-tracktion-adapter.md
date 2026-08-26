@@ -51,14 +51,33 @@ Three units keep hosted plugins honest:
   \ref guide_musical_time).
 - `tone_automation_curve.{h,cpp}` — reads and writes tone-chain parameter automation curves on
   the Tracktion side; the musical truth lives in `song.json`, and the Tracktion curve is derived
-  from it. Its most surprising property: segment *shape* is derived here, and a point never
-  carries one. A stepped parameter (a pedal toggle, a mode switch) has its segments written as
-  holds — Tracktion's curve shape `+1`, read from the earlier of the two points — so the backend
-  steps at the later point instead of ramping into it and tripping the plugin's own flip threshold
-  early; a continuous parameter gets linear ramps. Discreteness is the plugin's fact, not the
-  chart's, which is why nothing about shape is stored or passed in. Authored shapes for continuous
-  parameters are a planned feature (`docs/plans/todo/authored-curve-shapes.md`) and would arrive
-  as a new model field, never as a change to this derivation for stepped ones.
+  from it. Two things about the written curve are derived here rather than carried by a point:
+
+  - The lane's **anchor**. Every parameter lane implicitly begins at the truth the tone state
+    already holds, so a non-empty write is prepended with one point at the timeline origin
+    carrying the parameter's *pre-automation* value — Tracktion's own explicit value, which
+    automation never writes over, unlike the played value. Without it Tracktion holds a curve's
+    first point's value across everything before it, so a lone point at bar 20 would drag the
+    parameter to its future value from the very start. Anchoring also keeps every authored lane at
+    two or more backend points, which the audio-thread stream requires: `AutomationIterator`
+    discards a single-point curve outright, so a one-point lane used to be silent. When an
+    authored point already sits on the origin the anchor takes *its* value (the two points then
+    share a time, which is exactly how a constant curve has to be spelled). The anchor is captured
+    at *write* time, so a curve goes stale the moment that pre-automation value moves — which is
+    why the editor re-derives every curve after a settled plugin edit as well as after a load
+    (`rebuildDerivedToneCurves`, see \ref guide_2d_views). One condition sits outside our
+    reach: a hosted plugin that echoes a host-set value back reaches the same slot Tracktion keeps
+    the explicit value in, and nothing distinguishes that echo from a knob turn; re-deriving only
+    at gesture-settled edits is what keeps it out of the written curve.
+  - Segment **shape**. A stepped parameter (a pedal toggle, a mode switch) has its segments
+    written as holds — Tracktion's curve shape `+1`, read from the earlier of the two points — so
+    the backend steps at the later point instead of ramping into it and tripping the plugin's own
+    flip threshold early; a continuous parameter gets linear ramps. Discreteness is the plugin's
+    fact, not the chart's, which is why nothing about shape is stored or passed in. The two
+    derivations compose: a stepped anchor holds the tone state's value and steps at the first
+    authored point. Authored shapes for continuous parameters are a planned feature
+    (`docs/plans/todo/authored-curve-shapes.md`) and would arrive as a new model field, never as a
+    change to this derivation for stepped ones.
 
 *Design in flux: tone parameter automation is under active development
 (`docs/plans/completed/tone-parameter-automation-plan.md`) — treat `tone_automation_curve`'s

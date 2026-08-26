@@ -396,6 +396,11 @@ void eraseRemovedAutomation(const PluginRemoveEdit& edit, EditorEditContext& con
         return std::unexpected{undoFailureFromPluginHostError(restored.error())};
     }
 
+    // The restored chunk carries this plugin's parameter values, so every tone-state value an
+    // automation lane is anchored on may have moved. Re-derive the curves against the restored
+    // baselines, exactly as the settled live gesture does — otherwise undoing a knob turn would
+    // move the drawn anchor while the audio path kept playing the pre-undo one.
+    rebuildDerivedToneCurves(context);
     return {};
 }
 

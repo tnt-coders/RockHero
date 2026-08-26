@@ -77,7 +77,7 @@ constexpr const char* g_param = "gain";
         .is_discrete = false,
         .labels = {},
         .default_norm_value = 0.5F,
-        .current_norm_value = 0.4F,
+        .baseline_norm_value = 0.4F,
         .plugin_name = {},
     };
 }
@@ -217,14 +217,14 @@ constexpr float g_pointer_band_height = 40.0F;
 } // namespace
 
 TEST_CASE(
-    "EditorController opens a tracking lane without authoring points", "[core][tone-automation]")
+    "EditorController opens an unauthored lane without authoring points", "[core][tone-automation]")
 {
     AutomationEditor editor;
 
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
 
     // Opening a lane authors nothing: the model stays empty and no derived curve is written; the
-    // lane tracks the parameter's live value until the first point is added.
+    // lane shows only its derived anchor until the first point is added.
     CHECK(editor.model().empty());
     CHECK(editor.tone_automation.write_call_count == 0);
     REQUIRE(editor.automation().lanes.size() == 1);
@@ -233,7 +233,7 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().plugin_name.empty());
     CHECK(editor.automation().lanes.front().resolved);
     CHECK(editor.automation().lanes.front().points.empty());
-    CHECK(std::is_eq(editor.automation().lanes.front().live_norm_value <=> 0.4F));
+    CHECK(std::is_eq(editor.automation().lanes.front().anchor_norm_value <=> 0.4F));
 
     // Closing the unauthored lane removes it from the view again.
     editor.controller.onToneAutomationLaneRemoveRequested(g_instance, g_param);
@@ -256,7 +256,7 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().resolved);
 
     // The recovered association also lets a subsequently authored point survive projection, rather
-    // than the lane vanishing the moment it stops being an unauthored tracking lane.
+    // than the lane vanishing the moment it stops being an unauthored lane.
     editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
@@ -558,8 +558,8 @@ TEST_CASE(
     CHECK(caret->position == pointAt(1, 3));
     CHECK(editor.transport.position().seconds == Catch::Approx(1.0));
 
-    // Insert is the neutral create: on an unauthored lane the point lands on the live tracking
-    // line (the parameter's current value, 0.4 in the fixture) and becomes the selection.
+    // Insert is the neutral create: on an unauthored lane the point lands on the anchor's flat
+    // line (the tone state's value, 0.4 in the fixture) and becomes the selection.
     editor.controller.onNeutralInsertRequested();
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.model().front().points.size() == 1);
@@ -916,9 +916,9 @@ TEST_CASE(
     constexpr int content_width = 401;
     constexpr float boundary_x = 225.3F;
 
-    // A plain (no Alt) primary press on the empty tracking lane arms the caret — the row-axis empty
-    // click. The lane extent lets the press resolve to the lane; y is irrelevant on an unauthored
-    // lane (no point to grab), so it sits mid-band.
+    // A plain (no Alt) primary press on the empty unauthored lane arms the caret — the row-axis
+    // empty click. The lane extent lets the press resolve to the lane; y is irrelevant at this
+    // pixel (no point to grab, and it is nowhere near the lane's anchor), so it sits mid-band.
     ToneAutomationPointerEvent down;
     down.instance_id = g_instance;
     down.param_id = g_param;
@@ -1100,9 +1100,13 @@ TEST_CASE(
     // Alt-press at x 100 (1.0 s, measure 1 beat 3 — halfway between the authored points) well below
     // the curve (y for 0.125): the new point lands ON the drawn curve (the 0.5 interpolation), not
     // at the pointer's y, so a release without a pull is sonically silent.
+    //
+    // This press-and-release never crosses the drag threshold and still authors: that is the Alt
+    // law, and it is the control the anchor's click rule must not break — the anchor answers a
+    // drag, Alt on empty area answers the click itself.
     editor.controller.onToneAutomationPointerDown(
         pointerEvent(100.0F, pointerYForValue(0.125F), alt));
-    // The preview shows on the press (an insert moves from the press), on the curve.
+    // The preview shows on the press (that gesture has its edit in hand at once), on the curve.
     REQUIRE(editor.automation().drag_preview.has_value());
     if (editor.automation().drag_preview.has_value())
     {
@@ -1132,6 +1136,84 @@ TEST_CASE(
     REQUIRE(pulled.model().front().points.size() == 3);
     CHECK(pulled.model().front().points[1].position == gridAt(1, 3));
     CHECK_THAT(pulled.model().front().points[1].norm_value, Catch::Matchers::WithinULP(0.75F, 0));
+}
+
+TEST_CASE(
+    "EditorController authors a real point when the lane anchor is dragged",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.model().empty());
+
+    // The anchor sits at the lane's start (x 0) at the parameter's tone-state value (0.4). It is
+    // read-only, so a press on it does not move it — it arms a NEW point at the lane start, on the
+    // curve (which at the start IS the anchor's value), with no Alt needed. Like a point grab, the
+    // press stays a click until the pointer crosses the drag threshold, so it publishes nothing
+    // yet: the anchor bar simply stays a bar.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(0.0F, pointerYForValue(0.4F)));
+    CHECK_FALSE(editor.automation().drag_preview.has_value());
+
+    // Dragging up 10 px of the 40 px band crosses the threshold and lifts the landing by a
+    // quarter — from the anchor's own 0.4, which is what makes the committed 0.65 proof that the
+    // new point was born on the anchor's value rather than at the pointer.
+    editor.controller.onToneAutomationPointerDrag(dragEvent(0.0F, pointerYForValue(0.4F) - 10.0F));
+    REQUIRE(editor.automation().drag_preview.has_value());
+    if (editor.automation().drag_preview.has_value())
+    {
+        CHECK(editor.automation().drag_preview->is_new_point);
+        CHECK(editor.automation().drag_preview->position == gridAt(1, 1));
+        CHECK_THAT(editor.automation().drag_preview->value, Catch::Matchers::WithinULP(0.65F, 1));
+    }
+
+    // The release commits one real authored point at the lane start; the derived anchor itself
+    // never moved.
+    editor.controller.onToneAutomationPointerUp(pointerEvent(0.0F, pointerYForValue(0.4F) - 10.0F));
+    REQUIRE(editor.model().size() == 1);
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK(editor.model().front().points.front().position == gridAt(1, 1));
+    CHECK_THAT(
+        editor.model().front().points.front().norm_value, Catch::Matchers::WithinULP(0.65F, 1));
+}
+
+TEST_CASE(
+    "EditorController authors nothing when the lane anchor is clicked", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+
+    // Press and release on the anchor without ever crossing the drag threshold. The anchor is a
+    // handle, so it answers a DRAG, not a click: a bare click authors nothing at all. A point
+    // that only restates the tone state's own value is still an edit the user did not ask for,
+    // and the lane already says that value without it.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(0.0F, pointerYForValue(0.4F)));
+    editor.controller.onToneAutomationPointerUp(pointerEvent(0.0F, pointerYForValue(0.4F)));
+    CHECK(editor.model().empty());
+    CHECK(editor.tone_automation.write_call_count == 0);
+
+    // The click falls through to what a plain lane-area click does at that pixel (§9b): x 0 snaps
+    // to the lane start, and the caret arms there on this lane.
+    REQUIRE(editor.automation().lane_caret.has_value());
+    if (editor.automation().lane_caret.has_value())
+    {
+        CHECK(editor.automation().lane_caret->lane_index == 0);
+        CHECK(editor.automation().lane_caret->position == gridAt(1, 1));
+    }
+}
+
+TEST_CASE(
+    "EditorController leaves the anchor alone for a press away from it", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+
+    // Same column as the anchor but well away from its value: this is empty lane area, so the
+    // plain click arms the caret instead of authoring — the anchor's grab is a handle, not a
+    // whole-column claim.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(0.0F, pointerYForValue(0.95F)));
+    CHECK_FALSE(editor.automation().drag_preview.has_value());
+    editor.controller.onToneAutomationPointerUp(pointerEvent(0.0F, pointerYForValue(0.95F)));
+    CHECK(editor.model().empty());
 }
 
 TEST_CASE(

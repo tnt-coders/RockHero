@@ -45,13 +45,23 @@ normalised to `[0, 1]`.
 Clears the existing curve and rebuilds it from \p points (an empty span removes the curve). RockHero
 owns undo, so a null undo manager is passed to the backend.
 
-Segment shape is the backend's business, not the chart's, so it is derived from the parameter here
-and no point carries one: a stepped parameter's segments are written as holds, making the backend
-step at each point instead of ramping into it, and a continuous parameter's are linear ramps.
+Two facts about the written curve are the backend's business, not the chart's, so both are derived
+from the parameter here and no point carries either:
+
+- The lane's **anchor**: a non-empty write is prepended with a point at the timeline origin carrying
+  the lane's value there — the parameter's pre-automation value, or the first authored point's own
+  value when that point already sits on the origin — so the lane begins at the tone state's own
+  value and travels from there into the first authored point (a ramp when continuous, a hold that
+  steps at the point when stepped) rather than being dragged retroactively to that point's value.
+  It also keeps every authored lane at two or more points (a single-point curve is discarded by the
+  audio-thread automation stream). The anchor is captured at write time, so a caller whose
+  parameter baseline moves afterwards has to write again.
+- Segment **shape**: a stepped parameter's segments are written as holds, making the backend step
+  at each point instead of ramping into it, and a continuous parameter's are linear ramps.
 
 \param plugin Plugin owning the parameter.
 \param param_id Parameter id within the plugin.
-\param points Replacement curve points, normalised value, in ascending time.
+\param points Replacement authored curve points, normalised value, in ascending time.
 \return True on success, or false when \p param_id does not resolve on the plugin.
 */
 [[nodiscard]] bool writePluginParameterCurve(
@@ -59,15 +69,17 @@ step at each point instead of ramping into it, and a continuous parameter's are 
     std::span<const AutomationCurvePoint> points);
 
 /*!
-\brief Reads one plugin parameter's current live value, normalised to `[0, 1]`.
+\brief Reads one plugin parameter's pre-automation tone-state value, normalised to `[0, 1]`.
 
-A single-parameter read cheap enough for per-frame polling by live-tracking automation lanes.
+The same datum \ref AutomatableParamInfo::baseline_norm_value carries and \ref
+writePluginParameterCurve anchors on, as a single-parameter read cheap enough for per-frame polling
+by the automation lanes.
 
 \param plugin Plugin owning the parameter.
 \param param_id Parameter id within the plugin.
-\return The current normalised value, or `nullopt` when \p param_id does not resolve.
+\return The pre-automation normalised value, or `nullopt` when \p param_id does not resolve.
 */
-[[nodiscard]] std::optional<float> readPluginParameterNormValue(
+[[nodiscard]] std::optional<float> readPluginParameterBaselineNormValue(
     tracktion::Plugin& plugin, const std::string& param_id);
 
 /*!

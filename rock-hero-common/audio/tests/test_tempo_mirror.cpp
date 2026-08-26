@@ -4,7 +4,6 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <cstddef>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -202,6 +201,12 @@ TEST_CASE(
         AutomationCurvePoint{.seconds = 2.5, .norm_value = 0.75F},
     };
     REQUIRE(writePluginParameterCurve(*plugin, param_id, points));
+    // The seam writes more than the authored list (it prepends the lane's derived anchor), so the
+    // invariant is stated against what it actually produced: the mirror must move none of it.
+    const std::optional<std::vector<AutomationCurvePoint>> before_mirror =
+        readPluginParameterCurve(*plugin, param_id);
+    REQUIRE(before_mirror.has_value());
+    REQUIRE_FALSE(before_mirror->empty());
 
     mirrorTempoMapIntoSequence(harness.edit->tempoSequence, makeMeterChangeMap());
     // The sequence delivers its tempo-changed clip notifications through an async update; force
@@ -217,12 +222,7 @@ TEST_CASE(
     REQUIRE(read_back.has_value());
     if (read_back.has_value())
     {
-        REQUIRE(read_back->size() == points.size());
-        for (std::size_t index = 0; index < points.size(); ++index)
-        {
-            CHECK((*read_back)[index].seconds == Catch::Approx(points[index].seconds));
-            CHECK((*read_back)[index].norm_value == Catch::Approx(points[index].norm_value));
-        }
+        CHECK(*read_back == *before_mirror);
     }
 }
 

@@ -1,7 +1,6 @@
 #include "tone/tone_automation_projection.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <utility>
@@ -13,41 +12,26 @@ namespace rock_hero::editor::core
 float toneAutomationCurveValueAt(
     const std::vector<common::core::ToneAutomationPoint>& points,
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position,
-    bool is_discrete, float fallback_value)
+    bool is_discrete, float anchor_norm_value)
 {
-    if (points.empty())
+    std::vector<ToneAutomationCurveSample> authored;
+    authored.reserve(points.size());
+    for (const common::core::ToneAutomationPoint& point : points)
     {
-        return fallback_value;
+        authored.push_back(
+            ToneAutomationCurveSample{
+                .seconds = secondsAtGridPosition(tempo_map, point.position),
+                .norm_value = point.norm_value,
+            });
     }
-    const double seconds = secondsAtGridPosition(tempo_map, position);
-    if (seconds <= secondsAtGridPosition(tempo_map, points.front().position))
-    {
-        return points.front().norm_value;
-    }
-    if (seconds >= secondsAtGridPosition(tempo_map, points.back().position))
-    {
-        return points.back().norm_value;
-    }
-    for (std::size_t index = 1; index < points.size(); ++index)
-    {
-        const double next_seconds = secondsAtGridPosition(tempo_map, points[index].position);
-        if (seconds > next_seconds)
-        {
-            continue;
-        }
-        const common::core::ToneAutomationPoint& previous = points[index - 1];
-        if (is_discrete)
-        {
-            // The drawn discrete curve holds the previous state until the next point.
-            return previous.norm_value;
-        }
-        const double previous_seconds = secondsAtGridPosition(tempo_map, previous.position);
-        const double span = next_seconds - previous_seconds;
-        const float mix =
-            span > 0.0 ? static_cast<float>((seconds - previous_seconds) / span) : 1.0F;
-        return std::lerp(previous.norm_value, points[index].norm_value, mix);
-    }
-    return points.back().norm_value;
+    return toneAutomationCurveValueAtSeconds(
+        ToneAutomationCurveSample{
+            .seconds = toneAutomationAnchorSeconds(),
+            .norm_value = anchor_norm_value,
+        },
+        authored,
+        secondsAtGridPosition(tempo_map, position),
+        is_discrete);
 }
 
 std::vector<ToneAutomationLaneSource> toneAutomationLaneSources(
@@ -79,7 +63,7 @@ std::vector<ToneAutomationLaneSource> toneAutomationLaneSources(
             });
     }
 
-    // Open lanes without authored points follow: they track the parameter's live value until the
+    // Open lanes without authored points follow: they show only the derived anchor until the
     // first point is authored, at which point the model lane above subsumes them. Open lanes are
     // keyed by durable plugin id and resolve to the live instance through the bindings, so they
     // survive rig reloads (which recreate every plugin instance).
@@ -171,7 +155,7 @@ ToneAutomationViewState makeToneAutomationViewState(
             lane.plugin_name = parameter->plugin_name;
             lane.is_discrete = parameter->is_discrete;
             lane.discrete_value_count = parameter->discrete_value_count;
-            lane.live_norm_value = parameter->current_norm_value;
+            lane.anchor_norm_value = parameter->baseline_norm_value;
             lane.default_norm_value = parameter->default_norm_value;
             lane.resolved = true;
         }

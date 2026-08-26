@@ -12,6 +12,7 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/tone/tone_automation_curve.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <string>
 #include <unordered_map>
@@ -23,8 +24,8 @@ namespace rock_hero::editor::core
 /*!
 \brief One session-scoped open automation lane that has no authored points yet.
 
-Opened by the picker and closed by the lane's remove gesture; it tracks the parameter's live
-value until the first point is authored, at which point the arrangement's model entry takes over.
+Opened by the picker and closed by the lane's remove gesture; it shows only the derived anchor
+until the first point is authored, at which point the arrangement's model entry takes over.
 Not persisted and not undoable: an open lane with no points is a view arrangement, not an edit.
 Keyed by the durable plugin id, not the instance id, so open lanes survive rig reloads (which
 recreate every plugin instance).
@@ -53,7 +54,7 @@ struct OpenAutomationLane
 \brief One shown automation lane's identity and model source, in display order.
 
 The row identity is (instance, parameter) — never a display index — and \c entry points at the
-arrangement's automation entry for model lanes, or is null for open (unauthored, live-tracking)
+arrangement's automation entry for model lanes, or is null for open (unauthored, anchor-only)
 lanes. Pointers borrow from the arrangement passed to \ref toneAutomationLaneSources.
 */
 struct ToneAutomationLaneSource
@@ -90,22 +91,20 @@ plugin binding belongs to the tone first, then open lanes not subsumed by a mode
 /*!
 \brief The automation curve's value at a musical position, matching the drawn curve.
 
-Linear segments between points on a continuous parameter, held steps on a discrete one, and
-flat extensions outside the authored span — the model-side sibling of the lanes view's own
-on-curve evaluation, so a point created at this value lands on the drawn line (placement is
-sonically silent).
+The musical-position form of \ref toneAutomationCurveValueAtSeconds, so a point created at this
+value lands on the drawn line (placement is sonically silent).
 
 \param points Authored points in ascending musical order.
 \param tempo_map Song tempo map used to place positions on the time axis.
 \param position Musical position to evaluate at.
 \param is_discrete True when the parameter is stepped rather than continuous.
-\param fallback_value Value returned when no points are authored (the live tracking line).
+\param anchor_norm_value The lane's derived anchor value (the parameter's pre-automation value).
 \return The curve's normalised value at the position.
 */
 [[nodiscard]] float toneAutomationCurveValueAt(
     const std::vector<common::core::ToneAutomationPoint>& points,
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position,
-    bool is_discrete, float fallback_value);
+    bool is_discrete, float anchor_norm_value);
 
 /*!
 \brief Builds the automation-lane view state for the selected tone.
@@ -116,8 +115,8 @@ discrete metadata come from the audio port; an entry whose parameter no longer r
 an unresolved (disabled) lane. Entries whose plugin id has no runtime binding at all are not shown
 (they stay persisted; publish-time cleanup is a separate concern).
 
-Open lanes without authored points follow the model lanes, rendered as live-tracking lanes; an
-open lane whose parameter already has a model entry is subsumed by it.
+Open lanes without authored points follow the model lanes, rendering as just their derived anchor;
+an open lane whose parameter already has a model entry is subsumed by it.
 
 \param arrangement Arrangement owning the automation entries.
 \param tempo_map Song tempo map used to derive display seconds.

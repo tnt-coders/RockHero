@@ -33,6 +33,7 @@ component out, so the cursor overlay and content height stay authoritative.
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/tone/tone_automation_curve.h>
 #include <rock_hero/editor/core/tone/tone_automation_pointer.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <string>
@@ -73,7 +74,7 @@ public:
             std::vector<common::core::ToneAutomationPoint> points) = 0;
 
         /*!
-        \brief Called when an unauthored tracking lane asks to be closed.
+        \brief Called when an unauthored lane asks to be closed.
         \param instance_id Plugin instance owning the parameter.
         \param param_id Parameter id within the plugin.
         */
@@ -181,8 +182,8 @@ public:
     \param listener Listener that receives automation intents.
     \param tempo_map Tempo map used for musical snapping; referenced, not copied, so the owner must
     keep it alive for this view's lifetime.
-    \param tone_automation Automation port polled read-only at render cadence so lanes without
-    authored points track the parameter's live value; referenced for this view's lifetime.
+    \param tone_automation Automation port polled read-only at render cadence so each lane's
+    anchor follows the parameter's tone-state value; referenced for this view's lifetime.
     */
     ToneAutomationLanesView(
         Listener& listener, const common::core::TempoMap& tempo_map,
@@ -365,15 +366,22 @@ private:
     };
 
     // Hit zones resolved by hitAt(); the pass-through predicate and mouseDown share this result.
-    // LaneAreaHit is empty editable lane area: Alt makes it the insert quasimode's target, a
-    // plain click seeks and arms the caret on the lane (§9b). LaneChipHit is the lane's pinned
-    // name chip — the lane handle that opens the lane menu on any click.
+    // LaneAreaHit is editable lane area: Alt makes it the insert quasimode's target, and a plain
+    // click seeks and arms the caret on the lane (§9b). LaneAnchorHit is the derived anchor's grab
+    // — a HANDLE like a point, not area, which is why it is its own zone rather than area the
+    // controller happens to re-resolve: the Alt-authors law does not reach it, so a hover must not
+    // offer the insert affordance over it. LaneChipHit is the lane's pinned name chip — the lane
+    // menu's only home, which it opens on a plain click over area that offers nothing else.
     struct PointHit
     {
         std::size_t lane_index{};
         std::size_t point_index{};
     };
     struct LaneAreaHit
+    {
+        std::size_t lane_index{};
+    };
+    struct LaneAnchorHit
     {
         std::size_t lane_index{};
     };
@@ -388,7 +396,8 @@ private:
     struct PlusChipHit
     {
     };
-    using Hit = std::variant<PointHit, LaneAreaHit, LaneChipHit, ResizeBandHit, PlusChipHit>;
+    using Hit =
+        std::variant<PointHit, LaneAreaHit, LaneAnchorHit, LaneChipHit, ResizeBandHit, PlusChipHit>;
 
     // The durable identity of an automation point (lane keys plus exact musical position). The
     // selection itself is controller-owned (one selection editor-wide); the view resolves the
@@ -406,8 +415,25 @@ private:
     // that arrived (and was deferred) during a gesture. Never called while m_drag is set.
     void applyState(const core::ToneAutomationViewState& state);
 
-    // Resolves the interactive zone at a local point, or nullopt for pass-through space.
-    [[nodiscard]] std::optional<Hit> hitAt(juce::Point<int> local_point) const;
+    // Resolves the interactive zone at a local point, or nullopt for pass-through space. The one
+    // authority a hover and a press both consult, so the cursor always names what a click would
+    // hit — which is why the insert quasimode's modifier is an argument: with Alt down the lane
+    // area claims pixels the pinned chip would otherwise keep.
+    [[nodiscard]] std::optional<Hit> hitAt(juce::Point<int> local_point, bool alt_down) const;
+
+    // The lane row a hit belongs to; empty only for the trailing "+" chip, which belongs to no
+    // lane. One unwrap for every dispatch site, so a zone added later either names its row here or
+    // fails to compile rather than being silently forgotten by one of them.
+    [[nodiscard]] static std::optional<std::size_t> laneIndexOf(const Hit& hit);
+
+    // True where a local point lies within the derived anchor's grab circle — the handle whose
+    // drag authors the lane's start point — and false where no anchor mark is drawn. Orders that
+    // grab ahead of the marks pinned across it (the resize band, the name chip); the controller
+    // re-resolves a forwarded press against the same circle and stays the authority on what an
+    // anchor press does.
+    [[nodiscard]] bool withinAnchorGrab(
+        const core::ToneAutomationLaneViewState& lane, const LaneExtent& extent,
+        juce::Point<int> local_point) const;
 
     // One lane's name chip label with its measured width, cached so neither paint nor a pointer
     // hit-test lays the text out.
@@ -442,12 +468,24 @@ private:
     // Converts a musical position to a content x for drawing, when the geometry is valid.
     [[nodiscard]] std::optional<float> xForSeconds(double seconds) const;
 
-    // The curve's value at a time, matching exactly what paint draws: linear segments on a
-    // continuous lane, held steps on a discrete one, flat extensions outside the authored span,
-    // and the live tracking value when the lane has no points yet. Point placement lands here
-    // (on the curve) so insertion is sonically silent until the point is deliberately pulled.
+    // The curve's value at a time, matching exactly what paint draws: the lane's anchor followed
+    // by its authored points, with linear segments on a continuous lane, held steps on a discrete
+    // one, and flat extensions off both ends. Delegates to the one core evaluation so the drawn
+    // curve, the editor's landing values, and the backend curve cannot state the shape
+    // differently. Point placement lands here (on the curve) so insertion is sonically silent
+    // until the point is deliberately pulled. Values are the drawn ones, unsnapped: the discrete
+    // snap belongs to creation, not to reading the curve.
     [[nodiscard]] float curveValueAt(
         const core::ToneAutomationLaneViewState& lane, double seconds) const;
+
+    // The lane's derived anchor as a curve sample: the timeline origin at the current anchor
+    // value. Both the drawn curve and every on-curve evaluation start from this one sample.
+    [[nodiscard]] core::ToneAutomationCurveSample laneAnchorSample(
+        const core::ToneAutomationLaneViewState& lane) const;
+
+    // The lane's authored points as curve samples, in ascending time.
+    [[nodiscard]] static std::vector<core::ToneAutomationCurveSample> laneCurveSamples(
+        const core::ToneAutomationLaneViewState& lane);
 
     // Emits the points-edit intent that inserts a new point into a lane and selects it. Drives the
     // typed-value editor's create-at-the-caret branch; the keyboard create-then-nudge is the
@@ -516,15 +554,16 @@ private:
     // when the state publishes no (or a stale) selection.
     [[nodiscard]] std::optional<SelectedPoint> selectedPointFromState() const;
 
-    // Current tracking-line value for a lane: the live provider when available, else state.
-    [[nodiscard]] float trackingValueFor(const core::ToneAutomationLaneViewState& lane) const;
+    // Current anchor value for a lane — where its curve begins: the port's pre-automation read
+    // when available (so the anchor follows a knob turn), else the value the projection published.
+    [[nodiscard]] float anchorValueFor(const core::ToneAutomationLaneViewState& lane) const;
 
-    // Vblank tick: repaints unauthored lanes whose live value moved since the last frame.
-    void repaintMovedTrackingLanes();
+    // Vblank tick: repaints lanes whose anchor value moved since the last frame.
+    void repaintMovedAnchorLanes();
 
     // Recomputes the caret square's content-coordinate mask and, when it changed since the last
     // publish, pushes it to the caret-mask sink. Called from every site that can move the square:
-    // state application, the vblank tick (an unauthored lane's live value shifts its on-curve y),
+    // state application, the vblank tick (a moved anchor shifts an unauthored lane's on-curve y),
     // and layout changes (resize/reposition). Fire-on-change keeps the per-frame tick a no-op while
     // the square is stationary.
     void publishCaretMask();
@@ -590,7 +629,7 @@ private:
     // Transient value readout shown next to the cursor while a point is hovered or dragged.
     std::optional<ValueReadout> m_value_readout{};
 
-    // Automation port polled read-only by unauthored tracking lanes; owned by the composition.
+    // Automation port polled read-only for each lane's anchor value; owned by the composition.
     const common::audio::IToneAutomation& m_tone_automation;
 
     // Shared snap-guide sink; empty publishes clear immediately.
@@ -605,11 +644,11 @@ private:
     // Last caret mask handed to the sink, so the per-frame publish only fires on an actual change.
     std::optional<juce::Range<float>> m_published_caret_mask{};
 
-    // Last drawn tracking values keyed like lane heights, so the vblank tick only repaints lanes
-    // whose live value actually moved.
-    mutable std::map<std::pair<std::string, std::string>, float> m_drawn_tracking_values{};
+    // Last drawn anchor values keyed like lane heights, so the vblank tick only repaints lanes
+    // whose anchor actually moved.
+    mutable std::map<std::pair<std::string, std::string>, float> m_drawn_anchor_values{};
 
-    // Render-cadence tick that repaints unauthored lanes when their live value moves.
+    // Render-cadence tick that repaints lanes when their anchor value moves.
     juce::VBlankAttachment m_vblank_attachment;
 };
 

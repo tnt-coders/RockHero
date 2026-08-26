@@ -20,6 +20,17 @@ click time itself (through timelinePositionForX) rather than trusting a view-com
 namespace rock_hero::editor::core
 {
 
+/*!
+\brief Forgiving pixel radius every automation-lane handle is grabbed at.
+
+Authored point handles and the lane's derived anchor alike, so no mark is easier to hit than
+another — and, like the geometry the event carries, it is shared across the seam rather than
+restated on each side: the lanes view filters a hover or a press against this circle, and the
+controller re-resolves the forwarded press against the same one, so the zone the cursor names and
+the gesture the press arms can never disagree.
+*/
+inline constexpr float g_tone_lane_handle_grab_radius = 8.0F;
+
 /*! \brief Which phase of a pointer gesture the automation lanes are forwarding. */
 enum class ToneAutomationPointerPhase : std::uint8_t
 {
@@ -96,8 +107,8 @@ struct ToneAutomationLaneGeometry
 Modeled on \ref ChartPointerEvent (framework-free pixel coordinates + geometry + modifiers), with
 the hovered/pressed lane's identity carried alongside: unlike the chart, the lanes view resolves
 which lane the pointer is over (its per-lane heights are a pure-view concern) and names it here, so
-the controller re-resolves only the point-vs-empty-area hit and owns the snap, value, and gesture
-policy.
+the controller re-resolves only the point-vs-anchor-vs-empty-area hit and owns the snap, value, and
+gesture policy.
 
 The lane identity and vertical geometry (\ref lane_index plus \ref lane_extents) are populated for
 the \ref ToneAutomationPointerPhase::Down and \ref ToneAutomationPointerPhase::Move phases, where a
@@ -158,8 +169,9 @@ struct ToneAutomationPointerEvent
     Carried straight from JUCE's `MouseEvent::mouseWasDraggedSinceMouseDown` so the controller's
     click-vs-move decision matches the shipped view bit-for-bit — both the ~4-pixel travel and the
     long-press-past-the-double-click-timeout it folds in — rather than re-deriving a pixel threshold
-    that would drop the timing component. An existing-point grab stays a selecting click until this
-    turns true; a new-point insert moves from the press and ignores it.
+    that would drop the timing component. Every gesture that arrives with no edit in hand — an
+    existing-point grab, and a press on the lane's derived anchor — stays a click until this turns
+    true. Only the Alt insert authors from the press itself and ignores it.
     */
     bool dragged_since_down{false};
 

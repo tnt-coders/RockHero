@@ -54,8 +54,17 @@ struct [[nodiscard]] AutomatableParamInfo
     /*! \brief Default parameter value, normalised to `[0, 1]`. */
     float default_norm_value{0.0F};
 
-    /*! \brief Current parameter value at listing time, normalised to `[0, 1]`. */
-    float current_norm_value{0.0F};
+    /*!
+    \brief The parameter's pre-automation value from the tone state, normalised to `[0, 1]`.
+
+    What the saved tone document says this knob is, independent of any automation currently
+    driving it — the value the parameter would hold with no curve at all. Every parameter lane
+    implicitly begins here: this is the lane's derived anchor value, and the same number the
+    write seam prepends to the backend curve (see \ref IToneAutomation::writeParameterCurve).
+    Deliberately not the played value, which during playback is whatever the curve is holding at
+    the instant of the read.
+    */
+    float baseline_norm_value{0.0F};
 
     /*! \brief User-facing name of the owning plugin, so multi-plugin chains stay unambiguous. */
     std::string plugin_name;
@@ -139,6 +148,19 @@ public:
     The existing curve is cleared and rebuilt from \p points; passing an empty span removes the
     curve. Points must be in ascending time. Editing while the transport plays is safe.
 
+    The lane's derived anchor is prepended here, never carried by \p points: a non-empty write
+    begins with a point at the timeline origin carrying the lane's value there — the parameter's
+    \ref AutomatableParamInfo::baseline_norm_value, or the first authored point's value when that
+    point already sits on the origin. So the lane BEGINS at the tone state's own value and travels
+    from there into the first authored point — a ramp on a continuous parameter, a hold that steps
+    at the point on a stepped one — instead of being dragged retroactively to that point's value
+    from the very start. It also keeps every authored lane at two or more backend points, which the
+    audio-thread automation stream requires: it discards a single-point curve outright.
+
+    The anchor value is captured here, at write time. A parameter's tone-state value can move
+    afterwards (a knob turn, a restored plugin chunk), so the caller re-derives the curve whenever
+    that happens; see \ref AutomatableParamInfo::baseline_norm_value.
+
     Segment shape is derived from the parameter, never carried by \p points: a stepped parameter's
     segments are written as holds so the backend steps at each point instead of ramping into it,
     which would cross the plugin's own flip threshold early, and a continuous parameter's segments
@@ -156,19 +178,21 @@ public:
         const std::string& param_id, std::span<const AutomationCurvePoint> points) = 0;
 
     /*!
-    \brief Reads one parameter's current live value, normalised to `[0, 1]`.
+    \brief Reads one parameter's pre-automation tone-state value, normalised to `[0, 1]`.
 
-    A cheap single-parameter read for per-frame polling: automation lanes without authored points
-    track the live knob, so the view refreshes this value at render cadence rather than relisting
-    the whole chain.
+    The same datum \ref AutomatableParamInfo::baseline_norm_value carries, as a single-parameter
+    read cheap enough for per-frame polling: a lane's anchor follows the knob, so the view
+    refreshes it at render cadence rather than relisting the whole chain. Deliberately not the
+    played value — an automated parameter would report whatever its curve holds right now, which
+    is never what a lane's anchor means.
 
     \param tone_document_ref One of the tone references currently loaded into the live rig.
     \param instance_id Plugin instance whose parameter is read.
     \param param_id Parameter id within that plugin.
-    \return The current normalised value, or a typed failure when the tone, plugin, or parameter
-            cannot be resolved.
+    \return The pre-automation normalised value, or a typed failure when the tone, plugin, or
+            parameter cannot be resolved.
     */
-    [[nodiscard]] virtual std::expected<float, ToneAutomationError> readParameterNormValue(
+    [[nodiscard]] virtual std::expected<float, ToneAutomationError> readParameterBaselineNormValue(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const = 0;
 

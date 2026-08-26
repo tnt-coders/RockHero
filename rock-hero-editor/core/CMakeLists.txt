@@ -80,6 +80,7 @@ target_sources(
             src/timeline/tempo_grid_geometry.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/transport_readout_text.cpp
+            src/tone/tone_automation_curve.cpp
             src/tone/tone_automation_edits.cpp
             src/tone/tone_automation_edits.h
             src/tone/tone_automation_projection.cpp

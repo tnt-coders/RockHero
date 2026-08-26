@@ -388,8 +388,54 @@ point-list intent on release**. The point gesture no longer needs a defer-mid-pu
 controller freezes it at press, so a mid-drag lane rebuild republishes the preview instead of
 yanking the point from under the user (the view still defers state pushes during the presentational
 lane-resize drag). Selection is identified by value (instance id, parameter id, exact grid
-position), not by index, so it survives rebuild pushes. Unauthored lanes track the live parameter
-value by sampling `IToneAutomation` per vblank.
+position), not by index, so it survives rebuild pushes.
+
+**A mark pinned over the lane never shadows a target beneath it.** `hitAt` resolves one zone for
+both the hover cursor and the press, and it resolves them in that priority: point handles first
+(so a point at value 0 stays grabbable under the resize band), then the anchor's grab, then the
+resize band, then lane area — and the lane's **name chip last**, even though the chip is painted
+on top and pinned across the lane start where points and the anchor live. The chip is the lane
+menu's only home, so it stays hittable, but it claims only pixels where a press would otherwise do
+nothing but arm the caret: with Alt held even bare lane area outruns it, because Alt is the insert
+quasimode. Alt therefore has to reach the hit test itself (`hitAt(point, alt_down)`) rather than
+being read later by the mouse handler — that is what keeps the cursor honest about what the click
+will hit. The same honesty is why the anchor's grab is its own zone rather than lane area the
+controller happens to re-resolve: Alt does not reach the anchor, so a hover there must show the
+handle cursor and no insert ring, which a zone shared with lane area could not say.
+
+**Every lane begins at its anchor.** The anchor is a derived, read-only mark at the lane's start
+carrying the parameter's pre-automation value — what the tone state says the knob is — sampled from
+`IToneAutomation` per vblank so it follows a knob turn. It is never stored in `song.json`; the audio
+write seam prepends it to the backend curve (see \ref guide_tracktion_adapter) and the lane draws it
+as an upright bar rather than a round handle, because it is not an authored point: it cannot be
+selected or deleted, and the drawn curve ramps (or steps) from it into the first authored point
+instead of flattening backwards. A lane with no authored points is therefore just its anchor's flat
+line. What the anchor answers is a **drag, which authors a real point at the lane start** — wanting
+a different start value is authored data, not a change to what the tone state says. The new point
+lands on the curve, which at the lane start *is* the anchor's own value, and the drag pulls it from
+there. Like a point handle, the press stays a click until the pointer crosses the framework's
+click→drag threshold: a bare click on the anchor authors **nothing** (a point that only restates
+the tone state's own value is still an edit the user did not ask for) and falls through to what a
+plain lane-area click does at that pixel — seek and arm the caret. This is the one place the "Alt
+authors" rule does not reach, because the anchor is a handle rather than empty lane area; Alt on
+empty area still authors on the click itself, which is exactly the law the anchor's rule must not
+disturb. It runs the same creation plan every other placement does, so its
+occupied-slot and region-window refusals are shared. An authored point already sitting on the lane
+start states the lane's value there, and no anchor mark is drawn for it. Evaluating that curve —
+the drawn line, the on-curve landing value for a new point, the insert ghost's y, the caret square —
+is one function, `toneAutomationCurveValueAtSeconds` in editor core, and it reports the *drawn*
+value: the discrete snap belongs to creation, not to reading the curve, so the caret square can
+never sit at a different height from the bar it is standing on.
+
+**The anchor moves, so the backend curve is re-derived.** The audio seam bakes the anchor into the
+Tracktion curve when it writes, while the lane re-reads it live every frame — two captures of one
+mutable fact, which would drift apart the moment a knob turned. `rebuildDerivedToneCurves` closes
+that: it re-derives every curve in the arrangement after a rig load, a tempo-map edit, and every
+**settled plugin edit** — a knob gesture or an undone/redone plugin chunk, the only baseline moves
+the editor can see honestly. (The gate that reports those edits rejects plugin-initiated value
+changes, which is what keeps a plugin echoing an automated value back at us from being baked in as
+a lane's start.) What is left is a knob still mid-gesture: the drawn anchor tracks it live and the
+curve catches up when the gesture settles.
 
 A scope note on editing: the interaction *grammar* (Ctrl precision, Alt create-quasimode, Shift
 extend, snap always on, Esc cancel, one undo entry per gesture —

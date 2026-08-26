@@ -533,10 +533,12 @@ folds into the baseline. (Closed out of `docs/plans/in-progress/` on 2026-07-08 
   user reports "I loaded a preset in the plugin and can't undo it", the retired plan's window-open
   signal (visibility plus a `juce::AudioProcessorListener` `ChangeDetails` heuristic — JUCE
   collapses `restartComponent` to `{programChanged, parameterInfoChanged}`) is the starting point.
-- **Automation points that "move by themselves"** (tangential) — Tracktion's `setParameterValue`
-  non-automation branch moves a single-point automation curve to follow a plugin-initiated value
-  change while the transport is idle (`tracktion_AutomatableParameter.cpp:1439-1441`). Unlikely
-  (meter params are not the ones users automate) but adjacent to this subsystem.
+- **Automation points that "move by themselves"** — CLOSED 2026-08-25 by the lane anchor. Tracktion's
+  `setParameterValue` non-automation branch rewrites a *single-point* automation curve to follow a
+  plugin-initiated value change while the transport is idle
+  (`tracktion_AutomatableParameter.cpp:1439-1440`). The write seam now anchors every non-empty lane
+  at the timeline origin, so an authored lane never reaches the backend as one point and the branch
+  can no longer fire on our curves.
 
 ## Note detection / gameplay feedback
 

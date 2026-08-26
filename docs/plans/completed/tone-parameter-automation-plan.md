@@ -182,6 +182,10 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
   (`m_open_automation_lanes`, not persisted, not undoable) draw a flat full-width line at the
   parameter's live value (`IToneAutomation::readParameterNormValue`, polled per vblank with a
   moved-value gate) until the first point is authored; right-click closes an unauthored lane.
+  *(Superseded 2026-08-25 by the lane anchor: the poll is now
+  `IToneAutomation::readParameterBaselineNormValue` — the parameter's pre-automation value rather
+  than its played one — and EVERY lane draws a derived anchor at the lane start, not just the
+  unauthored ones. The write seam prepends that same value to the backend curve.)*
   Snapped placement stores the grid line's exact musical fraction
   (`nearestTempoGridPosition`; odd grids like 1/13 round-trip exactly), and only Ctrl-free
   placement quantizes to the 1/960-beat fine grid. Authored curves extend flat to both canvas

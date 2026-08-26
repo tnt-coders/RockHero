@@ -104,7 +104,7 @@ std::expected<std::vector<AutomationCurvePoint>, ToneAutomationError> Engine::re
     return std::move(*points);
 }
 
-std::expected<float, ToneAutomationError> Engine::readParameterNormValue(
+std::expected<float, ToneAutomationError> Engine::readParameterBaselineNormValue(
     const std::string& tone_document_ref, const std::string& instance_id,
     const std::string& param_id) const
 {
@@ -130,7 +130,7 @@ std::expected<float, ToneAutomationError> Engine::readParameterNormValue(
         }};
     }
 
-    const std::optional<float> value = readPluginParameterNormValue(*plugin, param_id);
+    const std::optional<float> value = readPluginParameterBaselineNormValue(*plugin, param_id);
     if (!value.has_value())
     {
         return std::unexpected{ToneAutomationError{

@@ -46,10 +46,13 @@ arrangement load; session fake test for the three-owner forwarding. Verified `-T
 finalized (crossfade-envelope math `makeToneGainEnvelope` joined `makeToneSchedule` in
 common/core with 4 more unit tests; `IToneTimelinePlayer` implemented on Engine in
 src/engine/engine_tone_timeline.cpp — bake-once branch-gain curve writing over the loaded rack,
-automation-read gate enforced, `setToneTimelinePosition` a documented no-op per the verified
-auto-resync fact — since 2026-08-23 it is a real position push through
-`RackType::updateAutomatableParamPositions`, because the auto-resync only holds while the graph
-renders blocks); 3c evidence: origin-point correctness unit-tested, wrap ≡ seek confirmed at
+automation-read gate enforced; the port also carried a `setToneTimelinePosition` call, first a
+documented no-op per the verified auto-resync fact, then a real position push once that fact was
+found to hold only while the graph renders blocks — and finally DELETED (2026-08-26) with no
+production caller left: every playhead discontinuity resyncs the rig through the clock boundary's
+one authority (`Engine::Impl::resyncToneAutomation`, still over
+`RackType::updateAutomatableParamPositions`), so the port carries no position-pushing call at
+all); 3c evidence: origin-point correctness unit-tested, wrap ≡ seek confirmed at
 source by Phase 1's expert pass (verdict 5), no-rebuild-after-Ready structural (baking happens
 inside prepare, before the session reports Ready) — audible confirmation stays in Phase 6's
 soak; 3d per 21-Q1(A): rig load now scans to completion and refuses ONCE listing every
