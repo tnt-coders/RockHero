@@ -1,15 +1,14 @@
 # Tail Event Model — what a note's ring carries, and where it is anchored
 
-Status: **OPTIONS FOR A RULING. Not a build plan.** Opened 2026-08-25 at the user's direction after
+Status: **DECIDED 2026-08-26 — kept as the option-space record.** The ruling and the resulting design live in `unified-waypoint-model.md`: substrate W (technique-bearing waypoints), decided by the user's coincident-anchor edit-coupling argument, with bends joining the waypoint as an interpolating channel and `fret` made optional to admit mid-travel statements. This file stays because the dead ends are expensive to re-walk. Originally: **OPTIONS FOR A RULING. Not a build plan.** Opened 2026-08-25 at the user's direction after
 the vibrato-at-a-waypoint declaration, on the meta-judgment *"I feel like this format is not QUITE
 falling into place correctly and may need some re-analysis."* Written against `master` at
 `de6a651d`, with the format inventory and the corpus scan that preceded it as the evidence base.
-Nothing here is decided; every candidate is stated with the cost it actually carries.
-**UPDATE 2026-08-26:** after critique, a parallel orchestrator analysis, and the user's
-stress-testing, the field narrowed to TWO substrates (§8's supersession note: S interval-spans vs
-W technique-bearing stops) with a set of binding settled facts, and **the choice is deferred to
-the bend-editing design study** — the parked `2d-bend-waypoint-redesign.md` restarts as its
-vehicle, and its answers pick the substrate.
+Every candidate below is stated with the cost it actually carries, as written for the ruling.
+**The intermediate 2026-08-26 state, kept for the record:** after critique, a parallel
+orchestrator analysis, and the user's stress-testing, the field first narrowed to two substrates
+with the choice deferred to the bend study — and then the user's coupling argument decided it the
+same day without the study (see the header, and §8's supersession note for the narrowing).
 
 Related records, none of them restated below: `technique-review-walkthrough.md` (W9-D/F/G, W10,
 W11, W13), `note-sustain-model.md` (the presentation rules this must not break),

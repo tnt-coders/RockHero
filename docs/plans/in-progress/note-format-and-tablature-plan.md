@@ -349,13 +349,14 @@ What each piece encodes, and the edge cases it covers:
   semitones; the corpus already contains 0.5 (quarter-tone curls), and 0.25 or any other
   granularity needs no format change. the source format's coarseness is an importer limitation, not a
   format one.
-- **Mid-sustain vibrato spans (decided 2026-07-06; CONTESTED 2026-08-26 — see below).** The
+- **Mid-sustain vibrato spans (decided 2026-07-06; OVERTURNED 2026-08-26).** The
   2026-08-25/26 tail-model discussion independently re-derived this decision without finding it,
   then put a rival substrate on the table: technique-bearing stops (`slides[]` generalizing into
   state-carrying stops), driven by the user's waypoint-selectability and bend-anchoring
-  non-negotiables. The bend-editing design study (`docs/plans/todo/tail-event-model.md` §8)
-  decides whether this spans decision is CONFIRMED (then harmonize the spelling there — the
-  shorthand questions are open) or overturned in favor of stops. Original decision, kept in full: Vibrato is
+  non-negotiables. The substrate ruling of 2026-08-26 (`docs/plans/todo/unified-waypoint-model.md`) went the
+  other way: vibrato becomes a per-channel statement on technique-bearing WAYPOINTS, decided
+  by the coincident-anchor edit-coupling argument this decision never weighed. Original
+  decision, kept in full as the record: Vibrato is
   a whole-note flag today, and the GP importer OR-smears tie chains that add vibrato mid-hold
   (`gp_chart_builder.cpp` merges tied segments' vibrato with `||`), so the corpus already meets
   the "real chart demands it" bar. The field becomes bool-or-spans with one canonical spelling

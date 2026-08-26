@@ -322,7 +322,7 @@ item ships, mark it and name the commit.
   - **Settled: the dissolve law generalizes** (the user's own formulation, superseding the
     path-only form signed 2026-08-13 in `2d-bend-waypoint-redesign.md`): a pending point dissolves
     at settle iff it changes NEITHER the path function NOR the state.
-  - **Open — the substrate:** (S) interval spans stored on the note
+  - **RESOLVED 2026-08-26 — the substrate (was open):** (S) interval spans stored on the note
     (`"vibrato": [[start,end],…]`, `slides[]` unchanged) versus (W) technique-bearing stops
     (`slides[]` generalizing into stops that carry state; the current slide save format possibly
     dissolving entirely — the user is open to that). Split/merge is parity once the booleans die
@@ -332,6 +332,10 @@ item ships, mark it and name the commit.
     `2d-bend-waypoint-redesign.md` restarts as its vehicle): compound bends, carryover at stops,
     and the 2D lane's tight vertical space are the questions whose answers prefer one substrate —
     "bends really throw the biggest monkey wrench into BOTH of these designs" (user).
+    **Then the user's coincident-anchor coupling argument decided it without the study** — W,
+    named WAYPOINTS, with bends as an interpolating channel and optional fret; the decided design
+    is `docs/plans/todo/unified-waypoint-model.md`, and the study shrinks to bend display and
+    authoring on that substrate. W13 closes into that plan.
 - [x] **W14 — Legato after a DEAD note, and after a SCRAPE — RULED, SHIPPED, HALF-REVERSED, and
   SETTLED 2026-08-20.** Three rulings in one day, recorded in order because the reversal is
   the lesson:
