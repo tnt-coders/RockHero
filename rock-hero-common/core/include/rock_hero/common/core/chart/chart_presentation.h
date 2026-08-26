@@ -24,62 +24,73 @@ whether or not a tail is drawn, so they earn nothing.
 
 \param note Note to classify.
 
-\return True when a bend, slide curve, slide-out, vibrato, or tremolo rides the tail.
+\return True when an onset bend, any waypoint, a slide-out, vibrato, or tremolo rides the tail.
 */
 [[nodiscard]] bool hasSustainTechnique(const ChartNote& note);
 
 /*!
-\brief The offset of the last payload point that CHANGES something.
+\brief The furthest offset the tail still has information to present.
 
-The last instant the tail still has information to present, and so the furthest a margin trim may
-be overridden (rule 2 of \ref presentedChartNotes).
+The furthest a margin trim may be overridden (rule 2 of \ref presentedChartNotes).
 
-A bend point repeating its predecessor's semitones and a waypoint repeating the previous fret (a
-HOLD, not a glide) both say what the tail already said, so a trailing run of them is not a reason
-to keep a tail open past the margin. The note starts unbent at its own fret, which is what the
-first point of each payload is measured against. Whole-note techniques — vibrato, tremolo,
-emphasis, muting, harmonics — cannot change mid-sustain and so never appear here at all.
+Every channel is read against the value the note OPENS with — its onset bend, its own fret, its
+onset vibrato — and a waypoint stating nothing about a channel carries that channel's running
+value forward, so a statement counts exactly when it differs from what already stood. A repeated
+bend value and a repeated fret (a HOLD, not a glide) both say what the tail already said, so a
+trailing run of them is not a reason to keep a tail open past the margin.
 
-The unpitched slide-out is deliberately absent: its end is gesture geometry that trims back with
-the tail rather than pinning it, and the trim compresses it separately.
+Two SHAPES of information, which is the whole reason this is not simply "the last changing
+offset". A bend value and a fret are POINTS: complete at the instant they are reached, so the tail
+may stop exactly there. A vibrato START is an interval STATE — a tail ending on it would show the
+shake for no time at all and read as no shake — so its information reaches \ref
+g_minimum_slide_window past the statement. A vibrato END is a point again, since the interval
+before it already showed everything there was.
+
+Whole-note techniques — tremolo, emphasis, muting, harmonics — cannot change mid-ring and so never
+appear here at all. The unpitched slide-out is deliberately absent: it ends wherever the ring ends
+rather than pinning it, and the trim compresses it separately.
 
 \param note Note whose payload is inspected.
 
-\return Offset of the last changing point; zero when nothing on the tail changes anything.
+\return Furthest informative offset; zero when nothing on the tail says anything new.
 */
-[[nodiscard]] Fraction lastChangingPayloadOffset(const ChartNote& note);
+[[nodiscard]] Fraction informativePayloadEnd(const ChartNote& note);
 
 /*!
-\brief Drops the bend and slide points a tail shortened to `target` no longer contains.
+\brief Drops the waypoints a tail shortened to `target` no longer contains.
 
 The model's "payload offsets lie within the sustain" invariant survives every shortening because
-this is what every shortening owes: a point left behind hands validation a note it must refuse,
-and import refuses whole SONGS rather than notes, so one such point costs the song.
+this is what every shortening owes: a statement left behind hands validation a note it must refuse,
+and import refuses whole SONGS rather than notes, so one such waypoint costs the song.
 
-The slide-out is each caller's own business — a trim PLACES it rather than dropping it — and
-`target` is a parameter because a caller may clip before deciding what the sustain finally
-becomes. Its wider relative \ref clipPayloadsToSustain clips against the note's own sustain,
-re-terminates a scrape, and drops a slide-out that no longer fits; that one belongs to the stored
-40-Q2-B truncation, this one to a presentation trim that is still choosing its end.
+The slide-out is untouched — it ends wherever the ring ends — and `target` is a parameter because a
+caller may clip before deciding what the sustain finally becomes. Its wider relative
+\ref clipPayloadsToSustain clips against the note's own sustain, re-aims a scrape's terminal, and
+applies the position channel's stricter bound; that one belongs to the stored 40-Q2-B truncation,
+this one to a presentation trim that is still choosing its end.
 
 \param note Note whose payload is clipped in place.
-\param target Offset every surviving point must lie at or before.
+\param target Offset every surviving waypoint must lie at or before.
 */
 void clipPayloadsTo(ChartNote& note, Fraction target);
 
 /*!
-\brief Bumps a payload window landing on or before the note's last waypoint past it.
+\brief Bumps a window landing on or before the note's last STATED FRET past it.
 
-Payload offsets ascend strictly, so a compressed slide-out or glide end that lands on or before
-the last surviving waypoint would be an unwritable note. One minimum slide window past the
-waypoint is the smallest legal answer.
+A position statement follows every earlier position statement, so a compressed ring ending in a
+slide-out, or a synthesized glide arrival, that lands on or before the last stated fret would be an
+unwritable note. One minimum slide window past that fret is the smallest legal answer.
 
-\param note Note whose surviving waypoints bound the window.
+Bend and vibrato statements deliberately do not bind it: they are other channels, and a bend
+arriving exactly where the ring ends is ordinary imported data that must not push the ring out from
+under itself.
+
+\param note Note whose stated frets bound the window.
 \param window Window the caller wants.
 
-\return The window itself, or the first legal offset after the last waypoint.
+\return The window itself, or the first legal offset after the last stated fret.
 */
-[[nodiscard]] Fraction keptStrictlyAfterLastWaypoint(const ChartNote& note, Fraction window);
+[[nodiscard]] Fraction keptAfterLastStatedFret(const ChartNote& note, Fraction window);
 
 /*!
 \brief Derives what the surfaces draw from what the chart stores: one presented note per saved
@@ -106,15 +117,15 @@ note as rules 1 through 3 leave it:
    presented in full, however many later onsets it crosses — a tie merged across a neighbour or a
    cross-voice hold is a statement, not an overrun.
 2. **Payload floors the trim.** The margin yields to information, and only as far as the
-   information reaches: the tail extends to \ref lastChangingPayloadOffset and stops exactly
-   there. Trailing non-changing points present nothing new, so they leave with the tail. A
-   slide-out is not protected payload — its end is gesture geometry — so its presented terminal
-   compresses back with the tail, floored at \ref g_minimum_slide_window and kept strictly after
-   the last surviving waypoint. A scrape's terminal is the gesture's own end and compresses by the
-   leg rule instead: a leg starting before the margin line ends on it, and one starting on or
-   after that line halves its distance to the onset, which is the one split that always leaves a
-   gap however crowded the passage. A presented scrape's terminal therefore always equals its
-   presented sustain, which is the shape \ref validateChartNoteAlone pins for the stored form.
+   information reaches: the tail extends to \ref informativePayloadEnd and stops exactly there.
+   Trailing non-changing statements present nothing new, so they leave with the tail. A slide-out
+   is not protected payload — it ends wherever the ring ends — so it compresses back with the tail,
+   floored at \ref g_minimum_slide_window and kept strictly after the last stated fret. A scrape's
+   terminal is the gesture's own end and compresses by the leg rule instead: a leg starting before
+   the margin line ends on it, and one starting on or after that line halves its distance to the
+   onset, which is the one split that always leaves a gap however crowded the passage. A presented
+   scrape's terminal therefore always equals its presented sustain, which is the shape
+   \ref validateChartNoteAlone pins for the stored form.
 3. **Drop short effect-free tails, per onset group.** A group — every note at one grid position —
    whose members carry no sustain technique, no deliberate hold, and no *actual* ring reaching the
    kept-sustain bound (\ref minimumKeptSustainBeats at the note's own measure) presents no tail on

@@ -61,8 +61,8 @@ constexpr common::core::Fraction g_sixteenth_grid{1, 16};
 {
     common::core::ChartNote note = makeTestNote(position, string, 9, common::core::Fraction{1});
     note.attack = common::core::NoteAttack::PickSlide;
-    note.slides = {common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 3}};
-    note.slide_out = common::core::SlideOut{.offset = common::core::Fraction{1}, .fret = 12};
+    note.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 3}};
+    note.slide_out = 12;
     return note;
 }
 
@@ -162,17 +162,16 @@ TEST_CASE("the import shed and settle make every technique combination legal", "
                                     subject.tremolo = tremolo;
                                     if (bent)
                                     {
-                                        subject.bend = {
-                                            common::core::BendPoint{
+                                        subject.waypoints.push_back(
+                                            common::core::Waypoint{
                                                 .offset = common::core::Fraction{1, 2},
-                                                .semitones = 1.0
-                                            },
-                                        };
+                                                .bend = 1.0,
+                                            });
                                     }
                                     if (slid)
                                     {
-                                        subject.slides = {
-                                            common::core::SlideWaypoint{
+                                        subject.waypoints = {
+                                            common::core::Waypoint{
                                                 .offset = common::core::Fraction{1, 2}, .fret = 9
                                             },
                                         };
@@ -328,16 +327,10 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
             .string = 1,
             .fret = 5,
             .sustain = common::core::Fraction{2},
-            .bend =
-                {
-                    common::core::BendPoint{
-                        .offset = common::core::Fraction{1, 2}, .semitones = 0.5
-                    },
-                    common::core::BendPoint{
-                        .offset = common::core::Fraction{3, 2}, .semitones = 1.0
-                    },
-                },
-            .slides = {},
+            .waypoints = {
+                common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .bend = 0.5},
+                common::core::Waypoint{.offset = common::core::Fraction{3, 2}, .bend = 1.0},
+            },
         },
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
@@ -349,17 +342,17 @@ TEST_CASE("planInsertNote truncates an overlapped sustain and clips its payload"
     if (plan.has_value())
     {
         // The earlier note is re-emitted with its sustain cut to the onset distance and the bend
-        // point past the new tail dropped.
+        // statement past the new tail dropped.
         REQUIRE(plan->notes.removed.size() == 1);
         CHECK(plan->notes.removed.front().sustain == common::core::Fraction{2});
-        CHECK(plan->notes.removed.front().bend.size() == 2);
+        CHECK(plan->notes.removed.front().waypoints.size() == 2);
 
         const common::core::ChartNote* truncated =
             noteAt(plan->notes.inserted, {.measure = 1, .beat = 1}, 1);
         REQUIRE(truncated != nullptr);
         CHECK(truncated->sustain == common::core::Fraction{1});
-        REQUIRE(truncated->bend.size() == 1);
-        CHECK(truncated->bend.front().offset == common::core::Fraction{1, 2});
+        REQUIRE(truncated->waypoints.size() == 1);
+        CHECK(truncated->waypoints.front().offset == common::core::Fraction{1, 2});
 
         // The placed note is inserted alongside the truncated one.
         const common::core::ChartNote* placed =
@@ -1217,7 +1210,7 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     if (scrape != nullptr)
     {
         CHECK(scrape->sustain == common::core::g_minimum_slide_window);
-        CHECK(scrape->slides.empty());
+        CHECK(scrape->waypoints.empty());
     }
 
     // Growing back inside the same gesture puts the turnaround back, because the ring is replayed
@@ -1231,16 +1224,16 @@ TEST_CASE("planAdjustSustain restores payload an earlier step clipped", "[core][
     if (scrape != nullptr)
     {
         CHECK(scrape->sustain == common::core::Fraction{3, 4});
-        REQUIRE(scrape->slides.size() == 1);
-        if (scrape->slides.size() == 1)
+        REQUIRE(scrape->waypoints.size() == 1);
+        if (scrape->waypoints.size() == 1)
         {
-            CHECK(scrape->slides[0].offset == common::core::Fraction{1, 2});
-            CHECK(scrape->slides[0].fret == 3);
+            CHECK(scrape->waypoints[0].offset == common::core::Fraction{1, 2});
+            CHECK(scrape->waypoints[0].fret == 3);
         }
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
         {
-            CHECK(scrape->slide_out->offset == common::core::Fraction{3, 4});
+            CHECK(scrape->sustain == common::core::Fraction{3, 4});
         }
     }
 }
@@ -1343,12 +1336,11 @@ TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques"
         CHECK(scrape->attack == common::core::NoteAttack::PickSlide);
         CHECK(scrape->fret == 7);
         // Fret 7 sits in the neck's lower half, so the default travels upward to the high end.
-        CHECK(scrape->slides.empty());
+        CHECK(scrape->waypoints.empty());
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
         {
-            CHECK(scrape->slide_out->fret == g_pick_slide_default_high_fret);
-            CHECK(scrape->slide_out->offset == scrape->sustain);
+            CHECK(*scrape->slide_out == g_pick_slide_default_high_fret);
         }
         // The overridden techniques stay in memory, untouched.
         CHECK(scrape->tremolo);
@@ -1424,13 +1416,9 @@ TEST_CASE("planSetAttack grows only a ring too short to scrape", "[core][chart]"
         REQUIRE(stub != nullptr);
         CHECK(stub->sustain == pickSlideDefaultSustainBeats(4));
         CHECK(stub->sustain > common::core::g_minimum_slide_window);
-        REQUIRE(stub->slide_out.has_value());
-        if (stub->slide_out.has_value())
-        {
-            // The terminal is pinned exactly at the sustain: a scrape rings no longer than it
-            // travels.
-            CHECK(stub->slide_out->offset == stub->sustain);
-        }
+        // The terminal ends the ring by definition, so the sustain above IS the gesture's
+        // length: a scrape rings no longer than it travels.
+        CHECK(stub->slide_out.has_value());
 
         const common::core::ChartNote* kept =
             noteAt(plan->notes.inserted, {.measure = 2, .beat = 1}, 2);
@@ -1461,7 +1449,7 @@ TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][c
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
         {
-            CHECK(scrape->slide_out->fret == g_pick_slide_default_low_fret);
+            CHECK(*scrape->slide_out == g_pick_slide_default_low_fret);
         }
     }
 }
@@ -1493,7 +1481,7 @@ TEST_CASE("planSetAttack floors the default scrape terminal above the capo", "[c
         REQUIRE(scrape->slide_out.has_value());
         if (scrape->slide_out.has_value())
         {
-            CHECK(scrape->slide_out->fret == 6);
+            CHECK(*scrape->slide_out == 6);
         }
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -1853,12 +1841,16 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
             REQUIRE(plan->notes.inserted.size() == 1);
             const common::core::ChartNote& retyped = plan->notes.inserted.front();
             CHECK(retyped.fret == expected_start);
-            REQUIRE(retyped.slides.size() == 1);
-            CHECK(retyped.slides[0].fret == chart.notes.front().slides[0].fret);
-            REQUIRE(retyped.slide_out.has_value() == chart.notes.front().slide_out.has_value());
-            if (retyped.slide_out.has_value() && chart.notes.front().slide_out.has_value())
+            REQUIRE(retyped.waypoints.size() == 1);
+            CHECK(retyped.waypoints[0].fret == chart.notes.front().waypoints[0].fret);
+            // Bound once each so every check and access is provably the same object: the
+            // optional-access checker cannot tie two separate calls of front() together.
+            const std::optional<int>& retyped_out = retyped.slide_out;
+            const std::optional<int>& original_out = chart.notes.front().slide_out;
+            REQUIRE(retyped_out.has_value() == original_out.has_value());
+            if (retyped_out.has_value() && original_out.has_value())
             {
-                CHECK(retyped.slide_out->fret == chart.notes.front().slide_out->fret);
+                CHECK(*retyped_out == *original_out);
             }
             common::core::Chart applied = chart;
             applyAndValidate(applied, makeTempoMap(), *plan);
@@ -1896,8 +1888,8 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     {
         common::core::ChartNote slide =
             makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-        slide.slides = {
-            common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        slide.waypoints = {
+            common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
@@ -1907,8 +1899,8 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
     {
         common::core::ChartNote slide =
             makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-        slide.slides = {
-            common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+        slide.waypoints = {
+            common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
@@ -1940,7 +1932,7 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
 {
     common::core::ChartNote slide =
         makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-    slide.slides = {common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+    slide.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
 
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1958,7 +1950,7 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fre
 {
     common::core::ChartNote slide =
         makeTestNote({.measure = 1, .beat = 1}, 1, 5, common::core::Fraction{1});
-    slide.slides = {common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
+    slide.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}};
 
     common::core::Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
@@ -1970,8 +1962,8 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fre
     {
         REQUIRE(plan->notes.inserted.size() == 1);
         CHECK(plan->notes.inserted.front().fret == 7);
-        REQUIRE(plan->notes.inserted.front().slides.size() == 1);
-        CHECK(plan->notes.inserted.front().slides[0].fret == 7);
+        REQUIRE(plan->notes.inserted.front().waypoints.size() == 1);
+        CHECK(plan->notes.inserted.front().waypoints[0].fret == 7);
 
         common::core::Chart applied = chart;
         applyAndValidate(applied, makeTempoMap(), *plan);
@@ -1999,14 +1991,14 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
                 noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::Fraction{3, 4});
-            REQUIRE(scrape->slides.size() == 1);
-            CHECK(scrape->slides[0].offset == common::core::Fraction{1, 2});
-            CHECK(scrape->slides[0].fret == 3);
+            REQUIRE(scrape->waypoints.size() == 1);
+            CHECK(scrape->waypoints[0].offset == common::core::Fraction{1, 2});
+            CHECK(scrape->waypoints[0].fret == 3);
             REQUIRE(scrape->slide_out.has_value());
             if (scrape->slide_out.has_value())
             {
-                CHECK(scrape->slide_out->offset == common::core::Fraction{3, 4});
-                CHECK(scrape->slide_out->fret == 12);
+                CHECK(scrape->sustain == common::core::Fraction{3, 4});
+                CHECK(*scrape->slide_out == 12);
             }
             common::core::Chart applied = chart;
             applyAndValidate(applied, tempo_map, *plan);
@@ -2028,8 +2020,8 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             REQUIRE(scrape->slide_out.has_value());
             if (scrape->slide_out.has_value())
             {
-                CHECK(scrape->slide_out->offset == common::core::Fraction{3, 2});
-                CHECK(scrape->slide_out->fret == 12);
+                CHECK(scrape->sustain == common::core::Fraction{3, 2});
+                CHECK(*scrape->slide_out == 12);
             }
         }
     }
@@ -2047,12 +2039,12 @@ TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
             REQUIRE(scrape != nullptr);
             CHECK(scrape->sustain == common::core::g_minimum_slide_window);
             // The turnaround no longer fits inside the floored window; the terminal alone rides.
-            CHECK(scrape->slides.empty());
+            CHECK(scrape->waypoints.empty());
             REQUIRE(scrape->slide_out.has_value());
             if (scrape->slide_out.has_value())
             {
-                CHECK(scrape->slide_out->offset == common::core::g_minimum_slide_window);
-                CHECK(scrape->slide_out->fret == 12);
+                CHECK(scrape->sustain == common::core::g_minimum_slide_window);
+                CHECK(*scrape->slide_out == 12);
             }
         }
     }
@@ -2065,11 +2057,11 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
     common::core::Chart chart = makeTestChart();
     common::core::ChartNote scrape = makeScrape({.measure = 3, .beat = 1}, 1);
     // 9 -> 3 -> 12 -> 3: valid travel whose terminal fret equals the first surviving leg's.
-    scrape.slides = {
-        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 4}, .fret = 3},
-        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 12},
+    scrape.waypoints = {
+        common::core::Waypoint{.offset = common::core::Fraction{1, 4}, .fret = 3},
+        common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 12},
     };
-    scrape.slide_out = common::core::SlideOut{.offset = common::core::Fraction{1}, .fret = 3};
+    scrape.slide_out = 3;
     chart.notes[2] = scrape;
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -2085,14 +2077,14 @@ TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart
             noteAt(plan->notes.inserted, {.measure = 3, .beat = 1}, 1);
         REQUIRE(shrunk != nullptr);
         CHECK(shrunk->sustain == common::core::Fraction{1, 2});
-        REQUIRE(shrunk->slides.size() == 1);
-        CHECK(shrunk->slides[0].offset == common::core::Fraction{1, 4});
-        CHECK(shrunk->slides[0].fret == 3);
+        REQUIRE(shrunk->waypoints.size() == 1);
+        CHECK(shrunk->waypoints[0].offset == common::core::Fraction{1, 4});
+        CHECK(shrunk->waypoints[0].fret == 3);
         REQUIRE(shrunk->slide_out.has_value());
         if (shrunk->slide_out.has_value())
         {
-            CHECK(shrunk->slide_out->offset == common::core::Fraction{1, 2});
-            CHECK(shrunk->slide_out->fret == 12);
+            CHECK(shrunk->sustain == common::core::Fraction{1, 2});
+            CHECK(*shrunk->slide_out == 12);
         }
         common::core::Chart applied = chart;
         applyAndValidate(applied, tempo_map, *plan);
@@ -2125,15 +2117,16 @@ TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
         // Travel survives: consecutive neck positions still strictly differ through the
         // terminal.
         int previous_fret = truncated->fret;
-        for (const common::core::SlideWaypoint& waypoint : truncated->slides)
+        for (const common::core::Waypoint& waypoint : truncated->waypoints)
         {
-            CHECK(waypoint.fret != previous_fret);
-            previous_fret = waypoint.fret;
+            const std::optional<int>& fret = waypoint.fret;
+            REQUIRE(fret.has_value());
+            CHECK(*fret != previous_fret);
+            previous_fret = *fret;
         }
         if (truncated->slide_out.has_value())
         {
-            CHECK(truncated->slide_out->offset == truncated->sustain);
-            CHECK(truncated->slide_out->fret != previous_fret);
+            CHECK(*truncated->slide_out != previous_fret);
         }
         // The terminal lands exactly ON the inserted onset — structurally legal, since the
         // waypoint-on-onset rule never sees a slide-out; the whole-chart gate is the oracle
@@ -2152,8 +2145,8 @@ TEST_CASE("planSetAttack refuses a scrape on a slide that holds a fret", "[core]
 {
     common::core::Chart chart = makeTestChart();
     // The note's own fret is 7, so a waypoint at 7 is a segment with no travel at all.
-    chart.notes[2].slides = {
-        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
+    chart.notes[2].waypoints = {
+        common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 7}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -2173,8 +2166,8 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
 {
     common::core::Chart chart = makeTestChart();
     chart.notes[2].tremolo = true;
-    chart.notes[2].slides = {
-        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 9}
+    chart.notes[2].waypoints = {
+        common::core::Waypoint{.offset = common::core::Fraction{1, 2}, .fret = 9}
     };
     const common::core::TempoMap tempo_map = makeTempoMap();
     const std::vector<ChartSlotKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
@@ -2197,13 +2190,12 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     REQUIRE(scrape != nullptr);
     // The glide's single waypoint was its whole path, so it becomes the terminal: fret 9 kept
     // from the charter's own glide rather than the synthesized default's far endpoint.
-    CHECK(scrape->slides.empty());
+    CHECK(scrape->waypoints.empty());
     REQUIRE(scrape->slide_out.has_value());
     if (scrape->slide_out.has_value())
     {
-        CHECK(scrape->slide_out->fret == 9);
-        CHECK(scrape->slide_out->fret != g_pick_slide_default_high_fret);
-        CHECK(scrape->slide_out->offset == scrape->sustain);
+        CHECK(*scrape->slide_out == 9);
+        CHECK(*scrape->slide_out != g_pick_slide_default_high_fret);
     }
 
     const auto exit =
@@ -2217,7 +2209,7 @@ TEST_CASE("planSetAttack converts a pitched glide into the scrape path", "[core]
     const common::core::ChartNote* restored = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
     REQUIRE(restored != nullptr);
     CHECK(restored->tremolo);
-    CHECK(restored->slides.empty());
+    CHECK(restored->waypoints.empty());
     CHECK_FALSE(restored->slide_out.has_value());
 }
 
@@ -2320,8 +2312,7 @@ TEST_CASE("planSetLegato skips exactly what the resolver refuses", "[core][chart
             makeTestNote({.measure = 1, .beat = 1}, 1, 3, common::core::Fraction{1, 2}),
             makeTestNote({.measure = 1, .beat = 3}, 1, 7),
         };
-        chart.notes[0].slide_out =
-            common::core::SlideOut{.offset = common::core::Fraction{1, 2}, .fret = 5};
+        chart.notes[0].slide_out = 5;
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());
@@ -2460,8 +2451,7 @@ TEST_CASE(
             makeTestNote({.measure = 1, .beat = 1}, 1, 9, common::core::Fraction{1}),
             makeTestNote({.measure = 1, .beat = 3}, 1, 5),
         };
-        chart.notes[0].slide_out =
-            common::core::SlideOut{.offset = common::core::Fraction{1}, .fret = 12};
+        chart.notes[0].slide_out = 12;
         const ChartLegatoPlan planned =
             planSetLegato(chart, tempo_map, {keyAt({.measure = 1, .beat = 3}, 1)}, "Legato");
         CHECK_FALSE(planned.plan.has_value());

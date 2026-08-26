@@ -26,8 +26,9 @@ connection — states its own.
 inline constexpr common::core::Fraction g_fixture_sustain{1, 8};
 
 /*!
-\brief Builds a note carrying only the fields the planners read, with the non-DMI position,
-bend, and slides fields listed so -Wmissing-designated-field-initializers stays quiet.
+\brief Builds a note carrying only the fields the planners read, with the non-DMI position and
+waypoints fields listed so -Wmissing-designated-field-initializers stays quiet, and the onset bend
+spelled out beside them rather than left to its default.
 \param position Musical onset.
 \param string One-based string.
 \param fret Fret sounded.
@@ -43,8 +44,8 @@ bend, and slides fields listed so -Wmissing-designated-field-initializers stays 
         .string = string,
         .fret = fret,
         .sustain = sustain,
-        .bend = {},
-        .slides = {},
+        .bend = 0.0,
+        .waypoints = {},
     };
 }
 

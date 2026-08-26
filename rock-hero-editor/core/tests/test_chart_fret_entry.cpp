@@ -691,8 +691,8 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
             .string = 1,
             .fret = 9,
             .sustain = common::core::Fraction{4},
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
         common::core::ChartNote{
             .position = {.measure = 3, .beat = 1, .offset = {}},
@@ -700,8 +700,8 @@ TEST_CASE("EditorController re-projects a claim through a widened fret entry", "
             .fret = 5,
             .sustain = g_fixture_sustain,
             .attack = common::core::NoteAttack::Legato,
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
     };
     REQUIRE(loadChartArrangement(controller, project_services, audio, {}, chart_with_claim));
@@ -834,7 +834,7 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     REQUIRE(scrape.slide_out.has_value());
     if (scrape.slide_out.has_value())
     {
-        REQUIRE(scrape.slide_out->fret == 3);
+        REQUIRE(*scrape.slide_out == 3);
     }
 
     // "3" refuses (start stilled against the terminal — a scrape cannot sit still): at the
@@ -864,7 +864,7 @@ TEST_CASE("EditorController fret typing recovers from a refused first digit", "[
     REQUIRE(retyped.slide_out.has_value());
     if (retyped.slide_out.has_value())
     {
-        CHECK(retyped.slide_out->fret == 3);
+        CHECK(*retyped.slide_out == 3);
     }
 }
 

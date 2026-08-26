@@ -26,14 +26,13 @@ namespace rock_hero::editor::core
 namespace
 {
 
-using common::core::BendPoint;
 using common::core::Chart;
 using common::core::ChartNote;
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::NoteAttack;
 using common::core::NoteEmphasis;
-using common::core::SlideWaypoint;
+using common::core::Waypoint;
 
 // The payload helpers the importer's synthesis shares with the presentation rules in core
 // (chart_presentation.h): one set of questions decides where a fabricated gesture may land and
@@ -41,8 +40,8 @@ using common::core::SlideWaypoint;
 // private twin of it.
 using common::core::clipPayloadsTo;
 using common::core::g_minimum_slide_window;
-using common::core::keptStrictlyAfterLastWaypoint;
-using common::core::lastChangingPayloadOffset;
+using common::core::informativePayloadEnd;
+using common::core::keptAfterLastStatedFret;
 
 // One note event on the global rational beat axis, before tie merging. The grid position is
 // derived from `global_beat` where a note needs one rather than carried beside it: the two are one
@@ -325,8 +324,109 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     return Fraction{static_cast<int>(std::lround(percent * 10.0)), 1000};
 }
 
+// One point of a Guitar Pro bend curve on its way into the chart's ONE bend channel. Guitar Pro
+// states a curve as four percent-anchored values; the chart states an onset amount plus a
+// statement on each waypoint the curve moves at, so this is the intermediate the mapping below
+// produces and \ref applyBendCurve folds in.
+struct BendCurvePoint
+{
+    Fraction offset{};
+    double semitones{0.0};
+};
+
+// Finds or creates the waypoint at `offset`, keeping the array ascending. Every statement at one
+// instant shares ONE waypoint — that is the model's whole point — so a producer that would have
+// written a second entry beside an existing moment merges into it instead.
+[[nodiscard]] Waypoint& waypointAt(std::vector<Waypoint>& waypoints, const Fraction offset)
+{
+    const auto at =
+        std::ranges::lower_bound(waypoints, offset, std::ranges::less{}, &Waypoint::offset);
+    if (at != waypoints.end() && at->offset == offset)
+    {
+        return *at;
+    }
+    return *waypoints.insert(
+        at,
+        Waypoint{
+            .offset = offset,
+            .fret = std::nullopt,
+            .bend = std::nullopt,
+            .vibrato = std::nullopt,
+        });
+}
+
+// The offset of the last waypoint that states a bend, or zero — the onset, which always states
+// one — when none does. Where the note's bend channel currently ends, which is what a tie or
+// legato merge folds its own curve in strictly after.
+[[nodiscard]] Fraction lastBendOffset(const ChartNote& note)
+{
+    Fraction last{};
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        if (waypoint.bend.has_value())
+        {
+            last = waypoint.offset;
+        }
+    }
+    return last;
+}
+
+// The offset of the FIRST waypoint that states a fret, or zero when none does — where the note's
+// path starts travelling, which a fabricated slide-in must arrive before.
+[[nodiscard]] Fraction firstStatedFretOffset(const ChartNote& note)
+{
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        if (waypoint.fret.has_value())
+        {
+            return waypoint.offset;
+        }
+    }
+    return Fraction{};
+}
+
+// The note's bend channel read back as the curve it draws: the onset value first, then every
+// waypoint stating one. Empty for a note whose channel never leaves rest, so a merge folding this
+// into a neighbour cannot author a flat zero statement the source never wrote.
+[[nodiscard]] std::vector<BendCurvePoint> bendCurveOf(const ChartNote& note)
+{
+    if (!common::core::noteIsBent(note))
+    {
+        return {};
+    }
+    std::vector<BendCurvePoint> curve;
+    curve.reserve(note.waypoints.size() + 1);
+    curve.push_back(BendCurvePoint{.offset = Fraction{}, .semitones = note.bend});
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<double>& bend = waypoint.bend;
+        if (bend.has_value())
+        {
+            curve.push_back(BendCurvePoint{.offset = waypoint.offset, .semitones = *bend});
+        }
+    }
+    return curve;
+}
+
+// Folds a bend curve into the note's bend channel: a point at the onset IS the note's own opening
+// value (all a pre-bend ever was), and every later point becomes a bend statement on the waypoint
+// at that instant, merged into whatever else already stands there.
+void applyBendCurve(ChartNote& note, const std::vector<BendCurvePoint>& curve)
+{
+    for (const BendCurvePoint& point : curve)
+    {
+        if (point.offset.numerator <= 0)
+        {
+            note.bend = point.semitones;
+            continue;
+        }
+        waypointAt(note.waypoints, point.offset).bend = point.semitones;
+    }
+}
+
 // Maps one GP bend onto the chart's [offset, semitones] pairs across the note sustain.
-[[nodiscard]] std::vector<BendPoint> buildBendPoints(
+[[nodiscard]] std::vector<BendCurvePoint> buildBendPoints(
     const GpBend& bend, Fraction sustain, std::vector<std::string>& notes)
 {
     if (sustain.numerator <= 0)
@@ -343,7 +443,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
             {
                 notes.emplace_back("flattened a bend on a sustainless note to its prebend");
             }
-            return {BendPoint{.offset = Fraction{}, .semitones = bend.origin_value / 50.0}};
+            return {BendCurvePoint{.offset = Fraction{}, .semitones = bend.origin_value / 50.0}};
         }
         if (moves)
         {
@@ -366,7 +466,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         RawPoint{.offset_percent = bend.destination_offset, .value = bend.destination_value},
     };
 
-    std::vector<BendPoint> points;
+    std::vector<BendCurvePoint> points;
     for (const RawPoint& point : raw)
     {
         const Fraction offset =
@@ -382,13 +482,13 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         {
             continue;
         }
-        points.push_back(BendPoint{.offset = offset, .semitones = semitones});
+        points.push_back(BendCurvePoint{.offset = offset, .semitones = semitones});
     }
 
     // A flat zero curve carries no information.
     const bool all_zero = std::ranges::all_of(
-        points, [](const BendPoint& point) { return std::is_eq(point.semitones <=> 0.0); });
-    return all_zero ? std::vector<BendPoint>{} : points;
+        points, [](const BendCurvePoint& point) { return std::is_eq(point.semitones <=> 0.0); });
+    return all_zero ? std::vector<BendCurvePoint>{} : points;
 }
 
 // Classifies a track's part by a heuristic: four strings or a bass-named track become Bass, the
@@ -939,12 +1039,19 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         }
         int fret = other_hand_fret;
         bool co_sliding = false;
-        for (const SlideWaypoint& waypoint : other.note.slides)
+        for (const Waypoint& waypoint : other.note.waypoints)
         {
+            // Only a stated fret moves the hand; a waypoint carrying a bend or a vibrato change
+            // says nothing about where this finger is and neither reaches nor co-slides.
+            const std::optional<int>& stated_fret = waypoint.fret;
+            if (!stated_fret.has_value())
+            {
+                continue;
+            }
             const Fraction waypoint_beat = other.global_beat + waypoint.offset;
             if (waypoint_beat < instant)
             {
-                fret = waypoint.fret; // already reached this waypoint
+                fret = *stated_fret; // already reached this waypoint
                 continue;
             }
             // Waypoints are ascending, so nothing past here can precede the instant. A waypoint
@@ -1027,12 +1134,19 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     onset.max_fret = std::max(onset.max_fret, hand_fret);
                 }
                 int slide_source = note.fret;
-                for (const SlideWaypoint& waypoint : note.slides)
+                for (const Waypoint& waypoint : note.waypoints)
                 {
-                    if (waypoint.fret <= 0)
+                    // Only the POSITION channel announces a hand position: a bend or a vibrato
+                    // change states nothing about where the hand sits, so it places no window.
+                    //
+                    // Bound to a local so the optional check and the access are provably the same
+                    // object.
+                    const std::optional<int>& stated_fret = waypoint.fret;
+                    if (!stated_fret.has_value() || *stated_fret <= 0)
                     {
                         continue;
                     }
+                    const int waypoint_fret = *stated_fret;
                     // An equal-fret waypoint is a HOLD, not a glide: nothing travels across it, so
                     // it announces no new hand position and must not place one. Letting it place
                     // one moves the window mid-note for no reason — a tie chain that holds a fret
@@ -1040,7 +1154,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     // note, instead of leaving it put until the slide itself moves it. The
                     // projection's ramp derivation draws the same distinction for the same reason
                     // (see slide_ramp_starts in highway_projection.cpp).
-                    if (waypoint.fret == slide_source)
+                    if (waypoint_fret == slide_source)
                     {
                         continue;
                     }
@@ -1058,8 +1172,8 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                             CoverageEvent{
                                 .global_beat = waypoint_beat,
                                 .position = waypoint_position,
-                                .min_fret = std::min(waypoint.fret, held_min),
-                                .max_fret = std::max(waypoint.fret, held_max),
+                                .min_fret = std::min(waypoint_fret, held_min),
+                                .max_fret = std::max(waypoint_fret, held_max),
                                 .shift = 0,
                                 .reshape = true,
                             });
@@ -1071,12 +1185,12 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                             CoverageEvent{
                                 .global_beat = waypoint_beat,
                                 .position = waypoint_position,
-                                .min_fret = waypoint.fret,
-                                .max_fret = waypoint.fret,
-                                .shift = slide_source > 0 ? waypoint.fret - slide_source : 0,
+                                .min_fret = waypoint_fret,
+                                .max_fret = waypoint_fret,
+                                .shift = slide_source > 0 ? waypoint_fret - slide_source : 0,
                             });
                     }
-                    slide_source = waypoint.fret;
+                    slide_source = waypoint_fret;
                 }
             }
             ++onset_end;
@@ -1372,16 +1486,17 @@ void resolveSlideIns(
         {
             window = g_minimum_slide_window;
         }
-        if (!note.slides.empty() && window >= note.slides.front().offset)
+        if (const Fraction first_travel = firstStatedFretOffset(note);
+            first_travel.numerator > 0 && window >= first_travel)
         {
-            window = note.slides.front().offset * Fraction{1, 2};
+            window = first_travel * Fraction{1, 2};
         }
         // A slide-out is the other fret-travel payload the scoop must stay strictly before:
-        // on a short note the floored window can reach the trail-off end the chain resolver
-        // pinned at the sustain, and a waypoint at or past it fails chart validation.
-        if (note.slide_out.has_value() && window >= note.slide_out->offset)
+        // on a short note the floored window can reach the trail-off, which ends the ring, and a
+        // stated fret at or past that end fails chart validation.
+        if (note.slide_out.has_value() && window >= note.sustain)
         {
-            window = note.slide_out->offset * Fraction{1, 2};
+            window = note.sustain * Fraction{1, 2};
         }
         if (note.sustain < window)
         {
@@ -1419,7 +1534,10 @@ void resolveSlideIns(
             }
         }
 
-        note.slides.insert(note.slides.begin(), SlideWaypoint{.offset = window, .fret = note.fret});
+        // The arrival is a fret STATEMENT at the scoop's end, merged into whatever already stands
+        // at that instant rather than inserted beside it — a bend the source wrote there is the
+        // same moment, not a competing one.
+        waypointAt(note.waypoints, window).fret = note.fret;
         note.fret = start;
     }
     // Merge the fabricated windows: dips own their instant, restores yield to real placements.
@@ -1472,13 +1590,13 @@ void resolveSlideOutExits(
         // is what the resolved exit fret is written back into. They always agree — presentation
         // compresses a trail-off's end and never drops it — so the second test costs nothing and
         // makes the write below provably safe rather than safe by argument.
-        const common::core::SlideOut* const drawn = common::core::slideOutOrNull(note);
+        const int* const drawn = common::core::slideOutFretOrNull(note);
         if (drawn == nullptr || !entry.note.slide_out.has_value() || isScrape(note.attack))
         {
             continue;
         }
-        const int departing = note.slides.empty() ? note.fret : note.slides.back().fret;
-        const bool downward = drawn->fret < departing;
+        const int departing = common::core::releasedFret(note);
+        const bool downward = *drawn < departing;
         const auto after = firstPlacementAfter(placements, note.position);
         if (after == placements.begin())
         {
@@ -1491,8 +1609,10 @@ void resolveSlideOutExits(
         {
             ++next_note;
         }
+        // The gesture ends where the DRAWN ring does, which is what a slide-out having no offset
+        // of its own means: presentation compresses that end, and the trail-off comes with it.
         const GridPosition end_position =
-            gridPositionForGlobalBeat(grid, entry.global_beat + drawn->offset);
+            gridPositionForGlobalBeat(grid, entry.global_beat + note.sustain);
         if (!withinGrid(grid, end_position))
         {
             // The trail-off ends past the last bar (a hold-exempt ring presentation never
@@ -1517,7 +1637,7 @@ void resolveSlideOutExits(
         const int delta = after == placements.end() ? 0 : after->fret - active->fret;
         const bool departs = delta != 0 && (delta < 0) == downward && has_next &&
                              !(built[next_note].note.position < after->position);
-        int exit_fret = drawn->fret;
+        int exit_fret = *drawn;
         if (departs)
         {
             const int travel = widenedToMinimumTravel(delta, downward);
@@ -1527,7 +1647,7 @@ void resolveSlideOutExits(
                 common::core::g_max_fret);
             // The resolved fret is the note's, not the picture's: it is stored, and the presented
             // stream is derived again from it.
-            entry.note.slide_out->fret = exit_fret;
+            entry.note.slide_out = exit_fret;
         }
         else if (has_next)
         {
@@ -1630,7 +1750,7 @@ void resolveSlideOutExits(
                 if (source.bend.has_value())
                 {
                     const Fraction base = event.global_beat - origin.global_beat;
-                    for (BendPoint point :
+                    for (BendCurvePoint point :
                          buildBendPoints(*source.bend, notatedDuration(event), notes))
                     {
                         if (event.duration_beats < point.offset)
@@ -1641,10 +1761,13 @@ void resolveSlideOutExits(
                             break;
                         }
                         point.offset = point.offset + base;
-                        if (origin.note.bend.empty() ||
-                            point.offset > origin.note.bend.back().offset)
+                        // Strictly after where the origin's bend channel already ends. The onset
+                        // counts as offset zero, which is why an origin stating no bend at all
+                        // still admits every rebased point: a continuation begins strictly after
+                        // its origin's onset.
+                        if (point.offset > lastBendOffset(origin.note))
                         {
-                            origin.note.bend.push_back(point);
+                            waypointAt(origin.note.waypoints, point.offset).bend = point.semitones;
                         }
                     }
                 }
@@ -1865,7 +1988,7 @@ void resolveSlideOutExits(
             // Guitar Pro writes the curve as percentages of the NOTATED duration, so it is laid
             // out over that and then clipped to the ring: a note an ornament shortened loses the
             // part of its bend that no longer sounds instead of playing the whole curve faster.
-            note.bend = buildBendPoints(*source.bend, notatedDuration(event), notes);
+            applyBendCurve(note, buildBendPoints(*source.bend, notatedDuration(event), notes));
             clipPayloadsTo(note, note.sustain);
         }
 
@@ -2009,7 +2132,7 @@ void resolveSlideOutExits(
             const Fraction hold_offset = *entry.slide_from_beat - entry.global_beat;
             if (hold_offset.numerator > 0)
             {
-                note.slides.push_back(SlideWaypoint{.offset = hold_offset, .fret = note.fret});
+                waypointAt(note.waypoints, hold_offset).fret = note.fret;
             }
         }
 
@@ -2049,19 +2172,22 @@ void resolveSlideOutExits(
             {
                 // Legato: the landing continues this note. Waypoint at the junction, sustain
                 // through the target's notated end, techniques folded, chain continued.
-                note.slides.push_back(SlideWaypoint{.offset = gap, .fret = next->note.fret});
+                waypointAt(note.waypoints, gap).fret = next->note.fret;
                 if (ringEndOf(entry) < ringEndOf(*next))
                 {
                     note.sustain = ringEndOf(*next) - entry.global_beat;
                 }
                 note.vibrato = note.vibrato || next->note.vibrato;
                 note.tremolo = note.tremolo || next->note.tremolo;
-                for (BendPoint point : next->note.bend)
+                // The merged note's own bend curve, rebased onto the junction. Its onset value
+                // lands ON the junction waypoint, which is the coupling the model exists for: the
+                // fret it glides to and the push it arrives with are one moment, not two.
+                for (BendCurvePoint point : bendCurveOf(next->note))
                 {
                     point.offset = point.offset + gap;
-                    if (note.bend.empty() || point.offset > note.bend.back().offset)
+                    if (point.offset > lastBendOffset(note))
                     {
-                        note.bend.push_back(point);
+                        waypointAt(note.waypoints, point.offset).bend = point.semitones;
                     }
                 }
                 merged_away[next_index] = true;
@@ -2097,7 +2223,7 @@ void resolveSlideOutExits(
             {
                 window = gap * Fraction{1, 2};
             }
-            const Fraction informative = lastChangingPayloadOffset(note);
+            const Fraction informative = informativePayloadEnd(note);
             // The floor yields to the LANDING, which it does nowhere else: a pitched waypoint may
             // not sit on a later onset of its own string (that encoding stores no coordinates,
             // which is what keeps it undesyncable), and past the onset the glide would be holding
@@ -2107,7 +2233,7 @@ void resolveSlideOutExits(
             {
                 window = informative;
             }
-            window = keptStrictlyAfterLastWaypoint(note, window);
+            window = keptAfterLastStatedFret(note, window);
             if (!(window < gap))
             {
                 // The chain's own waypoints already fill the gap, so there is nowhere left to
@@ -2116,7 +2242,7 @@ void resolveSlideOutExits(
                 flags |= 4;
                 break;
             }
-            note.slides.push_back(SlideWaypoint{.offset = window, .fret = next->note.fret});
+            waypointAt(note.waypoints, window).fret = next->note.fret;
             if (note.sustain < window)
             {
                 // A ring shorter than the glide cannot carry its own arrival waypoint; the note
@@ -2124,7 +2250,7 @@ void resolveSlideOutExits(
                 note.sustain = window;
             }
             clipPayloadsTo(note, window);
-            if (note.slide_out.has_value() && window < note.slide_out->offset)
+            if (note.slide_out.has_value() && window < note.sustain)
             {
                 // A trail-off the chain resolved earlier cannot outlive the gesture it trails off
                 // from; the arrival is the gesture's end now.
@@ -2144,19 +2270,19 @@ void resolveSlideOutExits(
                 upward
                     ? std::min(glide_fret + 4, common::core::g_max_fret)
                     : std::max(glide_fret - 4, common::core::firstPlayableFret(chart.tuning.capo));
-            // The slide-out ends at the sustain end, strictly after any chain waypoint so the
-            // payload stays ascending. The four-fret exit is provisional: resolveSlideOutExits
-            // rides the hand's next move instead when it agrees with the flag's direction.
-            Fraction window = keptStrictlyAfterLastWaypoint(note, note.sustain);
-            if (window.numerator <= 0)
+            // The slide-out ends the RING, so what the gesture needs is a ring end strictly after
+            // any chain waypoint's stated fret — otherwise the trail-off would leave from a
+            // position stated at the very instant it ends. The four-fret exit is provisional:
+            // resolveSlideOutExits rides the hand's next move instead when it agrees with the
+            // flag's direction. The answer is strictly positive without a floor of its own: a
+            // sustainless note's zero never exceeds the last stated fret's offset, so it takes the
+            // bumped branch and comes back a whole minimum window.
+            const Fraction ring_end = keptAfterLastStatedFret(note, note.sustain);
+            if (note.sustain < ring_end)
             {
-                window = g_minimum_slide_window;
+                note.sustain = ring_end;
             }
-            if (note.sustain < window)
-            {
-                note.sustain = window;
-            }
-            note.slide_out = common::core::SlideOut{.offset = window, .fret = target};
+            note.slide_out = target;
         }
     }
 

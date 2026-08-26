@@ -6,6 +6,7 @@
 #pragma once
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -109,8 +110,8 @@ enum class NoteAttack : std::uint8_t
     \brief Right-hand pick slide: the pick scrapes along the neck across the sustain.
 
     Fret data is right-hand travel like a tapped note's: `fret` is where the scrape starts,
-    `slide_out` is the required unpitched terminal — its offset exactly at the sustain, because
-    nothing rings past a scrape — and `slides` holds optional direction-turnaround waypoints,
+    `slide_out` is the required unpitched terminal — at the sustain by definition, because nothing
+    rings past a scrape — and `waypoints` holds optional direction-turnaround fret statements,
     the whole path always traveling. The pitched techniques (mute, harmonic node, vibrato,
     tremolo, bend) are overridden while this attack is set: kept in memory so switching the
     attack back restores them, but suppressed by projections and omitted by the document
@@ -318,85 +319,155 @@ ChartNote::dead answers alone.
     return palm_mute || dead;
 }
 
-/*! \brief One point of a bend curve, positioned relative to the note onset. */
-struct BendPoint
-{
-    /*! \brief Beat-fraction offset from the note onset, within the sustain. */
-    Fraction offset{};
-
-    /*! \brief Bend amount in semitones at this point; 0.5 is a quarter-tone curl. */
-    double semitones{0.0};
-
-    /*!
-    \brief Compares two bend points by their stored fields.
-    \param lhs Left-hand bend point.
-    \param rhs Right-hand bend point.
-    \return True when both points store equal values.
-    */
-    friend constexpr bool operator==(const BendPoint& lhs, const BendPoint& rhs) noexcept
-    {
-        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // floating member. Exact equality is intended; the ordering query expresses it warning-
-        // free with identical semantics (NaN compares unequal either way).
-        return lhs.offset == rhs.offset && std::is_eq(lhs.semitones <=> rhs.semitones);
-    }
-};
-
 /*!
-\brief One pitched slide-curve waypoint: by this offset the fret hand has glided to the fret.
+\brief One statement along a ringing note: a moment, and what changes at it.
 
-Waypoints describe the note's own pitch curve — legato junctions, holds, and shift-slide glides
-toward a re-picked landing — and are always pitched; the only unpitched gesture is the separate
-\ref SlideOut terminal, so an "unpitched middle" cannot be written. A waypoint never sits on a
-later onset of its own string: a shift-slide glide ends the minimum sustain distance before its
-landing, and the landing note renders its own head. On a pick slide the waypoints are optional
-direction turnarounds — unpitched right-hand travel bound by the same ordering rules — and the
-gesture's terminal is its required \ref SlideOut.
+The chart's one interval-payload record. A waypoint fixes a MOMENT inside the note's ring and
+carries any SUBSET of the channels that can change while a string sounds. The moment is stored
+ONCE and every technique authored there lands on it, so moving the moment moves everything that
+meant "at that moment" — which parallel per-technique arrays could not do: a glide target, a
+vibrato start, and a bend value at one instant were three independently editable copies of one
+offset, and dragging any of them sheared the authored figure with no rule able to object, because
+both the before and the after were legal (`docs/plans/todo/unified-waypoint-model.md`).
+
+Each channel reads independently along the ring:
+
+- **fret** — position, discrete. Interpolates between fret-STATING waypoints: equal frets are a
+  HOLD, different frets are travel. A fret-less waypoint says nothing about position and a glide
+  passes through it unkinked, which is what lets a bend change mid-travel between two frets
+  without the path having to name a stop the hand never takes.
+- **bend** — push, continuous, in semitones and never negative. Interpolates between bend-stating
+  waypoints, starting from the note's own onset value (\ref ChartNote::bend), and holds flat past
+  the last one. A compound bend is a sequence of values, a bent slide is one value held across
+  fret-stating waypoints, and a mid-hold curl is a new value on a waypoint stating no fret.
+- **vibrato** — state. Holds from each statement until the next, so a delayed start, a mid-ring
+  end, several regions, and vibrato through a glide are all just statements.
+
+A waypoint never sits on a later onset of its own string while it states a FRET: a glide into a
+real note ends the minimum sustain distance before its landing, and the landing renders its own
+head, so storing the landing's coordinates a second time is what \ref validateChartNotes refuses.
+A bend or vibrato statement there says nothing about position and is bound only by the ring.
+
+On a pick slide the waypoints are optional direction turnarounds — unpitched right-hand travel,
+which is why a saved scrape carries fret statements and nothing else — and the gesture's terminal
+is its required \ref ChartNote::slide_out.
+
+A waypoint stating NOTHING is not a record at all but a location with no fact attached;
+\ref waypointStatesNothing is that question's one spelling and \ref validateChartNoteAlone refuses
+such a waypoint.
 */
-struct SlideWaypoint
+struct Waypoint
 {
     /*! \brief Beat-fraction offset from the note onset; strictly positive, within the sustain. */
     Fraction offset{};
 
-    /*! \brief Target fret reached at this offset. */
-    int fret{0};
+    /*!
+    \brief Fret the hand has reached here; absent when the waypoint states nothing about position.
+    */
+    std::optional<int> fret{};
+
+    /*! \brief Bend amount in semitones here, never negative; absent when the push is unstated. */
+    std::optional<double> bend{};
+
+    /*! \brief Whether the string shakes from here on; absent when vibrato is unstated. */
+    std::optional<bool> vibrato{};
 
     /*!
-    \brief Compares two slide waypoints by their stored fields.
+    \brief Compares two waypoints by their stored fields.
     \param lhs Left-hand waypoint.
     \param rhs Right-hand waypoint.
     \return True when both waypoints store equal values.
+
+    Defaulted despite the floating channel: the compare happens inside `std::optional`, where
+    clang's -Wfloat-equal does not reach, so this needs no hand-written twin (the bare `double` on
+    \ref ChartNote does).
     */
-    friend constexpr bool operator==(const SlideWaypoint& lhs, const SlideWaypoint& rhs) noexcept =
-        default;
+    friend bool operator==(const Waypoint& lhs, const Waypoint& rhs) noexcept = default;
 };
 
 /*!
-\brief Unpitched slide-out: pressure releases and the pitch falls away off the note's end.
+\brief Reports whether a waypoint states no channel at all — the one shape no chart may hold.
 
-No landing note exists — that is what distinguishes a slide-out from a pitched glide, which is
-plain \ref SlideWaypoint data — so the gesture legitimately owns its own end offset and target
-fret; there is no other event to desync from. A pick slide's slide-out is its required terminal,
-pinned exactly to the sustain end, which a truncation may park exactly on the silencing next
-onset.
+A waypoint IS its statements: a location carrying none says nothing that could be drawn, played,
+or edited, and it would still shift every neighbour's index and survive every edit. Refused by
+\ref validateChartNoteAlone, and asked by \ref stripWaypointChannels for every rule that sheds a
+channel.
+
+\param waypoint Waypoint to classify.
+
+\return True when no channel is stated.
 */
-struct SlideOut
+[[nodiscard]] inline bool waypointStatesNothing(const Waypoint& waypoint) noexcept
 {
-    /*! \brief Beat-fraction offset from the note onset where the slide-out ends; strictly after
-        every curve waypoint, within the sustain. */
-    Fraction offset{};
+    return !waypoint.fret.has_value() && !waypoint.bend.has_value() &&
+           !waypoint.vibrato.has_value();
+}
 
-    /*! \brief Fret the slide-out gestures toward; never a sounded landing. */
-    int fret{0};
+/*!
+\brief Clears channels across a note's waypoints and drops only the ones the clearing emptied.
 
-    /*!
-    \brief Compares two slide-outs by their stored fields.
-    \param lhs Left-hand slide-out.
-    \param rhs Right-hand slide-out.
-    \return True when both store equal values.
-    */
-    friend constexpr bool operator==(const SlideOut& lhs, const SlideOut& rhs) noexcept = default;
-};
+Every rule that sheds a channel needs this, and needs it to be exactly this. Such a rule clears
+CHANNELS rather than whole waypoints — a capo floor takes the fret, not the bend authored at the
+same instant — so a waypoint it empties is no record at all and must go. A waypoint that ARRIVED
+stating nothing is a different thing entirely: illegal data \ref validateChartNoteAlone refuses,
+and \ref normalizeChart runs before \ref validateChartRules on every load, so a strip that dropped
+every empty waypoint it found would quietly repair that refusal out of existence. Removing what
+the strip itself emptied is the only reading that does neither, and it is spelled once because
+every shedding rule asks it.
+
+\param waypoints Waypoints to strip in place, left in order.
+\param strip Applied to each waypoint in turn: clears whatever channels the caller's rule owns and
+       returns whether it cleared any.
+
+\return True when the strip cleared a channel anywhere — what a caller reports as its repair.
+*/
+template <typename Strip>
+[[nodiscard]] bool stripWaypointChannels(std::vector<Waypoint>& waypoints, const Strip& strip)
+{
+    bool stripped = false;
+    std::size_t kept = 0;
+    for (std::size_t index = 0; index < waypoints.size(); ++index)
+    {
+        Waypoint& waypoint = waypoints[index];
+        const bool cleared = strip(waypoint);
+        stripped = stripped || cleared;
+        if (cleared && waypointStatesNothing(waypoint))
+        {
+            continue;
+        }
+        if (kept != index)
+        {
+            waypoints[kept] = waypoint;
+        }
+        ++kept;
+    }
+    waypoints.resize(kept);
+    return stripped;
+}
+
+/*!
+\brief Reports whether any waypoint states a POSITION — whether the note travels at all.
+
+The question every rule about gliding asks, and it is not "are there waypoints": a note whose only
+statements are a mid-ring curl or a delayed shake never moves the hand, so an open string may keep
+them and a dead note's E25 tail is not earned by them. Spelled once so the travel rules and the
+presentation rules cannot drift about what travelling means.
+
+\param waypoints The note's waypoints.
+
+\return True when at least one waypoint states a fret.
+*/
+[[nodiscard]] inline bool anyWaypointStatesFret(const std::vector<Waypoint>& waypoints) noexcept
+{
+    for (const Waypoint& waypoint : waypoints)
+    {
+        if (waypoint.fret.has_value())
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 /*!
 \brief One string sounding once: the only event kind in the note stream.
@@ -483,7 +554,14 @@ struct ChartNote
     */
     std::optional<double> harmonic_node{};
 
-    /*! \brief True when the note is played with vibrato. */
+    /*!
+    \brief Whether the string shakes at the ONSET — the vibrato channel's opening statement.
+
+    An onset fact like the fret, not a whole-note flag: it holds from the onset until the first
+    waypoint that states vibrato, and says nothing about the rest of the ring. A note whose shake
+    runs end to end simply states it here and never states it again, which is what every chart
+    written before the waypoint model says and why the key survived the change unaltered.
+    */
     bool vibrato{false};
 
     /*!
@@ -502,23 +580,97 @@ struct ChartNote
     /*! \brief How hard the note is struck relative to its neighbours. */
     NoteEmphasis emphasis{NoteEmphasis::Normal};
 
-    /*! \brief Bend curve across the sustain; empty when the note is not bent. */
-    std::vector<BendPoint> bend;
+    /*!
+    \brief How far the string is already pushed at the ONSET, in semitones; zero when unbent.
 
-    /*! \brief Pitched slide-curve waypoints across the sustain; empty when the curve is flat. */
-    std::vector<SlideWaypoint> slides;
+    The bend channel's opening value, and the whole of what a pre-bend is: the finger arrives with
+    the string already bent, so there is no separate pre-bend flag to disagree with the amount. It
+    interpolates toward the first waypoint that states a bend and holds flat when none does, which
+    is why it is declared HERE, beside the array that continues it, rather than up among the
+    onset flags.
 
-    /*! \brief Unpitched slide-out off the note's end; absent when the tail simply ends. */
-    std::optional<SlideOut> slide_out{};
+    Never negative (W9-K, ratified 2026-08-25): a finger cannot lower a stopped string's pitch, so
+    a downward push is a data error rather than a technique — dips and dives belong to the whammy
+    bar's own model (`docs/plans/todo/whammy-bar-support.md`).
+    */
+    double bend{0.0};
+
+    /*!
+    \brief Everything that changes across the ring, in ascending offset order.
+
+    One array for every interval channel (\ref Waypoint), because a glide target, a bend value and
+    a vibrato start authored at one instant are one moment with three facts on it rather than
+    three coincident copies of an offset. Empty when nothing changes after the onset.
+    */
+    std::vector<Waypoint> waypoints;
+
+    /*!
+    \brief Fret the unpitched falls-away gestures toward; absent when the tail simply ends.
+
+    A slide-out has no offset of its own because it needs none: pressure releases off the note's
+    END, so its moment is the ring's end by definition and a stored copy could only ever drift
+    from it (W11). That also makes the terminal a scrape's required shape for free — a pick slide
+    rings exactly as long as it travels — and it is why a truncation may park a slide-out exactly
+    on the onset that silences the string.
+
+    Never a sounded landing: a glide INTO a note is fret-stating waypoint data, and the note it
+    arrives at renders its own head.
+    */
+    std::optional<int> slide_out{};
 
     /*!
     \brief Compares two notes by their stored fields.
     \param lhs Left-hand note.
     \param rhs Right-hand note.
     \return True when both notes store equal values.
+
+    Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the bare
+    \ref bend double. Exact equality is intended; the ordering query expresses it warning-free with
+    identical semantics (NaN compares unequal either way). Every field is listed, so a field added
+    above and forgotten here would silently compare equal — the one hazard the hand-written form
+    carries.
     */
-    friend bool operator==(const ChartNote& lhs, const ChartNote& rhs) = default;
+    friend bool operator==(const ChartNote& lhs, const ChartNote& rhs)
+    {
+        return lhs.position == rhs.position && lhs.string == rhs.string && lhs.fret == rhs.fret &&
+               lhs.sustain == rhs.sustain && lhs.attack == rhs.attack &&
+               lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
+               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
+               lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis &&
+               std::is_eq(lhs.bend <=> rhs.bend) && lhs.waypoints == rhs.waypoints &&
+               lhs.slide_out == rhs.slide_out;
+    }
 };
+
+/*!
+\brief Reports whether the note's bend channel says anything at all.
+
+The onset value is always a statement, so "is this note bent" is not "are there bend waypoints":
+a pre-bend states its whole curve at the onset and nowhere else. Equally, a channel that opens at
+rest and is never restated is no curve — the note simply never bends — which is why a lone zero is
+not enough. Spelled once because the projection asks it to decide whether a curve is drawn at all
+and the importer asks it before folding a merged note's curve into a neighbour, and a flat zero
+statement authored by one and not the other would be a curve nobody wrote.
+
+\param note Note to classify.
+
+\return True when the note opens bent or states a bend anywhere along its ring.
+*/
+[[nodiscard]] inline bool noteIsBent(const ChartNote& note) noexcept
+{
+    if (std::is_neq(note.bend <=> 0.0))
+    {
+        return true;
+    }
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        if (waypoint.bend.has_value())
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 /*!
 \brief The chart's SLOT order: ascending position, then ascending string.
@@ -631,15 +783,15 @@ struct ChartHoldMarker
 }
 
 /*!
-\brief Returns the note's unpitched slide-out as a nullable pointer.
+\brief Returns the fret the note's unpitched slide-out gestures toward, as a nullable pointer.
 \param note Note whose tail is inspected.
-\return Address of the slide-out when present, or nullptr when the tail simply ends.
+\return Address of the slide-out's fret when present, or nullptr when the tail simply ends.
 
 Binding the optional behind a parameter lets call sites null-check instead of dereferencing an
 optional, and keeps clang-tidy's unchecked-optional-access analysis reliable inside note loops,
 where a has_value() guard on the loop variable's own member is not otherwise credited.
 */
-[[nodiscard]] inline const SlideOut* slideOutOrNull(const ChartNote& note) noexcept
+[[nodiscard]] inline const int* slideOutFretOrNull(const ChartNote& note) noexcept
 {
     return note.slide_out.has_value() ? &*note.slide_out : nullptr;
 }
@@ -869,10 +1021,12 @@ hand is damping it, so the board's own axis ignores which hand that is.
 \brief The fret the note's finger occupies when the note ends — what a following pull-off
 releases from.
 
-A note that glided hands over its last pitched waypoint, not its onset fret (a 5→7 slide releases
-from 7). An unpitched trail-off is already a release, so the last pitched position still rules.
-Meaningful only for a note a finger actually stops: a scrape's travel is the pick's position, which
-is why the connection resolver disqualifies a scrape before ever asking this.
+A note that glided hands over its last fret-STATING waypoint, not its onset fret (a 5→7 slide
+releases from 7). Waypoints stating only a bend or a vibrato change say nothing about where the
+finger is, so they pass through. An unpitched trail-off is already a release, so the last stated
+position still rules. Meaningful only for a note a finger actually stops: a scrape's travel is the
+pick's position, which is why the connection resolver disqualifies a scrape before ever asking
+this.
 
 \param note Note whose end position is read.
 

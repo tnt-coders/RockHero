@@ -170,8 +170,8 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides = {common::core::SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}},
-            .slide_out = common::core::SlideOut{.offset = Fraction{1}, .fret = 12},
+            .waypoints = {common::core::Waypoint{.offset = Fraction{1, 2}, .fret = 5}},
+            .slide_out = 12,
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -179,7 +179,7 @@ using common::core::NoteEmphasis;
             .fret = 4,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -187,7 +187,7 @@ using common::core::NoteEmphasis;
             .fret = 6,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -195,7 +195,7 @@ using common::core::NoteEmphasis;
             .fret = 6,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 2},
@@ -204,7 +204,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1, 2},
             .palm_mute = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 3},
@@ -213,7 +213,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1, 2},
             .tremolo = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 4},
@@ -222,7 +222,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .vibrato = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1},
@@ -231,7 +231,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1, 8},
             .emphasis = NoteEmphasis::Accent,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 2},
@@ -239,8 +239,11 @@ using common::core::NoteEmphasis;
             .fret = 7,
             .sustain = Fraction{2},
             .emphasis = NoteEmphasis::Ghost,
-            .bend = {common::core::BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
-            .slides = {common::core::SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+            .waypoints =
+                {
+                    common::core::Waypoint{.offset = Fraction{1}, .bend = 2.0},
+                    common::core::Waypoint{.offset = Fraction{2}, .fret = 9},
+                },
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 3},
@@ -250,7 +253,7 @@ using common::core::NoteEmphasis;
             .palm_mute = true,
             .dead = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 4},
@@ -259,7 +262,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1, 2},
             .harmonic_node = 7.02,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 1},
@@ -267,7 +270,7 @@ using common::core::NoteEmphasis;
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -276,7 +279,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .attack = NoteAttack::Legato,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -285,7 +288,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .attack = NoteAttack::Legato,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 5, .beat = 1},
@@ -294,7 +297,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .attack = NoteAttack::Tap,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 5, .beat = 1},
@@ -303,7 +306,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{1},
             .attack = NoteAttack::Tap,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 6, .beat = 1},
@@ -312,7 +315,7 @@ using common::core::NoteEmphasis;
             .sustain = Fraction{4},
             .emphasis = NoteEmphasis::Accent,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
     chart.fret_hand_positions = {
@@ -343,7 +346,7 @@ using common::core::NoteEmphasis;
             .fret = 3,
             .sustain = Fraction{2},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1},
@@ -351,7 +354,7 @@ using common::core::NoteEmphasis;
             .fret = 0,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
     chart.fret_hand_positions = {
@@ -393,7 +396,7 @@ using common::core::NoteEmphasis;
                             .tremolo = true,
                             .emphasis = NoteEmphasis::Accent,
                             .bend = {},
-                            .slides = {},
+                            .waypoints = {},
                         });
                 }
             }

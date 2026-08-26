@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <compare>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_legato.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/shared/json.h>
@@ -43,6 +45,56 @@ namespace
     return *value;
 }
 
+// One interval statement: a required offset plus any SUBSET of the channels. Each channel is
+// presence-keyed, because absence is a meaning — the waypoint says nothing about that channel and
+// the reading passes through it — rather than a defaulted value. Every channel is therefore
+// type-checked in place, like the note scalars: a wrong-typed fret read as absent would silently
+// turn an authored glide into a pass-through, and the note would then validate clean.
+[[nodiscard]] std::expected<Waypoint, ChartError> readWaypoint(const juce::var& waypoint_json)
+{
+    auto offset = readFraction(waypoint_json, "offset");
+    if (!offset.has_value())
+    {
+        return std::unexpected{std::move(offset.error())};
+    }
+    struct ChannelRule
+    {
+        std::string_view key;
+        bool (*matches)(const juce::var&);
+    };
+    constexpr std::array channel_rules{
+        ChannelRule{.key = "fret", .matches = [](const juce::var& v) { return v.isInt(); }},
+        ChannelRule{
+            .key = "bend", .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); }
+        },
+        ChannelRule{.key = "vibrato", .matches = [](const juce::var& v) { return v.isBool(); }},
+    };
+    for (const auto& [key, matches] : channel_rules)
+    {
+        const juce::var& property = Json::value(waypoint_json, key);
+        if (!property.isVoid() && !matches(property))
+        {
+            return std::unexpected{malformed(
+                "chart waypoint \"" + std::string{key} + "\" has the wrong type")};
+        }
+    }
+    // A waypoint stating no channel at all is refused by validateChartNoteAlone rather than here:
+    // this reader answers what the document SAYS, and an empty statement is a legality question
+    // the one rules authority owns.
+    return Waypoint{
+        .offset = *offset,
+        .fret = Json::value(waypoint_json, "fret").isVoid()
+                    ? std::nullopt
+                    : std::optional{Json::readOptionalInt(waypoint_json, "fret", 0)},
+        .bend = Json::value(waypoint_json, "bend").isVoid()
+                    ? std::nullopt
+                    : std::optional{Json::readOptionalDouble(waypoint_json, "bend", 0.0)},
+        .vibrato = Json::value(waypoint_json, "vibrato").isVoid()
+                       ? std::nullopt
+                       : std::optional{Json::readOptionalBool(waypoint_json, "vibrato", false)},
+    };
+}
+
 [[nodiscard]] std::expected<ChartNote, ChartError> readNote(const juce::var& note_json)
 {
     auto position = readPosition(note_json);
@@ -51,14 +103,87 @@ namespace
         return std::unexpected{std::move(position.error())};
     }
 
+    // Spellings the format no longer has, refused BEFORE any type check so a document that
+    // predates a change reports the re-import remedy instead of a bare "wrong type" — three of
+    // these keys still exist under a different SHAPE, which a type message would describe without
+    // naming the fix. Every project is fresh and nothing legacy is preserved (chart_document.h),
+    // so each row exists to fail loudly, not to support the old form; delete a row once the
+    // packages carrying it are re-imported.
+    struct RemovedSpelling
+    {
+        std::string_view key;
+        // The shape that identifies the OLD form. A key that is simply gone matches anything
+        // present; one that survived in a new shape matches only its old one.
+        bool (*was)(const juce::var&);
+        std::string_view remedy;
+    };
+    constexpr std::array removed_spellings{
+        RemovedSpelling{
+            .key = "mute",
+            .was = [](const juce::var&) { return true; },
+            // The one mute axis became two independent flags: a hand can palm the strings and
+            // deaden a string at the same time, which one enum could not say.
+            .remedy = "re-import the package to get \"palmMute\" and \"dead\"",
+        },
+        RemovedSpelling{
+            .key = "harmonic",
+            .was = [](const juce::var&) { return true; },
+            // The harmonic field is gone: a node asserts the harmonic and `attack` says which
+            // hand damps it.
+            .remedy = "re-import the package to get \"harmonicNode\" (and \"attack\": \"pinch\")",
+        },
+        RemovedSpelling{
+            .key = "touch",
+            .was = [](const juce::var&) { return true; },
+            .remedy = "re-import the package to get \"harmonicNode\" (and \"attack\": \"pinch\")",
+        },
+        RemovedSpelling{
+            .key = "accent",
+            .was = [](const juce::var&) { return true; },
+            // The accent bool became one end of the emphasis axis, whose other end is the ghost.
+            .remedy = "re-import the package to get \"emphasis\": \"accent\"",
+        },
+        RemovedSpelling{
+            .key = "slides",
+            .was = [](const juce::var&) { return true; },
+            // Slide waypoints became the one interval-payload array, which every channel shares.
+            .remedy = "re-import the package to get \"waypoints\"",
+        },
+        RemovedSpelling{
+            .key = "bend",
+            .was = [](const juce::var& v) { return v.isArray(); },
+            // The bend CURVE dissolved: its onset value is this key as a number, and every later
+            // value is a waypoint's bend channel.
+            .remedy = "re-import the package to get the onset \"bend\" value and \"waypoints\"",
+        },
+        RemovedSpelling{
+            .key = "slideOut",
+            .was = [](const juce::var& v) { return v.isObject(); },
+            // A slide-out ends the ring by definition, so the object's stored offset is gone and
+            // the key is now the gestured fret itself.
+            .remedy = "re-import the package to get \"slideOut\" as the gestured fret",
+        },
+    };
+    for (const auto& [removed_key, was, remedy] : removed_spellings)
+    {
+        const juce::var& property = Json::value(note_json, removed_key);
+        if (!property.isVoid() && was(property))
+        {
+            return std::unexpected{malformed(
+                "chart note uses the removed \"" + std::string{removed_key} + "\" form; " +
+                std::string{remedy})};
+        }
+    }
+
     // A chart means exactly what it says, so a property that is PRESENT but of the wrong JSON type
     // is malformed rather than absent. The lenient readers below are built for draft metadata,
     // where a fallback beats a refusal; on a note a fallback silently changes the music — a numeric
     // "attack" read as a plain pick, `"sustain": 2` read as no tail at all, `"vibrato": 1` read as
     // no vibrato — and the note then validates clean, so nothing downstream can notice. Every
-    // scalar note property has a row, so a reader added below needs its row here; the nested bend,
-    // slide, and slide-out objects check their own shapes in place, and a wrong-typed fret inside
-    // them reads as -1, which validation refuses loudly rather than silently.
+    // scalar note property has a row, so a reader added below needs its row here; the nested
+    // waypoint objects carry the same rule in \ref readWaypoint, per channel, because absence is a
+    // meaning there and a wrong-typed fret read as absent would silently turn a glide into a
+    // pass-through.
     struct ScalarRule
     {
         std::string_view key;
@@ -76,8 +201,12 @@ namespace
             .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); }
         },
         ScalarRule{.key = "vibrato", .matches = [](const juce::var& v) { return v.isBool(); }},
+        ScalarRule{
+            .key = "bend", .matches = [](const juce::var& v) { return v.isDouble() || v.isInt(); }
+        },
         ScalarRule{.key = "tremolo", .matches = [](const juce::var& v) { return v.isBool(); }},
         ScalarRule{.key = "emphasis", .matches = [](const juce::var& v) { return v.isString(); }},
+        ScalarRule{.key = "slideOut", .matches = [](const juce::var& v) { return v.isInt(); }},
     };
     for (const auto& [key, matches] : scalar_rules)
     {
@@ -147,48 +276,16 @@ namespace
         return std::unexpected{malformed("chart note attack is unknown: " + attack)};
     }
 
-    // The one mute axis became two independent flags: a hand can palm the strings and deaden a
-    // string at the same time, which one enum could not say. A document still carrying the old key
-    // predates that and would otherwise load with every mute silently dropped, so refuse it and
-    // name the fix — the same tripwire the harmonic/touch removal got, and deleted on the same
-    // schedule.
-    if (!Json::value(note_json, "mute").isVoid())
-    {
-        return std::unexpected{malformed(
-            "chart note uses the removed \"mute\" field; re-import the package to get "
-            "\"palmMute\" and \"dead\"")};
-    }
-
     note.palm_mute = Json::readOptionalBool(note_json, "palmMute", false);
     note.dead = Json::readOptionalBool(note_json, "dead", false);
-
-    // The harmonic field is gone: a node asserts the harmonic and `attack` says which hand damps
-    // it. A document still carrying either old key predates that and would otherwise load with its
-    // harmonics silently dropped, so refuse it and name the fix. Delete this once the packages are
-    // re-imported — it exists to fail loudly, not to support the old shape.
-    if (!Json::readOptionalString(note_json, "harmonic", "").empty() ||
-        Json::tryReadDouble(note_json, "touch").has_value())
-    {
-        return std::unexpected{malformed(
-            "chart note uses the removed harmonic/touch fields; re-import the package to get "
-            "\"harmonicNode\" (and \"attack\": \"pinch\")")};
-    }
-
     note.harmonic_node = Json::tryReadDouble(note_json, "harmonicNode");
 
     note.vibrato = Json::readOptionalBool(note_json, "vibrato", false);
+    // The onset value of the bend channel; zero is the default and the unbent onset, so an absent
+    // key and a written 0 mean exactly the same thing and neither is a second spelling of the
+    // other.
+    note.bend = Json::readOptionalDouble(note_json, "bend", 0.0);
     note.tremolo = Json::readOptionalBool(note_json, "tremolo", false);
-
-    // The accent bool became one end of the emphasis axis, whose other end is the ghost note.
-    // A document still carrying the old key predates that and would otherwise load with every
-    // accent silently stripped, so refuse it and name the fix — the same tripwire the
-    // harmonic/touch removal got, and deleted on the same schedule.
-    if (!Json::value(note_json, "accent").isVoid())
-    {
-        return std::unexpected{malformed(
-            "chart note uses the removed \"accent\" field; re-import the package to get "
-            "\"emphasis\": \"accent\"")};
-    }
 
     // Present means it must name a token: `normal` is refused along with anything unknown,
     // because absence already says it — the rule the absent pick attack follows. Keyed on
@@ -211,69 +308,32 @@ namespace
         }
     }
 
-    if (const juce::var& bend_json = Json::value(note_json, "bend"); !bend_json.isVoid())
+    if (const juce::var& waypoints_json = Json::value(note_json, "waypoints");
+        !waypoints_json.isVoid())
     {
-        if (!bend_json.isArray())
+        if (!waypoints_json.isArray())
         {
-            return std::unexpected{malformed("chart note bend must be an array of pairs")};
+            return std::unexpected{malformed("chart note waypoints must be an array")};
         }
-        note.bend.reserve(static_cast<std::size_t>(bend_json.size()));
-        for (int index = 0; index < bend_json.size(); ++index)
+        note.waypoints.reserve(static_cast<std::size_t>(waypoints_json.size()));
+        for (int index = 0; index < waypoints_json.size(); ++index)
         {
-            const juce::var& pair = bend_json[index];
-            // The semitone side is checked as strictly as the offset side: an unchecked cast made
-            // `["0", "half"]` a flat zero-semitone bend that validates clean.
-            if (!pair.isArray() || pair.size() != 2 || !pair[0].isString() ||
-                !(pair[1].isDouble() || pair[1].isInt()))
+            const juce::var& waypoint_json = waypoints_json[index];
+            auto waypoint = readWaypoint(waypoint_json);
+            if (!waypoint.has_value())
             {
-                return std::unexpected{malformed("chart bend pair must be [offset, semitones]")};
+                return std::unexpected{std::move(waypoint.error())};
             }
-            const auto offset = parseBeatFractionToken(pair[0].toString().toStdString());
-            if (!offset.has_value())
-            {
-                return std::unexpected{malformed("chart bend offset token is malformed")};
-            }
-            note.bend.push_back(
-                BendPoint{.offset = *offset, .semitones = static_cast<double>(pair[1])});
+            note.waypoints.push_back(*waypoint);
         }
     }
 
-    if (const juce::var& slides_json = Json::value(note_json, "slides"); !slides_json.isVoid())
+    // The gestured fret alone: a slide-out releases off the note's END, so its moment is the ring's
+    // and it stores none of its own (chart.h). Pitched glides — shift and legato alike — are the
+    // fret channel of ordinary waypoints above.
+    if (!Json::value(note_json, "slideOut").isVoid())
     {
-        if (!slides_json.isArray())
-        {
-            return std::unexpected{malformed("chart note slides must be an array")};
-        }
-        note.slides.reserve(static_cast<std::size_t>(slides_json.size()));
-        for (int index = 0; index < slides_json.size(); ++index)
-        {
-            const juce::var& waypoint_json = slides_json[index];
-            auto offset = readFraction(waypoint_json, "offset");
-            if (!offset.has_value())
-            {
-                return std::unexpected{std::move(offset.error())};
-            }
-            note.slides.push_back(
-                SlideWaypoint{
-                    .offset = *offset,
-                    .fret = Json::readOptionalInt(waypoint_json, "fret", -1),
-                });
-        }
-    }
-
-    // The unpitched slide-out owns its end offset and gestured fret (no landing note exists);
-    // pitched glides — shift and legato alike — are ordinary slide waypoints above.
-    if (const juce::var& out_json = Json::value(note_json, "slideOut"); !out_json.isVoid())
-    {
-        auto offset = readFraction(out_json, "offset");
-        if (!offset.has_value())
-        {
-            return std::unexpected{std::move(offset.error())};
-        }
-        note.slide_out = SlideOut{
-            .offset = *offset,
-            .fret = Json::readOptionalInt(out_json, "fret", -1),
-        };
+        note.slide_out = Json::readOptionalInt(note_json, "slideOut", -1);
     }
 
     return note;
@@ -416,39 +476,53 @@ void appendJsonString(std::string& out, const std::string& text)
             break;
         }
     }
-    if (!note.bend.empty())
+    // Zero is the unbent onset and the field's default, so it never writes — the same elision every
+    // defaulted note property takes.
+    if (std::is_neq(note.bend <=> 0.0))
     {
-        line += R"(, "bend": [)";
-        for (std::size_t index = 0; index < note.bend.size(); ++index)
+        line += R"(, "bend": )" + doubleText(note.bend);
+    }
+    if (!note.waypoints.empty())
+    {
+        line += R"(, "waypoints": [)";
+        for (std::size_t index = 0; index < note.waypoints.size(); ++index)
         {
+            const Waypoint& waypoint = note.waypoints[index];
             if (index > 0)
             {
                 line += ", ";
             }
-            line += R"([")" + formatBeatFractionToken(note.bend[index].offset) + R"(", )" +
-                    doubleText(note.bend[index].semitones) + ']';
-        }
-        line += ']';
-    }
-    if (!note.slides.empty())
-    {
-        line += R"(, "slides": [)";
-        for (std::size_t index = 0; index < note.slides.size(); ++index)
-        {
-            const SlideWaypoint& waypoint = note.slides[index];
-            if (index > 0)
+            line += R"({ "offset": ")" + formatBeatFractionToken(waypoint.offset) + '"';
+            // Every STATED channel is written, values that look like defaults included: a bend of
+            // zero is a release back to rest and a false vibrato is a shake ENDING, so eliding
+            // either would delete the statement rather than shorten it. Absence is what says
+            // nothing was stated.
+            //
+            // Each channel is bound to a local so its check and its access are provably the same
+            // object, which the CI-only optional-access checker does not credit across two
+            // separate reads of an indexed element.
+            const std::optional<int>& fret = waypoint.fret;
+            if (fret.has_value())
             {
-                line += ", ";
+                line += R"(, "fret": )" + std::to_string(*fret);
             }
-            line += R"({ "offset": ")" + formatBeatFractionToken(waypoint.offset) +
-                    R"(", "fret": )" + std::to_string(waypoint.fret) + " }";
+            const std::optional<double>& bend = waypoint.bend;
+            if (bend.has_value())
+            {
+                line += R"(, "bend": )" + doubleText(*bend);
+            }
+            const std::optional<bool>& vibrato = waypoint.vibrato;
+            if (vibrato.has_value())
+            {
+                line += R"(, "vibrato": )" + std::string{*vibrato ? "true" : "false"};
+            }
+            line += " }";
         }
         line += ']';
     }
-    if (note.slide_out.has_value())
+    if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
     {
-        line += R"(, "slideOut": { "offset": ")" + formatBeatFractionToken(note.slide_out->offset) +
-                R"(", "fret": )" + std::to_string(note.slide_out->fret) + " }";
+        line += R"(, "slideOut": )" + std::to_string(*slide_out);
     }
     line += " }";
     return line;

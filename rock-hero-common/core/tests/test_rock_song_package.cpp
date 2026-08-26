@@ -1356,8 +1356,8 @@ TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-p
             .string = 3,
             .fret = 5,
             .sustain = Fraction{1, 2},
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1414,8 +1414,8 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
             .string = 3,
             .fret = 5,
             .sustain = Fraction{1, 2},
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1431,8 +1431,8 @@ TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][r
             .string = 4,
             .fret = 2,
             .sustain = Fraction{1, 8},
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         });
 
     Song song = makeSong(source_audio);
@@ -1468,8 +1468,8 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .string = 2,
             .fret = 9,
             .sustain = Fraction{5, 4},
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
         // A pick slide rides the same stability gate so the canonical attack+path spelling
         // can never churn across load/save cycles.
@@ -1479,9 +1479,9 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .fret = 12,
             .sustain = Fraction{3, 4},
             .attack = NoteAttack::PickSlide,
-            .bend = {},
-            .slides = {},
-            .slide_out = SlideOut{.offset = Fraction{3, 4}, .fret = 4},
+            .bend = 0.0,
+            .waypoints = {},
+            .slide_out = 4,
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1590,8 +1590,8 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             .fret = 5,
             // Rings exactly to the claim below, which is what justifies it.
             .sustain = Fraction{1, 2},
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
@@ -1599,8 +1599,8 @@ TEST_CASE("Rock song package read settles unjustifiable legato claims", "[core][
             .fret = 7,
             .sustain = Fraction{1, 8},
             .attack = NoteAttack::Legato,
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
     };
     REQUIRE(writeFixtureChart(package_directory / chart_ref, clean_chart).has_value());
@@ -1631,8 +1631,8 @@ TEST_CASE(
             .string = 3,
             .fret = 5,
             .sustain = Fraction{1, 8},
-            .bend = {},
-            .slides = {},
+            .bend = 0.0,
+            .waypoints = {},
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1679,9 +1679,9 @@ TEST_CASE(
             .fret = 12,
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::PickSlide,
-            .bend = {},
-            .slides = {},
-            .slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 4},
+            .bend = 0.0,
+            .waypoints = {},
+            .slide_out = 4,
         },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
@@ -1693,7 +1693,7 @@ TEST_CASE(
 
     // Corrupt in place: the terminal lands on the start fret, so the scrape sits still.
     Chart still_chart = scrape_chart;
-    still_chart.notes[0].slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 12};
+    still_chart.notes[0].slide_out = 12;
     const auto refused = writeFixtureChart(package_directory / chart_ref, still_chart);
     REQUIRE_FALSE(refused.has_value());
     // The writer's refusal names the defect class and the rule, because in a correct build it
@@ -1704,7 +1704,7 @@ TEST_CASE(
         package_directory / chart_ref,
         R"({ "formatVersion": 1, "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"] },)"
         R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/2",)"
-        R"( "attack": "pickSlide", "slideOut": { "offset": "1/2", "fret": 12 } } ] })");
+        R"( "attack": "pickSlide", "slideOut": 12 } ] })");
 
     const auto loaded = readRockSongPackageDirectory(package_directory);
     REQUIRE(loaded.has_value());

@@ -38,11 +38,9 @@ TEST_CASE("EditorController toggles pick slides with exact restoration", "[core]
     const common::core::ChartNote& scrape = chart->notes[0];
     CHECK(scrape.attack == common::core::NoteAttack::PickSlide);
     CHECK(scrape.fret == original.fret);
+    // The required terminal, which ends the ring by definition — there is no second coordinate
+    // left to check it against.
     REQUIRE(scrape.slide_out.has_value());
-    if (scrape.slide_out.has_value())
-    {
-        CHECK(scrape.slide_out->offset == scrape.sustain);
-    }
 
     // Toggling back inside the window restores the note field-for-field.
     controller.onChartTechniqueToggleRequested(ChartTechnique::PickSlide);
@@ -104,8 +102,8 @@ TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][ch
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
     CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
-    CHECK(chart->notes[0].slides.empty());
-    CHECK(chart->notes[1].slides.empty());
+    CHECK(chart->notes[0].waypoints.empty());
+    CHECK(chart->notes[1].waypoints.empty());
     CHECK_FALSE(chart->notes[0].slide_out.has_value());
     CHECK_FALSE(chart->notes[1].slide_out.has_value());
 }

@@ -128,7 +128,7 @@ enum class ChartErrorCode : std::uint8_t
     InvalidNote,
     /*! \brief Notes are not sorted by position and string, or duplicate an onset. */
     UnsortedOrDuplicateNotes,
-    /*! \brief A bend or slide payload violates its note's sustain window. */
+    /*! \brief A waypoint is empty, misordered, outside its sustain, or states an illegal value. */
     InvalidNotePayload,
     /*! \brief A fret-hand position entry is out of range or unsorted. */
     InvalidFretHandPosition,
@@ -244,27 +244,49 @@ never disagree about what the repaired note becomes.
 [[nodiscard]] bool flattenStrandedStrike(ChartNote& note);
 
 /*!
+\brief Takes a note's PATH away: every stated fret and the trail-off, leaving all else standing.
+
+The one spelling of "this note does not travel", shared by the three places that decide so: the
+open string that has nothing pressed to glide, the scrape whose path stopped travelling and became
+a plain pick, and the editor retyping a note out of the scrape attack, where the path was gesture
+geometry that would be a fiction as a pitched glide.
+
+Per CHANNEL, which is the whole reason it is one function. A bend or a vibrato change authored at
+the same instant as a glide target is a different statement about the same moment, and forgetting
+it because the path had to go would delete something the rule never judged. Only a waypoint THIS
+strip leaves stating nothing goes with its last statement (\ref stripWaypointChannels).
+
+\param note Note whose path is removed in place.
+*/
+void dropNotePath(ChartNote& note);
+
+/*!
 \brief Clips a note's payload back inside its own (possibly shortened) sustain.
 
 The consequence every shortening of a STORED tail owes, so the payload rule "offsets lie within
 the sustain" keeps holding after it. Latent payloads on a scrape clip too — they must still fit
 the sustain when a toggle-back makes them real again. Its narrower relative
-\ref clipPayloadsTo clips to a caller-chosen target and leaves the slide-out alone, because a
-presentation trim is still deciding where its end goes; this one is for a note whose end is
-already settled.
+\ref clipPayloadsTo clips to a caller-chosen target, because a presentation trim is still deciding
+where its end goes; this one is for a note whose end is already settled.
 
-A scrape is re-terminated rather than clipped: its gesture ends exactly at the sustain, so a
-sustain change moves the terminal instead of dropping it. Turnaround waypoints strictly before the
-new end survive, and when compression makes the terminal fret meet its new predecessor the nearest
-earlier differing fret takes over, so the path never sits still.
+A slide-out is never dropped and never moved: it ends the ring by definition (\ref
+ChartNote::slide_out), so a shortened ring carries it along. What a SCRAPE's terminal still needs
+is a new aim — when compression makes its fret meet the fret it now follows, the nearest earlier
+differing fret takes over, including one this clip removes, so the path never sits still.
 
-`end_lands_on_onset` says the new sustain end IS a following same-string onset, which the 40-Q2-B
-truncation (\ref normalizeSustainOverlaps) always makes it. A pitched waypoint may not sit on a
-later onset of its own string — that encoding stores no coordinates, which is what keeps it
-undesyncable — so there the last point must go too; keeping it turned an ordinary note placement
+The POSITION channel takes a strict bound where the general one is inclusive, and two rules meet
+on that line. A slide-out is the ring's last position statement, so nothing may state a fret where
+it ends. And `end_lands_on_onset` says the new sustain end IS a following same-string onset, which
+the 40-Q2-B truncation (\ref normalizeSustainOverlaps) always makes it: a stated fret may not sit
+on a later onset of its own string — that encoding stores no coordinates, which is what keeps it
+undesyncable — so a fret stated there must go too. Keeping it turned an ordinary note placement
 into a silent refusal of the whole plan, because the truncation left behind exactly the payload
-the gate then rejected. A sustain that merely ends where the user put it keeps a point at its end,
-which is the normal shift-slide glide end.
+the gate then rejected. A sustain that merely ends where the user put it keeps a fret stated at its
+end, which is the normal shift-slide glide end.
+
+Bend and vibrato are OTHER channels and keep the inclusive bound throughout, which is what lets an
+imported bend arriving exactly at the ring's end survive a truncation that shortens the path. A
+waypoint stripped down to nothing by either rule leaves with its last statement.
 
 \param note Note whose payload is clipped in place.
 \param end_lands_on_onset True when the new sustain end is a following onset on the note's string.
@@ -325,12 +347,19 @@ validator asks: a note is valid exactly when this changes nothing. That is what 
 stated ONCE — the repair policy (clamp, lift, drop, demote, trim) is written here and nowhere
 else, and the validator never restates a rule as a refusal beside it.
 
-What it owns: the board and capo ranges (a fret, waypoint, or exit past the last fret clamps
-onto it; a scrape's start or any exit on or below the capo lifts above it; a waypoint on or below
-the capo is dropped); the technique exclusions (a dead note's modulation, the dead pinch, the
-tap harmonic's tremolo, a fret-hand harmonic's payload, an open string's slide); the stranded
-strike (\ref flattenStrandedStrike); and last, a pick slide whose path no longer travels after all
-of that, which becomes the plain pick it sounds like.
+What it owns: the board and capo ranges (a fret, a waypoint's stated fret, or an exit past the last
+fret clamps onto it; a scrape's start or any exit on or below the capo lifts above it; a stated
+fret on or below the capo is stripped); the technique exclusions (a dead note's modulation, the
+dead pinch, the tap harmonic's tremolo, a fret-hand harmonic's payload, an open string's slide);
+the stranded strike (\ref flattenStrandedStrike); and last, a pick slide whose path no longer
+travels after all of that, which becomes the plain pick it sounds like.
+
+Every strip is per CHANNEL, not per waypoint: a capo floor takes a waypoint's fret and leaves the
+bend authored at the same instant, an open string loses its path and keeps its shake, and a
+waypoint the strip ITSELF left stating nothing is then dropped (\ref stripWaypointChannels — a
+waypoint that arrived empty is a refusal this normalizer must not quietly repair away, since it
+runs first). That is the cost of storing the moment once — and the point of it, since the
+alternative silently deleted statements that shared an offset with the one a rule refused.
 
 A dead note's tail is deliberately NOT here (E25). It is a presentation rule
 (\ref presentedChartNotes rule 4): a dead note carries its actual ring like any other — that ring
@@ -433,9 +462,10 @@ Two halves, and only the first is a list of refusals: the structural rules no re
 (a string the tuning lacks, a negative fret, a non-positive sustain — every string rings for some
 length, and no repair can invent the one a chart failed to state — a node off the string or behind
 its stop, a
-pinch without its node, a pressed note on a capo'd fret, a position off the grid, a bend or slide
-payload outside its sustain or out of order, a scrape without its terminal at the sustain, a saved
-scrape still carrying a latent technique), and then the FIXPOINT — the note must already equal its
+pinch without its node, a pressed note on a capo'd fret, a position off the grid, a waypoint
+outside its sustain, out of order, stating nothing, or stating a negative fret or bend, a scrape
+without its terminal, a saved scrape still carrying a latent technique), and then the FIXPOINT —
+the note must already equal its
 own normal form (\ref normalizeChartNote). Every other rule a note can break on its own is stated
 once, as that normalizer's repair, and enforced here for free; nothing is restated as a refusal
 beside it. Everything that reads ONE note lives here, so the editor's per-note eligibility can ask
@@ -516,12 +546,12 @@ zero was still the encoding for a note with no tail.
 Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by
 (position, string) with no duplicate onsets, on valid grid positions; strings in range;
 non-negative frets and strictly positive sustains;
-slide and bend offsets ascending within the sustain, and no waypoint on a later onset of its own
-string; sorted fret-hand positions of positive width; harmonic-node range, beyond-the-stop, and
-neck-ceiling bounds;
+waypoint offsets ascending strictly inside the sustain, each stating at least one channel and no
+negative fret or bend, with no stated fret on a later onset of its own string; sorted fret-hand
+positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;
 pinch-requires-a-node; on pick-slide notes, no pitched techniques (a saved scrape carries none — the
-writer omits the in-memory overrides) and the required unpitched slide-out terminal exactly at the
-sustain; and the hold markers through \ref validateChartHoldMarkers. Then the fixpoint half, stated
+writer omits the in-memory overrides) and the required unpitched slide-out terminal; and the hold
+markers through \ref validateChartHoldMarkers. Then the fixpoint half, stated
 once each as a repair of the normalizer: every note, hold marker and hand position must already
 equal its own normal form (\ref normalizeChartNote, \ref normalizeChartHoldMarker,
 \ref normalizeFretHandPosition).

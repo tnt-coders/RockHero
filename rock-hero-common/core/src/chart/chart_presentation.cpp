@@ -37,8 +37,25 @@ void dropPresentedTail(ChartNote& note)
 // re-broke every claim after a muted cluck once already.
 [[nodiscard]] bool presentsNoDeadTail(const ChartNote& note)
 {
-    return note.dead && !note.tremolo && note.slides.empty() && !note.slide_out.has_value() &&
-           note.sustain.numerator > 0;
+    return note.dead && !note.tremolo && !anyWaypointStatesFret(note.waypoints) &&
+           !note.slide_out.has_value() && note.sustain.numerator > 0;
+}
+
+// The offset of the last waypoint that states a POSITION, or zero when none does — where the
+// note's path stops saying anything new about where the hand is. The two rules that need it are
+// the ones a position statement bounds: a scrape's leg begins there, and a ring ending in a
+// slide-out must end strictly after it.
+[[nodiscard]] Fraction lastStatedFretOffset(const ChartNote& note)
+{
+    Fraction last{};
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        if (waypoint.fret.has_value())
+        {
+            last = waypoint.offset;
+        }
+    }
+    return last;
 }
 
 // Rules 1 and 2 for one note whose ring reaches into the margin before the next binding onset: the
@@ -83,8 +100,8 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     // decision.
     if (isScrape(note.attack) && note.slide_out.has_value())
     {
-        const Fraction leg_start = note.slides.empty() ? Fraction{} : note.slides.back().offset;
-        Fraction terminal = note.slide_out->offset;
+        const Fraction leg_start = lastStatedFretOffset(note);
+        Fraction terminal = note.sustain;
         if (leg_start < limit)
         {
             terminal = limit;
@@ -97,47 +114,37 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
             terminal = leg_start + ((gap - leg_start) * Fraction{1, 2});
         }
         // A leg starting at or beyond the onset has nothing to crunch against, so it keeps its end
-        // and the assignment below only ever shortens.
-        if (terminal < note.slide_out->offset)
-        {
-            note.slide_out->offset = terminal;
-        }
-        // The terminal becomes the presented sustain, which is what keeps a presented scrape in the
-        // shape validateChartNoteAlone pins for a stored one: the gesture ends exactly at the end.
-        target = note.slide_out->offset;
+        // and the assignment below only ever shortens. The terminal IS the presented sustain,
+        // which is what keeps a presented scrape in the shape validateChartNoteAlone pins for a
+        // stored one: the gesture ends exactly at the end.
+        target = std::min(terminal, note.sustain);
     }
     else
     {
         // Rule 2: the margin yields only to information, and only as far as the information
-        // reaches — the tail extends to the last payload point that CHANGES something and stops
-        // exactly there, never on to the actual end.
-        const Fraction informative = lastChangingPayloadOffset(note);
+        // reaches — the tail extends to the last instant the payload still has something to
+        // present and stops exactly there, never on to the actual end.
+        const Fraction informative = informativePayloadEnd(note);
         if (target < informative)
         {
             target = informative;
         }
-        // Trailing points the target passed present nothing new (only non-changing ones can sit
-        // past the last changing one), so they leave with the tail. Clipping here rather than after
-        // the sustain assignment keeps the payload inside the sustain AND lets the slide-out
+        // Trailing statements the target passed present nothing new (only non-changing ones can
+        // sit past the last changing one), so they leave with the tail. Clipping here rather than
+        // after the sustain assignment keeps the payload inside the sustain AND lets the slide-out
         // measure itself against the path that survives — a trailing hold waypoint must not hold
         // the gesture open through the margin.
         clipPayloadsTo(note, target);
-    }
-    // The unpitched slide-out is NOT protected payload: its end is gesture geometry derived from
-    // the ring rather than a musical event, so it trims back with the tail to respect the margin.
-    // The trimmed end must stay strictly positive and strictly after the last surviving waypoint,
-    // so a crowding that would crush it compresses to the smallest legal end instead of keeping
-    // its full length — a kept end runs the gesture through the next onset whenever a slide-in has
-    // moved that onset's head into the gap.
-    if (note.slide_out.has_value() && target < note.slide_out->offset)
-    {
-        const Fraction compressed =
-            keptStrictlyAfterLastWaypoint(note, std::max(target, g_minimum_slide_window));
-        if (compressed < note.slide_out->offset)
+        // The unpitched slide-out is NOT protected payload: it ends wherever the RING ends, so it
+        // trims back with the tail to respect the margin. What the trim owes it is a ring still
+        // long enough to be a gesture at all and still strictly past the last stated fret, so a
+        // crowding that would crush it compresses to the smallest legal end instead of keeping its
+        // full length — a kept end runs the gesture through the next onset whenever a slide-in has
+        // moved that onset's head into the gap.
+        if (note.slide_out.has_value())
         {
-            note.slide_out->offset = compressed;
+            target = keptAfterLastStatedFret(note, std::max(target, g_minimum_slide_window));
         }
-        target = note.slide_out->offset;
     }
     if (target < note.sustain)
     {
@@ -221,48 +228,70 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
 
 bool hasSustainTechnique(const ChartNote& note)
 {
-    return !note.bend.empty() || !note.slides.empty() || note.slide_out.has_value() ||
-           note.vibrato || note.tremolo;
+    // Any waypoint at all, whichever channel it states: a mid-ring curl and a delayed shake ride
+    // the tail exactly as a glide does, and dropping the tail would drop the statement with it.
+    return std::is_neq(note.bend <=> 0.0) || !note.waypoints.empty() ||
+           note.slide_out.has_value() || note.vibrato || note.tremolo;
 }
 
-// Each payload is measured against where the note STARTS — unbent, at its own fret — so the first
-// point of each curve is a change exactly when it differs from that starting state.
-Fraction lastChangingPayloadOffset(const ChartNote& note)
+// Each channel is measured against where the note STARTS — at its onset bend, its own fret, its
+// onset vibrato — so a first statement is a change exactly when it differs from that opening
+// value, and the running value carries forward through waypoints that state nothing about it.
+Fraction informativePayloadEnd(const ChartNote& note)
 {
     Fraction last{};
-    double previous_semitones = 0.0;
-    for (const BendPoint& point : note.bend)
-    {
-        if (std::is_neq(point.semitones <=> previous_semitones) && last < point.offset)
+    const auto reaches = [&last](const Fraction offset) {
+        if (last < offset)
         {
-            last = point.offset;
+            last = offset;
         }
-        previous_semitones = point.semitones;
-    }
+    };
+    double previous_bend = note.bend;
     int previous_fret = note.fret;
-    for (const SlideWaypoint& waypoint : note.slides)
+    bool previous_vibrato = note.vibrato;
+    for (const Waypoint& waypoint : note.waypoints)
     {
-        if (waypoint.fret != previous_fret && last < waypoint.offset)
+        const double bend = waypoint.bend.value_or(previous_bend);
+        if (std::is_neq(bend <=> previous_bend))
         {
-            last = waypoint.offset;
+            reaches(waypoint.offset);
         }
-        previous_fret = waypoint.fret;
+        previous_bend = bend;
+
+        const int fret = waypoint.fret.value_or(previous_fret);
+        if (fret != previous_fret)
+        {
+            reaches(waypoint.offset);
+        }
+        previous_fret = fret;
+
+        const bool vibrato = waypoint.vibrato.value_or(previous_vibrato);
+        if (vibrato != previous_vibrato)
+        {
+            // A bend value and a fret are POINTS — their information is complete at the instant
+            // they are reached, so the tail may stop exactly there. A vibrato START is an interval
+            // STATE: a tail ending on it would show the shake for no time at all and read as no
+            // shake, so the information reaches one minimum gesture window past the statement.
+            // Its END is a point again — the interval before it already showed everything.
+            reaches(vibrato ? waypoint.offset + g_minimum_slide_window : waypoint.offset);
+        }
+        previous_vibrato = vibrato;
     }
     return last;
 }
 
 void clipPayloadsTo(ChartNote& note, const Fraction target)
 {
-    std::erase_if(note.bend, [target](const BendPoint& point) { return target < point.offset; });
     std::erase_if(
-        note.slides, [target](const SlideWaypoint& waypoint) { return target < waypoint.offset; });
+        note.waypoints, [target](const Waypoint& waypoint) { return target < waypoint.offset; });
 }
 
-Fraction keptStrictlyAfterLastWaypoint(const ChartNote& note, const Fraction window)
+Fraction keptAfterLastStatedFret(const ChartNote& note, const Fraction window)
 {
-    if (!note.slides.empty() && window <= note.slides.back().offset)
+    const Fraction last_fret = lastStatedFretOffset(note);
+    if (window <= last_fret)
     {
-        return note.slides.back().offset + g_minimum_slide_window;
+        return last_fret + g_minimum_slide_window;
     }
     return window;
 }

@@ -37,7 +37,7 @@ namespace
             .fret = 1,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -45,7 +45,7 @@ namespace
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Rings across the 3:1+1/2 strum without being re-struck there: it joins that span's
         // posture (rule 12) and makes the span arrive arpeggio-style.
@@ -55,15 +55,18 @@ namespace
             .fret = 5,
             .sustain = Fraction{2},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 7,
             .sustain = Fraction{2},
-            .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
-            .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+            .waypoints =
+                {
+                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
+                    Waypoint{.offset = Fraction{2}, .fret = 9},
+                },
         },
         // The strum's second struck string: two members are what open a span at all.
         ChartNote{
@@ -72,7 +75,7 @@ namespace
             .fret = 8,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Shift-slide pair: the glide is an ordinary pitched waypoint at the sustain end, the
         // minimum sustain distance before the re-picked landing on the same string, so the
@@ -83,7 +86,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{3, 4},
             .bend = {},
-            .slides = {SlideWaypoint{.offset = Fraction{3, 4}, .fret = 8}},
+            .waypoints = {Waypoint{.offset = Fraction{3, 4}, .fret = 8}},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -91,7 +94,7 @@ namespace
             .fret = 8,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
     chart.fret_hand_positions = {
@@ -148,9 +151,13 @@ TEST_CASE("Chart projection resolves chart positions to seconds", "[core][chart]
     const NoteViewState& sliding = state.notes[3];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
     CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
-    REQUIRE(sliding.bend.size() == 1);
-    CHECK(sliding.bend[0].seconds == Catch::Approx(9.5 * beat));
-    CHECK(sliding.bend[0].semitones == Catch::Approx(2.0));
+    // The curve opens at the ONSET: the note's own bend value is the channel's first statement,
+    // so a bent note's polyline always starts at its head and the stated point follows.
+    REQUIRE(sliding.bend.size() == 2);
+    CHECK(sliding.bend[0].seconds == Catch::Approx(8.5 * beat));
+    CHECK(sliding.bend[0].semitones == Catch::Approx(0.0));
+    CHECK(sliding.bend[1].seconds == Catch::Approx(9.5 * beat));
+    CHECK(sliding.bend[1].semitones == Catch::Approx(2.0));
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);
@@ -240,15 +247,13 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
             .string = 1,
             .fret = 5,
             .sustain = Fraction{4},
-            .bend =
+            .waypoints =
                 {
-                    BendPoint{.offset = Fraction{1}, .semitones = 2.0},
-                    BendPoint{.offset = Fraction{39, 10}, .semitones = 2.0},
-                },
-            .slides =
-                {
-                    SlideWaypoint{.offset = Fraction{2}, .fret = 7},
-                    SlideWaypoint{.offset = Fraction{39, 10}, .fret = 7},
+                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
+                    Waypoint{.offset = Fraction{2}, .fret = 7},
+                    // One moment, two repeats: the fret is a hold and the bend value is the same
+                    // one already standing, so nothing here says anything new.
+                    Waypoint{.offset = Fraction{39, 10}, .fret = 7, .bend = 2.0},
                 },
         },
         // The binding onset the trim measures against.
@@ -258,7 +263,7 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
     Arrangement arrangement = makeArrangementWithChart();
@@ -274,10 +279,11 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
     CHECK(presented.notes[0].end_seconds == Catch::Approx(1.875));
     CHECK(actual.notes[0].end_seconds == Catch::Approx(2.0));
 
-    // The points past that trim left with the tail, and only the actual form still has them.
-    CHECK(presented.notes[0].bend.size() == 1);
-    REQUIRE(actual.notes[0].bend.size() == 2);
-    CHECK(actual.notes[0].bend[1].seconds == Catch::Approx(1.95));
+    // The statements past that trim left with the tail, and only the actual form still has them.
+    // Both curves carry the onset point in front, which is the channel's opening value.
+    CHECK(presented.notes[0].bend.size() == 2);
+    REQUIRE(actual.notes[0].bend.size() == 3);
+    CHECK(actual.notes[0].bend[2].seconds == Catch::Approx(1.95));
     CHECK(presented.notes[0].slides.size() == 1);
     REQUIRE(actual.notes[0].slides.size() == 2);
     CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.95));
@@ -348,8 +354,8 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .fret = 5,
             .sustain = Fraction{4},
             .bend = {},
-            .slides = {},
-            .slide_out = SlideOut{.offset = Fraction{4}, .fret = 12},
+            .waypoints = {},
+            .slide_out = 12,
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -357,7 +363,7 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
     // Exactly where the STORED terminal lands, which is where the presented one no longer is.
@@ -417,7 +423,7 @@ TEST_CASE("Chart projection draws presented tails and holds the shape's chug", "
             .fret = fret,
             .sustain = sustain,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         };
     };
     // A three-quarter-beat chug on two strings — which derives a span of its own — then the same
@@ -465,9 +471,12 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
         .fret = 17,
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
-        .bend = {BendPoint{.offset = Fraction{1, 4}, .semitones = 1.0}},
-        .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3}},
-        .slide_out = SlideOut{.offset = Fraction{1}, .fret = 9},
+        .waypoints =
+            {
+                Waypoint{.offset = Fraction{1, 4}, .bend = 1.0},
+                Waypoint{.offset = Fraction{1, 2}, .fret = 3},
+            },
+        .slide_out = 9,
     };
     scrape.palm_mute = true;
     scrape.dead = true;
@@ -523,8 +532,8 @@ TEST_CASE("Chart projection derives hand-approach ramps", "[core][chart]")
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
-            .slide_out = SlideOut{.offset = Fraction{1}, .fret = 12},
+            .waypoints = {},
+            .slide_out = 12,
         });
     chart.fret_hand_positions = {
         // Ordinary move: the margin morph (a quarter beat in 4/4).
@@ -596,9 +605,9 @@ TEST_CASE("Chart projection gives a hold waypoint the margin morph", "[core][cha
             .fret = 5,
             .sustain = Fraction{4},
             .bend = {},
-            .slides = {
-                SlideWaypoint{.offset = Fraction{3}, .fret = 5},
-                SlideWaypoint{.offset = Fraction{4}, .fret = 9},
+            .waypoints = {
+                Waypoint{.offset = Fraction{3}, .fret = 5},
+                Waypoint{.offset = Fraction{4}, .fret = 9},
             },
         });
     chart.fret_hand_positions = {

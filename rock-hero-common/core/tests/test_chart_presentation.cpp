@@ -51,8 +51,8 @@ namespace
         .string = string,
         .fret = fret,
         .sustain = sustain,
-        .bend = {},
-        .slides = {},
+        .bend = 0.0,
+        .waypoints = {},
     };
 }
 
@@ -140,9 +140,9 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
 
     SECTION("a bend point that changes floors the trim past the margin")
     {
-        saved[0].bend = {
-            BendPoint{.offset = Fraction{1, 2}, .semitones = 0.5},
-            BendPoint{.offset = Fraction{15, 8}, .semitones = 1.0},
+        saved[0].waypoints = {
+            Waypoint{.offset = Fraction{1, 2}, .bend = 0.5},
+            Waypoint{.offset = Fraction{15, 8}, .bend = 1.0},
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
@@ -150,52 +150,92 @@ TEST_CASE("Rule 2 floors the trim on informative payload and clips the rest", "[
         // The margin alone would have stopped at 7/4; the second bend point still says something
         // new at 15/8, so the tail runs to it and stops exactly there.
         CHECK(presented[0].sustain == Fraction{15, 8});
-        CHECK(presented[0].bend.size() == 2);
+        CHECK(presented[0].waypoints.size() == 2);
     }
 
     SECTION("trailing points that repeat the curve leave with the tail")
     {
-        saved[0].bend = {
-            BendPoint{.offset = Fraction{1, 2}, .semitones = 1.0},
-            BendPoint{.offset = Fraction{15, 8}, .semitones = 1.0},
-            BendPoint{.offset = Fraction{2}, .semitones = 1.0},
+        saved[0].waypoints = {
+            Waypoint{.offset = Fraction{1, 2}, .bend = 1.0},
+            Waypoint{.offset = Fraction{15, 8}, .bend = 1.0},
+            Waypoint{.offset = Fraction{2}, .bend = 1.0},
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
-        REQUIRE(presented[0].bend.size() == 1);
-        // Clipped, never rescaled: the surviving point keeps the offset the source authored.
-        CHECK(presented[0].bend.front().offset == Fraction{1, 2});
+        REQUIRE(presented[0].waypoints.size() == 1);
+        // Clipped, never rescaled: the surviving statement keeps the offset the source authored.
+        CHECK(presented[0].waypoints.front().offset == Fraction{1, 2});
         // The saved curve is untouched, so a later reveal can still draw the whole ring.
-        CHECK(saved[0].bend.size() == 3);
+        CHECK(saved[0].waypoints.size() == 3);
     }
 
     SECTION("an equal-fret hold waypoint is a pin, not a change")
     {
-        saved[0].slides = {
-            SlideWaypoint{.offset = Fraction{1, 2}, .fret = 7},
-            SlideWaypoint{.offset = Fraction{15, 8}, .fret = 7},
+        saved[0].waypoints = {
+            Waypoint{.offset = Fraction{1, 2}, .fret = 7},
+            Waypoint{.offset = Fraction{15, 8}, .fret = 7},
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{7, 4});
-        REQUIRE(presented[0].slides.size() == 1);
-        CHECK(presented[0].slides.front().offset == Fraction{1, 2});
+        REQUIRE(presented[0].waypoints.size() == 1);
+        CHECK(presented[0].waypoints.front().offset == Fraction{1, 2});
     }
 
     SECTION("a waypoint gliding to a new fret floors the trim like a bend does")
     {
-        saved[0].slides = {
-            SlideWaypoint{.offset = Fraction{1, 2}, .fret = 7},
-            SlideWaypoint{.offset = Fraction{15, 8}, .fret = 9},
+        saved[0].waypoints = {
+            Waypoint{.offset = Fraction{1, 2}, .fret = 7},
+            Waypoint{.offset = Fraction{15, 8}, .fret = 9},
         };
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
         CHECK(presented[0].sustain == Fraction{15, 8});
-        CHECK(presented[0].slides.size() == 2);
+        CHECK(presented[0].waypoints.size() == 2);
+    }
+
+    SECTION("a vibrato START floors the trim a minimum window PAST itself")
+    {
+        // The point-versus-interval distinction. A bend value and a fret are complete at the
+        // instant they are reached, so the tail may stop exactly there; a shake is an interval
+        // STATE, and a tail ending on its first instant would show it for no time at all and read
+        // as no shake. So the information reaches one minimum slide window past the statement.
+        saved[0].waypoints = {Waypoint{.offset = Fraction{7, 4}, .vibrato = true}};
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        // Stated exactly ON the margin line, so a point-shaped floor would leave the trim at 7/4;
+        // the interval's extent is the whole of the difference.
+        CHECK(presented[0].sustain == Fraction{7, 4} + g_minimum_slide_window);
+    }
+
+    SECTION("a vibrato END is a point, like every other statement")
+    {
+        // The interval before it already showed everything there was, so nothing is lost by
+        // stopping exactly on the end — which is what makes the extra window above a property of
+        // STARTS rather than of the vibrato channel.
+        saved[0].vibrato = true;
+        saved[0].waypoints = {Waypoint{.offset = Fraction{7, 4}, .vibrato = false}};
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        CHECK(presented[0].sustain == Fraction{7, 4});
+    }
+
+    SECTION("a vibrato statement that repeats the standing state holds nothing open")
+    {
+        // Every channel is read against the value the note OPENS with, so a shake restated at an
+        // instant it already had says nothing new and the margin trim stands.
+        saved[0].vibrato = true;
+        saved[0].waypoints = {Waypoint{.offset = Fraction{7, 4}, .vibrato = true}};
+
+        const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
+        REQUIRE(presented.size() == saved.size());
+        CHECK(presented[0].sustain == Fraction{7, 4});
     }
 }
 
@@ -212,7 +252,7 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
             note(at(1, 1), 1, Fraction{1, 4}),
             note(at(1, 1, Fraction{1, 4}), 2, Fraction{1}),
         };
-        saved[0].slide_out = SlideOut{.offset = Fraction{1, 4}, .fret = 8};
+        saved[0].slide_out = 8;
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -228,7 +268,7 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
         // unchecked-optional-access analysis, and this is its canonical flow-visible form.
         if (first.slide_out.has_value())
         {
-            CHECK(first.slide_out->offset == g_minimum_slide_window);
+            CHECK(first.sustain == g_minimum_slide_window);
         }
     }
 
@@ -238,8 +278,8 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
             note(at(1, 1), 1, Fraction{1, 2}),
             note(at(1, 1, Fraction{1, 2}), 2, Fraction{1}),
         };
-        saved[0].slides = {SlideWaypoint{.offset = Fraction{1, 4}, .fret = 7}};
-        saved[0].slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 9};
+        saved[0].waypoints = {Waypoint{.offset = Fraction{1, 4}, .fret = 7}};
+        saved[0].slide_out = 9;
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -253,9 +293,9 @@ TEST_CASE("Rule 2 compresses a slide-out to the smallest legal end", "[core][cha
         REQUIRE(first.slide_out.has_value());
         if (first.slide_out.has_value())
         {
-            CHECK(first.slide_out->offset == Fraction{3, 8});
+            CHECK(first.sustain == Fraction{3, 8});
         }
-        CHECK(first.slides.size() == 1);
+        CHECK(first.waypoints.size() == 1);
     }
 }
 
@@ -274,7 +314,7 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
             note(at(1, 3), 2, Fraction{1}),
         };
         saved[0].attack = NoteAttack::PickSlide;
-        saved[0].slide_out = SlideOut{.offset = Fraction{2}, .fret = 3};
+        saved[0].slide_out = 3;
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -285,11 +325,9 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
         REQUIRE(first.slide_out.has_value());
         // The single leg starts at the onset, so it has room to end on the margin line exactly and
         // gives up no spacing at all.
+        // The terminal rides that end by construction now: a slide-out stores no offset of its
+        // own, so the presented sustain IS where the gesture stops.
         CHECK(first.sustain == Fraction{7, 4});
-        if (first.slide_out.has_value())
-        {
-            CHECK(first.slide_out->offset == first.sustain);
-        }
     }
 
     SECTION("a leg starting inside the margin halves its distance to the onset")
@@ -299,8 +337,8 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
             note(at(1, 3), 2, Fraction{1}),
         };
         saved[0].attack = NoteAttack::PickSlide;
-        saved[0].slides = {SlideWaypoint{.offset = Fraction{15, 8}, .fret = 7}};
-        saved[0].slide_out = SlideOut{.offset = Fraction{2}, .fret = 3};
+        saved[0].waypoints = {Waypoint{.offset = Fraction{15, 8}, .fret = 7}};
+        saved[0].slide_out = 3;
 
         const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
         REQUIRE(presented.size() == saved.size());
@@ -312,10 +350,6 @@ TEST_CASE("Rule 2 compresses a scrape terminal by the leg rule", "[core][chart]"
         // The turnaround at 15/8 is already past the margin line at 7/4, so the last leg cannot
         // yield the margin and splits the remaining distance to the onset instead.
         CHECK(first.sustain == Fraction{31, 16});
-        if (first.slide_out.has_value())
-        {
-            CHECK(first.slide_out->offset == first.sustain);
-        }
         // Inside the margin by design — the sanctioned exception — but still strictly before the
         // onset it is crowded against, which is what the halving always guarantees.
         CHECK(first.sustain > Fraction{7, 4});
@@ -379,10 +413,7 @@ TEST_CASE("A group shares its tail verdict but not its tail lengths", "[core][ch
     };
     // A curve that keeps rising to the ring's end: its last CHANGE is the final point, so rule 2
     // floors the trim there.
-    saved[0].bend = {
-        BendPoint{.offset = Fraction{}, .semitones = 0.0},
-        BendPoint{.offset = Fraction{1, 2}, .semitones = 2.0},
-    };
+    saved[0].waypoints = {Waypoint{.offset = Fraction{1, 2}, .bend = 2.0}};
 
     const std::vector<Fraction> presented = presentedSustains(saved, map);
     REQUIRE(presented.size() == saved.size());
@@ -410,8 +441,8 @@ TEST_CASE("Rule 4 presents no tail on a dead note that makes no noise", "[core][
         dead_note.dead = true;
     }
     saved[1].tremolo = true;
-    saved[2].slides = {SlideWaypoint{.offset = Fraction{1}, .fret = 7}};
-    saved[3].slide_out = SlideOut{.offset = Fraction{2}, .fret = 8};
+    saved[2].waypoints = {Waypoint{.offset = Fraction{1}, .fret = 7}};
+    saved[3].slide_out = 8;
 
     const std::vector<ChartNote> presented = presentedChartNotes(saved, map);
     REQUIRE(presented.size() == saved.size());

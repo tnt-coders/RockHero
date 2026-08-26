@@ -1,6 +1,8 @@
 #include "chart/pick_slide_defaults.h"
 
 #include <algorithm>
+#include <iterator>
+#include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 
 namespace rock_hero::editor::core
@@ -18,20 +20,35 @@ int pickSlideDefaultLowFret(const int capo) noexcept
 
 bool convertSlideToScrapePath(common::core::ChartNote& note)
 {
-    if (note.slides.empty() && !note.slide_out.has_value())
-    {
-        return false;
-    }
     if (note.slide_out.has_value())
     {
-        note.slide_out->offset = note.sustain;
+        // Already terminated, and a terminal ends the ring by definition, so there is nothing to
+        // re-place: the gesture follows whatever the sustain is.
         return true;
     }
-    // No terminal of its own: the path's last waypoint becomes the gesture's end.
-    const common::core::SlideWaypoint terminal = note.slides.back();
-    note.slides.pop_back();
-    note.slide_out = common::core::SlideOut{.offset = note.sustain, .fret = terminal.fret};
-    return true;
+    // No terminal of its own: the path's last STATED FRET becomes the gesture's end, and that
+    // statement leaves the array — with its waypoint when nothing else was stated there, and only
+    // that one. A waypoint that ARRIVED stating nothing is illegal data the rules refuse rather
+    // than litter to sweep up, which is the same reading stripWaypointChannels takes (chart.h).
+    for (auto waypoint = note.waypoints.rbegin(); waypoint != note.waypoints.rend(); ++waypoint)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        std::optional<int>& fret = waypoint->fret;
+        if (!fret.has_value())
+        {
+            continue;
+        }
+        note.slide_out = *fret;
+        fret.reset();
+        if (common::core::waypointStatesNothing(*waypoint))
+        {
+            note.waypoints.erase(std::next(waypoint).base());
+        }
+        break;
+    }
+    // False leaves the note untouched for the default path: a note whose waypoints state only
+    // bends or shakes has no travel to rebuild a scrape from.
+    return note.slide_out.has_value();
 }
 
 void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward, const int capo)
@@ -46,8 +63,8 @@ void applyDefaultPickSlidePath(common::core::ChartNote& note, const bool upward,
         target = upward ? low_fret : g_pick_slide_default_high_fret;
     }
     // The gesture is the required slide-out terminal; turnaround waypoints are authored later.
-    note.slides.clear();
-    note.slide_out = common::core::SlideOut{.offset = note.sustain, .fret = target};
+    note.waypoints.clear();
+    note.slide_out = target;
 }
 
 } // namespace rock_hero::editor::core

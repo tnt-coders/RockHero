@@ -452,7 +452,7 @@ TEST_CASE("A scrape floors and recovers its path inside one gesture", "[core][ch
         REQUIRE(slid.slide_out.has_value());
         if (slid.slide_out.has_value())
         {
-            CHECK(slid.slide_out->offset == common::core::g_minimum_slide_window);
+            CHECK(slid.sustain == common::core::g_minimum_slide_window);
         }
     }
 

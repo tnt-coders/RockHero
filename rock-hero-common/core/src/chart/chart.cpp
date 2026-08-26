@@ -45,14 +45,33 @@ ChartNote savedChartNote(const ChartNote& note)
         saved.harmonic_node.reset();
         saved.vibrato = false;
         saved.tremolo = false;
-        saved.bend.clear();
+        saved.bend = 0.0;
+        // The pitched CHANNELS go with the pitched fields: a scrape's turnarounds are pick travel,
+        // so a bend or vibrato statement riding one is exactly as latent as the note's own. What
+        // survives is the fret channel, which is the path itself; a waypoint left stating nothing
+        // is no record at all and leaves with them.
+        static_cast<void>(stripWaypointChannels(saved.waypoints, [](Waypoint& waypoint) {
+            const bool latent = waypoint.bend.has_value() || waypoint.vibrato.has_value();
+            waypoint.bend.reset();
+            waypoint.vibrato.reset();
+            return latent;
+        }));
     }
     return saved;
 }
 
 int releasedFret(const ChartNote& note)
 {
-    return note.slides.empty() ? note.fret : note.slides.back().fret;
+    int released = note.fret;
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        // value_or rather than a has_value() branch: a waypoint stating no fret is pass-through
+        // for position by definition, which is exactly what carrying the running value forward
+        // says — and it keeps the optional total, which the CI-only optional-access checker
+        // credits where a guard on a loop variable's member is not.
+        released = waypoint.fret.value_or(released);
+    }
+    return released;
 }
 
 double snapHarmonicNode(const double notated, const int max_partial)

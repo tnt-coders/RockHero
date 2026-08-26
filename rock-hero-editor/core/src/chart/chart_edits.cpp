@@ -839,10 +839,9 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
             {
                 // The path was gesture geometry; as a pitched glide or an ordinary trail-off it
                 // would be a fiction. The overridden techniques were never touched, so they
-                // simply resurface — except a latent slide-out, which the scrape's own terminal
-                // occupied.
-                retyped.slides.clear();
-                retyped.slide_out.reset();
+                // simply resurface — including a bend or vibrato statement authored ON one of
+                // the path's own waypoints, which is why the drop is per channel.
+                common::core::dropNotePath(retyped);
             }
             // A pinch is picking while damping a node, so the verb authors one when none exists:
             // the octave at the stop — the lowest-order harmonic available at any fret and the

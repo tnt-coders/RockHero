@@ -43,7 +43,8 @@ struct SlideRamp
         // A scrape renders through the unpitched machinery end to end and never feeds the
         // slide-locked ramps: it has no fret-hand anchor to ramp. A note carrying no glide at all
         // — nearly every note — leaves before a single position is resolved.
-        if (isScrape(note.attack) || (note.slides.empty() && slideOutOrNull(note) == nullptr))
+        if (isScrape(note.attack) ||
+            (!anyWaypointStatesFret(note.waypoints) && !note.slide_out.has_value()))
         {
             continue;
         }
@@ -51,15 +52,25 @@ struct SlideRamp
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         double segment_start_seconds = tempo_map.secondsAtGlobalBeatPosition(onset_beat);
         int segment_start_fret = note.fret;
-        for (const SlideWaypoint& waypoint : note.slides)
+        for (const Waypoint& waypoint : note.waypoints)
         {
+            // Only the POSITION channel makes a segment: a waypoint stating a bend or a vibrato
+            // change says nothing about where the hand is, so the glide runs through it unkinked
+            // and it neither starts nor ends a ramp.
+            //
+            // Bound to a local so the optional check and the access are provably the same object.
+            const std::optional<int>& fret = waypoint.fret;
+            if (!fret.has_value())
+            {
+                continue;
+            }
             // An equal-fret waypoint is a HOLD, not a glide — nothing travels across it (the
             // pitch is pinned, which is how a slide notated on a tied continuation records where
             // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
             // whole held stretch to arrive at a fret it never left, so holds fall through to the
             // margin morph. The segment start still advances, which is what gives the following
             // glide its true, shorter span.
-            if (waypoint.fret != segment_start_fret)
+            if (*fret != segment_start_fret)
             {
                 starts.try_emplace(
                     advanceGridPosition(tempo_map, note.position, waypoint.offset),
@@ -67,15 +78,16 @@ struct SlideRamp
             }
             segment_start_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
-            segment_start_fret = waypoint.fret;
+            segment_start_fret = *fret;
         }
-        // The trail-off's own segment starts where the last pitched waypoint left off (the note's
-        // onset when there are none), which is exactly the span the rail is drawn over. Recording
-        // it ties the hand to that span and marks the family so the ease matches too.
-        if (const SlideOut* const slide_out = slideOutOrNull(note); slide_out != nullptr)
+        // The trail-off's own segment starts where the last stated fret left off (the note's onset
+        // when there are none) and ends where the RING does, which is exactly the span the rail is
+        // drawn over. Recording it ties the hand to that span and marks the family so the ease
+        // matches too.
+        if (note.slide_out.has_value())
         {
             starts.try_emplace(
-                advanceGridPosition(tempo_map, note.position, slide_out->offset),
+                advanceGridPosition(tempo_map, note.position, note.sustain),
                 SlideRamp{.start_seconds = segment_start_seconds, .unpitched = true});
         }
     }
@@ -153,38 +165,45 @@ ChartViewState makeChartViewState(
         view.vibrato = note.vibrato;
         view.tremolo = note.tremolo;
         view.emphasis = note.emphasis;
-        view.bend.reserve(note.bend.size());
-        for (const BendPoint& point : note.bend)
+        // The bend channel's control polyline, opened by the ONSET: the note's own bend value is a
+        // stating point by definition, which is the whole of what a pre-bend is and what lets the
+        // curve start at the head instead of at a synthesized anchor. A note whose channel never
+        // leaves rest draws no curve at all, so nothing is opened for it and the loop below finds
+        // no statements to add.
+        if (noteIsBent(note))
         {
+            view.bend.reserve(note.waypoints.size() + 1);
             view.bend.push_back(
-                BendPointViewState{
-                    .seconds =
-                        tempo_map.secondsAtGlobalBeatPosition(onset_beat + point.offset.toDouble()),
-                    .semitones = point.semitones,
-                });
+                BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
-        view.slides.reserve(note.slides.size() + 1);
-        for (const SlideWaypoint& waypoint : note.slides)
+        view.slides.reserve(note.waypoints.size() + 1);
+        for (const Waypoint& waypoint : note.waypoints)
+        {
+            const double waypoint_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
+            // Bound to locals so each optional check and its access are provably the same object.
+            const std::optional<double>& bend = waypoint.bend;
+            if (bend.has_value())
+            {
+                view.bend.push_back(
+                    BendPointViewState{.seconds = waypoint_seconds, .semitones = *bend});
+            }
+            const std::optional<int>& fret = waypoint.fret;
+            if (fret.has_value())
+            {
+                view.slides.push_back(
+                    SlideViewState{
+                        .seconds = waypoint_seconds, .fret = *fret, .unpitched = scrape
+                    });
+            }
+        }
+        // The unpitched slide-out flattens into the slide list at the ring's end, which is where
+        // it happens by definition. A scrape's slide-out is its required terminal and flattens the
+        // same way.
+        if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
         {
             view.slides.push_back(
-                SlideViewState{
-                    .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                        onset_beat + waypoint.offset.toDouble()),
-                    .fret = waypoint.fret,
-                    .unpitched = scrape,
-                });
-        }
-        // The unpitched slide-out flattens into the slide list; it owns its geometry. A scrape's
-        // slide-out is its required terminal and flattens the same way.
-        if (const SlideOut* const slide_out = slideOutOrNull(note); slide_out != nullptr)
-        {
-            view.slides.push_back(
-                SlideViewState{
-                    .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                        onset_beat + slide_out->offset.toDouble()),
-                    .fret = slide_out->fret,
-                    .unpitched = true,
-                });
+                SlideViewState{.seconds = view.end_seconds, .fret = *slide_out, .unpitched = true});
         }
         state.notes.push_back(std::move(view));
     }

@@ -105,9 +105,13 @@ reads the same form when it exists).
   earlier span running longer holds the same strum just as well, and tracking the latest start let
   a short span beginning inside a long one shadow it, so a held chord silently lost its extension
   and the connection that extension justified read as a plain pick).
-- `hasSustainTechnique`, `lastChangingPayloadOffset`, `clipPayloadsTo`,
-  `keptStrictlyAfterLastWaypoint` — the tail helpers the rules are built from, shared with the
-  Guitar Pro importer so its trim and the presentation ask the same questions.
+- `hasSustainTechnique`, `informativePayloadEnd`, `clipPayloadsTo`, `keptAfterLastStatedFret` —
+  the tail helpers the rules are built from, shared with the Guitar Pro importer so its trim and
+  the presentation ask the same questions. They read the note's ONE interval payload, its
+  `waypoints` array, where each entry states any subset of the fret, bend and vibrato channels
+  (`docs/plans/todo/unified-waypoint-model.md`); `informativePayloadEnd` is where the two shapes
+  of information part company, since a bend value and a fret are complete at the instant they are
+  reached while a vibrato START needs a minimum window past it to be shown at all.
 
 `chartResolutions` is the whole picture, and the whole picture costs a pass over every note in the
 song. A caller that only wants to know what a connection claim resolves to asks `chartConnections`

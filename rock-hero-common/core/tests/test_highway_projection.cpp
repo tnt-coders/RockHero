@@ -60,7 +60,7 @@ namespace
             .fret = 1,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -68,7 +68,7 @@ namespace
             .fret = 3,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Rings across the 3:1+1/2 strum without being re-struck there, so it joins that span's
         // posture and makes the span arrive arpeggio-style.
@@ -78,15 +78,18 @@ namespace
             .fret = 5,
             .sustain = Fraction{2},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 7,
             .sustain = Fraction{2},
-            .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
-            .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+            .waypoints =
+                {
+                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
+                    Waypoint{.offset = Fraction{2}, .fret = 9},
+                },
         },
         // The strum's second struck string: two members are what open a span at all.
         ChartNote{
@@ -95,7 +98,7 @@ namespace
             .fret = 8,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Natural harmonic with a between-fret node the highway must carry through.
         ChartNote{
@@ -105,7 +108,7 @@ namespace
             .sustain = Fraction{1, 8},
             .harmonic_node = 3.2,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
     chart.fret_hand_positions = {
@@ -147,8 +150,8 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::PickSlide,
             .bend = {},
-            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5}},
-            .slide_out = SlideOut{.offset = Fraction{1}, .fret = 12},
+            .waypoints = {Waypoint{.offset = Fraction{1, 2}, .fret = 5}},
+            .slide_out = 12,
         },
         // Simultaneous chord at 2:1 covering the whole span's posture: reads as a chord box.
         ChartNote{
@@ -157,7 +160,7 @@ namespace
             .fret = 4,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -165,7 +168,7 @@ namespace
             .fret = 6,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -173,7 +176,7 @@ namespace
             .fret = 6,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // One technique each, in order: palm mute, tremolo, vibrato, accent.
         ChartNote{
@@ -183,7 +186,7 @@ namespace
             .sustain = Fraction{1, 2},
             .palm_mute = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 3},
@@ -192,7 +195,7 @@ namespace
             .sustain = Fraction{1, 2},
             .tremolo = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 4},
@@ -201,7 +204,7 @@ namespace
             .sustain = Fraction{1},
             .vibrato = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1},
@@ -210,7 +213,7 @@ namespace
             .sustain = Fraction{1, 8},
             .emphasis = NoteEmphasis::Accent,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Both payload kinds on one tail: a bend point mid-sustain and a pitched glide landing on
         // the sustain end. Ghosted, so the fixture carries BOTH ends of the emphasis axis and the
@@ -221,8 +224,11 @@ namespace
             .fret = 7,
             .sustain = Fraction{2},
             .emphasis = NoteEmphasis::Ghost,
-            .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
-            .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+            .waypoints =
+                {
+                    Waypoint{.offset = Fraction{1}, .bend = 2.0},
+                    Waypoint{.offset = Fraction{2}, .fret = 9},
+                },
         },
         // Both mutes on one note: the palm is down AND this string is deadened. Two independent
         // flags, so a projection that collapsed them back onto one axis would drop one of them on
@@ -235,7 +241,7 @@ namespace
             .palm_mute = true,
             .dead = true,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Fret 0 is the CAPO'd open string, so this node clears the capo rather than the nut: the
         // harmonic's legality depends on the tuning both surfaces also carry.
@@ -246,7 +252,7 @@ namespace
             .sustain = Fraction{1, 2},
             .harmonic_node = 7.02,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Fret 5 picked, then two connection claims: the first resolves upward to a hammer-on, the
         // second back down to a pull-off. The stored claim is identical in both — the direction is
@@ -257,7 +263,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{1},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 2},
@@ -266,7 +272,7 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::Legato,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -275,7 +281,7 @@ namespace
             .sustain = Fraction{1},
             .attack = NoteAttack::Legato,
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // Held into the 5:1 strum without being re-struck there: the string that makes the second
         // derived span arrive arpeggio-style, and the third string of its posture.
@@ -285,7 +291,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{2},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         // The 5:1 pair: two strings struck together under the held one.
         ChartNote{
@@ -294,7 +300,7 @@ namespace
             .fret = 7,
             .sustain = Fraction{1, 2},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
         ChartNote{
             .position = GridPosition{.measure = 5, .beat = 1},
@@ -302,7 +308,7 @@ namespace
             .fret = 7,
             .sustain = Fraction{1, 2},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
     chart.fret_hand_positions = {
@@ -348,9 +354,13 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     const NoteViewState& sliding = state.chart.notes[3];
     CHECK(sliding.start_seconds == Catch::Approx(8.5 * beat));
     CHECK(sliding.end_seconds == Catch::Approx(10.5 * beat));
-    REQUIRE(sliding.bend.size() == 1);
-    CHECK(sliding.bend[0].seconds == Catch::Approx(9.5 * beat));
-    CHECK(sliding.bend[0].semitones == Catch::Approx(2.0));
+    // The curve opens at the ONSET: the note's own bend value is the channel's first statement,
+    // so a bent note's polyline always starts at its head and the stated point follows.
+    REQUIRE(sliding.bend.size() == 2);
+    CHECK(sliding.bend[0].seconds == Catch::Approx(8.5 * beat));
+    CHECK(sliding.bend[0].semitones == Catch::Approx(0.0));
+    CHECK(sliding.bend[1].seconds == Catch::Approx(9.5 * beat));
+    CHECK(sliding.bend[1].semitones == Catch::Approx(2.0));
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);
@@ -531,7 +541,7 @@ TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
                 .fret = 5,
                 .sustain = Fraction{1, 8},
                 .bend = {},
-                .slides = {},
+                .waypoints = {},
             });
     }
     const HighwayViewState dense_state = makeHighwayViewState(dense, tempo_map, {}, {});
@@ -689,7 +699,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             // and the span rule is what answers how long the hand stays down.
             .sustain = Fraction{3, 4},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         };
     };
     // One chugged pair at global beat 4 (2.0 seconds) and the same chug again at global beat 7.5
@@ -710,7 +720,7 @@ TEST_CASE("Highway display hold ends resolve the chart holds", "[core][highway]"
             .fret = 7,
             .sustain = Fraction{1, 8},
             .bend = {},
-            .slides = {},
+            .waypoints = {},
         },
     };
 
@@ -983,9 +993,12 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
         .fret = 17,
         .sustain = Fraction{1},
         .attack = NoteAttack::PickSlide,
-        .bend = {BendPoint{.offset = Fraction{1, 4}, .semitones = 1.0}},
-        .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3}},
-        .slide_out = SlideOut{.offset = Fraction{1}, .fret = 9},
+        .waypoints =
+            {
+                Waypoint{.offset = Fraction{1, 4}, .bend = 1.0},
+                Waypoint{.offset = Fraction{1, 2}, .fret = 3},
+            },
+        .slide_out = 9,
     };
     scrape.palm_mute = true;
     scrape.dead = true;

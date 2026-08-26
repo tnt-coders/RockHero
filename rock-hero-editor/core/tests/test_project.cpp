@@ -573,7 +573,7 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
         // string sounds no pitch to modulate, so the load sheds the bend instead of refusing the
         // project, and what it shed travels with the Project so the controller can show it once at
         // open — the report IS the repair's honesty.
-        writeChartedProjectPackage(path, R"(, "dead": true, "bend": [["0", 1.0]])");
+        writeChartedProjectPackage(path, R"(, "dead": true, "bend": 1.0)");
 
         Project project;
         FakeAnalyzeAudio fake_analyze;
@@ -587,7 +587,7 @@ TEST_CASE("Project load settles a hand-broken legato claim", "[core][project]")
             const common::core::Chart& chart = *result->arrangements.front().chart;
             REQUIRE(chart.notes.size() == 1);
             CHECK(chart.notes.front().dead);
-            CHECK(chart.notes.front().bend.empty());
+            CHECK(std::is_eq(chart.notes.front().bend <=> 0.0));
             // The ring is untouched: a dead note's damped stroke has a duration like any other.
             CHECK(chart.notes.front().sustain == common::core::Fraction{1, 8});
         }
