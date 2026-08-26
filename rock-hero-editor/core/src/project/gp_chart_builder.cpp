@@ -385,6 +385,72 @@ struct BendCurvePoint
     return Fraction{};
 }
 
+// The vibrato state in force FROM `offset` onward: the last statement at or before it, or the
+// note's onset state when there is none. The channel holds each statement until the next, so this
+// is what a folded-in segment's flag has to disagree with before it says anything at all.
+//
+// A statement standing AT the instant counts, which is what makes stating one idempotent: two
+// segments can fold onto a single offset (a tie continuation whose legato glide lands on a second
+// voice's note at that very beat), and the second must be able to restate what the first said
+// there — exactly as their shared waypoint's fret already takes the later value.
+[[nodiscard]] bool vibratoAt(const ChartNote& note, const Fraction offset)
+{
+    bool state = note.vibrato;
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        if (offset < waypoint.offset)
+        {
+            // Waypoints ascend, so nothing from here on is in force at the instant.
+            break;
+        }
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<bool>& vibrato = waypoint.vibrato;
+        if (vibrato.has_value())
+        {
+            state = *vibrato;
+        }
+    }
+    return state;
+}
+
+// States a folded-in segment's Guitar Pro vibrato flag at `offset` — the instant that segment
+// BEGINS on the ring that absorbed it.
+//
+// Guitar Pro writes the flag per note and names no instant inside it, so the import picks one (the
+// carried sign-off in `docs/plans/todo/unified-waypoint-model.md`): a merged note anchors it at the
+// LAST waypoint. At a legato slide that waypoint is the junction the glide arrives at — where the
+// folded segment begins and where a shake after a glide actually starts, which is the corpus's
+// dominant figure (31 of its 34 slide-then-vibrato occurrences arrive through this merge); at a tie
+// it is the continuation's own onset; and a note that merges nothing states its flag at the onset,
+// which is what \ref ChartNote::vibrato already is. Spelled as the folded segment's own START
+// rather than "whichever waypoint is last", because an origin's bend curve can legally run past
+// the junction and the literal reading would then hand the shake to a bend point; in the figure
+// the sign-off measures, the two readings name the same instant.
+//
+// Both halves of the `||` this replaces were lies: a folded segment's flag used to shake the whole
+// ring from the onset, and a folded segment WITHOUT one used to inherit the shake it arrived after.
+// A statement equal to the state already in force says nothing new and is not written, so a chain
+// that shakes end to end still stores exactly the onset flag it always did.
+void stateVibratoAt(ChartNote& note, const Fraction offset, const bool vibrato)
+{
+    if (offset.numerator <= 0)
+    {
+        // A statement AT the onset is the channel's opening one — the same reading
+        // \ref applyBendCurve gives a bend point there. Reachable, not defensive: two voices can
+        // hold one string at one instant, and the tie merge is keyed by string alone, so an upper
+        // voice's continuation can fold into a note that begins at the very same beat. The
+        // offset-zero waypoint that would otherwise author is the one shape validation refuses
+        // outright, and refusing costs the WHOLE song rather than the one junk pairing.
+        note.vibrato = vibrato;
+        return;
+    }
+    if (vibrato == vibratoAt(note, offset))
+    {
+        return;
+    }
+    waypointAt(note.waypoints, offset).vibrato = vibrato;
+}
+
 // The note's bend channel read back as the curve it draws: the onset value first, then every
 // waypoint stating one. Empty for a note whose channel never leaves rest, so a merge folding this
 // into a neighbour cannot author a flat zero statement the source never wrote.
@@ -1745,11 +1811,17 @@ void resolveSlideOutExits(
                 {
                     origin.note.sustain = event_end - origin.global_beat;
                 }
-                origin.note.vibrato = origin.note.vibrato || source.vibrato;
+                // Where this continuation begins on the merged ring: the anchor its own
+                // per-segment statements rebase onto, for the vibrato channel and the bend curve
+                // alike.
+                const Fraction base = event.global_beat - origin.global_beat;
+                stateVibratoAt(origin.note, base, source.vibrato);
+                // Tremolo is deliberately NOT a channel: it is re-picking, so a mid-ring "start"
+                // would be new onsets rather than a state change (the waypoint model's admission
+                // rule). A tied segment that re-picks makes the whole merged ring tremolo.
                 origin.note.tremolo = origin.note.tremolo || event.tremolo;
                 if (source.bend.has_value())
                 {
-                    const Fraction base = event.global_beat - origin.global_beat;
                     for (BendCurvePoint point :
                          buildBendPoints(*source.bend, notatedDuration(event), notes))
                     {
@@ -2177,7 +2249,11 @@ void resolveSlideOutExits(
                 {
                     note.sustain = ringEndOf(*next) - entry.global_beat;
                 }
-                note.vibrato = note.vibrato || next->note.vibrato;
+                // The landing's shake lands ON the junction it arrives at — the same coupling the
+                // bend fold below relies on, and the sign-off's anchor for Guitar Pro's anchorless
+                // flag. A landing that does NOT shake ends the origin's shake there just as
+                // honestly, and where the two agree the channel says nothing at all.
+                stateVibratoAt(note, gap, next->note.vibrato);
                 note.tremolo = note.tremolo || next->note.tremolo;
                 // The merged note's own bend curve, rebased onto the junction. Its onset value
                 // lands ON the junction waypoint, which is the coupling the model exists for: the

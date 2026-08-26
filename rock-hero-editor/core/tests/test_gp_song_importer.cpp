@@ -9,6 +9,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -23,6 +24,7 @@
 #include <rock_hero/common/core/package/package_id.h>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -365,7 +367,15 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[3].string == 2);
     CHECK(chart.notes[3].sustain == Fraction{4});
     CHECK(presented[3].sustain == Fraction{15, 4});
+    // The score marks the shake on the tie's ORIGIN and not on its continuation, so the merged
+    // ring shakes from its onset and stops where the continuation begins — two beats in, on a
+    // waypoint that states nothing else. The whole-note flag this replaced could only smear the
+    // shake across the continuation it was never written on.
     CHECK(chart.notes[3].vibrato);
+    REQUIRE(chart.notes[3].waypoints.size() == 1);
+    CHECK(chart.notes[3].waypoints[0].offset == Fraction{2});
+    CHECK(chart.notes[3].waypoints[0].vibrato == false);
+    CHECK_FALSE(chart.notes[3].waypoints[0].fret.has_value());
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs. Bound to
     // a local so the node check and its reads are provably the same object.
@@ -1908,6 +1918,359 @@ TEST_CASE("Guitar Pro import folds a tied continuation's bend onto the origin", 
     CHECK(bendCurve(merged)[3].semitones == Catch::Approx(2.0));
     CHECK(bendCurve(merged)[1].offset < bendCurve(merged)[2].offset);
     CHECK(bendCurve(merged)[2].offset < bendCurve(merged)[3].offset);
+}
+
+namespace
+{
+
+// How the second segment of the vibrato fixtures below joins the first: Guitar Pro's two ways of
+// continuing one ringing string, and the two places the importer folds a segment's flags into a
+// note that already exists.
+enum class SegmentJoin : std::uint8_t
+{
+    // A tie: the continuation is the same stop, sounding on.
+    Tie,
+
+    // A legato slide (Guitar Pro's Flags 2): the continuation is a new stop the glide arrives at.
+    LegatoSlide
+};
+
+// One string, one merged ring, two Guitar Pro segments — a quarter at fret 5 joined to a quarter
+// that the merge folds away — each carrying its own vibrato flag. Both joins produce a single
+// two-beat note whose second segment begins one beat in, which is where the anchorless flag has to
+// land.
+[[nodiscard]] GpScore mergedVibratoScore(
+    const SegmentJoin join, const bool first_vibrato, const bool second_vibrato)
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    const bool tied = join == SegmentJoin::Tie;
+    const GpNote first{
+        .string = 0,
+        .fret = 5,
+        .tie_origin = tied,
+        .tie_destination = false,
+        .vibrato = first_vibrato,
+        .slide_flags = tied ? 0 : 2,
+        .harmonic_type = ""
+    };
+    const GpNote second{
+        .string = 0,
+        // A tie continues the same stop; a legato slide glides to a new one.
+        .fret = tied ? 5 : 7,
+        .tie_origin = false,
+        .tie_destination = tied,
+        .vibrato = second_vibrato,
+        .harmonic_type = ""
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {
+                {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {first}},
+                 GpBeat{.duration_whole = Fraction{1, 4}, .notes = {second}}}
+            }
+        });
+    return score;
+}
+
+// The vibrato statements a merged note carries along its ring, offsets included — the channel read
+// the way its consumers read it, so a statement written on the wrong waypoint (or on a second
+// waypoint beside the right one) fails rather than hiding behind a matching count.
+[[nodiscard]] std::vector<std::pair<Fraction, bool>> vibratoStatements(
+    const common::core::ChartNote& note)
+{
+    std::vector<std::pair<Fraction, bool>> statements;
+    for (const common::core::Waypoint& waypoint : note.waypoints)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<bool>& vibrato = waypoint.vibrato;
+        if (vibrato.has_value())
+        {
+            statements.emplace_back(waypoint.offset, *vibrato);
+        }
+    }
+    return statements;
+}
+
+} // namespace
+
+// Guitar Pro states vibrato per NOTE and names no instant inside it, so a segment folded into a
+// ring that already exists — a tie continuation, or a legato slide's landing — used to OR its flag
+// onto the whole merged note. That smear lied in both directions: a landing's shake ran backward
+// over the origin's onset, and a landing without one inherited a shake it never played. The
+// waypoint model gives the flag a place to land, and the import anchors it where the folded segment
+// BEGINS: the junction the glide arrives at (the carried sign-off's last waypoint) or the
+// continuation's own onset. A ring that shakes end to end still stores nothing but its onset flag,
+// which is what every chart written before the model says.
+TEST_CASE("Guitar Pro import anchors a folded segment's vibrato", "[core][gp-import]")
+{
+    const auto merged_note = [](const GpScore& score) {
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // Both joins fold the second segment away, which is what makes the flag anchorless.
+        REQUIRE(chart.notes.size() == 1);
+        return chart.notes.front();
+    };
+
+    SECTION("a legato landing's shake starts at the junction it arrives at")
+    {
+        const common::core::ChartNote note =
+            merged_note(mergedVibratoScore(SegmentJoin::LegatoSlide, false, true));
+        // The onset does not shake: the glide's origin was never marked.
+        CHECK_FALSE(note.vibrato);
+        CHECK(note.sustain == Fraction{2});
+        // ONE waypoint carries both facts — the fret the glide reaches and the shake that starts
+        // on arrival are one moment, which is the coupling the model exists for.
+        REQUIRE(note.waypoints.size() == 1);
+        CHECK(note.waypoints[0].offset == Fraction{1});
+        CHECK(note.waypoints[0].fret == 7);
+        CHECK(note.waypoints[0].vibrato == true);
+    }
+
+    SECTION("a plain landing ends the origin's shake at the junction")
+    {
+        const common::core::ChartNote note =
+            merged_note(mergedVibratoScore(SegmentJoin::LegatoSlide, true, false));
+        CHECK(note.vibrato);
+        REQUIRE(note.waypoints.size() == 1);
+        CHECK(note.waypoints[0].fret == 7);
+        CHECK(note.waypoints[0].vibrato == false);
+    }
+
+    SECTION("a glide that shakes throughout states its shake once")
+    {
+        const common::core::ChartNote note =
+            merged_note(mergedVibratoScore(SegmentJoin::LegatoSlide, true, true));
+        // Byte-identical to what the whole-note flag stored: the state never changes, so the
+        // channel says nothing after its opening statement.
+        CHECK(note.vibrato);
+        REQUIRE(note.waypoints.size() == 1);
+        CHECK(note.waypoints[0].fret == 7);
+        CHECK_FALSE(note.waypoints[0].vibrato.has_value());
+    }
+
+    SECTION("a tie continuation's shake starts where the continuation does")
+    {
+        const common::core::ChartNote note =
+            merged_note(mergedVibratoScore(SegmentJoin::Tie, false, true));
+        CHECK_FALSE(note.vibrato);
+        CHECK(note.sustain == Fraction{2});
+        // A tie states no new position, so the waypoint carrying the shake states no fret: the
+        // fret-less waypoint the model made legal is exactly what a state change without a hand
+        // move needs.
+        REQUIRE(note.waypoints.size() == 1);
+        CHECK(note.waypoints[0].offset == Fraction{1});
+        CHECK_FALSE(note.waypoints[0].fret.has_value());
+        CHECK_FALSE(note.waypoints[0].bend.has_value());
+        CHECK(note.waypoints[0].vibrato == true);
+    }
+
+    SECTION("a plain tie continuation ends the shake mid-ring")
+    {
+        const common::core::ChartNote note =
+            merged_note(mergedVibratoScore(SegmentJoin::Tie, true, false));
+        CHECK(note.vibrato);
+        REQUIRE(note.waypoints.size() == 1);
+        CHECK(note.waypoints[0].offset == Fraction{1});
+        CHECK(note.waypoints[0].vibrato == false);
+    }
+
+    SECTION("a tie chain that shakes throughout stores only its onset flag")
+    {
+        const common::core::ChartNote note =
+            merged_note(mergedVibratoScore(SegmentJoin::Tie, true, true));
+        CHECK(note.vibrato);
+        CHECK(note.waypoints.empty());
+    }
+
+    SECTION("a tie chain that never shakes stores nothing at all")
+    {
+        const common::core::ChartNote note =
+            merged_note(mergedVibratoScore(SegmentJoin::Tie, false, false));
+        CHECK_FALSE(note.vibrato);
+        CHECK(note.waypoints.empty());
+    }
+}
+
+// The state holds from each statement until the next, so it carries THROUGH travel: a middle
+// segment that shakes and then glides on is the corpus's rare-but-real "vibrato during a slide",
+// and it needs no rule of its own — the shake simply has not been restated yet when the second
+// glide leaves. The chain also proves the anchor is the folded segment's own start rather than
+// whatever waypoint happens to be last: a later junction would be wrong for the middle segment's
+// flag, and the onset would be wrong for both.
+TEST_CASE("Guitar Pro import shakes through a slide it has not left yet", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // Three quarters on one string: 5 glides to 7, which shakes and glides on to 9, which does not.
+    const GpNote first{.string = 0, .fret = 5, .slide_flags = 2, .harmonic_type = ""};
+    const GpNote middle{
+        .string = 0, .fret = 7, .vibrato = true, .slide_flags = 2, .harmonic_type = ""
+    };
+    const GpNote last{.string = 0, .fret = 9, .harmonic_type = ""};
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {
+                {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {first}},
+                 GpBeat{.duration_whole = Fraction{1, 4}, .notes = {middle}},
+                 GpBeat{.duration_whole = Fraction{1, 4}, .notes = {last}}}
+            }
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& note = chart.notes.front();
+
+    CHECK_FALSE(note.vibrato);
+    CHECK(note.sustain == Fraction{3});
+    // Two junctions, each carrying its own segment's state: the shake starts on the first arrival
+    // and ends on the second, which leaves it true across the whole 7-to-9 travel between them.
+    const std::vector<std::pair<Fraction, bool>> statements = vibratoStatements(note);
+    REQUIRE(statements.size() == 2);
+    CHECK(statements[0] == std::pair{Fraction{1}, true});
+    CHECK(statements[1] == std::pair{Fraction{2}, false});
+    REQUIRE(note.waypoints.size() == 2);
+    CHECK(note.waypoints[0].fret == 7);
+    CHECK(note.waypoints[1].fret == 9);
+}
+
+// Two voices can hold the same string at the same instant — a sustained lower voice under a fresh
+// upper one — and the tie merge is keyed by STRING alone, so such a continuation folds into a note
+// that begins at the very same beat. Its statements have nowhere later to land: offset zero is the
+// onset, and a waypoint there is the one shape validation refuses outright, which for an import
+// costs the WHOLE song rather than the one junk pairing. The channel's opening statement takes it
+// instead, exactly as a bend point at zero becomes the note's own onset bend.
+TEST_CASE("Guitar Pro import folds a same-instant tie into the onset", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // One fret-5 quarter per voice on string 0, at the same beat: the lower voice opens the tie
+    // and the upper voice's shaking note claims to continue it.
+    const GpNote opens{
+        .string = 0, .fret = 5, .tie_origin = true, .tie_destination = false, .harmonic_type = ""
+    };
+    const GpNote continues{
+        .string = 0,
+        .fret = 5,
+        .tie_origin = false,
+        .tie_destination = true,
+        .vibrato = true,
+        .harmonic_type = ""
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {
+                {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {opens}}},
+                {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {continues}}}
+            }
+        });
+
+    // The song survives: import is a commit point, and no pairing of junk voices may refuse it.
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& note = chart.notes.front();
+
+    CHECK(note.vibrato);
+    CHECK(note.waypoints.empty());
+}
+
+// Two folds can claim the SAME instant on one ring: a tie continuation carrying a legato slide
+// hands the glide its junction, and a second voice's note sits on that string exactly there. Both
+// segments state the channel at one offset, and the ring can hold only one state from that
+// instant. The later fold restates it, which is what the shared waypoint's FRET already does — a
+// ring reading the landing's position with the continuation's shake would describe neither note.
+TEST_CASE(
+    "Guitar Pro import lets the later fold restate one instant's vibrato", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // Voice one ties a shaking, legato-sliding continuation onto its fret 5; voice two strikes
+    // fret 7 on the same string at the instant that continuation begins, and the glide lands on
+    // it. The landing does not shake.
+    const GpNote opens{
+        .string = 0, .fret = 5, .tie_origin = true, .tie_destination = false, .harmonic_type = ""
+    };
+    const GpNote continues{
+        .string = 0,
+        .fret = 5,
+        .tie_origin = false,
+        .tie_destination = true,
+        .vibrato = true,
+        .slide_flags = 2,
+        .harmonic_type = ""
+    };
+    const GpNote lands{.string = 0, .fret = 7, .harmonic_type = ""};
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {
+                {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {opens}},
+                 GpBeat{.duration_whole = Fraction{1, 4}, .notes = {continues}}},
+                {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {}},
+                 GpBeat{.duration_whole = Fraction{1, 4}, .notes = {lands}}}
+            }
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& note = chart.notes.front();
+
+    CHECK_FALSE(note.vibrato);
+    // ONE waypoint at the junction: the landing's fret and the landing's state, not a mixture.
+    REQUIRE(note.waypoints.size() == 1);
+    CHECK(note.waypoints[0].offset == Fraction{1});
+    CHECK(note.waypoints[0].fret == 7);
+    CHECK(note.waypoints[0].vibrato == false);
+}
+
+// The anchor moves only for a flag the import has to RE-HOME. A note that merges nothing states
+// its own flag at its own onset, and a shift slide leaves the landing a re-picked note of its own,
+// so neither the glide's arrival waypoint nor the landing's head takes a statement it was not
+// given: the shake stays exactly where the score wrote it, as it imported before the model.
+TEST_CASE("Guitar Pro import leaves an unmerged note's vibrato at its onset", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+    // Flags 1 is the shift slide: the landing is re-picked, so it keeps its own onset and head.
+    const GpNote sliding{
+        .string = 0, .fret = 5, .vibrato = true, .slide_flags = 1, .harmonic_type = ""
+    };
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {
+                {GpBeat{.duration_whole = Fraction{1, 4}, .notes = {sliding}},
+                 GpBeat{
+                     .duration_whole = Fraction{1, 4},
+                     .notes = {GpNote{.string = 0, .fret = 9, .harmonic_type = ""}}
+                 }}
+            }
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 2);
+
+    CHECK(chart.notes[0].vibrato);
+    CHECK(vibratoStatements(chart.notes[0]).empty());
+    CHECK_FALSE(chart.notes[1].vibrato);
+    CHECK(vibratoStatements(chart.notes[1]).empty());
 }
 
 namespace
