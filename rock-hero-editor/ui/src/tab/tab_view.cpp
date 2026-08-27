@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/core/shared/displayed_strings.h>
 #include <rock_hero/common/core/shared/visible_events.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
@@ -367,32 +368,34 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
-    // Authored hold marks: a filled dot on the slot where the charter said the fretting hand
-    // takes a stop silently. The chord-diagram idiom, in the arpeggio hand-shape mark's own colour
-    // because the bracket this feeds is what the mark is FOR — and deliberately carrying no
-    // number, since the resolved stop already prints inside that bracket and a second copy would
-    // be one fret drawn from two places. Smaller than a head so it reads as an authoring mark
-    // beside the notation rather than a glyph competing with it, and drawn at exactly the extent
-    // the layout manifest hit-tests, so nothing undrawn is clickable. Editor-shell furniture: the
-    // game's tab strips render the posture, never this.
-    const juce::Colour hold_mark = common::ui::tabShapeMarkColor(/*arpeggio=*/true);
-    for (std::size_t index = 0; index < tab.hold_markers.size(); ++index)
+    // Selected hold markers. The overlay draws NO mark of its own for one (user ruling
+    // 2026-08-27: "There should be no dot visible when we press N ... The bracket marker IS the
+    // data point that we can select and modify"): a marker's stop is stated by the arpeggio
+    // bracket the paint core already draws at its span's start, so an authoring dot beside it was
+    // a second mark for one fact, and the fact was drawn in the wrong place besides. All that is
+    // left here is the selection ring, traced on that bracket — the same accent every other
+    // selected object wears, on the same silhouette the click resolved.
+    //
+    // The layout answers with nothing for a marker that resolved into no span, which is precisely
+    // the marker the paint core draws no bracket for; ring and mark therefore appear and vanish
+    // together with no rule of their own.
+    for (const std::size_t index : m_edit.selected_hold_markers)
     {
-        const common::ui::TabHoldMarkerLayout layout =
-            common::ui::tabHoldMarkerLayout(metrics, tab.hold_markers[index]);
-        g.setColour(hold_mark);
-        g.fillEllipse(layout.box.x, layout.box.y, layout.box.width, layout.box.height);
-        // The same accent ring the selected heads wear, traced on the mark's own silhouette.
-        if (std::ranges::binary_search(m_edit.selected_hold_markers, index))
+        if (index >= tab.hold_markers.size())
         {
-            g.setColour(accent);
-            g.drawEllipse(
-                layout.box.x,
-                layout.box.y,
-                layout.box.width,
-                layout.box.height,
-                overlayRingStroke(layout.extent));
+            continue;
         }
+        const std::optional<common::ui::TabHoldMarkerLayout> layout =
+            common::ui::tabHoldMarkerLayout(metrics, tab.hold_markers[index]);
+        if (!layout.has_value())
+        {
+            continue;
+        }
+        const common::ui::TabLayoutRect& box = layout->box;
+        g.setColour(accent);
+        g.drawRect(
+            juce::Rectangle<float>{box.x, box.y, box.width, box.height},
+            overlayRingStroke(box.height));
     }
 
     // The in-flight marquee: translucent accent fill with a crisp border.
@@ -455,10 +458,10 @@ void TabView::paint(juce::Graphics& g)
         const bool invalid = !m_edit.pending_fret->valid;
         const juce::Colour ink = invalid ? editorTheme().invalid : editorTheme().primary_text;
         const juce::String text{m_edit.pending_fret->text};
-        if (const auto* const notes =
-                std::get_if<std::vector<std::size_t>>(&m_edit.pending_fret->at))
+        if (const auto* const targets =
+                std::get_if<core::ChartPendingFretTargets>(&m_edit.pending_fret->at))
         {
-            for (const std::size_t index : *notes)
+            for (const std::size_t index : targets->notes)
             {
                 if (index >= tab.notes.size())
                 {
@@ -468,6 +471,33 @@ void TabView::paint(juce::Graphics& g)
                 const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
                 common::ui::paintTabPendingEntryBox(
                     g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
+            }
+            // A selected bracket wears the same box at the bracket, which is where the stop it
+            // states prints — no head sits under it, so the box carries none, exactly as the
+            // empty-slot insert case does. A marker whose bracket is not drawn shows nothing, on
+            // the same rule that keeps its ring and its hit box off the lane.
+            for (const std::size_t index : targets->hold_markers)
+            {
+                if (index >= tab.hold_markers.size())
+                {
+                    continue;
+                }
+                const std::optional<common::ui::TabHoldMarkerLayout> layout =
+                    common::ui::tabHoldMarkerLayout(metrics, tab.hold_markers[index]);
+                if (!layout.has_value())
+                {
+                    continue;
+                }
+                common::ui::paintTabPendingEntryBox(
+                    g,
+                    metrics,
+                    nullptr,
+                    layout->center_x,
+                    layout->center_y,
+                    text,
+                    invalid,
+                    ink,
+                    accent);
             }
         }
         else if (

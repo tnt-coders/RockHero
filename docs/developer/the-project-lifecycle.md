@@ -291,13 +291,21 @@ importer ran before `normalizeChart`. A strum whose notes carried something the 
 slide on an open string, say — used to derive its own span from data the chart never contained;
 now it reads as what it is, and merges with its identically-played neighbours.
 
-10. **Two or more strings struck together form a chord.** The onset's posture — the fret held
-    on each struck string, open strings included — becomes a posture entry, deduplicated by fret
+10. **Two or more MEMBERS at one slot form a chord.** A member is a sounding fretting-hand onset
+    at that slot or a hold marker at it (rule 12b), so one struck string beside one held finger
+    forms a shape, two held fingers with nothing sounding form one, and a LONE member of either
+    kind forms none (user ruling 2026-08-27, correcting the sounding-only threshold this shipped
+    with: converting one member of a two-note chord into a held finger made the shape evaporate
+    and took the converted fret off every surface with it). The slot's posture — the fret held
+    on each member string, open strings included — becomes a posture entry, deduplicated by fret
     vector across the chart. Postures carry no name and no fingering, because nothing authors
     either; when they are authored they become a dictionary keyed by a posture rather than fields
     on one. Tap-attack notes are excepted: taps belong to the tapping hand,
     not the fretting posture, so they never join a posture — even a multi-string tapped onset
-    derives no chord, and a mixed onset is judged by its non-tap members alone (rule 11).
+    derives no chord, and a mixed onset is judged by its non-tap members alone (rule 11). A span
+    whose members are ALL markers has nothing ringing to give it length, so it runs from its start
+    to its start and states its posture at an instant — which is exactly where the bracket that
+    prints it draws.
 11. **Repeated strums of one articulation share one span.** Consecutive onsets whose strings
     are played *identically in every way except duration* — same frets, attack (legato, left-hand
     tap, tap, slap, pop), muting, harmonics, vibrato, tremolo, emphasis, bends, and slides; the
@@ -340,9 +348,9 @@ now it reads as what it is, and merges with its identically-played neighbours.
     string that is merely silent at the start (a partial strum of the shape) keeps the chord box —
     "merely silent" and "known held" are different claims, and rule 12b is what tells them apart;
     no other arpeggio grouping is derived. A figure picked one string at a time from its FIRST
-    note still opens no span at all — rule 11's re-pick exception EXTENDS a shape and cannot open
-    one, and rule 10 needs two strings sounding together — so that grouping waits for the
-    corpus-informed pass.
+    note still opens no span on its own — rule 11's re-pick exception EXTENDS a shape and cannot
+    open one, and rule 10 needs two members at one slot — so that grouping waits for the
+    corpus-informed pass, or for the charter to state the held members with rule 12b's markers.
 12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
     merging can stretch a strum's ring past the next event, but the shape's box never follows
     it: when a new posture (or a non-chord onset) closes a span, the closed span's end trims to
@@ -369,11 +377,25 @@ now it reads as what it is, and merges with its identically-played neighbours.
     one fret. A marker that resolves to nothing — no span covers it, its position falls past the
     span's own end, its string is already stated by sound, or nothing supplies its fret — is
     **inert**: it changes no posture and draws nowhere, exactly as an unjustified connection claim
-    plays as the pick it sounds like. **A marker is not a strike:** rule 10's two-string threshold
-    still counts SOUNDING fretting-hand members only, so a shape can never open on held fingers
-    alone and a marker only ever joins one that sound opened. Because a marker's fret can arrive
-    from a note later in the span, the posture is keyed when the span CLOSES rather than at each
-    onset.
+    plays as the pick it sounds like. **A marker is not a strike** — it closes no span and ends no
+    posture, and markers landing under a shape still RINGING join it rather than splitting it — but
+    it IS a member, which is what rule 10 counts. "Still ringing" is the test, not "the derivation
+    has not closed the span yet": a span outlives its sound so a later identical strum can rejoin
+    it (rule 11), and that is a merging rule rather than a claim that the hand is still down, so
+    markers past the ring state the NEXT shape instead of joining a shape that stopped sounding.
+    Because a marker's fret can arrive from a note later in the span, the posture is keyed when the
+    span CLOSES rather than at each onset.
+
+    **The bracket IS the marker's mark** (user ruling 2026-08-27): the editor draws no separate
+    authoring glyph for one, so the arpeggio bracket at the span's start on the marker's string is
+    what shows the resolved stop, what a click selects, and what a typed fret writes to. A typed
+    digit STATES a stop, so it writes onto a marker whether or not it carried one; an Alt+Shift
+    transpose SHIFTS a stated stop and passes over a fret-less marker, whose stop the note it reads
+    from already carries. A retyped stop that contradicts the note re-picking its string splits the
+    span through rule 11's re-pick exception, with no rule of its own. The cost of "inert" is
+    therefore invisibility: a marker with no posture to join draws nothing anywhere and can only be
+    reached through Ctrl+Z or the caret slot it sits on
+    (`docs/plans/todo/arpeggio-authoring.md` carries the open edge and its options).
 
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):

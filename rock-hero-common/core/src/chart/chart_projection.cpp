@@ -243,16 +243,26 @@ ChartViewState makeChartViewState(
         state.notes.push_back(std::move(view));
     }
 
-    // The authored markers, resolved but NOT interpreted: what each one contributes reaches the
-    // surfaces through the posture below, so this carries only where the authored record sits.
+    // The authored markers, resolved but NOT interpreted: what each one MEANS reaches the surfaces
+    // through the posture below, so this carries only where the mark that states it draws — the
+    // start of the span the derivation resolved the marker into, or nothing where it resolved into
+    // none. The span index comes from that derivation rather than being searched for here, so the
+    // mark can never sit at a span the posture did not come from.
     state.hold_markers.reserve(chart.hold_markers.size());
-    for (const ChartHoldMarker& marker : chart.hold_markers)
+    for (std::size_t marker_index = 0; marker_index < chart.hold_markers.size(); ++marker_index)
     {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<std::size_t>& shape_index = resolutions.marker_shapes[marker_index];
+        std::optional<double> bracket_seconds;
+        if (shape_index.has_value() && *shape_index < resolutions.shapes.size())
+        {
+            bracket_seconds = tempo_map.secondsAtGlobalBeatPosition(
+                globalBeatPosition(tempo_map, resolutions.shapes[*shape_index].position));
+        }
         state.hold_markers.push_back(
             HoldMarkerViewState{
-                .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    globalBeatPosition(tempo_map, marker.position)),
-                .string = marker.string,
+                .bracket_seconds = bracket_seconds,
+                .string = chart.hold_markers[marker_index].string,
             });
     }
 

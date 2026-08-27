@@ -48,6 +48,29 @@ every count.
     int displayed_string, int displayed_string_count, float bounds_y, float bounds_height) noexcept;
 
 /*!
+\brief Size of one arpeggio posture bracket pair — the "[ fret ]" mark around a span-start head.
+
+The bracket is the only mark that states a fret nothing struck, which makes it the mark an authored
+hold marker wears; the editor therefore both draws it and hit-tests it, and these are the numbers
+both of those read (\ref TabLaneGeometry::bracketGeometry).
+*/
+struct TabBracketGeometry
+{
+    /*! \brief Distance from the bracket's centre column to the outer face of each bar's clearance
+    around the head. */
+    float radius{};
+
+    /*! \brief Half the bars' drawn height, measured from the lane's string line. */
+    float half_height{};
+
+    /*! \brief Bar width in whole pixels. */
+    int bar{};
+
+    /*! \brief Length of the serif capping each bar's top and bottom, in whole pixels. */
+    int serif{};
+};
+
+/*!
 \brief Layout facts shared by every glyph of one rendered tablature lane.
 
 Sizes follow Charter's DrawerUtils: the lane height fixes the note height (laneHeight = 1.5 x
@@ -100,19 +123,27 @@ struct TabLaneGeometry
     }
 
     /*!
-    \brief Rendered extent of an editor hold-marker mark: the head's own box, scaled down.
+    \brief Size of one arpeggio posture bracket pair, in this lane's pixels.
 
-    Derived from \ref headSize rather than from the note height directly, so the mark tracks the
-    head it sits beside at every lane size. Deliberately smaller than a head: the mark says "an
-    authored silent hold lives at this slot", which is furniture beside the notation rather than a
-    glyph competing with it — and the same value bounds both the drawn dot and the rectangle that
-    hit-tests it, so nothing undrawn is clickable.
+    The bracket hugs a note head's ring, so every value derives from \ref headSize and the bracket
+    tracks the heads at each lane size. It lives on the geometry rather than in the painter because
+    the bracket is now a HIT TARGET as well as a mark — selecting a hold marker means clicking the
+    bracket that states its stop — and a second copy of these numbers in the layout manifest would
+    be the drift the manifest exists to prevent.
 
-    \return Hold-marker mark extent in pixels.
+    \return The bracket pair's radius, half height, bar width and serif length.
     */
-    [[nodiscard]] float holdMarkerSize() const noexcept
+    [[nodiscard]] TabBracketGeometry bracketGeometry() const noexcept
     {
-        return headSize() * 0.6f;
+        const float size = headSize();
+        const float border = size / 15.0f > 1.0f ? size / 15.0f : 1.0f;
+        constexpr int bar = 2;
+        return TabBracketGeometry{
+            .radius = size / 2.0f + border,
+            .half_height = size / 2.0f - border - static_cast<float>(bar),
+            .bar = bar,
+            .serif = static_cast<int>(size / 8.0f + 0.5f) + bar,
+        };
     }
 
     /*! \brief Sustain tail height; odd so the tail centers on the string line. */

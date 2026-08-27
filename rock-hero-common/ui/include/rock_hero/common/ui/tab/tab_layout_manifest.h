@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <optional>
 #include <rock_hero/common/core/chart/chart_view_state.h>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 
@@ -80,34 +81,40 @@ the layout or the paint core reads, so every drawn ribbon is hit-testable and no
 [[nodiscard]] TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
-/*! \brief Pixel layout of one editor hold-marker mark. */
+/*! \brief Pixel layout of one hold marker's posture bracket. */
 struct TabHoldMarkerLayout
 {
-    /*! \brief Horizontal slot position: the mark's center column. */
+    /*! \brief Horizontal position of the bracket's centre column: the span's start. */
     float center_x{};
 
-    /*! \brief Vertical lane center: the mark's center row. */
+    /*! \brief Vertical lane center of the marker's string: the bracket's centre row. */
     float center_y{};
 
-    /*! \brief Rendered mark extent, as \ref TabLaneGeometry::holdMarkerSize reports it. */
-    float extent{};
-
-    /*! \brief Bounding rectangle of the mark — its drawn extent, and its clickable one. */
+    /*! \brief Bounding rectangle of the bracket pair — its drawn extent, and its clickable one. */
     TabLayoutRect box{};
 };
 
 /*!
-\brief Computes the pixel layout of one hold-marker mark under the given lane geometry.
+\brief Computes the pixel layout of one hold marker's posture bracket, when it draws one.
 
-The mark is editor furniture rather than notation, so the paint core never draws it — but its
-geometry belongs here beside the head's, because the editor's overlay painter and the editor's hit
-testing both read it and a second copy would be the drift this unit exists to prevent.
+A hold marker has no mark of its own: the arpeggio bracket printing its stop at the span start IS
+the marker, which is why this reads the marker's resolved bracket instant
+(\ref common::core::HoldMarkerViewState::bracket_seconds) rather than the slot it was authored at.
+A marker that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is
+therefore unclickable by construction — the same rule that keeps an undrawn waypoint head off the
+hit list, stated once instead of guarded twice.
 
-\param geometry Lane geometry the lane is painted with.
+The box spans the bracket's two bars, not the fret digit outboard of the closing bar: the digit's
+slot is decided against the head sounding at the span start and against the widest digit of the
+span, both of which need a font the framework-free geometry does not have. The bars are drawn for
+every posture string unconditionally, so bounding them is what keeps the clickable extent exactly
+the always-drawn one.
+
+\param geometry Lane geometry the notation was painted with.
 \param marker Seconds-resolved hold marker to lay out.
-\return Per-marker layout in the lane bounds' pixel space.
+\return The bracket's layout, or nothing when the marker resolved into no span.
 */
-[[nodiscard]] TabHoldMarkerLayout tabHoldMarkerLayout(
+[[nodiscard]] std::optional<TabHoldMarkerLayout> tabHoldMarkerLayout(
     const TabLaneGeometry& geometry, const common::core::HoldMarkerViewState& marker) noexcept;
 
 /*! \brief Pixel layout of one linked waypoint head along a note's tail. */

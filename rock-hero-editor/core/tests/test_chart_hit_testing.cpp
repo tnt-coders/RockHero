@@ -240,30 +240,47 @@ TEST_CASE("Chart hit testing collects notes inside a marquee box", "[core][chart
     CHECK(empty.empty());
 }
 
-// A hold marker's own mark is hit-testable at exactly the extent it is drawn at, and it wins over
-// the notation under it because the editor draws it on top. The marquee collects it too, so a box
-// over a chord takes the silently-held member with the rest of the shape.
-TEST_CASE("Chart hit testing resolves hold marker marks", "[core][chart]")
+// A hold marker is reached through the posture BRACKET that states its stop, at exactly the extent
+// that bracket is drawn at, and it wins over a head it overlaps even though the paint core draws
+// it under one. The marquee collects it too, so a box over a chord takes the silently-held member
+// with the rest of the shape.
+TEST_CASE("Chart hit testing resolves hold markers at their brackets", "[core][chart]")
 {
     common::core::ChartViewState tab = makeTabState();
-    // On string 5 at 6s (x = 120, y = 60), a lane the fixture leaves empty so nothing else can
+    // On string 5 at 6s (x = 120, y = 60.5), a lane the fixture leaves empty so nothing else can
     // answer the probes.
-    tab.hold_markers = {common::core::HoldMarkerViewState{.seconds = 6.0, .string = 5}};
+    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = 6.0, .string = 5}};
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
     const ChartHitTarget marker{ChartHoldMarkerHit{.index = 0}};
     CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == marker);
-    // The mark is smaller than a head, so a point a head-width away misses it entirely — the
-    // drawn extent IS the clickable one.
-    CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 80.0f).has_value());
+    // The box is the BRACKET's, not a head's or the retired dot's, and the two probes say so in
+    // both axes: the bracket stands wider than the head it wraps (x = 134 is outside the head's
+    // 26 px box and inside the bracket) and stops short of it vertically (y = 71 is inside the
+    // head and outside the bracket). The drawn extent IS the clickable one.
+    CHECK(chartHitTarget(tab, geometry, 134.0f, 60.0f) == marker);
+    CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 71.0f).has_value());
     CHECK_FALSE(chartHitTarget(tab, geometry, 145.0f, 60.0f).has_value());
 
-    // A mark sitting ON a note's head takes the click: topmost drawn wins.
-    tab.hold_markers = {common::core::HoldMarkerViewState{.seconds = 2.0, .string = 1}};
-    CHECK(chartHitTarget(tab, geometry, 40.0f, 220.0f) == marker);
+    // A marker that resolved into no span has no bracket, so nothing reaches it — the projection
+    // publishes no instant for it and the layout answers with nothing at all.
+    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = {}, .string = 5}};
+    CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 60.0f).has_value());
+    // Same for the marquee, boxed over string 5's own lane so no note can answer either.
+    CHECK(chartTargetsInBox(tab, geometry, 0.0f, 40.0f, 400.0f, 80.0f).empty());
 
-    // The marquee collects notes and marks together, notes first.
-    tab.hold_markers = {common::core::HoldMarkerViewState{.seconds = 2.0, .string = 3}};
+    // A bracket never wraps a head of its OWN string — a marker's string is silent at the span
+    // start by construction — but it can overlap one a little later on that string, which is
+    // exactly the note a fret-less marker takes its stop from. The paint core draws the bracket
+    // UNDER that head, and the marker takes the overlap anyway: the bracket is its only
+    // affordance, while the head keeps every column the bracket does not reach. Bracket at 4s
+    // spans x 63..97 on string 1; the 5s head spans 86..114.
+    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = 4.0, .string = 1}};
+    CHECK(chartHitTarget(tab, geometry, 90.0f, 220.0f) == marker);
+    CHECK(chartHitTarget(tab, geometry, 110.0f, 220.0f) == noteTarget(1));
+
+    // The marquee collects notes and brackets together, notes first.
+    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = 2.0, .string = 3}};
     const std::vector<ChartHitTarget> boxed =
         chartTargetsInBox(tab, geometry, 20.0f, 120.0f, 130.0f, 240.0f);
     CHECK(

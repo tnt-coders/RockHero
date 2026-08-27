@@ -352,7 +352,7 @@ THE key resolution, and it is the same merge for every authored array: the notes
 markers are both sorted by (position, string) and the tab projection preserves each order one to
 one, so the returned indices address the projection directly and one linear merge answers every
 key. Keys that no longer match a record resolve to nothing and are skipped. Every other
-key-to-record question (\ref selectedNoteIndices, \ref notesForKeys) is this merge read a
+key-to-record question (\ref selectedNoteIndices, \ref recordsForKeys) is this merge read a
 different way — it used to be written three times for notes alone, and a per-array copy would put
 that back.
 
@@ -424,14 +424,30 @@ presentation trim clipped out of the drawn tail.
     const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection);
 
 /*!
-\brief Copies the notes that sorted keys still name, in chart order.
+\brief Copies the authored records that sorted keys still name, in chart order.
 
-\param notes Chart note stream sorted by (position, string).
+The snapshot every fret verb replans from, and a template for the same reason \ref
+slotIndicesForKeys is one: the notes and the hold markers are the same question asked of two
+arrays, and a per-array copy of this loop would be a second authority on which record a key names.
+
+\tparam Record Authored chart record type; \ref chartSlotKeyOf must name its slot.
+\param records Authored array sorted by (position, string).
 \param keys Keys to resolve, sorted-unique in chart order.
-\return The named notes, in stream order; keys naming nothing are skipped.
+\return The named records, in stream order; keys naming nothing are skipped.
 */
-[[nodiscard]] std::vector<common::core::ChartNote> notesForKeys(
-    const std::vector<common::core::ChartNote>& notes, std::span<const ChartSlotKey> keys);
+template <typename Record>
+[[nodiscard]] std::vector<Record> recordsForKeys(
+    const std::vector<Record>& records, const std::span<const ChartSlotKey> keys)
+{
+    std::vector<Record> named;
+    const std::vector<std::size_t> indices = slotIndicesForKeys(records, keys);
+    named.reserve(indices.size());
+    for (const std::size_t index : indices)
+    {
+        named.push_back(records[index]);
+    }
+    return named;
+}
 
 /*!
 \brief Collects the keys of every authored object sharing one onset — the chord unit of the

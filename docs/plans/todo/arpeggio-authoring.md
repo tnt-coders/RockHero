@@ -1,11 +1,147 @@
 # Arpeggio Authoring — The Held Shape a Note Stream Cannot State
 
-Status: **STORAGE DECIDED — option F, the fret-optional hold marker — and BUILT 2026-08-26.** The
-one fork this document was written around was ruled 2026-08-25 (β stays in scope), so what remains
-below is not a menu: it is the record of why F, plus the pre-work list the build then answered.
-This was never itself a build plan; it is now the design record BEHIND a shipped feature, and the
-survey sections stay in their original tense deliberately — they record why the decision went the
-way it did, not what the code looks like today.
+Status: **STORAGE DECIDED — option F, the fret-optional hold marker — BUILT 2026-08-26, and
+CORRECTED at its first sighting 2026-08-27.** The one fork this document was written around was
+ruled 2026-08-25 (β stays in scope), so what remains below is not a menu: it is the record of why
+F, plus the pre-work list the build then answered. This was never itself a build plan; it is now
+the design record BEHIND a shipped feature, and the survey sections stay in their original tense
+deliberately — they record why the decision went the way it did, not what the code looks like
+today.
+
+## The first sighting, 2026-08-27 — three rulings, and one of them rewrites rule 10
+
+The verb reached the user's hands and did not survive the first minute intact. Three rulings came
+back; all three are built, and the first is a correction to the *derivation*, not to the verb.
+
+### 1. Rule 10 is rewritten: a shape is made of MEMBERS, not of strikes
+
+> "'one sound + one marker can never open a span' is FUNDAMENTALLY incorrect. What IS true though
+> is one lone marker should not be able to open a span. It requires at least 2 markers (no actual
+> sound is required to open the span, just one or more sounds OR markers)"
+> — user, 2026-08-27
+
+The threshold this shipped with — "rule 10's two-string threshold still counts SOUNDING
+fretting-hand members only" — was the pre-work list's item 1, answered as proposed and wrong. What
+it produced at sighting: converting one member of a two-note chord left a lone note, no span
+opened, the marker fell outside every span, and the fret the conversion had just copied onto it
+vanished from every surface. The verb's most obvious use destroyed its own output.
+
+**The rule as built now.** A span OPENS at a slot holding **two or more members**, where a member
+is a sounding fretting-hand onset at that slot OR a hold marker at it. One sound plus one held
+finger opens a span; two held fingers with nothing sounding open one; a LONE member of either kind
+opens none. A marker is still not a STRIKE — it closes no span, ends no posture, and markers
+landing under a shape already held join it rather than splitting it — but "not a strike" was
+carrying "not a member" for free, and that was the error.
+
+**Extent for a zero-sound span (rules 12/12a), and why this is the coherent reading rather than a
+guess.** A span runs as far as its members ring, and a hold marker rings for nothing. So a span
+every one of whose members is a marker has no sounding evidence of duration at all: it runs from
+its start to its start and states its posture at an instant, which is exactly where the bracket
+that prints it draws. Its claims still resolve — a claim at the span's own start is inside it
+whatever the length — so two fret-carrying markers state a posture nothing sounds, while two
+fret-less ones have no later in-span note to take a fret from and stay inert, the same degrade
+every other unresolvable claim takes.
+
+The alternative considered and rejected was "a pure-marker span runs to the next event". It is
+derivable and physically arguable (the hand holds until something else happens), but it is a
+DIFFERENT rule from the sounding case, where a span dies with its members' rings however far away
+the next onset is — a silent hold would persist where a sounding one does not. "Runs to where its
+claims resolve" is the reading the user offered as the conservative fallback, and for a marker
+carrying its own fret that resolution happens AT the span start, which is the zero-length answer.
+A third option — deriving no span at all — was rejected because it puts the reported bug back for
+the two-marker case.
+
+**"No shape held" is asked of the RING, not of the walk's cursor — and that distinction is the
+whole rule, not an edge.** A span stays OPEN across the silence after its members stop ringing,
+because rule 11 lets a later identical strum rejoin it; the walk's "open" is therefore not
+"inside". The build's first cut asked `!open`, which meant two markers opened a span only when no
+span happened to be open — so for any chart whose most recent event was a chord not yet closed by a
+single onset, the user's own two-marker case attached to a span that had ended beats earlier and
+went inert there. The rule as it now stands opens a shape when no shape is still RINGING
+(`position_beat < open->end_beat`, the same comparison the close's claim test uses), closing the
+ringing-out span at its own ring — no margin trim, because nothing SOUNDS at a marker slot to keep
+a distance from, and the ring has already ended at or before it.
+
+The cost is that a marker-stated shape in the gap ends rule 11's merge across that gap: a chord,
+two markers, then the identical chord again derives three spans where the markers' absence would
+derive one. That is the honest reading — a hand shape stated between the strums is evidence the
+hand moved — and it can only happen on a chart that authors markers, so the marker-free derivation
+is untouched. The residual imprecision is the closing TRIM: a span closed by a later onset trims to
+the minimum sustain distance before it, and the walk cannot know that trim when it passes a marker
+slot, so a marker landing in the trimmed-off sliver still joins and goes inert. That sliver is one
+minimum sustain distance wide, and closing it needs the second pass this rule was written to avoid.
+
+### 2. Conversion preserves the fret — verified, and now pinned
+
+`planToggleHoldMarker`'s convert case already stored `note_at->fret` on the marker. That was
+correct and is unchanged; what it lacked was a test that would notice if it stopped. There is one
+now, and it asserts the whole chain rather than the field: the marker carries the note's fret AND
+the derived posture states it AND the bracket has a place to draw.
+
+### 3. The dot dies — the bracket IS the marker
+
+> "There should be no dot visible when we press N... The bracket marker IS the data point that we
+> can select and modify."
+> — user, 2026-08-27
+
+So the editor's authoring dot is deleted outright, and with it the "the mark's look is unsigned"
+item below. What shows a hold marker is the **arpeggio bracket** the paint core already draws at
+its span's start on its string:
+
+- Brackets draw for every posture string at the span start, marker strings included, which is what
+  arpeggio notation is: "converting ONE note of a chord to a marker should add bracket notation to
+  ALL notes and markers at the start of that span" (user).
+- The resolved stop prints AT that bracket. A marker's string never sounds at the span start (slot
+  disjointness guarantees it), so the posture-smart rule's silent-string case applies and the digit
+  is centred inside the bars; the outboard slot is the tap-displacement case. Showing the stop in
+  two registers is fine — what is refused is storing it twice.
+- The marker's **hit target** moved from the dot to the bracket's bars, and the selection ring with
+  it. The projection publishes the bracket's instant per marker
+  (`ChartShapes::marker_shapes` → `HoldMarkerViewState::bracket_seconds`), so the box comes from
+  the derivation that placed it rather than from a second search.
+
+**One trade this creates, wanting the user's word.** The hit test resolves markers BEFORE note
+heads, which is the one place the lane's "topmost drawn wins" rule is departed from: the paint core
+draws brackets under the heads. A marker's bracket never wraps a head of its own string (that
+string is silent at the span start by construction), so the only thing the priority takes is a head
+a little later on the same string whose box overlaps the bracket — and that is exactly the note a
+fret-less marker takes its stop from, so the overlap is ordinary rather than exotic at wide zooms.
+The reason to keep the marker first is that the bracket is its ONLY affordance: yielding leaves it
+a two-pixel bar, while the head keeps every column the bracket does not reach. The alternative —
+heads first, strict topmost-wins — is a one-line change if the user prefers the pixels to decide.
+
+**The edge this creates, flagged and taken deliberately:** a marker that resolves to no posture now
+draws NOWHERE. It is still saved and still reachable through Ctrl+Z or another `N` at its slot, but
+it cannot be seen. The three options were (a) refuse authoring where no span forms, (b) a minimal
+editor-only mark for the inert case, (c) invisible-with-undo. **(a) is self-defeating** — the first
+of the two markers that would form a pure-marker span is exactly the press it would refuse — and
+**(b) is the dot back under another name**, against the letter of the ruling. So **(c) is the
+interim, and it is stated loudly here and in `docs/tracking/watch-items.md`**, whose trigger is a
+charter reporting a marker that appears to do nothing. The likeliest remedy is a mark shown only
+while the caret sits on the slot, which cannot be mistaken for notation.
+
+### 4. A selected bracket takes a typed fret
+
+> "If you select a note that is just a bracket (no onset) you should be able to set the fret number
+> for that bracket (and the span should update accordingly). It should NOT alter the frets of other
+> notes that were in the span."
+> — user, 2026-08-27
+
+`planRetypeFrets` now takes a marker snapshot beside the note snapshot, and the pending-entry model
+is unchanged: a typed digit STATES a stop, so set-exact writes it onto a marker whether or not it
+carried one; a transpose SHIFTS a stated stop and passes over a fret-less marker, whose stop the
+note it reads from already carries. This answers open item 2 below for the digit path and item 4
+outright.
+
+The coherence half is a COMPOSITION, not a new rule:
+
+> "If you currently have a span and you modify the bracket to a different note than the next note
+> on that string IN the span it should split the span to keep things coherent"
+
+Side ruling (ii)'s condition 1 already refuses to carry a span across a lone re-pick at a stop the
+claim contradicts. Retyping the bracket is what makes them contradict, so the span splits with
+nothing in the fret verb knowing that spans exist. Verified end to end and pinned by a test that
+watches one span become two while every note's fret stays put.
 
 **What shipped** (uncommitted at the time of writing; three stages, all verified green):
 
@@ -16,24 +152,24 @@ way it did, not what the code looks like today.
 | Side ruling (ii), the lone re-pick that keeps the span | `chart_shapes.cpp` | built |
 | The `N` verb, v2 as proposed below (caret-anchored, three cases) | `chart_edits.cpp`, `chart_handlers.cpp`, the keybind surfaces | built |
 | Selection widened to `(kind, slot)`; move and delete read both arrays | `chart_selection.h`, `chart_edits.cpp` | built |
-| The editor's own authoring mark (2D lane overlay) | `tab_layout_manifest.cpp`, `tab_view.cpp` | built |
+| ~~The editor's own authoring mark (2D lane overlay)~~ | `tab_view.cpp` | **DELETED 2026-08-27** — the bracket is the mark |
+| Member rule 10, per-marker span publication, bracket hit target and ring | `chart_shapes.cpp`, `chart_projection.cpp`, `tab_layout_manifest.cpp`, `chart_hit_testing.cpp` | built 2026-08-27 |
+| A typed fret on a selected bracket, through the pending-entry model | `chart_edits.cpp`, `chart_handlers.cpp`, `tab_view.cpp` | built 2026-08-27 |
 
 **Still open, and each is a sign-off rather than unbuilt wiring:**
 
-1. **The shipped verb semantics want the user's nod.** The chord is final (`N`, re-signed from
-   `Shift+A` 2026-08-25). v1 was rejected; **v2 below was built as proposed**, which is what the
-   record asked for, but the user has not yet used it — so the sighting pass is where v2 stops
-   being a proposal.
-2. **A fret-carrying marker's authored fret does not transpose — and that is EVERY converted
-   marker, not β alone.** The cost sheet below scores `planRetypeFrets` as "nothing to diverge" for
-   F on the reasoning that α authors no fret. The shipped verb's case 2 falsifies the premise: it
-   copies the fret off the note it converts, because place-then-convert is the only fret-stating
-   flow the editor has, so an α marker made the ordinary way carries a fret too. Retype a chord
-   whose low member is any fret-carrying marker and the barre stays where it was. Left as this
-   record has it rather than improvised; the gap is stated at `planRetypeFrets` in `chart_edits.h`.
-   Needs a ruling — carry a selected fret-carrying marker through the fret verb, or leave it
-   note-only — and the cost sheet reads differently now that the population is every converted
-   marker rather than only the never-sounded ones.
+1. ~~**The shipped verb semantics want the user's nod.**~~ **SIGHTED 2026-08-27.** The chord is
+   final (`N`, re-signed from `Shift+A` 2026-08-25) and v2's three cases stand; what the sighting
+   changed is the derivation under them and the mark over them, recorded above.
+2. **A fret-carrying marker's authored fret still does not TRANSPOSE — narrowed, not closed.** The
+   digit path is answered (a typed fret now writes onto a selected bracket, ruling 4 above). What
+   remains is Alt+Shift's shape-preserving shift: it moves a marker's STATED stop when the marker
+   is itself selected, and it does NOT reach a fret-carrying marker that merely sits inside a chord
+   whose notes are being transposed — the barre stays where it was. That is the uniform-scope law
+   working as written (a verb acts on the selection), not a special case, but the user has not
+   ruled on whether a transpose should carry the shape's silent members along. The cost sheet below
+   reads differently now that the population is every converted marker rather than only the
+   never-sounded ones.
 
    The same premise runs one step further, and it is the other half of what wants ruling: F's
    storage rule says the fret is "absent where a later note in the span supplies it", and **nothing
@@ -42,12 +178,12 @@ way it did, not what the code looks like today.
    that supplies it as a second, independently editable copy. The derivation now refuses to let the
    two disagree in the one place it can see them — a lone re-pick at a different stop no longer
    joins the span (side ruling (ii), condition 1) — but the record is still free to hold both.
-3. **The mark's look is unsigned.** A filled dot in the arpeggio hand-shape colour at 0.6 x head
-   size, carrying no digit (the bracket already prints the resolved stop). Nothing here or in the
-   display ruling picks a glyph; it is a sighting item.
-4. **A typed digit with only markers selected does nothing.** Silent, like every other
-   uniform-scope skip, and correct under item 2's default — but it is a keystroke that visibly
-   does nothing, worth a look at sighting.
+3. ~~**The mark's look is unsigned.**~~ **CLOSED 2026-08-27 by deletion.** There is no mark to
+   sign: the dot is gone and the arpeggio bracket is what a hold marker looks like, selects as, and
+   is typed into. The cost is the invisible-inert edge recorded above and in
+   `docs/tracking/watch-items.md`.
+4. ~~**A typed digit with only markers selected does nothing.**~~ **CLOSED 2026-08-27** — it now
+   states the bracket's stop, with the pending box drawn on the bracket like any head's.
 
 One law moved to make room, and it is recorded where it lives rather than only here: the
 uniform-scope law (`docs/plans/in-progress/editing-interaction-model.md`) gained its first
@@ -177,6 +313,10 @@ fretting-hand strikes (rule 10), and the guide says so — "no other arpeggio gr
 (broken-chord grouping waits for the corpus-informed pass)"
 (`docs/developer/the-project-lifecycle.md:325`). **This limit survives every option below.** See the
 recommendation.
+
+> **Superseded in part, 2026-08-27.** Rule 10 now counts members rather than strikes, so a charter
+> CAN open a span on a one-note-at-a-time figure by stating its held members with markers. What
+> still holds is the derivation's own limit: nothing in the note stream alone opens such a span.
 
 ## Why it is underivable
 
@@ -659,9 +799,11 @@ one thing, and it buys nothing else.
 **Do not adopt B** (its deletion rationale is unchanged), **D** (superseded by F), or **X** (it
 breaks the note invariant and pollutes every note consumer). **E is a producer for F, not a rival.**
 
-**Carry this limit into the ruling, whichever branch wins.** Neither option delivers the general
-broken chord. A posture needs two simultaneous fretting-hand strikes (rule 10), and a hold marker is
-not a strike (see the pre-work list), so a shape can never *open* on held members alone. Both
+**Carry this limit into the ruling, whichever branch wins.** (Half of it was lifted 2026-08-27: a
+marker is not a strike but IS a member, so a shape CAN open on held members — two of them, or one
+beside a sounding note. What survives is that the note stream alone never opens one.) Neither
+option delivers the general broken chord unaided. A posture needs two simultaneous fretting-hand
+strikes (rule 10 as written then), and a hold marker is not a strike (see the pre-work list). Both
 options cover exactly one shape: **one opened by a ≥2-string strike and completed later.** Side
 question (ii) below extends that span across later lone re-picks, but it cannot *open* one either. A
 passage picked strictly one string at a time from its first note — never two together — therefore
@@ -750,8 +892,11 @@ not list, and item 3 chose the middle candidate rather than the one weighed firs
    not a strike; a shape still needs two sounding fretting-hand members. The corollary is the limit
    carried into the recommendation: a shape can never open on markers alone, so a marker always
    attaches to a shape opened by sound.
-   **ANSWERED as proposed** — a marker is not a strike. Test: *"a marker where no span is open
-   derives nothing at all"*.
+   **ANSWERED as proposed — and OVERTURNED at the first sighting, 2026-08-27.** "Not a strike" was
+   right; "therefore not a member" was the error, and the answer as proposed is exactly what made
+   converting one member of a two-note chord destroy its own output. The rule now counts MEMBERS,
+   sounding or held: see the sighting section at the top of this record. The test named here was
+   rewritten with it.
 2. **Does a lone re-pick need matching articulation to join (side question (ii))?** A palm-muted
    re-pick of a held chord member: same hand position, different articulation. Rule 11 splits chords
    on articulation; is a lone re-pick the same question or a different one?

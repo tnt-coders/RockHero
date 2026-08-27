@@ -282,10 +282,15 @@ Verified against the vendored JUCE source — everything needed ships in
   neither widens it nor enables it; every other verb still reads the selection.
   Design record: `docs/plans/todo/arpeggio-authoring.md`.
   Typed digits SET every selected note to the exact value — what you type is what appears
-  (multi-digit window; Ctrl+digit and Alt+digit unbound).
+  (multi-digit window; Ctrl+digit and Alt+digit unbound). A selected **hold marker** takes a
+  typed fret the same way, on its posture bracket, which is the only way a bracket's own stop is
+  authored after the `N` verb states it (user ruling 2026-08-27); a stop that then contradicts the
+  note re-picking its string splits the span, through the derivation rather than a rule of the
+  verb's.
   Alt+Shift+wheel SHIFTS the selection's frets by one per tick, shape-preserving (chords and
   runs keep their intervals), refusing — never clamping — at fret zero and the fret cap
-  (settled 2026-07-17).
+  (settled 2026-07-17). It shifts a selected marker's STATED stop too, and passes over a fret-less
+  one — there is no stop of its own to move, and the note it reads from carries it already.
   Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
   span model); Alt+arrows move the selection (Left/Right by grid step, or one 1/960-beat fine
   step under Ctrl+Alt — the uniform fine tier, off-grid unification 2026-07-18 evening — with

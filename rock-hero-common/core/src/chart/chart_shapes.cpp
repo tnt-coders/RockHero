@@ -37,11 +37,14 @@ using StringArticulation = std::optional<ChartNote>;
 }
 
 // One hold marker resolved against the span it fell inside. The marker itself names no span, so
-// this is the whole of the relationship: which string it claims, the beat it claims it at (which
-// the span's own end then judges), and the fret it has resolved to — its own where it carries one,
-// otherwise the one a later in-span note on that string supplies, and empty while nothing has.
+// this is the whole of the relationship: which marker it came from, which string it claims, the
+// beat it claims it at (which the span's own end then judges), and the fret it has resolved to —
+// its own where it carries one, otherwise the one a later in-span note on that string supplies, and
+// empty while nothing has. The marker index rides along so the close can publish which span each
+// authored marker ended up in, which is what the editor's mark and its hit box are placed from.
 struct SilentClaim
 {
+    std::size_t marker_index{0};
     std::size_t string_index{0};
     Fraction beat{};
     std::optional<int> fret{};
@@ -64,14 +67,17 @@ struct OpenSpan
 
 } // namespace
 
-// The onset walk. Groups are contiguous runs of one grid position, which is the same partition
-// presentation and the hold engine use — the stream is sorted by (position, string), so an onset
-// group is an adjacency question and never a search.
+// The slot walk. Groups are contiguous runs of one grid position, which is the same partition
+// presentation and the hold engine use — both arrays are sorted by (position, string), so a group
+// is an adjacency question and never a search. The walk steps through the MERGED positions of the
+// two arrays rather than the notes alone, because a marker is now a posture member: a slot holding
+// only markers can open a span, so a slot holding only markers has to be a step of the walk.
 ChartShapes deriveChartShapes(
     const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,
     const std::vector<ChartHoldMarker>& hold_markers, const TempoMap& tempo_map)
 {
     ChartShapes derived;
+    derived.marker_shapes.assign(hold_markers.size(), std::nullopt);
 
     // A posture array is indexed by string number, and the model bounds those at
     // g_max_chart_strings — so that constant IS the width, never a quantity read off the input.
@@ -94,6 +100,16 @@ ChartShapes deriveChartShapes(
     const auto ring_end_of = [&onset_beat, &saved_notes](const std::size_t index) {
         return onset_beat[index] + saved_notes[index].sustain;
     };
+
+    // The markers' beats on the same axis, precomputed for the same reason: the walk compares them
+    // against note beats at every step, and a marker's position is asked for exactly once here
+    // instead of once per span it is judged against.
+    std::vector<Fraction> marker_beat;
+    marker_beat.reserve(hold_markers.size());
+    for (const ChartHoldMarker& marker : hold_markers)
+    {
+        marker_beat.push_back(beatDistance(tempo_map, GridPosition{}, marker.position));
+    }
 
     std::map<std::vector<std::optional<int>>, std::size_t> posture_indices;
     std::optional<OpenSpan> open;
@@ -151,16 +167,26 @@ ChartShapes deriveChartShapes(
         // authored past the span's own end — that gap is after the shape stopped sounding, and the
         // bracket the fret would print under never reaches it. A string the sound already states is
         // left alone: the marker adds nothing there, so it makes no silent member either.
+        //
+        // "Past the end" is asked as "not strictly inside, and not AT the start". The second half
+        // is not an exception carved out for a degenerate case: a span whose every member is silent
+        // has nothing ringing to give it length, so start and end coincide, and its own opening
+        // members are exactly the claims sitting at that instant. Excluding them would let a
+        // posture open and then state nothing.
         bool silent_member = false;
         for (const SilentClaim& claim : open->claims)
         {
             std::optional<int>& fret = frets[claim.string_index];
-            if (!claim.fret.has_value() || !(claim.beat < end) || fret.has_value())
+            const bool inside = claim.beat < end || claim.beat == open->start_beat;
+            if (!claim.fret.has_value() || !inside || fret.has_value())
             {
                 continue;
             }
             fret = claim.fret;
             silent_member = true;
+            // Which span this marker's stop reached, published for the surfaces: the bracket that
+            // prints it draws at this span's start, and a marker with no entry here draws nowhere.
+            derived.marker_shapes[claim.marker_index] = derived.shapes.size();
         }
         const auto [entry, inserted] = posture_indices.try_emplace(frets, derived.postures.size());
         if (inserted)
@@ -177,27 +203,41 @@ ChartShapes deriveChartShapes(
         open.reset();
     };
 
-    // Attaches one authored marker to whatever span is open at its position. A marker outside every
-    // span is not refused anywhere — it simply attaches to nothing and draws nothing, the same
-    // degrade an unjustified connection claim takes. Strings are bounded here for the same reason
-    // the note walk bounds them: this runs before validation has refused an impossible one.
-    std::size_t marker_index = 0;
-    const auto attach_markers_before = [&open, &hold_markers, &marker_index, &tempo_map](
-                                           const GridPosition& limit, const bool inclusive) {
-        while (marker_index < hold_markers.size() &&
-               (inclusive ? !(limit < hold_markers[marker_index].position)
-                          : hold_markers[marker_index].position < limit))
+    // A string number the posture array can actually carry. Bounded here for the same reason the
+    // note walk bounds them: this runs before validation has refused an impossible one, so a
+    // corrupt document's `"string"` must never decide an index — and a marker naming one is not a
+    // member of anything either, which is why the count and the attach ask the same question.
+    const auto marker_string_index =
+        [](const ChartHoldMarker& marker) -> std::optional<std::size_t> {
+        if (marker.string < 1 || marker.string > g_max_chart_strings)
         {
-            const ChartHoldMarker& marker = hold_markers[marker_index];
-            ++marker_index;
-            if (!open.has_value() || marker.string < 1 || marker.string > g_max_chart_strings)
+            return std::nullopt;
+        }
+        return static_cast<std::size_t>(marker.string - 1);
+    };
+
+    // Attaches the markers of one slot to whatever span is open there. A marker outside every span
+    // is not refused anywhere — it simply attaches to nothing and draws nothing, the same degrade
+    // an unjustified connection claim takes.
+    const auto attach_markers = [&open, &hold_markers, &marker_beat, &marker_string_index](
+                                    const std::size_t first, const std::size_t last) {
+        if (!open.has_value())
+        {
+            return;
+        }
+        for (std::size_t index = first; index < last; ++index)
+        {
+            const ChartHoldMarker& marker = hold_markers[index];
+            const std::optional<std::size_t> string_index = marker_string_index(marker);
+            if (!string_index.has_value())
             {
                 continue;
             }
             open->claims.push_back(
                 SilentClaim{
-                    .string_index = static_cast<std::size_t>(marker.string - 1),
-                    .beat = beatDistance(tempo_map, GridPosition{}, marker.position),
+                    .marker_index = index,
+                    .string_index = *string_index,
+                    .beat = marker_beat[index],
                     .fret = marker.fret,
                 });
         }
@@ -290,19 +330,29 @@ ChartShapes deriveChartShapes(
     };
 
     std::size_t index = 0;
-    while (index < saved_notes.size())
+    std::size_t marker_index = 0;
+    while (index < saved_notes.size() || marker_index < hold_markers.size())
     {
-        // Markers in the gap before this onset belong to the span that was open across it, so they
-        // attach before the branch below decides that span's fate. Markers AT this onset attach
-        // after it, to whatever span the onset leaves open.
-        attach_markers_before(saved_notes[index].position, /*inclusive=*/false);
+        // This step's slot: the earlier of the two cursors' positions, which is what makes the walk
+        // cover every slot of the merged stream exactly once. Its beat comes from whichever array
+        // supplied it, both precomputed, so no position is measured twice.
+        const bool note_leads =
+            marker_index == hold_markers.size() ||
+            (index < saved_notes.size() &&
+             !(hold_markers[marker_index].position < saved_notes[index].position));
+        const GridPosition position =
+            note_leads ? saved_notes[index].position : hold_markers[marker_index].position;
+        const Fraction position_beat = note_leads ? onset_beat[index] : marker_beat[marker_index];
 
         std::size_t onset_end = index;
-        Fraction ring_end{};
+        // The span reaches at least its own start. For every sounding onset that is what the first
+        // ring already says; for a slot whose members are all silent it is the whole of what the
+        // slot says, and starting the accumulator here is what keeps that from reading as beat
+        // zero — an absolute beat, which would make the span's length negative.
+        Fraction ring_end = position_beat;
         std::vector<StringArticulation> articulation(string_count);
         std::size_t struck = 0;
-        while (onset_end < saved_notes.size() &&
-               saved_notes[onset_end].position == saved_notes[index].position)
+        while (onset_end < saved_notes.size() && saved_notes[onset_end].position == position)
         {
             // Right-hand onsets are invisible to span derivation: they join no posture and extend
             // no ring, so a mixed onset is judged by its fretting-hand members alone.
@@ -320,17 +370,82 @@ ChartShapes deriveChartShapes(
             ++onset_end;
         }
 
+        // The markers of this same slot, and with them what the slot HOLDS. Rule 10 counts MEMBERS
+        // (user ruling 2026-08-27): a member is a sounding fretting-hand onset here or a marker
+        // here, so one sound plus one held finger states a shape, two held fingers state one, and
+        // a lone member of either kind states none. A marker was never a strike and still is not —
+        // what changed is that a shape is not made of strikes, it is made of stops.
+        std::size_t marker_end = marker_index;
+        std::size_t held = 0;
+        while (marker_end < hold_markers.size() && hold_markers[marker_end].position == position)
+        {
+            if (marker_string_index(hold_markers[marker_end]).has_value())
+            {
+                ++held;
+            }
+            ++marker_end;
+        }
+        const bool posture_slot = struck + held >= 2;
+
+        // Opening a span is one statement however the slot got here, sounding or silent: the
+        // articulation it holds, starting and reaching at least this instant, with no claims yet
+        // (this slot's markers attach below). Written once so the two branches that open a span
+        // cannot drift into two different spans.
+        const auto open_span_here = [&open, &articulation, &position, position_beat, ring_end] {
+            open = OpenSpan{
+                .articulation = std::move(articulation),
+                .claims = {},
+                .position = position,
+                .start_beat = position_beat,
+                .end_beat = ring_end,
+                .last_strum_beat = position_beat,
+            };
+        };
+
         if (struck == 0)
         {
-            // Tap-only onsets are transparent to the GROUPING: they neither form a chord posture
-            // nor end a held one. A chord ringing under taps on other strings keeps its span,
-            // which the arrival rule then renders as a held arpeggio — the corpus's held-shape-
-            // under-tapping case. Transparent to the grouping is not transparent to the ring: a
-            // tap is a real onset on its own string, so the same-string clamp has already ended
-            // any ring there. A short-ringing chord is unaffected either way: its span still ends
-            // at its own ring, before the taps.
+            // Nothing sounds here, and a slot that sounds nothing never ENDS a held posture. Two
+            // cases share that: tap-only onsets are transparent to the GROUPING (a chord ringing
+            // under taps on other strings keeps its span, which the arrival rule then renders as a
+            // held arpeggio — the corpus's held-shape-under-tapping case), and a marker-only slot
+            // is a finger coming down, which adds to a shape rather than replacing one. Transparent
+            // to the grouping is not transparent to the ring: a tap is a real onset on its own
+            // string, so the same-string clamp has already ended any ring there.
+            //
+            // Where no shape is HELD, though, held fingers alone can state one — that is the whole
+            // of what a marker-opened span is. Its articulation is empty because nothing sounds in
+            // it, and its claims (attached below) are its entire posture.
+            //
+            // "Held" is asked of the RING, not of the walk's cursor. A span stays open across the
+            // silence after its members stop ringing, because rule 11 lets a later identical strum
+            // rejoin it — so a span the chart stopped sounding beats ago is still `open`, and
+            // asking `!open` would refuse the user's own two-marker case for every chart whose
+            // last event was a chord. Past the ring the shape is over: this closes it at its own
+            // ring (no margin trim — nothing SOUNDS here to keep a distance from, and the ring
+            // already ended at or before this slot) and the held fingers state the next shape. The
+            // same comparison the close's own claim test uses, so "held here" and "inside the
+            // span" answer alike.
+            if (posture_slot && !(open.has_value() && position_beat < open->end_beat))
+            {
+                close_span(std::nullopt, std::nullopt);
+                open_span_here();
+            }
         }
-        else if (struck >= 2)
+        else if (
+            struck == 1 && open.has_value() &&
+            lone_repick_continues(*open, articulation, position_beat)
+        )
+        {
+            // Side ruling (ii): the shape survives one of its own members being re-picked, and the
+            // span grows to cover the re-pick — the last-strum floor included, so the closing trim
+            // can never cut back past it. Asked BEFORE the posture test below, because a re-pick
+            // that happens to carry a marker beside it is still the shape continuing; letting the
+            // member count open a fresh span there would break exactly the broken-chord figure
+            // this ruling exists for.
+            open->end_beat = std::max(open->end_beat, ring_end);
+            open->last_strum_beat = position_beat;
+        }
+        else if (posture_slot)
         {
             // Ring-through strings join the posture (they never count as struck): the held note's
             // articulation folds in so span merging still compares whole notes.
@@ -338,7 +453,7 @@ ChartShapes deriveChartShapes(
             {
                 const std::optional<std::size_t>& ring = ringing[string_index];
                 if (!articulation[string_index].has_value() && ring.has_value() &&
-                    onset_beat[index] < ring_end_of(*ring))
+                    position_beat < ring_end_of(*ring))
                 {
                     articulation[string_index] = articulationOf(presented_notes[*ring]);
                 }
@@ -346,39 +461,24 @@ ChartShapes deriveChartShapes(
             if (open.has_value() && open->articulation == articulation)
             {
                 open->end_beat = std::max(open->end_beat, ring_end);
-                open->last_strum_beat = onset_beat[index];
+                open->last_strum_beat = position_beat;
             }
             else
             {
-                close_span(margin_limit(index), onset_beat[index]);
-                open = OpenSpan{
-                    .articulation = std::move(articulation),
-                    .claims = {},
-                    .position = saved_notes[index].position,
-                    .start_beat = onset_beat[index],
-                    .end_beat = ring_end,
-                    .last_strum_beat = onset_beat[index],
-                };
+                close_span(margin_limit(index), position_beat);
+                open_span_here();
             }
-        }
-        else if (open.has_value() && lone_repick_continues(*open, articulation, onset_beat[index]))
-        {
-            // Side ruling (ii): the shape survives one of its own members being re-picked, and the
-            // span grows to cover the re-pick — the last-strum floor included, so the closing trim
-            // can never cut back past it.
-            open->end_beat = std::max(open->end_beat, ring_end);
-            open->last_strum_beat = onset_beat[index];
         }
         else
         {
             // Any other intervening non-chord onset ends the held posture.
-            close_span(margin_limit(index), onset_beat[index]);
+            close_span(margin_limit(index), position_beat);
         }
 
         // A fret-absent claim takes its fret from the first note that sounds on its string LATER in
         // the same span. Asked here, after the branch, so it reads the span this onset actually
         // left open: an onset that closed a span is outside it and states nothing about it, and a
-        // span that just opened carries no claims yet (this onset's markers attach below).
+        // span that just opened carries no claims yet (this slot's markers attach below).
         if (open.has_value())
         {
             for (std::size_t member = index; member < onset_end; ++member)
@@ -393,14 +493,14 @@ ChartShapes deriveChartShapes(
                 for (SilentClaim& claim : open->claims)
                 {
                     if (!claim.fret.has_value() && claim.string_index == string_index &&
-                        claim.beat < onset_beat[index])
+                        claim.beat < position_beat)
                     {
                         claim.fret = presented_notes[member].fret;
                     }
                 }
             }
         }
-        attach_markers_before(saved_notes[index].position, /*inclusive=*/true);
+        attach_markers(marker_index, marker_end);
 
         // This onset's non-tap notes become the ring candidates for later onsets (updated after
         // use: a note starting at an onset is struck there, not ringing through it). Taps stay
@@ -414,12 +514,7 @@ ChartShapes deriveChartShapes(
             }
         }
         index = onset_end;
-    }
-    // Markers past the last onset can still fall inside the span that is ringing out under them;
-    // the close's own end check is what decides, exactly as for every other marker.
-    while (marker_index < hold_markers.size())
-    {
-        attach_markers_before(hold_markers[marker_index].position, /*inclusive=*/true);
+        marker_index = marker_end;
     }
     close_span(std::nullopt, std::nullopt);
 

@@ -136,19 +136,6 @@ std::vector<std::size_t> selectedHoldMarkerIndices(
     return slotIndicesForKeys(markers, selection.holdMarkers());
 }
 
-std::vector<common::core::ChartNote> notesForKeys(
-    const std::vector<common::core::ChartNote>& notes, const std::span<const ChartSlotKey> keys)
-{
-    std::vector<common::core::ChartNote> named;
-    const std::vector<std::size_t> indices = slotIndicesForKeys(notes, keys);
-    named.reserve(indices.size());
-    for (const std::size_t index : indices)
-    {
-        named.push_back(notes[index]);
-    }
-    return named;
-}
-
 // The waypoint keys are sorted by (note slot, offset) and the note stream by slot, so one forward
 // cursor walks both — the same linear merge every other key resolution here is, with the offset
 // lookup inside the note it lands on.

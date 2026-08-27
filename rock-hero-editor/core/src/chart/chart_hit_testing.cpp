@@ -49,20 +49,33 @@ std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
     float y)
 {
-    // Hold-marker marks first: the editor draws them above the notation, so a pointer over one
-    // takes it. They carry no tail and are rare, so the whole array is probed rather than culled
-    // through the note stream's own visible range, which is keyed by note ends.
+    // Hold markers first, which is the ONE place this order departs from "topmost drawn wins", so
+    // the reason is stated rather than inferred from the position. A marker's mark is the arpeggio
+    // bracket at its span's start on its own string, and that string is silent there by
+    // construction — slot disjointness refuses a note under a marker, and a claim on a string the
+    // sound already states is dropped as inert — so a marker's bracket never wraps a head. What it
+    // CAN overlap is a head slightly later on the same string, which is exactly the note a
+    // fret-less marker takes its stop from, and the paint core draws brackets before heads, so
+    // that head is on top. The marker takes the overlap anyway: the bracket is its ONLY
+    // affordance, and yielding leaves it a two-pixel bar, while the head keeps every column the
+    // bracket does not reach. The trade is recorded with the verb's design record
+    // (`docs/plans/todo/arpeggio-authoring.md`) rather than settled silently here.
+    //
+    // Markers carry no tail and are rare, so the whole array is probed rather than culled through
+    // the note stream's own visible range, which is keyed by note ends. A marker that resolved
+    // into no span lays out to nothing and is skipped here for free — nothing undrawn is
+    // clickable.
     std::optional<std::size_t> best_marker;
     float best_marker_distance = 0.0f;
     for (std::size_t index = 0; index < tab.hold_markers.size(); ++index)
     {
-        const common::ui::TabHoldMarkerLayout layout =
+        const std::optional<common::ui::TabHoldMarkerLayout> layout =
             common::ui::tabHoldMarkerLayout(geometry, tab.hold_markers[index]);
-        if (!layout.box.contains(x, y))
+        if (!layout.has_value() || !layout->box.contains(x, y))
         {
             continue;
         }
-        const float distance = std::abs(x - layout.center_x);
+        const float distance = std::abs(x - layout->center_x);
         if (!best_marker.has_value() || distance < best_marker_distance)
         {
             best_marker = index;
@@ -181,9 +194,9 @@ std::vector<ChartHitTarget> chartTargetsInBox(
     }
     for (std::size_t index = 0; index < tab.hold_markers.size(); ++index)
     {
-        const common::ui::TabHoldMarkerLayout layout =
+        const std::optional<common::ui::TabHoldMarkerLayout> layout =
             common::ui::tabHoldMarkerLayout(geometry, tab.hold_markers[index]);
-        if (intersects(layout.box))
+        if (layout.has_value() && intersects(layout->box))
         {
             boxed.push_back(ChartHoldMarkerHit{.index = index});
         }

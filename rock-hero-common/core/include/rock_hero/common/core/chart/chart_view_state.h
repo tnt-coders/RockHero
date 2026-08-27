@@ -430,8 +430,19 @@ is chart content resolved to seconds, and one producer for that is the rule
 */
 struct HoldMarkerViewState
 {
-    /*! \brief Absolute position the hand takes the stop. */
-    double seconds{0.0};
+    /*!
+    \brief Where this marker's posture bracket draws; absent when it resolved to nothing.
+
+    A hold marker has no mark of its own: the arpeggio bracket that prints its stop IS the marker,
+    drawn at the START of the span the stop joined, which is where a posture is stated and is not
+    in general where the marker was authored. So this carries the bracket's instant rather than the
+    marker's, and a marker that joined no span — one whose fret nothing supplies, one past its
+    span's end, one whose string the sound already states — carries none at all, which is exactly
+    what makes "nothing undrawn is clickable" hold by construction rather than by a second rule.
+
+    Resolved by the span derivation itself (\ref ChartShapes::marker_shapes), never re-derived here.
+    */
+    std::optional<double> bracket_seconds{};
 
     /*! \brief One-based chart string (unshifted, like \ref NoteViewState::string). */
     int string{1};
@@ -441,7 +452,9 @@ struct HoldMarkerViewState
 
     Hand-written rather than defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
     seconds member. Exact equality is intended; the ordering query expresses it warning-free with
-    identical semantics (NaN compares unequal either way).
+    identical semantics (NaN compares unequal either way). Both optionals are bound to named
+    references before either is read, which is what keeps the unchecked-optional-access analysis
+    able to see the guard.
 
     \param lhs Left-hand entry.
     \param rhs Right-hand entry.
@@ -450,7 +463,13 @@ struct HoldMarkerViewState
     friend constexpr bool operator==(
         const HoldMarkerViewState& lhs, const HoldMarkerViewState& rhs) noexcept
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
+        const std::optional<double>& left = lhs.bracket_seconds;
+        const std::optional<double>& right = rhs.bracket_seconds;
+        if (!left.has_value() || !right.has_value())
+        {
+            return left.has_value() == right.has_value() && lhs.string == rhs.string;
+        }
+        return std::is_eq(*left <=> *right) && lhs.string == rhs.string;
     }
 };
 
@@ -629,7 +648,10 @@ struct ChartViewState
     \brief Authored hold markers in ascending (position, string) order — the editor lane's own.
 
     Carried for the 2D editing surface alone (\ref HoldMarkerViewState); the board draws nothing
-    from it, because what a marker MEANS already reaches every surface through the posture.
+    from it, because what a marker MEANS already reaches every surface through the posture. Same
+    order and size as `Chart::hold_markers`, INCLUDING the markers that resolved to nothing: the
+    editor addresses a marker by its index here, so a filtered array would renumber the selection.
+    An unresolved entry simply carries no bracket to draw or click.
     */
     std::vector<HoldMarkerViewState> hold_markers;
 

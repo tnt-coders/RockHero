@@ -33,7 +33,8 @@ funnelled through the same finalize step, plus the settle sweep's `planSettleLeg
 deliberately bypasses that funnel because flattening a claim to a plain pick can violate no rule;
 see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` spans BOTH authored arrays,
 the notes and the hold markers, because the arpeggio hold verb's conversion takes a note out of
-one and puts a marker into the other in a single gesture; a composite of two edits would need an
+one and puts a marker into the other in a single gesture, and the fret verbs write a typed or
+shifted stop onto whichever array the selection names; a composite of two edits would need an
 order between its halves, and `applyChartChange` rebuilds both arrays on copies before swapping
 either in, so a failed precondition anywhere leaves the chart entirely untouched),
 `tone_region_edits.h` (create/delete/resize/rename/boundary-move/reset),

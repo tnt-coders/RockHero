@@ -567,9 +567,17 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, int target, bool set_exact)
+    const std::vector<common::core::ChartNote>& base,
+    const std::vector<common::core::ChartHoldMarker>& base_markers, int target, bool set_exact)
 {
-    // The transposition anchor: the shared delta comes from the snapshot's lowest fret.
+    if (base.empty() && base_markers.empty())
+    {
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+
+    // The transposition anchor: the shared delta comes from the snapshot's lowest STATED fret,
+    // markers included. A marker that states none is not part of the anchor for the same reason it
+    // is not part of the shift below — there is no stop of its own to move.
     std::optional<int> lowest;
     for (const common::core::ChartNote& note : base)
     {
@@ -578,12 +586,24 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             lowest = note.fret;
         }
     }
-    if (!lowest.has_value())
+    for (const common::core::ChartHoldMarker& marker : base_markers)
     {
-        return std::unexpected{ChartPlanRefusal::NoChange};
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = marker.fret;
+        if (fret.has_value() && (!lowest.has_value() || *fret < *lowest))
+        {
+            lowest = *fret;
+        }
     }
 
-    const int delta = set_exact ? 0 : target - *lowest;
+    // A transpose with nothing stated anywhere shifts by nothing and the finalize answers
+    // NoChange — honest rather than a refusal, because a fret-less marker really has no stop to
+    // move. A set-exact entry needs no anchor at all: it states the stop outright.
+    int delta = 0;
+    if (!set_exact && lowest.has_value())
+    {
+        delta = target - *lowest;
+    }
     const std::string label =
         (set_exact ? "Set Fret " : "Transpose to Fret ") + std::to_string(target);
     // Retyped values compute from the SNAPSHOT (the multi-digit window replans the whole entry
@@ -604,6 +624,34 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         retyped.fret = set_exact ? target : note.fret + delta;
         retyped_notes.push_back(std::move(retyped));
     }
+    // A selected HOLD MARKER retypes too, and it is the one place a marker's own stop is authored
+    // after the toggle stated it (user ruling 2026-08-27: "If you select a note that is just a
+    // bracket (no onset) you should be able to set the fret number for that bracket"). Typing a
+    // digit STATES the stop, so set-exact gives a fret-less marker one; a transpose SHIFTS a stated
+    // stop and passes over a marker with none, because there is nothing to keep in step.
+    //
+    // Nothing else moves with it. The span the marker sits in is DERIVED, so a contradicting stop
+    // is not arbitrated here at all: the derivation's own claim-fret test stops matching the note
+    // that re-picks the string, side ruling (ii) declines to continue, and the span splits — the
+    // coherence the ruling asks for, falling out of one rule instead of a second one written here.
+    std::vector<common::core::ChartHoldMarker> retyped_markers;
+    retyped_markers.reserve(base_markers.size());
+    for (const common::core::ChartHoldMarker& marker : base_markers)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = marker.fret;
+        common::core::ChartHoldMarker retyped = marker;
+        if (set_exact)
+        {
+            retyped.fret = target;
+        }
+        else if (fret.has_value())
+        {
+            retyped.fret = *fret + delta;
+        }
+        retyped_markers.push_back(retyped);
+    }
+
     std::vector<common::core::ChartNote> candidate = chart.notes;
     for (common::core::ChartNote& note : candidate)
     {
@@ -616,8 +664,20 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             }
         }
     }
+    std::vector<common::core::ChartHoldMarker> candidate_markers = chart.hold_markers;
+    for (common::core::ChartHoldMarker& marker : candidate_markers)
+    {
+        for (const common::core::ChartHoldMarker& retyped : retyped_markers)
+        {
+            if (chartSlotKeyOf(retyped) == chartSlotKeyOf(marker))
+            {
+                marker = retyped;
+                break;
+            }
+        }
+    }
     return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(candidate), chart.hold_markers, label);
+        chart, tempo_map, chart.notes, std::move(candidate), std::move(candidate_markers), label);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
@@ -1183,7 +1243,7 @@ template <typename Carries>
     const common::core::Chart& chart, const ChartSelection& selection, const Carries& carries)
 {
     const std::vector<common::core::ChartNote> selected =
-        notesForKeys(chart.notes, selection.notes());
+        recordsForKeys(chart.notes, selection.notes());
     return !selected.empty() && std::ranges::all_of(selected, carries);
 }
 
@@ -1316,7 +1376,7 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                             return false;
                         }
                         const std::vector<common::core::ChartNote> notes =
-                            notesForKeys(chart.notes, selection.notes());
+                            recordsForKeys(chart.notes, selection.notes());
                         return std::ranges::all_of(
                                    notes,
                                    [](const common::core::ChartNote& note) {

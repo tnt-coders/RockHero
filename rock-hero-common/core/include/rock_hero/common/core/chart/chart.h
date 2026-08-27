@@ -827,8 +827,15 @@ The fret is optional, and which case is which is the whole design:
   a four-string pattern. No note exists to state it, so no note can ever contradict it, which is
   exactly what makes the authored fret honest here and dishonest above.
 
-A marker is not a strike. It never OPENS a shape — that still takes two sounding fretting-hand
-members — so it only ever joins a shape sound already opened.
+A marker is not a strike — it closes no shape and ends no posture — but it IS a MEMBER, and a shape
+is made of stops rather than of strikes (user ruling 2026-08-27). Two members at one slot open a
+span whichever kind they are: a sounding note beside a held finger, or two held fingers with
+nothing sounding at all. A LONE member of either kind opens nothing.
+
+A marker also has no mark of its own. The arpeggio bracket printing its stop at the span's start IS
+the marker on the editing surface — what the pointer selects, and what a typed fret writes to — so
+one that resolves to no posture is invisible as well as inert. That is the whole of what "inert"
+costs today, and it is recorded as an open edge in the design record below.
 
 The design record is `docs/plans/todo/arpeggio-authoring.md`.
 */

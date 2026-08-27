@@ -234,10 +234,11 @@ all color strings through it. The glyph renderer itself is the **shared notation
 in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
 `TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head/tail
 in pixels" for hit testing (and the same for a linked waypoint's head, and for a hold marker's
-editor mark, whose geometry lives there beside the head's even though the paint core never draws
-it — the editor's overlay painter and the editor's hit testing both read it, and a second copy
-would be the drift the unit exists to prevent; all three boxes come from one `centeredSquare`, so
-they cannot disagree about which edge a click lands on), and `tab_paint_core.h` — the one
+**posture bracket** — a marker has no mark of its own, so what the editor rings and hit-tests is
+the arpeggio bracket the paint core already draws at its span's start, and the bracket's size lives
+on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
+marker that joined no posture draws no bracket, and the layout answers with no box at all, so
+nothing undrawn is clickable without a second rule saying so), and `tab_paint_core.h` — the one
 designated juce_graphics-bearing
 common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own

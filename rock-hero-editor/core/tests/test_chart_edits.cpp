@@ -564,7 +564,7 @@ TEST_CASE("planRetypeFrets sets an exact fret on every note", "[core][chart]")
     const common::core::Chart chart = makeTestChart();
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 9, true);
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, {}, 9, true);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -586,7 +586,7 @@ TEST_CASE("planRetypeFrets transposes from the lowest fret", "[core][chart]")
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
     // Lowest fret 3 to target 5 is a +2 shift: 3 to 5 and 5 to 7.
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 5, false);
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, {}, 5, false);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -617,7 +617,8 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
     // Lowest fret 25 to the cap is a +5 shift; the higher member reaches 33, past the cap —
     // refused by the shared finalize gate, which replaced the old local caps. The kind matters:
     // this is Invalid, the emptiness a pending entry paints red.
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, common::core::g_max_fret, false);
+    const auto plan =
+        planRetypeFrets(chart, makeTempoMap(), base, {}, common::core::g_max_fret, false);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
@@ -626,7 +627,7 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
 // NoChange, not a refusal: there was nothing to edit, so nothing was disallowed.
 TEST_CASE("planRetypeFrets reports NoChange for an empty snapshot", "[core][chart]")
 {
-    const auto plan = planRetypeFrets(makeTestChart(), makeTempoMap(), {}, 5, false);
+    const auto plan = planRetypeFrets(makeTestChart(), makeTempoMap(), {}, {}, 5, false);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
@@ -641,7 +642,7 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = base;
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 5, true);
+    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, {}, 5, true);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
@@ -1898,14 +1899,16 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(chart, makeTempoMap(), chart.notes, 11, /*set_exact=*/false),
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 11, /*set_exact=*/false),
             11);
     }
     SECTION("scrape: set-exact assigns the start only")
     {
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
-            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 11, /*set_exact=*/true), 11);
+            chart,
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 11, /*set_exact=*/true),
+            11);
     }
     SECTION("scrape: a start past the old translated-path ceiling is now legal")
     {
@@ -1914,7 +1917,7 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(chart, makeTempoMap(), chart.notes, 24, /*set_exact=*/false),
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 24, /*set_exact=*/false),
             24);
     }
     SECTION("pitched slide: transpose moves the start only")
@@ -1926,7 +1929,9 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
-            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 8, /*set_exact=*/false), 8);
+            chart,
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 8, /*set_exact=*/false),
+            8);
     }
     SECTION("pitched slide: set-exact assigns the start only")
     {
@@ -1937,7 +1942,9 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
-            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 9, /*set_exact=*/true), 9);
+            chart,
+            planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 9, /*set_exact=*/true),
+            9);
     }
 }
 
@@ -1950,11 +1957,12 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
 
-    const auto exact = planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/true);
+    const auto exact =
+        planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 3, /*set_exact=*/true);
     REQUIRE_FALSE(exact.has_value());
     CHECK(exact.error() == ChartPlanRefusal::Invalid);
     const auto shifted =
-        planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/false);
+        planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 3, /*set_exact=*/false);
     REQUIRE_FALSE(shifted.has_value());
     CHECK(shifted.error() == ChartPlanRefusal::Invalid);
 }
@@ -1971,7 +1979,8 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {std::move(slide)};
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), chart.notes, 0, /*set_exact=*/true);
+    const auto plan =
+        planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 0, /*set_exact=*/true);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
@@ -1989,7 +1998,8 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fre
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {std::move(slide)};
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), chart.notes, 7, /*set_exact=*/true);
+    const auto plan =
+        planRetypeFrets(chart, makeTempoMap(), chart.notes, {}, 7, /*set_exact=*/true);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2800,7 +2810,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             // to be rescued into, which is the asymmetry the stored-direction model needed and this
             // one does not.
             const auto retyped =
-                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 7, /*set_exact=*/true);
+                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, {}, 7, /*set_exact=*/true);
             REQUIRE(retyped.has_value());
             if (retyped.has_value())
             {
@@ -2833,7 +2843,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             CAPTURE(static_cast<int>(attack));
 
             const auto stranded =
-                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 0, /*set_exact=*/true);
+                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, {}, 0, /*set_exact=*/true);
             REQUIRE(stranded.has_value());
             if (stranded.has_value())
             {
@@ -2851,7 +2861,7 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             noded.notes[0].attack = attack;
             noded.notes[0].harmonic_node = 12.0;
             const auto kept =
-                planRetypeFrets(noded, tempo_map, {noded.notes[0]}, 0, /*set_exact=*/true);
+                planRetypeFrets(noded, tempo_map, {noded.notes[0]}, {}, 0, /*set_exact=*/true);
             REQUIRE(kept.has_value());
             if (kept.has_value())
             {

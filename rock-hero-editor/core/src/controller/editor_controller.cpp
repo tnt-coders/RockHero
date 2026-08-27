@@ -2727,11 +2727,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
             // The Alt-hover insert ghost publishes verbatim: it is already resolved to seconds +
             // string, and is set only while Alt hovers an insertable empty slot (else absent).
             state.chart_edit.insert_ghost = m_chart_insert_ghost;
-            // The pending fret entry: a retype's box rides the affected heads (indices into the
-            // same projection instance the selection resolves against), an insert entry carries
-            // its slot, where no head exists yet. Text and validity publish from the entry's own
-            // plan — NoChange stays valid, because a no-op is not a refusal and must not read
-            // red.
+            // The pending fret entry: a retype's box rides every affected object — the heads and
+            // the posture brackets, as indices into the same projection instance the selection
+            // resolves against — while an insert entry carries its slot, where no head exists
+            // yet. Text and validity publish from the entry's own plan — NoChange stays valid,
+            // because a no-op is not a refusal and must not read red.
             if (m_chart_fret_entry.has_value())
             {
                 ChartPendingFretViewState pending;
@@ -2750,9 +2750,13 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 }
                 else
                 {
-                    pending.at = slotIndicesForKeys(
-                        arrangement->chart->notes,
-                        std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target).keys);
+                    const auto& retype =
+                        std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target);
+                    pending.at = ChartPendingFretTargets{
+                        .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
+                        .hold_markers = slotIndicesForKeys(
+                            arrangement->chart->hold_markers, retype.marker_keys),
+                    };
                 }
                 state.chart_edit.pending_fret = std::move(pending);
             }

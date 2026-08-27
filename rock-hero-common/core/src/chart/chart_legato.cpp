@@ -109,6 +109,7 @@ ChartResolutions chartResolutions(
         deriveChartShapes(saved_notes, resolutions.presented_notes, hold_markers, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
+    resolutions.marker_shapes = std::move(derived.marker_shapes);
     resolutions.holds =
         chartHolds(saved_notes, resolutions.presented_notes, resolutions.shapes, tempo_map);
     return resolutions;

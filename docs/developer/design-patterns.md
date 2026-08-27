@@ -187,7 +187,8 @@ Exemplar: `ChartEditPlan` with the nine planners — `planInsertNote` / `planDel
 applied by `applyChartChange` and replayed by
 `ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan spans BOTH authored arrays (the notes
 and the hold markers) rather than one per array, because a single gesture can cross them — the
-arpeggio hold verb takes a note out of the stream and puts a silently-held stop in its place — and
+arpeggio hold verb takes a note out of the stream and puts a silently-held stop in its place, and
+`planRetypeFrets` writes a typed fret onto whichever array the selection names — and
 one user gesture is one undo entry. A composite of two edits would need an order between its halves,
 which is a rule two sides must agree on by hand; a widened plan has none, and `ChartEditPlan`'s own
 `reversed()` is the single statement of what "backwards" means for every array at once.

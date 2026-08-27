@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -185,6 +186,15 @@ struct ChartResolutions
 
     /*! \brief The posture table \ref shapes indexes, in first-appearance order. */
     std::vector<ChartPosture> postures;
+
+    /*!
+    \brief Per hold marker of the same chart, the \ref shapes entry its stop joined; absent if none.
+
+    Same order and size as `Chart::hold_markers` (\ref ChartShapes::marker_shapes). The 2D lane's
+    mark for a marker IS the posture bracket at that span's start, so this is what places it and
+    what makes an unresolved marker draw — and therefore hit-test — nowhere.
+    */
+    std::vector<std::optional<std::size_t>> marker_shapes;
 
     /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
     std::vector<Fraction> holds;

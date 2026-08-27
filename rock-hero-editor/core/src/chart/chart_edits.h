@@ -232,12 +232,12 @@ this precondition).
     common::core::Fraction beat_delta, int string_delta, std::string_view label);
 
 /*!
-\brief Plans retyping a snapshot of selected notes toward a typed fret target.
+\brief Plans retyping a snapshot of selected notes and hold markers toward a typed fret target.
 
-Two modes: transposing (the default) shifts every note by the same delta
+Two modes: transposing (the default) shifts every stop by the same delta
 so the snapshot's lowest fret lands on the target — shape-preserving, so chords reposition,
 runs transpose, and a single note retypes exactly — while set-exact assigns the target to
-every note. Members can never go below zero under transposition because the lowest fret is
+every stop. Members can never go below zero under transposition because the lowest fret is
 the anchor; a member pushed past the fret cap refuses the whole plan, never clamps.
 
 The base is a snapshot rather than the live chart so the multi-digit entry window can replan
@@ -250,28 +250,31 @@ either mode (the fret-verb law: every waypoint was placed on its fret on purpose
 start retyped onto its first path position refuses through the finalize gate's always-traveling
 rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 
-A selected HOLD MARKER is skipped, under the uniform-scope law that already skips a note no rule
-lets take the write: the verb is a note verb, and a marker authored on an EMPTY slot carries no
-fret at all — its stop is read back from the note that sounds it, so a transpose of that note moves
-both with nothing to keep in step (`docs/plans/todo/arpeggio-authoring.md`, the edit-consistency
-scoring). The case that scoring does not cover is a marker whose fret IS authored, and it is not
-only the never-sounded one the record scores: the toggle's CONVERT case copies the fret off the
-note it takes, so every marker made that way carries one too. A transpose of the chord around any
-of them leaves that stop where it was. That is left as the design record has it rather than
-improvised here.
+A selected HOLD MARKER retypes with the notes, which is how a bracket's own stop is authored after
+the toggle stated it (user ruling 2026-08-27). Typing a digit STATES a stop, so set-exact writes
+the target onto a marker whether or not it carried a fret; a transpose SHIFTS a stop and therefore
+passes over a marker carrying none — a fret-less marker reads its stop back off the note that
+sounds it, so the note's own transpose already carries it and there is nothing to keep in step.
+
+Nothing follows a retyped marker. The span it sits in is DERIVED, so a stop that now contradicts
+the note re-picking its string is not arbitrated here at all: side ruling (ii) stops recognising
+that re-pick as the same hand and the span splits, which is the coherence the ruling asks for
+falling out of the derivation rather than a second rule written into this planner.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of the notes being retyped.
+\param base_markers Snapshot of the hold markers being retyped.
 \param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
-\param set_exact True to assign the target to every note instead of transposing.
-\return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
+\param set_exact True to assign the target to every stop instead of transposing.
+\return The plan; NoChange when both snapshots are empty or the retype changes nothing, Invalid
         when the gate refuses the result. The split is what lets the pending entry paint a
         refused value red without painting a valid no-op red.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
+    const std::vector<common::core::ChartNote>& base,
+    const std::vector<common::core::ChartHoldMarker>& base_markers, int target, bool set_exact);
 
 /*!
 \brief One step of a duration gesture: the lattice its end lands on, and which way it moves.

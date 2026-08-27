@@ -77,11 +77,13 @@ constexpr float g_shape_rail_height{3.0f};
 // blue channel read too loud next to the blue, so the arpeggio tier sits darker.
 constexpr double g_shape_mark_brightness{1.5};
 constexpr double g_arpeggio_mark_brightness{1.3};
-// Bar width in whole pixels of the square-bracket pair marking an arpeggio posture note, which
-// reads as "[ fret ]" and stays much lighter than the note rings it wraps. The brackets draw as
-// pixel-snapped rectangles — a fractional width or position antialiases into fuzzy, unsquare
-// edges.
-constexpr int g_arpeggio_bracket_thickness{2};
+// The square-bracket pair marking an arpeggio posture note reads as "[ fret ]" and stays much
+// lighter than the note rings it wraps. Its SIZE lives on the lane geometry
+// (TabLaneGeometry::bracketGeometry) rather than here, because the editor hit-tests the bracket as
+// well as drawing it — the mark IS the selectable hold marker — and the layout manifest must bound
+// exactly the rectangles this pass fills. The brackets draw as pixel-snapped rectangles: a
+// fractional width or position antialiases into fuzzy, unsquare edges.
+//
 // Clear pixels between the closing bracket bar and a displaced posture digit, and the padding its
 // ground keeps around a centred one. One pixel binds the digit to its bracket by proximity without
 // letting the glyph's antialiasing merge into the bar the way touching it does.
@@ -2117,12 +2119,13 @@ void paintTabLane(
     const double span_start = span.start.seconds;
     const double span_end = span.end.seconds;
 
-    // Bracket geometry shared by the string-line gaps below and the bracket pass further
-    // down; the values depend only on the lane metrics, not on the individual note.
+    // Bracket geometry shared by the string-line gaps below, the bracket pass further down, and —
+    // the reason it moved onto the geometry — the layout manifest that hit-tests these same
+    // rectangles. The values depend only on the lane metrics, not on the individual note.
     const float bracket_size = metrics.headSize();
-    const float bracket_border = std::max(1.0f, bracket_size / 15.0f);
-    const float bracket_radius = bracket_size / 2.0f + bracket_border;
-    constexpr int bracket_bar = g_arpeggio_bracket_thickness;
+    const TabBracketGeometry bracket_geometry = metrics.bracketGeometry();
+    const float bracket_radius = bracket_geometry.radius;
+    const int bracket_bar = bracket_geometry.bar;
 
     // Both shape passes stop at the same index, since a span starting past the window cannot show.
     // The arpeggio pass also skips every span starting before the window, because a bracket sits AT
@@ -2355,31 +2358,34 @@ void paintTabLane(
     // so they mark the posture without competing with real heads. A string sounded exactly at the
     // start keeps its full head (drawn by the note pass) inside the brackets.
     //
-    // The held fret is stated ALWAYS, in its own slot outboard of the closing bar, and that slot
-    // is the whole reason the statement can be unconditional. The digit used to sit dead centre —
-    // the head's own box — so it had to yield whenever a note landed there. That yield looks
-    // harmless, and mostly is: a head draws its own number, so the column of digits stays complete
-    // either way. What it loses is the case where the two numbers DIFFER, and that case is a tap
-    // over a held shape — ordinary rather than rare, since the arrival rule names "a held chord
-    // under two-hand tapping" as one of the things that MAKE a span an arpeggio. Yielding there
-    // prints the tapped fret and silently drops where the fretting hand is posted, which is the
-    // one thing a posture bracket exists to say. Giving the two claims two slots makes the
-    // conflict unrepresentable instead of arbitrated: the head's centre carries the sounding fret,
-    // the satellite carries the posture, and where they agree, saying it twice in two registers is
-    // what makes the shape plain. Outboard RIGHT because every other side is spoken for — the
-    // attack icons own the upper-left shoulder, the floating chips own the space above, and the
-    // left is where the previous note's head and its arriving sustain ribbon live.
+    // The held fret is stated wherever the notes do not already state it, decided per string by
+    // what sounds at the span start (the posture-smart rule settled 2026-08-14, tabulated in
+    // `docs/plans/in-progress/arpeggio-posture-display-options.md`): centred in the brackets on a
+    // silent string — which is EVERY hold-marker string, since a marker cannot share a slot with a
+    // note — dropped where a head already prints that fret, dropped where a fretting-hand onset
+    // moved the hand off the template (stating a posture the hand has left would be false), and
+    // displaced into a side slot outboard of the closing bar where a TAP sounds a different fret.
     //
-    // The bracket bars are unchanged by all this; only the lane-line gap grew to cover the digit.
+    // That last case is why a second slot exists at all. A centred digit has to yield to a head
+    // landing in its box, which is harmless while the two numbers agree — the head draws its own —
+    // and loses the posture outright when they differ. They differ exactly under two-hand tapping,
+    // which the arrival rule names as one of the things that MAKE a span an arpeggio, so the case
+    // is ordinary rather than rare. Two slots make the conflict unrepresentable instead of
+    // arbitrated: the head's centre carries the sounding fret and the satellite carries the
+    // posture. Outboard RIGHT because every other side is spoken for — the attack icons own the
+    // upper-left shoulder, the floating chips own the space above, and the left is where the
+    // previous note's head and its arriving sustain ribbon live.
+    //
+    // The bracket bars are unchanged by all this, and are what the editor hit-tests to select the
+    // hold marker whose stop the digit states; only the lane-line gap grew to cover the digit.
     //
     // The note's VISIBLE top and bottom are the bright ring's edges: the head's outermost layer is
     // the near-black backing, which melts into the dark lane. The brackets stop a bar-width inside
     // that visible edge, so they never rise above or dip below what reads as the note. Every
     // rectangle snaps to whole pixels so the brackets stay perfectly square instead of
     // antialiasing into fuzz.
-    const float bracket_half_height =
-        bracket_size / 2.0f - bracket_border - static_cast<float>(bracket_bar);
-    const int bracket_serif = juce::roundToInt(bracket_size / 8.0f) + bracket_bar;
+    const float bracket_half_height = bracket_geometry.half_height;
+    const int bracket_serif = bracket_geometry.serif;
     for (const ArpeggioBracket& bracket : brackets)
     {
         // Posture brackets are SHAPE furniture, not a note's ink: they state where the hand is

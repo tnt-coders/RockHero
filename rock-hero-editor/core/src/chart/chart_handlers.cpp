@@ -1543,7 +1543,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
             chartGridStepBeats(insert->slot.position));
     }
     const auto& retype = std::get<ChartFretEntry::Retype>(entry.target);
-    if (retype.keys.empty())
+    if (retype.keys.empty() && retype.marker_keys.empty())
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
@@ -1551,6 +1551,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
         *arrangement->chart,
         session().song().tempo_map,
         retype.base_notes,
+        retype.base_markers,
         entry.value,
         /*set_exact=*/true);
 }
@@ -1701,6 +1702,8 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
             ChartFretEntry::Retype{
                 .keys = chartSelection().notes(),
                 .base_notes = chartNotesForKeys(chartSelection().notes()),
+                .marker_keys = chartSelection().holdMarkers(),
+                .base_markers = chartHoldMarkersForKeys(chartSelection().holdMarkers()),
             },
         .armed_ms = now_ms,
     };
@@ -1718,12 +1721,27 @@ std::vector<common::core::ChartNote> EditorController::Impl::chartNotesForKeys(
     {
         return {};
     }
-    return notesForKeys(arrangement->chart->notes, keys);
+    return recordsForKeys(arrangement->chart->notes, keys);
 }
 
-// Shifts every selected note's fret by one (Alt+Shift+wheel), shape-preserving by
+// The same snapshot over the other authored array. A fret verb's scope is both arrays, because a
+// bracket carries a stop exactly as a head does.
+std::vector<common::core::ChartHoldMarker> EditorController::Impl::chartHoldMarkersForKeys(
+    const std::vector<ChartSlotKey>& keys) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return {};
+    }
+    return recordsForKeys(arrangement->chart->hold_markers, keys);
+}
+
+// Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
 // construction; a shift pushing the lowest fret below zero or the highest past the cap is
-// refused by the planner, never clamped.
+// refused by the planner, never clamped. The anchor is the lowest fret the SELECTION states,
+// notes and stated brackets alike, which is the same anchor the planner computes — asked here
+// only to name the target one step away from it.
 void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFrets& action)
 {
     const int direction = action.direction;
@@ -1735,17 +1753,36 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 
     const std::vector<common::core::ChartNote> selected =
         chartNotesForKeys(chartSelection().notes());
-    if (selected.empty())
+    const std::vector<common::core::ChartHoldMarker> selected_markers =
+        chartHoldMarkersForKeys(chartSelection().holdMarkers());
+    std::optional<int> lowest;
+    for (const common::core::ChartNote& note : selected)
+    {
+        if (!lowest.has_value() || note.fret < *lowest)
+        {
+            lowest = note.fret;
+        }
+    }
+    for (const common::core::ChartHoldMarker& marker : selected_markers)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = marker.fret;
+        if (fret.has_value() && (!lowest.has_value() || *fret < *lowest))
+        {
+            lowest = *fret;
+        }
+    }
+    if (!lowest.has_value())
     {
         return;
     }
-    const int lowest = std::ranges::min(selected, {}, &common::core::ChartNote::fret).fret;
 
     static_cast<void>(applyChartEditPlan(planRetypeFrets(
         *arrangement->chart,
         session().song().tempo_map,
         selected,
-        lowest + (direction > 0 ? 1 : -1),
+        selected_markers,
+        *lowest + (direction > 0 ? 1 : -1),
         /*set_exact=*/false)));
 }
 

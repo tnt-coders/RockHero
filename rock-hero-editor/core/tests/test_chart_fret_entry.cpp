@@ -168,7 +168,9 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
         CHECK(state->chart_edit.pending_fret->valid);
         CHECK(
             state->chart_edit.pending_fret->at ==
-            decltype(state->chart_edit.pending_fret->at){std::vector<std::size_t>{0}});
+            decltype(state->chart_edit.pending_fret->at){
+                ChartPendingFretTargets{.notes = {0}, .hold_markers = {}}
+            });
     }
 
     // The second digit combines and SETTLES: one action, fret 12, pending gone.

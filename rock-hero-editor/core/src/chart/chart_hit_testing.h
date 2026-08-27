@@ -89,17 +89,24 @@ using ChartHitTarget = std::variant<ChartNoteHit, ChartHoldMarkerHit, ChartWaypo
 /*!
 \brief Resolves the selectable object under a lane-local point, if any.
 
-Topmost drawn wins, which is the one rule and the reason for the order below. Hold-marker marks
-resolve FIRST because the editor draws them as an overlay above the notation, so what a pointer
-sits on top of is what it takes. Then note heads, which win over sustain tails (a head sitting on
-another note's tail takes the click), nearest onset center first among overlapping heads. Then the
-linked waypoint heads riding a tail, which are drawn ON the ribbon and so must win over it. Then
-tails, resolving to the note whose tail rectangle contains the point, nearest onset first.
+Topmost drawn wins, which is the rule and the reason for the order below — with ONE stated
+exception. Hold markers resolve FIRST even though the paint core draws their brackets UNDER the
+heads: a marker's bracket is its only affordance and never wraps a head of its own string (that
+string is silent at the span start by construction), so all the priority takes is the near columns
+of a head a little later on that string, which the head can spare and a two-pixel bracket bar
+cannot. The exception is recorded with the verb's design record rather than left to be inferred
+from this order. Then note heads, which win over sustain tails (a
+head sitting on another note's tail takes the click), nearest onset center first among overlapping
+heads. Then the linked waypoint heads riding a tail, which are drawn ON the ribbon and so must win
+over it. Then tails, resolving to the note whose tail rectangle contains the point, nearest onset
+first.
 
-A waypoint the lane draws no head for is not hit-testable, because nothing undrawn is: only a
-LINKED waypoint carries a head (\ref common::core::linkedWaypoint), and a waypoint stating no fret
+Two objects the lane draws nothing for are not hit-testable, because nothing undrawn is. A waypoint
+carries a head only when it is LINKED (\ref common::core::linkedWaypoint), and one stating no fret
 draws nothing at all today — how those should draw, and therefore how a pointer should reach them,
-is the bend display study's question and not this function's.
+is the bend display study's question and not this function's. A hold marker whose stop joined no
+posture draws no bracket, which \ref common::ui::tabHoldMarkerLayout answers with no layout at all,
+so the skip needs no rule of its own here.
 
 \param tab Seconds-resolved tab projection being displayed.
 \param geometry Lane geometry the notation was painted with.

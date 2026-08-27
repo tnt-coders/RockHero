@@ -58,7 +58,15 @@ struct ChartShape
     /*! \brief Musical start of the span. */
     GridPosition position;
 
-    /*! \brief Span duration in beats; strictly positive. */
+    /*!
+    \brief Span duration in beats; zero where every member is silent.
+
+    A span runs as far as its members ring, and a hold marker rings for nothing — so a span whose
+    members are ALL markers has no sounding evidence of duration at all and states its posture at
+    an instant. That is not a degenerate case to guard against but the honest answer: the bracket
+    draws at the span start whatever the length, and the rails a positive span draws simply have
+    nothing to cover. Every span with a sounding member is strictly positive, as before.
+    */
     Fraction sustain{};
 
     /*! \brief Index into the posture table derived alongside (\ref ChartShapes::postures). */
@@ -72,6 +80,11 @@ struct ChartShape
     stating the answer on the span it resolved them into is one authority publishing its result,
     where a second scan of the marker array beside the arrival would be the same rule written twice
     and free to disagree.
+
+    The per-span summary of \ref ChartShapes::marker_shapes, which names the resolution marker by
+    marker. Both are written in the same loop of the same pass, so they cannot disagree; this one
+    exists because the arrival rule asks the question once per SPAN and scanning the marker array
+    for each span would make one classification quadratic in the markers.
 
     It is what flips the span to an arpeggio. The bracket is the only mark that states a posture
     fret at all — a chord box draws the notes' own heads — so a span carrying a silently-held member
@@ -96,6 +109,18 @@ struct ChartShapes
 
     /*! \brief The postures the spans index, in first-appearance order and deduplicated. */
     std::vector<ChartPosture> postures;
+
+    /*!
+    \brief Per input hold marker, the span its stop joined; absent where the marker stayed inert.
+
+    Same order and size as the `hold_markers` argument, so a caller indexes it by the marker it
+    already holds. This is where a marker BECOMES visible: the posture bracket that prints its stop
+    draws at that span's start, so the editor reads this to place the marker's own mark and to hit
+    test it, and an absent entry means the marker resolved to nothing and therefore draws nowhere —
+    which is exactly the property "nothing undrawn is clickable" needs, published by the pass that
+    knows rather than re-derived by the surface.
+    */
+    std::vector<std::optional<std::size_t>> marker_shapes;
 };
 
 /*!
@@ -106,9 +131,12 @@ only way it can never disagree with them. This is that derivation, run once per 
 inside \ref chartResolutions and read from there by everything that draws a chord box, an arpeggio
 bracket, or a span-implied hold.
 
-Any onset striking two or more FRETTING-hand strings becomes a posture, deduplicated by its fret
-vector, and consecutive onsets holding the same articulation merge into one span covering the
-strums' own rings — the grouping the tab renders as a chord box over repeated strums. Tap-only
+A span opens at a slot holding two or more MEMBERS, where a member is a sounding fretting-hand
+onset there or a \ref ChartHoldMarker there — one sound plus one held finger opens a span, two held
+fingers with nothing sounding open one, and a LONE member of either kind opens nothing (user ruling
+2026-08-27, correcting the sound-only threshold this shipped with). The posture is deduplicated by
+its fret vector, and consecutive onsets holding the same articulation merge into one span covering
+the strums' own rings — the grouping the tab renders as a chord box over repeated strums. Tap-only
 onsets are transparent to the whole derivation: taps are the tapping hand, so they neither form
 postures nor close held spans, letting a ringing chord's span cover the taps above it. ANY
 articulation difference is a new chord: span continuity compares each string's whole note with only
@@ -135,11 +163,23 @@ A \ref ChartHoldMarker lying inside a derived span joins that span's posture on 
 one thing here that is authored rather than read off the sound, because no function of a note
 stream can distinguish a held finger from an absent one. Its fret is its own where it carries one,
 and otherwise comes from the first note that sounds on that string later in the same span; a marker
-that resolves to no fret at all, or that lies where no span covers it, contributes nothing and is
-inert. A marker never opens a span and never counts toward the two-string threshold: it is a held
-finger, not a strike. Because a marker's fret may only be known once the span is complete, the
-posture is keyed at the span's CLOSE rather than at each onset — which is also why one span now
-keys one posture instead of every strum re-keying the same one.
+that resolves to no fret at all, or that lies past the span's own end, contributes nothing and is
+inert. A marker is still not a STRIKE — it never closes a span and never ends a held posture — but
+it is a MEMBER, so two of them at one slot open a span where no shape is still RINGING, and one
+beside a single sounding note does too. Under a shape that is still ringing the markers join it
+rather than restating it, which is what keeps a finger added mid-shape from splitting the shape it
+joins; past that shape's ring they state the next one, because a span outlives its sound only so a
+later identical strum can rejoin it (rule 11) and that is a merging rule, not a claim that the hand
+is still down. Because a marker's fret may only be known once the span is complete, the posture is
+keyed at the span's CLOSE rather than at each onset — which is also why one span keys one posture
+instead of every strum re-keying the same one.
+
+A span every one of whose members is a marker has nothing sounding to give it length, so it runs
+from its start to its start: its posture is stated at an instant, which is exactly where the
+bracket that prints it draws. Its claims still resolve — a claim at the span's own start is inside
+it whatever the length — so two fret-carrying markers state a posture nothing sounds, while two
+fret-less ones have no later in-span note to take a fret from and stay inert, the same degrade as
+every other unresolvable claim.
 
 Articulation is read from the PRESENTED notes and span extent from the stored rings, which is the
 split the box states: what the chord LOOKS like is what the surfaces draw (a tail the presentation
@@ -156,7 +196,7 @@ The maintained plain-English spec is "Posture and shape derivation" in
                     (\ref Chart::hold_markers).
 \param tempo_map Tempo map supplying the exact beat axis and the meter at each closing onset.
 
-\return The derived spans and the posture table they index.
+\return The derived spans, the posture table they index, and each marker's resolution.
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
     const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,

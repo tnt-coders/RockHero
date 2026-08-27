@@ -1,7 +1,10 @@
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
 #include <rock_hero/editor/core/testing/chart_editing_fixture.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -50,6 +53,33 @@ struct HoldMarkerFixture
     return chart;
 }
 
+// A held two-string shape with one silently-held member on string 3, re-picked once inside the
+// span, and the same shape struck again after it. Whether that re-pick is read as the same hand
+// is what decides whether this derives ONE span or two, and the marker's own stop is what the
+// derivation asks — which is the composition the bracket-fret edit rides.
+[[nodiscard]] common::core::Chart makeHeldShapeChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // The first pair rings past the beat-2 re-pick and stops short of the beat-3 restrike, so no
+    // overlap repair is owed and the stream is already the one every edit re-normalizes to.
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{3, 2}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{3, 2}),
+        makeTestNote({.measure = 2, .beat = 2}, 3, 9),
+        makeTestNote({.measure = 2, .beat = 3}, 1, 3, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 3}, 2, 5, common::core::Fraction{1}),
+    };
+    chart.hold_markers = {
+        common::core::ChartHoldMarker{
+            .position = common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}},
+            .string = 3,
+            .fret = {},
+        },
+    };
+    return chart;
+}
+
 // The chart-editing overlays the controller last published. Bound through the harness's own
 // state accessor so a scenario that never pushed reads as a failed REQUIRE rather than a crash.
 [[nodiscard]] const ChartEditViewState& chartEditState(const FakeEditorView& view)
@@ -57,6 +87,16 @@ struct HoldMarkerFixture
     const EditorViewState* const state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     return state->chart_edit;
+}
+
+// The tab projection the controller last published — where a marker's derived consequences (the
+// span it opened, the bracket that draws it) are actually observable.
+[[nodiscard]] const common::core::ChartViewState& tabProjection(const FakeEditorView& view)
+{
+    const EditorViewState* const state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tab != nullptr);
+    return *state->tab;
 }
 
 } // namespace
@@ -396,6 +436,125 @@ TEST_CASE("Alt+click refuses to plant a note on a hold marker's slot", "[core][c
     REQUIRE(chart != nullptr);
     CHECK(chart->notes.size() == 3);
     CHECK(chart->hold_markers.size() == 1);
+}
+
+// The reported sighting, end to end. Converting one member of a two-note chord used to make the
+// shape evaporate: the remaining note was suddenly a lone onset, no span opened, and the fret the
+// conversion had just copied onto the marker had nowhere to be drawn. Under the member rule
+// (2026-08-27) the sound and the held finger are two members, the span opens, and BOTH stops
+// reach the posture — which is also what makes the marker visible at all now that it has no mark
+// of its own.
+TEST_CASE("A converted chord member keeps its fret in the span's posture", "[core][chart]")
+{
+    HoldMarkerFixture fixture;
+
+    // The string-1 note at measure 2 beat 1 (fret 3), beside the string-2 note (fret 5).
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartHoldMarkerToggleRequested();
+
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->hold_markers.size() == 1);
+    // Ruling 2: the convert path stores the note's own fret, which is what there is to derive.
+    CHECK(chart->hold_markers.front().fret == std::optional{3});
+
+    const common::core::ChartViewState& tab = tabProjection(fixture.view);
+    REQUIRE(tab.shapes.size() == 1);
+    CHECK(tab.shapes.front().arpeggio);
+    CHECK(
+        tab.shapes.front().strings == std::vector<common::core::ShapeStringViewState>{
+                                          {.string = 1, .fret = 3}, {.string = 2, .fret = 5}
+                                      });
+    // And the marker draws: its bracket is the span's start, 2.0s under the fixture's tempo map.
+    // Bound to a name before it is read, so the guard and the access are provably one object.
+    REQUIRE(tab.hold_markers.size() == 1);
+    const std::optional<double>& bracket = tab.hold_markers.front().bracket_seconds;
+    REQUIRE(bracket.has_value());
+    if (bracket.has_value())
+    {
+        CHECK_THAT(*bracket, Catch::Matchers::WithinAbs(2.0, 1e-9));
+    }
+}
+
+// Ruling 4: a selected bracket takes a typed fret exactly as a selected head does, through the
+// same pending-entry model. The bracket is the marker's only mark, so this is the one way its
+// stop is authored after the toggle states it — and nothing else in the span moves.
+TEST_CASE("Typing a digit on a selected bracket states its stop", "[core][chart]")
+{
+    HoldMarkerFixture fixture;
+
+    click(fixture.controller, 40.0f, 220.0f);
+    fixture.controller.onChartHoldMarkerToggleRequested();
+    REQUIRE(chartOrNull(fixture.controller)->hold_markers.front().fret == std::optional{3});
+    const std::vector<common::core::ChartNote> notes_before =
+        chartOrNull(fixture.controller)->notes;
+
+    // The conversion leaves the marker selected, so the digit lands on it. 7 cannot be widened
+    // at the 24-fret cap, so it settles in the same keystroke.
+    fixture.controller.onChartFretDigitTyped(7);
+
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->hold_markers.size() == 1);
+    CHECK(chart->hold_markers.front().fret == std::optional{7});
+    // Only the bracket moved: the note beside it in the span keeps its own fret.
+    CHECK(chart->notes == notes_before);
+
+    // The posture follows through the ordinary derivation — nothing writes it twice.
+    const common::core::ChartViewState& tab = tabProjection(fixture.view);
+    REQUIRE(tab.shapes.size() == 1);
+    CHECK(
+        tab.shapes.front().strings == std::vector<common::core::ShapeStringViewState>{
+                                          {.string = 1, .fret = 7}, {.string = 2, .fret = 5}
+                                      });
+
+    // One undo entry, named like any other typed fret, and it puts the authored stop back.
+    const EditorViewState* const state = stateOrNull(fixture.view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->undo_label == std::optional<std::string>{"Set Fret 7"});
+    fixture.controller.onUndoRequested();
+    CHECK(chartOrNull(fixture.controller)->hold_markers.front().fret == std::optional{3});
+}
+
+// The coherence half of ruling 4, and it is a COMPOSITION rather than a rule: a bracket whose
+// stop now contradicts the note that re-picks its string is no longer the same hand, side ruling
+// (ii) declines to carry the span across that re-pick, and the shape splits in two. Nothing in
+// the fret verb knows about spans; the derivation answers on its own.
+TEST_CASE("A bracket retyped against its span's own note splits the span", "[core][chart]")
+{
+    HoldMarkerFixture fixture{makeHeldShapeChart()};
+    const std::vector<common::core::ChartNote> notes_before =
+        chartOrNull(fixture.controller)->notes;
+
+    // One span to start with: the fret-less claim takes its stop from the beat-2 re-pick, so the
+    // hand never leaves the shape and the beat-3 restrike merges into the same span.
+    REQUIRE(tabProjection(fixture.view).shapes.size() == 1);
+    CHECK(
+        tabProjection(fixture.view).shapes.front().strings ==
+        std::vector<common::core::ShapeStringViewState>{
+            {.string = 1, .fret = 3}, {.string = 2, .fret = 5}, {.string = 3, .fret = 9}
+        });
+
+    // Select the bracket itself — string 3 at the span's start, where no note sounds — and state
+    // a stop the beat-2 note contradicts.
+    click(fixture.controller, 40.0f, 140.0f);
+    REQUIRE(chartEditState(fixture.view).selected_hold_markers == std::vector<std::size_t>{0});
+    fixture.controller.onChartFretDigitTyped(7);
+
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    CHECK(chart->hold_markers.front().fret == std::optional{7});
+    // The other notes are untouched, which the ruling states outright.
+    CHECK(chart->notes == notes_before);
+
+    // And the shape splits rather than printing a stop the notes inside it disagree with.
+    const common::core::ChartViewState& tab = tabProjection(fixture.view);
+    REQUIRE(tab.shapes.size() == 2);
+    CHECK(
+        tab.shapes.front().strings ==
+        std::vector<common::core::ShapeStringViewState>{
+            {.string = 1, .fret = 3}, {.string = 2, .fret = 5}, {.string = 3, .fret = 7}
+        });
 }
 
 } // namespace rock_hero::editor::core

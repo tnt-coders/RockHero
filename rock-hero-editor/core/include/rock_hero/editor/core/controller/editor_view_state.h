@@ -453,27 +453,53 @@ struct ChartSlotViewState
 };
 
 /*!
+\brief Where a retype entry's boxes draw: every selected object the typed value would write.
+
+Two arrays rather than one, because a fret verb's scope is both authored arrays and the two are
+addressed by index into their own projection lists — a head by its note index, a bracket by its
+hold-marker index. Either may be empty; both empty is not a retype entry at all.
+*/
+struct ChartPendingFretTargets
+{
+    /*! \brief Ascending indices into the tab projection's note order. */
+    std::vector<std::size_t> notes{};
+
+    /*! \brief Ascending indices into the tab projection's hold-marker order. */
+    std::vector<std::size_t> hold_markers{};
+
+    /*!
+    \brief Compares two target sets by their stored values.
+    \param lhs Left-hand targets.
+    \param rhs Right-hand targets.
+    \return True when both name the same objects.
+    */
+    friend bool operator==(const ChartPendingFretTargets& lhs, const ChartPendingFretTargets& rhs) =
+        default;
+};
+
+/*!
 \brief The in-flight pending fret entry's rendered state.
 
 While a typed value is provisional the lane draws an entry box over each affected head — the
 plate the mute heads already draw, with the editor accent as a border so pending reads as an
 editor state — carrying the typed text: the ordinary digit ink while the value would apply, red
-when it cannot. Red marks EVERY affected head, deliberately without per-note attribution:
-relational refusals are properties of the whole selection, so a per-note red would claim a
-precision the refusal does not have. For an entry that began on an empty caret the box draws at
-the insert slot, where no head exists yet. Present exactly while a value is provisional — the
-box disappearing IS the settle becoming visible.
+when it cannot. A selected hold marker gets the same box on its posture bracket, which is where
+its stop prints once the entry settles. Red marks EVERY affected object, deliberately without
+per-object attribution: relational refusals are properties of the whole selection, so a per-note
+red would claim a precision the refusal does not have. For an entry that began on an empty caret
+the box draws at the insert slot, where no head exists yet. Present exactly while a value is
+provisional — the box disappearing IS the settle becoming visible.
 */
 struct ChartPendingFretViewState
 {
     /*!
-    \brief Where the box draws: over each affected head — ascending indices into the tab
-    projection's note order, a retype entry — or at the empty slot an insert entry began on.
+    \brief Where the box draws: over every affected object (a retype entry) or at the empty slot
+    an insert entry began on.
 
     One alternative or the other, never both and never neither: the entry itself began either on
     the selection or on an empty caret, and the two cases carry different data.
     */
-    std::variant<std::vector<std::size_t>, ChartSlotViewState> at{};
+    std::variant<ChartPendingFretTargets, ChartSlotViewState> at{};
 
     /*! \brief The provisional value exactly as typed. */
     std::string text{};

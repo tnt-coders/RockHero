@@ -239,8 +239,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // One authority for what a pending entry would apply, run in full on every keystroke.
     [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> replanChartFretEntry(
         const ChartFretEntry& entry) const;
-    // The full note values behind a sorted key set, in chart order.
+    // The full note and hold-marker values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
+        const std::vector<ChartSlotKey>& keys) const;
+    [[nodiscard]] std::vector<common::core::ChartHoldMarker> chartHoldMarkersForKeys(
         const std::vector<ChartSlotKey>& keys) const;
     void performActionImpl(const EditorAction::ShiftChartFrets& action);
     void performActionImpl(const EditorAction::AdjustChartSustain& action);
@@ -878,12 +880,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         {
             ChartSlotKey slot{};
         };
-        // An entry begun over the selection: settling retypes `keys` from `base_notes`, the
-        // pre-entry values, so a widened value never compounds on its own earlier digit.
+        // An entry begun over the selection: settling retypes the named notes and hold markers
+        // from their pre-entry values, so a widened value never compounds on its own earlier
+        // digit. Both authored arrays, because a bracket's stop is typed exactly like a head's.
         struct Retype
         {
             std::vector<ChartSlotKey> keys{};
             std::vector<common::core::ChartNote> base_notes{};
+            std::vector<ChartSlotKey> marker_keys{};
+            std::vector<common::core::ChartHoldMarker> base_markers{};
         };
 
         int value{};

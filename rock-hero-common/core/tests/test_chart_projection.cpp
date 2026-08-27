@@ -778,26 +778,53 @@ TEST_CASE("Chart projection gives a hold waypoint the margin morph", "[core][cha
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
-// The authored hold markers reach the projection resolved to seconds and NOTHING else: what a
-// marker contributes is already in the span's posture, so carrying its fret here would be one
-// stop drawn from two places. The editor lane's authoring mark is the only reader.
-TEST_CASE("Chart projection resolves hold markers to seconds", "[core][chart]")
+// An authored hold marker reaches the projection as ONE fact: where the bracket that states its
+// stop draws. That is the START of the span the derivation resolved it into, not the slot it was
+// authored at, because the bracket IS the marker's mark — and a marker that resolved into no span
+// carries no instant at all, which is what makes it undrawable and unclickable by construction.
+// Its fret is deliberately absent here: the posture already carries it, and a second copy would be
+// one stop drawn from two places.
+TEST_CASE("Chart projection places hold markers at their posture brackets", "[core][chart]")
 {
     Arrangement arrangement = makeArrangementWithChart();
     Chart* const chart = chartOrNull(arrangement);
     REQUIRE(chart != nullptr);
+    // The fixture's span opens at measure 2 beat 1 (2.0s) and stops ringing a beat later (2.5s).
     chart->hold_markers = {
-        ChartHoldMarker{.position = GridPosition{.measure = 2, .beat = 1}, .string = 3, .fret = {}},
-        ChartHoldMarker{.position = GridPosition{.measure = 3, .beat = 1}, .string = 4, .fret = 7},
+        ChartHoldMarker{.position = GridPosition{.measure = 2, .beat = 1}, .string = 3, .fret = 9},
+        ChartHoldMarker{
+            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 4}},
+            .string = 5,
+            .fret = 5,
+        },
+        ChartHoldMarker{.position = GridPosition{.measure = 2, .beat = 3}, .string = 6, .fret = 7},
     };
 
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
-    REQUIRE(state.hold_markers.size() == 2);
-    // Measure 2 beat 1 is 2.0s and measure 3 beat 1 is 4.0s under the default 120 BPM 4/4 map.
-    CHECK_THAT(state.hold_markers[0].seconds, Catch::Matchers::WithinAbs(2.0, 1e-9));
+    REQUIRE(state.hold_markers.size() == 3);
+    // Each instant is bound to a named reference before it is read, so the guard and the access
+    // are provably one object (a REQUIRE alone is not visible to that analysis).
+    const std::optional<double>& at_start = state.hold_markers[0].bracket_seconds;
+    const std::optional<double>& inside = state.hold_markers[1].bracket_seconds;
+    const std::optional<double>& past_end = state.hold_markers[2].bracket_seconds;
+    // Authored AT the span start, so both readings agree here.
+    REQUIRE(at_start.has_value());
+    if (at_start.has_value())
+    {
+        CHECK_THAT(*at_start, Catch::Matchers::WithinAbs(2.0, 1e-9));
+    }
     CHECK(state.hold_markers[0].string == 3);
-    CHECK_THAT(state.hold_markers[1].seconds, Catch::Matchers::WithinAbs(4.0, 1e-9));
-    CHECK(state.hold_markers[1].string == 4);
+    // Authored an eighth of a beat INSIDE the span (2.125s) — and its bracket still draws at the
+    // span's start, which is the whole discrimination between the two readings.
+    REQUIRE(inside.has_value());
+    if (inside.has_value())
+    {
+        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.0, 1e-9));
+    }
+    CHECK(state.hold_markers[1].string == 5);
+    // Authored at 3.0s, past the span's own end: it joins no posture and so states no place.
+    CHECK_FALSE(past_end.has_value());
+    CHECK(state.hold_markers[2].string == 6);
 }
 
 } // namespace rock_hero::common::core

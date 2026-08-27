@@ -8,9 +8,9 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// The one statement of "a mark's box is a square centred on its anchor" — the note head, the
-// waypoint head and the hold mark are all drawn that way, and three copies of the halving would
-// be free to disagree about which edge a click lands on.
+// The one statement of "a mark's box is a square centred on its anchor" — the note head and the
+// waypoint head are both drawn that way, and two copies of the halving would be free to disagree
+// about which edge a click lands on.
 [[nodiscard]] TabLayoutRect centeredSquare(
     const float center_x, const float center_y, const float size) noexcept
 {
@@ -49,14 +49,29 @@ TabNoteLayout tabNoteLayout(
     return layout;
 }
 
-TabHoldMarkerLayout tabHoldMarkerLayout(
+// Mirrors the bracket pass's own rectangles: the pair's bars stand a bar-width apart from the
+// head's ring on each side and rise to the head's visible edge less that same bar. Only the bars,
+// deliberately — see the header for why the outboard digit is not part of the clickable extent.
+std::optional<TabHoldMarkerLayout> tabHoldMarkerLayout(
     const TabLaneGeometry& geometry, const common::core::HoldMarkerViewState& marker) noexcept
 {
+    // Bound to a local so the optional check and the access are provably the same object.
+    const std::optional<double>& bracket_seconds = marker.bracket_seconds;
+    if (!bracket_seconds.has_value())
+    {
+        return std::nullopt;
+    }
+    const TabBracketGeometry bracket = geometry.bracketGeometry();
+    const float half_width = bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
     TabHoldMarkerLayout layout;
-    layout.center_x = geometry.x(marker.seconds);
+    layout.center_x = geometry.x(*bracket_seconds);
     layout.center_y = geometry.laneY(marker.string);
-    layout.extent = geometry.holdMarkerSize();
-    layout.box = centeredSquare(layout.center_x, layout.center_y, layout.extent);
+    layout.box = TabLayoutRect{
+        .x = layout.center_x - half_width,
+        .y = layout.center_y - bracket.half_height,
+        .width = half_width * 2.0f,
+        .height = bracket.half_height * 2.0f,
+    };
     return layout;
 }
 

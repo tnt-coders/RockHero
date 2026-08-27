@@ -356,6 +356,25 @@ ruling; the candidate relaxations are a time bound in place of the ring witness,
 condition — in which case the guard against resurrecting spans across silence must come from
 somewhere else, stated in the record.
 
+### An inert hold marker is INVISIBLE — trigger: a charter loses one and cannot find it
+
+The dot the `N` verb used to draw is deleted (user ruling 2026-08-27: "There should be no dot
+visible when we press N ... The bracket marker IS the data point that we can select and modify"),
+so a marker's only mark is the arpeggio bracket its stop reaches the posture through. A marker
+that reaches none — a lone one where the member rule opens no span, one past its span's end, one
+whose fret nothing supplies, one on a string the sound already states — therefore draws nowhere
+and can be reached only by Ctrl+Z or by pressing `N` again on the caret slot it sits at. It is
+still SAVED, so nothing is lost from the document; what is lost is the ability to see it.
+
+**Interim, taken deliberately:** invisible-and-inert, because it is the smallest reading of the
+ruling and the two alternatives each cost more than the case does. Refusing to author where no
+span forms makes the two-marker span unauthorable — the first press is exactly the one that would
+be refused. A minimal editor-only mark for the inert case is the dot back under another name.
+**Trigger**: a charter reports authoring a marker that appears to do nothing, or a corpus pass
+finds inert markers surviving in saved charts. **Remedy**: bring the three options to the user;
+the likeliest answer is a mark shown only while the caret sits on the slot, which is a display
+that cannot be mistaken for notation.
+
 ## Highway note art
 
 ### Directional lighting is BAKED into the mark art, and the renderer rotates the art — trigger: real highway lighting, or a flipped mark reading wrong

@@ -254,7 +254,10 @@ position it holds: an empty armed slot gains a fret-less hold marker, a note is 
 marker carrying its fret, and a marker is removed. One undo entry either way, crossing both
 authored arrays when the gesture does; a second press inside the verb's own window reverses the
 first exactly, which is the only thing that can restore a converted note's ring and techniques.
-Silent with no caret armed),
+Silent with no caret armed. The verb draws no mark of its own: what shows a marker is the arpeggio
+bracket its stop reaches the posture through, so a marker joining no posture is invisible as well
+as inert — user ruling 2026-08-27, recorded with its open edge in
+`docs/plans/todo/arpeggio-authoring.md`),
 `onChartWaypointDisconnectRequested` (the waypoint disconnect, `Shift+L` — the split-tail law
 applied at a selected waypoint instead of at a bare tail point: the note's path ends there and a
 new head takes the remainder, carrying the channel states in force so the sound does not change
