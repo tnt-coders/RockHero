@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -2741,6 +2742,144 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     Chart dead_ring = chart;
     dead_ring.notes[0].dead = true;
     CHECK_FALSE(arrivesAsArpeggio(dead_ring.notes, strum_under_ring, postures, tempo_map));
+}
+
+// The held stop's format and its two validity rules. The field is the one way the chart can say
+// what the FRETTING hand is doing under an onset the other hand made, so what must hold is that
+// absence stays a meaning, that the attacks it is legal on are exactly the right-hand ones, and
+// that a stop repeating the note's own fret — which states nothing — is refused rather than saved.
+TEST_CASE("Chart document round-trips the held stop under a right-hand onset", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto make_chart = [](ChartNote note) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {std::move(note)};
+        return chart;
+    };
+    const auto tap_holding = [](const std::optional<int> held) {
+        ChartNote note;
+        note.position = GridPosition{.measure = 1, .beat = 1};
+        note.string = 3;
+        note.fret = 12;
+        note.sustain = Fraction{1, 4};
+        note.attack = NoteAttack::Tap;
+        note.held = held;
+        return note;
+    };
+
+    SECTION("a stated stop survives the round trip and an absent one writes nothing")
+    {
+        const Chart chart = make_chart(tap_holding(5));
+        const std::string text = chartDocumentText(chart, tempo_map);
+        CHECK(text.find(R"("held": 5)") != std::string::npos);
+        const auto parsed = parseChartDocument(text);
+        REQUIRE(parsed.has_value());
+        REQUIRE(parsed->notes.size() == 1);
+        CHECK(parsed->notes.front() == chart.notes.front());
+
+        // Absence is the meaning "the hand states no stop of its own", so the key is elided —
+        // and fret 0 is NOT that absence, because an open string a voicing deliberately leaves is
+        // a real statement. Both halves, so an elision keyed on the value could not pass.
+        const std::string silent = chartDocumentText(make_chart(tap_holding({})), tempo_map);
+        CHECK(silent.find(R"("held")") == std::string::npos);
+        const std::string open = chartDocumentText(make_chart(tap_holding(0)), tempo_map);
+        CHECK(open.find(R"("held": 0)") != std::string::npos);
+        const auto open_parsed = parseChartDocument(open);
+        REQUIRE(open_parsed.has_value());
+        REQUIRE(open_parsed->notes.size() == 1);
+        CHECK(open_parsed->notes.front().held == std::optional{0});
+    }
+
+    SECTION("only a right-hand onset may carry one")
+    {
+        // The two attacks the picking hand makes at the neck keep it; every other attack is
+        // refused, because there the note's own fret already IS the fretting hand's stop.
+        for (const NoteAttack attack : {NoteAttack::Tap, NoteAttack::PickSlide})
+        {
+            ChartNote note = tap_holding(5);
+            note.attack = attack;
+            if (isScrape(attack))
+            {
+                // A scrape's own required shape, so the case tests the held rule and not this one.
+                note.slide_out = 17;
+            }
+            // Hoisted out of the assertion: a Catch2 macro mentions its expression a second time
+            // in the never-run short-circuit clause, and a `std::move` there reads as a use after
+            // the move to the CI-only checker.
+            const auto accepted = validateChartRules(make_chart(std::move(note)), tempo_map);
+            CHECK(accepted.has_value());
+        }
+        for (const NoteAttack attack :
+             {NoteAttack::Pick, NoteAttack::Legato, NoteAttack::LeftTap, NoteAttack::Pinch})
+        {
+            ChartNote note = tap_holding(5);
+            note.attack = attack;
+            if (attack == NoteAttack::Pinch)
+            {
+                note.harmonic_node = 17.0;
+            }
+            const auto refused = validateChartRules(make_chart(std::move(note)), tempo_map);
+            REQUIRE_FALSE(refused.has_value());
+            CHECK(refused.error().message.find("right-hand onset") != std::string::npos);
+        }
+        // The silent hold refuses it too, and for the opposite reason from every attack above: it
+        // is the FRETTING hand's own record, so its fret is already the stop.
+        const auto silent_hold = [](const std::optional<int> held) {
+            ChartNote note;
+            note.position = GridPosition{.measure = 1, .beat = 1};
+            note.string = 3;
+            note.fret = 7;
+            note.sustain = Fraction{};
+            note.attack = NoteAttack::None;
+            note.held = held;
+            return note;
+        };
+        const auto refused_hold = validateChartRules(make_chart(silent_hold(5)), tempo_map);
+        REQUIRE_FALSE(refused_hold.has_value());
+        CHECK(refused_hold.error().message.find("nothing else") != std::string::npos);
+        // The control the refusal needs to mean anything: the same record without the stop is a
+        // legal silent hold, so what was refused is the held stop and not the shape of the note.
+        const auto plain_hold = validateChartRules(make_chart(silent_hold({})), tempo_map);
+        CHECK(plain_hold.has_value());
+    }
+
+    SECTION("a stop repeating the note's own fret states nothing and is refused")
+    {
+        ChartNote note = tap_holding(12);
+        const auto refused = validateChartRules(make_chart(std::move(note)), tempo_map);
+        REQUIRE_FALSE(refused.has_value());
+        CHECK(refused.error().message.find("repeat") != std::string::npos);
+        // The control, one fret away: the refusal is about the two stops being EQUAL, not about
+        // the value.
+        CHECK(validateChartRules(make_chart(tap_holding(11)), tempo_map).has_value());
+    }
+
+    SECTION("the board and the capo bind it exactly as they bind a fret")
+    {
+        Chart capoed = make_chart(tap_holding(2));
+        capoed.tuning.capo = 3;
+        CHECK_FALSE(validateChartRules(capoed, tempo_map).has_value());
+        // Fret 0 under the same capo is the capo'd open string, which is legal for a held stop
+        // exactly as it is for a fret.
+        capoed.notes.front().held = 0;
+        CHECK(validateChartRules(capoed, tempo_map).has_value());
+        // Past the board is the NORMALIZER's clamp, not a refusal, so it is asked of the note.
+        ChartNote past = tap_holding(g_max_fret + 6);
+        const std::vector<ChartRepair> repairs = normalizeChartNote(past, ChartTuning{});
+        CHECK(past.held == std::optional{g_max_fret});
+        CHECK(std::ranges::find(repairs, ChartRepair::FretPastBoard) != repairs.end());
+    }
+
+    SECTION("a wrong-typed key is malformed rather than absent")
+    {
+        const auto parsed = parseChartDocument(
+            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+            R"( "notes": [ { "position": "1:1", "string": 1, "fret": 12, "sustain": "1/4",)"
+            R"( "attack": "tap", "held": "5" } ] })");
+        REQUIRE_FALSE(parsed.has_value());
+        CHECK(parsed.error().message.find("held") != std::string::npos);
+    }
 }
 
 } // namespace rock_hero::common::core

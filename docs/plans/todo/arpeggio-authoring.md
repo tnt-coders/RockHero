@@ -38,10 +38,114 @@ unended, with its posture stated at an instant; from the arrival its extent is t
 that closes with nothing having arrived DISSOLVES, which is the same nothing a lone member states.
 The maintained spec is rule 12b in `docs/developer/the-project-lifecycle.md`.
 
-**Known unrepresentable, flagged rather than solved** (user, 2026-08-27): a held fret on the very
-string being tapped at the very same instant. Two facts, one slot — the hold and the tap would have
-to share a `(position, string)` — so the charter states the hold one quantum early instead. That is
-a choice the notation can express; it is recorded here so nobody re-derives it as a bug.
+~~**Known unrepresentable, flagged rather than solved** (user, 2026-08-27): a held fret on the very
+string being tapped at the very same instant.~~ **SOLVED THE SAME DAY** by the held-fret increment
+below: the hold and the tap stop needing two records, because a right-hand onset now carries the
+fretting hand's stop as a field of its own.
+
+## The held-fret increment, 2026-08-27 — one record, two facts, one slot
+
+Status: **BUILT.** The ruling is the user's, session task #124.
+
+The flag above was the symptom; the cause was that the model had exactly one way to write down a
+stop the fretting hand takes without sounding it — a whole note — and a whole note needs a slot the
+tap already occupies. `ChartNote::held` (`"held"` in the document, elided when absent) is the second
+way, and it is not a second MODEL: it is the same statement in the shape the slot leaves room for.
+
+> "the fretting-hand stop under a right-hand onset"
+> — user, 2026-08-27
+
+**Validity, and why each rule is the shape it is.**
+
+- Legal ONLY on right-hand attacks, asked through the existing `rightHandOnset` predicate rather
+  than a list — because that predicate already names the one condition that matters: the note's own
+  `fret` belongs to the picking hand, so the fretting hand's stop has nowhere else to go. Everywhere
+  else `fret` IS that stop and a second copy could only drift. Enforced through `savedChartNote`'s
+  fixpoint, the same one the pick slide's latents and the silent hold's techniques use, so no list
+  of attacks has to be kept in step. A `held` on a `none` note refuses by the same rule: the silent
+  hold is the FRETTING hand's own record.
+- Refused when it equals the note's own fret — a statement that states nothing, and physically the
+  picking hand cannot sound the string at the fret the other hand is stopping.
+- Board and capo bind it exactly as they bind `fret`: past the board clamps (the normalizer), on or
+  below the capo refuses (no repair can invent a pitch).
+- **Fret 0 is legal and is a real statement**: the open string deliberately left in the voicing.
+  That is why the field is an optional and not a sentinel — absence means the hand states no stop,
+  and 0 means it states an open one.
+
+**A held value IS a claim, read through ONE query.** `claimedStop(note)` answers "the fretting-hand
+stop this note claims", giving a `none` note's `fret` or a right-hand onset's `held`. Everything
+downstream asks that and never the attack: membership counting (rule 10's two-member threshold), the
+fret-match test (`answersAClaim`), zero-sound-span justification, the growth split, and the inert
+sweep. A held stop on a NEW string mid-span splits the shape exactly as a `none` note does — the
+same code path, because it is the same claim.
+
+**This closes review item B.** The span law's same-instant clause ("taps at the span's very own
+instant count") was written as a general law and was, in practice, unreachable: the only tap a
+charter could write at a claimed string's own instant would have collided with the claim's slot.
+A tap CARRYING a held fret is one record at one slot, so the tap and the claim it articulates arrive
+together and the clause fires. The flag above is superseded, and the derivation now has a test that
+holds the whole figure end to end (holds + a same-instant held-carrying tap = one justified span).
+
+**The sweep's decision, taken deliberately.** The sweep deletes RECORDS that state nothing. A
+held-carrying tap still states its tap, so what states nothing is the FIELD, not the note: the sweep
+clears `held` and leaves the onset exactly as authored, reporting it as its own repair kind
+(`ChartRepair::InertHeldStop`) because a load notice must say what it took. Deleting the note would
+destroy a sound the charter wrote, which no invariant here asks for. It does not fight the fixpoint
+shape — the fixpoint is over CLAIMS, and clearing one is as much a removal as erasing a note, so the
+iteration is unchanged. The function is renamed to match what it now judges:
+`sweepInertClaimedStops`, and `ChartShapes::claim_shapes` with it.
+
+**The verb's fourth case.** `N` on a right-hand onset states `held` at the open string and moves the
+caret onto that stop, so the digits that follow state it — the same "the caller arms it here" the
+empty-slot case has always used, and the same reason (typing a digit is the editor's one
+fret-stating flow). Its second press CLEARS the stop, leaving the note whole. The verb's meaning is
+unchanged in all four cases: state, or stop stating, the fretting hand's stop at this slot. What
+differs is only where that statement can live.
+
+> "bare digits on the selected note keep retyping its OWN sounding fret (N is the channel prefix)"
+> — user, 2026-08-27
+
+That grammar is carried by a CHANNEL on the caret (`ChartStopChannel`), stated once in
+`chartVerbSlots()` as part of the verb scope rather than as a per-verb special case. Every
+channel-blind verb reads the slots and keeps note scope, per the ruling; the two verbs that address
+a stop — the typed digit and Delete — read the channel. Delete on the held stop routes through the
+hold verb's own releasing direction rather than a clearing planner of its own, so there is one law
+and one place.
+
+**The satellite, and its two entry paths.** The held value displays in the corrections' outboard
+satellite slot: head centre = what SOUNDS, satellite = what the hand HOLDS. That is the case the
+two-slot posture display was designed for, so no new display rule was needed — the existing
+four-case digit rule places it, because a right-hand onset at the span start whose fret differs from
+the posture's is exactly the side-slot case. What IS new:
+
+- The slot's width moved off the font and onto the lane geometry (`TabLaneGeometry::satelliteSlot`),
+  which deleted the per-span widest-digit scan and made the column a rectangle the framework-free
+  layout manifest can bound. That is what lets the satellite be hit-tested at exactly its drawn
+  extent, and it gives every satellite in the lane one straight right wall for free.
+- Clicking it selects the note AND pre-arms the held entry — no new selection kind; the hit target
+  gained an alternative because the two marks address different STOPS of one object.
+- The caret gained a within-slot second stop on notes where the satellite displays, traversed in
+  display order (head, then satellite, reversed leftward). Digits and Delete there do what the click
+  and the verb do. ONE entry state, two entry paths.
+- The pending red box draws on the satellite when the entry is on that channel.
+
+**Flagged, not solved.** A held claim in a MIXED slot (one that also sounds a fretting-hand note)
+does not split the standing span, because the growth split is reached only where nothing sounds at
+the slot — which is the behaviour a `none` note has today too, so "splits exactly as a None note
+does" holds. Where the claim therefore joins an EARLIER span, its stop still prints (as that span's
+ordinary posture digit) but the note publishes no satellite of its own, so nothing undrawn becomes
+clickable. Generalizing the growth split to mixed slots is a change to rule 11's shape and is left
+for a ruling of its own.
+
+**Flagged, pre-existing** (found by the 2026-08-27 review of this increment, not introduced by it):
+a `none` note's OWN digit can be displaced into the satellite column, and out there it has no target
+— its click box is still the bracket bars. It happens when a right-hand onset carrying NO held stop
+sits at the span start on the same string the hold later claims, which the four-case digit rule then
+reads as the displaced case. The satellite's own target answers only for a note that states a `held`
+stop, so this stays a drawn-but-unreachable digit. Rare (it needs a hand-alone span, a tap on the
+claimed string at its start, and a hold on that string later), and the fix is a display question —
+whether the projection should publish WHICH slot a posture digit printed in — so it is recorded here
+rather than solved inside this increment.
 
 ## The span law and the settle, 2026-08-27 — what a held stop must EARN
 
@@ -90,7 +194,7 @@ re-merges by ordinary span identity.
 the first sighting flagged, and it removes it by construction rather than by adding a mark: a hold
 that reaches no shape — joining no span, landing past its span's end, or restating a stop the shape
 already states — changes no posture, draws nowhere and can be selected nowhere, so keeping it saves
-a note the charter can neither see nor find. `sweepInertSilentHolds` is the legato settle's sibling
+a note the charter can neither see nor find. `sweepInertClaimedStops` is the legato settle's sibling
 (stateless, judging only the stream it is handed) and runs where the invariant has to hold: the
 normalizer's last stage on every load, and the editor's plan gate on every edit. It iterates to a
 fixpoint, because one removal can take a span's second member and strand the holds that had joined

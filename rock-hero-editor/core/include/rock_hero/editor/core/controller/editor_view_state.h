@@ -394,6 +394,20 @@ struct ChartCaretViewState
     int string{1};
 
     /*!
+    \brief WHICH stop of the note here the caret sits on — the mark the square draws around.
+
+    A note under a right-hand onset wears two marks in one column: its head, carrying what the
+    picking hand sounds, and the satellite digit outboard of its posture bracket, carrying what the
+    fretting hand holds. The caret visits both, so the square has to say which one it is on — and
+    the surface reads THIS rather than re-deriving it from the note, because the controller is what
+    decided the caret could be there at all.
+
+    `Held` is published only where that satellite is drawn, which is the same invariant the caret
+    itself holds.
+    */
+    common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
+
+    /*!
     \brief Start of the caret's measure in seconds, for the keep-in-view window glide.
 
     Caret navigation keeps its whole measure comfortably visible: the view glides until the
@@ -415,6 +429,7 @@ struct ChartCaretViewState
     friend bool operator==(const ChartCaretViewState& lhs, const ChartCaretViewState& rhs)
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string &&
+               lhs.channel == rhs.channel &&
                std::is_eq(lhs.measure_start_seconds <=> rhs.measure_start_seconds) &&
                std::is_eq(lhs.measure_end_seconds <=> rhs.measure_end_seconds);
     }
@@ -468,6 +483,17 @@ struct ChartPendingFretTargets
     the note has: its head, or its posture bracket.
     */
     std::vector<std::size_t> notes{};
+
+    /*!
+    \brief WHICH stop of those notes the entry states — and therefore where its box draws.
+
+    One channel for the whole entry, fixed when it opened: on the sounding channel the box rides
+    each affected note's own face, and on the held one it rides the satellite digit outboard of
+    that note's posture bracket, which is the mark the value will land in. Carried rather than
+    re-derived because the entry is what decided it — the caret's stop when the digits began — and a
+    surface guessing from the note would show the box on the wrong mark for a note that states both.
+    */
+    common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
 
     /*!
     \brief Compares two target sets by their stored values.

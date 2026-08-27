@@ -38,6 +38,16 @@ std::string harmonicNodeText(const double node)
 ChartNote savedChartNote(const ChartNote& note)
 {
     ChartNote saved = note;
+    // The held stop belongs to the hand that did NOT make this onset, so it exists only where the
+    // picking hand made it. Everywhere else the fretting hand's stop already IS `fret`, and a
+    // second copy beside it could only ever drift; stripping it here rather than listing the legal
+    // attacks in the validator is what makes one rule answer for the reader, the writer and the
+    // refusal at once. A silent hold is refused by this too — it is the FRETTING hand's own
+    // record — and the aggregate below states that positively rather than relying on this line.
+    if (!rightHandOnset(saved.attack))
+    {
+        saved.held.reset();
+    }
     if (silentHold(saved.attack))
     {
         // Built from a DEFAULT note rather than by clearing fields on a copy, so the record is
@@ -50,6 +60,7 @@ ChartNote savedChartNote(const ChartNote& note)
             .fret = note.fret,
             .sustain = {},
             .attack = note.attack,
+            .held = {},
             .palm_mute = false,
             .dead = false,
             .harmonic_node = {},

@@ -207,6 +207,10 @@ std::string_view chartRepairText(const ChartRepair repair)
         {
             return "a held stop belonged to no shape, so it stated nothing and was removed";
         }
+        case ChartRepair::InertHeldStop:
+        {
+            return "a held stop belonged to no shape, so it was cleared from the onset carrying it";
+        }
     }
     return "chart repaired";
 }
@@ -341,6 +345,14 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     //    values; a stated fret is clamped rather than stripped because it still names real travel.
     bool past_board = note.fret > g_max_fret;
     note.fret = std::min(note.fret, g_max_fret);
+    // The held stop is a stop on the same neck, so the same ceiling clamps it. Bound to a local so
+    // the optional check and the access are provably the same object.
+    std::optional<int>& held = note.held;
+    if (held.has_value() && *held > g_max_fret)
+    {
+        past_board = true;
+        held = g_max_fret;
+    }
     for (Waypoint& waypoint : note.waypoints)
     {
         // Bound to a local so the optional check and the access are provably the same object.
@@ -549,10 +561,11 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
     // The relational settles run LAST, against the stream as it will actually stand: a trimmed
     // tail may have been the hold a neighbour's claim depended on. The legato settle goes first of
     // the two because flattening a claim CHANGES an articulation, and an articulation is what the
-    // shapes the hold sweep judges against are keyed by; nothing the hold sweep removes can
-    // justify or withdraw a claim, since a silent hold neither sounds nor bounds a ring.
+    // shapes the claim sweep judges against are keyed by; nothing the claim sweep takes can
+    // justify or withdraw a legato claim, since neither a silent hold nor a held stop sounds or
+    // bounds a ring — clearing a held field leaves the onset carrying it entirely untouched.
     std::vector<ChartConversion> settled = sweepUnjustifiedLegato(chart.notes, tempo_map);
-    std::vector<ChartConversion> swept = sweepInertSilentHolds(chart.notes, tempo_map);
+    std::vector<ChartConversion> swept = sweepInertClaimedStops(chart.notes, tempo_map);
     settled.insert(
         settled.end(),
         std::make_move_iterator(swept.begin()),
@@ -671,6 +684,35 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "fret must be 0 or above the capo at " + positionText(note.position),
         }};
     }
+    // The fretting-hand stop under a right-hand onset. WHICH attacks may carry one is the fixpoint
+    // below; these are the two facts a stop of its own has. The board and the capo bind it exactly
+    // as they bind `fret` — 0 is the open string a voicing deliberately leaves, and a stop the capo
+    // covers has no repair that is not an invented pitch — while the ceiling is the normalizer's
+    // clamp, asked as that same fixpoint. And it may not repeat the note's own sounding fret: the
+    // picking hand cannot sound a string at the very fret the other hand is stopping, so such a
+    // record is a statement that states nothing rather than a technique to shed.
+    //
+    // Bound to a local so the optional check and the accesses are provably the same object.
+    const std::optional<int>& held = note.held;
+    if (held.has_value())
+    {
+        if (*held < 0 || (*held != 0 && *held < firstPlayableFret(tuning.capo)))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message =
+                    "held stop must be 0 or above the capo at " + positionText(note.position),
+            }};
+        }
+        if (*held == note.fret)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "a held stop may not repeat the note's own fret at " +
+                           positionText(note.position),
+            }};
+        }
+    }
     // A finger cannot lower a stopped string's pitch, so a negative push is a data error rather
     // than a technique (W9-K, ratified 2026-08-25); dips and dives belong to the whammy bar's own
     // model. Checked at the onset value here and at every waypoint below, because the channel is
@@ -748,14 +790,20 @@ std::expected<void, ChartError> validateChartNoteAlone(
         }};
     }
     // WHAT THIS ATTACK MAY STATE, asked as a FIXPOINT rather than by listing fields: a saved note
-    // must already equal its own saved form. Two attacks carry less than the whole record — a
+    // must already equal its own saved form. Three things carry less than the whole record — a
     // SAVED pick slide carries no pitched technique, because the writer omits the in-memory
-    // overrides (chart.h), and a SILENT HOLD carries nothing at all beyond its stop, because
-    // nothing sounds for a technique to describe — and enumerating either set here would duplicate
-    // exactly what savedChartNote strips, leaving the writer and this rule to agree by hand while
-    // a field added to ChartNote updated only one of them. Asked unconditionally because the
-    // comparison is identity for every attack that overrides nothing, which is also why the
-    // fallthrough below can name the silent hold: no other attack can reach it.
+    // overrides (chart.h); a SILENT HOLD carries nothing at all beyond its stop, because nothing
+    // sounds for a technique to describe; and a HELD stop rides only a right-hand onset, because
+    // on every other attack the fretting hand's stop already is the note's own fret — and
+    // enumerating any of those sets here would duplicate exactly what savedChartNote strips,
+    // leaving the writer and this rule to agree by hand while a field added to ChartNote updated
+    // only one of them. Asked unconditionally because the comparison is identity for every attack
+    // that overrides nothing.
+    //
+    // The message names the cause because the three cases are disjoint by attack: a scrape can
+    // only have failed on the pitched latents (it is the one attack that keeps a held stop AND
+    // sheds techniques), a silent hold on anything beyond its stop, and any other attack on
+    // exactly one thing — the held stop it may not carry.
     //
     // Emphasis is a scrape's own dynamics and passes there; on a silent hold it is refused with
     // the rest, since a stop nothing strikes has no dynamics to state.
@@ -769,10 +817,18 @@ std::expected<void, ChartError> validateChartNoteAlone(
                            positionText(note.position),
             }};
         }
+        if (silentHold(note.attack))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message = "a silently held stop states its fret and nothing else at " +
+                           positionText(note.position),
+            }};
+        }
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
-            .message = "a silently held stop states its fret and nothing else at " +
-                       positionText(note.position),
+            .message =
+                "only a right-hand onset carries a held stop at " + positionText(note.position),
         }};
     }
     // The scrape's own gesture: the required unpitched slide-out terminal, exactly at the sustain

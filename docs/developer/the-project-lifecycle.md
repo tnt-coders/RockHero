@@ -405,15 +405,28 @@ now it reads as what it is, and merges with its identically-played neighbours.
     every span it reaches, but its FACE belongs to the FIRST — it was authored at one slot, and that
     is where its bracket draws.
 
-    **A hold that states nothing is REMOVED, not kept** (user ruling 2026-08-27).
-    `sweepInertSilentHolds` is the legato settle's sibling: it judges only the stream it is handed,
+    **A claimed stop states itself in either of two shapes, and the rules above bind both**
+    (user ruling 2026-08-27). Where nothing sounds at all the whole note is the statement (`attack:
+    none`, whose `fret` is the stop); where the PICKING hand sounds the string, the fretting hand's
+    stop rides that note as `held`. They are one statement about one hand at one slot, asked through
+    one query (`claimedStop`), so membership, justification, the fret match and the growth split
+    read them identically. The held stop is also what makes the same-instant justification below
+    expressible: a tap carrying it is ONE record at ONE slot, where a hold and a tap on the same
+    string would have needed two, which slot uniqueness refuses.
+
+    **A claimed stop that states nothing is REMOVED, not kept** (user ruling 2026-08-27).
+    `sweepInertClaimedStops` is the legato settle's sibling: it judges only the stream it is handed,
     runs as the normalizer's last stage on every load and inside the editor's plan gate on every
-    edit, and iterates to a fixpoint, because one removal can take a span's second member and strand
-    the holds that had joined it. Two consequences worth naming. An edit that strands a hold takes
-    it in the SAME undo entry, so one Ctrl+Z restores the pair; and the `N` verb refuses a press
-    whose own product the settle would remove — whole-plan, never per slot, so a chord's members are
-    legal together and illegal one at a time, and a press that would delete the note it was asked to
-    hold does nothing at all instead.
+    edit, and iterates to a fixpoint, because taking one claim can leave a span with a single member
+    and strand the claims that had joined it. What it takes is the STATEMENT and never more: a
+    `none` note IS its claim, so the record goes; a `held` stop rides an onset the charter wrote, so
+    only the field is cleared. Two consequences worth naming. An edit that strands a claim takes it
+    in the SAME undo entry, so one Ctrl+Z restores the pair; and the `N` verb refuses a press
+    unless every slot it named still STATES a stop once the settle has run — whole-plan, never per
+    slot, so a chord's members are legal together and illegal one at a time, and a press whose
+    statement the settle took does nothing at all instead. Asked of the statement rather than of the
+    record, because for a `held` stop the settle takes only the field and leaves the note identical,
+    which no diff of what was removed against what was written can see.
 
     **A shape the HAND alone states must be justified by the content it fronts** (user ruling
     2026-08-27). Two held stops at one slot open a span — rule 10 counts members, not strikes — and
@@ -423,11 +436,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
     picking-hand onset sounding on one of its posture strings, which is the held-shape-under-tapping
     figure with the holding stated rather than inferred. The walk imposes no plant offset — a tap at
     the span's very own instant counts, and requiring one would be a convention no notation asks for
-    — but slot uniqueness does impose one HERE, and the two rules meet in a corner worth naming: a
-    tap on a claimed string at that claim's own instant is the same-slot case flagged unrepresentable
-    below, so the tap that justifies is always at least a quantum after the stop it articulates. The
-    same-instant tap a charter CAN write lands on a string the shape does not hold, and that one
-    justifies nothing.
+    — and the HELD stop is what makes that clause reachable rather than merely stated: a tap
+    carrying its own held fret is one record at one slot, where a hold and a tap on the same string
+    would have needed two (`held`, above). Before it existed the only same-instant tap a charter
+    could write landed on a string the shape did not hold, and justified nothing.
     Whether the answering onset is ALONE or one voice of a chord is not part of the test — it is
     the stop that answers, so a strum carrying the claimed fret justifies the statement it fronts
     exactly as a lone re-pick does. A span that closes with nothing having arrived **dissolves**:
@@ -460,10 +472,21 @@ now it reads as what it is, and merges with its identically-played neighbours.
     with no rule of its own. Because the settle above removes every hold that states nothing, there
     is no invisible-and-unreachable record to find: what a chart holds, some bracket prints.
 
-    **Known unrepresentable, recorded rather than solved** (user, 2026-08-27): a held fret on the
-    very string being tapped at the very same instant. Two facts, one slot — the hold and the tap
-    would have to share a `(position, string)` — so the charter states the hold one quantum early,
-    which the notation can express.
+    **A held stop's face is the SATELLITE beside that bracket** (user ruling 2026-08-27). The note
+    carrying it has a head of its own, and that head is already printing what the picking hand
+    sounds, so the fretting hand's stop takes the digit column outboard of the bracket's closing bar
+    — the two-slot rule the posture display was built with, now the ordinary case rather than the
+    rare one. It is an independent TARGET: clicking it selects the note like any other mark of it
+    and pre-arms the held entry, so the digits that follow state that stop; and the caret visits it
+    as a second stop inside one slot, in display order (head, then satellite, reversed leftward),
+    where digits do the same and Delete clears the statement rather than the note. Published only
+    where the claim's span starts at the note itself, which is exactly where such a satellite draws.
+
+    **The same-slot case the held stop RESOLVED** (recorded 2026-08-27, closed the same day): a
+    held fret on the very string being tapped at the very same instant used to need two records
+    sharing one `(position, string)`, which slot uniqueness refuses — so the charter had to state
+    the hold a quantum early. The `held` field makes it one record at one slot, and the
+    same-instant justification above is what that unlocked.
 
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):
@@ -691,7 +714,7 @@ differently):
     They run last because they read the finished stream: released frets after the slide chains
     (rules 13-15), holds after the ring policy's clamp. `sweepUnjustifiedLegato` goes first of the
     two, because flattening a claim changes an articulation and articulation is what spans are keyed
-    by; `sweepInertSilentHolds` then removes every held stop the resulting spans leave stating
+    by; `sweepInertClaimedStops` then removes every held stop the resulting spans leave stating
     nothing (rule 12b), iterating to a fixpoint. The spans a reader
     derives therefore describe the SETTLED stream (rules 10-12a).
     The importer counts the repairs by rule in its log; the editor's open shows them once with

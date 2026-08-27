@@ -38,6 +38,30 @@ struct ChartNoteHit
 };
 
 /*!
+\brief A note's HELD-stop satellite the pointer resolved, by index into the projection's notes.
+
+The same note a \ref ChartNoteHit names, reached through its other mark: a distinct alternative
+because the two address different stops of it. Selecting is identical — one note, no new selection
+kind — and what the satellite adds is the CHANNEL, so the digits that follow state the stop the
+charter actually clicked. That makes clicking it shorthand for selecting the note and pressing the
+hold verb on it.
+*/
+struct ChartHeldStopHit
+{
+    /*! \brief Index into \ref common::core::ChartViewState::notes. */
+    std::size_t index{0};
+
+    /*!
+    \brief Compares two held-stop hits by their stored values.
+    \param lhs Left-hand hit.
+    \param rhs Right-hand hit.
+    \return True when both name the same note's held stop.
+    */
+    friend constexpr bool operator==(
+        const ChartHeldStopHit& lhs, const ChartHeldStopHit& rhs) noexcept = default;
+};
+
+/*!
 \brief A waypoint the pointer resolved: which projected note, and which of its drawn waypoints.
 
 Two indices rather than one, which is why the hit target is a sum: a waypoint belongs to a note,
@@ -64,11 +88,14 @@ struct ChartWaypointHit
 /*!
 \brief One selectable object the lane resolved under a pointer.
 
-The same two alternatives \ref ChartSelectionKey has, addressed by projection index instead of by
-identity: the controller turns one into the other, which is the single place a drawn glyph becomes
-a selectable object.
+Addressed by projection index instead of by identity: the controller turns one into the other, which
+is the single place a drawn glyph becomes a selectable object. One alternative more than
+\ref ChartSelectionKey has, deliberately: a note's held stop is not a second SELECTABLE object — it
+selects the note like any other mark of it — but it is a second TARGET, and which one the pointer
+landed on is exactly what the controller needs to know to point the next typed digit at the stop
+that was clicked.
 */
-using ChartHitTarget = std::variant<ChartNoteHit, ChartWaypointHit>;
+using ChartHitTarget = std::variant<ChartNoteHit, ChartHeldStopHit, ChartWaypointHit>;
 
 /*!
 \brief Resolves the selectable object under a lane-local point, if any.
@@ -79,7 +106,9 @@ the heads: a hold's bracket is its only affordance and never wraps a head of its
 string is silent at the span start by construction), so all the priority takes is the near columns
 of a head a little later on that string, which the head can spare and a two-pixel bracket bar
 cannot. The exception is recorded with the verb's design record rather than left to be inferred
-from this order. Then note heads, which win over sustain tails (a
+from this order. Then held-stop satellites, which are drawn outboard of a bracket's closing bar and
+overlap no head of their own note, so their position here is only about reaching them before a
+neighbouring head's box does. Then note heads, which win over sustain tails (a
 head sitting on another note's tail takes the click), nearest onset center first among overlapping
 heads. Then the linked waypoint heads riding a tail, which are drawn ON the ribbon and so must win
 over it. Then tails, resolving to the note whose tail rectangle contains the point, nearest onset

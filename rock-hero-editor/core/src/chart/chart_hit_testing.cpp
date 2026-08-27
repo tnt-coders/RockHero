@@ -86,6 +86,33 @@ std::optional<ChartHitTarget> chartHitTarget(
         return ChartNoteHit{.index = *best_hold};
     }
 
+    // The held-stop satellites, on exactly the reasoning above and with the same whole-stream
+    // probe: the digit sits at its note's posture bracket, which is that note's own instant, so a
+    // window keyed by note ends would still cover it — but the column lies OUTBOARD of the bracket
+    // bars and belongs to no head, so resolving it here keeps it a target of its own instead of
+    // letting the ordinary head pass decide the columns beside a head it does not cover.
+    std::optional<std::size_t> best_satellite;
+    float best_satellite_distance = 0.0f;
+    for (std::size_t index = 0; index < tab.notes.size(); ++index)
+    {
+        const std::optional<common::ui::TabHeldStopLayout> layout =
+            common::ui::tabHeldStopLayout(geometry, tab.notes[index]);
+        if (!layout.has_value() || !layout->box.contains(x, y))
+        {
+            continue;
+        }
+        const float distance = std::abs(x - layout->center_x);
+        if (!best_satellite.has_value() || distance < best_satellite_distance)
+        {
+            best_satellite = index;
+            best_satellite_distance = distance;
+        }
+    }
+    if (best_satellite.has_value())
+    {
+        return ChartHeldStopHit{.index = *best_satellite};
+    }
+
     const auto [first, last] = candidateRange(tab, geometry, x, x);
 
     // Heads next: the head is the note's primary affordance, so one sitting on another note's

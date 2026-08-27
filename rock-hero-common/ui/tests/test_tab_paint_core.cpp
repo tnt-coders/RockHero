@@ -812,7 +812,13 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
 
     // Six lanes in 240px: string 3 renders at lane center y = 140, string 5 at y = 60. The span
     // start (10.0s) lands at x = 200; the bracket's closing bar ends at x = 216, so the side
-    // chip's ground starts on column 216 and its digit sits from 217.
+    // chip's ground starts on column 216. Its WIDTH is the lane's satellite slot rather than the
+    // digit's own ink — one column for every satellite, and the same rectangle the hit test
+    // bounds — so the columns this reads are derived from that slot instead of restated here,
+    // which is what keeps the probes pointing at the chip if the slot is ever resized.
+    const common::ui::TabSatelliteSlot slot = metrics.satelliteSlot();
+    const int chip_left = 216;
+    const int chip_right = chip_left + slot.extent() - 1;
     const auto white_in = [&image](int left, int right, int top, int bottom) {
         for (int x = left; x <= right; ++x)
         {
@@ -829,7 +835,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
     };
 
     // String 3: the posture "7" states in the side chip, in white, right of the closing bar.
-    CHECK(white_in(217, 227, 135, 144));
+    CHECK(white_in(chip_left + slot.gap, chip_right - slot.gap, 135, 144));
 
     // The chip's ground is the tail's own fill, and it MASKS the sine. The vibrato path crosses
     // column 216 at row 144 with full coverage, so without the ground that pixel would carry the
@@ -857,7 +863,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
         }
         return false;
     };
-    CHECK(sine_grey_in(228, 234, 140, 148));
+    CHECK(sine_grey_in(chip_right + 2, chip_right + 8, 140, 148));
 
     // String 5 is silent at the span start, so its posture "8" states CENTRED in the bracket —
     // with no ground (centred digits never need one: technique marks clip against the bracket's

@@ -83,7 +83,7 @@ struct ChartShape
     where a second scan beside the arrival would be the same rule written twice and free to
     disagree.
 
-    The per-span summary of \ref ChartShapes::silent_hold_shapes, which names the resolution note by
+    The per-span summary of \ref ChartShapes::claim_shapes, which names the resolution note by
     note. Both are written in the same loop of the same pass, so they cannot disagree; this one
     exists because the arrival rule asks the question once per SPAN and re-scanning the note stream
     for each span would make one classification quadratic.
@@ -113,16 +113,23 @@ struct ChartShapes
     std::vector<ChartPosture> postures;
 
     /*!
-    \brief Per input note, the span a silently-held stop joined; absent for every other note.
+    \brief Per input note, the span its CLAIMED stop joined; absent where it claims none or reaches
+    none.
 
     Same order and size as the note streams, so a caller indexes it by the note it already holds.
-    This is where a silent hold BECOMES visible: it draws no head of its own, so the posture
-    bracket printing its stop at that span's start is its whole face, and the editor reads this to
-    place that face and to hit test it. An absent entry means the hold resolved to nothing and
-    therefore draws nowhere — exactly the property "nothing undrawn is clickable" needs, published
-    by the pass that knows rather than re-derived by the surface.
+    Both shapes of claim resolve through it (\ref claimedStop): a silently-held member, whose whole
+    existence is the fret it puts into a posture, and a held stop riding a right-hand onset, whose
+    note has a head of its own but whose held fret does not.
+
+    This is where a claim BECOMES visible. A silent hold draws no head, so the posture bracket
+    printing its stop at that span's start is its whole face, and the editor reads this to place
+    that face and to hit test it; a held stop prints in the satellite slot beside that same
+    bracket, which is its own independent target. An absent entry means the claim resolved to
+    nothing and therefore draws nowhere — exactly the property "nothing undrawn is clickable"
+    needs, published by the pass that knows rather than re-derived by the surface, and the same
+    entry the inert sweep reads to decide what states nothing.
     */
-    std::vector<std::optional<std::size_t>> silent_hold_shapes;
+    std::vector<std::optional<std::size_t>> claim_shapes;
 };
 
 /*!
@@ -134,8 +141,9 @@ inside \ref chartResolutions and read from there by everything that draws a chor
 bracket, or a span-implied hold.
 
 A span opens at a slot holding two or more MEMBERS, where a member is a sounding fretting-hand
-onset there or a \ref NoteAttack::None hold there — one sound plus one held finger opens a span,
-two held fingers with nothing sounding open one, and a LONE member of either kind opens nothing
+onset there or a stop the hand CLAIMS there (\ref claimedStop — a \ref NoteAttack::None hold, or a
+held fret riding a right-hand onset) — one sound plus one held finger opens a span, two held
+fingers with nothing sounding open one, and a LONE member of either kind opens nothing
 (user ruling 2026-08-27). The posture is deduplicated by
 its fret vector, and consecutive onsets holding the same articulation merge into one span covering
 the strums' own rings — the grouping the tab renders as a chord box over repeated strums. Tap-only
@@ -187,7 +195,7 @@ takes no new stop and adds nothing.
 A stop that reaches a span more than once — carried across a growth split — is a member of each,
 but its FACE is published for the FIRST: it was authored at one slot, and that is where the bracket
 printing it belongs. A stop that reaches none states nothing anywhere, and
-\ref sweepInertSilentHolds is what keeps such a record from being saved.
+\ref sweepInertClaimedStops is what keeps such a record from being saved.
 
 A span every one of whose members is a hold must be JUSTIFIED by the content it fronts, and it is
 authored in front of that content by design (user ruling 2026-08-27). Two things justify it: a
@@ -195,7 +203,9 @@ fretting-hand onset arriving on one of its claimed strings AT that claim's stop 
 fret-match test the lone re-pick above uses — or a picking-hand onset sounding on one of its
 posture strings, which is the held-shape-under-tapping figure with the holding stated rather than
 inferred. Taps at the span's very own instant count; requiring the hold to be planted a quantum
-early would be a convention no notation asks for.
+early would be a convention no notation asks for. The held stop is what makes that same-instant
+clause reachable rather than merely stated: a tap carrying its own held fret is ONE record at ONE
+slot, where a hold and a tap on the same string would have needed two.
 
 Until one of those arrives such a span has no ring to measure, so it stays open however long it
 waits and states its posture at an instant; from the first arrival its extent is the content's —
@@ -205,7 +215,7 @@ clamps a run of taps to exact adjacency), but one past the frontier is the next 
 this shape continuing, and attaching it would resurrect the shape across the whole gap. A
 silent-only span that closes with NOTHING having arrived dissolves: it is evidence of nothing, and
 it states nothing anywhere, exactly as a lone member does. Its notes are then removed by
-\ref sweepInertSilentHolds rather than saved stating nothing — this derivation only declines to
+\ref sweepInertClaimedStops rather than saved stating nothing — this derivation only declines to
 emit the span; the settle is what takes the records.
 
 Articulation is read from the PRESENTED notes and span extent from the stored rings, which is the

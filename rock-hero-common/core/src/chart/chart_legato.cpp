@@ -111,7 +111,7 @@ ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const Tem
     ChartShapes derived = deriveChartShapes(saved_notes, resolutions.presented_notes, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
-    resolutions.silent_hold_shapes = std::move(derived.silent_hold_shapes);
+    resolutions.claim_shapes = std::move(derived.claim_shapes);
     resolutions.holds =
         chartHolds(saved_notes, resolutions.presented_notes, resolutions.shapes, tempo_map);
     return resolutions;
@@ -151,40 +151,56 @@ std::vector<ChartConversion> sweepUnjustifiedLegato(
     return conversions;
 }
 
-std::vector<ChartConversion> sweepInertSilentHolds(
+std::vector<ChartConversion> sweepInertClaimedStops(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
-    // A stream with no held stops has nothing to sweep, and this runs on every plan the editor
-    // gates. The scan is a bare read; the derivation below presents and walks the whole stream
-    // before it could answer the same question.
-    if (std::ranges::none_of(notes, [](const ChartNote& note) { return silentHold(note.attack); }))
+    // A stream that claims no stop at all has nothing to sweep, and this runs on every plan the
+    // editor gates. The scan is a bare read; the derivation below presents and walks the whole
+    // stream before it could answer the same question.
+    if (std::ranges::none_of(
+            notes, [](const ChartNote& note) { return claimedStop(note).has_value(); }))
     {
         return {};
     }
     std::vector<ChartConversion> conversions;
-    // The fixpoint: a removal can leave a span with one member, which states nothing and takes its
-    // remaining holds with it. Each round removes at least one note, so this ends.
+    // The fixpoint: taking one claim can leave a span with one member, which states nothing and
+    // takes its remaining claims with it. Each round takes at least one claim, so this ends.
     for (bool swept = true; swept;)
     {
         const ChartShapes derived =
             deriveChartShapes(notes, presentedChartNotes(notes, tempo_map), tempo_map);
-        std::vector<std::size_t> inert;
+        // What this round took, counted off the one list both kinds report through — so the
+        // fixpoint's "did anything change" cannot drift from what was actually reported.
+        const std::size_t before = conversions.size();
+        // Only the whole-note removals are collected: clearing a field leaves every index in place,
+        // so it is done as the scan finds it and the erase list stays the one thing that must be
+        // applied back to front.
+        std::vector<std::size_t> removed;
         for (std::size_t index = 0; index < notes.size(); ++index)
         {
-            if (silentHold(notes[index].attack) && !derived.silent_hold_shapes[index].has_value())
+            ChartNote& note = notes[index];
+            if (!claimedStop(note).has_value() || derived.claim_shapes[index].has_value())
             {
-                inert.push_back(index);
-                conversions.push_back(
-                    ChartConversion{
-                        .repair = ChartRepair::InertSilentHold,
-                        .where = formatGridPositionToken(notes[index].position) + " string " +
-                                 std::to_string(notes[index].string),
-                    });
+                continue;
             }
+            const std::string where =
+                formatGridPositionToken(note.position) + " string " + std::to_string(note.string);
+            if (silentHold(note.attack))
+            {
+                removed.push_back(index);
+                conversions.push_back(
+                    ChartConversion{.repair = ChartRepair::InertSilentHold, .where = where});
+                continue;
+            }
+            // The note still states its own onset, so only the statement that reached nothing
+            // goes: the sound the charter wrote stays exactly as authored.
+            note.held.reset();
+            conversions.push_back(
+                ChartConversion{.repair = ChartRepair::InertHeldStop, .where = where});
         }
-        swept = !inert.empty();
+        swept = conversions.size() != before;
         // Erased from the back, so every index still names the note it was derived against.
-        for (const std::size_t index : std::views::reverse(inert))
+        for (const std::size_t index : std::views::reverse(removed))
         {
             notes.erase(notes.begin() + static_cast<std::ptrdiff_t>(index));
         }

@@ -475,6 +475,29 @@ void TabView::paint(juce::Graphics& g)
                     continue;
                 }
                 const common::core::NoteViewState& note = drawn_note(index);
+                // An entry on the HELD channel wears its box on the satellite, which is where the
+                // value it is typing will print — no head sits there, so the box carries none,
+                // exactly as the empty-slot insert case does. A held stop whose satellite is not
+                // drawn shows nothing, on the same rule that keeps its hit box off the lane.
+                if (targets->channel == common::core::ChartStopChannel::Held)
+                {
+                    if (const std::optional<common::ui::TabHeldStopLayout> satellite =
+                            common::ui::tabHeldStopLayout(metrics, note);
+                        satellite.has_value())
+                    {
+                        common::ui::paintTabPendingEntryBox(
+                            g,
+                            metrics,
+                            nullptr,
+                            satellite->center_x,
+                            satellite->center_y,
+                            text,
+                            invalid,
+                            ink,
+                            accent);
+                    }
+                    continue;
+                }
                 // A selected bracket wears the same box AT the bracket, which is where the stop it
                 // states prints — no head sits under it, so the box carries none, exactly as the
                 // empty-slot insert case does. A hold whose bracket is not drawn shows nothing, on
@@ -593,9 +616,25 @@ std::optional<juce::Rectangle<float>> TabView::caretSquare(
         return std::nullopt;
     }
 
-    const float size = metrics.headSize();
     const float center_y = metrics.laneY(m_edit.caret->string);
     const float x = metrics.x(m_edit.caret->seconds);
+    if (m_edit.caret->channel == common::core::ChartStopChannel::Held)
+    {
+        // The caret is on the note's OTHER stop, so the square marks the mark that states it: the
+        // satellite column outboard of the posture bracket's closing bar. Its geometry is the
+        // lane's own (TabLaneGeometry::satelliteSlot), the same numbers the digit is drawn in and
+        // the pointer is tested against, so the armed square lands exactly on the occupied slot.
+        const common::ui::TabBracketGeometry bracket = metrics.bracketGeometry();
+        const common::ui::TabSatelliteSlot slot = metrics.satelliteSlot();
+        const float bar_right = x + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+        return juce::Rectangle<float>{
+            bar_right,
+            center_y - bracket.half_height,
+            static_cast<float>(slot.extent()),
+            bracket.half_height * 2.0f
+        };
+    }
+    const float size = metrics.headSize();
     return juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size};
 }
 

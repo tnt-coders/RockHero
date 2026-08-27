@@ -2296,7 +2296,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .transport_playing = transport_state.playing,
         .has_chart_selection = !chartSelection().empty(),
         .has_armed_caret = armedChartCaret() != nullptr,
-        .has_chart_verb_scope = !chartVerbSlots().empty(),
+        .has_chart_verb_scope = !chartVerbSlots().slots.empty(),
     };
 }
 
@@ -2690,6 +2690,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 state.chart_edit.caret = ChartCaretViewState{
                     .seconds = bounds.seconds,
                     .string = caret->string,
+                    .channel = chartCaretChannel(),
                     .measure_start_seconds = bounds.measure_start_seconds,
                     .measure_end_seconds = bounds.measure_end_seconds,
                 };
@@ -2753,6 +2754,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target);
                     pending.at = ChartPendingFretTargets{
                         .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
+                        .channel = retype.channel,
                     };
                 }
                 state.chart_edit.pending_fret = std::move(pending);

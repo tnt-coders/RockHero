@@ -196,15 +196,16 @@ enum class StrandedStrikeRepair : std::uint8_t
     {
         static_cast<void>(common::core::flattenStrandedStrike(note));
     }
-    // The relational settle a plan DOES carry, and the one the cascade rests on: a silently-held
-    // stop that reaches no shape states nothing anywhere, so an edit that leaves one takes it in
-    // the same undo entry rather than saving a note nothing draws. It rides the plan for the same
-    // reason the stranded strike does — the truth it repairs is the edit's own product — and it is
-    // the whole of what makes "every hold in the chart states something" an invariant instead of a
-    // hope. Deliberately unlike the legato settle beside it, which stays out of a burst because a
-    // claim the burst broke is still visible and still the user's; a hold the edit stranded is
-    // neither.
-    static_cast<void>(common::core::sweepInertSilentHolds(candidate, tempo_map));
+    // The relational settle a plan DOES carry, and the one the cascade rests on: a claimed stop
+    // that reaches no shape states nothing anywhere, so an edit that leaves one takes it in the
+    // same undo entry rather than saving a statement nothing draws — the whole note where the note
+    // IS the claim, the field alone where a sounding onset carries it. It rides the plan for the
+    // same reason the stranded strike does — the truth it repairs is the edit's own product — and
+    // it is the whole of what makes "every claimed stop in the chart states something" an invariant
+    // instead of a hope. Deliberately unlike the legato settle beside it, which stays out of a
+    // burst because a claim the burst broke is still visible and still the user's; a stop the edit
+    // stranded is neither.
+    static_cast<void>(common::core::sweepInertClaimedStops(candidate, tempo_map));
     // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
     // by the writer, so validating the in-memory values would refuse charts the document accepts.
     std::vector<common::core::ChartNote> saved_form;
@@ -384,14 +385,24 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     // Every sorted-by-slot sequence below is searched through this one projection.
     const auto slot_of = [](const common::core::ChartNote& note) { return chartSlotKeyOf(note); };
     const std::vector<common::core::ChartNote> named = notesForKeys(chart.notes, slots);
+    // Whether a note ALREADY states the fretting hand's stop, in whichever shape its onset allows:
+    // a silent hold IS that statement, and a right-hand onset carries it as a held fret because its
+    // own fret belongs to the other hand. One predicate, so the direction test and the per-slot
+    // work cannot disagree about what "already holding" means.
+    const auto states_a_stop = [](const common::core::ChartNote& note) {
+        return common::core::claimedStop(note).has_value();
+    };
     // The toggle direction, asked of the scope as a whole exactly as the technique verbs ask it:
-    // only a scope whose every occupied slot ALREADY holds a stop means "sound these again". An
-    // empty slot names no note here, so it never argues for the sounding direction — there is
-    // nothing at it to sound.
-    const bool sound_them =
-        !named.empty() && std::ranges::all_of(named, [](const common::core::ChartNote& note) {
-            return common::core::silentHold(note.attack);
-        });
+    // only a scope whose every occupied slot ALREADY holds a stop means "stop holding". An empty
+    // slot names no note here, so it never argues for the releasing direction — there is nothing at
+    // it to release.
+    const bool release_them = !named.empty() && std::ranges::all_of(named, states_a_stop);
+    // Which words are true of that direction, which is a question about the CONTENT rather than
+    // about the direction: releasing a silent hold gives a note back its sound, while releasing a
+    // held stop leaves the onset that carried it sounding exactly as before.
+    const bool all_silent = std::ranges::all_of(named, [](const common::core::ChartNote& note) {
+        return common::core::silentHold(note.attack);
+    });
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
     for (common::core::ChartNote& toggled : candidate)
@@ -400,14 +411,38 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
         {
             continue;
         }
-        if (sound_them)
+        if (release_them)
         {
-            // Back to a sounding note. The ring is the caller's session step, like any placement's,
-            // because a hold stored none to restore; what the conversion stripped comes back
-            // through the reversal window and undo, which carry the whole note, never by being
-            // reinvented.
-            toggled.attack = common::core::NoteAttack::Pick;
-            toggled.sustain = default_sustain;
+            if (common::core::silentHold(toggled.attack))
+            {
+                // Back to a sounding note. The ring is the caller's session step, like any
+                // placement's, because a hold stored none to restore; what the conversion stripped
+                // comes back through the reversal window and undo, which carry the whole note,
+                // never by being reinvented.
+                toggled.attack = common::core::NoteAttack::Pick;
+                toggled.sustain = default_sustain;
+            }
+            else
+            {
+                // A right-hand onset stops holding: only the statement goes. The note itself is
+                // untouched, because its onset was never the fretting hand's to convert.
+                toggled.held.reset();
+            }
+        }
+        else if (common::core::rightHandOnset(toggled.attack))
+        {
+            // The FOURTH case (user ruling 2026-08-27). The verb's meaning is unchanged — state the
+            // fretting hand's stop at this slot — and only WHERE that statement can live differs:
+            // this onset belongs to the picking hand, so converting the note would delete a sound
+            // the charter wrote, while the stop under it is exactly what the held fret is for. Open
+            // string, like the empty-slot case below and for the same reason: the editor's one
+            // fret-stating flow is typing a digit, and the caller arms the caret on this stop so
+            // the charter states it next. A slot already stating one is left alone; the whole-scope
+            // direction above is what decides between stating and releasing.
+            if (!toggled.held.has_value())
+            {
+                toggled.held = 0;
+            }
         }
         else
         {
@@ -429,7 +464,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     // the shared finalize is the one authority on the stream's order.
     for (const ChartSlotKey& slot : slots)
     {
-        if (sound_them || std::ranges::binary_search(named, slot, {}, slot_of))
+        if (release_them || std::ranges::binary_search(named, slot, {}, slot_of))
         {
             continue;
         }
@@ -457,22 +492,46 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
         tempo_map,
         chart.notes,
         std::move(candidate),
-        sound_them ? "Sound Note" : "Hold Stop");
+        // Three labels for two directions, because the undo entry has to say what it did: releasing
+        // a silent hold gives the note its sound back, releasing a held stop leaves the onset that
+        // carried it sounding exactly as before.
+        !release_them ? "Hold Stop"
+        : all_silent  ? "Sound Note"
+                      : "Release Held Stop");
     if (!plan.has_value())
     {
         return plan;
     }
-    // Whole-plan atomicity: the finalize's settle removes a held stop that reaches no shape, so a
-    // press whose own subject it removed would DELETE the note the charter asked it to hold. That
-    // press states nothing, so it is refused whole rather than applied in part — which is also
-    // what lets a chord convert together and a lone member refuse, without this function knowing
-    // that spans exist. Bound once so the checked value and the reads are provably one object.
+    // Whole-plan atomicity, asked as the ONE question the settle can answer for either shape of
+    // claim: does every slot this press stated at still state a stop? The finalize's settle takes
+    // a claimed stop that reaches no shape, and WHAT it takes differs by shape — the whole note
+    // where the note IS the claim, the field alone where a sounding onset carries it, which leaves
+    // that note byte-identical to what it was and therefore invisible to any diff of removed
+    // against inserted. Such a press states nothing at that slot, so it is refused whole rather
+    // than applied in part — which is also what lets a chord convert together and a lone member
+    // refuse, without this function knowing that spans exist. Bound once so the checked value and
+    // the reads are provably one object.
     const ChartEditPlan& settled = *plan;
-    if (std::ranges::any_of(slots, [&settled, &slot_of](const ChartSlotKey& slot) {
-            // Both halves of a diff are in slot order, like every other stream here.
-            return std::ranges::binary_search(settled.removed, slot, {}, slot_of) &&
-                   !std::ranges::binary_search(settled.inserted, slot, {}, slot_of);
-        }))
+    // What the settled plan leaves at a slot: the note it writes there, the note already there
+    // where it writes none, and nothing where it took the note outright. Both halves of a diff are
+    // in slot order, like every other stream here.
+    const auto states_a_stop_after =
+        [&settled, &chart, &slot_of, &states_a_stop](const ChartSlotKey& slot) {
+            const auto written = std::ranges::lower_bound(settled.inserted, slot, {}, slot_of);
+            if (written != settled.inserted.end() && slot_of(*written) == slot)
+            {
+                return states_a_stop(*written);
+            }
+            if (std::ranges::binary_search(settled.removed, slot, {}, slot_of))
+            {
+                return false;
+            }
+            const auto standing = std::ranges::lower_bound(chart.notes, slot, {}, slot_of);
+            return standing != chart.notes.end() && slot_of(*standing) == slot &&
+                   states_a_stop(*standing);
+        };
+    // Only in the stating direction: releasing asks for exactly the absence this refuses.
+    if (!release_them && !std::ranges::all_of(slots, states_a_stop_after))
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
@@ -590,22 +649,33 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, int target, bool set_exact)
+    const std::vector<common::core::ChartNote>& base, int target, bool set_exact,
+    common::core::ChartStopChannel channel)
 {
     if (base.empty())
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
-    // The transposition anchor: the shared delta comes from the snapshot's lowest stop. A
+    // WHICH stop of a note this plan addresses, spelled once so the anchor and the write can never
+    // read different fields. Absent only on the held channel, where a note that states no held stop
+    // has no such stop to address — every note has a sounding fret.
+    const auto stop_of = [channel](const common::core::ChartNote& note) -> std::optional<int> {
+        return channel == common::core::ChartStopChannel::Held ? note.held
+                                                               : std::optional<int>{note.fret};
+    };
+
+    // The transposition anchor: the shared delta comes from the snapshot's lowest addressed stop. A
     // silently-held member is in the snapshot like any other note, so a transposed chord carries
     // its held frets along and the anchor sees them.
     std::optional<int> lowest;
     for (const common::core::ChartNote& note : base)
     {
-        if (!lowest.has_value() || note.fret < *lowest)
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int> stop = stop_of(note);
+        if (stop.has_value() && (!lowest.has_value() || *stop < *lowest))
         {
-            lowest = note.fret;
+            lowest = *stop;
         }
     }
 
@@ -614,8 +684,10 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     {
         delta = target - *lowest;
     }
-    const std::string label =
-        (set_exact ? "Set Fret " : "Transpose to Fret ") + std::to_string(target);
+    const std::string label = (channel == common::core::ChartStopChannel::Held ? "Set Held Stop "
+                               : set_exact ? "Set Fret "
+                                           : "Transpose to Fret ") +
+                              std::to_string(target);
     // Retyped values compute from the SNAPSHOT (the multi-digit window replans the whole entry
     // from the pre-entry originals) and swap into the live stream for the shared finalize, whose
     // whole-matrix gate replaces the local fret caps this once carried: any out-of-range or
@@ -631,7 +703,21 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         // onto its first path position is refused downstream by the always-traveling rule in the
         // finalize gate; a pitched slide's equal-fret start is the legal hold encoding and passes.
         common::core::ChartNote retyped = note;
-        retyped.fret = set_exact ? target : note.fret + delta;
+        // Bound to a local so the optional check and the access are provably the same object. A
+        // note the channel does not reach is passed through untouched rather than skipped, so the
+        // swap below stays a straight one-to-one over the snapshot.
+        if (const std::optional<int> stop = stop_of(note); stop.has_value())
+        {
+            const int value = set_exact ? target : *stop + delta;
+            if (channel == common::core::ChartStopChannel::Held)
+            {
+                retyped.held = value;
+            }
+            else
+            {
+                retyped.fret = value;
+            }
+        }
         retyped_notes.push_back(std::move(retyped));
     }
 

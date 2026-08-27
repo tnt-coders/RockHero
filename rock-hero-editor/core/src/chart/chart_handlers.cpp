@@ -43,6 +43,17 @@ constexpr float g_chart_click_threshold_px = 4.0f;
 // thinking pause, so "12" combines and "2, pause, 3" stays two values.
 constexpr std::uint32_t g_fret_entry_window_ms = 750;
 
+// WHICH stop of a note a hit target addresses. Only the satellite addresses the held one, so this
+// is a read of the target's own kind and nothing else — asked by the press that pre-arms the caret
+// and by the release that completes it, because a release arming the note's OTHER stop would
+// silently undo a satellite click's whole point.
+[[nodiscard]] common::core::ChartStopChannel chartHitChannel(const ChartHitTarget& target) noexcept
+{
+    return std::holds_alternative<ChartHeldStopHit>(target)
+               ? common::core::ChartStopChannel::Held
+               : common::core::ChartStopChannel::Sounding;
+}
+
 } // namespace
 
 // The memoized PRESENTED projection deriveViewState pushed, which is what pointer events resolve
@@ -74,7 +85,11 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
     return std::visit(
         [&chart, tab](const auto& hit) -> std::optional<ChartSelectionKey> {
             using Hit = std::remove_cvref_t<decltype(hit)>;
-            if constexpr (std::is_same_v<Hit, ChartNoteHit>)
+            // A held-stop satellite resolves to its own note, exactly as its head does: it is a
+            // second MARK of one object, never a second object. What the two hits differ in is the
+            // caret channel the press then arms, which is the caller's question rather than this
+            // one's.
+            if constexpr (!std::is_same_v<Hit, ChartWaypointHit>)
             {
                 if (hit.index >= chart.notes.size())
                 {
@@ -265,7 +280,57 @@ bool EditorController::Impl::chartSlotOccupied(
         });
 }
 
-void EditorController::Impl::armChartCaret(common::core::GridPosition position, int string)
+// True when the note at this slot draws a satellite digit for a held stop. Read from the
+// PROJECTION and never re-derived: the satellite exists exactly where the derivation resolved the
+// claim to a bracket of its own, so asking the drawn picture is what keeps the caret's second stop,
+// the click target and the mark itself from ever disagreeing about whether there is one.
+bool EditorController::Impl::chartSlotShowsHeldStop(const ChartSlotKey& slot) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const common::core::ChartViewState* const tab = displayedTabProjection();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || tab == nullptr)
+    {
+        return false;
+    }
+    // The projection preserves the chart's note order one to one, so the chart index addresses the
+    // projected note directly — the same rule every hit target and selection resolution here uses.
+    const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+    const auto found = std::ranges::lower_bound(
+        notes, slot, {}, [](const auto& note) { return chartSlotKeyOf(note); });
+    if (found == notes.end() || chartSlotKeyOf(*found) != slot)
+    {
+        return false;
+    }
+    const auto index = static_cast<std::size_t>(found - notes.begin());
+    if (index >= tab->notes.size())
+    {
+        return false;
+    }
+    const common::core::NoteViewState& projected = tab->notes[index];
+    return projected.held.has_value() && projected.bracket_seconds.has_value();
+}
+
+// THE caret's stop, and the one place the held channel's precondition is applied at READ time: the
+// stored value is what the last arming asked for, and a Held request is worth only what the drawn
+// picture still says. An edit can take the satellite out from under a stationary caret — clearing
+// the stop is exactly what Delete on it does — and a caret left claiming a mark that is gone would
+// point the next digit at nothing. Asked through the same predicate the arming asks, so the rule
+// is one predicate applied at two moments rather than two rules.
+common::core::ChartStopChannel EditorController::Impl::chartCaretChannel() const
+{
+    const ChartCaret* const caret = armedChartCaret();
+    if (caret == nullptr || caret->lane.has_value() ||
+        caret->channel != common::core::ChartStopChannel::Held)
+    {
+        return common::core::ChartStopChannel::Sounding;
+    }
+    const ChartSlotKey slot{.position = caret->position, .string = caret->string};
+    return chartSlotShowsHeldStop(slot) ? common::core::ChartStopChannel::Held
+                                        : common::core::ChartStopChannel::Sounding;
+}
+
+void EditorController::Impl::armChartCaret(
+    common::core::GridPosition position, int string, common::core::ChartStopChannel channel)
 {
     // The pending fret entry settles BEFORE the marker moves: the settle selects the note it
     // committed at the OLD slot, and the arming below then replaces that selection for the new
@@ -278,8 +343,16 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
     // means the verb's ordinary law — never a reversal of the entry the window remembers, and
     // never a continuation of the duration gesture it was accumulating.
     disarmChartVerbWindow();
-    m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartSlotKey key{.position = position, .string = string};
+    // The held channel exists only where the satellite that states it is DRAWN, so a request the
+    // slot cannot honour lands on the stop every note has instead of parking the caret on a mark
+    // that is not there. Enforced in the one funnel rather than at each caller, which is what makes
+    // the illegal state unreachable instead of merely unused.
+    if (channel == common::core::ChartStopChannel::Held && !chartSlotShowsHeldStop(key))
+    {
+        channel = common::core::ChartStopChannel::Sounding;
+    }
+    m_chart_marker = ChartCaret{.position = position, .string = string, .channel = channel};
     if (chartSlotOccupied(position, string))
     {
         // Whatever the slot holds becomes the selection — a sounding note or a silently-held stop
@@ -705,6 +778,18 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         return;
     }
 
+    // WHICH stop of the note this press addresses: the satellite pre-arms the held one, so the
+    // digits that follow state it — the pointer twin of stepping the caret onto that stop, and the
+    // whole of what makes the satellite an independent target rather than a second selection kind.
+    const common::core::ChartStopChannel pressed_channel = chartHitChannel(*gesture.hit_target);
+    // A press that CHANGES the channel re-arms even on an already-selected note, and it is the one
+    // reason to: clicking the satellite of a note whose caret sits on its head (or the head of one
+    // whose caret sits on its satellite) changes which stop the next digit states, and a press that
+    // left the caret alone would silently point it at the other one. Every press that does not
+    // change it keeps the standing selection and marker untouched — the gap a future drag-move
+    // gesture lives in.
+    const bool channel_changes = chartCaretChannel() != pressed_channel;
+
     if (event.modifiers.ctrl)
     {
         chartSelectionMutable().toggle(*key);
@@ -725,18 +810,19 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         dissolveChartCaretInPlace();
         static_cast<void>(settleChartLegato());
     }
-    else if (!chartSelection().contains(*key))
+    else if (!chartSelection().contains(*key) || channel_changes)
     {
         // Arming re-derives the singleton selection from the object under the caret. A press on
         // an already-selected one keeps the standing selection (and marker) untouched until
-        // the release collapses it — the gap a future drag-move gesture lives in.
+        // the release collapses it — the gap a future drag-move gesture lives in — unless it
+        // moves the caret to the note's OTHER stop, which is a change the next digit depends on.
         //
         // A waypoint occupies no slot, so there is nothing to arm on: it becomes the selection and
         // the marker demotes to a cursor in place, the same outcome every multi-select gesture
         // above produces.
         if (const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key); slot.has_value())
         {
-            armChartCaret(slot->position, slot->string);
+            armChartCaret(slot->position, slot->string, pressed_channel);
         }
         else
         {
@@ -831,7 +917,11 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                 if (const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key);
                     slot.has_value())
                 {
-                    armChartCaret(slot->position, slot->string);
+                    // The SAME channel the press addressed: this release completes that press, and
+                    // re-arming on the note's other stop here would silently undo a satellite
+                    // click's whole point.
+                    armChartCaret(
+                        slot->position, slot->string, chartHitChannel(*gesture.hit_target));
                 }
             }
         }
@@ -994,6 +1084,26 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const int sign = direction == ChartStepDirection::Right ? 1 : -1;
+    // The WITHIN-SLOT stop, taken before the grid: a note carrying a held stop wears two marks in
+    // one column — its head, then the satellite outboard of the bracket — so the caret visits two
+    // stops there in DISPLAY order, rightward and reversed leftward. Only a plain step visits it:
+    // the measure jump is a big move by definition, and a stop half a glyph away is not what it
+    // means.
+    if (!measure && !caret.lane.has_value())
+    {
+        const ChartSlotKey slot{.position = caret.position, .string = caret.string};
+        const bool on_head = chartCaretChannel() == common::core::ChartStopChannel::Sounding;
+        if (on_head == (sign > 0) && chartSlotShowsHeldStop(slot))
+        {
+            armChartCaret(
+                caret.position,
+                caret.string,
+                on_head ? common::core::ChartStopChannel::Held
+                        : common::core::ChartStopChannel::Sounding);
+            updateView();
+            return;
+        }
+    }
     common::core::GridPosition stepped;
     if (measure)
     {
@@ -1031,7 +1141,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::StepChartCare
     }
     else
     {
-        armChartCaret(stepped, caret.string);
+        // Display order, reversed: the satellite sits to the RIGHT of its head, so a caret arriving
+        // from the right meets it first and a caret arriving from the left meets the head first.
+        // A measure jump is not traversal — it is a big move by definition — so it lands on the
+        // stop every note has. armChartCaret drops a Held request the destination cannot draw, so
+        // this needs no second test of its own.
+        armChartCaret(
+            stepped,
+            caret.string,
+            !measure && sign < 0 ? common::core::ChartStopChannel::Held
+                                 : common::core::ChartStopChannel::Sounding);
     }
     updateView();
 }
@@ -1308,6 +1427,13 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
     const bool caret_rides = caret != nullptr && !caret->lane.has_value() && lone_slot != nullptr &&
                              caret->position == lone_slot->position &&
                              caret->string == lone_slot->string;
+    // The caret rides its STOP, not just its slot: a charter typing into the held stop who nudges
+    // the note would otherwise find the next digit stating the sounding fret instead. Read before
+    // the edit and copied by value, because the marker below is what the reference points into;
+    // a stop the moved note no longer draws is dropped where every other read drops it
+    // (chartCaretChannel), so this needs no test of the destination.
+    const common::core::ChartStopChannel rides_channel =
+        caret_rides ? chartCaretChannel() : common::core::ChartStopChannel::Sounding;
     if (applyChartEditPlan(planMoveSelection(
             *arrangement->chart,
             session().song().tempo_map,
@@ -1320,7 +1446,9 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         // Re-read after the edit: the selection followed the move, so it names where the caret
         // landed.
         const ChartSlotKey& moved = chartSelection().notes().front();
-        m_chart_marker = ChartCaret{.position = moved.position, .string = moved.string};
+        m_chart_marker = ChartCaret{
+            .position = moved.position, .string = moved.string, .channel = rides_channel
+        };
         updateView();
     }
 }
@@ -1332,6 +1460,22 @@ void EditorController::Impl::deleteChartSelection()
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
+        return;
+    }
+
+    // Delete takes what the caret is ON, and on a held stop that is the STATEMENT rather than the
+    // note: the onset under it belongs to the picking hand and the charter never asked for it to
+    // go. Routed through the hold verb rather than a clearing planner of its own, because clearing
+    // is exactly that verb's releasing direction over a scope of one — one law, one place, and the
+    // undo entry names what really happened.
+    const ChartVerbScope scope = chartVerbSlots();
+    if (scope.channel == common::core::ChartStopChannel::Held && !scope.slots.empty())
+    {
+        static_cast<void>(applyChartEditPlan(planToggleSilentHold(
+            *arrangement->chart,
+            session().song().tempo_map,
+            scope.slots,
+            chartGridStepBeats(scope.slots.front().position))));
         return;
     }
 
@@ -1503,7 +1647,8 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
         session().song().tempo_map,
         retype.base_notes,
         entry.value,
-        /*set_exact=*/true);
+        /*set_exact=*/true,
+        retype.channel);
 }
 
 // The uniform settle: commit the pending entry's plan when it holds one (ONE undo entry for the
@@ -1639,6 +1784,11 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
 // settle in the same keystroke for one it could not. An Invalid provisional digit still arms:
 // under a capo every playable fret's first digit alone refuses, and the window is what keeps
 // the two-digit target reachable.
+//
+// WHICH stop the digits state comes from the verb scope's channel, so the two ways to reach the
+// held one — clicking its satellite, or stepping the caret onto it — open the same entry rather
+// than two. Bare digits on a selected note keep stating its own sounding fret, which is what makes
+// the held channel something the charter enters deliberately.
 void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t now_ms)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -1652,6 +1802,7 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
             ChartFretEntry::Retype{
                 .keys = chartSelection().notes(),
                 .base_notes = chartNotesForKeys(chartSelection().notes()),
+                .channel = chartVerbSlots().channel,
             },
         .armed_ms = now_ms,
     };
@@ -1680,19 +1831,29 @@ std::vector<common::core::ChartNote> EditorController::Impl::chartNotesForKeys(
 //
 // A caret riding an automation lane row names no chart slot, so it contributes nothing: lane typing
 // is the lane's own typed-value editor, routed in the view.
-std::vector<ChartSlotKey> EditorController::Impl::chartVerbSlots() const
+//
+// The CHANNEL is the caret's in either shape of scope, and that is not an inconsistency: arming re-
+// derives the singleton selection from what sits under the caret, so a caret parked on a held stop
+// is a caret on the one note the selection then holds. Every gesture that builds a wider selection
+// dissolves the caret in place, which leaves the channel at the stop every note has — so a
+// multi-note scope can never carry a stop only one of its notes states.
+EditorController::Impl::ChartVerbScope EditorController::Impl::chartVerbSlots() const
 {
+    const ChartCaret* const caret = armedChartCaret();
+    const common::core::ChartStopChannel channel = chartCaretChannel();
     const std::vector<ChartSlotKey>& selected = chartSelection().notes();
     if (!selected.empty())
     {
-        return selected;
+        return ChartVerbScope{.slots = selected, .channel = channel};
     }
-    const ChartCaret* const caret = armedChartCaret();
     if (caret == nullptr || caret->lane.has_value())
     {
-        return {};
+        return ChartVerbScope{.slots = {}, .channel = channel};
     }
-    return {ChartSlotKey{.position = caret->position, .string = caret->string}};
+    return ChartVerbScope{
+        .slots = {ChartSlotKey{.position = caret->position, .string = caret->string}},
+        .channel = channel,
+    };
 }
 
 // Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
@@ -1729,7 +1890,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         session().song().tempo_map,
         selected,
         *lowest + (direction > 0 ? 1 : -1),
-        /*set_exact=*/false)));
+        /*set_exact=*/false,
+        // The shape-preserving shift is a NOTE verb, per the ruling that every verb but the two
+        // typing ones keeps note scope: it moves the stops the notes sound, and whether a
+        // transpose should carry a shape's silently-held members along is the open question
+        // recorded with the verb's design, not something to settle by reading the caret here.
+        common::core::ChartStopChannel::Sounding)));
 }
 
 // Grows or shrinks the selection's rings by one step — moving each ring's END onto the adjacent
@@ -2186,7 +2352,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::DisconnectCha
 void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartSilentHold&)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::vector<ChartSlotKey> slots = chartVerbSlots();
+    const std::vector<ChartSlotKey> slots = chartVerbSlots().slots;
     if (arrangement == nullptr || !arrangement->chart.has_value() || slots.empty())
     {
         return;
@@ -2204,11 +2370,33 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartSi
             slots,
             chartGridStepBeats(slots.front().position))))
     {
+        // The fourth case's own follow-through: where the press stated a HELD stop, the caret moves
+        // onto that stop so the digits that follow state it — the keyboard twin of clicking the
+        // satellite, and the same "the caller arms it here" the empty-slot case has always used.
+        // Asked of the settled chart through the one satellite query, so a press whose statement
+        // the settle then took leaves the caret on the head it started from.
+        armHeldStopCaretAfterToggle(slots);
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
             .verb = ChartSilentHoldToggle{},
         };
     }
+}
+
+// Moves the caret onto the held stop the toggle just stated, when it stated exactly one. A press
+// over a whole chord leaves the caret where it was: a pending entry has ONE channel, and a scope
+// whose notes do not all state a held stop has no single stop for the digits to mean.
+void EditorController::Impl::armHeldStopCaretAfterToggle(const std::vector<ChartSlotKey>& slots)
+{
+    if (slots.size() != 1 || !chartSlotShowsHeldStop(slots.front()))
+    {
+        return;
+    }
+    armChartCaret(
+        slots.front().position, slots.front().string, common::core::ChartStopChannel::Held);
+    // The apply published before this ran, so the moved caret needs its own push: arming is not a
+    // publishing operation anywhere, and every other caller pushes for the same reason.
+    updateView();
 }
 
 // Esc is a settle event whichever rung consumes it, so the ladder itself is the helper below and

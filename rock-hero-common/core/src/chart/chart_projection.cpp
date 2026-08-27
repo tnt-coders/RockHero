@@ -155,21 +155,31 @@ ChartViewState makeChartViewState(
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
-        // A silently-held stop's face: the posture bracket at the START of the span its stop
-        // joined, resolved but NOT interpreted. What the hold MEANS already reaches every surface
-        // through the posture below, so this carries only where the mark that states it draws, or
-        // nothing where it joined no span. The span index comes from the derivation rather than
-        // being searched for here, so the face can never sit at a span the posture did not come
-        // from — and every other attack leaves it absent, because a sounding note's face is its own
-        // head at its own instant.
+        view.held = note.held;
+        // Where this note's CLAIMED stop is stated: the posture bracket at the START of the span
+        // the claim joined, resolved but NOT interpreted. What the claim MEANS already reaches
+        // every surface through the posture below, so this carries only where the mark that states
+        // it draws, or nothing where it joined no span. The span index comes from the derivation
+        // rather than being searched for here, so the mark can never sit at a span the posture did
+        // not come from — and a note claiming no stop leaves it absent, because a sounding note's
+        // face is its own head at its own instant.
         //
         // Bound to a local so the optional check and the access are provably the same object.
-        if (const std::optional<std::size_t>& shape_index =
-                resolutions.silent_hold_shapes[note_index];
+        if (const std::optional<std::size_t>& shape_index = resolutions.claim_shapes[note_index];
             shape_index.has_value() && *shape_index < resolutions.shapes.size())
         {
-            view.bracket_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                globalBeatPosition(tempo_map, resolutions.shapes[*shape_index].position));
+            const ChartShape& shape = resolutions.shapes[*shape_index];
+            // A HELD stop's satellite is the note's OWN mark, so it is published only where the
+            // span it joined starts at this note. Elsewhere the stop still prints — as the shape's
+            // ordinary posture digit, centred in the bracket at the span's start — but that digit
+            // belongs to the span rather than to this record, and publishing an instant for it
+            // would make a column clickable where nothing of this note's is drawn. A silent hold
+            // needs no such test: its own face IS that bracket wherever the span starts.
+            if (!view.held.has_value() || shape.position == note.position)
+            {
+                view.bracket_seconds = tempo_map.secondsAtGlobalBeatPosition(
+                    globalBeatPosition(tempo_map, shape.position));
+            }
         }
         view.legato = resolutions.connections.legato[note_index];
         view.palm_mute = note.palm_mute;

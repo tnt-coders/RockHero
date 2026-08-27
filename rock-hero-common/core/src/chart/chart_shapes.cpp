@@ -36,12 +36,14 @@ using StringArticulation = std::optional<ChartNote>;
     return key;
 }
 
-// One silently-held member (\ref NoteAttack::None) resolved against the span it fell inside. The
-// note itself names no span, so this is the whole of the relationship: which note it came from,
-// which string it claims, the beat it claims it at (which the span's own end then judges), and the
-// stop it states. The note index rides along so the close can publish which span each hold ended
-// up in, which is what the editor's face and its hit box are placed from.
-struct SilentClaim
+// One CLAIMED stop (\ref claimedStop) resolved against the span it fell inside — a silently-held
+// member, or the fretting-hand stop riding a right-hand onset. The note itself names no span, so
+// this is the whole of the relationship: which note it came from, which string it claims, the beat
+// it claims it at (which the span's own end then judges), and the stop it states. The note index
+// rides along so the close can publish which span each claim ended up in, which is what the
+// editor's face and its hit box are placed from — and what the inert sweep reads to decide whether
+// the record stated anything at all.
+struct StopClaim
 {
     std::size_t note_index{0};
     std::size_t string_index{0};
@@ -57,7 +59,7 @@ struct SilentClaim
 struct OpenSpan
 {
     std::vector<StringArticulation> articulation;
-    std::vector<SilentClaim> claims;
+    std::vector<StopClaim> claims;
     GridPosition position;
     Fraction start_beat{};
     Fraction end_beat{};
@@ -96,7 +98,7 @@ struct OpenSpan
 [[nodiscard]] bool statesString(const OpenSpan& span, const std::size_t string_index)
 {
     return span.articulation[string_index].has_value() ||
-           std::ranges::any_of(span.claims, [string_index](const SilentClaim& claim) {
+           std::ranges::any_of(span.claims, [string_index](const StopClaim& claim) {
                return claim.string_index == string_index;
            });
 }
@@ -112,7 +114,7 @@ struct OpenSpan
 [[nodiscard]] bool answersAClaim(
     const OpenSpan& span, const std::vector<StringArticulation>& articulation)
 {
-    return std::ranges::any_of(span.claims, [&articulation](const SilentClaim& claim) {
+    return std::ranges::any_of(span.claims, [&articulation](const StopClaim& claim) {
         // Bound to a local so the optional check and the access are provably the same object.
         const StringArticulation& sounded = articulation[claim.string_index];
         return sounded.has_value() && sounded->fret == claim.fret;
@@ -171,7 +173,7 @@ ChartShapes deriveChartShapes(
     const TempoMap& tempo_map)
 {
     ChartShapes derived;
-    derived.silent_hold_shapes.assign(saved_notes.size(), std::nullopt);
+    derived.claim_shapes.assign(saved_notes.size(), std::nullopt);
 
     // A posture array is indexed by string number, and the model bounds those at
     // g_max_chart_strings — so that constant IS the width, never a quantity read off the input.
@@ -228,7 +230,7 @@ ChartShapes deriveChartShapes(
         // its strings, so the passage it was authored in front of does not exist. It dissolves
         // rather than printing a posture over silence, which is the same nothing a lone member
         // states. What happens to the NOTES is not decided here: this walk only declines to emit
-        // the span, and the settle beside it (\ref sweepInertSilentHolds) is what then removes
+        // the span, and the settle beside it (\ref sweepInertClaimedStops) is what then removes
         // every hold this answer left reaching nothing.
         if (open->silent_only && !open->justified)
         {
@@ -270,7 +272,7 @@ ChartShapes deriveChartShapes(
         // are exactly the claims sitting at that instant. Excluding them would let a posture open
         // and then state nothing.
         bool silent_member = false;
-        for (const SilentClaim& claim : open->claims)
+        for (const StopClaim& claim : open->claims)
         {
             std::optional<int>& fret = frets[claim.string_index];
             const bool inside = claim.beat < end || claim.beat == open->start_beat;
@@ -285,9 +287,9 @@ ChartShapes deriveChartShapes(
             // span a claim reaches keeps its face: a stop the hand goes on holding across a growth
             // split is a member of every span it reaches, but it was authored once, at one slot,
             // and its face must stay where the charter put it.
-            if (!derived.silent_hold_shapes[claim.note_index].has_value())
+            if (!derived.claim_shapes[claim.note_index].has_value())
             {
-                derived.silent_hold_shapes[claim.note_index] = derived.shapes.size();
+                derived.claim_shapes[claim.note_index] = derived.shapes.size();
             }
         }
         const auto [entry, inserted] = posture_indices.try_emplace(frets, derived.postures.size());
@@ -418,34 +420,42 @@ ChartShapes deriveChartShapes(
         Fraction ring_end = position_beat;
         std::vector<StringArticulation> articulation(string_count);
         // Rule 10 counts MEMBERS (user ruling 2026-08-27): a member is a sounding fretting-hand
-        // onset here or a silently-held stop here, so one sound plus one held finger states a
+        // onset here or a stop the hand CLAIMS here, so one sound plus one held finger states a
         // shape, two held fingers state one, and a lone member of either kind states none. A
         // silent hold was never a strike and still is not — what changed is that a shape is not
         // made of strikes, it is made of stops.
         //
-        // The slot's held stops are collected here as the claims they will become, rather than
+        // A claimed stop is a claimed stop however it is written down: a tap carrying a held fret
+        // is one record stating two facts at one slot, and it counts here exactly as the silent
+        // hold it would otherwise have to be written as (user ruling 2026-08-27). That is also
+        // what makes the same-instant justification below reachable at all — the tap and the claim
+        // it articulates cannot collide, because they ARE one note.
+        //
+        // The slot's claimed stops are collected here as the claims they will become, rather than
         // counted here and re-found later: the branch below asks what they claim, and whatever span
         // this slot leaves open then takes them.
         std::size_t struck = 0;
-        std::vector<SilentClaim> slot_claims;
+        std::vector<StopClaim> slot_claims;
         while (onset_end < saved_notes.size() && saved_notes[onset_end].position == position)
         {
             const ChartNote& member = saved_notes[onset_end];
             const std::optional<std::size_t> string_index = note_string_index(member);
-            if (silentHold(member.attack))
+            // The fretting hand's stop, in whichever shape the record states it: a silently-held
+            // member IS the statement, and a stop the hand holds under a right-hand onset rides
+            // that note as its held fret. One query for both (\ref claimedStop), so the membership
+            // count, the justification and the fret-match can never read them differently.
+            if (const std::optional<int> claim = claimedStop(member);
+                claim.has_value() && string_index.has_value())
             {
-                if (string_index.has_value())
-                {
-                    slot_claims.push_back(
-                        SilentClaim{
-                            .note_index = onset_end,
-                            .string_index = *string_index,
-                            .beat = position_beat,
-                            .fret = member.fret,
-                        });
-                }
+                slot_claims.push_back(
+                    StopClaim{
+                        .note_index = onset_end,
+                        .string_index = *string_index,
+                        .beat = position_beat,
+                        .fret = *claim,
+                    });
             }
-            else if (!rightHandOnset(member.attack))
+            if (!silentHold(member.attack) && !rightHandOnset(member.attack))
             {
                 // Right-hand onsets are invisible to span derivation: they join no posture and
                 // extend no ring, so a mixed onset is judged by its fretting-hand members alone.
@@ -527,7 +537,7 @@ ChartShapes deriveChartShapes(
             // splitting a statement that is still waiting for the content it fronts.
             const bool takes_new_stop =
                 standing != nullptr && !standing->silent_only &&
-                std::ranges::any_of(slot_claims, [standing](const SilentClaim& claim) {
+                std::ranges::any_of(slot_claims, [standing](const StopClaim& claim) {
                     return !statesString(*standing, claim.string_index);
                 });
             if (takes_new_stop)
@@ -622,11 +632,15 @@ ChartShapes deriveChartShapes(
         // The other justification, and the other half of a silent-only span's EXTENT: picking-hand
         // onsets sounding on strings the hand claims are the shape being articulated, which is the
         // held-shape-under-tapping figure with the holding stated rather than inferred. Taps at
-        // this very instant count — a charter states the hold and the tap it belongs to at one
-        // slot, and requiring the hold to be planted a quantum early would be a convention no
-        // notation asks for. Such a span has no ring of its own, so this coverage is the only
-        // evidence of how long the hand is down; a span that opened with SOUND keeps taps
-        // transparent, because its own members already state its length.
+        // this very instant count, and the held stop is what MAKES that clause reachable: this
+        // slot's claims were just folded in above, so a tap carrying its own held fret arrives on
+        // a string the shape claims at the instant it claims it. Before the held stop existed the
+        // hold and the tap would have had to share one (position, string) — which the format
+        // refuses — so the only same-instant tap a charter could write landed on a string the
+        // shape did not hold and justified nothing (the corner recorded, and now closed, in
+        // `docs/plans/todo/arpeggio-authoring.md`). Such a span has no ring of its own, so this
+        // coverage is the only evidence of how long the hand is down; a span that opened with
+        // SOUND keeps taps transparent, because its own members already state its length.
         //
         // Only while the coverage still reaches here (\ref coverageReaches): a shape the taps
         // stopped covering is a hand that came off it, and a later tap on one of its strings is
@@ -642,7 +656,7 @@ ChartShapes deriveChartShapes(
                     continue;
                 }
                 const bool on_posture_string =
-                    std::ranges::any_of(open->claims, [&string_index](const SilentClaim& claim) {
+                    std::ranges::any_of(open->claims, [&string_index](const StopClaim& claim) {
                         return claim.string_index == *string_index;
                     });
                 if (!on_posture_string)

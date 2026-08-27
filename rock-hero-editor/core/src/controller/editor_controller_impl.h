@@ -245,12 +245,26 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // THE scope of a typed chart verb, and the one place the empty-scope rule is written: the
     // selected notes, or the armed caret's own slot when nothing is selected. Empty answers "this
     // press has no operand", which every asker treats as a no-op rather than an error.
-    [[nodiscard]] std::vector<ChartSlotKey> chartVerbSlots() const;
+    //
+    // The channel qualifies the scope rather than sitting beside it: a caret parked on a held stop
+    // names the same slots a caret on the head names, and what differs is WHICH stop of them the
+    // press addresses. Stating it here is what keeps that out of the verbs — the channel-blind
+    // ones read `slots` and behave exactly as before (note scope, per the ruling), and the two
+    // that address a stop read `channel` instead of asking the caret themselves.
+    struct ChartVerbScope
+    {
+        std::vector<ChartSlotKey> slots{};
+        common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
+    };
+    [[nodiscard]] ChartVerbScope chartVerbSlots() const;
     void performActionImpl(const EditorAction::ShiftChartFrets& action);
     void performActionImpl(const EditorAction::AdjustChartSustain& action);
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
     void performActionImpl(const EditorAction::ToggleChartSilentHold& action);
+    // Moves the caret onto the held stop a hold-verb press just stated, when it stated exactly
+    // one — the fourth case's follow-through, so the digits that follow state that stop.
+    void armHeldStopCaretAfterToggle(const std::vector<ChartSlotKey>& slots);
     // Severs each selected waypoint's gesture (Shift+L, W10's 2026-08-26 addendum): the path ends
     // at the waypoint and a new head takes the remainder, in one compound undo entry. Inert with
     // no waypoint selected.
@@ -305,8 +319,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // within one grid slot pushes no view rebuild.
     void publishChartInsertGhost(const ChartPointerEvent& event);
     // Arms the caret at a slot and re-derives the selection from what sits under it (a note
-    // selects, an empty slot clears).
-    void armChartCaret(common::core::GridPosition position, int string);
+    // selects, an empty slot clears). The channel names WHICH stop of that note the caret sits
+    // on; it defaults to the one every note has, and a Held request the slot cannot honour falls
+    // back to it, so the caret can never park on a mark the lane does not draw.
+    void armChartCaret(
+        common::core::GridPosition position, int string,
+        common::core::ChartStopChannel channel = common::core::ChartStopChannel::Sounding);
+    // True when the note at this slot draws a satellite digit — the second caret stop inside one
+    // slot, the target a click reaches, and the only state in which a caret channel of Held is
+    // legal. Read from the projection, which is where the derivation published whether the stop
+    // resolved to a mark at all.
+    [[nodiscard]] bool chartSlotShowsHeldStop(const ChartSlotKey& slot) const;
+    // The caret's stop as every reader must see it: the stored channel held to the predicate
+    // above, so an edit that took the satellite away leaves the caret on the stop every note has.
+    [[nodiscard]] common::core::ChartStopChannel chartCaretChannel() const;
     // Demotes an armed caret to the passive cursor, leaving the transport where it is (the
     // transport-motion handoffs: play, external playback, paused seeks).
     void disarmChartMarker();
@@ -885,10 +911,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         // pre-entry values, so a widened value never compounds on its own earlier digit.
         // Silently-held stops are among them with no case of their own — a bracket's stop is
         // typed exactly like a head's.
+        //
+        // The channel is the entry's, not the keystroke's: it is fixed when the entry opens and
+        // every digit that widens it states the same stop, which is what makes the satellite click
+        // and the caret's held stop ONE entry state reached two ways rather than two entry kinds.
         struct Retype
         {
             std::vector<ChartSlotKey> keys{};
             std::vector<common::core::ChartNote> base_notes{};
+            common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         };
 
         int value{};
@@ -1014,6 +1045,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     {
         common::core::GridPosition position{};
         int string{1};
+        // WHICH stop of the note at this slot the caret sits on. A note under a right-hand onset
+        // states two at once — what the picking hand sounds and what the fretting hand holds — and
+        // the lane draws them as two marks in one column, so the caret has two stops to visit
+        // there and exactly one everywhere else. Held is unreachable unless the satellite that
+        // states it is drawn: armChartCaret falls back to Sounding rather than parking the caret
+        // on a mark that is not there.
+        common::core::ChartStopChannel channel{common::core::ChartStopChannel::Sounding};
         std::optional<AutomationLaneRow> lane{};
     };
 

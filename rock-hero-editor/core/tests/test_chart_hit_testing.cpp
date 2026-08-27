@@ -295,6 +295,48 @@ TEST_CASE("Chart hit testing resolves held stops at their brackets", "[core][cha
         boxed == (std::vector<ChartHitTarget>{noteTarget(0), noteTarget(1), noteTarget(2), held}));
 }
 
+// The held stop's satellite is its own TARGET, disjoint from the head beside it: clicking the head
+// addresses what the note sounds and clicking the column outboard of its bracket addresses what the
+// hand holds. Same note either way — a second mark, never a second object — and nothing undrawn is
+// reachable, which is what the two negative probes pin.
+TEST_CASE("Chart hit testing resolves a held stop's satellite", "[core][chart]")
+{
+    common::core::ChartViewState tab = makeTabState();
+    // A tap on string 5 at 6s (x = 120, y = 60.5) carrying the stop the hand holds under it, on a
+    // lane the fixture leaves empty so nothing else can answer the probes.
+    common::core::NoteViewState tap;
+    tap.start_seconds = 6.0;
+    tap.end_seconds = 6.0;
+    tap.string = 5;
+    tap.fret = 12;
+    tap.attack = common::core::NoteAttack::Tap;
+    tap.held = 5;
+    tap.bracket_seconds = 6.0;
+    tab.notes.push_back(tap);
+
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const common::ui::TabBracketGeometry bracket = geometry.bracketGeometry();
+    const common::ui::TabSatelliteSlot slot = geometry.satelliteSlot();
+    const float bar_right = 120.0f + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+    const float satellite_x = bar_right + static_cast<float>(slot.extent()) / 2.0f;
+
+    // Inside the column: the satellite. On the head's own centre: the note, through its head.
+    CHECK(
+        chartHitTarget(tab, geometry, satellite_x, 60.0f) ==
+        ChartHitTarget{ChartHeldStopHit{.index = 3}});
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == noteTarget(3));
+
+    // Past the column's right edge nothing is drawn, so nothing is reachable — the same rule that
+    // keeps an undrawn bracket off the hit list.
+    CHECK_FALSE(
+        chartHitTarget(tab, geometry, bar_right + static_cast<float>(slot.extent()) + 2.0f, 60.0f)
+            .has_value());
+    // And a note that states no held stop draws no satellite there at all, which is the
+    // discrimination: the column is the STOP's, not every note's.
+    tab.notes.back().held.reset();
+    CHECK_FALSE(chartHitTarget(tab, geometry, satellite_x, 60.0f).has_value());
+}
+
 // Selection keys resolve back to projection indices through the sorted chart note stream, and
 // keys whose notes vanished drop out instead of mismapping.
 TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]")

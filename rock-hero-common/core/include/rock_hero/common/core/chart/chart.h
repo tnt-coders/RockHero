@@ -373,6 +373,28 @@ ChartNote::dead answers alone.
 }
 
 /*!
+\brief Which of a note's two fretting-hand stops a verb, a caret, or a typed digit addresses.
+
+A note under a right-hand onset states two stops at one slot — what the picking hand SOUNDS
+(\ref ChartNote::fret) and what the fretting hand HOLDS (\ref ChartNote::held) — so "the fret of
+this note" stopped being one question the moment the second stop became storable. Every surface
+that can reach both names which one it means with this rather than by testing the attack, so the
+click, the caret stop and the typed digit cannot disagree about what they addressed.
+
+`Sounding` is listed first so a value-initialized channel is the one every note has; a note with no
+held stop simply has no `Held` channel to address, which is what makes an unreachable state
+unreachable rather than merely unused.
+*/
+enum class ChartStopChannel : std::uint8_t
+{
+    /*! \brief The note's own sounding fret (\ref ChartNote::fret). */
+    Sounding,
+
+    /*! \brief The fretting-hand stop under a right-hand onset (\ref ChartNote::held). */
+    Held
+};
+
+/*!
 \brief One statement along a ringing note: a moment, and what changes at it.
 
 The chart's one interval-payload record. A waypoint fixes a MOMENT inside the note's ring and
@@ -562,6 +584,38 @@ struct ChartNote
     NoteAttack attack{NoteAttack::Pick};
 
     /*!
+    \brief The fretting-hand stop UNDER a right-hand onset; absent when the hand states none.
+
+    The one fact a note stream cannot otherwise carry about the fretting hand at an onset the OTHER
+    hand produces: a two-hand tap sounds where the tapping finger lands, and the stop the fretting
+    hand is holding below it is a different fret on the same string at the same instant. Two facts,
+    one slot — which is exactly why this is a FIELD rather than a second note. A silently-held stop
+    (\ref NoteAttack::None) is the same fact where no right hand sounds at all, and the two are read
+    through one query (\ref claimedStop), never by testing the attack twice.
+
+    Legal only where \ref rightHandOnset says the picking hand made the onset, because only there is
+    the note's own fret NOT the fretting hand's — on every other attack the hand's stop is already
+    \ref fret, and a second copy could only ever drift from it. That rule is enforced through the
+    same fixpoint the pick slide's latents use (\ref savedChartNote strips it everywhere else), so
+    no list of attacks has to be kept in step. Which means the field OUTLIVES an attack change in
+    memory, exactly as those latents do, so nothing reads it bare: \ref claimedStop is the read, and
+    it asks the attack for the same reason the writer does.
+
+    Refused where it equals \ref fret: a stop that repeats the sounding fret states nothing (and the
+    picking hand cannot sound the string at the very fret the other hand is stopping). Zero is a
+    real statement rather than an absence — the open string deliberately left in the voicing — which
+    is why this is an optional and not a sentinel. The board and the capo bind it exactly as they
+    bind \ref fret.
+
+    It is a CLAIM at this note's slot: the string becomes a posture string of the shape in force
+    there, it counts toward the two-member threshold, it justifies a shape the hand alone stated,
+    and a stop on a new string mid-shape splits that shape — all through the same rules a
+    \ref NoteAttack::None note goes through, because they are the same statement.
+    Design record: `docs/plans/todo/arpeggio-authoring.md`.
+    */
+    std::optional<int> held{};
+
+    /*!
     \brief True when the picking hand's palm rests on the strings: still pitched, but damped.
 
     Independent of \ref dead rather than exclusive with it, because the two hands are doing two
@@ -688,7 +742,7 @@ struct ChartNote
     friend bool operator==(const ChartNote& lhs, const ChartNote& rhs)
     {
         return lhs.position == rhs.position && lhs.string == rhs.string && lhs.fret == rhs.fret &&
-               lhs.sustain == rhs.sustain && lhs.attack == rhs.attack &&
+               lhs.sustain == rhs.sustain && lhs.attack == rhs.attack && lhs.held == rhs.held &&
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
                lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis &&
@@ -696,6 +750,41 @@ struct ChartNote
                lhs.slide_out == rhs.slide_out;
     }
 };
+
+/*!
+\brief The fretting-hand stop this note CLAIMS at its slot, if any — the one claim query.
+
+A shape is made of stops, and the chart records a stop the hand takes without sounding it in two
+shapes for one reason: where nothing sounds at all the whole note is the statement
+(\ref NoteAttack::None, whose \ref ChartNote::fret is the stop), and where the picking hand sounds
+the string the fretting hand's stop rides the note as \ref ChartNote::held. They are the same
+statement about the same hand at the same slot, so the span derivation, the inert sweep and the
+posture display ask THIS rather than testing the attack and then reading a different field per
+branch — two spellings that would be free to disagree about what a claim is.
+
+Absent on every note whose own \ref ChartNote::fret already IS the fretting hand's stop: there is
+nothing extra to claim, because the note itself is the claim the ordinary posture rules already
+read.
+
+Asked of the ATTACK on both arms, so the answer is the same for a note and for its saved form. The
+field survives in memory on an attack that may not carry it — an attack change leaves it behind
+exactly as it leaves a scrape's pitched techniques behind, for the same reason: changing back must
+restore what the charter typed, and \ref savedChartNote is what keeps it out of the document. A
+claim query that read the bare field would therefore see a stop no surface draws, and the settle
+that judges claims runs on the in-memory stream.
+
+\param note Note to ask.
+
+\return The claimed stop, or nothing when the note claims none beyond its own sounding fret.
+*/
+[[nodiscard]] constexpr std::optional<int> claimedStop(const ChartNote& note) noexcept
+{
+    if (silentHold(note.attack))
+    {
+        return note.fret;
+    }
+    return rightHandOnset(note.attack) ? note.held : std::nullopt;
+}
 
 /*!
 \brief What each channel of a ringing note has STATED at one instant along its ring.
@@ -918,7 +1007,9 @@ node through this, so 2.311741 reads "2.3" everywhere and the two can never roun
 The one seam between memory and document, and the one authority on what each attack may state. A
 pick slide overrides the pitched techniques in memory — kept so toggling the attack back restores
 them — but a saved scrape never carries them; a silent hold (\ref NoteAttack::None) states its stop
-and nothing else at all, ring included. The writer emits this form and
+and nothing else at all, ring included; and \ref ChartNote::held survives only under a right-hand
+onset, because only there is the note's own fret not the fretting hand's. The writer emits this form
+and
 \ref validateChartNoteAlone refuses any note that is not already equal to it, so the two can never
 disagree about what a legal document is, and a technique field added to \ref ChartNote later is
 refused on both attacks by the one rule instead of needing a row in a list.

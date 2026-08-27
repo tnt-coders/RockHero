@@ -242,7 +242,13 @@ stop's **posture bracket** — such a note draws no head, so what the editor rin
 the arpeggio bracket the paint core already draws at its span's start, and the bracket's size lives
 on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
 hold that joined no posture draws no bracket, and the layout answers with no box at all, so
-nothing undrawn is clickable without a second rule saying so), and `tab_paint_core.h` — the one
+nothing undrawn is clickable without a second rule saying so; and the same again for a **held stop's
+satellite** — the digit column outboard of a bracket's closing bar, where a right-hand onset prints
+what the fretting hand is holding while its own head prints what the picking hand sounds. That
+column's width lives on `TabLaneGeometry` too, and it is derived from the lane's text scale rather
+than measured from the digits, which is exactly what lets the framework-free layout bound the mark
+the painter draws. It is an independent TARGET: clicking it selects the note and pre-arms the
+held-stop entry, so the digits that follow state that stop), and `tab_paint_core.h` — the one
 designated juce_graphics-bearing
 common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own

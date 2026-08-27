@@ -287,7 +287,15 @@ The split within path (b) is deliberate:
   the dispatch may replace the very variant the reference pointed into (see
   \ref guide_invariants).
 
-The *semantics* of this grammar — what each modifier means, the union stop set, the two-state
+The union stop set has one WITHIN-slot member (2026-08-27): a note carrying a held stop wears two
+marks in one column — its head, and the satellite digit outboard of its posture bracket — so a plain
+left/right step visits both, in display order and reversed leftward. The caret's `channel` says
+which it is on, and the two verbs that address a stop read it: digits state that stop and Delete
+clears the held statement rather than the note. Every other verb keeps note scope. A measure jump is
+not traversal and always lands on the stop every note has, and the channel is worth only what the
+drawn picture still says — an edit that clears the stop leaves the caret on the head.
+
+The rest of this grammar's *semantics* — what each modifier means, the union stop set, the two-state
 marker, one selection editor-wide — are owned by
 `docs/plans/in-progress/editing-interaction-model.md`; this page only documents the wiring.
 *The full keybind × surface matrix is signed off (`docs/plans/in-progress/keymap-matrix.md`,

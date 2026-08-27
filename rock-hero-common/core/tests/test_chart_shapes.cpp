@@ -58,6 +58,40 @@ namespace
     return note;
 }
 
+// The same tap, CARRYING the stop the fretting hand holds under it. One record, two facts at one
+// slot — the shape a hold and a tap on the same string could never take, since the stream holds a
+// slot at most once.
+[[nodiscard]] ChartNote tapHoldingAt(
+    const int beat, const Fraction offset, const int string, const int fret, const Fraction ring,
+    const int held)
+{
+    ChartNote note = tapAt(beat, offset, string, fret, ring);
+    note.held = held;
+    return note;
+}
+
+// The span a note's CLAIMED stop joined, read by slot the way \ref spanOfHold reads a hold's. The
+// note must be one that claims a stop, so a case asserting about a claim that is not there cannot
+// pass for the wrong reason.
+[[nodiscard]] std::optional<std::size_t> spanOfClaim(
+    const std::vector<ChartNote>& stream, const ChartShapes& derived, const int beat,
+    const int string)
+{
+    std::optional<std::size_t> span;
+    bool found = false;
+    for (std::size_t index = 0; index < stream.size() && !found; ++index)
+    {
+        if (stream[index].position.beat == beat && stream[index].string == string)
+        {
+            REQUIRE(claimedStop(stream[index]).has_value());
+            span = derived.claim_shapes[index];
+            found = true;
+        }
+    }
+    REQUIRE(found);
+    return span;
+}
+
 // One stream in the chart's own slot order. The cases below list their sounding notes and their
 // held stops in whatever order reads best; this is what makes them a legal chart, so no case has
 // to interleave two kinds of member by hand.
@@ -88,7 +122,7 @@ namespace
         if (stream[index].position.beat == beat && stream[index].string == string)
         {
             REQUIRE(silentHold(stream[index].attack));
-            span = derived.silent_hold_shapes[index];
+            span = derived.claim_shapes[index];
             found = true;
         }
     }
@@ -441,8 +475,8 @@ TEST_CASE("Chart shape derivation folds a silent hold into the posture", "[core]
         const ChartShapes derived = deriveFrom(stream);
         CHECK(derived.shapes.empty());
         CHECK(derived.postures.empty());
-        REQUIRE(derived.silent_hold_shapes.size() == 1);
-        CHECK_FALSE(derived.silent_hold_shapes.front().has_value());
+        REQUIRE(derived.claim_shapes.size() == 1);
+        CHECK_FALSE(derived.claim_shapes.front().has_value());
     }
 
     SECTION("the reported case: the late member joins the shape it was already held for")
@@ -597,7 +631,7 @@ TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[co
         const ChartShapes derived = deriveFrom(stream);
         CHECK(derived.shapes.empty());
         CHECK(derived.postures.empty());
-        CHECK(derived.silent_hold_shapes == std::vector<std::optional<std::size_t>>{{}, {}});
+        CHECK(derived.claim_shapes == std::vector<std::optional<std::size_t>>{{}, {}});
     }
 
     SECTION("a matching note arriving later justifies the shape, and its ring gives the extent")
@@ -911,13 +945,13 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 }
 
 // The settle that turns "every held stop states something" from a hope into an invariant
-// (\ref sweepInertSilentHolds, declared beside the legato settle it is the sibling of). Three ways
+// (\ref sweepInertClaimedStops, declared beside the legato settle it is the sibling of). Three ways
 // to state nothing, one test for all of them, because the derivation answers all three alike.
 TEST_CASE("The inert-hold settle removes every stop that states nothing", "[core][chart]")
 {
     const TempoMap tempo_map = makeTempoMap();
     const auto sweep = [&tempo_map](std::vector<ChartNote> notes) {
-        const std::size_t removed = sweepInertSilentHolds(notes, tempo_map).size();
+        const std::size_t removed = sweepInertClaimedStops(notes, tempo_map).size();
         return std::pair{std::move(notes), removed};
     };
 
@@ -1049,6 +1083,158 @@ TEST_CASE("Chart shape derivation tables one posture per distinct fret vector", 
         CHECK(derived.shapes.empty());
         CHECK(derived.postures.empty());
     }
+}
+
+// The held stop's whole reason to exist: a claim on the very string a right-hand onset is sounding
+// at the very instant it sounds it, which two records could never state (one slot, one note). The
+// figure runs END TO END — the holds state the shape, the tap that belongs to them justifies it,
+// and the bracket prints at the instant the hand takes the shape.
+TEST_CASE("A tap carrying a held stop justifies the shape it fronts", "[core][chart]")
+{
+    // Two fingers come down on strings 1 and 2 with nothing sounding, and the same instant carries
+    // a tap on string 3 whose fretting hand is stopping fret 5 under it.
+    const std::vector<ChartNote> notes = streamOf({
+        holdAt(1, Fraction{}, 1, 5),
+        holdAt(1, Fraction{}, 2, 7),
+        tapHoldingAt(1, Fraction{}, 3, 12, Fraction{2}, 5),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    REQUIRE(derived.shapes.size() == 1);
+    const ChartShape& shape = derived.shapes.front();
+    CHECK(shape.position.beat == 1);
+    CHECK(shape.silent_member);
+    // The extent is the content's: nothing here rings but the tap, so the span runs its ring.
+    CHECK(shape.sustain == Fraction{2});
+
+    // Every one of the three claims resolves into that one span, the tap's own included — which is
+    // the discrimination this case exists for. Before the held stop the same-instant clause was
+    // unreachable: a tap on a CLAIMED string would have needed a second note at the claim's slot.
+    REQUIRE(derived.claim_shapes.size() == notes.size());
+    CHECK(spanOfClaim(notes, derived, 1, 1) == std::optional<std::size_t>{0});
+    CHECK(spanOfClaim(notes, derived, 1, 2) == std::optional<std::size_t>{0});
+    CHECK(spanOfClaim(notes, derived, 1, 3) == std::optional<std::size_t>{0});
+
+    // The posture states all three stops, and string 3 states the HELD fret rather than the tapped
+    // one: what the fretting hand holds is what a posture is.
+    REQUIRE(shape.posture < derived.postures.size());
+    const std::vector<std::optional<int>>& frets = derived.postures[shape.posture].frets;
+    CHECK(frets[0] == std::optional{5});
+    CHECK(frets[1] == std::optional{7});
+    CHECK(frets[2] == std::optional{5});
+
+    // The discrimination: strip the held stop and the tap justifies nothing on a string the shape
+    // does not hold, so the shape it was fronting dissolves — the corner the ruling recorded, and
+    // the exact difference the held stop makes.
+    const std::vector<ChartNote> without = streamOf({
+        holdAt(1, Fraction{}, 1, 5),
+        holdAt(1, Fraction{}, 2, 7),
+        tapAt(1, Fraction{}, 3, 12, Fraction{2}),
+    });
+    CHECK(deriveFrom(without).shapes.empty());
+}
+
+// Growth, for the authored member and for the held stop alike: a stop the hand takes on a string
+// the standing shape does not state is a DIFFERENT shape from that instant, so the span splits.
+TEST_CASE("A held stop on a new string splits the standing shape", "[core][chart]")
+{
+    // A chord on strings 1 and 2 rings for two beats. A beat in, a tap on string 3 states that the
+    // fretting hand has taken fret 9 there — a string the chord never held.
+    const std::vector<ChartNote> notes = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+        tapHoldingAt(2, Fraction{}, 3, 12, Fraction{1}, 9),
+    });
+    const ChartShapes derived = deriveFrom(notes);
+
+    REQUIRE(derived.shapes.size() == 2);
+    CHECK(derived.shapes[0].position.beat == 1);
+    CHECK(derived.shapes[1].position.beat == 2);
+    // The two cover the ring end to end: the first ends where the finger came down.
+    CHECK(derived.shapes[0].sustain == Fraction{1});
+
+    // The claim belongs to the span it OPENED, which is where its satellite prints.
+    CHECK(spanOfClaim(notes, derived, 2, 3) == std::optional<std::size_t>{1});
+    // The grown span inherits the chord's strings and adds the new stop.
+    REQUIRE(derived.shapes[1].posture < derived.postures.size());
+    const std::vector<std::optional<int>>& grown =
+        derived.postures[derived.shapes[1].posture].frets;
+    CHECK(grown[0] == std::optional{5});
+    CHECK(grown[1] == std::optional{7});
+    CHECK(grown[2] == std::optional{9});
+
+    // The discrimination: the SAME tap without a held stop is transparent to the grouping, so the
+    // chord keeps one span. The split is the claim's doing, not the tap's.
+    const std::vector<ChartNote> without = streamOf({
+        noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+        noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+        tapAt(2, Fraction{}, 3, 12, Fraction{1}),
+    });
+    CHECK(deriveFrom(without).shapes.size() == 1);
+}
+
+// The sweep's one law over both shapes of claim, and the one thing it must NOT do: a held stop
+// that states nothing takes the FIELD, never the sound the charter wrote.
+TEST_CASE("The inert-claim settle clears a held stop without taking its note", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a held stop reaching no shape is cleared, and its tap stays")
+    {
+        // A lone tap: one member, so no shape opens and the claim reaches nothing.
+        std::vector<ChartNote> notes{tapHoldingAt(1, Fraction{}, 3, 12, Fraction{1}, 5)};
+        const std::vector<ChartConversion> swept = sweepInertClaimedStops(notes, tempo_map);
+        REQUIRE(swept.size() == 1);
+        CHECK(swept.front().repair == ChartRepair::InertHeldStop);
+        REQUIRE(notes.size() == 1);
+        CHECK_FALSE(notes.front().held.has_value());
+        // Everything else about the tap survives, which is the difference from a silent hold: the
+        // note IS the claim there, so the record goes with it.
+        CHECK(notes.front().attack == NoteAttack::Tap);
+        CHECK(notes.front().fret == 12);
+        CHECK(notes.front().sustain == Fraction{1});
+    }
+
+    SECTION("a held stop that states a shape is left alone")
+    {
+        std::vector<ChartNote> notes = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            tapHoldingAt(1, Fraction{}, 3, 12, Fraction{2}, 5),
+        });
+        CHECK(sweepInertClaimedStops(notes, tempo_map).empty());
+        REQUIRE(notes.size() == 2);
+        CHECK(claimedStop(notes[1]) == std::optional{5});
+    }
+}
+
+// The settle judges the SAVED form, exactly as the editor's plan gate beside it does. A held stop
+// left on an attack that cannot carry one is a LATENT, like a scrape's pitched techniques: the
+// writer strips it, so it claims nothing, draws nothing, and is not the settle's to read or to
+// take. Reading the raw field instead would judge a picture no surface derives.
+TEST_CASE("The inert-claim settle judges the saved form, not the latent one", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    // Two picked notes at one slot: an ordinary two-string chord, with a held stop left on one of
+    // them by an attack change that moved it off a tap.
+    ChartNote latent = noteAt(1, Fraction{}, 1, 5, Fraction{2});
+    latent.held = 9;
+    std::vector<ChartNote> notes = streamOf({latent, noteAt(1, Fraction{}, 2, 7, Fraction{2})});
+
+    // Nothing in the saved form claims a stop at all, so there is nothing here to sweep.
+    CHECK(sweepInertClaimedStops(notes, tempo_map).empty());
+    REQUIRE(notes.size() == 2);
+    CHECK(notes.front().held == std::optional{9});
+
+    // The discrimination, one field apart: the same value on a TAP, where the attack CAN carry it.
+    // There it is a real claim on a string nothing sounds, so it resolves into the shape the slot
+    // states and the settle leaves it for the opposite reason.
+    std::vector<ChartNote> legal = streamOf(
+        {tapHoldingAt(1, Fraction{}, 1, 5, Fraction{2}, 9),
+         noteAt(1, Fraction{}, 2, 7, Fraction{2})});
+    CHECK(sweepInertClaimedStops(legal, tempo_map).empty());
+    REQUIRE(legal.size() == 2);
+    CHECK(claimedStop(legal.front()) == std::optional{9});
 }
 
 } // namespace rock_hero::common::core

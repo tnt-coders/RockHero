@@ -109,6 +109,56 @@ struct SilentHoldFixture
     return *state->tab;
 }
 
+// The fourth case's fixture: a chord ringing on strings 1 and 2 across a tap on string 3 the chord
+// never holds. That is the figure the held stop is for — the picking hand sounds a fret the
+// fretting hand is not on — and it is also what gives a stop stated here somewhere to resolve: a
+// claim on a NEW string inside a standing shape splits it, so the claim lands in a span starting
+// at the tap's own instant, which is where its satellite prints.
+[[nodiscard]] common::core::Chart makeTappedShapeChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{2}),
+        makeTestNote({.measure = 2, .beat = 1}, 2, 5, common::core::Fraction{2}),
+        makeTestNote({.measure = 2, .beat = 2}, 3, 12, common::core::Fraction{1, 2}),
+    };
+    chart.notes[2].attack = common::core::NoteAttack::Tap;
+    return chart;
+}
+
+// The lane x of the satellite column beside the bracket at one instant, derived from the same
+// geometry the paint core draws with rather than restated as a number — so a resized slot moves
+// the probe with it instead of silently missing.
+[[nodiscard]] float satelliteX(const double seconds)
+{
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+    const common::ui::TabBracketGeometry bracket = geometry.bracketGeometry();
+    const common::ui::TabSatelliteSlot slot = geometry.satelliteSlot();
+    const float bar_right =
+        geometry.x(seconds) + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+    return bar_right + static_cast<float>(slot.extent()) / 2.0f;
+}
+
+// The armed caret's STOP as the controller last published it. The optional is bound ONCE and the
+// guard rides that name: the CI-only optional-access checker cannot tie a `has_value()` on one call
+// of an accessor to a dereference on the next, because they are two calls it cannot prove yield the
+// same object.
+[[nodiscard]] common::core::ChartStopChannel caretChannel(const FakeEditorView& view)
+{
+    const std::optional<ChartCaretViewState>& caret = chartEditState(view).caret;
+    REQUIRE(caret.has_value());
+    return caret->channel;
+}
+
+// The armed caret's instant, read through the same one-binding rule.
+[[nodiscard]] double caretSeconds(const FakeEditorView& view)
+{
+    const std::optional<ChartCaretViewState>& caret = chartEditState(view).caret;
+    REQUIRE(caret.has_value());
+    return caret->seconds;
+}
+
 // How many silently-held stops the live chart carries, which is what almost every case here is
 // counting rather than the whole stream's length.
 [[nodiscard]] std::size_t heldStops(const common::core::Chart& chart)
@@ -640,6 +690,184 @@ TEST_CASE("A bracket retyped against its span's own note splits the span", "[cor
         std::vector<common::core::ShapeStringViewState>{
             {.string = 1, .fret = 3}, {.string = 2, .fret = 5}, {.string = 3, .fret = 7}
         });
+}
+
+// The verb's FOURTH case (user ruling 2026-08-27). Its meaning is the one it has everywhere —
+// state the fretting hand's stop at this slot — and what differs is only where that statement can
+// live: a right-hand onset belongs to the OTHER hand, so converting it would delete a sound the
+// charter wrote, while the stop under it is exactly what the held fret records.
+TEST_CASE("Arpeggio hold states a held stop under a right-hand onset", "[core][chart]")
+{
+    SilentHoldFixture fixture{makeTappedShapeChart()};
+
+    // The tap at measure 2 beat 2 on string 3 (2.5s to x = 50, string 3 to y = 140).
+    click(fixture.controller, 50.0f, 140.0f);
+    REQUIRE(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+
+    fixture.controller.onChartSilentHoldToggleRequested();
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    // The statement lands in the held field at the open string, exactly as the empty-slot case
+    // plants fret 0: typing a digit is how a stop gets stated.
+    CHECK(chart->notes[2].held == std::optional{0});
+    // And the DISCRIMINATION: the tap is not converted. Its attack, its fret and its ring are the
+    // sound the charter wrote, and none of them is the fretting hand's to take.
+    CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
+    CHECK(chart->notes[2].fret == 12);
+    CHECK(chart->notes[2].sustain == common::core::Fraction{1, 2});
+    CHECK(heldStops(*chart) == 0);
+
+    // The caret follows onto that stop, which is what makes the digits after the press state it.
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // Two-state like every other mark: the second press releases it, leaving the note whole.
+    fixture.controller.onChartSilentHoldToggleRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK_FALSE(chart->notes[2].held.has_value());
+    CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
+}
+
+// The grammar the two channels have to keep apart, asked of ONE note so the two readings cannot be
+// told apart by anything but the channel: bare digits state what the note SOUNDS, and digits after
+// the hold verb state what the hand HOLDS under it.
+TEST_CASE("Digits state the sounding fret or the held stop by channel", "[core][chart]")
+{
+    SilentHoldFixture fixture{makeTappedShapeChart()};
+
+    click(fixture.controller, 50.0f, 140.0f);
+    fixture.controller.onChartSilentHoldToggleRequested();
+    // The hold verb is the channel prefix: these digits land in the held stop.
+    fixture.controller.onChartFretDigitTyped(7);
+
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].held == std::optional{7});
+    CHECK(chart->notes[2].fret == 12);
+
+    // Clicking the HEAD moves the caret back to the sounding stop, so the same keystroke now
+    // states the note's own fret and leaves the held one exactly where it was.
+    click(fixture.controller, 50.0f, 140.0f);
+    fixture.controller.onChartFretDigitTyped(9);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].fret == 9);
+    CHECK(chart->notes[2].held == std::optional{7});
+}
+
+// The satellite is an independent hit TARGET, and clicking it is shorthand for selecting the note
+// and pressing the hold verb: one selection (the note, no new kind) plus the channel the digits
+// then state.
+TEST_CASE("Clicking the held stop's satellite pre-arms its entry", "[core][chart]")
+{
+    SilentHoldFixture fixture{makeTappedShapeChart()};
+
+    click(fixture.controller, 50.0f, 140.0f);
+    fixture.controller.onChartSilentHoldToggleRequested();
+    fixture.controller.onChartFretDigitTyped(7);
+    // Leave the caret on the head, so the satellite click is what changes the channel.
+    click(fixture.controller, 50.0f, 140.0f);
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+
+    click(fixture.controller, satelliteX(2.5), 140.0f);
+    // The same note is selected — the satellite is a second mark of one object, never a second
+    // object — and the caret now sits on the stop that was clicked.
+    CHECK(chartEditState(fixture.view).selected_notes == std::vector<std::size_t>{2});
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    fixture.controller.onChartFretDigitTyped(4);
+    const common::core::Chart* const chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].held == std::optional{4});
+    CHECK(chart->notes[2].fret == 12);
+}
+
+// The keyboard twin of that click: the caret visits both marks of one note in DISPLAY order — the
+// head, then the satellite to its right — and reversed going left. On the held stop the digits go
+// where the click's do, and Delete takes the STATEMENT rather than the note under it.
+TEST_CASE("The caret steps onto a note's held stop and back", "[core][chart]")
+{
+    SilentHoldFixture fixture{makeTappedShapeChart()};
+
+    click(fixture.controller, 50.0f, 140.0f);
+    fixture.controller.onChartSilentHoldToggleRequested();
+    fixture.controller.onChartFretDigitTyped(7);
+    // Back to the head, which is where a traversal from the left arrives.
+    click(fixture.controller, 50.0f, 140.0f);
+
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    const double head_seconds = caretSeconds(fixture.view);
+
+    // Rightward: the second stop is WITHIN the slot, so the caret does not move along the axis.
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+    CHECK_THAT(caretSeconds(fixture.view), Catch::Matchers::WithinAbs(head_seconds, 1e-9));
+
+    // Leftward is the display order reversed, so it returns to the head without moving either.
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK_THAT(caretSeconds(fixture.view), Catch::Matchers::WithinAbs(head_seconds, 1e-9));
+
+    // Digits on that stop state the held fret, the same entry the satellite click opens.
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    fixture.controller.onChartFretDigitTyped(3);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].held == std::optional{3});
+
+    // Delete on the held stop clears the statement and leaves the onset that carried it.
+    fixture.controller.onSelectionDeleteRequested();
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK_FALSE(chart->notes[2].held.has_value());
+    CHECK(chart->notes[2].attack == common::core::NoteAttack::Tap);
+    CHECK(chart->notes[2].fret == 12);
+
+    // With no satellite left to visit, the same press is an ordinary step along the axis — which
+    // is the discrimination that keeps the within-slot stop from being a fixture of every note.
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    fixture.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Sounding);
+    CHECK(caretSeconds(fixture.view) > head_seconds);
+}
+
+// A nudged note carries the caret with it, and the caret is ON a stop: the charter typing into the
+// held one who nudges the note must find the next digit still stating that stop, not the sounding
+// fret beside it.
+TEST_CASE("A nudged note carries the caret's stop with it", "[core][chart]")
+{
+    SilentHoldFixture fixture{makeTappedShapeChart()};
+
+    click(fixture.controller, 50.0f, 140.0f);
+    fixture.controller.onChartSilentHoldToggleRequested();
+    fixture.controller.onChartFretDigitTyped(7);
+    REQUIRE(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // Up one string: the stop is still on a string the chord never holds, so it still states a
+    // shape of its own and its satellite still draws.
+    fixture.controller.onSelectionMoveRequested(ChartStepDirection::Up);
+    const common::core::Chart* chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    REQUIRE(chart->notes[2].string == 4);
+    REQUIRE(chart->notes[2].held == std::optional{7});
+
+    CHECK(caretChannel(fixture.view) == common::core::ChartStopChannel::Held);
+
+    // And the consequence that makes it matter: the next digit states the stop the caret is on.
+    fixture.controller.onChartFretDigitTyped(3);
+    chart = chartOrNull(fixture.controller);
+    REQUIRE(chart != nullptr);
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].held == std::optional{3});
+    CHECK(chart->notes[2].fret == 12);
 }
 
 } // namespace rock_hero::editor::core

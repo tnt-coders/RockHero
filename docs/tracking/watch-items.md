@@ -365,7 +365,7 @@ options on the table (an editor-only mark; refusing to author where no span form
 the time, and invisible-and-inert was taken as the interim.
 
 **The user ruled the third way** (2026-08-27, with the span law): a hold that states nothing is
-REMOVED rather than saved. `sweepInertSilentHolds` runs as the normalizer's last stage and inside
+REMOVED rather than saved. `sweepInertClaimedStops` runs as the normalizer's last stage and inside
 the editor's plan gate, so the population this item was watching is empty by construction — what a
 chart holds, some bracket prints.
 

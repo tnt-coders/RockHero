@@ -557,7 +557,8 @@ TEST_CASE("planRetypeFrets sets an exact fret on every note", "[core][chart]")
     const common::core::Chart chart = makeTestChart();
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 9, true);
+    const auto plan = planRetypeFrets(
+        chart, makeTempoMap(), base, 9, true, common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -579,7 +580,8 @@ TEST_CASE("planRetypeFrets transposes from the lowest fret", "[core][chart]")
     const std::vector<common::core::ChartNote> base{chart.notes[0], chart.notes[1]};
 
     // Lowest fret 3 to target 5 is a +2 shift: 3 to 5 and 5 to 7.
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 5, false);
+    const auto plan = planRetypeFrets(
+        chart, makeTempoMap(), base, 5, false, common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -608,7 +610,13 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
     // Lowest fret 25 to the cap is a +5 shift; the higher member reaches 33, past the cap —
     // refused by the shared finalize gate, which replaced the old local caps. The kind matters:
     // this is Invalid, the emptiness a pending entry paints red.
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, common::core::g_max_fret, false);
+    const auto plan = planRetypeFrets(
+        chart,
+        makeTempoMap(),
+        base,
+        common::core::g_max_fret,
+        false,
+        common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
@@ -617,7 +625,8 @@ TEST_CASE("planRetypeFrets refuses to push a member past the fret cap", "[core][
 // NoChange, not a refusal: there was nothing to edit, so nothing was disallowed.
 TEST_CASE("planRetypeFrets reports NoChange for an empty snapshot", "[core][chart]")
 {
-    const auto plan = planRetypeFrets(makeTestChart(), makeTempoMap(), {}, 5, false);
+    const auto plan = planRetypeFrets(
+        makeTestChart(), makeTempoMap(), {}, 5, false, common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
@@ -632,7 +641,8 @@ TEST_CASE("planRetypeFrets reports NoChange when nothing changes", "[core][chart
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = base;
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), base, 5, true);
+    const auto plan = planRetypeFrets(
+        chart, makeTempoMap(), base, 5, true, common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::NoChange);
 }
@@ -1885,14 +1895,28 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(chart, makeTempoMap(), chart.notes, 11, /*set_exact=*/false),
+            planRetypeFrets(
+                chart,
+                makeTempoMap(),
+                chart.notes,
+                11,
+                /*set_exact=*/false,
+                common::core::ChartStopChannel::Sounding),
             11);
     }
     SECTION("scrape: set-exact assigns the start only")
     {
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
-            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 11, /*set_exact=*/true), 11);
+            chart,
+            planRetypeFrets(
+                chart,
+                makeTempoMap(),
+                chart.notes,
+                11,
+                /*set_exact=*/true,
+                common::core::ChartStopChannel::Sounding),
+            11);
     }
     SECTION("scrape: a start past the old translated-path ceiling is now legal")
     {
@@ -1901,7 +1925,13 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
         check_path_kept(
             chart,
-            planRetypeFrets(chart, makeTempoMap(), chart.notes, 24, /*set_exact=*/false),
+            planRetypeFrets(
+                chart,
+                makeTempoMap(),
+                chart.notes,
+                24,
+                /*set_exact=*/false,
+                common::core::ChartStopChannel::Sounding),
             24);
     }
     SECTION("pitched slide: transpose moves the start only")
@@ -1913,7 +1943,15 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
-            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 8, /*set_exact=*/false), 8);
+            chart,
+            planRetypeFrets(
+                chart,
+                makeTempoMap(),
+                chart.notes,
+                8,
+                /*set_exact=*/false,
+                common::core::ChartStopChannel::Sounding),
+            8);
     }
     SECTION("pitched slide: set-exact assigns the start only")
     {
@@ -1924,7 +1962,15 @@ TEST_CASE("planRetypeFrets leaves a slide's path in place in both modes", "[core
         };
         chart.notes = {std::move(slide)};
         check_path_kept(
-            chart, planRetypeFrets(chart, makeTempoMap(), chart.notes, 9, /*set_exact=*/true), 9);
+            chart,
+            planRetypeFrets(
+                chart,
+                makeTempoMap(),
+                chart.notes,
+                9,
+                /*set_exact=*/true,
+                common::core::ChartStopChannel::Sounding),
+            9);
     }
 }
 
@@ -1937,11 +1983,22 @@ TEST_CASE("planRetypeFrets refuses a scrape stilled against its first path point
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
 
-    const auto exact = planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/true);
+    const auto exact = planRetypeFrets(
+        chart,
+        makeTempoMap(),
+        chart.notes,
+        3,
+        /*set_exact=*/true,
+        common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(exact.has_value());
     CHECK(exact.error() == ChartPlanRefusal::Invalid);
-    const auto shifted =
-        planRetypeFrets(chart, makeTempoMap(), chart.notes, 3, /*set_exact=*/false);
+    const auto shifted = planRetypeFrets(
+        chart,
+        makeTempoMap(),
+        chart.notes,
+        3,
+        /*set_exact=*/false,
+        common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(shifted.has_value());
     CHECK(shifted.error() == ChartPlanRefusal::Invalid);
 }
@@ -1958,7 +2015,13 @@ TEST_CASE("planRetypeFrets refuses fret 0 on a slid note", "[core][chart]")
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {std::move(slide)};
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), chart.notes, 0, /*set_exact=*/true);
+    const auto plan = planRetypeFrets(
+        chart,
+        makeTempoMap(),
+        chart.notes,
+        0,
+        /*set_exact=*/true,
+        common::core::ChartStopChannel::Sounding);
     REQUIRE_FALSE(plan.has_value());
     CHECK(plan.error() == ChartPlanRefusal::Invalid);
 }
@@ -1976,7 +2039,13 @@ TEST_CASE("planRetypeFrets accepts a pitched slide retyped onto its waypoint fre
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.notes = {std::move(slide)};
 
-    const auto plan = planRetypeFrets(chart, makeTempoMap(), chart.notes, 7, /*set_exact=*/true);
+    const auto plan = planRetypeFrets(
+        chart,
+        makeTempoMap(),
+        chart.notes,
+        7,
+        /*set_exact=*/true,
+        common::core::ChartStopChannel::Sounding);
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -2773,8 +2842,13 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             // first. Both attacks land on a plain pick — there is no direction left for one of them
             // to be rescued into, which is the asymmetry the stored-direction model needed and this
             // one does not.
-            const auto retyped =
-                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 7, /*set_exact=*/true);
+            const auto retyped = planRetypeFrets(
+                chart,
+                tempo_map,
+                {chart.notes[0]},
+                7,
+                /*set_exact=*/true,
+                common::core::ChartStopChannel::Sounding);
             REQUIRE(retyped.has_value());
             if (retyped.has_value())
             {
@@ -2806,8 +2880,13 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             chart.notes[0].attack = attack;
             CAPTURE(static_cast<int>(attack));
 
-            const auto stranded =
-                planRetypeFrets(chart, tempo_map, {chart.notes[0]}, 0, /*set_exact=*/true);
+            const auto stranded = planRetypeFrets(
+                chart,
+                tempo_map,
+                {chart.notes[0]},
+                0,
+                /*set_exact=*/true,
+                common::core::ChartStopChannel::Sounding);
             REQUIRE(stranded.has_value());
             if (stranded.has_value())
             {
@@ -2824,8 +2903,13 @@ TEST_CASE("the in-plan flatten gives a stranded strike somewhere to land", "[cor
             noded.notes = {makeTestNote({.measure = 1, .beat = 1}, 1, 5)};
             noded.notes[0].attack = attack;
             noded.notes[0].harmonic_node = 12.0;
-            const auto kept =
-                planRetypeFrets(noded, tempo_map, {noded.notes[0]}, 0, /*set_exact=*/true);
+            const auto kept = planRetypeFrets(
+                noded,
+                tempo_map,
+                {noded.notes[0]},
+                0,
+                /*set_exact=*/true,
+                common::core::ChartStopChannel::Sounding);
             REQUIRE(kept.has_value());
             if (kept.has_value())
             {
@@ -2902,6 +2986,48 @@ TEST_CASE("planToggleSilentHold authors, converts and sounds again", "[core][cha
             CHECK(plan->inserted.front().sustain == step);
             applyAndValidate(chart, tempo_map, *plan);
         }
+    }
+}
+
+// Whole-plan atomicity over BOTH shapes of claim. The settle takes a claimed stop that reaches no
+// shape, and what it takes differs by shape — the whole note where the note IS the claim, the field
+// alone where a sounding onset carries it — so a press judged by which notes vanished would apply
+// half of itself the moment its subject was the field.
+TEST_CASE("planToggleSilentHold refuses a press whose statement the settle takes", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    // A dyad on strings 1 and 3 holding across the next beat, where the string-1 stop is stated by
+    // SOUND — so a hand claiming string 1 again there adds nothing and the settle takes that claim.
+    chart.notes = {
+        makeTestNote({.measure = 2, .beat = 1}, 1, 3, common::core::Fraction{1}),
+        makeTestNote({.measure = 2, .beat = 1}, 3, 9, common::core::Fraction{2}),
+        makeTestNote({.measure = 2, .beat = 2}, 1, 12, common::core::Fraction{1, 2}),
+        makeTestNote({.measure = 2, .beat = 2}, 2, 7, common::core::Fraction{1, 2}),
+    };
+    chart.notes[2].attack = common::core::NoteAttack::Tap;
+    std::ranges::sort(chart.notes, common::core::chartNoteOrderLess);
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const std::vector<ChartSlotKey> both{
+        ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 1},
+        ChartSlotKey{.position = {.measure = 2, .beat = 2, .offset = {}}, .string = 2}
+    };
+    // The tap would state a held stop on a string the shape already sounds, which states nothing;
+    // the string-2 note would convert into a stop that does. Half a press is not the press.
+    const auto refused = planToggleSilentHold(chart, tempo_map, both, common::core::Fraction{1, 4});
+    REQUIRE_FALSE(refused.has_value());
+    CHECK(refused.error() == ChartPlanRefusal::Invalid);
+
+    // The discrimination: the string-2 slot ALONE states a stop that survives, so the same press
+    // over the scope that leaves the tap out is an ordinary conversion.
+    const auto accepted =
+        planToggleSilentHold(chart, tempo_map, {both[1]}, common::core::Fraction{1, 4});
+    REQUIRE(accepted.has_value());
+    if (accepted.has_value())
+    {
+        REQUIRE(accepted->inserted.size() == 1);
+        CHECK(accepted->inserted.front().attack == common::core::NoteAttack::None);
     }
 }
 

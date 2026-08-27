@@ -103,19 +103,64 @@ its stop at the span start IS its face, which is why this reads the note's resol
 that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is therefore
 unclickable by construction — the same rule that keeps an undrawn waypoint head off the hit list,
 stated once instead of guarded twice. So does any note that is not a silent hold, whose face is its
-own head and whose layout is \ref tabNoteLayout's.
+own head and whose layout is \ref tabNoteLayout's — including one carrying a held stop, which
+resolves a bracket instant of its own for the satellite beside it (\ref tabHeldStopLayout) while its
+own face stays its head.
 
-The box spans the bracket's two bars, not the fret digit outboard of the closing bar: the digit's
-slot is decided against the head sounding at the span start and against the widest digit of the
-span, both of which need a font the framework-free geometry does not have. The bars are drawn for
-every posture string unconditionally, so bounding them is what keeps the clickable extent exactly
-the always-drawn one.
+The box spans the bracket's two bars and stops at the closing one. A CENTRED posture digit is
+inside them and needs no extent of its own. The bars are drawn for every posture string
+unconditionally, so bounding them is what keeps the clickable extent exactly the always-drawn one.
+
+A digit the paint core DISPLACES into the satellite slot is outside this box, and which target it
+has depends on whose stop it is: a held stop's is \ref tabHeldStopLayout's, on the same instant and
+the same column. A hold's own digit can be displaced too — by a right-hand onset at the span start
+that carries no held stop of its own — and that one has no target out there; its bars are still its
+box. Pre-existing and recorded with the verb's design record, not introduced by the satellite.
 
 \param geometry Lane geometry the notation was painted with.
 \param note Seconds-resolved note to lay out.
 \return The bracket's layout, or nothing when the note is not a silent hold or joined no span.
 */
 [[nodiscard]] std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
+
+/*! \brief Pixel layout of one held stop's satellite digit, outboard of its posture bracket. */
+struct TabHeldStopLayout
+{
+    /*! \brief Horizontal centre of the digit column. */
+    float center_x{};
+
+    /*! \brief Vertical lane center of the note's string: the digit's centre row. */
+    float center_y{};
+
+    /*! \brief Bounding rectangle of the satellite slot: its drawn extent, and its clickable one. */
+    TabLayoutRect box{};
+};
+
+/*!
+\brief Computes the pixel layout of one note's held-stop satellite, when it draws one.
+
+The second stop a note under a right-hand onset states (\ref common::core::NoteViewState::held)
+prints in its own column outboard of the posture bracket's closing bar, because the head's centre is
+already carrying what the picking hand SOUNDS. That column is its independent target: clicking it
+addresses the held stop where clicking the head addresses the sounding fret.
+
+Presence of both facts is the whole test, and neither can be inferred from the other: the stop
+itself says a satellite exists, and the resolved bracket instant says WHERE — a held stop whose
+claim reached no span draws nothing anywhere and lays out to nothing here, exactly as an unresolved
+silent hold does.
+
+The vertical extent is the bracket's own, so the two halves of one mark present the same target
+height; it lies inside the digit's drawn box, which is a full head tall, so nothing undrawn becomes
+clickable. Deliberately disjoint from \ref tabSilentHoldLayout's box, which stops at the closing
+bar: the two never answer for the same note, since a silent hold sounds nothing to hold a stop
+under.
+
+\param geometry Lane geometry the notation was painted with.
+\param note Seconds-resolved note to lay out.
+\return The satellite's layout, or nothing when the note states no held stop or it reached no span.
+*/
+[[nodiscard]] std::optional<TabHeldStopLayout> tabHeldStopLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
 /*! \brief Pixel layout of one linked waypoint head along a note's tail. */

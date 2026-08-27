@@ -190,7 +190,15 @@ enum class ChartRepair : std::uint8_t
     /*! \brief A legato claim nothing justifies was recorded as the plain pick it plays as. */
     UnjustifiedLegato,
     /*! \brief A silently-held stop reaching no shape was removed: it stated nothing anywhere. */
-    InertSilentHold
+    InertSilentHold,
+    /*!
+    \brief A held stop reaching no shape was cleared, leaving the onset that carried it alone.
+
+    The same law as \ref InertSilentHold and deliberately its own value: what was taken differs, so
+    what a load notice can honestly say differs too. A silent hold IS its claim and goes whole; a
+    held stop rides a note that still states its own onset, so only the field goes.
+    */
+    InertHeldStop
 };
 
 /*!
@@ -421,7 +429,7 @@ that follows refuses only what no repair can express. It applies \ref normalizeC
 note, bounds every ring at its own string's next onset with \ref normalizeSustainOverlaps (the
 one stream-level note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand
 position, then settles the two relational truths — \ref sweepUnjustifiedLegato, then
-\ref sweepInertSilentHolds — last, because a truncated tail can be the hold a neighbour's claim
+\ref sweepInertClaimedStops — last, because a truncated tail can be the hold a neighbour's claim
 depended on, and both must be judged against the stream as it will actually stand. Their order is a
 dependency too: flattening a claim changes an articulation, and the shapes a held stop is judged
 against are keyed by articulation.

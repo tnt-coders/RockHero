@@ -71,6 +71,44 @@ struct TabBracketGeometry
 };
 
 /*!
+\brief The posture SATELLITE slot: the outboard digit column beside a bracket's closing bar.
+
+Where a posture fret prints when the head at the span start sounds a different one — the two-hand
+tapping case, and now the ordinary case for any right-hand onset carrying a held stop. Two slots
+make that conflict unrepresentable instead of arbitrated: the head's centre carries what SOUNDS and
+this carries what the fretting hand HOLDS.
+
+The width is derived from the lane's own text scale rather than measured from the digits it will
+carry, and that is what makes the slot a GEOMETRY fact instead of a font one. Two things fall out
+of it: every satellite in the lane is the same column, so a stack of them closes on one straight
+right wall without anyone scanning a span for its widest value; and the framework-free layout
+manifest can bound the slot exactly, which is what lets the editor hit-test the satellite as its
+own target under the rule that every drawn mark is clickable and nothing undrawn is.
+*/
+struct TabSatelliteSlot
+{
+    /*! \brief Clear pixels between the bracket's closing bar and the digit column, and past it. */
+    int gap{};
+
+    /*! \brief Width of the digit column; the digit centres inside it. */
+    int width{};
+
+    /*!
+    \brief The whole mark's horizontal extent: the gap, the column, and the gap past it.
+
+    What every consumer actually wants — the painter gapping the lane line, the layout bounding the
+    click target, the caret drawing its armed square — so the composition is spelled here once
+    instead of in each of them, where the three could drift by a pixel and nobody would notice.
+
+    \return The extent in whole pixels.
+    */
+    [[nodiscard]] constexpr int extent() const noexcept
+    {
+        return gap + width + gap;
+    }
+};
+
+/*!
 \brief Layout facts shared by every glyph of one rendered tablature lane.
 
 Sizes follow Charter's DrawerUtils: the lane height fixes the note height (laneHeight = 1.5 x
@@ -143,6 +181,48 @@ struct TabLaneGeometry
             .half_height = size / 2.0f - border - static_cast<float>(bar),
             .bar = bar,
             .serif = static_cast<int>(size / 8.0f + 0.5f) + bar,
+        };
+    }
+
+    /*!
+    \brief Height of the fret-number text, in pixels — the one authority for this lane's digits.
+
+    The paint call builds its bold fret font at exactly this height (\ref TabLaneMetrics), and the
+    framework-free geometry sizes the satellite slot from it, so the column a digit is drawn in and
+    the column a click lands in derive from one number instead of two that happen to agree. The
+    floor keeps small lanes legible; \ref draw_text is the separate question of whether digits are
+    drawn at all.
+
+    \return Fret-number text height in pixels.
+    */
+    [[nodiscard]] float fretTextHeight() const noexcept
+    {
+        constexpr float minimum = 8.0f;
+        const float derived = note_height / 2.0f;
+        return derived > minimum ? derived : minimum;
+    }
+
+    /*!
+    \brief The outboard posture digit column beside a bracket, in this lane's pixels.
+
+    The width holds two bold digits of \ref fretTextHeight with room to spare — the widest fret the
+    board can state is two digits, and a bold digit's advance runs about six tenths of its text
+    height, so 1.4 heights clears the pair on every platform's metrics and leaves the centred digit
+    a little air inside its own ground. Deliberately NOT measured from the values in a span: a
+    measured column would make the drawn slot a font fact the framework-free hit test could not
+    reproduce, which is the drift the layout manifest exists to prevent.
+
+    \return The gap around the column and the column's own width.
+    */
+    [[nodiscard]] TabSatelliteSlot satelliteSlot() const noexcept
+    {
+        // One pixel binds the digit to its bracket by proximity without letting the glyph's
+        // antialiasing merge into the bar the way touching it does.
+        constexpr int gap = 1;
+        constexpr float digit_pair = 1.4f;
+        return TabSatelliteSlot{
+            .gap = gap,
+            .width = static_cast<int>(fretTextHeight() * digit_pair + 0.5f),
         };
     }
 

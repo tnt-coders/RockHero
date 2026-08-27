@@ -56,11 +56,12 @@ TabNoteLayout tabNoteLayout(
 std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
-    // Bound to a local so the optional check and the access are provably the same object. Presence
-    // is the whole test: only a silent hold that joined a span carries a bracket instant, so no
-    // separate attack check can drift from it.
+    // Two facts, because a resolved bracket instant no longer implies a hold: a note carrying a
+    // held stop resolves one too, for the satellite beside the bars rather than for a face of its
+    // own. The attack is what says whose face these bars are. Bound to a local so the optional
+    // check and the access are provably the same object.
     const std::optional<double>& bracket_seconds = note.bracket_seconds;
-    if (!bracket_seconds.has_value())
+    if (!common::core::silentHold(note.attack) || !bracket_seconds.has_value())
     {
         return std::nullopt;
     }
@@ -73,6 +74,37 @@ std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
         .x = layout.center_x - half_width,
         .y = layout.center_y - bracket.half_height,
         .width = half_width * 2.0f,
+        .height = bracket.half_height * 2.0f,
+    };
+    return layout;
+}
+
+// Mirrors the bracket pass's side-slot rectangles: the column opens a gap past the closing bar and
+// runs one slot wide, at the bracket's own height so the two halves of the mark present the same
+// target. Answers for a note that states a held stop AND resolved a bracket to print it at, which
+// together are exactly when the satellite is drawn.
+std::optional<TabHeldStopLayout> tabHeldStopLayout(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
+{
+    // Each bound to a local so its check and its access are provably the same object.
+    const std::optional<int>& held = note.held;
+    const std::optional<double>& bracket_seconds = note.bracket_seconds;
+    if (!held.has_value() || !bracket_seconds.has_value())
+    {
+        return std::nullopt;
+    }
+    const TabBracketGeometry bracket = geometry.bracketGeometry();
+    const TabSatelliteSlot slot = geometry.satelliteSlot();
+    const float bar_right =
+        geometry.x(*bracket_seconds) + bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
+    const auto width = static_cast<float>(slot.extent());
+    TabHeldStopLayout layout;
+    layout.center_x = bar_right + width / 2.0f;
+    layout.center_y = geometry.laneY(note.string);
+    layout.box = TabLayoutRect{
+        .x = bar_right,
+        .y = layout.center_y - bracket.half_height,
+        .width = width,
         .height = bracket.half_height * 2.0f,
     };
     return layout;

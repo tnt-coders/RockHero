@@ -120,30 +120,39 @@ press and one undo entry, and the empty-slot case the caret reaches is what auth
 note is.
 
 The DIRECTION is the technique toggle's own law, asked of the scope as a whole: a scope whose every
-occupied slot already holds a silent stop SOUNDS them all again; anything else states the hold on
-all of them. An empty slot has nothing to sound, so it never argues for the sounding direction.
+occupied slot already STATES the fretting hand's stop (\ref common::core::claimedStop) releases them
+all; anything else states the hold on all of them. An empty slot states nothing, so it never argues
+for the releasing direction.
 
 Per slot, then:
 
-- **A sounding note** is CONVERTED: its attack becomes \ref common::core::NoteAttack::None, its
-  ring goes (a silent hold has none), and every technique its new attack cannot state is stripped.
-  Position, string and FRET are preserved, which is what makes place-then-convert the fret-stating
-  flow: note insertion is the editor's only way to say "fret 5 on the A string", so the charter
-  types the fret where the finger goes and promotes it.
-- **A silent hold** is converted BACK to a plain picked note at the caller's default ring. The
-  symmetric toggle, two-state like every other mark. The techniques the conversion stripped do not
-  come back — the plan carries the whole note either way, so the verb window's reversal (and undo)
-  restores them exactly, and reinventing them here would author what the charter never typed.
+- **A sounding fretting-hand note** is CONVERTED: its attack becomes
+  \ref common::core::NoteAttack::None, its ring goes (a silent hold has none), and every technique
+  its new attack cannot state is stripped. Position, string and FRET are preserved, which is what
+  makes place-then-convert the fret-stating flow: note insertion is the editor's only way to say
+  "fret 5 on the A string", so the charter types the fret where the finger goes and promotes it.
+- **A right-hand onset** — a tap or a scrape — gains a HELD stop at the open string instead (user
+  ruling 2026-08-27, the verb's fourth case). Its onset belongs to the picking hand, so converting
+  it would delete a sound the charter wrote; what the fretting hand is doing under it is exactly
+  what \ref common::core::ChartNote::held records. Fret 0 and an armed caret for the same reason
+  the empty-slot case uses them: typing a digit is how a stop gets stated.
+- **A silent hold** is converted BACK to a plain picked note at the caller's default ring, and a
+  **held stop** is simply cleared, leaving its onset untouched. The symmetric toggle, two-state like
+  every other mark. The techniques a conversion stripped do not come back — the plan carries the
+  whole note either way, so the verb window's reversal (and undo) restores them exactly, and
+  reinventing them here would author what the charter never typed.
 - **An empty slot** gains a silent hold at fret 0, with the caret armed on it, exactly as the
   neutral-create placement does: the charter then types the stop, which retypes it like any other
   selected note.
 
-The press is REFUSED as a whole when the settle inside the shared finalize takes a note this scope
-named: a held stop that reaches no shape states nothing and is swept
-(\ref common::core::sweepInertSilentHolds), so a press whose own subject the sweep then removes
-would delete the note it was asked to hold. Whole-PLAN, never per slot — converting a whole chord
-states a shape only the chord's own members make, so they are legal together and illegal one at a
-time, and what decides the press is whether the shape they state is justified.
+In the stating direction the press is REFUSED as a whole unless every slot it named still STATES a
+stop once the shared finalize has settled: a claimed stop that reaches no shape states nothing and
+is swept (\ref common::core::sweepInertClaimedStops). Asked of the statement rather than of the
+record, because what the settle takes differs by shape — the whole note where the note IS the claim,
+the field alone where a sounding onset carries it, which leaves that note identical to what it was
+and therefore invisible to a diff. Whole-PLAN, never per slot — converting a whole chord states a
+shape only the chord's own members make, so they are legal together and illegal one at a time, and
+what decides the press is whether the shape they state is justified.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
@@ -245,18 +254,27 @@ the note re-picking its string is not arbitrated here at all: side ruling (ii) s
 that re-pick as the same hand and the span splits, which is the coherence the ruling asks for
 falling out of the derivation rather than a second rule written into this planner.
 
+The CHANNEL picks which stop of each note is addressed, and it is the same question on the anchor
+and on the write, so both read one query. On the held channel only notes that already state a held
+stop are reached — the channel exists on a note exactly where the satellite that states it does, so
+a note without one has no such stop to set — while the sounding channel reaches every note, because
+every note has a fret. Nothing here decides WHEN the held channel applies: that is the verb scope's
+answer (the caret's stop), stated once there.
+
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of the notes being retyped.
 \param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
 \param set_exact True to assign the target to every stop instead of transposing.
+\param channel Which stop of each note to address: its sounding fret, or its held stop.
 \return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
         when the gate refuses the result. The split is what lets the pending entry paint a
         refused value red without painting a valid no-op red.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
+    const std::vector<common::core::ChartNote>& base, int target, bool set_exact,
+    common::core::ChartStopChannel channel);
 
 /*!
 \brief One step of a duration gesture: the lattice its end lands on, and which way it moves.

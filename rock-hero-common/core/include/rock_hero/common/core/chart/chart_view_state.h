@@ -191,18 +191,31 @@ struct NoteViewState
     NoteAttack attack{NoteAttack::Pick};
 
     /*!
-    \brief Where a silently-held stop's posture bracket draws; absent for every other note.
+    \brief The fretting-hand stop under a right-hand onset (`ChartNote::held`); absent elsewhere.
 
-    A \ref NoteAttack::None note has no head and no tail, so the arpeggio bracket printing its stop
-    IS its face on the editing surface — what the pointer selects, and what a typed fret writes to.
-    The bracket draws at the START of the span the stop joined, which is where a posture is stated
-    and is not in general where the hold was authored, so this carries the bracket's instant rather
-    than \ref start_seconds. A hold that joined no span — one past its span's end, one on a string
-    the sound already states, one whose span dissolved unjustified — carries none, which is exactly
-    what makes "nothing undrawn is clickable" hold by construction rather than by a second rule.
+    Mirrors the chart's own field. Presence is the whole test everywhere: it is what says a
+    satellite digit exists beside this note's posture bracket, which is the surface's independent
+    target for the stop — the head's centre carries what SOUNDS, the satellite what the hand HOLDS.
+    */
+    std::optional<int> held{};
 
-    Resolved by the span derivation itself (\ref ChartShapes::silent_hold_shapes), never re-derived
-    here. Absent on every sounding note, whose face is its own head at its own instant.
+    /*!
+    \brief Where this note's CLAIMED stop is stated: the posture bracket's instant. Absent
+    elsewhere.
+
+    A claim is stated at a span's START, which is where a posture is stated and is not in general
+    where the note was authored, so this carries the bracket's instant rather than
+    \ref start_seconds. What it MEANS differs by which shape the claim takes, and both read the one
+    instant: a \ref NoteAttack::None note has no head and no tail, so the bracket printing its stop
+    IS its face — what the pointer selects, and what a typed fret writes to — while a note carrying
+    \ref held has a head of its own and the bracket's satellite slot is where that second stop
+    prints and is clicked.
+
+    A claim that joined no span — one past its span's end, one on a string the sound already states,
+    one whose span dissolved unjustified — carries none, which is exactly what makes "nothing
+    undrawn is clickable" hold by construction rather than by a second rule. Resolved by the span
+    derivation itself (\ref ChartShapes::claim_shapes), never re-derived here. Absent on every note
+    that claims no stop at all, whose face is its own head at its own instant.
     */
     std::optional<double> bracket_seconds{};
 

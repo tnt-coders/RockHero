@@ -82,12 +82,9 @@ constexpr double g_arpeggio_mark_brightness{1.3};
 // (TabLaneGeometry::bracketGeometry) rather than here, because the editor hit-tests the bracket as
 // well as drawing it — the mark IS a silent hold's whole face — and the layout manifest must bound
 // exactly the rectangles this pass fills. The brackets draw as pixel-snapped rectangles: a
-// fractional width or position antialiases into fuzzy, unsquare edges.
-//
-// Clear pixels between the closing bracket bar and a displaced posture digit, and the padding its
-// ground keeps around a centred one. One pixel binds the digit to its bracket by proximity without
-// letting the glyph's antialiasing merge into the bar the way touching it does.
-constexpr int g_arpeggio_posture_gap{1};
+// fractional width or position antialiases into fuzzy, unsquare edges. The displaced digit's own
+// column lives on the geometry for the same reason (TabLaneGeometry::satelliteSlot): it is the
+// independent hit target for a held stop.
 
 // Measures one line of text through a GlyphArrangement layout (JUCE's direct Font string-width
 // helpers are deprecated), rounding up so reserved label space never truncates the final glyph.
@@ -2097,8 +2094,10 @@ TabLaneMetrics makeTabLaneMetrics(
         chart_string_count,
         style);
     metrics.bounds = bounds;
-    metrics.fret_font =
-        juce::Font{juce::FontOptions{std::max(8.0f, metrics.note_height / 2.0f)}.withStyle("Bold")};
+    // The text height comes off the geometry, which is also what the framework-free satellite slot
+    // is sized from — so the column a digit is drawn in and the column a click lands in derive from
+    // one number rather than two that happen to agree.
+    metrics.fret_font = juce::Font{juce::FontOptions{metrics.fretTextHeight()}.withStyle("Bold")};
     metrics.bend_font = juce::Font{juce::FontOptions{std::max(10.0f, metrics.note_height / 4.0f)}};
     metrics.label_font = juce::Font{juce::FontOptions{g_shape_label_height}.withStyle("Bold")};
     return metrics;
@@ -2154,18 +2153,6 @@ void paintTabLane(
         }
 
         const float start_x = metrics.x(shape.start_seconds);
-        // The WIDEST digit in this span, so every side chip in the column is the same width and the
-        // stack closes on one straight right wall. Sizing each to its own digit leaves a two-digit
-        // string jutting past its neighbours.
-        int span_digit_width = 0;
-        if (metrics.draw_text)
-        {
-            for (const common::core::ShapeStringViewState& note : shape.strings)
-            {
-                span_digit_width = std::max(
-                    span_digit_width, textWidth(metrics.fret_font, juce::String{note.fret}));
-            }
-        }
         for (const common::core::ShapeStringViewState& arpeggio_note : shape.strings)
         {
             const int displayed =
@@ -2200,10 +2187,14 @@ void paintTabLane(
                 {
                     // The tap is what rings, so it keeps the centre; the fretting hand has NOT
                     // moved, so its fret is still true and takes the side slot beside the bracket.
+                    // The slot's width is the lane's, not this digit's (TabLaneGeometry::
+                    // satelliteSlot) — one column for every satellite in the lane, and the exact
+                    // rectangle the editor hit-tests to reach the stop it states.
+                    const TabSatelliteSlot slot = metrics.satelliteSlot();
                     side_slot = true;
-                    digit_left = bar_right + g_arpeggio_posture_gap;
-                    drawn_width = span_digit_width;
-                    mark_right = digit_left + span_digit_width + g_arpeggio_posture_gap;
+                    digit_left = bar_right + slot.gap;
+                    drawn_width = slot.width;
+                    mark_right = bar_right + slot.extent();
                 }
                 else
                 {
@@ -2377,14 +2368,17 @@ void paintTabLane(
     // landing in its box, which is harmless while the two numbers agree — the head draws its own —
     // and loses the posture outright when they differ. They differ exactly under two-hand tapping,
     // which the arrival rule names as one of the things that MAKE a span an arpeggio, so the case
-    // is ordinary rather than rare. Two slots make the conflict unrepresentable instead of
-    // arbitrated: the head's centre carries the sounding fret and the satellite carries the
-    // posture. Outboard RIGHT because every other side is spoken for — the attack icons own the
-    // upper-left shoulder, the floating chips own the space above, and the left is where the
-    // previous note's head and its arriving sustain ribbon live.
+    // is ordinary rather than rare — and it is now the ordinary case outright, because a right-hand
+    // onset states the stop under it as its own held fret (`ChartNote::held`). Two slots make the
+    // conflict unrepresentable instead of arbitrated: the head's centre carries what SOUNDS and the
+    // satellite carries what the fretting hand HOLDS. Outboard RIGHT because every other side is
+    // spoken for — the attack icons own the upper-left shoulder, the floating chips own the space
+    // above, and the left is where the previous note's head and its arriving sustain ribbon live.
     //
-    // The bracket bars are unchanged by all this, and are what the editor hit-tests to select the
-    // held stop whose fret the digit states; only the lane-line gap grew to cover the digit.
+    // The bracket bars are unchanged by all this. They are a silently-held stop's whole face, and
+    // what the editor hit-tests to select it; the satellite is its own target, addressing the held
+    // stop where the head beside it addresses the sounding fret. Only the lane-line gap grew to
+    // cover the digit.
     //
     // The note's VISIBLE top and bottom are the bright ring's edges: the head's outermost layer is
     // the near-black backing, which melts into the dark lane. The brackets stop a bar-width inside
