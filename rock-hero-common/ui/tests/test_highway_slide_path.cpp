@@ -24,14 +24,17 @@ namespace
     return note;
 }
 
-// One glide waypoint; `unpitched` selects the release family rather than a pitched arrival.
-[[nodiscard]] common::core::SlideViewState waypoint(
-    const double seconds, const int fret, const bool unpitched = false)
+// One glide waypoint. Pitched-ness is no longer a per-waypoint flag: a waypoint is unpitched
+// exactly when its note is a scrape, and the release family otherwise belongs to the falls-away
+// terminal (`NoteViewState::slide_out`), which the fixtures below set directly. The authored
+// offset is left unstated — these fixtures resolve no tempo map, and only the editor's selection
+// reads it.
+[[nodiscard]] common::core::SlideViewState waypoint(const double seconds, const int fret)
 {
     return common::core::SlideViewState{
         .seconds = seconds,
         .fret = fret,
-        .unpitched = unpitched,
+        .offset = common::core::Fraction{},
     };
 }
 
@@ -86,8 +89,12 @@ TEST_CASE("Mid-glide the path is the eased weight, pitched and unpitched apart",
     const common::core::HighwayMetrics metrics;
     common::core::NoteViewState pitched = frettedNote();
     pitched.slides = {waypoint(2.0, 9)};
+    // The unpitched arm is a falls-away terminal, which lands at the ring's end by definition —
+    // so the ring is shortened to the instant the pitched arm's waypoint arrives at, and the two
+    // segments span exactly the same time.
     common::core::NoteViewState unpitched = frettedNote();
-    unpitched.slides = {waypoint(2.0, 9, true)};
+    unpitched.end_seconds = 2.0;
+    unpitched.slide_out = 9;
 
     const double base_x = highwayNoteFretboardX(pitched, pitched.fret, metrics, false);
     const double target_x = highwayNoteFretboardX(pitched, 9, metrics, false);
@@ -152,8 +159,13 @@ TEST_CASE("A harmonic's node rides its stop through a glide", "[ui][highway]")
 TEST_CASE("The unpitched dim ramps across the whole consecutive run", "[ui][highway]")
 {
     const common::core::HighwayMetrics metrics;
+    // A real scrape: the attack makes every stop unpitched pick travel, and the required terminal
+    // is the run's last leg — so the run is the turnaround at 2.0 plus the pick lifting at 3.0.
     common::core::NoteViewState scrape = frettedNote();
-    scrape.slides = {waypoint(2.0, 10, true), waypoint(3.0, 3, true)};
+    scrape.attack = common::core::NoteAttack::PickSlide;
+    scrape.end_seconds = 3.0;
+    scrape.slides = {waypoint(2.0, 10)};
+    scrape.slide_out = 3;
     const double base_x = highwayNoteFretboardX(scrape, scrape.fret, metrics, false);
     const auto alpha_at = [&](const double seconds) {
         return highwaySlideStateAt(scrape, base_x, metrics, false, seconds).alpha;

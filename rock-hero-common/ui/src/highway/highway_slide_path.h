@@ -125,52 +125,58 @@ to the original per-segment dim.
     const common::core::NoteViewState& note, double base_x,
     const common::core::HighwayMetrics& metrics, bool mirrored, double seconds)
 {
-    if (note.slides.empty() || note.fret <= 0)
+    // The gesture read as one uniform sequence — the note's position waypoints, then its
+    // falls-away terminal — through the shared stop accessors, so the terminal is a segment here
+    // without being a waypoint in the projection (W9-L).
+    const std::size_t stop_count = common::core::glideStopCount(note);
+    if (stop_count == 0 || note.fret <= 0)
     {
         return HighwaySlideState{.x_offset = 0.0, .alpha = 1.0};
     }
-    const auto unpitched_alpha_at = [&note](const std::size_t segment, const double at) {
+    const auto unpitched_alpha_at = [&note,
+                                     stop_count](const std::size_t segment, const double at) {
         std::size_t run_begin = segment;
-        while (run_begin > 0 && note.slides[run_begin - 1].unpitched)
+        while (run_begin > 0 && common::core::glideStopAt(note, run_begin - 1).unpitched)
         {
             --run_begin;
         }
         std::size_t run_end = segment;
-        while (run_end + 1 < note.slides.size() && note.slides[run_end + 1].unpitched)
+        while (run_end + 1 < stop_count && common::core::glideStopAt(note, run_end + 1).unpitched)
         {
             ++run_end;
         }
         const double run_start_seconds =
-            run_begin == 0 ? note.start_seconds : note.slides[run_begin - 1].seconds;
-        const double run_span = note.slides[run_end].seconds - run_start_seconds;
+            run_begin == 0 ? note.start_seconds
+                           : common::core::glideStopAt(note, run_begin - 1).seconds;
+        const double run_span =
+            common::core::glideStopAt(note, run_end).seconds - run_start_seconds;
         const double progress =
             run_span > 0.0 ? std::clamp((at - run_start_seconds) / run_span, 0.0, 1.0) : 1.0;
         return 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress);
     };
     double segment_start_seconds = note.start_seconds;
     double segment_start_x = base_x;
-    for (std::size_t index = 0; index < note.slides.size(); ++index)
+    for (std::size_t index = 0; index < stop_count; ++index)
     {
-        const common::core::SlideViewState& waypoint = note.slides[index];
-        const double waypoint_x = highwayNoteFretboardX(note, waypoint.fret, metrics, mirrored);
-        if (seconds <= waypoint.seconds)
+        const common::core::GlideStop stop = common::core::glideStopAt(note, index);
+        const double stop_x = highwayNoteFretboardX(note, stop.fret, metrics, mirrored);
+        if (seconds <= stop.seconds)
         {
-            const double span = waypoint.seconds - segment_start_seconds;
+            const double span = stop.seconds - segment_start_seconds;
             const double progress =
                 span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0) : 1.0;
-            const double weight =
-                common::core::highwaySlideEaseWeight(progress, waypoint.unpitched);
-            const double alpha = waypoint.unpitched ? unpitched_alpha_at(index, seconds) : 1.0;
+            const double weight = common::core::highwaySlideEaseWeight(progress, stop.unpitched);
+            const double alpha = stop.unpitched ? unpitched_alpha_at(index, seconds) : 1.0;
             return HighwaySlideState{
-                .x_offset = segment_start_x + ((waypoint_x - segment_start_x) * weight) - base_x,
+                .x_offset = segment_start_x + ((stop_x - segment_start_x) * weight) - base_x,
                 .alpha = alpha,
             };
         }
-        segment_start_seconds = waypoint.seconds;
-        segment_start_x = waypoint_x;
+        segment_start_seconds = stop.seconds;
+        segment_start_x = stop_x;
     }
-    // Past the last waypoint the glide holds its target (and any unpitched dimming).
-    const common::core::SlideViewState& last = note.slides.back();
+    // Past the last stop the glide holds its target (and any unpitched dimming).
+    const common::core::GlideStop last = common::core::glideStopAt(note, stop_count - 1);
     return HighwaySlideState{
         .x_offset = highwayNoteFretboardX(note, last.fret, metrics, mirrored) - base_x,
         .alpha = last.unpitched ? g_unpitched_slide_end_alpha : 1.0,

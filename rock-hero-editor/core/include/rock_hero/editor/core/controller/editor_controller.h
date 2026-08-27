@@ -484,6 +484,9 @@ public:
     /*! \copydoc IEditorController::onChartHoldMarkerToggleRequested */
     void onChartHoldMarkerToggleRequested() override;
 
+    /*! \copydoc IEditorController::onChartWaypointDisconnectRequested */
+    void onChartWaypointDisconnectRequested() override;
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;
 

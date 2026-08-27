@@ -125,15 +125,43 @@ Making a selection anywhere replaces it everywhere — two live selections are u
 and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active.
 
 Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
-holds `ChartSelectionKey{kind, slot}` values, where the kind names which authored array the object
-lives in (`ChartSelectableKind`: a note, or a hold marker) and the slot is the `(position, string)`
-both arrays are keyed by (`chart_selection.h`). One sorted-unique sequence per kind, one
-kind-agnostic set of mutations over them, so every verb reads its own kind's operand as a plain
-list and a verb a kind has no meaning for simply reads an empty one. Adding a kind is an
-enumerator plus one arm of `ChartSelection::slotsFor` — for a selectable the *slot* names. A
-selectable the slot cannot name costs more than an arm: a note's own waypoints are many per note
-and identified by `(slot, offset)`, so the unified waypoint model has to widen `ChartSelectionKey`
-itself, and with it every mutation written over `std::vector<ChartSlotKey>`.
+holds `ChartSelectionKey` values, and that key is a **sum** —
+`std::variant<ChartNoteKey, ChartHoldMarkerKey, ChartWaypointKey>` (`chart_selection.h`). The
+first two are named by a `ChartSlotKey`, the `(position, string)` both authored arrays are keyed
+by; the third is not, and that is why the key is a sum rather than a kind tag beside a slot. A
+note carries many waypoints, so a waypoint's identity is `(note slot, offset)` — the authored
+beat-fraction offset and never an index, because removing an earlier waypoint shifts every later
+index and moves no offset. Carrying that offset as a field only one kind uses would make "a note
+key with an offset" spellable and owe every reader a rule about what it meant; as a sum neither
+shape exists to be misread.
+
+One sorted-unique sequence per alternative, one set of mutations written over whatever
+(sequence, element) pair an alternative maps to — `ChartSelection::visitSequence` is that single
+mapping, so a mutation never branches on kind and the waypoint sequence can hold a different
+element type than the two slot-keyed ones. Every verb reads its own kind's operand as a plain
+list (`notes()`, `holdMarkers()`, `waypoints()`) and a verb a kind has no meaning for simply
+reads an empty one, which is what keeps the technique verbs free of waypoint guards.
+
+Three consequences worth knowing before touching this:
+
+- **A waypoint occupies no slot, so nothing arms a caret for it.** `chartCaretSlotFor` answers
+  absent for a waypoint key, and selecting one demotes the marker to a cursor in place, exactly as
+  every multi-select gesture does. The armed-caret invariant is "the selection is what sits under
+  the caret", and a caret on the note while the selection holds the waypoint would break it.
+  `ChartSlotOccupant` (which of the two SLOT-keyed arrays holds an object at a slot) is therefore
+  a narrower question than "what can be selected", and deliberately excludes waypoints: the two
+  arrays are disjoint over one slot space, while a waypoint SHARES its note's slot.
+- **Waypoints publish as drawn positions, not as chart identity.** `ChartEditViewState` carries
+  `selected_waypoints` as `ChartWaypointRef{note_index, waypoint_index}` beside the two index
+  lists, resolved against the presented projection the lane hit-tested; a key the trim clipped out
+  of the drawn tail resolves to nothing and simply wears no ring.
+- **`selection.empty()` is not "this verb has no operand" any more, and the difference bites.**
+  Widening the key split one question into two: a verb whose operand is the slot-keyed arrays
+  (`moveChartSelection` — Alt+arrows) now sees a non-empty selection with `notes()` and
+  `holdMarkers()` both empty, and reading a `front()` off either is out of bounds rather than
+  merely inert. Every such verb guards on the operand it actually reads, never on `empty()`.
+  Verbs whose planner takes the keys as a list need no change: an empty key list already means
+  NoChange.
 
 **Adding a selection kind is the highest silent-fan-out change in the editor.** Because dispatch
 is `std::visit`/`holds_alternative`, a new alternative compiles clean nearly everywhere it is
@@ -205,10 +233,12 @@ base color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefo
 all color strings through it. The glyph renderer itself is the **shared notation paint core**
 in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
 `TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head/tail
-in pixels" for hit testing (and the same for a hold marker's editor mark, whose geometry lives
-there beside the head's even though the paint core never draws it — the editor's overlay painter
-and the editor's hit testing both read it, and a second copy would be the drift the unit exists to
-prevent), and `tab_paint_core.h` — the one designated juce_graphics-bearing
+in pixels" for hit testing (and the same for a linked waypoint's head, and for a hold marker's
+editor mark, whose geometry lives there beside the head's even though the paint core never draws
+it — the editor's overlay painter and the editor's hit testing both read it, and a second copy
+would be the drift the unit exists to prevent; all three boxes come from one `centeredSquare`, so
+they cannot disagree about which edge a click lands on), and `tab_paint_core.h` — the one
+designated juce_graphics-bearing
 common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
 The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
 surface so editor widgets and tests are unaffected; the paint core's pixel output is pinned by

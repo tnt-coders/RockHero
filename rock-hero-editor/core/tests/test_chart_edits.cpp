@@ -3,6 +3,7 @@
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -90,6 +91,38 @@ void applyAndValidate(
         }
     }
     return nullptr;
+}
+
+// One waypoint's selection key: the note's slot plus the offset along that note's ring. The
+// offset and not an index, because that is the identity the selection carries and the planners
+// resolve against — an index would name a different waypoint after any edit that dropped one.
+[[nodiscard]] ChartWaypointKey waypointKeyAt(
+    common::core::GridPosition position, int string, common::core::Fraction offset)
+{
+    return ChartWaypointKey{.note = keyAt(position, string), .offset = offset};
+}
+
+// A pitched glide over a four-beat ring: fret 7 from the onset, arriving at fret 9 two beats in
+// and at fret 12 exactly where the ring ends. One note, so a plan's whole effect on the stream
+// is readable without hunting for the record it touched.
+[[nodiscard]] common::core::Chart makeGlideChart()
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote glide =
+        makeTestNote({.measure = 2, .beat = 1}, 1, 7, common::core::Fraction{4});
+    glide.waypoints = {
+        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 9},
+        common::core::Waypoint{.offset = common::core::Fraction{4}, .fret = 12},
+    };
+    chart.notes = {std::move(glide)};
+    return chart;
+}
+
+// The glide chart's own note slot, which every waypoint key below rides.
+[[nodiscard]] common::core::GridPosition glideOnset()
+{
+    return common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}};
 }
 
 } // namespace
@@ -371,7 +404,7 @@ TEST_CASE("planDeleteSelection removes matching keys and labels the count", "[co
     const std::vector<ChartSlotKey> pair{
         keyAt({.measure = 2, .beat = 1}, 1), keyAt({.measure = 2, .beat = 1}, 2)
     };
-    const auto plan = planDeleteSelection(chart, makeTempoMap(), pair, {});
+    const auto plan = planDeleteSelection(chart, makeTempoMap(), pair, {}, {});
     REQUIRE(plan.has_value());
     if (plan.has_value())
     {
@@ -382,7 +415,7 @@ TEST_CASE("planDeleteSelection removes matching keys and labels the count", "[co
 
     // A single key uses the singular label.
     const std::vector<ChartSlotKey> single{keyAt({.measure = 3, .beat = 1}, 1)};
-    const auto single_plan = planDeleteSelection(chart, makeTempoMap(), single, {});
+    const auto single_plan = planDeleteSelection(chart, makeTempoMap(), single, {}, {});
     REQUIRE(single_plan.has_value());
     if (single_plan.has_value())
     {
@@ -397,7 +430,7 @@ TEST_CASE("planDeleteSelection returns nullopt when no key matches", "[core][cha
     const common::core::Chart chart = makeTestChart();
 
     const std::vector<ChartSlotKey> missing{keyAt({.measure = 5, .beat = 1}, 1)};
-    CHECK_FALSE(planDeleteSelection(chart, makeTempoMap(), missing, {}).has_value());
+    CHECK_FALSE(planDeleteSelection(chart, makeTempoMap(), missing, {}, {}).has_value());
 }
 
 // A move that would carry a note off either end of the string range is refused whole, never
@@ -2925,7 +2958,7 @@ TEST_CASE("The range verbs read both authored arrays", "[core][chart]")
 
     SECTION("deleting a marker alone names the marker")
     {
-        const auto plan = planDeleteSelection(chart, tempo_map, {}, marker_key);
+        const auto plan = planDeleteSelection(chart, tempo_map, {}, marker_key, {});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -2941,7 +2974,7 @@ TEST_CASE("The range verbs read both authored arrays", "[core][chart]")
         const std::vector<ChartSlotKey> note_key{
             ChartSlotKey{.position = {.measure = 2, .beat = 1, .offset = {}}, .string = 1}
         };
-        const auto plan = planDeleteSelection(chart, tempo_map, note_key, marker_key);
+        const auto plan = planDeleteSelection(chart, tempo_map, note_key, marker_key, {});
         REQUIRE(plan.has_value());
         if (plan.has_value())
         {
@@ -3016,6 +3049,545 @@ TEST_CASE("A plan crossing both arrays applies and reverses atomically", "[core]
     const auto rejected = applyChartChange(other, stale);
     CHECK_FALSE(rejected.has_value());
     CHECK(other == original);
+}
+
+// `Shift+L` on a selected waypoint severs the gesture there (W10's 2026-08-26 addendum): the
+// origin's path ENDS at the junction and a new head takes the remainder. The origin keeps the
+// waypoint it arrives at — the leg the user split at is real travel — so the junction is the
+// equal-fret handover W10's ruling 2 names, and the later waypoints rebase onto the new onset.
+TEST_CASE("planDisconnectWaypoints severs a glide at its junction", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan = planDisconnectWaypoints(
+        chart,
+        tempo_map,
+        {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+        "Disconnect Waypoint");
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    CHECK(plan->label == "Disconnect Waypoint");
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 2);
+    const common::core::ChartNote& origin = chart.notes[0];
+    CHECK(origin.position == glideOnset());
+    CHECK(origin.fret == 7);
+    CHECK(origin.sustain == common::core::Fraction{2});
+    CHECK(origin.attack == common::core::NoteAttack::Pick);
+    REQUIRE(origin.waypoints.size() == 1);
+    // The arrival retreats by the glide-into-a-landing margin (a quarter beat in 4/4): a
+    // fret-stating waypoint may not sit on a later onset of its own string, because the head
+    // states those coordinates itself. The RING below still runs to that head.
+    CHECK(
+        origin.waypoints[0].offset ==
+        common::core::Fraction{2} - common::core::minimumSustainDistanceBeats(4));
+    CHECK(origin.waypoints[0].fret == 9);
+
+    const common::core::ChartNote& product = chart.notes[1];
+    CHECK(product.position == common::core::GridPosition{.measure = 2, .beat = 3, .offset = {}});
+    CHECK(product.string == 1);
+    // The remainder is the same note restarted: its fret is the junction's, its ring is what was
+    // left, and its own later waypoint rides along rebased onto the new onset (4 - 2 = 2).
+    CHECK(product.fret == 9);
+    CHECK(product.sustain == common::core::Fraction{2});
+    REQUIRE(product.waypoints.size() == 1);
+    CHECK(product.waypoints[0].offset == common::core::Fraction{2});
+    CHECK(product.waypoints[0].fret == 12);
+    // W10's signed store for a split head — never Pick, never a stored tie. The addendum's
+    // proposed UNSTRUCK reading needs LegatoMotion::Continuation, which is unbuilt, so this is a
+    // claim today's settle sweep still flattens; the default is a proposal, not a ruling.
+    CHECK(product.attack == common::core::NoteAttack::Legato);
+
+    // One entry, and it reverses field for field.
+    REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// A head must sit on a stated fret and needs a remainder to take (W10's ruling 2). Both refusals
+// are Invalid rather than a clamp: rounding the interpolated fret between stating points was
+// killed explicitly as invented data, and a key naming no waypoint at all is simply skipped.
+TEST_CASE("planDisconnectWaypoints refuses what cannot carry a head", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a waypoint stating no fret")
+    {
+        common::core::Chart chart = makeGlideChart();
+        // A mid-travel shake statement: a real waypoint that says nothing about where the hand is.
+        chart.notes[0].waypoints.insert(
+            chart.notes[0].waypoints.begin(),
+            common::core::Waypoint{.offset = common::core::Fraction{1}, .vibrato = true});
+        const common::core::Chart original = chart;
+        const auto plan = planDisconnectWaypoints(
+            chart,
+            tempo_map,
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{1})},
+            "Disconnect Waypoint");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(chart == original);
+    }
+
+    SECTION("a waypoint at the ring's end")
+    {
+        common::core::Chart chart = makeGlideChart();
+        const auto plan = planDisconnectWaypoints(
+            chart,
+            tempo_map,
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{4})},
+            "Disconnect Waypoint");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a junction with no room for the retreated arrival")
+    {
+        common::core::Chart chart = makeGlideChart();
+        // Exactly one margin after the onset: retreating the arrival would put it AT the onset,
+        // where no waypoint may sit. Refused rather than clamped onto the onset — a clamped
+        // arrival is an arrival time nobody authored.
+        chart.notes[0].waypoints.insert(
+            chart.notes[0].waypoints.begin(),
+            common::core::Waypoint{
+                .offset = common::core::minimumSustainDistanceBeats(4), .fret = 8
+            });
+        const auto plan = planDisconnectWaypoints(
+            chart,
+            tempo_map,
+            {waypointKeyAt(glideOnset(), 1, common::core::minimumSustainDistanceBeats(4))},
+            "Disconnect Waypoint");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a junction crowding the statement before it")
+    {
+        common::core::Chart chart = makeGlideChart();
+        // The other half of the no-room refusal: the retreat has to clear the STATEMENT before
+        // the junction as well as the onset. An eighth of a beat is inside the 4/4 margin, so
+        // retreating the arrival at two beats would put it before the statement at 15/8.
+        chart.notes[0].waypoints.insert(
+            chart.notes[0].waypoints.begin(),
+            common::core::Waypoint{.offset = common::core::Fraction{15, 8}, .fret = 8});
+        const common::core::Chart original = chart;
+        const auto plan = planDisconnectWaypoints(
+            chart,
+            tempo_map,
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            "Disconnect Waypoint");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+        CHECK(chart == original);
+    }
+
+    SECTION("a scrape, whose terminal the origin would lose")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote scrape =
+            makeTestNote(glideOnset(), 1, 9, common::core::Fraction{4});
+        scrape.attack = common::core::NoteAttack::PickSlide;
+        scrape.waypoints = {common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 5}};
+        scrape.slide_out = 3;
+        chart.notes = {std::move(scrape)};
+
+        // The origin ends at a stated fret now, so it keeps no falls-away — and a scrape's
+        // terminal is required, so the gate refuses the whole split rather than shipping a
+        // pick slide that stops travelling.
+        const auto plan = planDisconnectWaypoints(
+            chart,
+            tempo_map,
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            "Disconnect Waypoint");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::Invalid);
+    }
+
+    SECTION("a key naming no waypoint")
+    {
+        common::core::Chart chart = makeGlideChart();
+        const auto plan = planDisconnectWaypoints(
+            chart,
+            tempo_map,
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{3})},
+            "Disconnect Waypoint");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    }
+}
+
+// The uniform-scope law under vibrato's TWO scopes: the direction a press means is read across
+// every anchor the selection holds, notes and waypoints alike, so a press clears only when all of
+// them already shake. The planner tests above cover what a press writes; this covers which press
+// it is, which is the half `ChartTechniqueLaw::carried` owns.
+TEST_CASE("The vibrato law reads both its scopes for the direction", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+    note.vibrato = true;
+    note.waypoints = {
+        // The shake ends here, so the state in force AT this point is still.
+        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 9, .vibrato = false},
+        // And starts again here.
+        common::core::Waypoint{.offset = common::core::Fraction{3}, .vibrato = true},
+    };
+    chart.notes = {std::move(note)};
+    const ChartTechniqueLaw law = chartTechniqueLaw(ChartTechnique::Vibrato);
+    const ChartSelectionKey note_key = ChartNoteKey{.slot = keyAt(glideOnset(), 1)};
+
+    SECTION("a waypoint carries the shake when the state in force where it stands is shaking")
+    {
+        ChartSelection selection;
+        selection.add(
+            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
+        CHECK(law.carried(chart, selection));
+    }
+
+    SECTION("and does not when its own statement is the one that stopped it")
+    {
+        ChartSelection selection;
+        selection.add(
+            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
+        CHECK_FALSE(law.carried(chart, selection));
+    }
+
+    SECTION("a mixed selection clears only when every anchor in it already shakes")
+    {
+        ChartSelection shaking;
+        shaking.add(note_key);
+        shaking.add(
+            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{3}});
+        CHECK(law.carried(chart, shaking));
+
+        // The onset shakes and the other anchor does not, so the press means SET — the same
+        // partly-carried answer a mixed note selection has always given.
+        ChartSelection mixed;
+        mixed.add(note_key);
+        mixed.add(
+            ChartWaypointKey{.note = keyAt(glideOnset(), 1), .offset = common::core::Fraction{2}});
+        CHECK_FALSE(law.carried(chart, mixed));
+    }
+
+    SECTION("a selection this technique reaches nothing in means SET, and plans to nothing")
+    {
+        ChartSelection markers_only;
+        markers_only.add(ChartHoldMarkerKey{.slot = keyAt(glideOnset(), 2)});
+        CHECK_FALSE(law.carried(chart, markers_only));
+        const auto plan = law.plan(chart, makeTempoMap(), markers_only, true, "Vibrato");
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    }
+}
+
+// Uniform scope, one level inside the note: every selected waypoint on a note splits it, so two
+// selected junctions make three. The channel states in force at each split become the product's
+// ONSET values, which is what keeps the sound identical across the cut, and the falls-away
+// terminal goes with the last product because a slide-out is the ring's end by definition.
+TEST_CASE("planDisconnectWaypoints splits at every selected junction", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    common::core::ChartNote glide = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+    glide.waypoints = {
+        common::core::Waypoint{
+            .offset = common::core::Fraction{1}, .fret = 9, .bend = 1.0, .vibrato = true
+        },
+        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 11},
+    };
+    glide.slide_out = 3;
+    chart.notes = {std::move(glide)};
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan = planDisconnectWaypoints(
+        chart,
+        tempo_map,
+        {waypointKeyAt(glideOnset(), 1, common::core::Fraction{1}),
+         waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+        "Disconnect Waypoint");
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 3);
+    CHECK(chart.notes[0].sustain == common::core::Fraction{1});
+    CHECK(chart.notes[1].sustain == common::core::Fraction{1});
+    CHECK(chart.notes[2].sustain == common::core::Fraction{2});
+
+    // The state the first junction states is what the second note OPENS with, so the push and the
+    // shake carry across the cut instead of restarting at the note's own defaults.
+    const common::core::ChartNote& second = chart.notes[1];
+    CHECK(second.fret == 9);
+    CHECK_THAT(second.bend, Catch::Matchers::WithinULP(1.0, 0));
+    CHECK(second.vibrato);
+    CHECK_FALSE(second.slide_out.has_value());
+    // Its own arrival retreats by the same margin before the head that follows it.
+    REQUIRE(second.waypoints.size() == 1);
+    CHECK(
+        second.waypoints[0].offset ==
+        common::core::Fraction{1} - common::core::minimumSustainDistanceBeats(4));
+    CHECK(second.waypoints[0].fret == 11);
+
+    // The third opens at the second junction, where the shake still stands and the bend has not
+    // been restated — and it is the one that ends where the gesture did, so it keeps the terminal.
+    const common::core::ChartNote& third = chart.notes[2];
+    CHECK(third.fret == 11);
+    CHECK_THAT(third.bend, Catch::Matchers::WithinULP(1.0, 0));
+    CHECK(third.vibrato);
+    REQUIRE(third.slide_out.has_value());
+    CHECK(*third.slide_out == 3);
+    // The earlier products end at a stated fret instead, so neither invents a trail-off.
+    CHECK_FALSE(chart.notes[0].slide_out.has_value());
+
+    REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// The vibrato channel's two authoring scopes are ONE planner, because they are one channel: the
+// note's own field is the statement at offset zero and a waypoint states a change from there.
+// This is the plain half — a selected waypoint takes the statement, and the onset it rides is
+// left exactly as the charter wrote it.
+TEST_CASE("planSetVibrato states the shake at a selected waypoint", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    const common::core::Chart original = chart;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan = planSetVibrato(
+        chart,
+        tempo_map,
+        {},
+        {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+        true,
+        "Vibrato");
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& note = chart.notes[0];
+    // The note reached only through its waypoint keeps the shake it opens with: a waypoint's
+    // statement is a change from the onset, never a rewrite of it.
+    CHECK_FALSE(note.vibrato);
+    REQUIRE(note.waypoints.size() == 2);
+    CHECK(note.waypoints[0].vibrato == true);
+    CHECK_FALSE(note.waypoints[1].vibrato.has_value());
+    // The position channel is untouched — the coupling law works because the waypoint is one
+    // record, not because a verb copies fields between channels.
+    CHECK(note.waypoints[0].fret == 9);
+
+    REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+    CHECK(chart == original);
+}
+
+// The dissolve law's static half, generalized (user, 2026-08-26): a pending point dissolves iff
+// it changes NEITHER the path function NOR the state. Every case of the described flow falls out
+// of that one rule, which is why these three sections share a planner and not a branch.
+TEST_CASE("planSetVibrato dissolves a statement that changes nothing", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("a shake stated again inside a region it already covers leaves no point behind")
+    {
+        common::core::Chart chart = makeGlideChart();
+        chart.notes[0].vibrato = true;
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {},
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            true,
+            "Vibrato");
+        // Nothing is authored at all: the statement restates the state in force where it stands,
+        // so it is dropped, and dropping it leaves the waypoint exactly as it was.
+        REQUIRE_FALSE(plan.has_value());
+        CHECK(plan.error() == ChartPlanRefusal::NoChange);
+    }
+
+    SECTION("clearing the shake from a point whose only job it was dissolves the point")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        // A delayed start: the ring opens still and shakes from two beats in. Nothing about the
+        // hand's position is stated, so this point exists for the shake alone.
+        note.waypoints = {
+            common::core::Waypoint{.offset = common::core::Fraction{2}, .vibrato = true}
+        };
+        chart.notes = {std::move(note)};
+        const common::core::Chart original = chart;
+
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {},
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            false,
+            "Remove Vibrato");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+        REQUIRE(chart.notes.size() == 1);
+        // The chart may never hold a waypoint stating nothing, so the point goes with the
+        // statement — through the one strip authority, not a removal rule written here.
+        CHECK(chart.notes[0].waypoints.empty());
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("only the statements this press wrote are judged for redundancy")
+    {
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        common::core::ChartNote note = makeTestNote(glideOnset(), 1, 7, common::core::Fraction{4});
+        note.vibrato = true;
+        note.waypoints = {
+            // Already redundant, and authored by someone else: this press never points at it.
+            common::core::Waypoint{.offset = common::core::Fraction{1}, .fret = 9, .vibrato = true},
+            // The shake ends here until the press below states it again.
+            common::core::Waypoint{
+                .offset = common::core::Fraction{2}, .fret = 11, .vibrato = false
+            },
+        };
+        chart.notes = {std::move(note)};
+
+        const auto plan = planSetVibrato(
+            chart,
+            tempo_map,
+            {},
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})},
+            true,
+            "Vibrato");
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].waypoints.size() == 2);
+        // The untouched restatement stays: quietly rewriting it would make this press an editor
+        // of data the user never pointed at.
+        CHECK(chart.notes[0].waypoints[0].vibrato == true);
+        // The written one said what was already true, so it is no statement — but the waypoint
+        // still states a fret, so the point itself stands.
+        CHECK_FALSE(chart.notes[0].waypoints[1].vibrato.has_value());
+        CHECK(chart.notes[0].waypoints[1].fret == 11);
+    }
+}
+
+// The note scope keeps its onset semantics exactly: pressing the verb with the NOTE selected
+// writes the channel's opening statement and leaves every waypoint's statement alone, redundant
+// or not, because this press wrote none of them.
+TEST_CASE("planSetVibrato on a note writes the onset alone", "[core][chart]")
+{
+    common::core::Chart chart = makeGlideChart();
+    chart.notes[0].waypoints[1].vibrato = true;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    const auto plan =
+        planSetVibrato(chart, tempo_map, {keyAt(glideOnset(), 1)}, {}, true, "Vibrato");
+    REQUIRE(plan.has_value());
+    if (!plan.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *plan);
+
+    REQUIRE(chart.notes.size() == 1);
+    CHECK(chart.notes[0].vibrato);
+    REQUIRE(chart.notes[0].waypoints.size() == 2);
+    CHECK(chart.notes[0].waypoints[1].vibrato == true);
+}
+
+// Delete is the same verb one level in: it takes every statement the selected waypoint makes, so
+// the waypoint always empties and always goes. The label names what was actually deleted.
+TEST_CASE("planDeleteSelection takes a waypoint and its statements", "[core][chart]")
+{
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    SECTION("one waypoint leaves the note and its siblings standing")
+    {
+        common::core::Chart chart = makeGlideChart();
+        const common::core::Chart original = chart;
+        const auto plan = planDeleteSelection(
+            chart, tempo_map, {}, {}, {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan->label == "Delete Waypoint");
+        applyAndValidate(chart, tempo_map, *plan);
+
+        REQUIRE(chart.notes.size() == 1);
+        REQUIRE(chart.notes[0].waypoints.size() == 1);
+        CHECK(chart.notes[0].waypoints[0].offset == common::core::Fraction{4});
+        CHECK(chart.notes[0].waypoints[0].fret == 12);
+        // The note's own onset facts are none of this verb's business.
+        CHECK(chart.notes[0].fret == 7);
+        CHECK(chart.notes[0].sustain == common::core::Fraction{4});
+
+        REQUIRE(applyChartChange(chart, plan->reversed()).has_value());
+        CHECK(chart == original);
+    }
+
+    SECTION("two waypoints are counted as waypoints")
+    {
+        common::core::Chart chart = makeGlideChart();
+        const auto plan = planDeleteSelection(
+            chart,
+            tempo_map,
+            {},
+            {},
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2}),
+             waypointKeyAt(glideOnset(), 1, common::core::Fraction{4})});
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        CHECK(plan->label == "Delete 2 Waypoints");
+    }
+
+    SECTION("a waypoint whose note goes too needs no removal of its own")
+    {
+        common::core::Chart chart = makeGlideChart();
+        const auto plan = planDeleteSelection(
+            chart,
+            tempo_map,
+            {keyAt(glideOnset(), 1)},
+            {},
+            {waypointKeyAt(glideOnset(), 1, common::core::Fraction{2})});
+        REQUIRE(plan.has_value());
+        if (!plan.has_value())
+        {
+            return;
+        }
+        // The note takes its whole ring with it, so the count stays one note — not one note and
+        // a waypoint that would have named a record no longer there.
+        CHECK(plan->label == "Delete Note");
+        applyAndValidate(chart, tempo_map, *plan);
+        CHECK(chart.notes.empty());
+    }
 }
 
 } // namespace rock_hero::editor::core

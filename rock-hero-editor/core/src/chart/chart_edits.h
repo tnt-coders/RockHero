@@ -181,16 +181,26 @@ Deleting a marker needs no such care in the other direction: a marker stores no 
 anything, so removing one can leave nothing stale behind — only a span that stops claiming a stop
 it was never sounding.
 
+Deleting a selected WAYPOINT is the same verb one level in: it takes every statement the waypoint
+makes, so the waypoint itself always goes — an emptied waypoint is no record at all
+(\ref common::core::waypointStatesNothing), and the removal rides
+\ref common::core::stripWaypointChannels, the one authority every channel-shedding rule uses. A
+waypoint whose note this same call deletes needs no separate care: the note takes its whole ring
+with it.
+
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param note_keys Notes to delete, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition); keys with no matching note are skipped.
 \param marker_keys Hold markers to delete, sorted ascending, same precondition.
+\param waypoint_keys Waypoints to delete, sorted ascending, same precondition; keys naming no
+waypoint are skipped.
 \return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys);
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys,
+    const std::vector<ChartWaypointKey>& waypoint_keys);
 
 /*!
 \brief Plans moving the keyed notes and hold markers by an exact beat delta and/or a string delta.
@@ -626,28 +636,139 @@ binary-search this precondition).
     std::string_view label);
 
 /*!
-\brief The law one technique's toggle verb runs: what to call it, whether a note already carries it,
-and the planner that writes or clears it.
+\brief Plans the waypoint disconnect: `Shift+L` severs a gesture at each selected waypoint.
+
+The split-tail law applied at a waypoint instead of at a bare tail point (W10's 2026-08-26
+addendum, a user ask): the note's path ENDS at the waypoint and a new head takes the remainder.
+The origin keeps the waypoint — its travel really does arrive there, and dropping it would delete
+the leg the user split at — so the junction is an equal-fret handover, which is exactly the shape
+W10's ruling 2 names ("the handed-over waypoint fret equalling the new head's").
+
+**Where the arrival lands, and why it is not the split instant.** A fret-stating waypoint may
+never sit on a later onset of its own string (\ref common::core::validateChartNotes): the head
+states those coordinates itself, and the second copy is the desyncable encoding the format exists
+to make unrepresentable. A glide into a re-picked landing therefore arrives the minimum sustain
+distance BEFORE it — the format's own shift-slide shape, and the importer's policy rule 13 for
+exactly this figure — so the arrival retreats by that margin while the origin's RING still runs to
+the new head, because a re-strike is what stops a ring. The retreat costs nothing visible: the
+presentation trim ends the drawn tail at that same margin regardless. Without it this verb could
+never produce a legal chart at all, since every split would store the landing's coordinates twice.
+
+Every selected waypoint on a note splits it, in offset order, so a chain selected at two junctions
+becomes three notes: the uniform-scope law, one level inside the note.
+
+What each product carries. The remainder is the same note restarted at the junction: its fret is
+the waypoint's, its ring is what is left, and the CHANNEL states in force at the split become its
+onset values — the bend it was already pushing and the shake it was already carrying, so the sound
+does not change across a split. Its later waypoints ride along, rebased onto the new onset, and the
+falls-away terminal goes with the LAST product, since a slide-out is the ring's end and the ring's
+end is now there. The origin's own onset facts are untouched.
+
+**The split head's attack, and the one thing this cannot yet say.** W10 ruled the split head stores
+plain `Legato` — never `Pick` (which would author a strike that is not in the music) and never a
+stored tie (struck-ness is derivable) — and that is what this writes. The addendum's proposed
+default is that the product is an UNSTRUCK tie; expressing that needs `LegatoMotion::Continuation`,
+W10's amendment to the equal-fret arm of \ref common::core::resolveLegato, which is not built. Under
+today's resolver an equal-fret claim resolves to `Unjustified`, so the settle sweep flattens it to
+`Pick` and the split product reads as struck until that amendment lands. The default is a
+PROPOSAL, not a ruling; nothing here is written as if it were one.
+
+Refusals, both from W10's ruling 2 ("technique verbs split only at stated frets"):
+
+- A waypoint stating no FRET is refused. A head must sit on a stated fret, and the fret between
+  stating points is interpolated travel — rounding it was killed explicitly as invented data.
+- A waypoint at the ring's END is refused: there is no remainder for a new head to take, and the
+  note already stops there.
+- A junction with no room for the retreated arrival — one within a margin of the onset, or of the
+  statement before it — refuses through the gate rather than clamping onto it, because a clamped
+  arrival would be an arrival time nobody authored.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for the split arithmetic and the shared finalize.
+\param waypoint_keys Waypoints to disconnect at, sorted ascending (the ChartSelection order); keys
+naming no waypoint are skipped.
+\param label User-visible undo label.
+\return The plan; NoChange when no key named a waypoint, Invalid when a named waypoint cannot carry
+        a head or when the gate refuses the result (a scrape, whose terminal the origin would lose;
+        a destination slot another note holds).
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartWaypointKey>& waypoint_keys, std::string_view label);
+
+/*!
+\brief Plans the vibrato channel's toggle across a selection — the ONE writer of that channel.
+
+Vibrato is the only technique the toggle verb writes that is interval STATE rather than a
+whole-note fact, so it is the only one with two authoring scopes: the note's own `vibrato` is the
+channel's opening statement at offset zero, and each waypoint may state a change from there
+(\ref common::core::Waypoint). Both are the same channel, so one planner writes both — splitting
+them would be the channel stated twice, free to disagree about what a press means.
+
+The caller has already decided the direction under the uniform-scope law, so this writes `set` at
+every selected anchor and then applies the **dissolve law's static half**: a statement that
+restates the state already in force where it stands changes neither the path function nor the
+state, so it is dropped, and a waypoint the drop empties dissolves with it — through
+\ref common::core::stripWaypointChannels, the one strip authority. That single rule is what makes
+every case of the user's described flow fall out without a branch: clearing the shake from a
+vibrato-start point leaves the point stating nothing and it goes; stating the shake again inside a
+region it already covers leaves no point behind; and stating it at a glide's arrival, where the
+state genuinely changes, keeps the point that says so.
+
+Only statements this press WROTE are judged for redundancy. A restatement the charter (or an
+importer) put somewhere else says nothing to this verb, and quietly rewriting it would make an
+unrelated press an editor of data the user never pointed at.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param note_keys Notes whose ONSET statement changes, sorted ascending (the ChartSelection order).
+\param waypoint_keys Waypoints whose statement changes, sorted ascending, same precondition.
+\param set Value written at every selected anchor.
+\param label User-visible undo label.
+\return The plan; NoChange when nothing changes (an ineligible note is skipped, not a refusal, and
+        a redundant statement is a no-op), Invalid when the gate refuses the result.
+*/
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys,
+    bool set, std::string_view label);
+
+/*!
+\brief The law one technique's toggle verb runs: what to call it, whether the selection already
+carries it, and the planner that writes or clears it.
 
 The one table behind the toggle verb, so a technique joining the family adds a row here and nothing
-in the controller: the verb reads the selection through `carries` to decide set-or-clear (the
-uniform-scope law), plans through `plan`, and labels the entry and its reversal from `noun`.
+in the controller: the verb reads `carried` to decide set-or-clear (the uniform-scope law), plans
+through `plan`, and labels the entry and its reversal from `noun`.
+
+Both members take the whole SELECTION rather than one note, because the selection is what the
+uniform-scope law scopes a verb to and not every technique lives in one place: vibrato is a channel
+along the ring, so a selected waypoint carries it and takes it exactly as a selected note does,
+while every other row here reads `selection.notes()` and nothing else. Handing each row one operand
+and letting it read the parts it has a meaning for is what keeps a technique with no waypoint scope
+from carrying a guard about waypoints — the same empty-operand rule that already makes the fret
+verb ignore a selected hold marker.
 */
 struct ChartTechniqueLaw
 {
     /*! \brief The undo noun: "Palm Mute" labels the set, "Remove Palm Mute" the clear. */
     std::string_view noun;
 
-    /*! \brief True when the note already carries the technique as the verb would write it. */
-    bool (*carries)(const common::core::ChartNote& note);
+    /*!
+    \brief True when every object the verb would write already carries the technique.
+
+    False for a selection this verb has no operand in at all, which makes such a press mean SET and
+    therefore plan to nothing — the same inert outcome an empty selection has always had.
+    */
+    bool (*carried)(const common::core::Chart& chart, const ChartSelection& selection);
 
     /*!
-    \brief Plans setting (`set`) or clearing the technique across `keys` under `label`, with the
-    per-note eligibility the planner owns.
+    \brief Plans setting (`set`) or clearing the technique across the selection under `label`, with
+    the per-note eligibility the planner owns.
     */
     std::expected<ChartEditPlan, ChartPlanRefusal> (*plan)(
         const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-        const std::vector<ChartSlotKey>& keys, bool set, std::string_view label);
+        const ChartSelection& selection, bool set, std::string_view label);
 };
 
 /*!

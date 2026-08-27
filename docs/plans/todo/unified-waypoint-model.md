@@ -1,6 +1,12 @@
 # The Unified Waypoint Model — one array of per-channel statements along a note's ring
 
-Status: **DECIDED 2026-08-26, unbuilt.** This plan is the outcome of the tail-model analysis
+Status: **DECIDED 2026-08-26, BUILT 2026-08-27** — all four stages landed as local commits
+(format+rules `18e8d822`, importer `49c8f768`, projection/renderers `b40427fe`, editor with this
+commit), each adversarially reviewed with the frozen-bends contract green throughout. Open
+sign-offs below remain open (the trim floor value, the coincident-onset vibrato overwrite, the
+refined importer-anchor wording, the disconnect's unstruck-tie default), plus the stage-flagged
+rulings recorded in the session task list; the #78 re-export is now due. This plan is the outcome
+of the tail-model analysis
 (`tail-event-model.md`, kept as the option-space record) and supersedes its deferral: the user
 ruled the substrate, then closed the two format gaps the ruling exposed. Written by the
 orchestrator directly at the user's direction; every ruling below is dated and quoted or marked

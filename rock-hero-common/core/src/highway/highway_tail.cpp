@@ -203,7 +203,7 @@ std::vector<double> makeHighwayTailSampleTimes(
 
     // The exact times first, so the uniform grid can be budgeted against what they leave.
     std::vector<double> times;
-    times.reserve(sample_cap + note.bend.size() + note.slides.size() + extra_times.size());
+    times.reserve(sample_cap + note.bend.size() + glideStopCount(note) + extra_times.size());
     for (const BendPointViewState& point : note.bend)
     {
         if (point.seconds > from_seconds && point.seconds < to_seconds)
@@ -211,11 +211,14 @@ std::vector<double> makeHighwayTailSampleTimes(
             times.push_back(point.seconds);
         }
     }
-    for (const SlideViewState& waypoint : note.slides)
+    // Every stop of the gesture, the falls-away terminal included: the centerline kinks at each
+    // one, so a sample has to land there whether or not the stop is a waypoint.
+    for (std::size_t index = 0; index < glideStopCount(note); ++index)
     {
-        if (waypoint.seconds > from_seconds && waypoint.seconds < to_seconds)
+        const double stop_seconds = glideStopAt(note, index).seconds;
+        if (stop_seconds > from_seconds && stop_seconds < to_seconds)
         {
-            times.push_back(waypoint.seconds);
+            times.push_back(stop_seconds);
         }
     }
     for (const double seconds : extra_times)

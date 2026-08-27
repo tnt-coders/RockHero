@@ -247,6 +247,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
     void performActionImpl(const EditorAction::ToggleChartHoldMarker& action);
+    // Severs each selected waypoint's gesture (Shift+L, W10's 2026-08-26 addendum): the path ends
+    // at the waypoint and a new head takes the remainder, in one compound undo entry. Inert with
+    // no waypoint selected.
+    void performActionImpl(const EditorAction::DisconnectChartWaypoint& action);
     // The body both mute verbs share, so the uniform-scope law and the toggle window are written
     // once: the two verbs differ only in which flag they write, which window they arm, and the
     // noun their undo labels are built from.
@@ -287,7 +291,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True when a chart note already occupies the given slot (one binary search over the
     // (position, string)-sorted notes). The insert-legality test shared by caret arming, the
     // Alt+click insert, and the insert ghost's honesty gate.
-    [[nodiscard]] std::optional<ChartSelectableKind> chartSlotObject(
+    [[nodiscard]] std::optional<ChartSlotOccupant> chartSlotObject(
         common::core::GridPosition position, int string) const;
     // Plants a note at an empty slot and makes it the selection with the caret armed on it — the
     // shared primitive behind the Alt+click neutral-create (fret 0) and any future placement. A

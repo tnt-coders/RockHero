@@ -34,6 +34,15 @@ namespace
     return common::core::visibleEventRange(tab.notes, prefix, span_start, span_end);
 }
 
+// True when the lane draws a head at this waypoint, which is exactly when it is clickable: an
+// unlinked waypoint sits at the presented tail's end, where the re-picked landing draws its own
+// head instead. The same read the paint core gates its linked-head passes on.
+[[nodiscard]] bool waypointHasHead(
+    const common::core::NoteViewState& note, const common::core::SlideViewState& waypoint) noexcept
+{
+    return common::core::linkedWaypoint(note, waypoint);
+}
+
 } // namespace
 
 std::optional<ChartHitTarget> chartHitTarget(
@@ -62,7 +71,7 @@ std::optional<ChartHitTarget> chartHitTarget(
     }
     if (best_marker.has_value())
     {
-        return ChartHitTarget{.kind = ChartSelectableKind::HoldMarker, .index = *best_marker};
+        return ChartHoldMarkerHit{.index = *best_marker};
     }
 
     const auto [first, last] = candidateRange(tab, geometry, x, x);
@@ -88,7 +97,40 @@ std::optional<ChartHitTarget> chartHitTarget(
     }
     if (best_head.has_value())
     {
-        return ChartHitTarget{.kind = ChartSelectableKind::Note, .index = *best_head};
+        return ChartNoteHit{.index = *best_head};
+    }
+
+    // Linked waypoint heads next: they are drawn ON a tail, so resolving tails first would make
+    // every one of them unclickable. Nearest head center wins among overlapping ones, the same
+    // rule the onset heads use.
+    std::optional<ChartWaypointHit> best_waypoint;
+    float best_waypoint_distance = 0.0f;
+    for (std::size_t index = first; index < last; ++index)
+    {
+        const common::core::NoteViewState& note = tab.notes[index];
+        for (std::size_t waypoint = 0; waypoint < note.slides.size(); ++waypoint)
+        {
+            if (!waypointHasHead(note, note.slides[waypoint]))
+            {
+                continue;
+            }
+            const common::ui::TabWaypointLayout layout =
+                common::ui::tabWaypointLayout(geometry, note, note.slides[waypoint]);
+            if (!layout.head.contains(x, y))
+            {
+                continue;
+            }
+            const float distance = std::abs(x - layout.center_x);
+            if (!best_waypoint.has_value() || distance < best_waypoint_distance)
+            {
+                best_waypoint = ChartWaypointHit{.note_index = index, .waypoint_index = waypoint};
+                best_waypoint_distance = distance;
+            }
+        }
+    }
+    if (best_waypoint.has_value())
+    {
+        return *best_waypoint;
     }
 
     // Tails last: overlapping same-string sustains resolve to the nearest onset so the click
@@ -114,7 +156,7 @@ std::optional<ChartHitTarget> chartHitTarget(
     {
         return std::nullopt;
     }
-    return ChartHitTarget{.kind = ChartSelectableKind::Note, .index = *best_tail};
+    return ChartNoteHit{.index = *best_tail};
 }
 
 std::vector<ChartHitTarget> chartTargetsInBox(
@@ -134,7 +176,7 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
         if (intersects(layout.head))
         {
-            boxed.push_back(ChartHitTarget{.kind = ChartSelectableKind::Note, .index = index});
+            boxed.push_back(ChartNoteHit{.index = index});
         }
     }
     for (std::size_t index = 0; index < tab.hold_markers.size(); ++index)
@@ -143,8 +185,27 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             common::ui::tabHoldMarkerLayout(geometry, tab.hold_markers[index]);
         if (intersects(layout.box))
         {
-            boxed.push_back(
-                ChartHitTarget{.kind = ChartSelectableKind::HoldMarker, .index = index});
+            boxed.push_back(ChartHoldMarkerHit{.index = index});
+        }
+    }
+    // The waypoint heads a box catches, on the same drawn-extent rule as the two above: a box
+    // drawn over a glide's junction selects that junction, which is what makes the marquee reach
+    // the objects the click reaches.
+    for (std::size_t index = first; index < last; ++index)
+    {
+        const common::core::NoteViewState& note = tab.notes[index];
+        for (std::size_t waypoint = 0; waypoint < note.slides.size(); ++waypoint)
+        {
+            if (!waypointHasHead(note, note.slides[waypoint]))
+            {
+                continue;
+            }
+            const common::ui::TabWaypointLayout layout =
+                common::ui::tabWaypointLayout(geometry, note, note.slides[waypoint]);
+            if (intersects(layout.head))
+            {
+                boxed.push_back(ChartWaypointHit{.note_index = index, .waypoint_index = waypoint});
+            }
         }
     }
     return boxed;

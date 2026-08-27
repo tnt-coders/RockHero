@@ -55,8 +55,12 @@ const common::core::ChartViewState* EditorController::Impl::displayedTabProjecti
 }
 
 // Each authored array is sorted by (position, string) and the tab projection preserves that order
-// one to one, so a projection index addresses the chart record directly — the same rule for both
-// kinds, which is why the hit target carries the kind rather than the caller assuming one.
+// one to one, so a projection index addresses the chart record directly — the same rule for every
+// kind, which is why the hit target names its own kind rather than the caller assuming one.
+//
+// A waypoint hit is the one that cannot stop at the note: its identity is (note slot, offset), and
+// the offset comes off the DRAWN waypoint the pointer landed on rather than off the chart, because
+// the drawn list holds only the waypoints the lane actually shows.
 std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
     const ChartHitTarget& target) const
 {
@@ -66,34 +70,48 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
         return std::nullopt;
     }
     const common::core::Chart& chart = *arrangement->chart;
-    switch (target.kind)
-    {
-        case ChartSelectableKind::Note:
-        {
-            if (target.index >= chart.notes.size())
+    const common::core::ChartViewState* const tab = displayedTabProjection();
+    return std::visit(
+        [&chart, tab](const auto& hit) -> std::optional<ChartSelectionKey> {
+            using Hit = std::remove_cvref_t<decltype(hit)>;
+            if constexpr (std::is_same_v<Hit, ChartNoteHit>)
             {
-                return std::nullopt;
+                if (hit.index >= chart.notes.size())
+                {
+                    return std::nullopt;
+                }
+                return ChartNoteKey{.slot = chartSlotKeyOf(chart.notes[hit.index])};
             }
-            return ChartSelectionKey{
-                .kind = target.kind,
-                .slot = chartSlotKeyOf(chart.notes[target.index]),
-            };
-        }
-        case ChartSelectableKind::HoldMarker:
-        {
-            if (target.index >= chart.hold_markers.size())
+            else if constexpr (std::is_same_v<Hit, ChartHoldMarkerHit>)
             {
-                return std::nullopt;
+                if (hit.index >= chart.hold_markers.size())
+                {
+                    return std::nullopt;
+                }
+                return ChartHoldMarkerKey{
+                    .slot = chartSlotKeyOf(chart.hold_markers[hit.index]),
+                };
             }
-            return ChartSelectionKey{
-                .kind = target.kind,
-                .slot = chartSlotKeyOf(chart.hold_markers[target.index]),
-            };
-        }
-    }
-    // Total above; a kind outside the enum is a caller bug, and answering it with a note key would
-    // silently select the wrong object.
-    std::unreachable();
+            else
+            {
+                if (tab == nullptr || hit.note_index >= chart.notes.size() ||
+                    hit.note_index >= tab->notes.size())
+                {
+                    return std::nullopt;
+                }
+                const std::vector<common::core::SlideViewState>& drawn =
+                    tab->notes[hit.note_index].slides;
+                if (hit.waypoint_index >= drawn.size())
+                {
+                    return std::nullopt;
+                }
+                return ChartWaypointKey{
+                    .note = chartSlotKeyOf(chart.notes[hit.note_index]),
+                    .offset = drawn[hit.waypoint_index].offset,
+                };
+            }
+        },
+        target);
 }
 
 void EditorController::Impl::clearChartEditingState()
@@ -245,7 +263,7 @@ void EditorController::Impl::dissolveChartCaretInPlace()
 // (position, string), so the lookup is one binary search per kind. Shared by caret arming
 // (selection re-derivation), the Alt+click insert (refusal), the insert ghost's honesty gate, and
 // the Insert key.
-std::optional<ChartSelectableKind> EditorController::Impl::chartSlotObject(
+std::optional<ChartSlotOccupant> EditorController::Impl::chartSlotObject(
     common::core::GridPosition position, int string) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -259,7 +277,7 @@ std::optional<ChartSelectableKind> EditorController::Impl::chartSlotObject(
                 return chartSlotKeyOf(note);
             }))
     {
-        return ChartSelectableKind::Note;
+        return ChartSlotOccupant::Note;
     }
     if (std::ranges::binary_search(
             arrangement->chart->hold_markers,
@@ -267,7 +285,7 @@ std::optional<ChartSelectableKind> EditorController::Impl::chartSlotObject(
             {},
             [](const common::core::ChartHoldMarker& marker) { return chartSlotKeyOf(marker); }))
     {
-        return ChartSelectableKind::HoldMarker;
+        return ChartSlotOccupant::HoldMarker;
     }
     return std::nullopt;
 }
@@ -287,13 +305,16 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
     disarmChartVerbWindow();
     m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartSlotKey key{.position = position, .string = string};
-    if (const std::optional<ChartSelectableKind> held = chartSlotObject(position, string);
+    if (const std::optional<ChartSlotOccupant> held = chartSlotObject(position, string);
         held.has_value())
     {
         // Whatever the slot holds becomes the selection — a note or an authored hold marker
         // alike, so the armed-caret invariant reads the same for both and the arpeggio hold verb
-        // finds its own mark selected after it authors one.
-        chartSelectionMutable().replaceWith(ChartSelectionKey{.kind = *held, .slot = key});
+        // finds its own mark selected after it authors one. Waypoints cannot appear here: they
+        // occupy no slot, so nothing the caret can be armed at ever names one.
+        chartSelectionMutable().replaceWith(
+            *held == ChartSlotOccupant::Note ? ChartSelectionKey{ChartNoteKey{.slot = key}}
+                                             : ChartSelectionKey{ChartHoldMarkerKey{.slot = key}});
     }
     else
     {
@@ -336,8 +357,7 @@ void EditorController::Impl::insertChartNoteAt(
     }
     if (!applyChartEditPlan(
             std::move(plan),
-            std::vector<ChartSelectionKey>{ChartSelectionKey{
-                .kind = ChartSelectableKind::Note,
+            std::vector<ChartSelectionKey>{ChartNoteKey{
                 .slot = ChartSlotKey{.position = position, .string = string},
             }}))
     {
@@ -584,19 +604,19 @@ bool EditorController::Impl::applyChartEditPlan(
         // verb takes a note out of one array and puts a marker into the other, and the selection
         // has to follow across that boundary or the caret would sit on an unselected object.
         std::vector<ChartSelectionKey> next_selection;
-        const auto follow = [&next_selection](
-                                const ChartSelectableKind kind,
+        const auto in_side = [](const auto& side, const ChartSlotKey& key) {
+            return std::ranges::any_of(
+                side, [&key](const auto& record) { return chartSlotKeyOf(record) == key; });
+        };
+        const auto follow = [&next_selection, &in_side](
                                 const std::vector<ChartSlotKey>& selected,
-                                const auto& change) {
-            const auto in_side = [](const auto& side, const ChartSlotKey& key) {
-                return std::ranges::any_of(
-                    side, [&key](const auto& record) { return chartSlotKeyOf(record) == key; });
-            };
+                                const auto& change,
+                                const auto& make_key) {
             for (const ChartSlotKey& key : selected)
             {
                 if (!in_side(change.removed, key))
                 {
-                    next_selection.push_back(ChartSelectionKey{.kind = kind, .slot = key});
+                    next_selection.push_back(make_key(key));
                 }
             }
             for (const auto& record : change.inserted)
@@ -614,11 +634,29 @@ bool EditorController::Impl::applyChartEditPlan(
                 {
                     continue;
                 }
-                next_selection.push_back(ChartSelectionKey{.kind = kind, .slot = key});
+                next_selection.push_back(make_key(key));
             }
         };
-        follow(ChartSelectableKind::Note, chartSelection().notes(), plan->notes);
-        follow(ChartSelectableKind::HoldMarker, chartSelection().holdMarkers(), plan->hold_markers);
+        follow(chartSelection().notes(), plan->notes, [](const ChartSlotKey& key) {
+            return ChartSelectionKey{ChartNoteKey{.slot = key}};
+        });
+        follow(chartSelection().holdMarkers(), plan->hold_markers, [](const ChartSlotKey& key) {
+            return ChartSelectionKey{ChartHoldMarkerKey{.slot = key}};
+        });
+        // A waypoint key rides an edit that rewrote its note IN PLACE, which is every waypoint
+        // verb there is — and that is what carries the dissolve law's linger: the key stays
+        // selected after the waypoint it named dissolved, so a second press inside the verb
+        // window still proves it is acting on the same selection and reverses exactly. A note the
+        // plan MOVED or DELETED takes its waypoints' keys with it, because the key names the old
+        // slot and the plan carries no map from an old slot to a new one.
+        for (const ChartWaypointKey& waypoint : chartSelection().waypoints())
+        {
+            if (!in_side(plan->notes.removed, waypoint.note) ||
+                in_side(plan->notes.inserted, waypoint.note))
+            {
+                next_selection.push_back(waypoint);
+            }
+        }
         chartSelectionMutable().applyBox(next_selection, false);
     }
 
@@ -717,10 +755,11 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     else if (event.clicks >= 2)
     {
         const common::core::Arrangement* const arrangement = session().currentArrangement();
-        if (arrangement != nullptr && arrangement->chart.has_value())
+        const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key);
+        if (arrangement != nullptr && arrangement->chart.has_value() && slot.has_value())
         {
             chartSelectionMutable().replaceWith(chartOnsetGroupKeys(
-                arrangement->chart->notes, arrangement->chart->hold_markers, key->slot.position));
+                arrangement->chart->notes, arrangement->chart->hold_markers, slot->position));
         }
         dissolveChartCaretInPlace();
         static_cast<void>(settleChartLegato());
@@ -730,7 +769,20 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         // Arming re-derives the singleton selection from the object under the caret. A press on
         // an already-selected one keeps the standing selection (and marker) untouched until
         // the release collapses it — the gap a future drag-move gesture lives in.
-        armChartCaret(key->slot.position, key->slot.string);
+        //
+        // A waypoint occupies no slot, so there is nothing to arm on: it becomes the selection and
+        // the marker demotes to a cursor in place, the same outcome every multi-select gesture
+        // above produces.
+        if (const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key); slot.has_value())
+        {
+            armChartCaret(slot->position, slot->string);
+        }
+        else
+        {
+            chartSelectionMutable().replaceWith(*key);
+            dissolveChartCaretInPlace();
+            static_cast<void>(settleChartLegato());
+        }
     }
     updateView();
 }
@@ -813,7 +865,13 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                     chartSelectionKeyAt(*gesture.hit_target);
                 key.has_value())
             {
-                armChartCaret(key->slot.position, key->slot.string);
+                // A waypoint has no slot to arm, and the press already made it the selection —
+                // so the release collapses nothing and leaves the marker where the press left it.
+                if (const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key);
+                    slot.has_value())
+                {
+                    armChartCaret(slot->position, slot->string);
+                }
             }
         }
         updateView();
@@ -1240,10 +1298,17 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // the selection stays put, matching refuse-not-clamp everywhere else. Selected hold markers move
 // with the notes: a marker left behind by a moved chord opens under no span and goes silently
 // inert, which loses the hand fact without making anything false.
+//
+// The operand is the two SLOT-keyed arrays and the guard asks for exactly that, not for a
+// non-empty selection: a waypoint has no slot to step — moving one along its ring is authoring,
+// not this verb — so a selection holding only waypoints reads as no operand, the same empty-operand
+// rule every other chart verb follows. Asked HERE because it is also what makes the meter reference
+// below total: with no slot selected there is no front to read.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
+    if (arrangement == nullptr || !arrangement->chart.has_value() ||
+        (chartSelection().notes().empty() && chartSelection().holdMarkers().empty()))
     {
         return;
     }
@@ -1327,7 +1392,8 @@ void EditorController::Impl::deleteChartSelection()
         *arrangement->chart,
         session().song().tempo_map,
         chartSelection().notes(),
-        chartSelection().holdMarkers())));
+        chartSelection().holdMarkers(),
+        chartSelection().waypoints())));
 }
 
 // The Insert key's neutral create: the surface's neutral object appears at an armed EMPTY caret
@@ -1514,9 +1580,7 @@ void EditorController::Impl::settleChartFretEntry()
         std::optional<std::vector<ChartSelectionKey>> select_exactly;
         if (const auto* const insert = std::get_if<ChartFretEntry::InsertAt>(&entry.target))
         {
-            select_exactly = std::vector<ChartSelectionKey>{
-                ChartSelectionKey{.kind = ChartSelectableKind::Note, .slot = insert->slot}
-            };
+            select_exactly = std::vector<ChartSelectionKey>{ChartNoteKey{.slot = insert->slot}};
         }
         static_cast<void>(applyChartEditPlan(std::move(*entry.plan), std::move(select_exactly)));
     }
@@ -1984,23 +2048,20 @@ void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartTe
     {
         return;
     }
-    const std::vector<ChartSlotKey> keys = chartSelection().notes();
     if (technique == ChartTechnique::Legato)
     {
-        toggleChartLegato(keys);
+        toggleChartLegato(chartSelection().notes());
         return;
     }
 
+    // The law reads the whole SELECTION for both halves of the toggle: which objects a technique
+    // has a meaning for is the row's own business, so a press over a selection this technique
+    // reaches nothing in simply plans to NoChange instead of being filtered out here.
     const ChartTechniqueLaw law = chartTechniqueLaw(technique);
-    const std::vector<common::core::ChartNote> selected = chartNotesForKeys(keys);
-    if (selected.empty())
-    {
-        return;
-    }
-    const bool all_carry = std::ranges::all_of(selected, law.carries);
+    const bool all_carry = law.carried(*arrangement->chart, chartSelection());
     const std::string label = all_carry ? "Remove " + std::string{law.noun} : std::string{law.noun};
-    if (applyChartEditPlan(
-            law.plan(*arrangement->chart, session().song().tempo_map, keys, !all_carry, label)))
+    if (applyChartEditPlan(law.plan(
+            *arrangement->chart, session().song().tempo_map, chartSelection(), !all_carry, label)))
     {
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
@@ -2096,6 +2157,30 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetChartLeftT
         chartSelection().notes(),
         common::core::NoteAttack::LeftTap,
         "Left-Hand Tap")));
+}
+
+// The waypoint disconnect (`Shift+L`), the split-tail law applied at a waypoint instead of at a
+// bare tail point (W10's 2026-08-26 addendum, a user ask "to make it feel consistent"). One
+// compound undo entry spanning however many notes the split produces, and inert with no waypoint
+// in the selection — pressing it over notes alone is not an error, it simply has no operand,
+// which is the empty-operand rule every verb here follows.
+//
+// No verb window is armed. The disconnect is not a toggle: `Shift+L`'s apply-or-clear parity on a
+// LINK is W10's own tie/slide-link half, which is not built, and arming a window that a second
+// press could not honour would be an affordance that lies.
+void EditorController::Impl::performActionImpl(const EditorAction::DisconnectChartWaypoint&)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() ||
+        chartSelection().waypoints().empty())
+    {
+        return;
+    }
+    static_cast<void>(applyChartEditPlan(planDisconnectWaypoints(
+        *arrangement->chart,
+        session().song().tempo_map,
+        chartSelection().waypoints(),
+        "Disconnect Waypoint")));
 }
 
 // The arpeggio hold verb (`N`), and it is the one chart verb anchored at the CARET rather than at

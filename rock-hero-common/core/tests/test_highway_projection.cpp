@@ -455,12 +455,14 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     CHECK(scene.fret_hand_positions.size() == 2);
 
     // The continuation rule is a READ of the scene, shared by construction: the scrape's turnaround
-    // continues the gesture, its terminal is where the pick leaves.
+    // continues the gesture, its terminal is where the pick leaves — and the terminal is the
+    // note's own field rather than a waypoint, so it never reaches the continuation question.
     const NoteViewState& scrape = scene.notes.front();
     REQUIRE(scrape.attack == NoteAttack::PickSlide);
-    REQUIRE(scrape.slides.size() == 2);
+    REQUIRE(scrape.slides.size() == 1);
+    REQUIRE(scrape.slide_out.has_value());
     CHECK(linkedWaypoint(scrape, scrape.slides[0]));
-    CHECK_FALSE(linkedWaypoint(scrape, scrape.slides[1]));
+    CHECK(glideStopAt(scrape, 1).seconds == Catch::Approx(scrape.end_seconds));
 
     // Board-only structure with no 2D counterpart — beat bars, camera framing zones, and the
     // picking-hand light the scrape drives — derived beside the scene, never inside it.
@@ -893,7 +895,9 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     sliding.end_seconds = 4.0;
     sliding.fret = 12;
     sliding.attack = NoteAttack::Tap;
-    sliding.slides = {SlideViewState{.seconds = 4.0, .fret = 15, .unpitched = false}};
+    // Hand-built view states carry no authored offset: these fixtures resolve no tempo map, and
+    // nothing on the highway path reads the field (it is the editor's selection identity).
+    sliding.slides = {SlideViewState{.seconds = 4.0, .fret = 15, .offset = Fraction{}}};
     notes.push_back(sliding);
 
     // Tapped slide with an unpitched trail-off: the pitched glide ends at 6.0; the trail to 6.5
@@ -903,10 +907,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     trailing.end_seconds = 6.5;
     trailing.fret = 10;
     trailing.attack = NoteAttack::Tap;
-    trailing.slides = {
-        SlideViewState{.seconds = 6.0, .fret = 13, .unpitched = false},
-        SlideViewState{.seconds = 6.5, .fret = 8, .unpitched = true},
-    };
+    trailing.slides = {SlideViewState{.seconds = 6.0, .fret = 13, .offset = Fraction{}}};
+    trailing.slide_out = 8;
     notes.push_back(trailing);
 
     const std::vector<HighwayTapOnsetViewState> onsets =
@@ -1023,9 +1025,11 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK_FALSE(view.tremolo);
     CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
-    REQUIRE(view.slides.size() == 2);
-    CHECK(view.slides[0].unpitched);
-    CHECK(view.slides[1].unpitched);
+    REQUIRE(view.slides.size() == 1);
+    REQUIRE(view.slide_out.has_value());
+    REQUIRE(glideStopCount(view) == 2);
+    CHECK(glideStopAt(view, 0).unpitched);
+    CHECK(glideStopAt(view, 1).unpitched);
     // The right-hand light rides the scrape: one onset whose path stations follow the
     // traveled waypoints (17 at the onset, 3 at the reversal, 9 at the end).
     REQUIRE(state.tap_onsets.size() == 1);
@@ -1108,7 +1112,7 @@ TEST_CASE("Highway tap light glides a tapped harmonic along its node", "[core][h
     note.fret = 5;
     note.attack = NoteAttack::Tap;
     note.harmonic_node = 17.0;
-    note.slides = {SlideViewState{.seconds = 2.0, .fret = 9, .unpitched = false}};
+    note.slides = {SlideViewState{.seconds = 2.0, .fret = 9, .offset = Fraction{}}};
 
     const std::vector<NoteViewState> notes{note};
     const std::vector<HighwayTapOnsetViewState> onsets = makeHighwayTapOnsets(notes, {0.0});

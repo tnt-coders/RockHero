@@ -217,6 +217,9 @@ enum class EditorCommandId : std::uint16_t
     /*! \brief Author, convert or remove a silently-held shape member at the caret (`N`). */
     ChartHoldMarkerToggle = 0x1712,
 
+    /*! \brief Sever a gesture at each selected waypoint (`Shift+L`). */
+    ChartWaypointDisconnect = 0x1713,
+
     /*! \brief Type digit 0 into the armed row's payload (`0`, numpad `0`). */
     TypeDigit0 = 0x1801,
 

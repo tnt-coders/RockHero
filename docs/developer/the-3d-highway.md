@@ -174,7 +174,11 @@ than one of them: the onset from the note's own fret, a slide from each fret it 
 Where the gesture has TRAVELLED to at an instant is the companion in the same header,
 `highwaySlideStateAt(note, base_x, metrics, mirrored, seconds)`: the eased offset from that anchor
 (pitched and unpitched glides ease differently) plus the unpitched release's alpha dim, holding
-the last target past the last waypoint. Both were inline in `draw()` until the floor light needed
+the last target past the last STOP. Stop and not waypoint: the gesture is read as one uniform
+sequence — the note's position waypoints, then its falls-away terminal — through
+`glideStopCount` / `glideStopAt` in `chart_view_state.h`, so the terminal is a segment here
+without being one more entry in `NoteViewState::slides`. Both were inline in `draw()` until the
+floor light needed
 them — the glide as a lambda declared after every floor pass, which is precisely what made a floor
 mark unable to follow a slide — and out here they carry `test_highway_slide_path.cpp`.
 `highwayGlideSliceCount` rides along as the one density policy every glide-following mark

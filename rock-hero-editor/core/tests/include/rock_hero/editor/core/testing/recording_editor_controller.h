@@ -314,6 +314,12 @@ public:
         chart_hold_marker_toggle_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartWaypointDisconnectRequested */
+    void onChartWaypointDisconnectRequested() override
+    {
+        chart_waypoint_disconnect_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override
     {}
@@ -803,6 +809,9 @@ public:
 
     /*! \brief Number of onChartHoldMarkerToggleRequested() intents received. */
     int chart_hold_marker_toggle_count{0};
+
+    /*! \brief Number of onChartWaypointDisconnectRequested() intents received. */
+    int chart_waypoint_disconnect_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

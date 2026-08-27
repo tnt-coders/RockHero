@@ -8,9 +8,15 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_view_state.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <span>
+#include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -24,10 +30,10 @@ arrays are keyed by it — the notes and the hold markers — with validation ke
 each array holding one slot at most once. Stable across unrelated edits, unlike projection indices,
 which shift whenever an earlier record is inserted or removed.
 
-The slot says WHERE, never WHICH ARRAY: \ref ChartSelectionKey pairs it with the kind, so a selected
-object names its own array instead of the chart being re-consulted to say which one holds the slot —
-which also keeps each kind's keys in one sorted sequence, the shape every resolution here is a
-linear merge over.
+The slot says WHERE, never WHAT: \ref ChartSelectionKey wraps it in an alternative naming the kind,
+so a selected object states which array holds it instead of the chart being re-consulted — which
+also keeps each kind's keys in one sorted sequence, the shape every resolution here is a linear
+merge over.
 */
 struct ChartSlotKey
 {
@@ -57,20 +63,16 @@ struct ChartSlotKey
 };
 
 /*!
-\brief Which of the chart's authored arrays one selected object lives in.
+\brief Which of the chart's two SLOT-KEYED authored arrays holds an object at one slot.
 
-The selection unit, widened past the note when hold markers became authorable. Each kind is one
-array the editor's verbs act on, and every selection question — membership, deletion, the range
-verbs' operand — is asked per kind, so a verb that has no meaning for a kind simply reads that
-kind's empty operand rather than carrying a guard.
-
-Growth is by enumerator plus one arm of \ref ChartSelection::slotsFor and nothing else — for a
-selectable the SLOT names. It buys nothing for one that the slot cannot name: a note's own
-waypoints are many per note and identified by (slot, offset), so making them selectable widens the
-KEY, and every mutation here plus each `slotsFor` arm is written over `std::vector<ChartSlotKey>`.
-The unified waypoint model inherits the kind axis, not a free extension point.
+Not "every kind that can be selected" — waypoints are selectable and are in neither array. This is
+the narrower question \ref rock_hero::editor::core::EditorController::Impl::chartSlotObject asks:
+validation keeps these two arrays disjoint over one slot space, so a slot belongs to a note, to a
+hold marker, or to nobody, and no caller has to decide a precedence. A waypoint SHARES its note's
+slot rather than excluding it, which is exactly the shape that would owe a precedence rule — so it
+stays out of this enum, and its identity carries the offset that tells it apart instead.
 */
-enum class ChartSelectableKind : std::uint8_t
+enum class ChartSlotOccupant : std::uint8_t
 {
     /*! \brief A sounding onset in \ref rock_hero::common::core::Chart::notes. */
     Note,
@@ -79,33 +81,111 @@ enum class ChartSelectableKind : std::uint8_t
     HoldMarker,
 };
 
-/*! \brief Stable identity of one selectable chart object: which array holds it, and where. */
-struct ChartSelectionKey
+/*! \brief Stable identity of one selected note: the slot it occupies. */
+struct ChartNoteKey
 {
-    /*! \brief Array the object lives in. */
-    ChartSelectableKind kind{ChartSelectableKind::Note};
-
-    /*! \brief The object's slot inside that array. */
+    /*! \brief The note's slot in the chart's note stream. */
     ChartSlotKey slot{};
 
     /*!
-    \brief Orders two selection keys by (kind, slot).
+    \brief Compares two note keys for equal value.
+    \param lhs Left-hand key.
+    \param rhs Right-hand key.
+    \return True when both keys name the same slot.
+    */
+    friend constexpr bool operator==(const ChartNoteKey& lhs, const ChartNoteKey& rhs) noexcept =
+        default;
+};
+
+/*! \brief Stable identity of one selected hold marker: the slot it occupies. */
+struct ChartHoldMarkerKey
+{
+    /*! \brief The marker's slot in the chart's hold-marker array. */
+    ChartSlotKey slot{};
+
+    /*!
+    \brief Compares two marker keys for equal value.
+    \param lhs Left-hand key.
+    \param rhs Right-hand key.
+    \return True when both keys name the same slot.
+    */
+    friend constexpr bool operator==(
+        const ChartHoldMarkerKey& lhs, const ChartHoldMarkerKey& rhs) noexcept = default;
+};
+
+/*!
+\brief Stable identity of one selected waypoint: the note it rides, and where along that ring.
+
+The slot alone cannot name it — a note carries many waypoints — so the identity is (note slot,
+offset), which is what makes waypoints the reason the selection key became a sum rather than a
+slot plus a kind. The offset and not an index: removing an earlier waypoint shifts every later
+index and moves no offset, so an index-keyed selection would silently point at a different
+waypoint after any edit that dropped one.
+
+A key whose note or waypoint an edit removed simply resolves to nothing, exactly like a note key
+whose note was deleted — which is also what carries the dissolve law's LINGER, since a waypoint
+the editor emptied is gone from the chart while its key rides on to the next press.
+*/
+struct ChartWaypointKey
+{
+    /*! \brief Slot of the note the waypoint rides. */
+    ChartSlotKey note{};
+
+    /*! \brief The waypoint's beat-fraction offset from that note's onset. */
+    common::core::Fraction offset{};
+
+    /*!
+    \brief Orders two waypoint keys by (note slot, offset) — the order the chart stores them in.
     \param lhs Left-hand key.
     \param rhs Right-hand key.
     \return Ordering of lhs relative to rhs.
     */
     friend constexpr std::strong_ordering operator<=>(
-        const ChartSelectionKey& lhs, const ChartSelectionKey& rhs) noexcept = default;
+        const ChartWaypointKey& lhs, const ChartWaypointKey& rhs) noexcept = default;
 
     /*!
-    \brief Compares two selection keys for equal value.
+    \brief Compares two waypoint keys for equal value.
     \param lhs Left-hand key.
     \param rhs Right-hand key.
-    \return True when both keys store equal values.
+    \return True when both keys name the same waypoint.
     */
     friend constexpr bool operator==(
-        const ChartSelectionKey& lhs, const ChartSelectionKey& rhs) noexcept = default;
+        const ChartWaypointKey& lhs, const ChartWaypointKey& rhs) noexcept = default;
 };
+
+/*!
+\brief Stable identity of one selectable chart object, as the sum of what a selectable can be.
+
+A sum rather than a kind tag beside a slot, because the three identities are not the same shape: a
+note and a hold marker are named by a slot, a waypoint by a slot plus an offset. Carrying that
+offset as a field only one kind uses would make "a note key with an offset" and "a waypoint key
+without one" both spellable, and every reader would owe a rule about what those mean; as a sum
+neither exists to be misread.
+
+The sum itself carries EQUALITY only, which is the whole of what a caller across kinds needs: the
+coalescing window's proof is "this is still the selection the last press acted on", one whole-vector
+compare. Ordering stays inside each alternative's own sequence, where the element being ordered is
+the slot for two of the kinds and the key itself for the waypoint — which is why only
+\ref ChartWaypointKey declares an ordering. \ref ChartSelection::keys publishes in alternative
+order, notes then markers then waypoints, each kind in its own.
+*/
+using ChartSelectionKey = std::variant<ChartNoteKey, ChartHoldMarkerKey, ChartWaypointKey>;
+
+/*!
+\brief The slot an armed caret would sit on for one selected object, or absent when none can.
+
+The caret addresses a (position, string) slot, and its invariant is that the selection is exactly
+what sits under it. A note or a hold marker OCCUPIES a slot, so selecting one arms the caret there.
+A waypoint does not — it rides a note's ring at an offset — so arming anything for it would put the
+caret on the note while the selection holds the waypoint, which is the invariant broken rather than
+kept. Selecting one therefore demotes the marker to a cursor in place, exactly as every
+multi-select gesture does.
+
+\param key Selected object.
+
+\return The slot to arm, or absent when the object occupies none.
+*/
+[[nodiscard]] std::optional<ChartSlotKey> chartCaretSlotFor(const ChartSelectionKey& key);
 
 /*!
 \brief The slot one chart note occupies.
@@ -129,13 +209,14 @@ struct ChartSelectionKey
 }
 
 /*!
-\brief The one editor-wide chart selection, kept sorted per kind in the chart's slot order.
+\brief The one editor-wide chart selection, kept sorted per kind in the chart's own order.
 
-One selection over more than one authored array. Each kind's keys live in their own sorted-unique
-sequence so key-to-index resolution against that array stays a linear merge, and so a verb reads
-its own kind's operand as a plain vector rather than filtering a mixed one. Every mutation is
-kind-agnostic — one sorted-unique primitive, chosen by \ref slotsFor — so a new kind adds an
-enumerator and one arm, never a branch per verb.
+One selection over more than one kind of object. Each kind's keys live in their own sorted-unique
+sequence so key-to-index resolution against the chart stays a linear merge, and so a verb reads
+its own kind's operand as a plain vector rather than filtering a mixed one — a verb a kind has no
+meaning for simply reads that kind's empty operand instead of carrying a guard. Every mutation is
+kind-agnostic: one sorted-unique primitive per verb, dispatched by \ref visitSequence, which is
+also the ONE place an alternative maps onto the sequence that stores it.
 */
 class ChartSelection
 {
@@ -198,6 +279,17 @@ public:
     [[nodiscard]] const std::vector<ChartSlotKey>& holdMarkers() const noexcept;
 
     /*!
+    \brief The selected waypoints in ascending (note slot, offset) order.
+
+    The order the chart stores them in, so a planner walking the note stream and this list together
+    walks both forward once. Keys naming a waypoint an edit removed stay until the selection next
+    changes and resolve to nothing meanwhile — the dissolve law's linger.
+
+    \return Sorted unique selected waypoint keys.
+    */
+    [[nodiscard]] const std::vector<ChartWaypointKey>& waypoints() const noexcept;
+
+    /*!
     \brief The whole selection as kind-tagged keys, notes first and each kind in slot order.
 
     For the callers that must compare or carry a selection ACROSS kinds — the chart verbs'
@@ -216,33 +308,41 @@ public:
     [[nodiscard]] bool empty() const noexcept;
 
 private:
-    // The sequence one kind's keys live in: the single place the kind maps onto storage, so the
-    // mutations above stay written once and a caller never sees which member it landed in. A
-    // static template over the selection rather than a const/non-const pair, so the mapping is
+    // The single place an alternative maps onto the sequence that stores it and the element that
+    // sequence holds, so every mutation above is written once over whatever that pair is and a
+    // caller never sees which member it landed in. The alternative decides both at COMPILE time,
+    // which is what lets the waypoint sequence hold a different element type than the two
+    // slot-keyed ones without a mutation branching on kind.
+    //
+    // A static template over the selection rather than a const/non-const pair, so the mapping is
     // stated exactly once and const-ness rides through deduction instead of a const_cast.
-    template <typename Selection>
-    [[nodiscard]] static auto& slotsFor(
-        Selection& selection, const ChartSelectableKind kind) noexcept
+    template <typename Selection, typename Visit>
+    [[nodiscard]] static decltype(auto) visitSequence(
+        Selection& selection, const ChartSelectionKey& key, const Visit& visit)
     {
-        switch (kind)
-        {
-            case ChartSelectableKind::Note:
-            {
-                return selection.m_notes;
-            }
-            case ChartSelectableKind::HoldMarker:
-            {
-                return selection.m_hold_markers;
-            }
-        }
-        // Total above; answering a value outside the enum with the note sequence would be a
-        // selection that silently landed in the wrong array.
-        std::unreachable();
+        return std::visit(
+            [&selection, &visit](const auto& alternative) {
+                using Alternative = std::remove_cvref_t<decltype(alternative)>;
+                if constexpr (std::is_same_v<Alternative, ChartNoteKey>)
+                {
+                    return visit(selection.m_notes, alternative.slot);
+                }
+                else if constexpr (std::is_same_v<Alternative, ChartHoldMarkerKey>)
+                {
+                    return visit(selection.m_hold_markers, alternative.slot);
+                }
+                else
+                {
+                    return visit(selection.m_waypoints, alternative);
+                }
+            },
+            key);
     }
 
-    // Each sorted unique by (position, string); every mutation preserves the invariant.
+    // Each sorted unique in its own key's order; every mutation preserves the invariant.
     std::vector<ChartSlotKey> m_notes{};
     std::vector<ChartSlotKey> m_hold_markers{};
+    std::vector<ChartWaypointKey> m_waypoints{};
 };
 
 /*!
@@ -301,6 +401,27 @@ template <typename Record>
 */
 [[nodiscard]] std::vector<std::size_t> selectedHoldMarkerIndices(
     const std::vector<common::core::ChartHoldMarker>& markers, const ChartSelection& selection);
+
+/*!
+\brief Resolves a selection's waypoint keys to the DRAWN waypoints they name.
+
+Two steps, because a waypoint's identity and its drawn place are two different things: the note
+slot resolves against the authored stream exactly as a note key does, and the offset then picks the
+projected entry out of that note's drawn waypoints. The offset is what makes the second step
+possible at all — it is carried into \ref common::core::SlideViewState precisely so a selection can
+point at a drawn mark without counting indices that shift.
+
+Keys resolving to nothing are skipped, which covers both a waypoint an edit removed and one the
+presentation trim clipped out of the drawn tail.
+
+\param notes Chart note stream sorted by (position, string).
+\param drawn Notes as the lane draws them, in the chart's own order (one to one with `notes`).
+\param selection Selection whose waypoint keys are resolved.
+\return The located waypoints, in the selection's own (note slot, offset) order.
+*/
+[[nodiscard]] std::vector<ChartWaypointRef> selectedWaypointIndices(
+    const std::vector<common::core::ChartNote>& notes,
+    const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection);
 
 /*!
 \brief Copies the notes that sorted keys still name, in chart order.

@@ -339,6 +339,34 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
+    // Selected waypoints wear the SAME accent ring, traced on the linked head the paint core drew
+    // at that junction — one selection idiom for every selectable, so a selected junction reads
+    // exactly as a selected head does. Drawn from the published list, which only holds waypoints
+    // that still draw, so a ring can never appear where no head is.
+    for (const core::ChartWaypointRef& selected : m_edit.selected_waypoints)
+    {
+        if (selected.note_index >= tab.notes.size())
+        {
+            continue;
+        }
+        const common::core::NoteViewState& note = drawn_note(selected.note_index);
+        if (selected.waypoint_index >= note.slides.size())
+        {
+            continue;
+        }
+        const common::core::SlideViewState& waypoint = note.slides[selected.waypoint_index];
+        const common::ui::TabWaypointLayout layout =
+            common::ui::tabWaypointLayout(metrics, note, waypoint);
+        g.setColour(accent);
+        common::ui::strokeTabNoteHeadOutline(
+            g,
+            note,
+            layout.center_x,
+            layout.center_y,
+            layout.head_size,
+            overlayRingStroke(layout.head_size));
+    }
+
     // Authored hold marks: a filled dot on the slot where the charter said the fretting hand
     // takes a stop silently. The chord-diagram idiom, in the arpeggio hand-shape mark's own colour
     // because the bracket this feeds is what the mark is FOR — and deliberately carrying no

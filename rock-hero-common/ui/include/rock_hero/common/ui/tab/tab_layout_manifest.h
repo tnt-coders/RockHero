@@ -110,4 +110,40 @@ testing both read it and a second copy would be the drift this unit exists to pr
 [[nodiscard]] TabHoldMarkerLayout tabHoldMarkerLayout(
     const TabLaneGeometry& geometry, const common::core::HoldMarkerViewState& marker) noexcept;
 
+/*! \brief Pixel layout of one linked waypoint head along a note's tail. */
+struct TabWaypointLayout
+{
+    /*! \brief Horizontal position of the waypoint's instant: the head center column. */
+    float center_x{};
+
+    /*! \brief Vertical lane center of the note the waypoint rides. */
+    float center_y{};
+
+    /*! \brief Rendered head extent — the note head's own size. */
+    float head_size{};
+
+    /*! \brief Bounding rectangle of the linked head shape — its drawn extent, and its clickable
+    one. */
+    TabLayoutRect head{};
+};
+
+/*!
+\brief Computes the pixel layout of one linked waypoint head under the given lane geometry.
+
+The waypoint marks the lane already draws are what the editor hit-tests, so this reads the same
+instant and the same head size the paint core draws with. A waypoint the lane draws NO head for —
+one at the presented tail's end, where the re-picked landing draws its own — is still laid out
+here; asking whether a head exists there is \ref common::core::linkedWaypoint's job, and the
+caller does that before treating this box as clickable, exactly as the paint core does before
+drawing.
+
+\param geometry Lane geometry the notation was painted with.
+\param note Seconds-resolved note the waypoint belongs to; its string places the head.
+\param waypoint One of the note's \ref common::core::NoteViewState::slides entries.
+\return Per-waypoint layout in the lane bounds' pixel space.
+*/
+[[nodiscard]] TabWaypointLayout tabWaypointLayout(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note,
+    const common::core::SlideViewState& waypoint) noexcept;
+
 } // namespace rock_hero::common::ui

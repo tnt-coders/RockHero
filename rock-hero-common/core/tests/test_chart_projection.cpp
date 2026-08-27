@@ -284,9 +284,15 @@ TEST_CASE("Chart projection keeps the payload a presented trim clipped", "[core]
     CHECK(presented.notes[0].bend.size() == 2);
     REQUIRE(actual.notes[0].bend.size() == 3);
     CHECK(actual.notes[0].bend[2].seconds == Catch::Approx(1.95));
-    CHECK(presented.notes[0].slides.size() == 1);
+    REQUIRE(presented.notes[0].slides.size() == 1);
     REQUIRE(actual.notes[0].slides.size() == 2);
     CHECK(actual.notes[0].slides[1].seconds == Catch::Approx(1.95));
+    // Each surviving waypoint carries the AUTHORED offset it was projected from, which is the
+    // identity the editor's selection keys it by — and it survives the trim unchanged, unlike
+    // the resolved second.
+    CHECK(presented.notes[0].slides[0].offset == Fraction{2});
+    CHECK(actual.notes[0].slides[0].offset == Fraction{2});
+    CHECK(actual.notes[0].slides[1].offset == Fraction{39, 10});
 }
 
 // The form contract: the two states differ in their NOTES and in nothing else. Everything a
@@ -506,12 +512,25 @@ TEST_CASE("Chart projection ramps a moved slide-out the same in both forms", "[c
     const ChartViewState actual = makeChartViewState(arrangement, tempo_map, ChartNoteForm::Actual);
 
     // The trim is real: the terminal moved in the presented form and stayed put in the actual one.
+    // The terminal is the note's own field rather than a waypoint (W9-L), so it states a fret and
+    // takes its time from the ring's end — which is exactly the value presentation moved.
     REQUIRE(presented.notes.size() == 2);
     REQUIRE(actual.notes.size() == 2);
-    REQUIRE(presented.notes[0].slides.size() == 1);
-    REQUIRE(actual.notes[0].slides.size() == 1);
-    CHECK(presented.notes[0].slides[0].seconds == Catch::Approx(1.875));
-    CHECK(actual.notes[0].slides[0].seconds == Catch::Approx(2.0));
+    // Each note bound once, so the guard below and the access after it are provably the same
+    // object — two `notes[0]` subscripts are two calls the optional checker cannot tie together.
+    const NoteViewState& presented_glide = presented.notes[0];
+    const NoteViewState& actual_glide = actual.notes[0];
+    CHECK(presented_glide.slides.empty());
+    CHECK(actual_glide.slides.empty());
+    REQUIRE(presented_glide.slide_out.has_value());
+    REQUIRE(actual_glide.slide_out.has_value());
+    CHECK(*presented_glide.slide_out == 12);
+    CHECK(*actual_glide.slide_out == 12);
+    REQUIRE(glideStopCount(presented_glide) == 1);
+    REQUIRE(glideStopCount(actual_glide) == 1);
+    CHECK(glideStopAt(presented_glide, 0).seconds == Catch::Approx(1.875));
+    CHECK(glideStopAt(actual_glide, 0).seconds == Catch::Approx(2.0));
+    CHECK(glideStopAt(presented_glide, 0).unpitched);
 
     // 120 BPM 4/4: the margin morph is a quarter beat, an eighth of a second — in both forms.
     REQUIRE(presented.fret_hand_positions.size() == 1);
@@ -624,18 +643,22 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK_FALSE(view.tremolo);
     CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
-    // The turnaround waypoint and the slide-out terminal flatten into one leg list, both
-    // unpitched — but the turnaround is LINKED and the terminal is not: the pick stays on the
+    // The turnaround is a waypoint and the slide-out is the terminal; the two read as one leg
+    // list through the shared stop walk, both unpitched because a scrape's whole path is the
+    // PICK's travel. The turnaround is LINKED and the terminal is not: the pick stays on the
     // string through a direction change, so the junction carries a continuation head (in the
     // note's plectrum shape), while the terminal is where the pick leaves and only its chip
     // marks the position.
-    REQUIRE(view.slides.size() == 2);
-    for (const SlideViewState& leg : view.slides)
+    REQUIRE(view.slides.size() == 1);
+    REQUIRE(view.slide_out.has_value());
+    CHECK(*view.slide_out == 9);
+    REQUIRE(glideStopCount(view) == 2);
+    for (std::size_t index = 0; index < glideStopCount(view); ++index)
     {
-        CHECK(leg.unpitched);
+        CHECK(glideStopAt(view, index).unpitched);
     }
     CHECK(linkedWaypoint(view, view.slides[0]));
-    CHECK_FALSE(linkedWaypoint(view, view.slides[1]));
+    CHECK(glideStopAt(view, 1).seconds == Catch::Approx(view.end_seconds));
 }
 
 // Ramp derivation for the fretting hand's approach: a placement landing exactly on a pitched

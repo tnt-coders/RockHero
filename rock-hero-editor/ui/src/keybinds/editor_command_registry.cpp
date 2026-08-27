@@ -315,9 +315,14 @@ namespace
     // note" (L) — GP's H links the selected note FORWARD to the next, so an H habit here authored
     // an off-by-one link (the 2026-08-12 technique-letter amendment in keymap-matrix.md moved the
     // default and freed H for the harmonics). One key covers both motions because no direction is
-    // stored: which way the connection runs is read back from the predecessor. Shift+L is reserved
-    // for the tie/slide-link verb (walkthrough W10, unbuilt).
+    // stored: which way the connection runs is read back from the predecessor. Shift+L carries the
+    // same verb extended with TRAVEL (walkthrough W10): its waypoint clause — severing a gesture
+    // at a selected junction — is built; the tie/slide-link half is not.
     add(EditorCommandId::ChartLegatoToggle, "Toggle Legato", "Authoring", {chord('l')});
+    add(EditorCommandId::ChartWaypointDisconnect,
+        "Disconnect Waypoint",
+        "Authoring",
+        {chord('l', shift)});
     // The charting marks already declare the tap family — one letter T, plate fill polarity as the
     // hand signature — so the keymap mirrors the visible structure: plain T is reserved for the
     // right-hand tap, Shift+T states the left-hand one. Ctrl stays the app-command plane

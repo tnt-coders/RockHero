@@ -231,6 +231,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SetChartLeftTap;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::DisconnectChartWaypoint>)
+    {
+        return EditorAction::Id::DisconnectChartWaypoint;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

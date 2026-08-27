@@ -51,6 +51,7 @@ namespace
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartHoldMarker:
+        case EditorAction::Id::DisconnectChartWaypoint:
         {
             return true;
         }
@@ -151,6 +152,7 @@ namespace
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartHoldMarker:
+            case EditorAction::Id::DisconnectChartWaypoint:
             {
                 return false;
             }
@@ -299,6 +301,11 @@ namespace
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
+        // The waypoint disconnect is selection-scoped like the technique verbs beside it, and
+        // deliberately NOT caret-gated: selecting a waypoint demotes the marker to a cursor,
+        // because a waypoint occupies no slot for a caret to sit on, so an armed-caret
+        // precondition would make the verb unreachable exactly when its operand exists.
+        case EditorAction::Id::DisconnectChartWaypoint:
         {
             return conditions.has_chart && conditions.has_chart_selection;
         }
@@ -378,6 +385,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
         case EditorAction::Id::ToggleChartHoldMarker:
+        case EditorAction::Id::DisconnectChartWaypoint:
         {
             return false;
         }

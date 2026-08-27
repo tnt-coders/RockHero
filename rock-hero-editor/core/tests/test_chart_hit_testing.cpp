@@ -71,20 +71,35 @@ namespace
 // The projected note at one index, as a hit target — the kind every note assertion below means.
 [[nodiscard]] ChartHitTarget noteTarget(const std::size_t index)
 {
-    return ChartHitTarget{.kind = ChartSelectableKind::Note, .index = index};
+    return ChartNoteHit{.index = index};
 }
 
 // One note slot as a selection key: the selection unit spans both authored arrays now.
 [[nodiscard]] ChartSelectionKey noteKey(const ChartSlotKey& slot)
 {
-    return ChartSelectionKey{.kind = ChartSelectableKind::Note, .slot = slot};
+    return ChartNoteKey{.slot = slot};
 }
 
 // The same slot read as the other kind — the pair below is what proves the kind is part of the
 // identity rather than a label the answer carries.
 [[nodiscard]] ChartSelectionKey markerKey(const ChartSlotKey& slot)
 {
-    return ChartSelectionKey{.kind = ChartSelectableKind::HoldMarker, .slot = slot};
+    return ChartHoldMarkerKey{.slot = slot};
+}
+
+// One of a note's waypoints as a hit target: two indices, because a waypoint belongs to a note
+// rather than to a flat array — which is the whole reason the target is a sum.
+[[nodiscard]] ChartHitTarget waypointTarget(
+    const std::size_t note_index, const std::size_t waypoint_index)
+{
+    return ChartWaypointHit{.note_index = note_index, .waypoint_index = waypoint_index};
+}
+
+// One waypoint as a selection key: the note's slot plus the offset along its ring.
+[[nodiscard]] ChartSelectionKey waypointKey(
+    const ChartSlotKey& slot, const common::core::Fraction offset)
+{
+    return ChartWaypointKey{.note = slot, .offset = offset};
 }
 
 [[nodiscard]] ChartSlotKey slotAt(const int measure, const int string)
@@ -92,6 +107,34 @@ namespace
     return ChartSlotKey{
         .position = {.measure = measure, .beat = 1, .offset = {}}, .string = string
     };
+}
+
+// A glide on string 3 — a lane the fixture above leaves empty, so nothing else can answer a
+// probe. The onset sits at 2s (x = 40), the junction it arrives at at 6s (x = 120), and the ring
+// ends at 10s (x = 200) where a second waypoint sits exactly at the end and therefore draws no
+// head at all.
+[[nodiscard]] common::core::ChartViewState makeGlideTabState()
+{
+    common::core::ChartViewState state;
+    state.string_count = 6;
+    state.notes = {
+        common::core::NoteViewState{
+            .start_seconds = 2.0,
+            .end_seconds = 10.0,
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides =
+                {common::core::SlideViewState{
+                     .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{2}
+                 },
+                 common::core::SlideViewState{
+                     .seconds = 10.0, .fret = 12, .offset = common::core::Fraction{4}
+                 }},
+            .vibrato = {},
+        },
+    };
+    return state;
 }
 
 } // namespace
@@ -208,7 +251,7 @@ TEST_CASE("Chart hit testing resolves hold marker marks", "[core][chart]")
     tab.hold_markers = {common::core::HoldMarkerViewState{.seconds = 6.0, .string = 5}};
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
-    const ChartHitTarget marker{.kind = ChartSelectableKind::HoldMarker, .index = 0};
+    const ChartHitTarget marker{ChartHoldMarkerHit{.index = 0}};
     CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == marker);
     // The mark is smaller than a head, so a point a head-width away misses it entirely — the
     // drawn extent IS the clickable one.
@@ -391,6 +434,134 @@ TEST_CASE("Chart onset group keys collect both authored arrays", "[core][chart]"
 
     // An onset nothing sits on collects nothing.
     CHECK(chartOnsetGroupKeys(notes, markers, {.measure = 9, .beat = 1, .offset = {}}).empty());
+}
+
+// A junction's head is drawn ON the tail, so it has to win over it or no waypoint would ever be
+// clickable — and it loses to an onset head, which is the primary affordance. The drawn extent is
+// the clickable one in both directions: a waypoint the lane draws no head for is not hit-testable
+// at all.
+TEST_CASE("Chart hit testing resolves linked waypoint heads", "[core][chart]")
+{
+    const common::core::ChartViewState tab = makeGlideTabState();
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 140.0f) == waypointTarget(0, 0));
+    // A pixel between the heads falls through to the tail, which is the note itself.
+    CHECK(chartHitTarget(tab, geometry, 80.0f, 140.0f) == noteTarget(0));
+    // The onset head wins its own pixels: heads resolve before junctions.
+    CHECK(chartHitTarget(tab, geometry, 40.0f, 140.0f) == noteTarget(0));
+    // At the ring's end the glide's arrival draws no head — a re-picked landing draws its own —
+    // so a press inside the box that head WOULD have occupied resolves to the tail instead.
+    CHECK(chartHitTarget(tab, geometry, 195.0f, 140.0f) == noteTarget(0));
+    // Another string's lane answers nothing at the same instant.
+    CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 180.0f).has_value());
+}
+
+// The marquee reaches exactly what the click reaches, so a box drawn over a junction selects that
+// junction — and the collection order is notes, then markers, then waypoints.
+TEST_CASE("Chart hit testing collects waypoint heads inside a marquee box", "[core][chart]")
+{
+    const common::core::ChartViewState tab = makeGlideTabState();
+    const common::ui::TabLaneGeometry geometry = makeGeometry();
+
+    const std::vector<ChartHitTarget> junction =
+        chartTargetsInBox(tab, geometry, 110.0f, 120.0f, 130.0f, 160.0f);
+    CHECK(junction == std::vector<ChartHitTarget>{waypointTarget(0, 0)});
+
+    // A box over the whole gesture takes the onset head and the junction — and NOT the arrival at
+    // the ring's end, which draws no head to catch.
+    const std::vector<ChartHitTarget> whole =
+        chartTargetsInBox(tab, geometry, 20.0f, 120.0f, 220.0f, 160.0f);
+    CHECK(whole == (std::vector<ChartHitTarget>{noteTarget(0), waypointTarget(0, 0)}));
+}
+
+// A waypoint's identity is (note slot, OFFSET), which is what makes the selection key a sum
+// rather than a slot plus a kind: a note carries many waypoints, so the slot alone cannot name
+// one. The offset and not an index — removing an earlier waypoint shifts every later index and
+// moves no offset, so an index-keyed selection would silently point at a different waypoint after
+// any edit that dropped one.
+TEST_CASE("Chart selection keys a waypoint by its offset", "[core][chart]")
+{
+    common::core::ChartNote glide =
+        makeTestNote({.measure = 2, .beat = 1}, 3, 5, common::core::Fraction{4});
+    glide.waypoints = {
+        common::core::Waypoint{.offset = common::core::Fraction{2}, .fret = 9},
+        common::core::Waypoint{.offset = common::core::Fraction{4}, .fret = 12},
+    };
+    const std::vector<common::core::ChartNote> notes{glide};
+    const common::core::ChartViewState tab = makeGlideTabState();
+    const ChartSlotKey slot = slotAt(2, 3);
+
+    ChartSelection selection;
+    selection.add(waypointKey(slot, common::core::Fraction{4}));
+    CHECK(
+        selectedWaypointIndices(notes, tab.notes, selection) ==
+        (std::vector<ChartWaypointRef>{ChartWaypointRef{.note_index = 0, .waypoint_index = 1}}));
+
+    // The same key against a drawn list the earlier waypoint has left still names the SAME
+    // waypoint, now at index 0. An index-keyed selection would have named the wrong one, or
+    // nothing at all.
+    common::core::ChartViewState trimmed = tab;
+    trimmed.notes[0].slides.erase(trimmed.notes[0].slides.begin());
+    CHECK(
+        selectedWaypointIndices(notes, trimmed.notes, selection) ==
+        (std::vector<ChartWaypointRef>{ChartWaypointRef{.note_index = 0, .waypoint_index = 0}}));
+
+    // A key naming an offset no waypoint sits on resolves to nothing, exactly as a note key whose
+    // note was deleted does — which is also what carries the dissolve law's linger.
+    selection.clear();
+    selection.add(waypointKey(slot, common::core::Fraction{3}));
+    CHECK(selectedWaypointIndices(notes, tab.notes, selection).empty());
+
+    // And so does a key whose NOTE is gone.
+    selection.clear();
+    selection.add(waypointKey(slotAt(9, 3), common::core::Fraction{2}));
+    CHECK(selectedWaypointIndices(notes, tab.notes, selection).empty());
+}
+
+// Waypoints are a third alternative of one selection, not a second selection: the kind-agnostic
+// mutations reach them, they publish after the two slot-keyed kinds, and a waypoint shares its
+// note's slot without excluding the note — the pairing a slot-plus-kind key could not hold.
+TEST_CASE("Chart selection carries waypoints beside the slot-keyed kinds", "[core][chart]")
+{
+    const ChartSlotKey slot = slotAt(2, 1);
+    const ChartSelectionKey note = noteKey(slot);
+    const ChartSelectionKey marker = markerKey(slot);
+    const ChartSelectionKey waypoint = waypointKey(slot, common::core::Fraction{2});
+    const ChartSelectionKey later = waypointKey(slot, common::core::Fraction{4});
+
+    ChartSelection selection;
+    selection.add(later);
+    selection.add(waypoint);
+    selection.add(note);
+    selection.add(marker);
+    CHECK(selection.contains(waypoint));
+    CHECK(selection.contains(later));
+    // Notes first, then markers, then waypoints, each kind in its own order — the flattened order
+    // the verb window compares whole selections in.
+    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, marker, waypoint, later}));
+    CHECK(
+        selection.waypoints() ==
+        (std::vector<ChartWaypointKey>{
+            ChartWaypointKey{.note = slot, .offset = common::core::Fraction{2}},
+            ChartWaypointKey{.note = slot, .offset = common::core::Fraction{4}}
+        }));
+
+    // Toggling a waypoint off leaves the note on the same slot standing, which is the pairing the
+    // sum exists for.
+    selection.toggle(waypoint);
+    CHECK_FALSE(selection.contains(waypoint));
+    CHECK(selection.contains(note));
+    CHECK_FALSE(selection.empty());
+
+    // A waypoint occupies no slot, so nothing arms a caret for it: selecting one demotes the
+    // marker to a cursor in place rather than putting it on the note the waypoint rides.
+    CHECK_FALSE(chartCaretSlotFor(waypoint).has_value());
+    CHECK(chartCaretSlotFor(note) == slot);
+    CHECK(chartCaretSlotFor(marker) == slot);
+
+    selection.clear();
+    CHECK(selection.empty());
 }
 
 } // namespace rock_hero::editor::core

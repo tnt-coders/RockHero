@@ -292,6 +292,10 @@ namespace
         {
             return "ToggleChartHoldMarker";
         }
+        case EditorAction::Id::DisconnectChartWaypoint:
+        {
+            return "DisconnectChartWaypoint";
+        }
     }
 
     return "Unknown";
@@ -358,6 +362,7 @@ namespace
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::SetChartLeftTap:
             case EditorAction::Id::ToggleChartHoldMarker:
+            case EditorAction::Id::DisconnectChartWaypoint:
             {
                 return "input-calibration-prompt";
             }
@@ -482,6 +487,7 @@ namespace
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
+        case EditorAction::Id::DisconnectChartWaypoint:
         {
             return conditions.has_chart ? "no-chart-selection" : "no-chart";
         }
@@ -1053,6 +1059,11 @@ void EditorController::onChartLeftTapRequested()
 void EditorController::onChartHoldMarkerToggleRequested()
 {
     m_impl->runAction(EditorAction::ToggleChartHoldMarker{});
+}
+
+void EditorController::onChartWaypointDisconnectRequested()
+{
+    m_impl->runAction(EditorAction::DisconnectChartWaypoint{});
 }
 
 void EditorController::onChartEscapePressed()
@@ -2657,6 +2668,15 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 selectedNoteIndices(arrangement->chart->notes, chartSelection());
             state.chart_edit.selected_hold_markers =
                 selectedHoldMarkerIndices(arrangement->chart->hold_markers, chartSelection());
+            // Resolved against the PRESENTED projection pushed above, which is the one the lane
+            // hit-tested and the one whose waypoint heads it draws rings on. A key the trim
+            // clipped out of the drawn tail resolves to nothing here and simply wears no ring,
+            // the same drop-when-it-does-not-draw rule the note indices follow.
+            if (m_tab_view_state != nullptr)
+            {
+                state.chart_edit.selected_waypoints = selectedWaypointIndices(
+                    arrangement->chart->notes, m_tab_view_state->notes, chartSelection());
+            }
             // The marker publishes plainly from its state — armed ⟹ paused is structural
             // (play and the transport listener demote), so no transport check re-derives it
             // here. The caret publishes whenever armed, empty slot or note alike: the square
@@ -2780,6 +2800,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.selection_present =
         !state.chart_edit.selected_notes.empty() ||
         !state.chart_edit.selected_hold_markers.empty() ||
+        !state.chart_edit.selected_waypoints.empty() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {
             return region.selected;

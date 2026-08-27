@@ -1087,15 +1087,19 @@ void fillHeadShape(
 constexpr float g_technique_line_thickness = 2.0f;
 
 // Draws Charter's slide line: a white two-pixel diagonal across the tail toward the target fret,
-// rising for ascending slides. Waypoint chains continue segment by segment; unpitched targets
-// get Charter's fret label chip (white on the tail color darkened three times) at the segment
-// end, exactly as Charter labels unpitched slides.
+// rising for ascending slides. Waypoint chains continue segment by segment; the falls-away
+// terminal gets Charter's fret label chip (white on the tail color darkened three times) at its
+// segment end, exactly as Charter labels unpitched slides.
 void drawSlideLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::NoteViewState& note, float onset_x, float center_y,
     std::vector<LabelChip>& slide_labels, const float opacity)
 {
-    if (note.slides.empty())
+    // The gesture as one uniform sequence: the position waypoints, then the falls-away terminal
+    // if the note has one. The terminal is the last stop by construction (it sits at the ring's
+    // end), which is what lets the chip below be keyed on being it rather than on a flag.
+    const std::size_t stop_count = common::core::glideStopCount(note);
+    if (stop_count == 0)
     {
         return;
     }
@@ -1108,24 +1112,24 @@ void drawSlideLines(
     const TailInterior interior = tailInterior(metrics, center_y);
     float from_x = onset_x + metrics.note_height / 4.0f;
     int previous_fret = note.fret;
-    std::size_t leg = 0;
-    for (const common::core::SlideViewState& waypoint : note.slides)
+    for (std::size_t index = 0; index < stop_count; ++index)
     {
+        const common::core::GlideStop stop = common::core::glideStopAt(note, index);
         // Every junction insets its endpoint by one stroke width, which opens a hairline gap
-        // between consecutive diagonals so a multi-waypoint glide reads as separate legs. The LAST
+        // between consecutive diagonals so a multi-stop glide reads as separate legs. The LAST
         // one takes no inset: its inset existed only to meet the tail's end cap, and with the cap
         // gone (see drawNoteTail) it would leave a stub of bare ribbon past the mark's tip rather
         // than separate anything.
-        const bool final_leg = ++leg == note.slides.size();
-        const float to_x = metrics.x(waypoint.seconds) - (final_leg ? 0.0f : line_thickness);
+        const bool final_leg = index + 1 == stop_count;
+        const float to_x = metrics.x(stop.seconds) - (final_leg ? 0.0f : line_thickness);
         // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
         // the waypoint renders the continuation, and the next segment's line leaves from here.
-        if (waypoint.fret == previous_fret)
+        if (stop.fret == previous_fret)
         {
             from_x = to_x;
             continue;
         }
-        const bool upward = waypoint.fret >= previous_fret;
+        const bool upward = stop.fret >= previous_fret;
         const float from_y =
             upward ? interior.bottom - line_thickness / 2.0f : interior.top + line_thickness / 2.0f;
         const float to_y =
@@ -1135,20 +1139,22 @@ void drawSlideLines(
         g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
 
         // A junction that carries a continuation head shows its fret ON the head, so the chip
-        // would be the same number twice. Only an unpitched END keeps the chip: a trail-off and a
+        // would be the same number twice. Only the TERMINAL keeps the chip: a trail-off and a
         // scrape's terminal have no head, because nothing lands where the string is released.
-        if (waypoint.unpitched && !common::core::linkedWaypoint(note, waypoint) &&
-            metrics.draw_text)
+        // That used to be spelled "unpitched and not linked"; with the terminal out of the
+        // waypoint list (W9-L) it is simply which stop this is.
+        const bool terminal = index >= note.slides.size();
+        if (terminal && metrics.draw_text)
         {
             const float label_y = upward ? span.top - metrics.note_height / 3.0f
                                          : span.bottom + metrics.note_height / 3.0f;
             slide_labels.push_back(
                 LabelChip{
-                    .position = {metrics.x(waypoint.seconds), label_y},
+                    .position = {metrics.x(stop.seconds), label_y},
                     // Through the same head-label rule, not a raw fret: a stopped harmonic labels
                     // NODES everywhere else on the gesture, and one gesture must not state two
                     // different quantities. (A scrape is unaffected — the writer strips its node.)
-                    .text = tabNoteHeadText(note, waypoint.fret),
+                    .text = tabNoteHeadText(note, stop.fret),
                     .background = charterDarker(charterDarker(charterDarker(style[Ink::Tail]))),
                     .border = style[Ink::Tail],
                     .ink = style[Ink::Digit],
@@ -1158,7 +1164,7 @@ void drawSlideLines(
         }
 
         from_x = to_x;
-        previous_fret = waypoint.fret;
+        previous_fret = stop.fret;
     }
 }
 

@@ -336,6 +336,17 @@ item ships, mark it and name the commit.
     named WAYPOINTS, with bends as an interpolating channel and optional fret; the decided design
     is `docs/plans/todo/unified-waypoint-model.md`, and the study shrinks to bend display and
     authoring on that substrate. W13 closes into that plan.
+  - **Selectability BUILT 2026-08-26** (the plan's editor stage, the first non-negotiable):
+    `ChartSelectionKey` is now the sum `variant<ChartNoteKey, ChartHoldMarkerKey,
+    ChartWaypointKey>`, a waypoint identified by (note slot, offset) so sibling edits cannot
+    re-point it. The lane's linked waypoint heads are clickable and marquee-selectable, wear the
+    same accent ring every selectable wears, and take `Delete`, the vibrato channel's `V`, and
+    `Shift+L`. A waypoint occupies no slot, so selecting one demotes the marker to a cursor rather
+    than arming a caret on the note it rides. The Alt+arrow move is deliberately INERT on a
+    waypoint-only selection — its operand is the slot-keyed arrays, and moving a waypoint along
+    its ring is authoring (the `B` verb's, not this one's); the conservative reading, open to a
+    ruling. What stays open besides is a DISPLAY question, not a selection one: a waypoint stating
+    no fret draws nothing today, so no pointer can reach it — the bend display study's to answer.
 - [x] **W14 — Legato after a DEAD note, and after a SCRAPE — RULED, SHIPPED, HALF-REVERSED, and
   SETTLED 2026-08-20.** Three rulings in one day, recorded in order because the reversal is
   the lesson:
@@ -732,6 +743,24 @@ unstruck tie, so the sound is unchanged and a second press can make it struck �
 ruled. Prerequisite: selectable waypoints (W13's 2026-08-26 update carries the non-negotiables);
 the substrate the bend study picks decides what the disconnected point's data looks like, so build
 this clause with that study's outcome in hand.
+
+**BUILT 2026-08-26** on the decided waypoint substrate (`planDisconnectWaypoints`, `Shift+L` =
+`ChartWaypointDisconnect` `0x1713`), with the tie/slide-link half still unbuilt and no verb window
+armed. Three things the build settled or exposed, each awaiting the user's word:
+
+- **The unstruck-tie default is still a proposal, and the code says so.** The split head stores
+  the plain `Legato` claim W10 signed; under today's resolver an equal-fret claim is Unjustified,
+  so the settle sweep flattens it to a pick and the product reads as STRUCK until
+  `LegatoMotion::Continuation` lands. Nothing was written as if the default were ruled.
+- **The arrival cannot sit where the split does, and that is the format's own law.** A
+  fret-stating waypoint may never sit on a later onset of its own string, so the origin's arrival
+  retreats by the minimum-sustain-distance margin — the shift-slide shape the importer's policy
+  rule 13 already synthesizes for exactly this figure, and where the presentation trim ends the
+  drawn tail anyway. Without it the verb could never produce a legal chart at all. The margin is a
+  consequence of the signed format rule rather than a new ruling, but it MOVES an authored
+  instant, so it wants a sighting.
+- **A junction with no room for that retreat is refused, never clamped** (one within a margin of
+  the onset or of the statement before it).
 
 **RULED 2026-08-12 — the split head's attack (user-signed):**
 

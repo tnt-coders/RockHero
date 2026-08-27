@@ -600,7 +600,9 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .palm_mute = true,
             .emphasis = common::core::NoteEmphasis::Accent,
             .bend = {common::core::BendPointViewState{.seconds = 4.0, .semitones = 2.0}},
-            .slides = {common::core::SlideViewState{.seconds = 7.0, .fret = 9, .unpitched = false}},
+            .slides = {common::core::SlideViewState{
+                .seconds = 7.0, .fret = 9, .offset = common::core::Fraction{}
+            }},
             .vibrato = wholeTailShake(2.0, 8.0),
         },
         common::core::NoteViewState{
@@ -1395,11 +1397,17 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
         if (scrape)
         {
             note.attack = common::core::NoteAttack::PickSlide;
+            // The attack makes every stop unpitched pick travel; the last one is the required
+            // terminal, which lands at the ring's end and so carries no time of its own.
             note.slides = {
-                common::core::SlideViewState{.seconds = 6.0, .fret = 9, .unpitched = true},
-                common::core::SlideViewState{.seconds = 10.0, .fret = 3, .unpitched = true},
-                common::core::SlideViewState{.seconds = 12.0, .fret = 12, .unpitched = true},
+                common::core::SlideViewState{
+                    .seconds = 6.0, .fret = 9, .offset = common::core::Fraction{}
+                },
+                common::core::SlideViewState{
+                    .seconds = 10.0, .fret = 3, .offset = common::core::Fraction{}
+                },
             };
+            note.slide_out = 12;
         }
         else
         {

@@ -250,14 +250,15 @@ HighwayCameraTarget makeHighwayCameraTarget(
         // framing must cover every neck position the path reaches, not just the start.
         if (isScrape(note.attack))
         {
-            for (const SlideViewState& waypoint : note.slides)
+            for (std::size_t index = 0; index < glideStopCount(note); ++index)
             {
-                if (waypoint.fret <= 0)
+                const GlideStop stop = glideStopAt(note, index);
+                if (stop.fret <= 0)
                 {
                     continue;
                 }
-                low_line = std::min(low_line, static_cast<double>(waypoint.fret - 1));
-                high_line = std::max(high_line, static_cast<double>(waypoint.fret));
+                low_line = std::min(low_line, static_cast<double>(stop.fret - 1));
+                high_line = std::max(high_line, static_cast<double>(stop.fret));
             }
         }
     }

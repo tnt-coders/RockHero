@@ -183,6 +183,9 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Author, convert or remove a silently-held shape member at the chart caret. */
     ToggleChartHoldMarker,
+
+    /*! \brief Sever a gesture at each selected waypoint, handing the remainder a new head. */
+    DisconnectChartWaypoint,
 };
 
 } // namespace rock_hero::editor::core

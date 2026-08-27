@@ -6,6 +6,7 @@
 #pragma once
 
 #include <compare>
+#include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <vector>
@@ -83,7 +84,15 @@ struct VibratoSpanViewState
     }
 };
 
-/*! \brief One slide waypoint resolved to an absolute timeline second. */
+/*!
+\brief One waypoint's POSITION statement, resolved to an absolute timeline second.
+
+The fret channel alone: a waypoint stating only a bend or a vibrato change says nothing about
+where the hand is, so it reaches the surfaces through \ref NoteViewState::bend and
+\ref NoteViewState::vibrato instead and never appears here. The falls-away terminal is not here
+either — it is \ref NoteViewState::slide_out, because it is the ring's END rather than a stop
+along the way (W11), and a list holding both would have to say which entry was which.
+*/
 struct SlideViewState
 {
     /*! \brief Absolute timeline position the glide reaches its target fret. */
@@ -93,14 +102,18 @@ struct SlideViewState
     int fret{0};
 
     /*!
-    \brief True when this waypoint is unpitched travel rather than a pitched arrival.
+    \brief The waypoint's authored offset along the ring — its stable identity.
 
-    NOT "the glide trails off here". A pick slide's every waypoint carries this, because a scrape's
-    whole path is unpitched travel — the turnarounds included — so reading it as an ending mis-draws
-    every scrape. An ordinary note's unpitched trail-off also sets it, and there the release reading
-    does hold, but the field itself only ever says "this position is not a pitched stop".
+    Carried beside the resolved second because the second cannot name the waypoint back: it is a
+    rounded double derived through the tempo map, while the editor's selection keys a waypoint by
+    (note slot, offset) and must match the authored `Waypoint::offset` exactly. The same reason
+    \ref ChartViewState::hold_markers carries the authored record — one producer for chart content
+    an editing surface has to point at.
+
+    Stable under sibling edits, which an index would not be: removing an earlier waypoint shifts
+    every later index and moves no offset.
     */
-    bool unpitched{false};
+    Fraction offset{};
 
     /*!
     \brief Compares two slide waypoints by their stored fields.
@@ -111,7 +124,7 @@ struct SlideViewState
     friend constexpr bool operator==(const SlideViewState& lhs, const SlideViewState& rhs) noexcept
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret == rhs.fret &&
-               lhs.unpitched == rhs.unpitched;
+               lhs.offset == rhs.offset;
     }
 };
 
@@ -219,13 +232,25 @@ struct NoteViewState
     std::vector<BendPointViewState> bend;
 
     /*!
-    \brief Slide waypoints in ascending time order; empty when the note does not slide.
+    \brief The waypoints that state a POSITION, in ascending time order; empty when nothing travels.
 
-    The unpitched slide-out is flattened onto the end as one more waypoint, so every consumer keeps
-    one uniform segment model. A scrape's slide-out is its required terminal and flattens the same
-    way.
+    The falls-away terminal is NOT among them — it is \ref slide_out. It used to be flattened on as
+    one more waypoint so consumers had one uniform segment model, and the model is still one, now as
+    a READ rather than as data: \ref glideStopCount and \ref glideStopAt walk the waypoints and the
+    terminal as one sequence, so the uniform view survives while the state stops calling the ring's
+    end a stop along the way. Whether a stop is unpitched follows from the note's attack and its
+    place in the sequence, which is why no entry here carries a flag saying so.
     */
     std::vector<SlideViewState> slides;
+
+    /*!
+    \brief Fret the note's unpitched falls-away gestures toward; absent when the tail simply ends.
+
+    Carries no time of its own: a slide-out ends the note, so it lands at \ref end_seconds by
+    definition (W11 deleted the stored offset for the same reason). A scrape's terminal is its
+    required end and reads here like any other.
+    */
+    std::optional<int> slide_out{};
 
     /*!
     \brief The stretches of the tail the string shakes over, in ascending time order.
@@ -251,9 +276,77 @@ struct NoteViewState
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
-               lhs.vibrato == rhs.vibrato;
+               lhs.slide_out == rhs.slide_out && lhs.vibrato == rhs.vibrato;
     }
 };
+
+/*! \brief One stop of a note's drawn gesture: a waypoint's arrival, or the falls-away terminal. */
+struct GlideStop
+{
+    /*! \brief Absolute timeline position the gesture reaches this stop. */
+    double seconds{0.0};
+
+    /*! \brief Fret reached here. */
+    int fret{0};
+
+    /*!
+    \brief True when this stop is unpitched travel rather than a pitched arrival.
+
+    NOT "the glide trails off here". A pick slide's every stop carries it, because a scrape's whole
+    path is unpitched travel — the turnarounds included — so reading it as an ending mis-draws every
+    scrape. The terminal carries it too, and there the release reading does hold.
+    */
+    bool unpitched{false};
+};
+
+/*!
+\brief How many stops a note's drawn gesture has: its position waypoints plus any terminal.
+
+The uniform segment model every geometry consumer walks — the rail, the tail's sample times, the
+camera's framing, the lane's diagonals. It is a read rather than a stored list so the terminal can
+stay what it is (\ref NoteViewState::slide_out) without every consumer restating "and then the
+trail-off"; pairing it with \ref glideStopAt keeps the walk allocation-free on the per-frame path.
+
+\param note Note whose gesture is being walked.
+\return Number of stops; zero for a note that never travels.
+*/
+[[nodiscard]] inline std::size_t glideStopCount(const NoteViewState& note) noexcept
+{
+    return note.slides.size() + (note.slide_out.has_value() ? 1U : 0U);
+}
+
+/*!
+\brief One stop of a note's drawn gesture, by index into the uniform sequence.
+
+Indices below `note.slides.size()` are the position waypoints in time order; the one index past
+them is the terminal, which sits at the ring's end.
+
+\param note Note whose gesture is being walked.
+\param index Stop index, below \ref glideStopCount for this note.
+\return The stop's time, fret and pitched-ness.
+*/
+[[nodiscard]] inline GlideStop glideStopAt(const NoteViewState& note, const std::size_t index)
+{
+    if (index < note.slides.size())
+    {
+        const SlideViewState& waypoint = note.slides[index];
+        return GlideStop{
+            .seconds = waypoint.seconds,
+            .fret = waypoint.fret,
+            // A scrape's travel is the PICKING hand's, so every stop on it is unpitched; on any
+            // other note a stated position is a stop the finger arrives at.
+            .unpitched = isScrape(note.attack),
+        };
+    }
+    // The terminal. `value_or` rather than a dereference: the count above admits this index only
+    // when the note carries one, and stating that as a fallback keeps the access unconditional
+    // instead of resting on a guard a reader (or a checker) has to tie back to the count.
+    return GlideStop{
+        .seconds = note.end_seconds,
+        .fret = note.slide_out.value_or(note.fret),
+        .unpitched = true,
+    };
+}
 
 /*!
 \brief True when the glide continues the same note at this waypoint rather than ending it.
@@ -261,10 +354,11 @@ struct NoteViewState
 Decided by the waypoint's place in the sustain and nothing else: strictly inside means the note is
 still sounding, so the lane draws its linked continuation head there in the note's own head shape;
 exactly at the sustain end means a shift-slide glide-end, where the note stops and the re-picked
-landing draws its own head, so no linked glyph. Being \ref SlideViewState::unpitched does not
-unlink a waypoint — a scrape's turnaround is one gesture continuing, and its head is what keeps the
-corner from reading as a break. A flattened slide-out sits at the sustain end by rule, so it is
-never linked.
+landing draws its own head, so no linked glyph. Being unpitched does not unlink a waypoint — a
+scrape's turnaround is one gesture continuing, and its head is what keeps the corner from reading
+as a break. The falls-away terminal never reaches this question at all: it is \ref
+NoteViewState::slide_out rather than a waypoint, so nothing asks whether the note continues
+through the instant it ends at.
 
 A READ of two shared facts, not a stored field, so the one continuation rule cannot be restated
 per surface. Being a read is also what makes it correct in either \ref ChartNoteForm without a

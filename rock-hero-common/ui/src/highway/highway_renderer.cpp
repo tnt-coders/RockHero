@@ -3865,8 +3865,8 @@ void HighwayRenderer::Impl::draw(
             const double base_x = tail_footprint.center_x;
             const std::array<double, 4> band = band_stations(tail_footprint);
 
-            const bool modulated =
-                !note.vibrato.empty() || note.tremolo || !note.bend.empty() || !note.slides.empty();
+            const bool modulated = !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
+                                   common::core::glideStopCount(note) > 0;
             // An open band whose window moves under it must sample its stations along the tail
             // (the tail travels with the hand — fhp-window-motion plan).
             const bool open_band_moves =
@@ -4985,9 +4985,13 @@ void HighwayRenderer::Impl::draw(
                 {
                     continue;
                 }
+                if (common::core::isScrape(other.attack))
+                {
+                    continue;
+                }
                 for (const common::core::SlideViewState& other_waypoint : other.slides)
                 {
-                    if (!other_waypoint.unpitched && other_waypoint.fret == waypoint.fret &&
+                    if (other_waypoint.fret == waypoint.fret &&
                         std::abs(other_waypoint.seconds - waypoint.seconds) < g_onset_match_epsilon)
                     {
                         return true;
@@ -4996,12 +5000,18 @@ void HighwayRenderer::Impl::draw(
             }
             return false;
         };
-        for (const common::core::SlideViewState& waypoint : note.slides)
+        // A scrape's stops are the PICKING hand's travel, so none of them earns a fret-hand
+        // marker; the falls-away terminal never earns one either, and it is no longer in this
+        // list to be filtered out (W9-L).
+        if (!common::core::isScrape(note.attack))
         {
-            if (!waypoint.unpitched && waypoint.fret > 0 && waypoint.seconds > now_seconds &&
-                waypoint.seconds <= span_end_seconds && !stacked_below(waypoint))
+            for (const common::core::SlideViewState& waypoint : note.slides)
             {
-                push_waypoint_marker(waypoint.fret, waypoint.seconds);
+                if (waypoint.fret > 0 && waypoint.seconds > now_seconds &&
+                    waypoint.seconds <= span_end_seconds && !stacked_below(waypoint))
+                {
+                    push_waypoint_marker(waypoint.fret, waypoint.seconds);
+                }
             }
         }
     }
@@ -6114,7 +6124,10 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         const common::core::NoteViewState& note = state.chart.notes[index];
         for (const common::core::SlideViewState& waypoint : note.slides)
         {
-            if (waypoint.unpitched || waypoint.fret <= 0)
+            // A scrape's stops are unpitched pick travel and pop no fret line; the falls-away
+            // terminal is not in this list at all (W9-L), which is the same exclusion it always
+            // had through the flag.
+            if (common::core::isScrape(note.attack) || waypoint.fret <= 0)
             {
                 continue;
             }

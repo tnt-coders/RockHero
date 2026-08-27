@@ -497,8 +497,8 @@ tap onset's release.
     const std::vector<NoteViewState>& notes, const std::vector<double>& note_rise_seconds)
 {
     // A member's hand position at an instant: its own fret before any glide, linear between
-    // its path waypoints, and the last station afterwards. A trail-off's unpitched terminal is
-    // a release and never moves the light; a scrape's unpitched waypoints ARE the hand's
+    // its path stops, and the last station afterwards. A trail-off's unpitched terminal is
+    // a release and never moves the light; a scrape's unpitched stops ARE the hand's
     // travel.
     const auto member_fret_at = [](const NoteViewState& note, const double seconds) {
         const bool scrape = isScrape(note.attack);
@@ -508,26 +508,26 @@ tap onset's release.
         // travels with the stop it rides. The DRAWN position, so a station chain cannot walk off
         // the board while the head it belongs to is held at the edge.
         double previous_fret = highwayDrawnSoundingPosition(note, note.fret).position;
-        for (const SlideViewState& waypoint : note.slides)
+        for (std::size_t index = 0; index < glideStopCount(note); ++index)
         {
-            if ((waypoint.unpitched && !scrape) || waypoint.fret <= 0)
+            const GlideStop stop = glideStopAt(note, index);
+            if ((stop.unpitched && !scrape) || stop.fret <= 0)
             {
                 continue;
             }
-            // The station is the waypoint's DRAWN sounding position, exactly like the seed above:
+            // The station is the stop's DRAWN sounding position, exactly like the seed above:
             // a node rides the stop it glides with, so a tapped harmonic's light walks the node
             // path, not the stop path underneath it. Identity for a node-less note.
-            const double waypoint_position =
-                highwayDrawnSoundingPosition(note, waypoint.fret).position;
-            if (seconds <= waypoint.seconds)
+            const double stop_position = highwayDrawnSoundingPosition(note, stop.fret).position;
+            if (seconds <= stop.seconds)
             {
-                const double span = waypoint.seconds - previous_seconds;
+                const double span = stop.seconds - previous_seconds;
                 const double weight =
                     span > 0.0 ? std::clamp((seconds - previous_seconds) / span, 0.0, 1.0) : 1.0;
-                return previous_fret + ((waypoint_position - previous_fret) * weight);
+                return previous_fret + ((stop_position - previous_fret) * weight);
             }
-            previous_seconds = waypoint.seconds;
-            previous_fret = waypoint_position;
+            previous_seconds = stop.seconds;
+            previous_fret = stop_position;
         }
         return previous_fret;
     };
@@ -535,12 +535,12 @@ tap onset's release.
     // follows (the release is already underway), otherwise the sustain end — which for a
     // scrape is the path's end, where the pick lifts.
     const auto member_release_at = [](const NoteViewState& note) {
-        if (!isScrape(note.attack) && !note.slides.empty() && note.slides.back().unpitched)
+        if (!isScrape(note.attack) && note.slide_out.has_value())
         {
             double last_pitched = note.start_seconds;
             for (const SlideViewState& waypoint : note.slides)
             {
-                if (!waypoint.unpitched && waypoint.fret > 0)
+                if (waypoint.fret > 0)
                 {
                     last_pitched = waypoint.seconds;
                 }
@@ -604,14 +604,15 @@ tap onset's release.
             for (const NoteViewState* const tap : taps)
             {
                 hold_end = std::max(hold_end, member_release_at(*tap));
-                for (const SlideViewState& waypoint : tap->slides)
+                for (std::size_t stop_index = 0; stop_index < glideStopCount(*tap); ++stop_index)
                 {
-                    if ((!waypoint.unpitched || isScrape(tap->attack)) && waypoint.fret > 0)
+                    const GlideStop stop = glideStopAt(*tap, stop_index);
+                    if ((!stop.unpitched || isScrape(tap->attack)) && stop.fret > 0)
                     {
-                        station_times.push_back(waypoint.seconds);
+                        station_times.push_back(stop.seconds);
                         if (isScrape(tap->attack))
                         {
-                            scrape_times.push_back(waypoint.seconds);
+                            scrape_times.push_back(stop.seconds);
                         }
                     }
                 }
@@ -772,7 +773,7 @@ whatever window a renderer happens to be drawing.
             const NoteViewState& note = notes[member];
             has_tails = has_tails || note.end_seconds > note.start_seconds ||
                         !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
-                        !note.slides.empty();
+                        glideStopCount(note) > 0;
             // What is DRAWN, not what is stored: inside the connection family the mark is the
             // note's RESOLVED motion, so a claim nothing justifies carries no mark and must not
             // hold the repeat box off — it is pixel-identical to the plain pick beside it. Every

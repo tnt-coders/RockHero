@@ -26,6 +26,7 @@ add_executable(
     test_chart_legato_editing.cpp
     test_chart_sustain_gesture.cpp
     test_chart_technique_toggles.cpp
+    test_chart_waypoint_editing.cpp
     test_chart_edits.cpp
     test_chart_hit_testing.cpp
     test_chart_hold_marker.cpp

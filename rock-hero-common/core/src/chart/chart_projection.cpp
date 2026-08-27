@@ -145,8 +145,6 @@ ChartViewState makeChartViewState(
     {
         const ChartNote& note = drawn_notes[note_index];
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
-        // A scrape's every waypoint is unpitched travel, the turnarounds included.
-        const bool scrape = isScrape(note.attack);
         NoteViewState view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
         view.end_seconds =
@@ -175,7 +173,7 @@ ChartViewState makeChartViewState(
             view.bend.push_back(
                 BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
-        view.slides.reserve(note.waypoints.size() + 1);
+        view.slides.reserve(note.waypoints.size());
         // The vibrato channel resolved into the REGIONS it states, folded through the same one
         // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
         // that holds from each statement until the next, so a surface needs the stretch it covers
@@ -221,7 +219,9 @@ ChartViewState makeChartViewState(
             {
                 view.slides.push_back(
                     SlideViewState{
-                        .seconds = waypoint_seconds, .fret = *fret, .unpitched = scrape
+                        .seconds = waypoint_seconds,
+                        .fret = *fret,
+                        .offset = waypoint.offset,
                     });
             }
         }
@@ -232,13 +232,13 @@ ChartViewState makeChartViewState(
                     .start_seconds = shake_start_seconds, .end_seconds = view.end_seconds
                 });
         }
-        // The unpitched slide-out flattens into the slide list at the ring's end, which is where
-        // it happens by definition. A scrape's slide-out is its required terminal and flattens the
-        // same way.
+        // The terminal is carried as the terminal (W9-L): it happens at the ring's end by
+        // definition, so it has no offset of its own to state and is not one of the stops along
+        // the way. Consumers that want the gesture as one uniform sequence read it through
+        // glideStopAt, which is where the old flatten went.
         if (const int* const slide_out = slideOutFretOrNull(note); slide_out != nullptr)
         {
-            view.slides.push_back(
-                SlideViewState{.seconds = view.end_seconds, .fret = *slide_out, .unpitched = true});
+            view.slide_out = *slide_out;
         }
         state.notes.push_back(std::move(view));
     }
