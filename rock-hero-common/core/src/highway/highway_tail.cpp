@@ -132,6 +132,42 @@ double highwayVibratoWobble(const double seconds_from_onset, const double period
     return std::sin(2.0 * std::numbers::pi * seconds_from_onset / period_seconds);
 }
 
+// A sine's extremes fall a quarter period in and every half period after, so the index counts half
+// periods offset by that quarter: index zero is the first crest, and -0.5 is the region's start.
+double highwayVibratoTurningIndex(const double seconds_from_start) noexcept
+{
+    return (seconds_from_start / (g_highway_vibrato_period_seconds / 2.0)) - 0.5;
+}
+
+// Exact inverse of the index above, so a caller walking whole indices lands on the wave's corners
+// rather than near them, in the same phase highwayVibratoSemitonesAt reads.
+double highwayVibratoSecondsAtTurningIndex(const double index) noexcept
+{
+    return (0.5 + index) * (g_highway_vibrato_period_seconds / 2.0);
+}
+
+double highwayVibratoSemitonesAt(
+    const std::span<const VibratoSpanViewState> vibrato, const double seconds,
+    const double depth_scale) noexcept
+{
+    for (const VibratoSpanViewState& span : vibrato)
+    {
+        const double duration = span.end_seconds - span.start_seconds;
+        // A region a statement opened exactly at the ring's end has no time to wobble in, and its
+        // progress would be a division by zero — the same guard the head's taper carried when the
+        // whole channel was one note-long flag.
+        if (!(duration > 0.0) || seconds < span.start_seconds || seconds > span.end_seconds)
+        {
+            continue;
+        }
+        const double from_start = seconds - span.start_seconds;
+        const double taper = highwayTailTaper(from_start / duration, g_highway_tail_taper_fraction);
+        return depth_scale * taper * g_highway_vibrato_depth_semitones *
+               highwayVibratoWobble(from_start, g_highway_vibrato_period_seconds);
+    }
+    return 0.0;
+}
+
 double highwayTremoloTailCycles(const double seconds_from_onset) noexcept
 {
     return seconds_from_onset / g_highway_tremolo_tooth_cycle_seconds;

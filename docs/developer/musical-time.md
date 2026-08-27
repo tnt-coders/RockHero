@@ -113,6 +113,19 @@ reads the same form when it exists).
   of information part company, since a bend value and a fret are complete at the instant they are
   reached while a vibrato START needs a minimum window past it to be shown at all.
 
+Reading those channels is itself one authority, in `chart/chart.h`: a channel opens on the note
+(its own fret, its onset bend, its onset vibrato) and every later change lands on a waypoint, so
+"what is in force here" is a fold over the two. `RingState` is that state, `ringStateAtOnset` opens
+it, `RingState::advance` applies one waypoint's statements (a channel a waypoint says nothing about
+passes through), and `ringStateAt(note, offset)` folds to an instant — a statement standing
+exactly AT the instant counts. Everything that used to carry a running value now reads it: what a
+pull-off releases from (`releasedFret` = the position channel at the ring's end), what a folded
+Guitar Pro segment's vibrato flag has to disagree with before it says anything, the change
+detection in `informativePayloadEnd`, and the regions the projection hands both surfaces. What it
+reports is the **statement** in force, never the sounding value: between two statements the
+position channel is travelling and the bend channel is on its curve, and the surfaces interpolate
+those.
+
 `chartResolutions` is the whole picture, and the whole picture costs a pass over every note in the
 song. A caller that only wants to know what a connection claim resolves to asks `chartConnections`
 instead — the saved stream, the resolved motions and each note's same-string predecessor, and

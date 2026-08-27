@@ -1237,6 +1237,7 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
             .fret = 3,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     state.tab = std::move(tab);

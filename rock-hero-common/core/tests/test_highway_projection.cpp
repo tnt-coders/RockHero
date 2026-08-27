@@ -439,7 +439,7 @@ TEST_CASE("Highway composes the chart projection unchanged", "[core][highway][ch
     };
     CHECK(any_note([](const NoteViewState& note) { return note.palm_mute && note.dead; }));
     CHECK(any_note([](const NoteViewState& note) { return note.tremolo; }));
-    CHECK(any_note([](const NoteViewState& note) { return note.vibrato; }));
+    CHECK(any_note([](const NoteViewState& note) { return !note.vibrato.empty(); }));
     CHECK(
         any_note([](const NoteViewState& note) { return note.emphasis == NoteEmphasis::Accent; }));
     CHECK(any_note([](const NoteViewState& note) { return note.emphasis == NoteEmphasis::Ghost; }));
@@ -1021,7 +1021,7 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK_FALSE(view.palm_mute);
     CHECK_FALSE(view.dead);
     CHECK_FALSE(view.tremolo);
-    CHECK_FALSE(view.vibrato);
+    CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
     REQUIRE(view.slides.size() == 2);
     CHECK(view.slides[0].unpitched);

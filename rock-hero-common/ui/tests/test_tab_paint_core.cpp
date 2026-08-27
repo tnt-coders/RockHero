@@ -32,6 +32,17 @@ namespace rock_hero::common::ui
 namespace
 {
 
+// The vibrato regions a note shaking END TO END carries: exactly what the projection derives from
+// a chart that states vibrato at the onset and never restates it, which is every chart written
+// before the channel could say anything else.
+[[nodiscard]] std::vector<common::core::VibratoSpanViewState> wholeTailShake(
+    const double start_seconds, const double end_seconds)
+{
+    return {common::core::VibratoSpanViewState{
+        .start_seconds = start_seconds, .end_seconds = end_seconds
+    }};
+}
+
 // Coverage summed across one row of a window, in pixels. For an opaque silhouette over a
 // transparent lane this is the row's true chord to sub-pixel accuracy, which counting pixels past
 // a threshold cannot give. Coverage is alpha/255, the same definition the plectrum outline was
@@ -162,13 +173,14 @@ constexpr int g_digit_window = 4;
         TabLaneStyle{});
 }
 
-// The largest per-channel difference anywhere between two renders: zero means the two are the same
-// picture, which is the only way to state "draws exactly what the plain pick draws" without
-// depending on where a mark's geometry happens to land.
-[[nodiscard]] int worstPixelDelta(const juce::Image& lhs, const juce::Image& rhs)
+// The largest per-channel difference between two renders across a range of COLUMNS, inclusive.
+// Where a mark begins is a question about columns, so asking it as "do these two renders agree
+// left of here, and disagree right of it" needs no knowledge of the mark's own geometry.
+[[nodiscard]] int worstPixelDeltaInColumns(
+    const juce::Image& lhs, const juce::Image& rhs, const int x_from, const int x_to)
 {
     int worst = 0;
-    for (int x = 0; x < lhs.getWidth(); ++x)
+    for (int x = x_from; x <= x_to; ++x)
     {
         for (int y = 0; y < lhs.getHeight(); ++y)
         {
@@ -183,6 +195,14 @@ constexpr int g_digit_window = 4;
         }
     }
     return worst;
+}
+
+// The largest per-channel difference anywhere between two renders: zero means the two are the same
+// picture, which is the only way to state "draws exactly what the plain pick draws" without
+// depending on where a mark's geometry happens to land.
+[[nodiscard]] int worstPixelDelta(const juce::Image& lhs, const juce::Image& rhs)
+{
+    return worstPixelDeltaInColumns(lhs, rhs, 0, lhs.getWidth() - 1);
 }
 
 } // namespace
@@ -209,6 +229,7 @@ TEST_CASE("Tab paint core draws an unjustified claim as a plain pick", "[ui][tab
                 .legato = motion,
                 .bend = {},
                 .slides = {},
+                .vibrato = {},
             },
         };
         const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
@@ -266,6 +287,7 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
                 .emphasis = emphasis,
                 .bend = {},
                 .slides = {},
+                .vibrato = {},
             },
         };
         const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
@@ -286,6 +308,7 @@ TEST_CASE("Tab paint core reaches an accent along the tail without capping it", 
         .fret = 7,
         .bend = {},
         .slides = {},
+        .vibrato = {},
     };
     const TabNoteLayout layout = tabNoteLayout(referenceMetrics(6), probe);
 
@@ -345,6 +368,7 @@ TEST_CASE("Tab paint core draws a left-hand tap as the light tap plate", "[ui][t
                 .legato = motion,
                 .bend = {},
                 .slides = {},
+                .vibrato = {},
             },
         };
         const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
@@ -390,10 +414,11 @@ TEST_CASE("Tab paint core draws tails to the presented end", "[ui][tab-paint]")
             .end_seconds = 8.0,
             .string = string,
             .fret = 7,
-            .vibrato = vibrato,
             .tremolo = tremolo,
             .bend = {},
             .slides = {},
+            .vibrato = vibrato ? wholeTailShake(2.0, 8.0)
+                               : std::vector<common::core::VibratoSpanViewState>{},
         };
     };
     // And a chugged member of a strum a hand-shape span holds: no presented tail at all.
@@ -406,6 +431,7 @@ TEST_CASE("Tab paint core draws tails to the presented end", "[ui][tab-paint]")
         .fret = 7,
         .bend = {},
         .slides = {},
+        .vibrato = {},
     };
     state.notes = {
         sustained(2, false, false), sustained(3, true, false), sustained(4, false, true), chug
@@ -486,6 +512,72 @@ TEST_CASE("Tab paint core draws tails to the presented end", "[ui][tab-paint]")
     }
 }
 
+// The sine covers exactly the stretch its region claims and no more — BOTH of its ends, because
+// the channel states a shake's stop as readily as its start. This is the figure the waypoint
+// model's vibrato channel exists for — a shake that starts where a glide arrives, which the
+// whole-note flag could only draw from the onset, across the travel it never touched.
+TEST_CASE("Tab paint core draws a vibrato sine only over its stated region", "[ui][tab-paint]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    // One note from 2.0s to 8.0s. The reference metrics run 20 seconds across 400 pixels, so a
+    // second is 20 pixels: the onset lands at x = 40, the tail ends at x = 160, and a region
+    // boundary stated at 5.0s falls at x = 100.
+    const auto painted = [](std::vector<common::core::VibratoSpanViewState> vibrato) {
+        common::core::ChartViewState state;
+        state.string_count = 6;
+        state.notes = {
+            common::core::NoteViewState{
+                .start_seconds = 2.0,
+                .end_seconds = 8.0,
+                .string = 3,
+                .fret = 7,
+                .bend = {},
+                .slides = {},
+                .vibrato = std::move(vibrato),
+            },
+        };
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 400, 240, true)};
+        juce::Graphics graphics{image};
+        paintTabLane(
+            graphics,
+            referenceMetrics(state.string_count),
+            state,
+            common::core::makeSustainPrefixMax(state.notes));
+        return image;
+    };
+
+    const juce::Image steady = painted({});
+    const juce::Image late =
+        painted({common::core::VibratoSpanViewState{.start_seconds = 5.0, .end_seconds = 8.0}});
+    const juce::Image early =
+        painted({common::core::VibratoSpanViewState{.start_seconds = 2.0, .end_seconds = 5.0}});
+    const juce::Image throughout = painted(wholeTailShake(2.0, 8.0));
+
+    // Left of the statement the shaking note and the steady one are the SAME picture: the sine
+    // starts where the chart says it starts, not where the note does.
+    CHECK(worstPixelDeltaInColumns(late, steady, 0, 92) == 0);
+    // ...and right of it they differ, so the identity above is not an empty render.
+    CHECK(worstPixelDeltaInColumns(late, steady, 108, 158) > 0);
+    // The discrimination the first check needs: a region covering the whole tail DOES ink those
+    // same early columns, so the probe can see a sine there when one is drawn — and the old
+    // whole-note flag drew exactly this picture for the late shake too.
+    CHECK(worstPixelDeltaInColumns(throughout, steady, 0, 92) > 0);
+    CHECK(worstPixelDeltaInColumns(throughout, late, 0, 92) > 0);
+
+    // The region's other end, which is the same rule read backwards: a shake the channel STOPS
+    // mid-tail inks nothing past the stop, while the tail itself runs on to 8.0s underneath. A
+    // sine drawn to the note's end instead of the region's would pass every check above.
+    CHECK(worstPixelDeltaInColumns(early, steady, 108, 158) == 0);
+    // ...and it is the same wave as the whole-tail one up to that stop, so the identity is a
+    // region that ENDED rather than one that was never drawn.
+    CHECK(worstPixelDeltaInColumns(early, throughout, 0, 92) == 0);
+    CHECK(worstPixelDeltaInColumns(early, steady, 0, 92) > 0);
+    // The discrimination the stop needs: those late columns are exactly where the whole-tail
+    // region does ink, so the equality above is a sine that stopped, not a blind window.
+    CHECK(worstPixelDeltaInColumns(throughout, steady, 108, 158) > 0);
+}
+
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
 // Moved from the editor's TabView suite when the paint core was extracted (plan 30 Phase 2);
 // every probe color is unchanged, so the core's output is pinned to the editor lane's shipped
@@ -506,10 +598,10 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .attack = common::core::NoteAttack::Legato,
             .legato = common::core::LegatoMotion::Hammer,
             .palm_mute = true,
-            .vibrato = true,
             .emphasis = common::core::NoteEmphasis::Accent,
             .bend = {common::core::BendPointViewState{.seconds = 4.0, .semitones = 2.0}},
             .slides = {common::core::SlideViewState{.seconds = 7.0, .fret = 9, .unpitched = false}},
+            .vibrato = wholeTailShake(2.0, 8.0),
         },
         common::core::NoteViewState{
             .start_seconds = 3.0,
@@ -520,6 +612,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .tremolo = true,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 3.0,
@@ -533,6 +626,7 @@ TEST_CASE("Tab paint core draws techniques, shapes, and fret-hand positions", "[
             .harmonic_node = 24.0,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     state.shapes = {
@@ -670,9 +764,9 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .end_seconds = 13.0,
             .string = 3,
             .fret = 7,
-            .vibrato = true,
             .bend = {},
             .slides = {},
+            .vibrato = wholeTailShake(7.0, 13.0),
         },
         // The tap: span-start onset on the same string at a fret the posture does not hold.
         common::core::NoteViewState{
@@ -683,6 +777,7 @@ TEST_CASE("Tab paint core displaces a tapped posture to a grounded side chip", "
             .attack = common::core::NoteAttack::Tap,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     state.shapes = {
@@ -832,6 +927,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .attack = common::core::NoteAttack::PickSlide,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 8.0,
@@ -840,6 +936,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .fret = 5,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
@@ -849,6 +946,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .dead = true,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 16.0,
@@ -858,6 +956,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .harmonic_node = 5.0,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         // The widest number the raise has to hold, on its own lane: two digits reach far enough
         // left to meet the chip that caps the raise, which one digit never does.
@@ -869,6 +968,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .attack = common::core::NoteAttack::PickSlide,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 8.0,
@@ -877,6 +977,7 @@ TEST_CASE("Tab paint core draws a pick scrape as a plectrum head", "[ui][tab-pai
             .fret = 12,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
 
@@ -1067,6 +1168,7 @@ TEST_CASE("Tab paint core heads a pinch at its fretted stop", "[ui][tab-paint]")
             .fret = 5,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 8.0,
@@ -1077,6 +1179,7 @@ TEST_CASE("Tab paint core heads a pinch at its fretted stop", "[ui][tab-paint]")
             .harmonic_node = 24.0,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
@@ -1086,6 +1189,7 @@ TEST_CASE("Tab paint core heads a pinch at its fretted stop", "[ui][tab-paint]")
             .harmonic_node = 5.0,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
 
@@ -1286,6 +1390,7 @@ TEST_CASE("Tab paint core draws a scrape's tail plain and heads its turnarounds"
             .fret = 5,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         };
         if (scrape)
         {
@@ -1487,15 +1592,16 @@ TEST_CASE("Tab paint core paints a tail the same under any clip", "[ui][tab-pain
             .tremolo = true,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 1.0,
             .end_seconds = 18.0,
             .string = 4,
             .fret = 9,
-            .vibrato = true,
             .bend = {},
             .slides = {},
+            .vibrato = wholeTailShake(1.0, 18.0),
         },
     };
 
@@ -1582,6 +1688,7 @@ TEST_CASE("Tab paint core preserves color and fades a ghost note", "[ui][tab-pai
                     .emphasis = emphasis,
                     .bend = {},
                     .slides = {},
+                    .vibrato = {},
                 },
             };
             const std::vector<double> prefix_max = common::core::makeSustainPrefixMax(state.notes);
@@ -1718,6 +1825,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
                     .fret = 5,
                     .bend = {},
                     .slides = {common::core::SlideViewState{.seconds = 9.0, .fret = 9}},
+                    .vibrato = {},
                 }),
             end_x - 1));
     }
@@ -1733,6 +1841,7 @@ TEST_CASE("Tab paint core runs a tail's marks to the end of its ribbon", "[ui][t
                     .fret = 5,
                     .bend = {common::core::BendPointViewState{.seconds = 7.0, .semitones = 2.0}},
                     .slides = {},
+                    .vibrato = {},
                 }),
             end_x - 1));
     }
@@ -1831,6 +1940,7 @@ TEST_CASE("Tab paint core draws the pending entry box in the host's inks", "[ui]
         .legato = common::core::LegatoMotion::Unjustified,
         .bend = {},
         .slides = {},
+        .vibrato = {},
     };
     const int plain_top = top_ink_row(painted_box(nullptr), juce::Colour{0xffffffff});
     const int scrape_top = top_ink_row(painted_box(&scrape), juce::Colour{0xffffffff});
@@ -1860,6 +1970,7 @@ TEST_CASE("Tab paint core draws the note the drawn-note accessor picks", "[ui][t
                 .fret = 7,
                 .bend = {},
                 .slides = {},
+                .vibrato = {},
             },
             common::core::NoteViewState{
                 .start_seconds = 5.0,
@@ -1868,6 +1979,7 @@ TEST_CASE("Tab paint core draws the note the drawn-note accessor picks", "[ui][t
                 .fret = 5,
                 .bend = {},
                 .slides = {},
+                .vibrato = {},
             },
         };
         return state;

@@ -643,6 +643,96 @@ struct ChartNote
 };
 
 /*!
+\brief What each channel of a ringing note has STATED at one instant along its ring.
+
+The one reading of the onset-facts-plus-waypoints split
+(`docs/plans/todo/unified-waypoint-model.md`): a channel opens on the note itself and every later
+change lands on a waypoint, so "what is in force here" is a fold over the two — and every reader
+folding it by hand was a second copy of the model's semantics, free to disagree with the first.
+
+The STATEMENT in force, never the sounding value. Between two statements the position channel is
+travelling and the bend channel is climbing its curve, and both are interpolated by the surfaces
+that draw them (\ref Waypoint); this says what the last statement at or before the instant was.
+For the discrete channels that IS what sounds; for the bend it is the value the curve is
+interpolating away from.
+*/
+struct RingState
+{
+    /*! \brief Fret last stated; the note's own fret until a waypoint states another. */
+    int fret{0};
+
+    /*! \brief Bend last stated in semitones; the note's onset value until a waypoint restates. */
+    double bend{0.0};
+
+    /*! \brief Vibrato state in force; the note's onset state until a waypoint states another. */
+    bool vibrato{false};
+
+    /*!
+    \brief Applies one waypoint's statements, leaving every channel it does not state alone.
+
+    \param waypoint Waypoint whose statements advance the running state.
+    */
+    void advance(const Waypoint& waypoint) noexcept
+    {
+        // `value_or` rather than a has_value() branch per channel: a waypoint stating nothing about
+        // a channel is pass-through for it by definition, which is exactly what carrying the
+        // running value forward says — and it keeps each optional access total, which the CI-only
+        // unchecked-optional-access checker credits where a guard on a loop variable's member is
+        // not.
+        fret = waypoint.fret.value_or(fret);
+        bend = waypoint.bend.value_or(bend);
+        vibrato = waypoint.vibrato.value_or(vibrato);
+    }
+};
+
+/*!
+\brief The state every channel opens with: the note's own onset facts.
+
+Where a fold over the ring begins, and the whole of what the split means — the onset is not a
+waypoint (\ref Waypoint), so the opening value of each channel is read from the note itself here
+and nowhere else.
+
+\param note Note whose ring is being read.
+
+\return The state in force from the onset until the first waypoint that states a channel.
+*/
+[[nodiscard]] inline RingState ringStateAtOnset(const ChartNote& note) noexcept
+{
+    return RingState{.fret = note.fret, .bend = note.bend, .vibrato = note.vibrato};
+}
+
+/*!
+\brief The state in force at an offset along a note's ring.
+
+A statement standing exactly AT the instant counts, which is what makes a channel's value at a
+waypoint the value that waypoint states rather than the one it replaces.
+
+Readers that need every waypoint's before-and-after — the change detection the presentation trim
+runs, the regions the vibrato channel states — fold \ref ringStateAtOnset and \ref
+RingState::advance themselves rather than sampling this per waypoint, which would walk the array
+once per entry to learn what one pass already knows.
+
+\param note Note whose ring is read.
+\param offset Beat-fraction offset from the note's onset.
+
+\return Every channel's statement in force at that instant.
+*/
+[[nodiscard]] inline RingState ringStateAt(const ChartNote& note, const Fraction offset)
+{
+    RingState state = ringStateAtOnset(note);
+    for (const Waypoint& waypoint : note.waypoints)
+    {
+        if (offset < waypoint.offset)
+        {
+            // Waypoints ascend, so nothing from here on is in force at the instant.
+            break;
+        }
+        state.advance(waypoint);
+    }
+    return state;
+}
+
+/*!
 \brief Reports whether the note's bend channel says anything at all.
 
 The onset value is always a statement, so "is this note bent" is not "are there bend waypoints":
@@ -1021,18 +1111,22 @@ hand is damping it, so the board's own axis ignores which hand that is.
 \brief The fret the note's finger occupies when the note ends — what a following pull-off
 releases from.
 
-A note that glided hands over its last fret-STATING waypoint, not its onset fret (a 5→7 slide
-releases from 7). Waypoints stating only a bend or a vibrato change say nothing about where the
-finger is, so they pass through. An unpitched trail-off is already a release, so the last stated
-position still rules. Meaningful only for a note a finger actually stops: a scrape's travel is the
-pick's position, which is why the connection resolver disqualifies a scrape before ever asking
-this.
+The position channel read at the ring's END through the one authority (\ref ringStateAt), which is
+where the pass-through rule comes from: a note that glided hands over its last fret-STATING
+waypoint rather than its onset fret (a 5→7 slide releases from 7), while waypoints stating only a
+bend or a vibrato change say nothing about position and carry the running fret forward. An
+unpitched trail-off is already a release, so the last stated position still rules. Meaningful only
+for a note a finger actually stops: a scrape's travel is the pick's position, which is why the
+connection resolver disqualifies a scrape before ever asking this.
 
 \param note Note whose end position is read.
 
 \return Fret at the note's end.
 */
-[[nodiscard]] int releasedFret(const ChartNote& note);
+[[nodiscard]] inline int releasedFret(const ChartNote& note)
+{
+    return ringStateAt(note, note.sustain).fret;
+}
 
 /*! \brief Fret-hand position: where the hand sits on the neck from this point on. */
 struct FretHandPosition

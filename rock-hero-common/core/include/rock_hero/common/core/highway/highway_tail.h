@@ -240,6 +240,55 @@ by the bend lift distance and the taper envelope.
     double seconds_from_onset, double period_seconds) noexcept;
 
 /*!
+\brief Returns the vibrato turning-point index at a time from a region's start.
+
+Counts the sine's extremes: they fall a quarter period into the region and every half period
+after that, so index zero is the first crest, one the trough behind it, and the index grows by
+one per half period, fractional in between. Whole values ARE the turning points, which is what
+lets a sampler walk them (see \ref makeHighwayTailSampleTimes).
+
+\param seconds_from_start Time since the region's start — the anchor
+       \ref highwayVibratoSemitonesAt phases from.
+\return Turning-point index, -0.5 at the region's start and growing along it.
+*/
+[[nodiscard]] double highwayVibratoTurningIndex(double seconds_from_start) noexcept;
+
+/*!
+\brief Returns the time a vibrato turning point lands at — the inverse of
+       \ref highwayVibratoTurningIndex.
+
+The pair states the region-anchored phase ONCE, so a caller placing samples on the wave's extremes
+cannot drift out of step with the reading \ref highwayVibratoSemitonesAt produces.
+
+\param index Turning-point index from the region's start.
+\return Time since the region's start, in seconds.
+*/
+[[nodiscard]] double highwayVibratoSecondsAtTurningIndex(double index) noexcept;
+
+/*!
+\brief Returns the vibrato lift a note's stated regions contribute at an absolute time.
+
+The board's whole vibrato reading, in one place: which region is in force, the envelope that
+anchors its wobble on the string line at the region's own two ends, the fixed rate, and the depth.
+It was three copies of that arithmetic — the tail's probe pass, its sample pass, and the head —
+before the channel gained regions, and three copies is how a mid-ring shake would have ended up
+tapering against the note where it should taper against the region.
+
+Each region carries its own phase and envelope, measured from where the shake STARTS: the wobble
+therefore leaves the string line at every region's start instead of jumping in at whatever phase
+the onset happens to reach, and a region spanning the whole tail reproduces the note-anchored
+arithmetic exactly, because its start IS the onset and its length IS the tail's.
+
+\param vibrato The note's stated regions (\ref NoteViewState::vibrato), ascending and disjoint.
+\param seconds Absolute time to evaluate at.
+\param depth_scale Fraction of the full swing this reader shows; the tail shows all of it, a
+       sounding head breathes at \ref g_highway_vibrato_head_depth_fraction of it.
+\return Pitch offset in semitones, signed; zero outside every region and at each region's ends.
+*/
+[[nodiscard]] double highwayVibratoSemitonesAt(
+    std::span<const VibratoSpanViewState> vibrato, double seconds, double depth_scale) noexcept;
+
+/*!
 \brief Returns the tremolo wobble at a tooth phase, as a signed factor.
 
 A triangle wave, peaking at the note onset; callers scale by the tail half-width and the envelope.

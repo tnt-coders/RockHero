@@ -770,8 +770,9 @@ whatever window a renderer happens to be drawing.
         for (std::size_t member = group.first; member < group.first + group.count; ++member)
         {
             const NoteViewState& note = notes[member];
-            has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
-                        note.tremolo || !note.bend.empty() || !note.slides.empty();
+            has_tails = has_tails || note.end_seconds > note.start_seconds ||
+                        !note.vibrato.empty() || note.tremolo || !note.bend.empty() ||
+                        !note.slides.empty();
             // What is DRAWN, not what is stored: inside the connection family the mark is the
             // note's RESOLVED motion, so a claim nothing justifies carries no mark and must not
             // hold the repeat box off — it is pixel-identical to the plain pick beside it. Every

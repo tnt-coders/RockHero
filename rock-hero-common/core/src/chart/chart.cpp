@@ -60,20 +60,6 @@ ChartNote savedChartNote(const ChartNote& note)
     return saved;
 }
 
-int releasedFret(const ChartNote& note)
-{
-    int released = note.fret;
-    for (const Waypoint& waypoint : note.waypoints)
-    {
-        // value_or rather than a has_value() branch: a waypoint stating no fret is pass-through
-        // for position by definition, which is exactly what carrying the running value forward
-        // says — and it keeps the optional total, which the CI-only optional-access checker
-        // credits where a guard on a loop variable's member is not.
-        released = waypoint.fret.value_or(released);
-    }
-    return released;
-}
-
 double snapHarmonicNode(const double notated, const int max_partial)
 {
     // The octave is the fallback as well as the commonest target, so `best` starts there rather

@@ -103,7 +103,12 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
     // through the zone even though it stopped ringing long ago.
     state.chart.notes.push_back(
         NoteViewState{
-            .start_seconds = 0.6, .end_seconds = 0.7, .fret = 20, .bend = {}, .slides = {}
+            .start_seconds = 0.6,
+            .end_seconds = 0.7,
+            .fret = 20,
+            .bend = {},
+            .slides = {},
+            .vibrato = {}
         });
     CHECK(target_at(7.9).span == Catch::Approx(16.0));
 }
@@ -125,15 +130,30 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     // tapped note at fret 15 inside the scanned zones — with no hand position covering it — must.
     state.chart.notes.push_back(
         NoteViewState{
-            .start_seconds = 0.5, .end_seconds = 0.6, .fret = 20, .bend = {}, .slides = {}
+            .start_seconds = 0.5,
+            .end_seconds = 0.6,
+            .fret = 20,
+            .bend = {},
+            .slides = {},
+            .vibrato = {}
         });
     state.chart.notes.push_back(
         NoteViewState{
-            .start_seconds = 1.4, .end_seconds = 1.4, .fret = 0, .bend = {}, .slides = {}
+            .start_seconds = 1.4,
+            .end_seconds = 1.4,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+            .vibrato = {}
         });
     state.chart.notes.push_back(
         NoteViewState{
-            .start_seconds = 1.5, .end_seconds = 1.5, .fret = 15, .bend = {}, .slides = {}
+            .start_seconds = 1.5,
+            .end_seconds = 1.5,
+            .fret = 15,
+            .bend = {},
+            .slides = {},
+            .vibrato = {}
         });
 
     // At now = 1.5 the scan covers zones 1 and 2 (the window [1.0, 3.0)), so the fret-20 note
@@ -170,6 +190,7 @@ TEST_CASE(
             .harmonic_node = 12.0,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         });
 
     // The frame reaches the node: lines 4..8 widen to 12 (span 8), where a plain open string

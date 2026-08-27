@@ -162,7 +162,6 @@ ChartViewState makeChartViewState(
         view.palm_mute = note.palm_mute;
         view.dead = note.dead;
         view.harmonic_node = note.harmonic_node;
-        view.vibrato = note.vibrato;
         view.tremolo = note.tremolo;
         view.emphasis = note.emphasis;
         // The bend channel's control polyline, opened by the ONSET: the note's own bend value is a
@@ -177,10 +176,39 @@ ChartViewState makeChartViewState(
                 BendPointViewState{.seconds = view.start_seconds, .semitones = note.bend});
         }
         view.slides.reserve(note.waypoints.size() + 1);
+        // The vibrato channel resolved into the REGIONS it states, folded through the same one
+        // authority every other reader of the channel uses (`RingState` in chart.h). It is a state
+        // that holds from each statement until the next, so a surface needs the stretch it covers
+        // and not a flag: this walks the statements and closes a region wherever the state turns
+        // off, at the ring's end when it never does.
+        //
+        // Old content falls out of the same walk with no case of its own, which is what makes the
+        // two surfaces draw it exactly as they always did: a shake stated at the onset and never
+        // restated opens here and closes at `end_seconds`, one region covering the whole presented
+        // tail. A region opening exactly at that end is kept — degenerate, drawing nothing, and
+        // still the honest answer that this channel says the string shakes.
+        RingState ring = ringStateAtOnset(note);
+        double shake_start_seconds = view.start_seconds;
         for (const Waypoint& waypoint : note.waypoints)
         {
             const double waypoint_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
+            const bool was_shaking = ring.vibrato;
+            ring.advance(waypoint);
+            if (ring.vibrato != was_shaking)
+            {
+                if (was_shaking)
+                {
+                    view.vibrato.push_back(
+                        VibratoSpanViewState{
+                            .start_seconds = shake_start_seconds, .end_seconds = waypoint_seconds
+                        });
+                }
+                else
+                {
+                    shake_start_seconds = waypoint_seconds;
+                }
+            }
             // Bound to locals so each optional check and its access are provably the same object.
             const std::optional<double>& bend = waypoint.bend;
             if (bend.has_value())
@@ -196,6 +224,13 @@ ChartViewState makeChartViewState(
                         .seconds = waypoint_seconds, .fret = *fret, .unpitched = scrape
                     });
             }
+        }
+        if (ring.vibrato)
+        {
+            view.vibrato.push_back(
+                VibratoSpanViewState{
+                    .start_seconds = shake_start_seconds, .end_seconds = view.end_seconds
+                });
         }
         // The unpitched slide-out flattens into the slide list at the ring's end, which is where
         // it happens by definition. A scrape's slide-out is its required terminal and flattens the

@@ -42,6 +42,7 @@ using common::core::clipPayloadsTo;
 using common::core::g_minimum_slide_window;
 using common::core::informativePayloadEnd;
 using common::core::keptAfterLastStatedFret;
+using common::core::ringStateAt;
 
 // One note event on the global rational beat axis, before tie merging. The grid position is
 // derived from `global_beat` where a note needs one rather than carried beside it: the two are one
@@ -385,34 +386,6 @@ struct BendCurvePoint
     return Fraction{};
 }
 
-// The vibrato state in force FROM `offset` onward: the last statement at or before it, or the
-// note's onset state when there is none. The channel holds each statement until the next, so this
-// is what a folded-in segment's flag has to disagree with before it says anything at all.
-//
-// A statement standing AT the instant counts, which is what makes stating one idempotent: two
-// segments can fold onto a single offset (a tie continuation whose legato glide lands on a second
-// voice's note at that very beat), and the second must be able to restate what the first said
-// there — exactly as their shared waypoint's fret already takes the later value.
-[[nodiscard]] bool vibratoAt(const ChartNote& note, const Fraction offset)
-{
-    bool state = note.vibrato;
-    for (const Waypoint& waypoint : note.waypoints)
-    {
-        if (offset < waypoint.offset)
-        {
-            // Waypoints ascend, so nothing from here on is in force at the instant.
-            break;
-        }
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<bool>& vibrato = waypoint.vibrato;
-        if (vibrato.has_value())
-        {
-            state = *vibrato;
-        }
-    }
-    return state;
-}
-
 // States a folded-in segment's Guitar Pro vibrato flag at `offset` — the instant that segment
 // BEGINS on the ring that absorbed it.
 //
@@ -444,7 +417,14 @@ void stateVibratoAt(ChartNote& note, const Fraction offset, const bool vibrato)
         note.vibrato = vibrato;
         return;
     }
-    if (vibrato == vibratoAt(note, offset))
+    // The channel holds each statement until the next, so what the folded segment's flag has to
+    // disagree with is the state IN FORCE where it begins — asked of the one authority
+    // (chart.h), whose "a statement standing AT the instant counts" reading is what makes stating
+    // one idempotent: two segments can fold onto a single offset (a tie continuation whose legato
+    // glide lands on a second voice's note at that very beat), and the second must be able to
+    // restate what the first said there, exactly as their shared waypoint's fret already takes
+    // the later value.
+    if (vibrato == ringStateAt(note, offset).vibrato)
     {
         return;
     }

@@ -27,6 +27,7 @@ namespace
             .fret = 3,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 5.0,
@@ -35,6 +36,7 @@ namespace
             .fret = 5,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 6.0,
@@ -43,6 +45,7 @@ namespace
             .fret = 7,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     return state;
@@ -153,6 +156,7 @@ TEST_CASE("Chart hit testing follows the presented tails", "[core][chart]")
             .fret = 3,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     // The board's hold for that chug, to 8s (x = 160). Nothing below may spend it.

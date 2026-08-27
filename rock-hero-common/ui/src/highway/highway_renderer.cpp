@@ -3727,36 +3727,28 @@ void HighwayRenderer::Impl::draw(
         const int displayed_lane = invert ? (displayed_count + 1 - lane) : lane;
         const double bend_direction =
             common::core::highwayBendInverted(displayed_lane, displayed_count) ? -1.0 : 1.0;
-        // One fixed wobble rate for every song and tempo: a vibrato's speed is the player's
-        // hand, not the song's grid (see g_highway_vibrato_period_seconds).
-        constexpr double vibrato_period_seconds = common::core::g_highway_vibrato_period_seconds;
-        const auto note_y_at = [&](const double seconds, const double taper) {
+        // The tail shows the wobble's whole swing; only the head breathes at a fraction of it.
+        constexpr double full_vibrato_swing = 1.0;
+        // The centerline, from the two channels that move it: the bend curve and whatever vibrato
+        // region is in force. Both are read through their own core authority, so the envelope
+        // that anchors a wobble on the string line lives with the wobble rather than being spelled
+        // again at each sampling pass here (highwayVibratoSemitonesAt).
+        const auto note_y_at = [&](const double seconds, const double depth_scale) {
             double semitones =
                 common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds);
-            if (note.vibrato)
-            {
-                semitones += taper * common::core::g_highway_vibrato_depth_semitones *
-                             common::core::highwayVibratoWobble(
-                                 seconds - note.start_seconds, vibrato_period_seconds);
-            }
+            semitones +=
+                common::core::highwayVibratoSemitonesAt(note.vibrato, seconds, depth_scale);
             return common::core::highwayBentNoteY(
                 lane_y, bend_direction < 0.0, semitones, displayed_count, metrics);
         };
-        // The head samples the tail centerline's taper (zero at both true tail ends) so its
-        // wobbles stay glued to the tail's hit-line end while sounding.
-        const double head_taper =
-            note.end_seconds > note.start_seconds
-                ? common::core::highwayTailTaper(
-                      (head_seconds - note.start_seconds) / (note.end_seconds - note.start_seconds),
-                      common::core::g_highway_tail_taper_fraction)
-                : 0.0;
         // Chart-truth head station: the curve's value at the anchor time, with the vibrato
         // swing scaled to the head's half depth — the head breathes with the wobble instead
         // of bouncing at the tail's full swing or sitting pinned, both of which read as odd.
         // A pre-bent curve is already lifted at the onset, so this sits off the lane for the
-        // entire approach.
-        const double chart_head_y = note_y_at(
-            head_seconds, common::core::g_highway_vibrato_head_depth_fraction * head_taper);
+        // entire approach. A head pinned past the tail's end sits outside every region and holds
+        // still, which is where the region envelope leaves it anyway.
+        const double chart_head_y =
+            note_y_at(head_seconds, common::core::g_highway_vibrato_head_depth_fraction);
         // Rolling-flip clock, hoisted from the head-art roll below because the pre-bend reveal
         // shares it: 0 once the art lies flat (g_flip_flat_lead_seconds before the hit line),
         // 1 at the visibility edge.
@@ -3874,7 +3866,7 @@ void HighwayRenderer::Impl::draw(
             const std::array<double, 4> band = band_stations(tail_footprint);
 
             const bool modulated =
-                note.vibrato || note.tremolo || !note.bend.empty() || !note.slides.empty();
+                !note.vibrato.empty() || note.tremolo || !note.bend.empty() || !note.slides.empty();
             // An open band whose window moves under it must sample its stations along the tail
             // (the tail travels with the hand — fhp-window-motion plan).
             const bool open_band_moves =
@@ -3972,13 +3964,10 @@ void HighwayRenderer::Impl::draw(
                     const double mix =
                         static_cast<double>(probe) / static_cast<double>(arc_probe_segments);
                     const double seconds = tail_from + ((tail_to - tail_from) * mix);
-                    const double taper = common::core::highwayTailTaper(
-                        (seconds - note.start_seconds) / duration,
-                        common::core::g_highway_tail_taper_fraction);
                     const double arc_x =
                         base_x +
                         highwaySlideStateAt(note, base_x, metrics, mirrored, seconds).x_offset;
-                    const double arc_y = note_y_at(seconds, taper);
+                    const double arc_y = note_y_at(seconds, full_vibrato_swing);
                     const double arc_z = time_to_z(seconds);
                     if (probe > 0)
                     {
@@ -4038,23 +4027,42 @@ void HighwayRenderer::Impl::draw(
                 // The vibrato wave's own turning points, handed to the sampler exactly like the
                 // teeth above. The uniform grid spans the VISIBLE window, which advances every
                 // frame, so a wave sampled by the grid alone is re-sampled at new phases each
-                // frame and visibly morphs on approach; the sine's extremes are note-anchored —
-                // (k + 1/4) and (k + 3/4) of the onset-phased period — so pinning a sample to
-                // each keeps the drawn wave rigid on the note, the way the teeth already are.
-                if (note.vibrato && vibrato_period_seconds > 0.0)
+                // frame and visibly morphs on approach; the sine's extremes are REGION-anchored,
+                // so pinning a sample to each keeps the drawn wave rigid on the note, the way the
+                // teeth already are. WHERE those extremes fall is core's to state, not this walk's:
+                // the turning-point pair below inverts the very phase highwayVibratoSemitonesAt
+                // reads, so re-anchoring the lift moves the samples with it instead of aliasing
+                // them.
+                for (const common::core::VibratoSpanViewState& span : note.vibrato)
                 {
-                    const double half_period = vibrato_period_seconds / 2.0;
-                    const double from_halves =
-                        ((tail_from - note.start_seconds) / half_period) - 0.5;
-                    for (int extreme = static_cast<int>(std::floor(from_halves)) + 1;; ++extreme)
+                    // Each region is walked over its own overlap with the visible window. A
+                    // region covering the whole tail clamps to exactly [tail_from, tail_to],
+                    // which is the walk this replaced.
+                    const double region_from = std::max(tail_from, span.start_seconds);
+                    const double region_to = std::min(tail_to, span.end_seconds);
+                    // The region's ENDS are corners of the envelope — flat outside, wobbling
+                    // inside — so they are sampled exactly for the reason the extremes are. A
+                    // whole-tail region has both ends outside the window and pushes neither.
+                    if (span.start_seconds > tail_from && span.start_seconds < tail_to)
                     {
-                        const double seconds = note.start_seconds +
-                                               ((0.5 + static_cast<double>(extreme)) * half_period);
-                        if (!(seconds < tail_to))
+                        wobble_times.push_back(span.start_seconds);
+                    }
+                    if (span.end_seconds > tail_from && span.end_seconds < tail_to)
+                    {
+                        wobble_times.push_back(span.end_seconds);
+                    }
+                    const double from_index =
+                        common::core::highwayVibratoTurningIndex(region_from - span.start_seconds);
+                    for (int extreme = static_cast<int>(std::floor(from_index)) + 1;; ++extreme)
+                    {
+                        const double seconds =
+                            span.start_seconds + common::core::highwayVibratoSecondsAtTurningIndex(
+                                                     static_cast<double>(extreme));
+                        if (!(seconds < region_to))
                         {
                             break;
                         }
-                        if (seconds > tail_from)
+                        if (seconds > region_from)
                         {
                             wobble_times.push_back(seconds);
                         }
@@ -4117,11 +4125,6 @@ void HighwayRenderer::Impl::draw(
                 samples.reserve(sample_times.size());
                 for (const double seconds : sample_times)
                 {
-                    // Taper progresses over the full note duration, so wobbles anchor on the
-                    // string line at the true tail ends even when the hit line clips the view.
-                    const double taper = common::core::highwayTailTaper(
-                        (seconds - note.start_seconds) / duration,
-                        common::core::g_highway_tail_taper_fraction);
                     const HighwaySlideState slide =
                         highwaySlideStateAt(note, base_x, metrics, mirrored, seconds);
                     double x_offset = slide.x_offset;
@@ -4140,7 +4143,7 @@ void HighwayRenderer::Impl::draw(
                         TailSample{
                             .stations = open_band_moves ? band_stations_at(seconds) : band,
                             .x_offset = x_offset,
-                            .y = note_y_at(seconds, taper),
+                            .y = note_y_at(seconds, full_vibrato_swing),
                             .z = time_to_z(seconds),
                             .alpha = slide.alpha * tip_alpha(seconds),
                         });

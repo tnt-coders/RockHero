@@ -40,6 +40,49 @@ struct BendPointViewState
     }
 };
 
+/*!
+\brief One stretch of a note's ring the vibrato channel states as shaking, in absolute seconds.
+
+The channel is a STATE that holds from each statement until the next (\ref Waypoint), so what a
+surface has to draw is an interval rather than a flag: a shake can start at a glide's arrival, stop
+mid-hold, and start again, and one boolean could say none of it. The projection reads the channel
+once and hands both surfaces the same regions, which is what keeps the lane's sine and the board's
+wobble covering the same stretch of the same note.
+
+A note whose shake runs end to end — every chart written before the waypoint model, and most
+written after — yields exactly one region spanning the whole presented tail, so the surfaces draw
+what they always drew without a case of their own.
+*/
+struct VibratoSpanViewState
+{
+    /*! \brief Absolute timeline position the shake begins. */
+    double start_seconds{0.0};
+
+    /*!
+    \brief Absolute timeline position the shake stops: the next statement, or the ring's end.
+
+    Equal to \ref start_seconds only where a statement lands exactly on the end the note presents,
+    which draws nothing on either surface and still reports the region the channel states.
+    */
+    double end_seconds{0.0};
+
+    /*!
+    \brief Compares two vibrato regions by their stored fields.
+    \param lhs Left-hand region.
+    \param rhs Right-hand region.
+    \return True when both regions store equal values.
+    */
+    friend constexpr bool operator==(
+        const VibratoSpanViewState& lhs, const VibratoSpanViewState& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on a
+        // floating member. Exact equality is intended; the ordering query expresses it
+        // warning-free with identical semantics.
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds);
+    }
+};
+
 /*! \brief One slide waypoint resolved to an absolute timeline second. */
 struct SlideViewState
 {
@@ -79,14 +122,16 @@ Normally the PRESENTED form, not the stored one. `ChartNote::sustain` is the act
 string rings, and what a surface draws is derived from it once per chart revision by
 \ref presentedChartNotes — the tail trimmed to clear the next head, floored on payload that still
 says something, dropped where it was never a deliberate sustain, absent on a dead note. Every field
-here comes from that derivation, so `end_seconds`, the bend curve, the slide waypoints and the
-flattened slide-out all describe the presented note and nothing has to trim a second time.
+here comes from that derivation, so `end_seconds`, the bend curve, the slide waypoints, the
+vibrato regions and the flattened slide-out all describe the presented note and nothing has to
+trim a second time.
 
 The form is the form its state was projected in (\ref ChartNoteForm), never a per-note choice: a
 state carries one form throughout, and the two differ in these notes and in nothing else around
 them. Presentation touches the tail alone, so positions, strings, frets, techniques and flags read
-the same in either form; `end_seconds`, the bend curve and the slide waypoints are the three a
-reader must not assume are the presented ones.
+the same in either form; `end_seconds`, the bend curve, the slide waypoints and the vibrato
+regions are the four a reader must not assume are the presented ones — a region running to the
+ring's end runs to the end THIS form presents.
 
 **Scored = presented** (`docs/plans/in-progress/note-sustain-model.md`, ruling 4). When the scorer
 exists it reads this, not the chart: what the player is asked to hold is exactly what the board
@@ -164,9 +209,6 @@ struct NoteViewState
     */
     std::optional<double> harmonic_node{};
 
-    /*! \brief True when the note is played with vibrato. */
-    bool vibrato{false};
-
     /*! \brief True when the note is tremolo picked. */
     bool tremolo{false};
 
@@ -186,6 +228,16 @@ struct NoteViewState
     std::vector<SlideViewState> slides;
 
     /*!
+    \brief The stretches of the tail the string shakes over, in ascending time order.
+
+    Empty when the note never shakes, which is what "is this note played with vibrato" asks now
+    that the channel can start and stop mid-ring (\ref VibratoSpanViewState). Declared beside the
+    other two tail payloads because it is one: the regions are clipped to the tail this state's
+    FORM presents, exactly as the bend curve and the slide waypoints are.
+    */
+    std::vector<VibratoSpanViewState> vibrato;
+
+    /*!
     \brief Compares two note view states by their stored fields.
     \param lhs Left-hand note.
     \param rhs Right-hand note.
@@ -197,9 +249,9 @@ struct NoteViewState
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
                lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
-               lhs.harmonic_node == rhs.harmonic_node && lhs.vibrato == rhs.vibrato &&
-               lhs.tremolo == rhs.tremolo && lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend &&
-               lhs.slides == rhs.slides;
+               lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
+               lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
+               lhs.vibrato == rhs.vibrato;
     }
 };
 

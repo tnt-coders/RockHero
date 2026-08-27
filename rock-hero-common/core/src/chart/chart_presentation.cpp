@@ -234,9 +234,12 @@ bool hasSustainTechnique(const ChartNote& note)
            note.slide_out.has_value() || note.vibrato || note.tremolo;
 }
 
-// Each channel is measured against where the note STARTS — at its onset bend, its own fret, its
-// onset vibrato — so a first statement is a change exactly when it differs from that opening
-// value, and the running value carries forward through waypoints that state nothing about it.
+// A CHANGE is what a channel has to state to say anything, so this is the one question the
+// per-instant authority cannot answer alone: it folds the ring itself (ringStateAtOnset plus
+// RingState::advance, one pass) and compares each waypoint's state against the one it replaced.
+// Measuring against where the note STARTS falls out of that — the fold opens at the onset bend,
+// the onset fret and the onset vibrato, and carries each channel forward through waypoints that
+// state nothing about it.
 Fraction informativePayloadEnd(const ChartNote& note)
 {
     Fraction last{};
@@ -246,36 +249,28 @@ Fraction informativePayloadEnd(const ChartNote& note)
             last = offset;
         }
     };
-    double previous_bend = note.bend;
-    int previous_fret = note.fret;
-    bool previous_vibrato = note.vibrato;
+    RingState state = ringStateAtOnset(note);
     for (const Waypoint& waypoint : note.waypoints)
     {
-        const double bend = waypoint.bend.value_or(previous_bend);
-        if (std::is_neq(bend <=> previous_bend))
+        const RingState previous = state;
+        state.advance(waypoint);
+        if (std::is_neq(state.bend <=> previous.bend))
         {
             reaches(waypoint.offset);
         }
-        previous_bend = bend;
-
-        const int fret = waypoint.fret.value_or(previous_fret);
-        if (fret != previous_fret)
+        if (state.fret != previous.fret)
         {
             reaches(waypoint.offset);
         }
-        previous_fret = fret;
-
-        const bool vibrato = waypoint.vibrato.value_or(previous_vibrato);
-        if (vibrato != previous_vibrato)
+        if (state.vibrato != previous.vibrato)
         {
             // A bend value and a fret are POINTS — their information is complete at the instant
             // they are reached, so the tail may stop exactly there. A vibrato START is an interval
             // STATE: a tail ending on it would show the shake for no time at all and read as no
             // shake, so the information reaches one minimum gesture window past the statement.
             // Its END is a point again — the interval before it already showed everything.
-            reaches(vibrato ? waypoint.offset + g_minimum_slide_window : waypoint.offset);
+            reaches(state.vibrato ? waypoint.offset + g_minimum_slide_window : waypoint.offset);
         }
-        previous_vibrato = vibrato;
     }
     return last;
 }

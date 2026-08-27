@@ -31,6 +31,7 @@ namespace
             .fret = 3,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 2.0,
@@ -39,6 +40,7 @@ namespace
             .fret = 7,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
@@ -47,6 +49,7 @@ namespace
             .fret = 0,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     return std::make_shared<const common::core::ChartViewState>(std::move(state));
@@ -391,6 +394,7 @@ TEST_CASE("TabView reveals a ring reaching a window its tail cannot", "[ui][tab-
             .fret = 5,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     common::core::ChartViewState actual = presented;
@@ -493,6 +497,7 @@ TEST_CASE("TabView draws a selected note's ring beside a presented mate", "[ui][
             .fret = 3,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
@@ -501,6 +506,7 @@ TEST_CASE("TabView draws a selected note's ring beside a presented mate", "[ui][
             .fret = 5,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
     common::core::ChartViewState actual = presented;

@@ -154,6 +154,7 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
             .fret = 3,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 2.0,
@@ -162,6 +163,7 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
             .fret = 7,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
         common::core::NoteViewState{
             .start_seconds = 12.0,
@@ -170,6 +172,7 @@ TEST_CASE("Shared sustain prefix and range queries work over tab notes", "[ui][t
             .fret = 0,
             .bend = {},
             .slides = {},
+            .vibrato = {},
         },
     };
 
@@ -197,6 +200,7 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .fret = 3,
         .bend = {},
         .slides = {},
+        .vibrato = {},
     };
     const TabNoteLayout layout = tabNoteLayout(geometry, sustained);
 
@@ -233,6 +237,7 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .fret = 3,
         .bend = {},
         .slides = {},
+        .vibrato = {},
     };
     const TabNoteLayout chug_layout = tabNoteLayout(geometry, chug);
     CHECK_THAT(chug_layout.tail.width, Catch::Matchers::WithinULP(0.0f, 0));

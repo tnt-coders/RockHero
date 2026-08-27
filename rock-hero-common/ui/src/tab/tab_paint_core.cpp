@@ -855,15 +855,23 @@ struct TailInterior
     };
 }
 
-// Draws the vibrato sine along a tail. Separate from drawNoteTail because the sine is a technique
-// mark RIDING the tail rather than the tail's own body, and the caller clips the technique marks
-// against the arpeggio brackets while the ribbon shows through them untouched.
+// Draws the vibrato sine over each stretch of tail the note's vibrato channel states as shaking.
+// Separate from drawNoteTail because the sine is a technique mark RIDING the tail rather than the
+// tail's own body, and the caller clips the technique marks against the arpeggio brackets while
+// the ribbon shows through them untouched.
+//
+// One wave per stated region rather than one per note, because the channel is a state that starts
+// and stops mid-ring (NoteViewState::vibrato): a shake beginning at a glide's arrival is the
+// commonest figure there is, and a sine run from the onset would say the string shook through the
+// slide it did not. Each wave takes its phase from its OWN start, so it leaves the string line
+// where the shake begins instead of cutting in at whatever phase the onset reached — and a region
+// covering the whole tail starts at the onset, which is why old charts draw exactly what they drew
+// before the channel could say anything else.
 void drawVibratoSine(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const common::core::NoteViewState& note, float onset_x, float center_y)
+    const common::core::NoteViewState& note, float center_y)
 {
-    const float length = metrics.x(note.end_seconds) - onset_x;
-    if (!note.vibrato || length <= 0.0f)
+    if (note.vibrato.empty())
     {
         return;
     }
@@ -878,31 +886,45 @@ void drawVibratoSine(
     const float amplitude =
         std::max(1.0f, ((interior.bottom - interior.top) / 2.0f) - (stroke / 2.0f));
     const float period = metrics.tail_height;
-    // Sampled on whole-pixel distances from the onset, so the run the clip can show carries
-    // the same vertices at the same places the whole tail would have put there.
-    const TailRun run = visibleTailRun(g, metrics, onset_x, length);
-    if (run.empty())
+    juce::Path wave;
+    for (const common::core::VibratoSpanViewState& span : note.vibrato)
+    {
+        const float from_x = metrics.x(span.start_seconds);
+        const float length = metrics.x(span.end_seconds) - from_x;
+        if (length <= 0.0f)
+        {
+            continue;
+        }
+        // Sampled on whole-pixel distances from the region's start, so the run the clip can show
+        // carries the same vertices at the same places the whole region would have put there.
+        const TailRun run = visibleTailRun(g, metrics, from_x, length);
+        if (run.empty())
+        {
+            continue;
+        }
+        const auto first_step = static_cast<int>(std::ceil(run.from_dx));
+        const auto last_step = static_cast<int>(std::floor(run.to_dx));
+        for (int step = first_step; step <= last_step; ++step)
+        {
+            const auto dx = static_cast<float>(step);
+            const juce::Point<float> point{
+                from_x + dx,
+                interior_center +
+                    amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period)
+            };
+            if (step == first_step)
+            {
+                wave.startNewSubPath(point);
+            }
+            else
+            {
+                wave.lineTo(point);
+            }
+        }
+    }
+    if (wave.isEmpty())
     {
         return;
-    }
-    const auto first_step = static_cast<int>(std::ceil(run.from_dx));
-    const auto last_step = static_cast<int>(std::floor(run.to_dx));
-    juce::Path wave;
-    for (int step = first_step; step <= last_step; ++step)
-    {
-        const auto dx = static_cast<float>(step);
-        const juce::Point<float> point{
-            onset_x + dx,
-            interior_center + amplitude * std::sin(dx * juce::MathConstants<float>::twoPi / period)
-        };
-        if (step == first_step)
-        {
-            wave.startNewSubPath(point);
-        }
-        else
-        {
-            wave.lineTo(point);
-        }
     }
     g.setColour(style[Ink::VibratoSine]);
     g.strokePath(wave, juce::PathStrokeType{stroke});
@@ -2294,7 +2316,7 @@ void paintTabLane(
                         });
                 }
             }
-            drawVibratoSine(g, metrics, style, note, onset_x, center_y);
+            drawVibratoSine(g, metrics, style, note, center_y);
             // An unpitched slide label states a fret, so its box uses the plate weight while its
             // text stays fully opaque.
             drawSlideLines(

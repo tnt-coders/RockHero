@@ -325,11 +325,140 @@ TEST_CASE("Chart projection forms differ in notes and nothing else", "[core][cha
         CHECK(ring.palm_mute == drawn.palm_mute);
         CHECK(ring.dead == drawn.dead);
         CHECK(ring.harmonic_node == drawn.harmonic_node);
-        CHECK(ring.vibrato == drawn.vibrato);
         CHECK(ring.tremolo == drawn.tremolo);
         CHECK(ring.emphasis == drawn.emphasis);
         // No presentation rule ever lengthens a tail past its stored ring.
         CHECK(ring.end_seconds >= drawn.end_seconds);
+        // The vibrato regions are tail payload like the bend curve and the slide waypoints, so
+        // they belong to the FORM rather than to the invariant group above — a region running to
+        // the ring's end runs to the end THIS form presents. What holds in both is that no region
+        // leaves the tail it was clipped to.
+        const auto regions_inside_tail = [](const NoteViewState& note) {
+            for (const VibratoSpanViewState& span : note.vibrato)
+            {
+                CHECK(span.start_seconds >= note.start_seconds);
+                CHECK(span.end_seconds <= note.end_seconds);
+            }
+        };
+        regions_inside_tail(drawn);
+        regions_inside_tail(ring);
+    }
+}
+
+// The vibrato channel reaches both surfaces as the REGIONS it states rather than as a flag: it
+// holds from each statement until the next, so a shake can begin at a glide's arrival, stop
+// mid-hold, and begin again, and each region has to cover exactly the stretch the channel says it
+// does. The onset-only case is the identity that keeps every chart written before the channel
+// could say anything else drawing precisely what it drew.
+TEST_CASE("Chart projection resolves the vibrato channel into regions", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    // Alone on the chart, so no binding onset trims the tail and the region ends are the channel's
+    // own. 120 BPM 4/4: the onset sits at 0.0s, a beat lasts half a second, and four beats of ring
+    // end at 2.0s.
+    const auto project = [&tempo_map](const bool onset_vibrato, std::vector<Waypoint> waypoints) {
+        Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = {
+            ChartNote{
+                .position = GridPosition{.measure = 1, .beat = 1},
+                .string = 1,
+                .fret = 5,
+                .sustain = Fraction{4},
+                .vibrato = onset_vibrato,
+                .bend = {},
+                .waypoints = std::move(waypoints),
+            },
+        };
+        Arrangement arrangement = makeArrangementWithChart();
+        arrangement.chart = std::move(chart);
+        return makeChartViewState(arrangement, tempo_map);
+    };
+
+    SECTION("a shake stated at the onset alone covers the whole presented tail")
+    {
+        const ChartViewState state = project(true, {});
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 1);
+        // Exactly the tail's own two ends, which is what makes this the drawing both surfaces
+        // produced when the channel was one boolean.
+        CHECK_THAT(
+            view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
+        CHECK_THAT(view.vibrato[0].end_seconds, Catch::Matchers::WithinULP(view.end_seconds, 0));
+    }
+
+    SECTION("a shake stated mid-ring begins at the statement, not at the onset")
+    {
+        const ChartViewState state =
+            project(false, {Waypoint{.offset = Fraction{2}, .vibrato = true}});
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 1);
+        CHECK(view.vibrato[0].start_seconds == Catch::Approx(1.0));
+        CHECK(view.vibrato[0].end_seconds == Catch::Approx(2.0));
+        // The discrimination the whole stage exists for: a region running from the onset would
+        // draw a shake across the two beats the chart says are steady.
+        CHECK(view.vibrato[0].start_seconds > view.start_seconds);
+    }
+
+    SECTION("a shake ended mid-ring stops at the statement, not at the ring's end")
+    {
+        const ChartViewState state =
+            project(true, {Waypoint{.offset = Fraction{2}, .vibrato = false}});
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 1);
+        CHECK_THAT(
+            view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
+        CHECK(view.vibrato[0].end_seconds == Catch::Approx(1.0));
+        CHECK(view.vibrato[0].end_seconds < view.end_seconds);
+    }
+
+    SECTION("a channel that starts, stops and starts again states two regions")
+    {
+        const ChartViewState state = project(
+            true,
+            {
+                Waypoint{.offset = Fraction{1}, .vibrato = false},
+                Waypoint{.offset = Fraction{2}, .vibrato = true},
+                Waypoint{.offset = Fraction{3}, .vibrato = false},
+            });
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 2);
+        CHECK_THAT(
+            view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
+        CHECK(view.vibrato[0].end_seconds == Catch::Approx(0.5));
+        CHECK(view.vibrato[1].start_seconds == Catch::Approx(1.0));
+        CHECK(view.vibrato[1].end_seconds == Catch::Approx(1.5));
+    }
+
+    SECTION("a statement equal to the state in force is no boundary")
+    {
+        // Restating what already stands says nothing, so the region stays whole rather than being
+        // cut in two at an instant where nothing changes.
+        const ChartViewState state =
+            project(true, {Waypoint{.offset = Fraction{2}, .vibrato = true}});
+        REQUIRE(state.notes.size() == 1);
+        const NoteViewState& view = state.notes.front();
+        REQUIRE(view.vibrato.size() == 1);
+        CHECK_THAT(
+            view.vibrato[0].start_seconds, Catch::Matchers::WithinULP(view.start_seconds, 0));
+        CHECK_THAT(view.vibrato[0].end_seconds, Catch::Matchers::WithinULP(view.end_seconds, 0));
+    }
+
+    SECTION("a note whose channel never speaks carries no region at all")
+    {
+        // Waypoints, but on another channel: a glide and a curl say nothing about shaking.
+        const ChartViewState state = project(
+            false,
+            {
+                Waypoint{.offset = Fraction{1}, .bend = 2.0},
+                Waypoint{.offset = Fraction{2}, .fret = 7},
+            });
+        REQUIRE(state.notes.size() == 1);
+        CHECK(state.notes.front().vibrato.empty());
     }
 }
 
@@ -493,7 +622,7 @@ TEST_CASE("Chart projection suppresses pick-slide latents", "[core][chart]")
     CHECK_FALSE(view.palm_mute);
     CHECK_FALSE(view.dead);
     CHECK_FALSE(view.tremolo);
-    CHECK_FALSE(view.vibrato);
+    CHECK(view.vibrato.empty());
     CHECK(view.bend.empty());
     // The turnaround waypoint and the slide-out terminal flatten into one leg list, both
     // unpitched — but the turnaround is LINKED and the terminal is not: the pick stays on the

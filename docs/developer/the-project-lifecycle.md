@@ -156,14 +156,21 @@ file and from a fresh import shows the same tails, and the model behind the spli
    truncates the tail right there with its information intact. Payload points the trim passes are
    dropped with the tail; only non-changing ones can ever sit past `t_info`, so nothing
    informative is lost and the model's "payload within the sustain" invariant keeps holding.
-   What counts as a change: a bend point whose semitones differ from its predecessor (the note
-   starts unbent), and a slide waypoint whose fret differs from the previous fret — an
-   **equal-fret waypoint is a HOLD, not a glide** (rule 15), so a trailing hold pins a pitch the
-   tail already sounds and cannot hold the tail open. A slide still reaches its target note,
+   What counts as a change is asked per waypoint CHANNEL, against the value the channel opened
+   with — the note's own bend, fret and vibrato state: a bend value differing from the one it
+   replaces (the note usually starts unbent), and a fret differing from the previous stated fret
+   — an **equal-fret waypoint is a HOLD, not a glide** (rule 15), so a trailing hold pins a pitch
+   the tail already sounds and cannot hold the tail open. A slide still reaches its target note,
    because a shift glide's landing waypoint is by definition a fret change (exact adjacency stays
-   legal). Whole-note techniques — vibrato, tremolo, emphasis, muting, harmonics — cannot change
-   mid-sustain, so they never override the margin at all. The unpitched slide-out is not payload
-   either (user rule 2026-07-28): its end is gesture geometry derived from the notated duration,
+   legal). The vibrato channel counts too, and its two directions differ: a bend value and a fret
+   are POINTS, complete at the instant they are reached, so the tail may stop exactly there, but a
+   vibrato START is an interval STATE — a tail ending on it would show the shake for no time at
+   all and read as no shake — so its information reaches one minimum gesture window PAST the
+   statement, while a vibrato END is a point again (the interval before it already showed
+   everything). The techniques that are still whole-note — tremolo, emphasis, muting, harmonics
+   — cannot change mid-sustain, so they never override the margin at all. The unpitched
+   slide-out is not payload either (user rule 2026-07-28): its end is gesture geometry derived
+   from the notated duration,
    not a musical event, so it trims back with the tail and respects the margin. A crowding that
    would crush it — a non-positive target, or one at or under the last *surviving* waypoint —
    compresses it to the smallest

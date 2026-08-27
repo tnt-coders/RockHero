@@ -269,11 +269,21 @@ is deliberately single-sourced:
 
 One performance rule sits beside the viewport-bounded note range: the two **wavy tail overlays**
 (the tremolo band and the vibrato sine) generate only the stretch of a tail the clip can show, via
-`visibleTailRun`. Both are functions of the distance from the onset alone, so a clipped run lands
-the identical shape — phase never depends on where generation began — and each generator snaps its
-run outward onto its own vertex spacing, so the rasterized result is *identical* rather than merely
-similar. At full zoom a held tremolo chord would otherwise cost tens of thousands of off-screen
-vertices every frame. A test pins that a tail looks the same however the repaint is clipped.
+`visibleTailRun`. Both are functions of the distance from their own **start** — the onset for the
+tremolo band, the region's own start for each vibrato sine — so a clipped run lands the identical
+shape (phase never depends on where generation began), and each generator snaps its run outward
+onto its own vertex spacing, so the rasterized result is *identical* rather than merely similar. At
+full zoom a held tremolo chord would otherwise cost tens of thousands of off-screen vertices every
+frame. A test pins that a tail looks the same however the repaint is clipped.
+
+The sine is drawn **once per stated vibrato region**, not once per note: the vibrato channel holds
+from each statement until the next, so `NoteViewState::vibrato` is a list of
+`{start_seconds, end_seconds}` regions the projection derives from the note's waypoints rather
+than a flag (`docs/plans/todo/unified-waypoint-model.md`). A shake that begins where a glide
+arrives — the corpus's commonest vibrato figure — therefore inks only from that arrival, and a
+note that simply shakes end to end yields one region covering the whole presented tail, which is
+the picture the lane drew when the channel was a single boolean. The 3D board reads the same
+regions, so the two surfaces cannot say different things about where a shake starts.
 
 **The actual-ring pick** is how the length you cannot see becomes visible while you author it. The
 lane draws presented tails, so the ring a note actually sounds for — what `Alt`+wheel edits — is
