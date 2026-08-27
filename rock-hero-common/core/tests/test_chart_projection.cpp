@@ -778,53 +778,81 @@ TEST_CASE("Chart projection gives a hold waypoint the margin morph", "[core][cha
     CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
-// An authored hold marker reaches the projection as ONE fact: where the bracket that states its
-// stop draws. That is the START of the span the derivation resolved it into, not the slot it was
-// authored at, because the bracket IS the marker's mark — and a marker that resolved into no span
-// carries no instant at all, which is what makes it undrawable and unclickable by construction.
-// Its fret is deliberately absent here: the posture already carries it, and a second copy would be
-// one stop drawn from two places.
-TEST_CASE("Chart projection places hold markers at their posture brackets", "[core][chart]")
+// A silently-held stop reaches the projection with ONE fact a sounding note does not carry: where
+// the bracket that states its stop draws. That is the START of the span the derivation resolved it
+// into, not the slot it was authored at, because the bracket IS its face — and one that resolved
+// into no span carries no instant at all, which is what makes it undrawable and unclickable by
+// construction. Its fret is not repeated there: the posture already carries it, and a second copy
+// would be one stop drawn from two places.
+TEST_CASE("Chart projection places silent holds at their posture brackets", "[core][chart]")
 {
     Arrangement arrangement = makeArrangementWithChart();
     Chart* const chart = chartOrNull(arrangement);
     REQUIRE(chart != nullptr);
     // The fixture's span opens at measure 2 beat 1 (2.0s) and stops ringing a beat later (2.5s).
-    chart->hold_markers = {
-        ChartHoldMarker{.position = GridPosition{.measure = 2, .beat = 1}, .string = 3, .fret = 9},
-        ChartHoldMarker{
-            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 4}},
-            .string = 5,
-            .fret = 5,
-        },
-        ChartHoldMarker{.position = GridPosition{.measure = 2, .beat = 3}, .string = 6, .fret = 7},
+    const auto hold = [](const GridPosition& position, const int string, const int fret) {
+        ChartNote note;
+        note.position = position;
+        note.string = string;
+        note.fret = fret;
+        note.attack = NoteAttack::None;
+        return note;
     };
+    chart->notes.push_back(hold(GridPosition{.measure = 2, .beat = 1}, 3, 9));
+    chart->notes.push_back(
+        hold(GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 4}}, 5, 5));
+    chart->notes.push_back(hold(GridPosition{.measure = 2, .beat = 3}, 6, 7));
+    std::ranges::sort(chart->notes, chartNoteOrderLess);
 
     const ChartViewState state = makeChartViewState(arrangement, makeTempoMap());
-    REQUIRE(state.hold_markers.size() == 3);
-    // Each instant is bound to a named reference before it is read, so the guard and the access
-    // are provably one object (a REQUIRE alone is not visible to that analysis).
-    const std::optional<double>& at_start = state.hold_markers[0].bracket_seconds;
-    const std::optional<double>& inside = state.hold_markers[1].bracket_seconds;
-    const std::optional<double>& past_end = state.hold_markers[2].bracket_seconds;
+    // The face of the hold on one string, found by that string alone: each of the three sits on
+    // its own, so nothing here needs to re-state the slot the chart was built with.
+    const auto faceOf = [&state](const int string) {
+        std::optional<double> face;
+        bool found = false;
+        for (const NoteViewState& note : state.notes)
+        {
+            if (!found && note.string == string && silentHold(note.attack))
+            {
+                face = note.bracket_seconds;
+                found = true;
+            }
+        }
+        REQUIRE(found);
+        return face;
+    };
+    // Each instant is bound to a named value before it is read, so the guard and the access are
+    // provably one object (a REQUIRE alone is not visible to that analysis).
+    const std::optional<double> at_start = faceOf(3);
+    const std::optional<double> inside = faceOf(5);
+    const std::optional<double> past_end = faceOf(6);
     // Authored AT the span start, so both readings agree here.
     REQUIRE(at_start.has_value());
     if (at_start.has_value())
     {
         CHECK_THAT(*at_start, Catch::Matchers::WithinAbs(2.0, 1e-9));
     }
-    CHECK(state.hold_markers[0].string == 3);
-    // Authored an eighth of a beat INSIDE the span (2.125s) — and its bracket still draws at the
-    // span's start, which is the whole discrimination between the two readings.
+    // Authored an eighth of a beat INSIDE the span (2.125s), on a string the shape does not state:
+    // that is GROWTH, so it opens the grown shape at its own instant and its bracket draws there.
+    // The discrimination is the line above rather than this one — the hold at the span start keeps
+    // its face at 2.0 even though the grown span reaches it too, which is the derivation publishing
+    // the FIRST span a stop reaches rather than the last.
     REQUIRE(inside.has_value());
     if (inside.has_value())
     {
-        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.0, 1e-9));
+        CHECK_THAT(*inside, Catch::Matchers::WithinAbs(2.125, 1e-9));
     }
-    CHECK(state.hold_markers[1].string == 5);
     // Authored at 3.0s, past the span's own end: it joins no posture and so states no place.
     CHECK_FALSE(past_end.has_value());
-    CHECK(state.hold_markers[2].string == 6);
+
+    // Every sounding note leaves the field absent: its face is its own head at its own instant.
+    for (const NoteViewState& note : state.notes)
+    {
+        if (!silentHold(note.attack))
+        {
+            CHECK_FALSE(note.bracket_seconds.has_value());
+        }
+    }
 }
 
 } // namespace rock_hero::common::core

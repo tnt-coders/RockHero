@@ -37,22 +37,6 @@ struct ChartNoteHit
         default;
 };
 
-/*! \brief A hold marker the pointer resolved, by index into the projection's marker order. */
-struct ChartHoldMarkerHit
-{
-    /*! \brief Index into \ref common::core::ChartViewState::hold_markers. */
-    std::size_t index{0};
-
-    /*!
-    \brief Compares two marker hits by their stored values.
-    \param lhs Left-hand hit.
-    \param rhs Right-hand hit.
-    \return True when both name the same marker.
-    */
-    friend constexpr bool operator==(
-        const ChartHoldMarkerHit& lhs, const ChartHoldMarkerHit& rhs) noexcept = default;
-};
-
 /*!
 \brief A waypoint the pointer resolved: which projected note, and which of its drawn waypoints.
 
@@ -80,18 +64,18 @@ struct ChartWaypointHit
 /*!
 \brief One selectable object the lane resolved under a pointer.
 
-The same three alternatives \ref ChartSelectionKey has, addressed by projection index instead of by
+The same two alternatives \ref ChartSelectionKey has, addressed by projection index instead of by
 identity: the controller turns one into the other, which is the single place a drawn glyph becomes
 a selectable object.
 */
-using ChartHitTarget = std::variant<ChartNoteHit, ChartHoldMarkerHit, ChartWaypointHit>;
+using ChartHitTarget = std::variant<ChartNoteHit, ChartWaypointHit>;
 
 /*!
 \brief Resolves the selectable object under a lane-local point, if any.
 
 Topmost drawn wins, which is the rule and the reason for the order below — with ONE stated
-exception. Hold markers resolve FIRST even though the paint core draws their brackets UNDER the
-heads: a marker's bracket is its only affordance and never wraps a head of its own string (that
+exception. Silently-held stops resolve FIRST even though the paint core draws their brackets UNDER
+the heads: a hold's bracket is its only affordance and never wraps a head of its own string (that
 string is silent at the span start by construction), so all the priority takes is the near columns
 of a head a little later on that string, which the head can spare and a two-pixel bracket bar
 cannot. The exception is recorded with the verb's design record rather than left to be inferred
@@ -104,8 +88,8 @@ first.
 Two objects the lane draws nothing for are not hit-testable, because nothing undrawn is. A waypoint
 carries a head only when it is LINKED (\ref common::core::linkedWaypoint), and one stating no fret
 draws nothing at all today — how those should draw, and therefore how a pointer should reach them,
-is the bend display study's question and not this function's. A hold marker whose stop joined no
-posture draws no bracket, which \ref common::ui::tabHoldMarkerLayout answers with no layout at all,
+is the bend display study's question and not this function's. A silent hold whose stop joined no
+posture draws no bracket, which \ref common::ui::tabSilentHoldLayout answers with no layout at all,
 so the skip needs no rule of its own here.
 
 \param tab Seconds-resolved tab projection being displayed.
@@ -127,7 +111,7 @@ so the skip needs no rule of its own here.
 \param top Top edge of the box in lane-local pixels.
 \param right Right edge of the box in lane-local pixels.
 \param bottom Bottom edge of the box in lane-local pixels.
-\return Boxed objects: notes first, then hold markers, then waypoints, each in projection order.
+\return Boxed objects: heads first, then silent holds, then waypoints, each in projection order.
 */
 [[nodiscard]] std::vector<ChartHitTarget> chartTargetsInBox(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry,

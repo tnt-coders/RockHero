@@ -716,6 +716,15 @@ whatever window a renderer happens to be drawing.
         for (std::size_t member = index; member < group_end; ++member)
         {
             const NoteViewState& note = notes[member];
+            // A silently-held stop is not part of the STRUM: it counts toward no chord box, has no
+            // dynamics or mute state to fold into the group's unanimities, and states no fret the
+            // repeat rule could match a posture against. It keeps its group index — every note
+            // needs one — and contributes nothing else.
+            if (silentHold(note.attack))
+            {
+                grouping.note_group[member] = grouping.groups.size();
+                continue;
+            }
             if (!rightHandOnset(note.attack))
             {
                 ++group.fretting_hand_count;

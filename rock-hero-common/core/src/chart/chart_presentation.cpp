@@ -189,11 +189,20 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
     for (std::size_t index = 0; index < presented_notes.size();)
     {
         const GridPosition onset = presented_notes[index].position;
-        std::size_t group_end = index + 1;
-        bool all_dead = presented_notes[index].dead;
+        // Sounding members only, on both counts: the span convention extends the members of a
+        // STRUM, and a silently-held finger neither is one nor can be dead. Counting one would
+        // make a lone note beside a held finger read as a chord, and its presence would break the
+        // all-dead unanimity of a chug that is entirely dead.
+        std::size_t group_end = index;
+        std::size_t sounding = 0;
+        bool all_dead = true;
         while (group_end < presented_notes.size() && presented_notes[group_end].position == onset)
         {
-            all_dead = all_dead && presented_notes[group_end].dead;
+            if (!silentHold(presented_notes[group_end].attack))
+            {
+                ++sounding;
+                all_dead = all_dead && presented_notes[group_end].dead;
+            }
             ++group_end;
         }
         while (next_shape < shapes.size() && !(onset < shapes[next_shape].position))
@@ -206,13 +215,13 @@ void trimToMargin(ChartNote& note, const Fraction gap, const TempoMap& tempo_map
             }
             ++next_shape;
         }
-        if (group_end - index >= 2 && !all_dead && covering_end.has_value() &&
-            !(*covering_end < onset))
+        if (sounding >= 2 && !all_dead && covering_end.has_value() && !(*covering_end < onset))
         {
             const Fraction span_hold = beatDistance(tempo_map, onset, *covering_end);
             for (std::size_t member = index; member < group_end; ++member)
             {
-                if (presented_notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
+                if (silentHold(presented_notes[member].attack) ||
+                    presented_notes[member].sustain.numerator > 0 || !(held[member] < span_hold))
                 {
                     continue;
                 }
@@ -300,19 +309,29 @@ std::vector<ChartNote> presentedChartNotes(
 {
     std::vector<ChartNote> presented = saved_notes;
 
+    // The next SOUNDING note, tracked across the walk rather than searched per group. Rule 1 trims
+    // a tail to clear the head that follows it, and a silent hold draws no head — so a slot that
+    // only holds fingers binds nothing, and letting one bind would make authoring a held shape
+    // silently shorten every tail in front of it. The cursor never moves backward and each step
+    // advances it, so skipping the silent slots stays one pass over the stream.
+    std::size_t binding = 0;
+
     std::size_t group_begin = 0;
     while (group_begin < presented.size())
     {
-        // The stream is sorted by (position, string), so notes sharing an onset are contiguous and
-        // the first note past the group is the next BINDING onset by construction: the first later
-        // note at a different grid position, on any string.
+        // The stream is sorted by (position, string), so notes sharing an onset are contiguous.
         std::size_t group_end = group_begin + 1;
         while (group_end < presented.size() &&
                presented[group_end].position == presented[group_begin].position)
         {
             ++group_end;
         }
-        const bool has_binding = group_end < presented.size();
+        binding = std::max(binding, group_end);
+        while (binding < presented.size() && silentHold(presented[binding].attack))
+        {
+            ++binding;
+        }
+        const bool has_binding = binding < presented.size();
 
         bool group_earned = false;
         for (std::size_t index = group_begin; index < group_end; ++index)
@@ -322,7 +341,7 @@ std::vector<ChartNote> presentedChartNotes(
             if (has_binding)
             {
                 const Fraction gap =
-                    beatDistance(tempo_map, note.position, presented[group_end].position);
+                    beatDistance(tempo_map, note.position, presented[binding].position);
                 if (gap < note.sustain)
                 {
                     // Rule 1's exemption: a ring running strictly PAST the first onset that binds

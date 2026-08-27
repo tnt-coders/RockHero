@@ -110,11 +110,11 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }};
     }
 
-    // No posture or span rules: both are derived from the notes and the hold markers
-    // (deriveChartShapes), so there is no authored span here that could be wrong. The posture's
-    // capo floor and board ceiling come with the frets it reads — every one of them belongs to a
-    // note or a marker this validator judges — and a derived span's length and order are
-    // properties of the walk that built it.
+    // No posture or span rules: both are derived from the notes (deriveChartShapes), so there is
+    // no authored span here that could be wrong. The posture's capo floor and board ceiling come
+    // with the frets it reads — every one of them belongs to a note this validator judges,
+    // silently-held stops included — and a derived span's length and order are properties of the
+    // walk that built it.
 
     const FretHandPosition* previous_fhp = nullptr;
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
@@ -150,15 +150,7 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         previous_fhp = &fhp;
     }
 
-    if (auto notes_result = validateChartNotes(chart.notes, chart.tuning, tempo_map);
-        !notes_result.has_value())
-    {
-        return notes_result;
-    }
-
-    // After the notes, because the marker rules read them: a marker's whole legality is its own
-    // range plus the slot no note may already hold.
-    return validateChartHoldMarkers(chart.hold_markers, chart.notes, chart.tuning, tempo_map);
+    return validateChartNotes(chart.notes, chart.tuning, tempo_map);
 }
 
 std::string_view chartRepairText(const ChartRepair repair)
@@ -210,6 +202,10 @@ std::string_view chartRepairText(const ChartRepair repair)
         case ChartRepair::UnjustifiedLegato:
         {
             return "a legato mark had nothing to connect to and reads as a plain pick";
+        }
+        case ChartRepair::InertSilentHold:
+        {
+            return "a held stop belonged to no shape, so it stated nothing and was removed";
         }
     }
     return "chart repaired";
@@ -303,7 +299,12 @@ std::optional<Fraction> sustainBoundOf(
     const auto later = std::ranges::subrange(
         std::ranges::upper_bound(notes, note.position, std::ranges::less{}, &ChartNote::position),
         notes.end());
-    const auto next = std::ranges::find(later, note.string, &ChartNote::string);
+    // The next STRIKE on the string, which is why the search is a predicate rather than a
+    // projection match: a silent hold occupies a slot on the string and stops nothing, so a bound
+    // read off one would make authoring a held shape truncate every ring behind it.
+    const auto next = std::ranges::find_if(later, [&note](const ChartNote& candidate) {
+        return candidate.string == note.string && !silentHold(candidate.attack);
+    });
     if (next == later.end())
     {
         return std::nullopt;
@@ -479,19 +480,6 @@ std::vector<ChartRepair> normalizeChartNote(ChartNote& note, const ChartTuning& 
     return repairs;
 }
 
-std::vector<ChartRepair> normalizeChartHoldMarker(ChartHoldMarker& marker)
-{
-    // Bound to a local so the optional check and the access are provably the same object
-    // (bugprone-unchecked-optional-access cannot track a member through a mutation).
-    std::optional<int>& fret = marker.fret;
-    if (!fret.has_value() || *fret <= g_max_fret)
-    {
-        return {};
-    }
-    fret = g_max_fret;
-    return {ChartRepair::FretPastBoard};
-}
-
 std::vector<ChartRepair> normalizeFretHandPosition(
     FretHandPosition& position, const ChartTuning& tuning)
 {
@@ -552,25 +540,27 @@ std::vector<ChartConversion> normalizeChart(Chart& chart, const TempoMap& tempo_
                          std::to_string(chart.notes[index].string),
             });
     }
-    for (ChartHoldMarker& marker : chart.hold_markers)
-    {
-        record(
-            normalizeChartHoldMarker(marker),
-            positionText(marker.position) + " string " + std::to_string(marker.string));
-    }
     for (FretHandPosition& position : chart.fret_hand_positions)
     {
         record(
             normalizeFretHandPosition(position, chart.tuning),
             "hand position " + positionText(position.position));
     }
-    // The relational settle runs LAST, against the stream as it will actually stand: a trimmed
-    // tail may have been the hold a neighbour's claim depended on.
-    std::vector<ChartConversion> flattened = sweepUnjustifiedLegato(chart.notes, tempo_map);
+    // The relational settles run LAST, against the stream as it will actually stand: a trimmed
+    // tail may have been the hold a neighbour's claim depended on. The legato settle goes first of
+    // the two because flattening a claim CHANGES an articulation, and an articulation is what the
+    // shapes the hold sweep judges against are keyed by; nothing the hold sweep removes can
+    // justify or withdraw a claim, since a silent hold neither sounds nor bounds a ring.
+    std::vector<ChartConversion> settled = sweepUnjustifiedLegato(chart.notes, tempo_map);
+    std::vector<ChartConversion> swept = sweepInertSilentHolds(chart.notes, tempo_map);
+    settled.insert(
+        settled.end(),
+        std::make_move_iterator(swept.begin()),
+        std::make_move_iterator(swept.end()));
     conversions.insert(
         conversions.end(),
-        std::make_move_iterator(flattened.begin()),
-        std::make_move_iterator(flattened.end()));
+        std::make_move_iterator(settled.begin()),
+        std::make_move_iterator(settled.end()));
     return conversions;
 }
 
@@ -597,14 +587,31 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "note is out of range at " + positionText(note.position),
         }};
     }
-    // Every struck string rings for SOME length — a dead note's damped stroke included — so the
-    // sustain is the actual duration and is strictly positive. No repair can express this: a
-    // duration is information, and inventing one would be authoring the chart. It doubles as the
-    // format tripwire for any zero that reaches memory, which is why the message names the cause
-    // rather than the field. A package written before the duration model rarely arrives here: that
-    // writer OMITTED the key on every tail-less note, so the document reader refuses it first,
-    // with the same re-import remedy.
-    if (note.sustain.numerator <= 0)
+    // The ring, and it is the one rule the attack decides outright rather than shading. Every
+    // STRUCK string rings for SOME length — a dead note's damped stroke included — so the sustain
+    // is the actual duration and is strictly positive. No repair can express that: a duration is
+    // information, and inventing one would be authoring the chart. It doubles as the format
+    // tripwire for any zero that reaches memory, which is why the message names the cause rather
+    // than the field. A package written before the duration model rarely arrives here: that writer
+    // OMITTED the key on every tail-less note, so the document reader refuses it first, with the
+    // same re-import remedy.
+    //
+    // A silent hold is the mirror image: nothing is struck, so there is no ring to state and a
+    // stored one would be a length the shape derivation never reads and \ref sustainBoundOf could
+    // only ever contradict. Zero is not a fallback here but the required value, refused in the
+    // other direction.
+    if (silentHold(note.attack))
+    {
+        if (note.sustain.numerator != 0)
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message =
+                    "a silently held stop has no ring of its own at " + positionText(note.position),
+            }};
+        }
+    }
+    else if (note.sustain.numerator <= 0)
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidNote,
@@ -740,20 +747,21 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = "slide-out fret must not be negative at " + positionText(note.position),
         }};
     }
-    // A SAVED pick-slide note carries no pitched technique — the document writer omits them (the
-    // in-memory override design, chart.h) — so a document that does is hand-made or a bug and
-    // fails loudly; emphasis is a scrape's own dynamics and passes. The gesture is the required
-    // unpitched slide-out terminal, exactly at the sustain (nothing rings past a scrape). That the
-    // path keeps traveling is the normalizer's demotion, asked as the fixpoint below.
-    if (isScrape(note.attack))
+    // WHAT THIS ATTACK MAY STATE, asked as a FIXPOINT rather than by listing fields: a saved note
+    // must already equal its own saved form. Two attacks carry less than the whole record — a
+    // SAVED pick slide carries no pitched technique, because the writer omits the in-memory
+    // overrides (chart.h), and a SILENT HOLD carries nothing at all beyond its stop, because
+    // nothing sounds for a technique to describe — and enumerating either set here would duplicate
+    // exactly what savedChartNote strips, leaving the writer and this rule to agree by hand while
+    // a field added to ChartNote updated only one of them. Asked unconditionally because the
+    // comparison is identity for every attack that overrides nothing, which is also why the
+    // fallthrough below can name the silent hold: no other attack can reach it.
+    //
+    // Emphasis is a scrape's own dynamics and passes there; on a silent hold it is refused with
+    // the rest, since a stop nothing strikes has no dynamics to state.
+    if (!(savedChartNote(note) == note))
     {
-        // Stated as a FIXPOINT rather than by listing the overridden fields: a saved note must
-        // already equal its own saved form. Enumerating mute/node/vibrato/tremolo/bend here
-        // duplicated exactly the set savedChartNote strips, so the writer and the validator had
-        // to agree by hand and a sixth overridden field would have updated only one of them. (If
-        // another attack ever gains latent overrides, lift this check out of the PickSlide branch
-        // — the comparison is identity for every attack that has none.)
-        if (!(savedChartNote(note) == note))
+        if (isScrape(note.attack))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidPickSlide,
@@ -761,6 +769,17 @@ std::expected<void, ChartError> validateChartNoteAlone(
                            positionText(note.position),
             }};
         }
+        return std::unexpected{ChartError{
+            .code = ChartErrorCode::InvalidNote,
+            .message = "a silently held stop states its fret and nothing else at " +
+                       positionText(note.position),
+        }};
+    }
+    // The scrape's own gesture: the required unpitched slide-out terminal, exactly at the sustain
+    // (nothing rings past a scrape). That the path keeps traveling is the normalizer's demotion,
+    // asked as the fixpoint below.
+    if (isScrape(note.attack))
+    {
         // Presence is the whole rule now: a slide-out ends the ring by definition, so a terminal
         // that exists is a terminal exactly at the sustain and there is no second coordinate left
         // to disagree with (W11).
@@ -783,76 +802,6 @@ std::expected<void, ChartError> validateChartNoteAlone(
             .message = std::string{chartRepairText(repairs.front())} + " at " +
                        positionText(note.position),
         }};
-    }
-    return std::expected<void, ChartError>{};
-}
-
-std::expected<void, ChartError> validateChartHoldMarkers(
-    const std::vector<ChartHoldMarker>& markers, const std::vector<ChartNote>& notes,
-    const ChartTuning& tuning, const TempoMap& tempo_map)
-{
-    const int string_count = std::min(static_cast<int>(tuning.strings.size()), g_max_chart_strings);
-    const ChartHoldMarker* previous_marker = nullptr;
-    for (const ChartHoldMarker& marker : markers)
-    {
-        if (marker.string < 1 || marker.string > string_count ||
-            !isValidGridPosition(marker.position, tempo_map))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidHoldMarker,
-                .message = "hold marker is out of range at " + positionText(marker.position),
-            }};
-        }
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& fret = marker.fret;
-        // The stop's floor, the note's rule verbatim: 0 is the open string capo'd or not, and the
-        // frets a capo covers do not exist to take. A lift would invent the stop the author meant,
-        // which is why this is a refusal here and a repair nowhere.
-        if (fret.has_value() &&
-            (*fret < 0 || (*fret != 0 && *fret < firstPlayableFret(tuning.capo))))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidHoldMarker,
-                .message = "hold marker fret must be 0 or above the capo at " +
-                           positionText(marker.position),
-            }};
-        }
-        if (previous_marker != nullptr && !chartHoldMarkerOrderLess(*previous_marker, marker))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidHoldMarker,
-                .message = "hold markers must be sorted by position and string with unique slots"
-                           " at " +
-                           positionText(marker.position),
-            }};
-        }
-        previous_marker = &marker;
-
-        // Disjointness. Where a note sounds, the note IS the statement — a marker there would be a
-        // second, independently editable copy of a fret the stream already gives, which is the one
-        // thing this record exists not to be.
-        const auto at_position = std::ranges::equal_range(
-            notes, marker.position, std::ranges::less{}, &ChartNote::position);
-        if (std::ranges::find(at_position, marker.string, &ChartNote::string) != at_position.end())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidHoldMarker,
-                .message = "hold marker sits where a note already sounds at " +
-                           positionText(marker.position),
-            }};
-        }
-
-        // Everything else a marker can break is a repair the normalizer owns, asked exactly once.
-        ChartHoldMarker normal = marker;
-        if (const std::vector<ChartRepair> repairs = normalizeChartHoldMarker(normal);
-            !repairs.empty())
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidHoldMarker,
-                .message = std::string{chartRepairText(repairs.front())} + " at " +
-                           positionText(marker.position),
-            }};
-        }
     }
     return std::expected<void, ChartError>{};
 }
@@ -888,6 +837,11 @@ std::expected<void, ChartError> validateChartNotes(
         // turnarounds are bound too; the scrape's terminal is its slide-out, which stores no
         // offset at all and so never reaches this rule. A bend or vibrato statement there names no
         // position and copies nothing, so the rule does not bind it.
+        //
+        // ONSET is the word: a silently-held stop (\ref NoteAttack::None) at the same slot is no
+        // re-pick, states no fret the glide could desync from, and does not bound the ring the
+        // waypoint lies inside either (\ref sustainBoundOf asks the same question there). A glide
+        // travelling under a held shape is ordinary playing, so it is not refused here.
         for (const Waypoint& waypoint : note.waypoints)
         {
             if (!waypoint.fret.has_value())
@@ -901,7 +855,7 @@ std::expected<void, ChartError> validateChartNotes(
                  at_waypoint != notes.end() && at_waypoint->position == waypoint_position;
                  ++at_waypoint)
             {
-                if (at_waypoint->string == note.string)
+                if (at_waypoint->string == note.string && !silentHold(at_waypoint->attack))
                 {
                     return std::unexpected{ChartError{
                         .code = ChartErrorCode::InvalidNotePayload,

@@ -215,7 +215,7 @@ else. Their `perform` cases route to dedicated controller intents, and since 202
 one of those intents except Esc is ITSELF an `EditorAction` case (`StepChartCaret`,
 `JumpChartCaret`, `ExtendTimeSelection`, `MoveSelection`, `DeleteSelection`, `InsertAtCaret`,
 `TypeChartFretDigit`, `ShiftChartFrets`, `AdjustChartSustain`, `ToggleChartTechnique`,
-`SetChartLeftTap`, `ToggleChartHoldMarker`) — so path (b) is path (a) with a different trigger:
+`SetChartLeftTap`, `ToggleChartSilentHold`) — so path (b) is path (a) with a different trigger:
 the availability policy
 owns the busy gate, the chart/transport/selection preconditions, and the logging, and
 `runAction`'s prologue settles the pending fret entry for all of them (the digit alone is exempt,
@@ -248,15 +248,19 @@ reporting seam is a modal error box and "nothing to do" is not an error — lega
 and their dominant reason
 in `ChartLegatoPlan` for the non-modal channel W5 will build, and shows nothing until then),
 `onChartLeftTapRequested`,
-`onChartHoldMarkerToggleRequested` (the arpeggio hold verb, `N` — the one chart verb anchored at
-the CARET rather than at the selection, because a fact about the fretting hand is authored at the
-position it holds: an empty armed slot gains a fret-less hold marker, a note is CONVERTED into a
-marker carrying its fret, and a marker is removed. One undo entry either way, crossing both
-authored arrays when the gesture does; a second press inside the verb's own window reverses the
-first exactly, which is the only thing that can restore a converted note's ring and techniques.
-Silent with no caret armed. The verb draws no mark of its own: what shows a marker is the arpeggio
-bracket its stop reaches the posture through, so a marker joining no posture is invisible as well
-as inert — user ruling 2026-08-27, recorded with its open edge in
+`onChartSilentHoldToggleRequested` (the arpeggio hold verb, `N` — selection-scoped like every chart
+verb, with the typing family's caret fallback behind it (`chartVerbSlots`, the one place the
+empty-scope rule is written): a whole chord converts in one press and one entry, and an empty armed
+slot — the one thing a selection cannot name, since nothing is there to select — gains a hold at the
+open string, which the charter then types a stop onto. A sounding note is CONVERTED, keeping its
+slot and its fret and losing the ring and techniques its new attack cannot state; a hold is sounded
+again as a plain pick at the session's grid step, and the direction is the scope's as a whole, like
+every technique toggle's. A second press inside the verb's own window reverses the first exactly,
+which is the only thing that can restore what a conversion stripped. Silent with no scope, and
+silent when the press would state nothing — a held stop that reaches no shape is removed by the
+settle, so a press whose own product it would remove refuses whole rather than deleting the note it
+was asked to hold. The verb draws no mark of its own: what shows a hold is the arpeggio bracket its
+stop reaches the posture through — user ruling 2026-08-27, recorded in
 `docs/plans/todo/arpeggio-authoring.md`),
 `onChartWaypointDisconnectRequested` (the waypoint disconnect, `Shift+L` — the split-tail law
 applied at a selected waypoint instead of at a bare tail point: the note's path ends there and a

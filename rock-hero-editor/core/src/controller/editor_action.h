@@ -689,7 +689,7 @@ struct EditorAction
     Carries no payload because the verb is CARET-anchored: the slot the caret sits on is the whole
     operand, and passing one would let a caller state a position the charter is not looking at.
     */
-    struct ToggleChartHoldMarker
+    struct ToggleChartSilentHold
     {
     };
 
@@ -729,7 +729,7 @@ struct EditorAction
         OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
         ResolveToneImportPrompt, StepChartCaret, JumpChartCaret, ExtendTimeSelection, MoveSelection,
         DeleteSelection, InsertAtCaret, TypeChartFretDigit, ShiftChartFrets, AdjustChartSustain,
-        ToggleChartTechnique, SetChartLeftTap, ToggleChartHoldMarker, DisconnectChartWaypoint>;
+        ToggleChartTechnique, SetChartLeftTap, ToggleChartSilentHold, DisconnectChartWaypoint>;
 };
 
 /*!

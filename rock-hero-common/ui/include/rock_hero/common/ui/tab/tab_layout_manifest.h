@@ -81,13 +81,13 @@ the layout or the paint core reads, so every drawn ribbon is hit-testable and no
 [[nodiscard]] TabNoteLayout tabNoteLayout(
     const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
-/*! \brief Pixel layout of one hold marker's posture bracket. */
-struct TabHoldMarkerLayout
+/*! \brief Pixel layout of one silently-held stop's posture bracket. */
+struct TabSilentHoldLayout
 {
     /*! \brief Horizontal position of the bracket's centre column: the span's start. */
     float center_x{};
 
-    /*! \brief Vertical lane center of the marker's string: the bracket's centre row. */
+    /*! \brief Vertical lane center of the hold's string: the bracket's centre row. */
     float center_y{};
 
     /*! \brief Bounding rectangle of the bracket pair — its drawn extent, and its clickable one. */
@@ -95,14 +95,15 @@ struct TabHoldMarkerLayout
 };
 
 /*!
-\brief Computes the pixel layout of one hold marker's posture bracket, when it draws one.
+\brief Computes the pixel layout of one silent hold's posture bracket, when it draws one.
 
-A hold marker has no mark of its own: the arpeggio bracket printing its stop at the span start IS
-the marker, which is why this reads the marker's resolved bracket instant
-(\ref common::core::HoldMarkerViewState::bracket_seconds) rather than the slot it was authored at.
-A marker that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is
-therefore unclickable by construction — the same rule that keeps an undrawn waypoint head off the
-hit list, stated once instead of guarded twice.
+A \ref common::core::NoteAttack::None note has no head of its own: the arpeggio bracket printing
+its stop at the span start IS its face, which is why this reads the note's resolved bracket instant
+(\ref common::core::NoteViewState::bracket_seconds) rather than the slot it was authored at. A hold
+that resolved to no posture draws nothing anywhere, so it lays out to nothing here and is therefore
+unclickable by construction — the same rule that keeps an undrawn waypoint head off the hit list,
+stated once instead of guarded twice. So does any note that is not a silent hold, whose face is its
+own head and whose layout is \ref tabNoteLayout's.
 
 The box spans the bracket's two bars, not the fret digit outboard of the closing bar: the digit's
 slot is decided against the head sounding at the span start and against the widest digit of the
@@ -111,11 +112,11 @@ every posture string unconditionally, so bounding them is what keeps the clickab
 the always-drawn one.
 
 \param geometry Lane geometry the notation was painted with.
-\param marker Seconds-resolved hold marker to lay out.
-\return The bracket's layout, or nothing when the marker resolved into no span.
+\param note Seconds-resolved note to lay out.
+\return The bracket's layout, or nothing when the note is not a silent hold or joined no span.
 */
-[[nodiscard]] std::optional<TabHoldMarkerLayout> tabHoldMarkerLayout(
-    const TabLaneGeometry& geometry, const common::core::HoldMarkerViewState& marker) noexcept;
+[[nodiscard]] std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept;
 
 /*! \brief Pixel layout of one linked waypoint head along a note's tail. */
 struct TabWaypointLayout

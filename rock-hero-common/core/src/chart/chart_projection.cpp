@@ -116,8 +116,7 @@ ChartViewState makeChartViewState(
     // (`docs/plans/in-progress/note-sustain-model.md`). It is derived from the saved form, so a
     // pick slide's in-memory overrides (chart.h) are already stripped and the scrape draws as the
     // scrape it is.
-    const ChartResolutions resolutions =
-        chartResolutions(chart.notes, chart.hold_markers, tempo_map);
+    const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
     const std::vector<ChartNote>& presented_notes = resolutions.presented_notes;
 
     // The ONE place the form is read. It selects the stream the per-note VIEW fields below come
@@ -156,6 +155,22 @@ ChartViewState makeChartViewState(
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
+        // A silently-held stop's face: the posture bracket at the START of the span its stop
+        // joined, resolved but NOT interpreted. What the hold MEANS already reaches every surface
+        // through the posture below, so this carries only where the mark that states it draws, or
+        // nothing where it joined no span. The span index comes from the derivation rather than
+        // being searched for here, so the face can never sit at a span the posture did not come
+        // from — and every other attack leaves it absent, because a sounding note's face is its own
+        // head at its own instant.
+        //
+        // Bound to a local so the optional check and the access are provably the same object.
+        if (const std::optional<std::size_t>& shape_index =
+                resolutions.silent_hold_shapes[note_index];
+            shape_index.has_value() && *shape_index < resolutions.shapes.size())
+        {
+            view.bracket_seconds = tempo_map.secondsAtGlobalBeatPosition(
+                globalBeatPosition(tempo_map, resolutions.shapes[*shape_index].position));
+        }
         view.legato = resolutions.connections.legato[note_index];
         view.palm_mute = note.palm_mute;
         view.dead = note.dead;
@@ -241,29 +256,6 @@ ChartViewState makeChartViewState(
             view.slide_out = *slide_out;
         }
         state.notes.push_back(std::move(view));
-    }
-
-    // The authored markers, resolved but NOT interpreted: what each one MEANS reaches the surfaces
-    // through the posture below, so this carries only where the mark that states it draws — the
-    // start of the span the derivation resolved the marker into, or nothing where it resolved into
-    // none. The span index comes from that derivation rather than being searched for here, so the
-    // mark can never sit at a span the posture did not come from.
-    state.hold_markers.reserve(chart.hold_markers.size());
-    for (std::size_t marker_index = 0; marker_index < chart.hold_markers.size(); ++marker_index)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<std::size_t>& shape_index = resolutions.marker_shapes[marker_index];
-        std::optional<double> bracket_seconds;
-        if (shape_index.has_value() && *shape_index < resolutions.shapes.size())
-        {
-            bracket_seconds = tempo_map.secondsAtGlobalBeatPosition(
-                globalBeatPosition(tempo_map, resolutions.shapes[*shape_index].position));
-        }
-        state.hold_markers.push_back(
-            HoldMarkerViewState{
-                .bracket_seconds = bracket_seconds,
-                .string = chart.hold_markers[marker_index].string,
-            });
     }
 
     state.shapes.reserve(resolutions.shapes.size());

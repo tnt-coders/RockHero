@@ -200,8 +200,11 @@ fiat.
 > four premises are dead**, all of them killed by note-sustain stage C (2026-08-22) rather than by
 > the verb: the authored TEMPLATE it wrote into left the format, EXTENT-by-belonging-to-a-template
 > went with it, and template-relative CLASSIFICATION was replaced by the ring-based arrival rule.
-> So the member is stored as a `chart.holdMarkers[]` record — `{position, string, fret?}`, keyed by
-> a slot and nothing else, resolved against the derived span at read time — and the arpeggio flip
+> So the member is stored as a NOTE with no onset — `NoteAttack::None`, a point record carrying its
+> position, string and fret and forbidden every other field, resolved against the derived span at
+> read time (amended 2026-08-27; the short-lived `chart.holdMarkers[]` array it first shipped as
+> lasted a day, because a second slot-keyed array had to be kept disjoint from the notes by a rule
+> where slot uniqueness already said it) — and the arpeggio flip
 > is carried on the span the derivation resolved it into rather than falling out of a template
 > comparison. §2's "arpeggio conversion flips the span automatically" bullet is stale for the same
 > reason and by the same date. The full record of why, including the options that lost, is

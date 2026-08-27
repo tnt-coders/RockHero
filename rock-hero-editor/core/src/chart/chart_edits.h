@@ -8,11 +8,11 @@ payloads clipped to the shortened sustain, all inside the same undo entry), and 
 current arrays into a removed/inserted plan. Applying, undoing, and redoing are then the same
 primitive run in opposite directions, so undo round-trips are exact by construction.
 
-A plan spans BOTH authored arrays — the notes and the hold markers — because one gesture can cross
-them: the arpeggio hold verb takes a placed note out of the stream and puts a silently-held stop in
-its place, and that is one user gesture and therefore one undo entry. Widening the plan rather than
-composing two edits is what keeps the round-trip exact by construction: a composite would have an
-order between its halves, and an order is a rule two sides must agree on by hand.
+A plan is one change to the ONE authored per-string array, the note stream. A silently-held stop is
+a note like any other (\ref common::core::NoteAttack::None), so the arpeggio hold verb — which used
+to move a record between two arrays and therefore needed a plan spanning both — is now an ordinary
+in-place rewrite of one note, and the exact undo round trip falls out of the same primitive every
+other verb uses.
 */
 
 #pragma once
@@ -35,67 +35,38 @@ order between its halves, and an order is a rule two sides must agree on by hand
 namespace rock_hero::editor::core
 {
 
-/*!
-\brief One authored array's planned change: full values removed and inserted, in chart slot order.
-
-\tparam Record Authored chart record type — a note or a hold marker.
-*/
-template <typename Record> struct ChartArrayChange
-{
-    /*! \brief Records removed from the array, full values in chart slot order. */
-    std::vector<Record> removed;
-
-    /*! \brief Records inserted into the array, full values in chart slot order. */
-    std::vector<Record> inserted;
-
-    /*!
-    \brief Compares two array changes by their stored values.
-    \param lhs Left-hand change.
-    \param rhs Right-hand change.
-    \return True when both changes store equal values.
-    */
-    friend bool operator==(const ChartArrayChange& lhs, const ChartArrayChange& rhs) = default;
-};
-
-/*! \brief One planned chart mutation across every authored array, plus its label. */
+/*! \brief One planned change to the note stream: full values removed and inserted, plus a label. */
 struct [[nodiscard]] ChartEditPlan
 {
-    /*! \brief The change to the note stream. */
-    ChartArrayChange<common::core::ChartNote> notes;
+    /*! \brief Notes removed from the stream, full values in chart slot order. */
+    std::vector<common::core::ChartNote> removed;
 
-    /*! \brief The change to the hold-marker array. */
-    ChartArrayChange<common::core::ChartHoldMarker> hold_markers;
+    /*! \brief Notes inserted into the stream, full values in chart slot order. */
+    std::vector<common::core::ChartNote> inserted;
 
     /*! \brief User-visible undo label. */
     std::string label;
 
     /*!
     \brief Reports whether the plan describes no change at all.
-    \return True when no authored array gains or loses a record.
+    \return True when the stream gains and loses nothing.
     */
     [[nodiscard]] bool empty() const noexcept
     {
-        return notes.removed.empty() && notes.inserted.empty() && hold_markers.removed.empty() &&
-               hold_markers.inserted.empty();
+        return removed.empty() && inserted.empty();
     }
 
     /*!
-    \brief The plan that walks the chart back: every array's halves swapped, the label kept.
+    \brief The plan that walks the chart back: the halves swapped, the label kept.
 
     The one statement of what "backwards" means, so undo, the verb-toggle reversal and the sustain
-    gesture's retirement share it instead of each swapping the halves by hand — three copies that a
-    second array would have to be added to three times, silently leaving markers behind wherever
-    one was missed.
+    gesture's retirement share it instead of each swapping the halves by hand.
 
     \return The inverse plan.
     */
     [[nodiscard]] ChartEditPlan reversed() const
     {
-        return ChartEditPlan{
-            .notes = {.removed = notes.inserted, .inserted = notes.removed},
-            .hold_markers = {.removed = hold_markers.inserted, .inserted = hold_markers.removed},
-            .label = label,
-        };
+        return ChartEditPlan{.removed = inserted, .inserted = removed, .label = label};
     }
 };
 
@@ -141,44 +112,62 @@ current grid step.
     common::core::ChartNote note, common::core::Fraction default_sustain);
 
 /*!
-\brief Plans the arpeggio hold verb at one slot: the caret-anchored three-case toggle.
+\brief Plans the arpeggio hold verb over a scope of slots: the two-direction toggle.
 
-The `N` verb, and it acts on WHATEVER the slot holds rather than on the selection, which is what
-makes every hand fact authored at the position it holds by a charter looking at that position
-(`docs/plans/todo/arpeggio-authoring.md`, verb v2):
+The `N` verb (`docs/plans/todo/arpeggio-authoring.md`). Its scope is the ordinary one — the
+selection, or the armed caret's own slot when nothing is selected — so a whole chord converts in one
+press and one undo entry, and the empty-slot case the caret reaches is what authors a hold where no
+note is.
 
-- **An empty slot** gains a fret-ABSENT marker: "the hand takes this stop here, silently", stating
-  no fret because a later in-span note on that string supplies it at read time. A marker nothing
-  ever justifies is gracefully inert — drawn nowhere, refused nowhere.
-- **A note** is CONVERTED: the note leaves the stream and the marker carries its fret. This is the
-  only fret-carrying path there is, and it must be place-then-convert because note insertion is the
-  editor's only fret-stating flow — the charter types the fret where the finger goes and promotes
-  it. Both arrays move, in one plan, so the gesture is one undo entry.
-- **A marker** is removed. Removing it is case 1's inverse; restoring the NOTE a conversion took is
-  the verb window's business at the call site (the same reversal every technique toggle uses), not
-  a third case here — the marker stores no note to put back, and inventing one would author a ring
-  and an attack the charter never typed.
+The DIRECTION is the technique toggle's own law, asked of the scope as a whole: a scope whose every
+occupied slot already holds a silent stop SOUNDS them all again; anything else states the hold on
+all of them. An empty slot has nothing to sound, so it never argues for the sounding direction.
+
+Per slot, then:
+
+- **A sounding note** is CONVERTED: its attack becomes \ref common::core::NoteAttack::None, its
+  ring goes (a silent hold has none), and every technique its new attack cannot state is stripped.
+  Position, string and FRET are preserved, which is what makes place-then-convert the fret-stating
+  flow: note insertion is the editor's only way to say "fret 5 on the A string", so the charter
+  types the fret where the finger goes and promotes it.
+- **A silent hold** is converted BACK to a plain picked note at the caller's default ring. The
+  symmetric toggle, two-state like every other mark. The techniques the conversion stripped do not
+  come back — the plan carries the whole note either way, so the verb window's reversal (and undo)
+  restores them exactly, and reinventing them here would author what the charter never typed.
+- **An empty slot** gains a silent hold at fret 0, with the caret armed on it, exactly as the
+  neutral-create placement does: the charter then types the stop, which retypes it like any other
+  selected note.
+
+The press is REFUSED as a whole when the settle inside the shared finalize takes a note this scope
+named: a held stop that reaches no shape states nothing and is swept
+(\ref common::core::sweepInertSilentHolds), so a press whose own subject the sweep then removes
+would delete the note it was asked to hold. Whole-PLAN, never per slot — converting a whole chord
+states a shape only the chord's own members make, so they are legal together and illegal one at a
+time, and what decides the press is whether the shape they state is justified.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
-\param slot Slot the caret is armed on.
-\return The plan; Invalid when the gate refuses the result (an off-grid slot, a string the tuning
-        lacks, or a converted fret the capo covers).
+\param slots The verb's scope, sorted-unique in chart slot order; an empty scope is a no-op.
+\param default_sustain Ring a note converted BACK from a hold is given, clamped by the finalize;
+the session's current grid step, exactly as for a placement.
+\return The plan; NoChange on an empty scope, Invalid when the gate refuses the result (an off-grid
+        slot, a string the tuning lacks, or a stop the capo covers) or when the press would state
+        nothing.
 */
-[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planToggleHoldMarker(
+[[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const ChartSlotKey& slot);
+    const std::vector<ChartSlotKey>& slots, common::core::Fraction default_sustain);
 
 /*!
-\brief Plans deleting the selected notes and hold markers.
+\brief Plans deleting the selected notes and waypoints.
 
 Funnels through the shared finalize like every plan, so the whole-matrix gate refuses a deletion
 that would leave the chart invalid. A survivor whose CONNECTION the deletion broke keeps its claim
 and simply plays as a pick until the next settle flattens it (\ref planSettleLegato) — relational
 truths are not the burst's business.
 
-Deleting a marker needs no such care in the other direction: a marker stores no reference to
-anything, so removing one can leave nothing stale behind — only a span that stops claiming a stop
+Deleting a silently-held stop needs no such care in the other direction: it is a member of no
+relation, so removing one can leave nothing stale behind — only a span that stops claiming a stop
 it was never sounding.
 
 Deleting a selected WAYPOINT is the same verb one level in: it takes every statement the waypoint
@@ -192,34 +181,31 @@ with it.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param note_keys Notes to delete, sorted ascending (the ChartSelection order — lookups
 binary-search this precondition); keys with no matching note are skipped.
-\param marker_keys Hold markers to delete, sorted ascending, same precondition.
 \param waypoint_keys Waypoints to delete, sorted ascending, same precondition; keys naming no
 waypoint are skipped.
 \return The plan; NoChange when no key matched, Invalid when the gate refuses the deletion.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys,
-    const std::vector<ChartWaypointKey>& waypoint_keys);
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys);
 
 /*!
-\brief Plans moving the keyed notes and hold markers by an exact beat delta and/or a string delta.
+\brief Plans moving the keyed notes by an exact beat delta and/or a string delta.
 
-Refused (empty) when any moved record would leave the chart's string range or land on a slot an
-unmoved record occupies — validation-preserving edits only, never clamped. Overlaps created at the
+Refused (empty) when any moved note would leave the chart's string range or land on a slot an
+unmoved note occupies — validation-preserving edits only, never clamped. Overlaps created at the
 destinations truncate per 40-Q2-B.
 
-Markers ride along with the notes rather than staying put, and the occupancy test spans BOTH
-arrays, because the two share one slot space: a marker left behind by a moved chord goes silently
-inert (no span opens where it sits any more), which loses the hand fact without making anything
-false — the quietest possible failure and therefore the one worth designing out. Disjointness is
-also why a destination an unmoved MARKER holds is refused exactly like one an unmoved note holds.
+Silently-held stops need no rule of their own here: they are notes on the same slots, so a selected
+one moves like any other and the occupancy test that refuses a collision already covers them. A
+hold the selection did NOT name stays where it was, and if the move takes the shape it belonged to
+with it, the shared finalize's settle removes it in this same entry — the ordinary cascade, not a
+case this verb has to state.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis.
 \param note_keys Notes to move, sorted ascending (the ChartSelection order — lookups binary-search
 this precondition).
-\param marker_keys Hold markers to move, sorted ascending, same precondition.
 \param beat_delta Signed exact beat delta.
 \param string_delta Signed string-lane delta.
 \param label User-visible undo label.
@@ -228,11 +214,11 @@ this precondition).
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys,
-    common::core::Fraction beat_delta, int string_delta, std::string_view label);
+    const std::vector<ChartSlotKey>& note_keys, common::core::Fraction beat_delta, int string_delta,
+    std::string_view label);
 
 /*!
-\brief Plans retyping a snapshot of selected notes and hold markers toward a typed fret target.
+\brief Plans retyping a snapshot of selected notes toward a typed fret target.
 
 Two modes: transposing (the default) shifts every stop by the same delta
 so the snapshot's lowest fret lands on the target — shape-preserving, so chords reposition,
@@ -250,13 +236,11 @@ either mode (the fret-verb law: every waypoint was placed on its fret on purpose
 start retyped onto its first path position refuses through the finalize gate's always-traveling
 rule; a pitched slide's equal-fret start is the legal hold encoding and passes.
 
-A selected HOLD MARKER retypes with the notes, which is how a bracket's own stop is authored after
-the toggle stated it (user ruling 2026-08-27). Typing a digit STATES a stop, so set-exact writes
-the target onto a marker whether or not it carried a fret; a transpose SHIFTS a stop and therefore
-passes over a marker carrying none — a fret-less marker reads its stop back off the note that
-sounds it, so the note's own transpose already carries it and there is nothing to keep in step.
+A selected SILENTLY-HELD stop retypes with no case of its own, which is how a bracket's own stop
+is authored after the toggle stated it (user ruling 2026-08-27) and how a transposed chord carries
+its silent members along: a hold is a note, its fret is a fret, and both modes reach it.
 
-Nothing follows a retyped marker. The span it sits in is DERIVED, so a stop that now contradicts
+Nothing else follows a retyped hold. The span it sits in is DERIVED, so a stop that now contradicts
 the note re-picking its string is not arbitrated here at all: side ruling (ii) stops recognising
 that re-pick as the same hand and the span splits, which is the coherence the ruling asks for
 falling out of the derivation rather than a second rule written into this planner.
@@ -264,17 +248,15 @@ falling out of the derivation rather than a second rule written into this planne
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis for the shared finalize.
 \param base Snapshot of the notes being retyped.
-\param base_markers Snapshot of the hold markers being retyped.
 \param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
 \param set_exact True to assign the target to every stop instead of transposing.
-\return The plan; NoChange when both snapshots are empty or the retype changes nothing, Invalid
+\return The plan; NoChange when the snapshot is empty or the retype changes nothing, Invalid
         when the gate refuses the result. The split is what lets the pending entry paint a
         refused value red without painting a valid no-op red.
 */
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base,
-    const std::vector<common::core::ChartHoldMarker>& base_markers, int target, bool set_exact);
+    const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
 /*!
 \brief One step of a duration gesture: the lattice its end lands on, and which way it moves.
@@ -470,11 +452,10 @@ chart: folding the flatten into the burst's own entry needs a plan spanning the 
 caller passes the pre-burst chart and reverses the burst before applying. A caller pushing the
 flatten as its own entry passes the chart itself.
 
-It is the whole CHART rather than its note stream because the entry a fold replaces may have moved
-EITHER authored array — a hold-marker conversion is a legal burst. The sweep rewrites notes alone,
-so every other array's half is simply the difference between the two states, and diffing it here is
-what keeps the replaced entry's markers from being dropped (or its converted note resurrected) when
-the caller walks the chart back through the burst's reversal.
+It is the whole CHART rather than its note stream because the base a fold diffs against is the
+state the replaced entry was applied to, and only the chart carries it: diffing here is what keeps
+that entry's own notes from being dropped when the caller walks the chart back through the burst's
+reversal.
 
 \param chart Chart being settled; its notes are swept and its shapes supply the hold test.
 \param tempo_map Tempo map supplying the beat axis.
@@ -749,8 +730,7 @@ uniform-scope law scopes a verb to and not every technique lives in one place: v
 along the ring, so a selected waypoint carries it and takes it exactly as a selected note does,
 while every other row here reads `selection.notes()` and nothing else. Handing each row one operand
 and letting it read the parts it has a meaning for is what keeps a technique with no waypoint scope
-from carrying a guard about waypoints — the same empty-operand rule that already makes the fret
-verb ignore a selected hold marker.
+from carrying a guard about waypoints.
 */
 struct ChartTechniqueLaw
 {

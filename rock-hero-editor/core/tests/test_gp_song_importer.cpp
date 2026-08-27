@@ -231,7 +231,7 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map)
 {
     common::core::ChartResolutions resolutions =
-        common::core::chartResolutions(chart.notes, chart.hold_markers, tempo_map);
+        common::core::chartResolutions(chart.notes, tempo_map);
     return common::core::ChartShapes{
         .shapes = std::move(resolutions.shapes),
         .postures = std::move(resolutions.postures),

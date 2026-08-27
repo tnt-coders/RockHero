@@ -25,15 +25,14 @@ namespace rock_hero::editor::core
 /*!
 \brief Stable identity of one authored chart object's place: its musical position plus its string.
 
-The chart's SLOT (\ref rock_hero::common::core::chartSlotOrderLess), and both authored per-string
-arrays are keyed by it — the notes and the hold markers — with validation keeping them disjoint and
-each array holding one slot at most once. Stable across unrelated edits, unlike projection indices,
-which shift whenever an earlier record is inserted or removed.
+The chart's SLOT (\ref rock_hero::common::core::chartSlotOrderLess), which the note stream is keyed
+by and holds at most once — silently-held stops included, since they are notes. Stable across
+unrelated edits, unlike projection indices, which shift whenever an earlier record is inserted or
+removed.
 
 The slot says WHERE, never WHAT: \ref ChartSelectionKey wraps it in an alternative naming the kind,
-so a selected object states which array holds it instead of the chart being re-consulted — which
-also keeps each kind's keys in one sorted sequence, the shape every resolution here is a linear
-merge over.
+so a selected object states what it is instead of the chart being re-consulted — which also keeps
+each kind's keys in one sorted sequence, the shape every resolution here is a linear merge over.
 */
 struct ChartSlotKey
 {
@@ -62,25 +61,6 @@ struct ChartSlotKey
         default;
 };
 
-/*!
-\brief Which of the chart's two SLOT-KEYED authored arrays holds an object at one slot.
-
-Not "every kind that can be selected" — waypoints are selectable and are in neither array. This is
-the narrower question \ref rock_hero::editor::core::EditorController::Impl::chartSlotObject asks:
-validation keeps these two arrays disjoint over one slot space, so a slot belongs to a note, to a
-hold marker, or to nobody, and no caller has to decide a precedence. A waypoint SHARES its note's
-slot rather than excluding it, which is exactly the shape that would owe a precedence rule — so it
-stays out of this enum, and its identity carries the offset that tells it apart instead.
-*/
-enum class ChartSlotOccupant : std::uint8_t
-{
-    /*! \brief A sounding onset in \ref rock_hero::common::core::Chart::notes. */
-    Note,
-
-    /*! \brief A silently-held stop in \ref rock_hero::common::core::Chart::hold_markers. */
-    HoldMarker,
-};
-
 /*! \brief Stable identity of one selected note: the slot it occupies. */
 struct ChartNoteKey
 {
@@ -95,22 +75,6 @@ struct ChartNoteKey
     */
     friend constexpr bool operator==(const ChartNoteKey& lhs, const ChartNoteKey& rhs) noexcept =
         default;
-};
-
-/*! \brief Stable identity of one selected hold marker: the slot it occupies. */
-struct ChartHoldMarkerKey
-{
-    /*! \brief The marker's slot in the chart's hold-marker array. */
-    ChartSlotKey slot{};
-
-    /*!
-    \brief Compares two marker keys for equal value.
-    \param lhs Left-hand key.
-    \param rhs Right-hand key.
-    \return True when both keys name the same slot.
-    */
-    friend constexpr bool operator==(
-        const ChartHoldMarkerKey& lhs, const ChartHoldMarkerKey& rhs) noexcept = default;
 };
 
 /*!
@@ -156,26 +120,26 @@ struct ChartWaypointKey
 /*!
 \brief Stable identity of one selectable chart object, as the sum of what a selectable can be.
 
-A sum rather than a kind tag beside a slot, because the three identities are not the same shape: a
-note and a hold marker are named by a slot, a waypoint by a slot plus an offset. Carrying that
-offset as a field only one kind uses would make "a note key with an offset" and "a waypoint key
-without one" both spellable, and every reader would owe a rule about what those mean; as a sum
-neither exists to be misread.
+A sum rather than a kind tag beside a slot, because the two identities are not the same shape: a
+note is named by a slot, a waypoint by a slot plus an offset. Carrying that offset as a field only
+one kind uses would make "a note key with an offset" and "a waypoint key without one" both
+spellable, and every reader would owe a rule about what those mean; as a sum neither exists to be
+misread.
 
 The sum itself carries EQUALITY only, which is the whole of what a caller across kinds needs: the
 coalescing window's proof is "this is still the selection the last press acted on", one whole-vector
 compare. Ordering stays inside each alternative's own sequence, where the element being ordered is
-the slot for two of the kinds and the key itself for the waypoint — which is why only
-\ref ChartWaypointKey declares an ordering. \ref ChartSelection::keys publishes in alternative
-order, notes then markers then waypoints, each kind in its own.
+the slot for a note and the key itself for a waypoint — which is why only \ref ChartWaypointKey
+declares an ordering. \ref ChartSelection::keys publishes in alternative order, notes then
+waypoints, each kind in its own.
 */
-using ChartSelectionKey = std::variant<ChartNoteKey, ChartHoldMarkerKey, ChartWaypointKey>;
+using ChartSelectionKey = std::variant<ChartNoteKey, ChartWaypointKey>;
 
 /*!
 \brief The slot an armed caret would sit on for one selected object, or absent when none can.
 
 The caret addresses a (position, string) slot, and its invariant is that the selection is exactly
-what sits under it. A note or a hold marker OCCUPIES a slot, so selecting one arms the caret there.
+what sits under it. A note OCCUPIES a slot, so selecting one arms the caret there.
 A waypoint does not — it rides a note's ring at an offset — so arming anything for it would put the
 caret on the note while the selection holds the waypoint, which is the invariant broken rather than
 kept. Selecting one therefore demotes the marker to a cursor in place, exactly as every
@@ -195,17 +159,6 @@ multi-select gesture does.
 [[nodiscard]] constexpr ChartSlotKey chartSlotKeyOf(const common::core::ChartNote& note) noexcept
 {
     return ChartSlotKey{.position = note.position, .string = note.string};
-}
-
-/*!
-\brief The slot one hold marker occupies.
-\param marker Hold marker to key.
-\return The marker's slot key.
-*/
-[[nodiscard]] constexpr ChartSlotKey chartSlotKeyOf(
-    const common::core::ChartHoldMarker& marker) noexcept
-{
-    return ChartSlotKey{.position = marker.position, .string = marker.string};
 }
 
 /*!
@@ -273,12 +226,6 @@ public:
     [[nodiscard]] const std::vector<ChartSlotKey>& notes() const noexcept;
 
     /*!
-    \brief The selected hold markers' slots in ascending chart slot order.
-    \return Sorted unique selected hold-marker slots.
-    */
-    [[nodiscard]] const std::vector<ChartSlotKey>& holdMarkers() const noexcept;
-
-    /*!
     \brief The selected waypoints in ascending (note slot, offset) order.
 
     The order the chart stores them in, so a planner walking the note stream and this list together
@@ -327,10 +274,6 @@ private:
                 {
                     return visit(selection.m_notes, alternative.slot);
                 }
-                else if constexpr (std::is_same_v<Alternative, ChartHoldMarkerKey>)
-                {
-                    return visit(selection.m_hold_markers, alternative.slot);
-                }
                 else
                 {
                     return visit(selection.m_waypoints, alternative);
@@ -341,42 +284,37 @@ private:
 
     // Each sorted unique in its own key's order; every mutation preserves the invariant.
     std::vector<ChartSlotKey> m_notes{};
-    std::vector<ChartSlotKey> m_hold_markers{};
     std::vector<ChartWaypointKey> m_waypoints{};
 };
 
 /*!
-\brief Resolves sorted slot keys to indices in one of the chart's slot-sorted authored arrays.
+\brief Resolves sorted slot keys to indices in the chart's slot-sorted note stream.
 
-THE key resolution, and it is the same merge for every authored array: the notes and the hold
-markers are both sorted by (position, string) and the tab projection preserves each order one to
-one, so the returned indices address the projection directly and one linear merge answers every
-key. Keys that no longer match a record resolve to nothing and are skipped. Every other
-key-to-record question (\ref selectedNoteIndices, \ref recordsForKeys) is this merge read a
-different way — it used to be written three times for notes alone, and a per-array copy would put
-that back.
+THE key resolution: the stream is sorted by (position, string) and the tab projection preserves
+that order one to one, so the returned indices address the projection directly and one linear merge
+answers every key. Keys that no longer match a note resolve to nothing and are skipped. Every other
+key-to-note question (\ref selectedNoteIndices, \ref notesForKeys) is this merge read a different
+way — it used to be written three times, and a per-caller copy would put that back.
 
-\tparam Record Authored chart record type; \ref chartSlotKeyOf must name its slot.
-\param records Authored array sorted by (position, string).
+\param notes Note stream sorted by (position, string).
 \param keys Keys to resolve, sorted-unique in chart slot order.
-\return Ascending indices of the records the keys still name.
+\return Ascending indices of the notes the keys still name.
 */
-template <typename Record>
-[[nodiscard]] std::vector<std::size_t> slotIndicesForKeys(
-    const std::vector<Record>& records, const std::span<const ChartSlotKey> keys)
+[[nodiscard]] inline std::vector<std::size_t> slotIndicesForKeys(
+    const std::vector<common::core::ChartNote>& notes, const std::span<const ChartSlotKey> keys)
 {
     std::vector<std::size_t> indices;
     indices.reserve(keys.size());
-    std::size_t record_index = 0;
+    std::size_t note_index = 0;
     for (const ChartSlotKey& key : keys)
     {
-        while (record_index < records.size() && chartSlotKeyOf(records[record_index]) < key)
+        while (note_index < notes.size() && chartSlotKeyOf(notes[note_index]) < key)
         {
-            ++record_index;
+            ++note_index;
         }
-        if (record_index < records.size() && chartSlotKeyOf(records[record_index]) == key)
+        if (note_index < notes.size() && chartSlotKeyOf(notes[note_index]) == key)
         {
-            indices.push_back(record_index);
+            indices.push_back(note_index);
         }
     }
     return indices;
@@ -391,16 +329,6 @@ template <typename Record>
 */
 [[nodiscard]] std::vector<std::size_t> selectedNoteIndices(
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection);
-
-/*!
-\brief Resolves a selection's hold-marker keys to indices in the chart's sorted marker array.
-
-\param markers Chart hold markers sorted by (position, string).
-\param selection Selection whose hold-marker keys are resolved.
-\return Ascending projection indices of the selected markers that still exist.
-*/
-[[nodiscard]] std::vector<std::size_t> selectedHoldMarkerIndices(
-    const std::vector<common::core::ChartHoldMarker>& markers, const ChartSelection& selection);
 
 /*!
 \brief Resolves a selection's waypoint keys to the DRAWN waypoints they name.
@@ -424,27 +352,24 @@ presentation trim clipped out of the drawn tail.
     const std::vector<common::core::NoteViewState>& drawn, const ChartSelection& selection);
 
 /*!
-\brief Copies the authored records that sorted keys still name, in chart order.
+\brief Copies the notes that sorted keys still name, in chart order.
 
-The snapshot every fret verb replans from, and a template for the same reason \ref
-slotIndicesForKeys is one: the notes and the hold markers are the same question asked of two
-arrays, and a per-array copy of this loop would be a second authority on which record a key names.
+The snapshot every fret verb replans from, read through \ref slotIndicesForKeys so there is one
+authority on which note a key names.
 
-\tparam Record Authored chart record type; \ref chartSlotKeyOf must name its slot.
-\param records Authored array sorted by (position, string).
+\param notes Note stream sorted by (position, string).
 \param keys Keys to resolve, sorted-unique in chart order.
-\return The named records, in stream order; keys naming nothing are skipped.
+\return The named notes, in stream order; keys naming nothing are skipped.
 */
-template <typename Record>
-[[nodiscard]] std::vector<Record> recordsForKeys(
-    const std::vector<Record>& records, const std::span<const ChartSlotKey> keys)
+[[nodiscard]] inline std::vector<common::core::ChartNote> notesForKeys(
+    const std::vector<common::core::ChartNote>& notes, const std::span<const ChartSlotKey> keys)
 {
-    std::vector<Record> named;
-    const std::vector<std::size_t> indices = slotIndicesForKeys(records, keys);
+    std::vector<common::core::ChartNote> named;
+    const std::vector<std::size_t> indices = slotIndicesForKeys(notes, keys);
     named.reserve(indices.size());
     for (const std::size_t index : indices)
     {
-        named.push_back(records[index]);
+        named.push_back(notes[index]);
     }
     return named;
 }
@@ -459,19 +384,16 @@ individual object, a DOUBLE click selects the whole onset group this collects �
 path is the sole consumer (the caret's re-derivation deliberately selects the single object
 under it, never the group).
 
-Hold markers at the onset join the group, because the group is the HAND's unit at that instant: a
-barre stop the charter marked silently is a member of the shape the strum takes, so the verbs that
-read both arrays — move and delete — carry it with the chord instead of leaving it behind on a slot
-no span reaches any more. The fret verb is the one that does NOT yet carry it; the gap and why it
-was left rather than improvised are stated at \ref planRetypeFrets.
+Silently-held stops at the onset join the group with no rule of their own, because the group is the
+HAND's unit at that instant and they are notes on the same slots: a barre the charter stated
+silently is a member of the shape the strum takes, so every verb carries it with the chord instead
+of leaving it behind on a slot no span reaches any more.
 
 \param notes Chart note stream sorted by (position, string).
-\param markers Chart hold markers sorted by (position, string).
 \param position Onset whose group is collected.
-\return Keys of every note and marker at the onset, notes first, each in chart slot order.
+\return Keys of every note at the onset, in chart slot order.
 */
 [[nodiscard]] std::vector<ChartSelectionKey> chartOnsetGroupKeys(
-    const std::vector<common::core::ChartNote>& notes,
-    const std::vector<common::core::ChartHoldMarker>& markers, common::core::GridPosition position);
+    const std::vector<common::core::ChartNote>& notes, common::core::GridPosition position);
 
 } // namespace rock_hero::editor::core

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <ranges>
 #include <rock_hero/common/core/chart/chart_presentation.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
@@ -85,7 +86,11 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
         const bool claims = note.attack == NoteAttack::Legato || note.attack == NoteAttack::LeftTap;
         connections.legato.push_back(
             claims ? resolveLegato(note, predecessor, tempo_map) : LegatoMotion::Unjustified);
-        if (string_in_range)
+        // A PREDECESSOR is the last note that SOUNDED on the string: a connection continues a
+        // ringing string, and a silently-held finger neither rings nor can be released from. Left
+        // in the walk it would shadow the real predecessor, so a claim the chart justifies would
+        // go quiet the moment a held shape was authored between the two notes.
+        if (string_in_range && !silentHold(note.attack))
         {
             last_per_string.at(static_cast<std::size_t>(note.string)) = index;
         }
@@ -93,9 +98,7 @@ ChartConnections chartConnections(const std::vector<ChartNote>& notes, const Tem
     return connections;
 }
 
-ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const std::vector<ChartHoldMarker>& hold_markers,
-    const TempoMap& tempo_map)
+ChartResolutions chartResolutions(const std::vector<ChartNote>& notes, const TempoMap& tempo_map)
 {
     ChartResolutions resolutions;
     resolutions.connections = chartConnections(notes, tempo_map);
@@ -105,11 +108,10 @@ ChartResolutions chartResolutions(
     // different picture of the same chart. The order is the dependency order — the spans are read
     // from the presented articulation, and the holds are answered against the spans.
     resolutions.presented_notes = presentedChartNotes(saved_notes, tempo_map);
-    ChartShapes derived =
-        deriveChartShapes(saved_notes, resolutions.presented_notes, hold_markers, tempo_map);
+    ChartShapes derived = deriveChartShapes(saved_notes, resolutions.presented_notes, tempo_map);
     resolutions.shapes = std::move(derived.shapes);
     resolutions.postures = std::move(derived.postures);
-    resolutions.marker_shapes = std::move(derived.marker_shapes);
+    resolutions.silent_hold_shapes = std::move(derived.silent_hold_shapes);
     resolutions.holds =
         chartHolds(saved_notes, resolutions.presented_notes, resolutions.shapes, tempo_map);
     return resolutions;
@@ -145,6 +147,47 @@ std::vector<ChartConversion> sweepUnjustifiedLegato(
                 .where = formatGridPositionToken(note.position) + " string " +
                          std::to_string(note.string),
             });
+    }
+    return conversions;
+}
+
+std::vector<ChartConversion> sweepInertSilentHolds(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map)
+{
+    // A stream with no held stops has nothing to sweep, and this runs on every plan the editor
+    // gates. The scan is a bare read; the derivation below presents and walks the whole stream
+    // before it could answer the same question.
+    if (std::ranges::none_of(notes, [](const ChartNote& note) { return silentHold(note.attack); }))
+    {
+        return {};
+    }
+    std::vector<ChartConversion> conversions;
+    // The fixpoint: a removal can leave a span with one member, which states nothing and takes its
+    // remaining holds with it. Each round removes at least one note, so this ends.
+    for (bool swept = true; swept;)
+    {
+        const ChartShapes derived =
+            deriveChartShapes(notes, presentedChartNotes(notes, tempo_map), tempo_map);
+        std::vector<std::size_t> inert;
+        for (std::size_t index = 0; index < notes.size(); ++index)
+        {
+            if (silentHold(notes[index].attack) && !derived.silent_hold_shapes[index].has_value())
+            {
+                inert.push_back(index);
+                conversions.push_back(
+                    ChartConversion{
+                        .repair = ChartRepair::InertSilentHold,
+                        .where = formatGridPositionToken(notes[index].position) + " string " +
+                                 std::to_string(notes[index].string),
+                    });
+            }
+        }
+        swept = !inert.empty();
+        // Erased from the back, so every index still names the note it was derived against.
+        for (const std::size_t index : std::views::reverse(inert))
+        {
+            notes.erase(notes.begin() + static_cast<std::ptrdiff_t>(index));
+        }
     }
     return conversions;
 }

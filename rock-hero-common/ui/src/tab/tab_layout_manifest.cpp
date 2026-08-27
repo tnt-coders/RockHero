@@ -52,20 +52,23 @@ TabNoteLayout tabNoteLayout(
 // Mirrors the bracket pass's own rectangles: the pair's bars stand a bar-width apart from the
 // head's ring on each side and rise to the head's visible edge less that same bar. Only the bars,
 // deliberately — see the header for why the outboard digit is not part of the clickable extent.
-std::optional<TabHoldMarkerLayout> tabHoldMarkerLayout(
-    const TabLaneGeometry& geometry, const common::core::HoldMarkerViewState& marker) noexcept
+// Answers for a silent hold and nothing else, which is what its bracket instant already says.
+std::optional<TabSilentHoldLayout> tabSilentHoldLayout(
+    const TabLaneGeometry& geometry, const common::core::NoteViewState& note) noexcept
 {
-    // Bound to a local so the optional check and the access are provably the same object.
-    const std::optional<double>& bracket_seconds = marker.bracket_seconds;
+    // Bound to a local so the optional check and the access are provably the same object. Presence
+    // is the whole test: only a silent hold that joined a span carries a bracket instant, so no
+    // separate attack check can drift from it.
+    const std::optional<double>& bracket_seconds = note.bracket_seconds;
     if (!bracket_seconds.has_value())
     {
         return std::nullopt;
     }
     const TabBracketGeometry bracket = geometry.bracketGeometry();
     const float half_width = bracket.radius + static_cast<float>(bracket.bar) / 2.0f;
-    TabHoldMarkerLayout layout;
+    TabSilentHoldLayout layout;
     layout.center_x = geometry.x(*bracket_seconds);
-    layout.center_y = geometry.laneY(marker.string);
+    layout.center_y = geometry.laneY(note.string);
     layout.box = TabLayoutRect{
         .x = layout.center_x - half_width,
         .y = layout.center_y - bracket.half_height,

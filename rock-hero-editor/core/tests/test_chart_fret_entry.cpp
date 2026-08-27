@@ -168,9 +168,7 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
         CHECK(state->chart_edit.pending_fret->valid);
         CHECK(
             state->chart_edit.pending_fret->at ==
-            decltype(state->chart_edit.pending_fret->at){
-                ChartPendingFretTargets{.notes = {0}, .hold_markers = {}}
-            });
+            decltype(state->chart_edit.pending_fret->at){ChartPendingFretTargets{.notes = {0}}});
     }
 
     // The second digit combines and SETTLES: one action, fret 12, pending gone.

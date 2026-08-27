@@ -288,9 +288,9 @@ namespace
         {
             return "SetChartLeftTap";
         }
-        case EditorAction::Id::ToggleChartHoldMarker:
+        case EditorAction::Id::ToggleChartSilentHold:
         {
-            return "ToggleChartHoldMarker";
+            return "ToggleChartSilentHold";
         }
         case EditorAction::Id::DisconnectChartWaypoint:
         {
@@ -361,7 +361,7 @@ namespace
             case EditorAction::Id::AdjustChartSustain:
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::SetChartLeftTap:
-            case EditorAction::Id::ToggleChartHoldMarker:
+            case EditorAction::Id::ToggleChartSilentHold:
             case EditorAction::Id::DisconnectChartWaypoint:
             {
                 return "input-calibration-prompt";
@@ -491,9 +491,9 @@ namespace
         {
             return conditions.has_chart ? "no-chart-selection" : "no-chart";
         }
-        case EditorAction::Id::ToggleChartHoldMarker:
+        case EditorAction::Id::ToggleChartSilentHold:
         {
-            return conditions.has_chart ? "no-armed-caret" : "no-chart";
+            return conditions.has_chart ? "no-chart-verb-scope" : "no-chart";
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
@@ -1056,9 +1056,9 @@ void EditorController::onChartLeftTapRequested()
     m_impl->runAction(EditorAction::SetChartLeftTap{});
 }
 
-void EditorController::onChartHoldMarkerToggleRequested()
+void EditorController::onChartSilentHoldToggleRequested()
 {
-    m_impl->runAction(EditorAction::ToggleChartHoldMarker{});
+    m_impl->runAction(EditorAction::ToggleChartSilentHold{});
 }
 
 void EditorController::onChartWaypointDisconnectRequested()
@@ -2296,6 +2296,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .transport_playing = transport_state.playing,
         .has_chart_selection = !chartSelection().empty(),
         .has_armed_caret = armedChartCaret() != nullptr,
+        .has_chart_verb_scope = !chartVerbSlots().empty(),
     };
 }
 
@@ -2666,8 +2667,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, chartSelection());
-            state.chart_edit.selected_hold_markers =
-                selectedHoldMarkerIndices(arrangement->chart->hold_markers, chartSelection());
             // Resolved against the PRESENTED projection pushed above, which is the one the lane
             // hit-tested and the one whose waypoint heads it draws rings on. A key the trim
             // clipped out of the drawn tail resolves to nothing here and simply wears no ring,
@@ -2754,8 +2753,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         std::get<Impl::ChartFretEntry::Retype>(m_chart_fret_entry->target);
                     pending.at = ChartPendingFretTargets{
                         .notes = slotIndicesForKeys(arrangement->chart->notes, retype.keys),
-                        .hold_markers = slotIndicesForKeys(
-                            arrangement->chart->hold_markers, retype.marker_keys),
                     };
                 }
                 state.chart_edit.pending_fret = std::move(pending);
@@ -2802,9 +2799,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     // stale selection (one whose object vanished) publishes nothing, and Delete must keep
     // propagating then.
     state.selection_present =
-        !state.chart_edit.selected_notes.empty() ||
-        !state.chart_edit.selected_hold_markers.empty() ||
-        !state.chart_edit.selected_waypoints.empty() ||
+        !state.chart_edit.selected_notes.empty() || !state.chart_edit.selected_waypoints.empty() ||
         state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {
             return region.selected;

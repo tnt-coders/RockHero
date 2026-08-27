@@ -86,6 +86,16 @@ struct ActionConditions
 
     /*! \brief True when the chart caret is armed on some slot, string or lane. */
     bool has_armed_caret{false};
+
+    /*!
+    \brief True when a typed chart verb has an operand: a selected note, or an armed string caret.
+
+    The empty-scope rule as the availability table sees it, filled from the same accessor the verbs
+    plan through, so what the menu offers and what a press does cannot drift. Wider than
+    \ref has_chart_selection by exactly the caret's own slot — which may hold nothing at all, and is
+    how a verb reaches a slot no selection could name.
+    */
+    bool has_chart_verb_scope{false};
 };
 
 /*!

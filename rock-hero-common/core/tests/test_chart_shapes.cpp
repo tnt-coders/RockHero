@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <optional>
@@ -7,6 +8,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/chart_shapes.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -35,25 +37,63 @@ namespace
     return note;
 }
 
-// A silently-held shape member at one grid slot. The fret is stated only by the cases about a
-// member nothing sounds anywhere (β); the reported case authors no fret at all.
-[[nodiscard]] ChartHoldMarker markerAt(
-    const int beat, const Fraction offset, const int string, const std::optional<int> fret)
+// A silently-held shape member at one grid slot: a note with no onset at all, which is the whole
+// of how the chart states a stop the hand takes without sounding it. No ring, because a silent
+// hold has none of its own.
+[[nodiscard]] ChartNote holdAt(
+    const int beat, const Fraction offset, const int string, const int fret)
 {
-    return ChartHoldMarker{
-        .position = GridPosition{.measure = 1, .beat = beat, .offset = offset},
-        .string = string,
-        .fret = fret,
-    };
+    ChartNote note = noteAt(beat, offset, string, fret, Fraction{});
+    note.attack = NoteAttack::None;
+    return note;
 }
 
-// The derivation as every reader gets it: from the saved stream, the picture it presents, and the
-// chart's own hold markers.
-[[nodiscard]] ChartShapes deriveFrom(
-    const std::vector<ChartNote>& notes, const std::vector<ChartHoldMarker>& markers = {})
+// A right-hand tap at one grid slot: the picking hand articulating a shape the fretting hand is
+// holding.
+[[nodiscard]] ChartNote tapAt(
+    const int beat, const Fraction offset, const int string, const int fret, const Fraction ring)
+{
+    ChartNote note = noteAt(beat, offset, string, fret, ring);
+    note.attack = NoteAttack::Tap;
+    return note;
+}
+
+// One stream in the chart's own slot order. The cases below list their sounding notes and their
+// held stops in whatever order reads best; this is what makes them a legal chart, so no case has
+// to interleave two kinds of member by hand.
+[[nodiscard]] std::vector<ChartNote> streamOf(std::vector<ChartNote> notes)
+{
+    std::ranges::sort(notes, chartNoteOrderLess);
+    return notes;
+}
+
+// The derivation as every reader gets it: from the saved stream and the picture it presents.
+[[nodiscard]] ChartShapes deriveFrom(const std::vector<ChartNote>& notes)
 {
     const TempoMap tempo_map = makeTempoMap();
-    return deriveChartShapes(notes, presentedChartNotes(notes, tempo_map), markers, tempo_map);
+    return deriveChartShapes(notes, presentedChartNotes(notes, tempo_map), tempo_map);
+}
+
+// The span a silently-held stop joined, read the way a surface reads it: by the hold's own index
+// in the stream the derivation was given. The slot must name a hold in that stream — a case
+// asserting about a hold that is not there would pass for the wrong reason.
+[[nodiscard]] std::optional<std::size_t> spanOfHold(
+    const std::vector<ChartNote>& stream, const ChartShapes& derived, const int beat,
+    const int string)
+{
+    std::optional<std::size_t> span;
+    bool found = false;
+    for (std::size_t index = 0; index < stream.size() && !found; ++index)
+    {
+        if (stream[index].position.beat == beat && stream[index].string == string)
+        {
+            REQUIRE(silentHold(stream[index].attack));
+            span = derived.silent_hold_shapes[index];
+            found = true;
+        }
+    }
+    REQUIRE(found);
+    return span;
 }
 
 } // namespace
@@ -204,8 +244,7 @@ TEST_CASE("Chart shape derivation reads the settled stream", "[core][chart]")
     chart.notes = notes;
     const TempoMap tempo_map = makeTempoMap();
     CHECK_FALSE(normalizeChart(chart, tempo_map).empty());
-    const ChartResolutions resolutions =
-        chartResolutions(chart.notes, chart.hold_markers, tempo_map);
+    const ChartResolutions resolutions = chartResolutions(chart.notes, tempo_map);
     REQUIRE(resolutions.shapes.size() == 1);
     CHECK(resolutions.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
     CHECK(resolutions.shapes.front().sustain == Fraction{2});
@@ -285,112 +324,143 @@ TEST_CASE("Chart shape derivation rings a span through tap-only onsets", "[core]
     }
 }
 
-// The authored half of the posture. A hold marker states the stop a silently-held member takes,
+// The authored half of the posture. A silent hold states the stop a held member takes,
 // which no note stream can carry, and says nothing at all where no span covers it. It is a MEMBER
 // of the shape rather than a strike on it, which the case below this one is about.
-TEST_CASE("Chart shape derivation folds a hold marker into the posture", "[core][chart]")
+TEST_CASE("Chart shape derivation folds a silent hold into the posture", "[core][chart]")
 {
-    // A two-string strum ringing a whole beat: the span every section below attaches a marker to.
+    // A two-string strum ringing a whole beat: the span every section below attaches a hold to.
     const std::vector<ChartNote> strum{
         noteAt(1, Fraction{}, 1, 5, Fraction{1}),
         noteAt(1, Fraction{}, 2, 7, Fraction{1}),
     };
 
-    SECTION("a fret-carrying marker joins the shape from its start")
+    SECTION("a held stop joins the shape from its start")
     {
-        const ChartShapes derived = deriveFrom(strum, {markerAt(1, Fraction{}, 3, 9)});
+        const std::vector<ChartNote> stream =
+            streamOf({strum[0], strum[1], holdAt(1, Fraction{}, 3, 9)});
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{5});
         CHECK(derived.postures.front().frets[1] == std::optional{7});
-        // Nothing sounds on string 3 anywhere in this chart, which is what makes the authored fret
+        // Nothing sounds on string 3 anywhere in this chart, which is what makes the authored stop
         // the irreducible residue rather than a second copy of something the notes say.
         CHECK(derived.postures.front().frets[2] == std::optional{9});
         // And the span says so, which is what turns the box into the bracket that can print it.
         CHECK(derived.shapes.front().silent_member);
+        CHECK(spanOfHold(stream, derived, 1, 3) == std::optional<std::size_t>{0});
     }
 
-    SECTION("a marker anywhere INSIDE the span joins it, not only one at the start")
+    SECTION("a held stop INSIDE the span states the grown shape from its own instant")
     {
-        // The finger comes down partway through the held shape, before its string is ever picked.
-        // Nothing special-cases the span's first onset, so this needs no rule of its own.
-        const std::vector<ChartNote> long_strum{
+        // GROWTH (user ruling 2026-08-27). The finger comes down partway through the held shape,
+        // on a string the shape does not state — so from that instant the hand is in a DIFFERENT
+        // shape, and the span splits exactly as a strum growing by a string splits. The two spans
+        // divide the chord's own ring between them, and the second inherits the strings the first
+        // stated, because the hand never left them.
+        //
+        // Where the charter wants the stop stated from the START, they author it at the start:
+        // that is the case the whole record exists for, and it is the section above this one.
+        const std::vector<ChartNote> stream = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{2}),
-        };
-        const ChartShapes derived = deriveFrom(long_strum, {markerAt(2, Fraction{}, 3, 9)});
-        REQUIRE(derived.shapes.size() == 1);
-        REQUIRE(derived.postures.size() == 1);
-        CHECK(derived.postures.front().frets[2] == std::optional{9});
-        CHECK(derived.shapes.front().silent_member);
+            holdAt(2, Fraction{}, 3, 9),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.postures.size() == 2);
+        // The strum's own shape, ending exactly where the finger lands.
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().sustain == Fraction{1});
+        CHECK_FALSE(derived.shapes.front().silent_member);
+        CHECK_FALSE(derived.postures.front().frets[2].has_value());
+        // The grown shape, from that instant to where the chord was already ringing to.
+        CHECK(derived.shapes.back().position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes.back().sustain == Fraction{1});
+        CHECK(derived.shapes.back().silent_member);
+        CHECK(derived.postures.back().frets[0] == std::optional{5});
+        CHECK(derived.postures.back().frets[1] == std::optional{7});
+        CHECK(derived.postures.back().frets[2] == std::optional{9});
+        CHECK(spanOfHold(stream, derived, 2, 3) == std::optional<std::size_t>{1});
     }
 
-    SECTION("a marker past the span's own end is inert")
+    SECTION("a held stop on a string the shape already states does not split it")
+    {
+        // The other half of the growth rule, and its discrimination: this finger is on a string the
+        // sound already states, so it takes no NEW stop and states no new shape. The span is one,
+        // and the restatement adds nothing to it — which is what the settle then removes.
+        const std::vector<ChartNote> stream = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+            holdAt(2, Fraction{}, 2, 7),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{2});
+        CHECK_FALSE(derived.shapes.front().silent_member);
+        CHECK_FALSE(spanOfHold(stream, derived, 2, 2).has_value());
+    }
+
+    SECTION("a held stop past the span's own end is inert")
     {
         // The chord stops ringing an eighth of a beat in, so the bracket never reaches beat 2. A
-        // marker out there would print a stop under a bracket that does not cover it.
-        const std::vector<ChartNote> short_strum{
+        // hold out there would print a stop under a bracket that does not cover it.
+        const std::vector<ChartNote> stream = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 8}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1, 8}),
-        };
-        const ChartShapes derived = deriveFrom(short_strum, {markerAt(2, Fraction{}, 3, 9)});
+            holdAt(2, Fraction{}, 3, 9),
+        });
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK_FALSE(derived.postures.front().frets[2].has_value());
         CHECK_FALSE(derived.shapes.front().silent_member);
+        CHECK_FALSE(spanOfHold(stream, derived, 2, 3).has_value());
     }
 
-    SECTION("a marker on a string the sound already states adds nothing")
+    SECTION("a held stop on a string the sound already states adds nothing")
     {
-        // String 1 is struck at the span start, so the notes carry its fret. The marker is
-        // redundant rather than wrong: it changes no posture and makes no silent member, which is
-        // what keeps a redundant claim from flipping a fully-strummed box to a bracket.
-        const ChartShapes derived = deriveFrom(strum, {markerAt(1, Fraction{1, 2}, 1, 11)});
+        // String 1 is struck at the span start, so the notes carry its fret. The hold is redundant
+        // rather than wrong: it changes no posture and makes no silent member, which is what keeps
+        // a redundant claim from flipping a fully-strummed box to a bracket.
+        const std::vector<ChartNote> stream =
+            streamOf({strum[0], strum[1], holdAt(1, Fraction{1, 2}, 1, 11)});
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{5});
         CHECK_FALSE(derived.shapes.front().silent_member);
     }
 
-    SECTION("a lone marker beside nothing at all derives nothing")
+    SECTION("a lone held stop beside nothing at all derives nothing")
     {
-        // One member is no shape, whichever kind it is. The marker is not refused anywhere — it
+        // One member is no shape, whichever kind it is. The hold is not refused anywhere — it
         // simply attaches to nothing, the unjustified connection claim's degrade.
-        const ChartShapes derived = deriveFrom({}, {markerAt(1, Fraction{}, 3, 9)});
+        const std::vector<ChartNote> stream{holdAt(1, Fraction{}, 3, 9)};
+        const ChartShapes derived = deriveFrom(stream);
         CHECK(derived.shapes.empty());
         CHECK(derived.postures.empty());
-        REQUIRE(derived.marker_shapes.size() == 1);
-        CHECK_FALSE(derived.marker_shapes.front().has_value());
-    }
-
-    SECTION("a fret-absent marker nothing supplies is inert")
-    {
-        // The relational form: it states a WHEN and expects a later note on its string to state
-        // the WHAT. Nothing sounds on string 3 here, so it resolves to nothing and draws nowhere.
-        const ChartShapes derived = deriveFrom(strum, {markerAt(1, Fraction{}, 3, std::nullopt)});
-        REQUIRE(derived.shapes.size() == 1);
-        REQUIRE(derived.postures.size() == 1);
-        CHECK_FALSE(derived.postures.front().frets[2].has_value());
-        CHECK_FALSE(derived.shapes.front().silent_member);
+        REQUIRE(derived.silent_hold_shapes.size() == 1);
+        CHECK_FALSE(derived.silent_hold_shapes.front().has_value());
     }
 
     SECTION("the reported case: the late member joins the shape it was already held for")
     {
         // The case the whole record was written for. The shape is taken at its onset and its last
-        // member is not struck until later — alone. The marker is authored at the shape's start and
-        // states no fret, because the late note states it.
+        // member is not struck until later — alone. The hold is authored at the shape's start.
         //
         // Both halves are load-bearing and neither is enough alone. Side ruling (ii) is what keeps
         // the span alive across the lone late strike (before it, that onset closed the span at the
-        // exact moment the shape was completed, and the marker had nothing in-span to resolve
-        // against); the marker is what puts the string in the posture from the START, which no
-        // reading of the notes could ever recover.
-        const std::vector<ChartNote> notes{
+        // exact moment the shape was completed); the hold is what puts the string in the posture
+        // from the START, which no reading of the notes could ever recover.
+        const std::vector<ChartNote> stream = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+            holdAt(1, Fraction{}, 3, 9),
             noteAt(2, Fraction{}, 3, 9, Fraction{1}),
-        };
-        const ChartShapes derived = deriveFrom(notes, {markerAt(1, Fraction{}, 3, std::nullopt)});
+        });
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[2] == std::optional{9});
@@ -404,7 +474,9 @@ TEST_CASE("Chart shape derivation folds a hold marker into the posture", "[core]
     {
         // Same posture as the note walk keeps: the derivation runs before validation has refused
         // an impossible string, so one cannot reach an array index.
-        const ChartShapes derived = deriveFrom(strum, {markerAt(1, Fraction{}, 1000000, 9)});
+        const std::vector<ChartNote> stream =
+            streamOf({strum[0], strum[1], holdAt(1, Fraction{}, 1000000, 9)});
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(
@@ -414,17 +486,18 @@ TEST_CASE("Chart shape derivation folds a hold marker into the posture", "[core]
 }
 
 // Rule 10 as re-ruled 2026-08-27: a span opens at a slot holding two or more MEMBERS, and a member
-// is a sounding fretting-hand onset there OR a hold marker there. The rule this replaces counted
-// only sounds, which made converting one member of a two-note chord into a held finger derive
-// nothing at all — the remaining note was suddenly "lone", the shape evaporated, and the fret the
-// conversion had just stored vanished from every surface.
+// is a sounding fretting-hand onset there OR a silently-held stop there. The rule this replaces
+// counted only sounds, which made converting one member of a two-note chord into a held finger
+// derive nothing at all — the remaining note was suddenly "lone", the shape evaporated, and the
+// fret the conversion had just stored vanished from every surface.
 TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[core][chart]")
 {
     SECTION("one sound plus one held finger opens a span")
     {
         // The reported case, stated at its smallest: a two-note chord with one member converted.
-        const std::vector<ChartNote> lone{noteAt(1, Fraction{}, 1, 5, Fraction{1})};
-        const ChartShapes derived = deriveFrom(lone, {markerAt(1, Fraction{}, 2, 7)});
+        const std::vector<ChartNote> stream =
+            streamOf({noteAt(1, Fraction{}, 1, 5, Fraction{1}), holdAt(1, Fraction{}, 2, 7)});
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{5});
@@ -432,54 +505,293 @@ TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[co
         CHECK(derived.shapes.front().silent_member);
         // The span runs as far as the one member that rings.
         CHECK(derived.shapes.front().sustain == Fraction{1});
-        REQUIRE(derived.marker_shapes.size() == 1);
-        CHECK(derived.marker_shapes.front() == std::optional<std::size_t>{0});
+        CHECK(spanOfHold(stream, derived, 1, 2) == std::optional<std::size_t>{0});
     }
 
     SECTION("a lone sound still opens nothing")
     {
         // The half of the old rule that was right, and the discrimination for the section above:
-        // it is the MARKER that supplies the second member, not the relaxation of the threshold.
+        // it is the HOLD that supplies the second member, not the relaxation of the threshold.
         const ChartShapes derived = deriveFrom({noteAt(1, Fraction{}, 1, 5, Fraction{1})});
         CHECK(derived.shapes.empty());
         CHECK(derived.postures.empty());
     }
 
-    SECTION("two held fingers with nothing sounding open a span at an instant")
+    SECTION("held fingers added inside a shape state the grown shape, and re-merge on equalization")
     {
-        // No sound is required at all. Nothing rings, so nothing gives the span length: it states
-        // its posture where the bracket draws it and holds for zero beats, which is the honest
-        // answer rather than a guessed duration.
+        // Two fingers coming down inside a held shape are the same growth as one, and a strum of
+        // the shape the span already holds then MERGES into it by span identity — the grown span's
+        // articulation is the strings the first span stated, so an identical strum equalizes with
+        // it and rule 11's merge does the rest, with nothing added for the hold case.
+        const std::vector<ChartNote> stream = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            holdAt(2, Fraction{}, 3, 9),
+            holdAt(2, Fraction{}, 4, 10),
+            noteAt(3, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(3, Fraction{}, 2, 7, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 2);
+        REQUIRE(derived.postures.size() == 2);
+        CHECK(derived.shapes.front().sustain == Fraction{1});
+        // One grown span covering both the fingers and the re-strum, not a third shape at beat 3.
+        CHECK(derived.shapes.back().position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(derived.shapes.back().sustain == Fraction{3});
+        CHECK(derived.postures.back().frets[2] == std::optional{9});
+        CHECK(derived.postures.back().frets[3] == std::optional{10});
+    }
+
+    SECTION("a strum of a DIFFERENT shape does not merge into the grown one")
+    {
+        // The negative control for the merge above: equalization is the whole test, so a re-strum
+        // that states another articulation opens its own span like any other change.
+        const std::vector<ChartNote> stream = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{4}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            holdAt(2, Fraction{}, 3, 9),
+            holdAt(2, Fraction{}, 4, 10),
+            noteAt(3, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(3, Fraction{}, 2, 8, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        CHECK(derived.shapes.size() == 3);
+    }
+
+    SECTION("each held stop publishes the span it actually joined")
+    {
+        // Two shapes, one hold inside each. The surfaces place a hold's face at ITS span's start,
+        // so the mapping has to name the span rather than merely say that one exists.
+        const std::vector<ChartNote> stream = streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
+            holdAt(1, Fraction{}, 3, 9),
+            noteAt(3, Fraction{}, 1, 8, Fraction{1, 2}),
+            noteAt(3, Fraction{}, 2, 10, Fraction{1, 2}),
+            holdAt(3, Fraction{}, 4, 12),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(spanOfHold(stream, derived, 1, 3) == std::optional<std::size_t>{0});
+        CHECK(spanOfHold(stream, derived, 3, 4) == std::optional<std::size_t>{1});
+    }
+}
+
+// The span law for a shape the HAND alone states (user ruling 2026-08-27). Such a span is authored
+// in FRONT of the content it describes, so it waits, unended, until something arrives to justify
+// it — a fretting-hand note matching one of its claims, or a picking-hand onset on one of its
+// posture strings. One that closes with nothing having arrived is evidence of nothing and
+// dissolves, exactly as a lone member states nothing.
+TEST_CASE("Chart shape derivation justifies a shape the hand alone states", "[core][chart]")
+{
+    SECTION("held fingers with nothing to justify them dissolve")
+    {
+        // Two members, so rule 10 opens a span — and nothing ever arrives, so the passage the hand
+        // was stated in front of does not exist. Printing a posture over that silence is what this
+        // refuses.
         //
-        // Deliberately NOT at beat one: the span's length is the difference between its end and
-        // its start, so a span at global beat zero would read the same however the walk seeded its
-        // end. Two beats in, an end seeded at "no beats at all" would run the span BACKWARD.
-        const ChartShapes derived =
-            deriveFrom({}, {markerAt(3, Fraction{}, 1, 5), markerAt(3, Fraction{}, 2, 7)});
+        // Deliberately NOT at beat one: a span's length is the difference between its end and its
+        // start, so one at global beat zero would read the same however the walk seeded its end.
+        const std::vector<ChartNote> stream =
+            streamOf({holdAt(3, Fraction{}, 1, 5), holdAt(3, Fraction{}, 2, 7)});
+        const ChartShapes derived = deriveFrom(stream);
+        CHECK(derived.shapes.empty());
+        CHECK(derived.postures.empty());
+        CHECK(derived.silent_hold_shapes == std::vector<std::optional<std::size_t>>{{}, {}});
+    }
+
+    SECTION("a matching note arriving later justifies the shape, and its ring gives the extent")
+    {
+        // The content the hold fronts: a note on a claimed string at the stop that claim names.
+        // Distance is not a window — nothing closed the span in between, so the hand is still
+        // stated — and from the arrival the ordinary member-ring rule takes over.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            noteAt(3, Fraction{}, 2, 7, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 1);
+        REQUIRE(derived.postures.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.postures.front().frets[0] == std::optional{5});
+        CHECK(derived.postures.front().frets[1] == std::optional{7});
+        CHECK(derived.shapes.front().silent_member);
+        // Start to the arriving note's own ring end: two beats of waiting plus its one beat.
+        CHECK(derived.shapes.front().sustain == Fraction{3});
+    }
+
+    SECTION("a note at a stop no claim states justifies nothing")
+    {
+        // The discrimination for the section above: it is the fret MATCH that justifies, the same
+        // test side ruling (ii) applies to a re-pick, so a different hand ends the statement
+        // instead of confirming it.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            noteAt(3, Fraction{}, 2, 9, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        CHECK(derived.shapes.empty());
+    }
+
+    SECTION("taps on the posture's own strings justify the shape and carry its extent")
+    {
+        // The held-shape-under-tapping figure with the holding STATED rather than inferred: the
+        // taps sound on strings the hand claims, and their rings are the only evidence of how long
+        // the hand is down.
+        //
+        // The tap is a quantum after the stops, and it HAS to be: a tap on a claimed string at the
+        // claim's own instant would put two notes on one (position, string), which is the case the
+        // record flags as unrepresentable. So the figure that justifies is the one the charter can
+        // actually write, and the same-instant tap that IS writable lands on a string the shape
+        // does not hold — the section below this one.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            tapAt(1, Fraction{1, 8}, 1, 12, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.postures.front().frets[0] == std::optional{5});
         CHECK(derived.postures.front().frets[1] == std::optional{7});
         CHECK(derived.shapes.front().silent_member);
-        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derived.shapes.front().sustain == Fraction{});
-        CHECK(derived.marker_shapes == std::vector<std::optional<std::size_t>>{0, 0});
+        // The stops' own instant to the tap's ring end: an eighth of a beat of waiting, then two.
+        CHECK(derived.shapes.front().sustain == Fraction{17, 8});
     }
 
-    SECTION("held fingers past a shape's ring state the next shape")
+    SECTION("a run of taps carries the coverage on, each landing where the last one stopped")
     {
-        // The discrimination the section above cannot make: with no notes at all, "no shape is
-        // held" is true for free. A span stays OPEN across the silence after its members stop
-        // ringing, because rule 11 lets a later identical strum rejoin it — so asking the walk's
-        // cursor instead of the ring would refuse the two-marker case for every chart whose last
-        // event was a chord, and the markers would attach to a span that ended beats ago and go
-        // inert there. The strum below rings half a beat; the held fingers land two beats later.
-        const std::vector<ChartNote> strum{
+        // Coverage is the union of the attached rings, and the same-string bound clamps a run of
+        // taps to exact adjacency — the next onset lands ON the previous ring's end, never inside
+        // it. So the frontier test has to be closed at that boundary: asking "is the shape still
+        // SOUNDING here" instead would end the coverage at the first tap and leave the rest of the
+        // passage outside the shape it articulates.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            tapAt(2, Fraction{}, 1, 12, Fraction{1}),
+            tapAt(3, Fraction{}, 1, 12, Fraction{1}),
+            tapAt(4, Fraction{}, 1, 12, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 1);
+        // The stops' own instant to the last tap's ring end: three beats of taps after one of
+        // waiting.
+        CHECK(derived.shapes.front().sustain == Fraction{4});
+    }
+
+    SECTION("a tap past the coverage does not revive the shape")
+    {
+        // The discrimination for the section above, and the resurrection side ruling (ii)'s third
+        // condition refuses for a span with sound in it: the taps stopped an eighth in, so the
+        // hand is demonstrably off the shape long before this one. Attaching it would print the
+        // posture over three beats of silence nothing states.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            tapAt(1, Fraction{1, 8}, 1, 12, Fraction{1, 8}),
+            tapAt(4, Fraction{}, 1, 12, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().sustain == Fraction{1, 4});
+    }
+
+    SECTION("a tap on a string the shape does not hold justifies nothing")
+    {
+        // The discrimination for the section above: a tap somewhere else is not this shape being
+        // articulated, so it leaves the statement unanswered and the span dissolves with it.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            tapAt(1, Fraction{}, 4, 12, Fraction{2}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        CHECK(derived.shapes.empty());
+    }
+
+    SECTION("a chord at a stop no claim states ends the statement, and the shape dissolves")
+    {
+        // Nothing about the chord answers the hand's claim, and a chord always opens its own span,
+        // so the statement closes unjustified.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            noteAt(3, Fraction{}, 3, 3, Fraction{1}),
+            noteAt(3, Fraction{}, 4, 3, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 3});
+        CHECK_FALSE(derived.shapes.front().silent_member);
+    }
+
+    SECTION("a chord carrying a claimed stop justifies the statement it fronts")
+    {
+        // The discrimination for the section above, and the case the fret-match law would miss if
+        // it were asked only of a LONE re-pick: this chord sounds string one at exactly the stop
+        // the hand claimed, so it IS the content the statement was authored in front of. It
+        // justifies the shape and then opens its own — growth by a new string keeps splitting —
+        // which leaves the held shape stating its posture at its own instant, where the bracket
+        // that prints it draws. Routing justification through the lone re-pick alone would instead
+        // dissolve the statement and take both authored stops off every surface unseen.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            noteAt(3, Fraction{}, 1, 5, Fraction{1}),
+            noteAt(3, Fraction{}, 3, 3, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 2);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.shapes.front().sustain == Fraction{});
+        CHECK(derived.shapes.front().silent_member);
+        REQUIRE(derived.postures.size() == 2);
+        CHECK(derived.postures.front().frets[0] == std::optional{5});
+        CHECK(derived.postures.front().frets[1] == std::optional{7});
+        CHECK(spanOfHold(stream, derived, 1, 1) == std::optional<std::size_t>{0});
+        CHECK(spanOfHold(stream, derived, 1, 2) == std::optional<std::size_t>{0});
+        // And the chord is its own shape, unchanged by having answered.
+        CHECK(derived.shapes.back().position == GridPosition{.measure = 1, .beat = 3});
+        CHECK_FALSE(derived.shapes.back().silent_member);
+    }
+
+    SECTION("a finger added to a shape the hand alone stated joins it, and its face stays there")
+    {
+        // A statement the hand alone makes is ONE statement of a shape being taken: it has no sound
+        // to date it by, so a finger arriving later joins it rather than splitting a statement that
+        // is still waiting for its content. This is also the one case left where a hold's face is
+        // NOT at its own slot — the bracket it prints under is the span's start, two beats earlier.
+        const std::vector<ChartNote> stream = streamOf({
+            holdAt(1, Fraction{}, 1, 5),
+            holdAt(1, Fraction{}, 2, 7),
+            holdAt(2, Fraction{}, 3, 9),
+            noteAt(3, Fraction{}, 1, 5, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
+        REQUIRE(derived.shapes.size() == 1);
+        REQUIRE(derived.postures.size() == 1);
+        CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(derived.postures.front().frets[2] == std::optional{9});
+        CHECK(spanOfHold(stream, derived, 2, 3) == std::optional<std::size_t>{0});
+    }
+
+    SECTION("held fingers past a shape's ring state the NEXT shape, not a rejoin of the old one")
+    {
+        // A span stays OPEN across the silence after its members stop ringing, because rule 11
+        // lets a later identical strum rejoin it — so asking the walk's cursor instead of the ring
+        // would attach these fingers to a span that ended beats ago and go inert there. The strum
+        // rings half a beat; the fingers land two beats later, and a matching note justifies them.
+        const std::vector<ChartNote> stream = streamOf({
             noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
             noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
-        };
-        const ChartShapes derived =
-            deriveFrom(strum, {markerAt(3, Fraction{}, 3, 9), markerAt(3, Fraction{}, 4, 10)});
+            holdAt(3, Fraction{}, 3, 9),
+            holdAt(3, Fraction{}, 4, 10),
+            noteAt(4, Fraction{}, 4, 10, Fraction{1}),
+        });
+        const ChartShapes derived = deriveFrom(stream);
         REQUIRE(derived.shapes.size() == 2);
         // The strum's own span is unchanged: it still ends where its members stopped ringing.
         CHECK(derived.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
@@ -487,59 +799,12 @@ TEST_CASE("Chart shape derivation opens a span on two members of any kind", "[co
         CHECK_FALSE(derived.shapes.front().silent_member);
         // And the held fingers state their own, at their own slot.
         CHECK(derived.shapes.back().position == GridPosition{.measure = 1, .beat = 3});
-        CHECK(derived.shapes.back().sustain == Fraction{});
         CHECK(derived.shapes.back().silent_member);
         REQUIRE(derived.postures.size() == 2);
         CHECK(derived.postures.back().frets[2] == std::optional{9});
         CHECK(derived.postures.back().frets[3] == std::optional{10});
-        CHECK(derived.marker_shapes == std::vector<std::optional<std::size_t>>{1, 1});
-    }
-
-    SECTION("two fret-less fingers alone state a span that resolves to nothing")
-    {
-        // The span opens on the member count, and then has no sounding note anywhere inside it to
-        // take a fret from — so both claims stay inert and the posture is empty, exactly the
-        // degrade an unresolvable claim takes anywhere else.
-        const ChartShapes derived = deriveFrom(
-            {},
-            {markerAt(3, Fraction{}, 1, std::nullopt), markerAt(3, Fraction{}, 2, std::nullopt)});
-        REQUIRE(derived.shapes.size() == 1);
-        CHECK_FALSE(derived.shapes.front().silent_member);
-        CHECK(derived.marker_shapes == std::vector<std::optional<std::size_t>>{{}, {}});
-    }
-
-    SECTION("held fingers added inside a shape join it instead of splitting it")
-    {
-        // A marker is a member, not a strike: two of them landing under a span that is already
-        // held add to that posture rather than opening a rival one. Splitting here would break
-        // rule 12b's own case — the finger that comes down partway through a held shape.
-        const std::vector<ChartNote> strum{
-            noteAt(1, Fraction{}, 1, 5, Fraction{2}),
-            noteAt(1, Fraction{}, 2, 7, Fraction{2}),
-        };
-        const ChartShapes derived =
-            deriveFrom(strum, {markerAt(2, Fraction{}, 3, 9), markerAt(2, Fraction{}, 4, 10)});
-        REQUIRE(derived.shapes.size() == 1);
-        REQUIRE(derived.postures.size() == 1);
-        CHECK(derived.postures.front().frets[2] == std::optional{9});
-        CHECK(derived.postures.front().frets[3] == std::optional{10});
-        CHECK(derived.shapes.front().sustain == Fraction{2});
-    }
-
-    SECTION("each marker publishes the span it actually joined")
-    {
-        // Two shapes, one marker inside each. The surfaces place a marker's mark at ITS span's
-        // start, so the mapping has to name the span rather than merely say that one exists.
-        const std::vector<ChartNote> notes{
-            noteAt(1, Fraction{}, 1, 5, Fraction{1, 2}),
-            noteAt(1, Fraction{}, 2, 7, Fraction{1, 2}),
-            noteAt(3, Fraction{}, 1, 8, Fraction{1, 2}),
-            noteAt(3, Fraction{}, 2, 10, Fraction{1, 2}),
-        };
-        const ChartShapes derived =
-            deriveFrom(notes, {markerAt(1, Fraction{}, 3, 9), markerAt(3, Fraction{}, 4, 12)});
-        REQUIRE(derived.shapes.size() == 2);
-        CHECK(derived.marker_shapes == std::vector<std::optional<std::size_t>>{0, 1});
+        CHECK(spanOfHold(stream, derived, 3, 3) == std::optional<std::size_t>{1});
+        CHECK(spanOfHold(stream, derived, 3, 4) == std::optional<std::size_t>{1});
     }
 }
 
@@ -600,13 +865,14 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
 
     SECTION("a re-pick at the stop a claim states joins the span")
     {
-        // The marker branch of condition 1, and the half the sound cannot answer: string 3 is a
-        // member only because the chart HOLDS it, so the authored claim is the whole test — and
-        // this re-pick is at the stop the claim names.
+        // The silent-hold branch of condition 1, and the half the sound cannot answer: string 3
+        // is a member only because the chart HOLDS it, so the authored claim is the whole test —
+        // and this re-pick is at the stop the claim names.
         std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
         notes[2].string = 3;
         notes[2].fret = 5;
-        const ChartShapes derived = deriveFrom(notes, {markerAt(1, Fraction{}, 3, 5)});
+        notes.push_back(holdAt(1, Fraction{}, 3, 5));
+        const ChartShapes derived = deriveFrom(streamOf(notes));
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.shapes.front().sustain == Fraction{2});
@@ -622,7 +888,8 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
         std::vector<ChartNote> notes = chord_then_repick(Fraction{2});
         notes[2].string = 3;
         notes[2].fret = 9;
-        const ChartShapes derived = deriveFrom(notes, {markerAt(1, Fraction{}, 3, 5)});
+        notes.push_back(holdAt(1, Fraction{}, 3, 5));
+        const ChartShapes derived = deriveFrom(streamOf(notes));
         REQUIRE(derived.shapes.size() == 1);
         REQUIRE(derived.postures.size() == 1);
         CHECK(derived.shapes.front().sustain == Fraction{3, 4});
@@ -643,6 +910,89 @@ TEST_CASE("Chart shape derivation rides a span through a lone re-pick", "[core][
     }
 }
 
+// The settle that turns "every held stop states something" from a hope into an invariant
+// (\ref sweepInertSilentHolds, declared beside the legato settle it is the sibling of). Three ways
+// to state nothing, one test for all of them, because the derivation answers all three alike.
+TEST_CASE("The inert-hold settle removes every stop that states nothing", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+    const auto sweep = [&tempo_map](std::vector<ChartNote> notes) {
+        const std::size_t removed = sweepInertSilentHolds(notes, tempo_map).size();
+        return std::pair{std::move(notes), removed};
+    };
+
+    SECTION("a lone stop states nothing and goes")
+    {
+        const auto [swept, removed] = sweep({holdAt(1, Fraction{}, 3, 9)});
+        CHECK(removed == 1);
+        CHECK(swept.empty());
+    }
+
+    SECTION("a shape the hand alone stated, with nothing to justify it, goes whole")
+    {
+        const auto [swept, removed] =
+            sweep(streamOf({holdAt(3, Fraction{}, 1, 5), holdAt(3, Fraction{}, 2, 7)}));
+        CHECK(removed == 2);
+        CHECK(swept.empty());
+    }
+
+    SECTION("a stop past its span's own end goes")
+    {
+        const auto [swept, removed] = sweep(streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{1, 8}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{1, 8}),
+            holdAt(2, Fraction{}, 3, 9),
+        }));
+        CHECK(removed == 1);
+        CHECK(swept.size() == 2);
+    }
+
+    SECTION("a stop restating what the shape already says goes")
+    {
+        // The redundant restatement: string 2 is stated by the sound, so this claim adds no fret,
+        // flips no bracket and draws nowhere — the same nothing the two cases above state.
+        const auto [swept, removed] = sweep(streamOf({
+            noteAt(1, Fraction{}, 1, 5, Fraction{2}),
+            noteAt(1, Fraction{}, 2, 7, Fraction{2}),
+            holdAt(2, Fraction{}, 2, 7),
+        }));
+        CHECK(removed == 1);
+        CHECK(swept.size() == 2);
+    }
+
+    SECTION("a stop that reaches a shape stays, and a stream with none is untouched")
+    {
+        const std::vector<ChartNote> stated =
+            streamOf({noteAt(1, Fraction{}, 1, 5, Fraction{1}), holdAt(1, Fraction{}, 2, 7)});
+        const auto [swept, removed] = sweep(stated);
+        CHECK(removed == 0);
+        CHECK(swept == stated);
+        const auto [sounding, none] = sweep({noteAt(1, Fraction{}, 1, 5, Fraction{1})});
+        CHECK(none == 0);
+        CHECK(sounding.size() == 1);
+    }
+
+    SECTION("the settle runs to a fixpoint: one removal can strand the next")
+    {
+        // Two rounds, and the second is not reachable in the first. String 2 rings THROUGH the
+        // beat-2 onset, so the stop authored there restates what the ring already says and states
+        // nothing — but it is what rule 10 counted as the shape's second member. Take it away and
+        // the beat-2 slot is a lone note again, the shape it opened is gone, and the stop at beat 3
+        // that had joined that shape is left stating nothing in its turn.
+        const auto [swept, removed] = sweep(streamOf({
+            noteAt(1, Fraction{}, 2, 7, Fraction{4}),
+            noteAt(2, Fraction{}, 1, 5, Fraction{2}),
+            holdAt(2, Fraction{}, 2, 7),
+            holdAt(3, Fraction{}, 3, 9),
+        }));
+        CHECK(removed == 2);
+        REQUIRE(swept.size() == 2);
+        CHECK(std::ranges::none_of(swept, [](const ChartNote& note) {
+            return silentHold(note.attack);
+        }));
+    }
+}
+
 // The whole chain the display gate reads: a silently-held member reaches the arrival rule and
 // flips the span, because the bracket is the only mark that can print a fret nothing struck.
 TEST_CASE("Chart shape arrival brackets a silently-held member", "[core][chart]")
@@ -655,14 +1005,14 @@ TEST_CASE("Chart shape arrival brackets a silently-held member", "[core][chart]"
         noteAt(1, Fraction{}, 2, 7, Fraction{1}),
     };
 
-    // Without the marker this is one full strum of everything the posture holds: a chord box.
-    const ChartResolutions box = chartResolutions(chart.notes, chart.hold_markers, tempo_map);
+    // Without the hold this is one full strum of everything the posture holds: a chord box.
+    const ChartResolutions box = chartResolutions(chart.notes, tempo_map);
     REQUIRE(box.shapes.size() == 1);
     CHECK_FALSE(
         chartShapeArrivals(box.presented_notes, box.shapes, box.postures, tempo_map).front());
 
-    chart.hold_markers = {markerAt(1, Fraction{}, 3, 9)};
-    const ChartResolutions bracketed = chartResolutions(chart.notes, chart.hold_markers, tempo_map);
+    chart.notes = streamOf({chart.notes[0], chart.notes[1], holdAt(1, Fraction{}, 3, 9)});
+    const ChartResolutions bracketed = chartResolutions(chart.notes, tempo_map);
     REQUIRE(bracketed.shapes.size() == 1);
     CHECK(chartShapeArrivals(
               bracketed.presented_notes, bracketed.shapes, bracketed.postures, tempo_map)

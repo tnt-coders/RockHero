@@ -169,12 +169,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // The arpeggio hold verb's own window. Carries nothing: the verb acts on the caret's slot, and
     // the window's whole job is to say "the last press was this verb", so a second press reverses
-    // the entry exactly — which is the ONLY way a conversion can put the note it took back, since
-    // the marker it wrote stores no ring, attack or technique to rebuild one from.
-    struct ChartHoldMarkerToggle
+    // the entry exactly — which is the ONLY way a conversion can put back the ring and techniques
+    // it stripped, since a silent hold stores none of them to rebuild one from.
+    struct ChartSilentHoldToggle
     {
         friend constexpr bool operator==(
-            const ChartHoldMarkerToggle& lhs, const ChartHoldMarkerToggle& rhs) noexcept = default;
+            const ChartSilentHoldToggle& lhs, const ChartSilentHoldToggle& rhs) noexcept = default;
     };
 
     // The steps in press order, never their sum: a GRID step moves the ring's END to the adjacent
@@ -192,7 +192,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The verb one window belongs to, compared as a whole so "is this press the same verb" is one
     // equality rather than a per-verb unwrap each caller could spell differently.
     using ChartVerbWindowVerb =
-        std::variant<ChartTechniqueToggle, ChartHoldMarkerToggle, ChartSustainGesture>;
+        std::variant<ChartTechniqueToggle, ChartSilentHoldToggle, ChartSustainGesture>;
 
     void performActionImpl(const EditorAction::StepChartCaret& action);
     // Caret leap to a derived musical position (Home/End, PageUp/Down): resolves an absolute or
@@ -239,16 +239,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // One authority for what a pending entry would apply, run in full on every keystroke.
     [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> replanChartFretEntry(
         const ChartFretEntry& entry) const;
-    // The full note and hold-marker values behind a sorted key set, in chart order.
+    // The full note values behind a sorted key set, in chart order.
     [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
         const std::vector<ChartSlotKey>& keys) const;
-    [[nodiscard]] std::vector<common::core::ChartHoldMarker> chartHoldMarkersForKeys(
-        const std::vector<ChartSlotKey>& keys) const;
+    // THE scope of a typed chart verb, and the one place the empty-scope rule is written: the
+    // selected notes, or the armed caret's own slot when nothing is selected. Empty answers "this
+    // press has no operand", which every asker treats as a no-op rather than an error.
+    [[nodiscard]] std::vector<ChartSlotKey> chartVerbSlots() const;
     void performActionImpl(const EditorAction::ShiftChartFrets& action);
     void performActionImpl(const EditorAction::AdjustChartSustain& action);
     void performActionImpl(const EditorAction::ToggleChartTechnique& action);
     void performActionImpl(const EditorAction::SetChartLeftTap& action);
-    void performActionImpl(const EditorAction::ToggleChartHoldMarker& action);
+    void performActionImpl(const EditorAction::ToggleChartSilentHold& action);
     // Severs each selected waypoint's gesture (Shift+L, W10's 2026-08-26 addendum): the path ends
     // at the waypoint and a new head takes the remainder, in one compound undo entry. Inert with
     // no waypoint selected.
@@ -293,8 +295,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True when a chart note already occupies the given slot (one binary search over the
     // (position, string)-sorted notes). The insert-legality test shared by caret arming, the
     // Alt+click insert, and the insert ghost's honesty gate.
-    [[nodiscard]] std::optional<ChartSlotOccupant> chartSlotObject(
-        common::core::GridPosition position, int string) const;
+    [[nodiscard]] bool chartSlotOccupied(common::core::GridPosition position, int string) const;
     // Plants a note at an empty slot and makes it the selection with the caret armed on it — the
     // shared primitive behind the Alt+click neutral-create (fret 0) and any future placement. A
     // no-op when the slot is occupied (planInsertNote refuses).
@@ -880,15 +881,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         {
             ChartSlotKey slot{};
         };
-        // An entry begun over the selection: settling retypes the named notes and hold markers
-        // from their pre-entry values, so a widened value never compounds on its own earlier
-        // digit. Both authored arrays, because a bracket's stop is typed exactly like a head's.
+        // An entry begun over the selection: settling retypes the named notes from their
+        // pre-entry values, so a widened value never compounds on its own earlier digit.
+        // Silently-held stops are among them with no case of their own — a bracket's stop is
+        // typed exactly like a head's.
         struct Retype
         {
             std::vector<ChartSlotKey> keys{};
             std::vector<common::core::ChartNote> base_notes{};
-            std::vector<ChartSlotKey> marker_keys{};
-            std::vector<common::core::ChartHoldMarker> base_markers{};
         };
 
         int value{};

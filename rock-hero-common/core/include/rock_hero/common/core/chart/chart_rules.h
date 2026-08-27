@@ -132,8 +132,6 @@ enum class ChartErrorCode : std::uint8_t
     InvalidNotePayload,
     /*! \brief A fret-hand position entry is out of range or unsorted. */
     InvalidFretHandPosition,
-    /*! \brief A hold marker is out of range, out of order, or shares a slot with a note. */
-    InvalidHoldMarker,
     /*! \brief A pick-slide note carries other techniques or a non-traveling path. */
     InvalidPickSlide
 };
@@ -190,7 +188,9 @@ enum class ChartRepair : std::uint8_t
     /*! \brief A pick slide whose path no longer travels became a plain pick. */
     StilledScrape,
     /*! \brief A legato claim nothing justifies was recorded as the plain pick it plays as. */
-    UnjustifiedLegato
+    UnjustifiedLegato,
+    /*! \brief A silently-held stop reaching no shape was removed: it stated nothing anywhere. */
+    InertSilentHold
 };
 
 /*!
@@ -309,6 +309,10 @@ span-implied hold at the note's own ring, which normalization already holds insi
 `note` need not be a member of `notes` — only its position and string are read, so a candidate
 placement asks the same question.
 
+A STRUCK onset is what bounds a ring, so a silent hold (\ref NoteAttack::None) on the string is
+passed over: no finger placed without a stroke stops a string that is already sounding, and reading
+one as a bound would let authoring a held shape silently shorten every tail behind it.
+
 \param notes Note stream sorted by (position, string).
 \param note Note whose ring is bounded.
 \param tempo_map Tempo map supplying the signature-derived beat axis.
@@ -394,23 +398,6 @@ so applying this twice changes nothing the second time.
     ChartNote& note, const ChartTuning& tuning);
 
 /*!
-\brief Fits an authored hold marker's stop onto the playable board, in place.
-
-The marker's half of the fret rules, spelled as the note's own repairs so the two cannot drift: a
-stop past the last fret clamps onto the board, exactly as a note's fret does. What it deliberately
-does NOT repair is a stop the capo covers — no lift can know the pitch the author meant, so that
-stays a refusal, again exactly as for a note.
-
-A fret-absent marker has nothing to fit: its stop arrives from the note that supplies it, which
-these same rules have already bounded.
-
-\param marker Marker to normalize in place.
-
-\return The repairs that fired; empty when the marker was already normal.
-*/
-[[nodiscard]] std::vector<ChartRepair> normalizeChartHoldMarker(ChartHoldMarker& marker);
-
-/*!
 \brief Fits a fret-hand window onto the playable board, in place.
 
 The window's width shrinks to the frets above the capo when it is wider than that, its index
@@ -432,10 +419,12 @@ THE one normalizer: every path that brings a chart into memory — the package r
 Guitar Pro importer — calls this and nothing else, so the two cannot drift, and the validator
 that follows refuses only what no repair can express. It applies \ref normalizeChartNote to every
 note, bounds every ring at its own string's next onset with \ref normalizeSustainOverlaps (the
-one stream-level note rule, 40-Q2-B), applies \ref normalizeChartHoldMarker to every hold marker
-and \ref normalizeFretHandPosition to every hand position, then settles the relational claims with
-\ref sweepUnjustifiedLegato — last, because a truncated tail can be the hold a neighbour's claim
-depended on, and the claim must be judged against the stream as it will actually stand.
+one stream-level note rule, 40-Q2-B), applies \ref normalizeFretHandPosition to every hand
+position, then settles the two relational truths — \ref sweepUnjustifiedLegato, then
+\ref sweepInertSilentHolds — last, because a truncated tail can be the hold a neighbour's claim
+depended on, and both must be judged against the stream as it will actually stand. Their order is a
+dependency too: flattening a claim changes an articulation, and the shapes a held stop is judged
+against are keyed by articulation.
 
 A rule change therefore repairs-and-reports instead of bricking a saved project: the caller
 reports the conversions (the editor opens the session dirty and shows them once; the importer
@@ -507,34 +496,6 @@ here — the hold test that wanted them belongs to the resolver.
     const std::vector<ChartNote>& notes, const ChartTuning& tuning, const TempoMap& tempo_map);
 
 /*!
-\brief Validates the hold-marker array: each marker alone, its order, and its slot disjointness.
-
-The authored posture's whole rule set, and it is deliberately small. Two halves, like the notes':
-the refusals no repair can express — a string the tuning lacks, a position off the grid, a negative
-stop, a stop the capo covers (no lift can know the pitch the author meant), an array out of the
-chart's slot order or holding one slot twice, and a slot a NOTE already occupies — and then the
-fixpoint, that each marker already equals its own normal form (\ref normalizeChartHoldMarker).
-
-Disjointness is scoped to the SLOT and nothing wider. What the design calls disjointness is really a
-statement about a span — an authored fret is the residue for a string no note in the span sounds —
-but span extent is derived, so enforcing it here would give the validator a shape-derivation
-dependency and make a document's legality depend on a walk over its whole note stream. The slot rule
-is the part that is checkable without deriving anything, and what it refuses is the only case that
-could contradict a note outright: two statements about the same string at the same instant. A marker
-that ends up saying nothing — no span covers it, or nothing supplies its fret — is INERT rather than
-invalid, the same degrade an unjustified connection claim takes.
-
-\param markers Hold markers to validate, sorted by (position, string).
-\param notes The chart's note stream, sorted by (position, string); read for the slot rule.
-\param tuning Tuning the chart plays under; supplies the capo and the string count.
-\param tempo_map Song tempo map the marker positions must lie on.
-\return Empty success, or the first violated rule.
-*/
-[[nodiscard]] std::expected<void, ChartError> validateChartHoldMarkers(
-    const std::vector<ChartHoldMarker>& markers, const std::vector<ChartNote>& notes,
-    const ChartTuning& tuning, const TempoMap& tempo_map);
-
-/*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
 The single gate every chart passes, whether it came from a package, an import, or an edit. It runs
@@ -545,20 +506,21 @@ zero was still the encoding for a note with no tail.
 
 Broadly, the structural half: a usable tuning and the cent-offset bound; notes sorted by
 (position, string) with no duplicate onsets, on valid grid positions; strings in range;
-non-negative frets and strictly positive sustains;
+non-negative frets, and sustains positive on every attack that sounds and exactly zero on the one
+that does not (\ref NoteAttack::None);
 waypoint offsets ascending strictly inside the sustain, each stating at least one channel and no
 negative fret or bend, with no stated fret on a later onset of its own string; sorted fret-hand
 positions of positive width; harmonic-node range, beyond-the-stop, and neck-ceiling bounds;
-pinch-requires-a-node; on pick-slide notes, no pitched techniques (a saved scrape carries none — the
-writer omits the in-memory overrides) and the required unpitched slide-out terminal; and the hold
-markers through \ref validateChartHoldMarkers. Then the fixpoint half, stated
-once each as a repair of the normalizer: every note, hold marker and hand position must already
-equal its own normal form (\ref normalizeChartNote, \ref normalizeChartHoldMarker,
+pinch-requires-a-node; and, on the two attacks that cannot carry every technique, that the note
+already equals its own \ref savedChartNote form — a pick slide because its pitched fields are
+in-memory latents the writer omits, a silent hold because it states its stop and nothing else.
+Then the fixpoint half, stated once each as a repair of the normalizer: every note and hand
+position must already equal its own normal form (\ref normalizeChartNote,
 \ref normalizeFretHandPosition).
 
 Hand-posture spans and their postures are absent by construction, not by omission: they are
-derived from the notes and the hold markers (\ref deriveChartShapes), so there is no authored span
-that could be invalid and nothing for a rule to refuse.
+derived from the notes (\ref deriveChartShapes), so there is no authored span that could be invalid
+and nothing for a rule to refuse.
 
 \param chart Chart to validate.
 \param tempo_map Song tempo map the chart's positions must lie on.

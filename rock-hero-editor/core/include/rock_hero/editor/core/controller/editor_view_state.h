@@ -453,19 +453,21 @@ struct ChartSlotViewState
 };
 
 /*!
-\brief Where a retype entry's boxes draw: every selected object the typed value would write.
+\brief Where a retype entry's boxes draw: every selected note the typed value would write.
 
-Two arrays rather than one, because a fret verb's scope is both authored arrays and the two are
-addressed by index into their own projection lists — a head by its note index, a bracket by its
-hold-marker index. Either may be empty; both empty is not a retype entry at all.
+A named alternative rather than a bare index list, because this is one arm of the pending entry's
+sum and the other names a SLOT. Never empty: an entry with no target is not a retype entry at all.
 */
 struct ChartPendingFretTargets
 {
-    /*! \brief Ascending indices into the tab projection's note order. */
-    std::vector<std::size_t> notes{};
+    /*!
+    \brief Ascending indices into the tab projection's note order.
 
-    /*! \brief Ascending indices into the tab projection's hold-marker order. */
-    std::vector<std::size_t> hold_markers{};
+    Silently-held stops are among them with no case of their own — a typed digit states a stop, and
+    a hold's stop is a fret like any other — so the surface draws the pending box on whichever face
+    the note has: its head, or its posture bracket.
+    */
+    std::vector<std::size_t> notes{};
 
     /*!
     \brief Compares two target sets by their stored values.
@@ -483,7 +485,7 @@ struct ChartPendingFretTargets
 While a typed value is provisional the lane draws an entry box over each affected head — the
 plate the mute heads already draw, with the editor accent as a border so pending reads as an
 editor state — carrying the typed text: the ordinary digit ink while the value would apply, red
-when it cannot. A selected hold marker gets the same box on its posture bracket, which is where
+when it cannot. A selected silent hold gets the same box on its posture bracket, which is where
 its stop prints once the entry settles. Red marks EVERY affected object, deliberately without
 per-object attribution: relational refusals are properties of the whole selection, so a per-note
 red would claim a precision the refusal does not have. For an entry that began on an empty caret
@@ -569,15 +571,6 @@ struct ChartEditViewState
     same resolve-or-drop rule the note indices follow.
     */
     std::vector<ChartWaypointRef> selected_waypoints{};
-
-    /*!
-    \brief Ascending indices of selected hold markers in the tab projection's marker order.
-
-    The selection unit spans both authored arrays, so it publishes as two index lists over the two
-    projected ones rather than one list a consumer would have to split by kind
-    (\ref common::core::ChartViewState::hold_markers).
-    */
-    std::vector<std::size_t> selected_hold_markers{};
 
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};

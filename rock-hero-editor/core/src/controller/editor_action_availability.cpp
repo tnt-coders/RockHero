@@ -50,7 +50,7 @@ namespace
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
-        case EditorAction::Id::ToggleChartHoldMarker:
+        case EditorAction::Id::ToggleChartSilentHold:
         case EditorAction::Id::DisconnectChartWaypoint:
         {
             return true;
@@ -151,7 +151,7 @@ namespace
             case EditorAction::Id::AdjustChartSustain:
             case EditorAction::Id::ToggleChartTechnique:
             case EditorAction::Id::SetChartLeftTap:
-            case EditorAction::Id::ToggleChartHoldMarker:
+            case EditorAction::Id::ToggleChartSilentHold:
             case EditorAction::Id::DisconnectChartWaypoint:
             {
                 return false;
@@ -309,12 +309,13 @@ namespace
         {
             return conditions.has_chart && conditions.has_chart_selection;
         }
-        // The arpeggio hold verb is CARET-anchored, not selection-scoped: what it acts on is
-        // whatever the armed slot holds, so an armed caret is its whole precondition and a
-        // multi-object selection neither widens nor enables it.
-        case EditorAction::Id::ToggleChartHoldMarker:
+        // The arpeggio hold verb takes the typing family's wider scope: the selection, or the armed
+        // caret's own slot when nothing is selected. The caret half is not decoration — it is the
+        // only way to reach a slot that holds nothing, which is exactly where a hold is authored
+        // from scratch.
+        case EditorAction::Id::ToggleChartSilentHold:
         {
-            return conditions.has_chart && conditions.has_armed_caret;
+            return conditions.has_chart && conditions.has_chart_verb_scope;
         }
     }
 
@@ -384,7 +385,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::AdjustChartSustain:
         case EditorAction::Id::ToggleChartTechnique:
         case EditorAction::Id::SetChartLeftTap:
-        case EditorAction::Id::ToggleChartHoldMarker:
+        case EditorAction::Id::ToggleChartSilentHold:
         case EditorAction::Id::DisconnectChartWaypoint:
         {
             return false;

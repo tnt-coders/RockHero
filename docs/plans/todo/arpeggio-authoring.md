@@ -1,12 +1,134 @@
 # Arpeggio Authoring — The Held Shape a Note Stream Cannot State
 
-Status: **STORAGE DECIDED — option F, the fret-optional hold marker — BUILT 2026-08-26, and
-CORRECTED at its first sighting 2026-08-27.** The one fork this document was written around was
-ruled 2026-08-25 (β stays in scope), so what remains below is not a menu: it is the record of why
-F, plus the pre-work list the build then answered. This was never itself a build plan; it is now
-the design record BEHIND a shipped feature, and the survey sections stay in their original tense
-deliberately — they record why the decision went the way it did, not what the code looks like
-today.
+Status: **STORAGE RE-DECIDED 2026-08-27 — option X, the silent member INSIDE the note stream.**
+Option F (the fret-optional hold marker) shipped 2026-08-26, was corrected at its first sighting
+the next morning, and was then replaced the same day by the user's own model: a silently-held
+member is a NOTE with `attack: none`. Everything below option F's line stays in its original tense
+deliberately — it records why each decision went the way it did, not what the code looks like
+today — and the section immediately following is the one that supersedes the storage half of it.
+
+## The substrate swap, 2026-08-27 — X, which this record killed on sight, is the answer
+
+The record's own survey named the shape first and killed it fastest:
+
+> ### X — A silent member inside the `notes` array (killed on sight)
+> **Killed.** It pollutes *every* consumer that iterates notes … It also breaks the note invariant
+> outright: `chart.h:427` — "Every note rings for some length, so zero is not an encoding."
+
+Both objections were real and both were answerable, which the survey did not test:
+
+- **The invariant.** "Every note rings" was never a statement about NOTES; it was a statement about
+  STROKES, and the model had only stroke-notes to say it of. It is now attack-conditional in the
+  same shape the pick slide's latent overrides already used: strictly positive on every attack that
+  sounds, exactly zero on the one that does not, refused in both directions. That is a rule the
+  reader, the writer and the validator each state once.
+- **The pollution.** It is real and it is the price. Every reader that means "what SOUNDS" asks one
+  named predicate (`silentHold`), and the sites are listed in the deletion inventory below. What
+  the swap BUYS in return is larger than what it costs: one slot space instead of two (disjointness
+  becomes slot uniqueness, which the stream owed anyway), one selection kind instead of two, one
+  edit plan instead of a widened one, one array in every range verb, and the fret-absent form gone
+  entirely — a note always carries a fret, so the α/β split that shaped the whole survey dissolves.
+
+**The span law, ruled with it.** Membership is unchanged (two or more members at a slot, a hold
+counts, a hold is never a strike). What is new is that a span whose members are ALL holds must be
+JUSTIFIED by the content it fronts — a fretting-hand onset arriving at a claim's own stop, or a
+picking-hand onset on one of its posture strings, taps at the very same instant included — because
+such a span is authored in FRONT of that content by design. Until something arrives it waits,
+unended, with its posture stated at an instant; from the arrival its extent is the content's. One
+that closes with nothing having arrived DISSOLVES, which is the same nothing a lone member states.
+The maintained spec is rule 12b in `docs/developer/the-project-lifecycle.md`.
+
+**Known unrepresentable, flagged rather than solved** (user, 2026-08-27): a held fret on the very
+string being tapped at the very same instant. Two facts, one slot — the hold and the tap would have
+to share a `(position, string)` — so the charter states the hold one quantum early instead. That is
+a choice the notation can express; it is recorded here so nobody re-derives it as a bug.
+
+## The span law and the settle, 2026-08-27 — what a held stop must EARN
+
+The swap above put the record inside the note stream. This section is the law that decides what such
+a record is worth, ruled the same day, and it is what turns "a hold is saved" into "a hold states
+something". The maintained spec for all of it is rule 12b in
+`docs/developer/the-project-lifecycle.md`; what is here is why.
+
+**Zero-sound spans are allowed, and must be justified.** Two held stops at one slot open a span at
+their OWN timepoint — the user's framing is that these are *"usually authored in front of content
+that already exists to show the hand position to hold"*, so the record has to be able to precede its
+content. What keeps that from printing a posture over silence is the second half of the same
+sentence: *"They would just require a matching note to follow otherwise the span would dissolve."*
+Two things count as that matching content — a fretting-hand onset arriving on a claimed string at
+that claim's own stop (the standing fret-match law, not a new one), or right-hand onsets on the
+shape's posture strings, taps included at exactly the same timepoint. Same-instant authoring had to
+work: requiring the hold to be planted a quantum early would be a convention no notation asks for,
+and the charter would have to learn it for no reason.
+
+**One corner the ruling and the format meet in, and it wants the user's word.** The derivation asks
+for no plant offset, as ruled. Slot uniqueness asks for one anyway in exactly the justifying case: a
+tap on a CLAIMED string at that claim's own instant would be two notes on one `(position, string)`,
+which is the unrepresentable case flagged above. So the tap that justifies a hand-stated shape is
+always at least a quantum after the stop it articulates, and the same-instant tap a charter can
+actually write lands on a string the shape does not hold — where it justifies nothing, by the same
+rule's own discrimination. The build states the general law (no offset is required of anything the
+format can express) and the corner is recorded rather than papered over; the first build's test for
+this case asserted on a stream carrying that very collision, which the validator refuses, and it now
+taps an eighth later.
+
+**Growth splits, for the authored member too.** A stop taken inside a SOUNDING shape on a string
+that shape does not state is the hand in a different shape from that instant, so the span splits —
+which is the same answer rule 11 already gives a strum that grows by a string, and it is the
+2026-08-25 growth ruling read consistently rather than a new one. This overturns the join clause the
+first build shipped ("holds landing under a shape still ringing join it rather than splitting it"),
+and the overturn is the honest reading of *derivation splits; authoring joins*: what the authored
+hold buys is control over WHERE the statement sits, not immunity from what a shape change means. A
+charter who wants the stop stated from the shape's start authors it at the start — the case this
+whole record exists for. Two exceptions, each for its own reason: a shape the hand alone stated is
+ONE statement with no sound to date it by, so later fingers join it; and a stop on a string the shape
+already states takes no new stop at all. The split's new span inherits the old one's articulation,
+claims and remaining extent, so the two cover the ring end to end and a later identical strum
+re-merges by ordinary span identity.
+
+**A hold that states nothing is REMOVED.** This is the ruling that retires the invisible-inert edge
+the first sighting flagged, and it removes it by construction rather than by adding a mark: a hold
+that reaches no shape — joining no span, landing past its span's end, or restating a stop the shape
+already states — changes no posture, draws nowhere and can be selected nowhere, so keeping it saves
+a note the charter can neither see nor find. `sweepInertSilentHolds` is the legato settle's sibling
+(stateless, judging only the stream it is handed) and runs where the invariant has to hold: the
+normalizer's last stage on every load, and the editor's plan gate on every edit. It iterates to a
+fixpoint, because one removal can take a span's second member and strand the holds that had joined
+it.
+
+Two consequences the verb wears:
+
+- **The cascade rides the entry that caused it.** An edit that strands a hold takes it in the SAME
+  undo entry, so one Ctrl+Z restores the pair. The alternative — a second entry — would make undo
+  walk back through a deletion the user never asked for.
+- **`N` refuses a press that would state nothing**, whole-plan and never per slot: a chord's members
+  are legal together and illegal one at a time, so nothing here could be decided note by note. The
+  press is silent, exactly as a technique toggle that applies to nothing is; the counted feedback
+  both want is W5's channel.
+
+**And that refusal IS option (a), which §3 below argued was self-defeating — OPEN, and it wants the
+user's word.** The objection stands, and it is now a live limitation rather than a hypothetical.
+Whole-plan refusal covers the route this ruling is really for: converting a chord that already
+sounds, where the selection carries every slot into one plan and the stops are legal together. It
+does nothing for two EMPTY slots, because no scope can hold two of those at once — `chartVerbSlots`
+answers with the selected NOTES, or with the caret's single slot — so the first of the two holds
+that would form a zero-sound span is still exactly the press that refuses. **A zero-sound span the
+law allows therefore cannot be authored from scratch; the only route to one is converting sounding
+notes.** Three ways out, none of them taken here because each is a design choice: accept the
+limitation and say so in the keymap; let `N` author onto every string a multi-string caret gesture
+names, so the pair arrives in one plan; or exempt this press's own product from the settle for the
+length of its own entry. The third was deliberately NOT taken: the sweep is UNIFORM over the stream
+on purpose, since scoping it to "what this press wrote" would make the invariant depend on
+provenance the chart does not store and would leave a loaded chart's holds unswept.
+
+**The verb's scope, corrected with it.** `N` is selection-scoped like every other chart verb, with
+the typing family's caret fallback behind it (`chartVerbSlots`, where the empty-scope rule is now
+written once). The caret anchor had been reasoned from the right premise — a hand fact is stated at
+the position it holds, never reached from a later note — but it enforced that premise with the wrong
+mechanism, and the cost was the verb's commonest use: converting a whole chord, which is exactly the
+gesture the span law's zero-sound case is for. The fallback keeps the premise (an empty slot is
+reachable only through the caret, and that is where the record lands) and drops the exception.
+
 
 ## The first sighting, 2026-08-27 — three rulings, and one of them rewrites rule 10
 
@@ -120,6 +242,12 @@ interim, and it is stated loudly here and in `docs/tracking/watch-items.md`**, w
 charter reporting a marker that appears to do nothing. The likeliest remedy is a mark shown only
 while the caret sits on the slot, which cannot be mistaken for notation.
 
+**Superseded the same day, and the objection above outlived it.** The span law ruled a FOURTH way —
+a hold that states nothing is removed, so there is no inert record to see or lose — which retired
+the watch item. But the refusal that ruling needs at the verb is option (a) after all, and (a)'s
+objection is unchanged by the reversal: it is now a live limitation rather than a hypothetical, and
+it is stated under "And that refusal IS option (a)" in the span-law section above.
+
 ### 4. A selected bracket takes a typed fret
 
 > "If you select a note that is just a bracket (no onset) you should be able to set the fret number
@@ -185,9 +313,10 @@ watches one span become two while every note's fret stays put.
 4. ~~**A typed digit with only markers selected does nothing.**~~ **CLOSED 2026-08-27** — it now
    states the bracket's stop, with the pending box drawn on the bracket like any head's.
 
-One law moved to make room, and it is recorded where it lives rather than only here: the
-uniform-scope law (`docs/plans/in-progress/editing-interaction-model.md`) gained its first
-exception, because `N` is caret-anchored and every other chart verb is selection-scoped.
+~~One law moved to make room~~ — and it moved back the same week. The uniform-scope law
+(`docs/plans/in-progress/editing-interaction-model.md`) briefly gained its first exception for `N`;
+the exception is **retired 2026-08-27** (see "The span law and the settle" below), because what the
+verb actually needed was the typing family's ordinary caret FALLBACK, not a scope of its own.
 
 Written 2026-08-24 against `master` and reworked the same day against an adversarial review that
 re-verified every code citation and re-ran the corpus scan independently. The review's verdict on

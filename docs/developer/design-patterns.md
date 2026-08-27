@@ -183,15 +183,13 @@ out — not to commit an entry that describes nothing.
 
 Exemplar: `ChartEditPlan` with the nine planners — `planInsertNote` / `planDeleteSelection` /
 `planMoveSelection` / `planRetypeFrets` / `planAdjustSustain` / `planSetLegato` / `planSetAttack` /
-`planSettleLegato` / `planToggleHoldMarker` —
+`planSettleLegato` / `planToggleSilentHold` —
 applied by `applyChartChange` and replayed by
-`ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan spans BOTH authored arrays (the notes
-and the hold markers) rather than one per array, because a single gesture can cross them — the
-arpeggio hold verb takes a note out of the stream and puts a silently-held stop in its place, and
-`planRetypeFrets` writes a typed fret onto whichever array the selection names — and
-one user gesture is one undo entry. A composite of two edits would need an order between its halves,
-which is a rule two sides must agree on by hand; a widened plan has none, and `ChartEditPlan`'s own
-`reversed()` is the single statement of what "backwards" means for every array at once.
+`ChartEdit` (`editor/core/src/chart/chart_edits.h`). The plan is one change to the ONE authored
+per-string array, the note stream, and one user gesture is one undo entry. A silently-held shape
+member is a note whose attack is `None`, so the arpeggio hold verb — which used to move a record
+between two arrays and therefore needed a plan spanning both — is an ordinary in-place rewrite of
+one note, and `ChartEditPlan::reversed()` is the single statement of what "backwards" means.
 
 One of the nine returns more than a plan:
 `planSetLegato` answers `ChartLegatoPlan{plan, skipped, reason}`, because the notes it turned down

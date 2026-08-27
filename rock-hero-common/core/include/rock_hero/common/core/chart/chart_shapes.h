@@ -24,7 +24,7 @@ not a statement about the tuning — so a chart with fewer strings simply leaves
 empty, and two postures always compare by their held frets alone.
 
 Derived, never authored — the frets an onset's struck members hold, plus whatever was still ringing
-across it, plus the stops a \ref ChartHoldMarker says the hand takes silently
+across it, plus the stops a \ref NoteAttack::None note says the hand takes silently
 (\ref deriveChartShapes). A fret carries no provenance here on purpose: the posture is what the hand
 holds, and where a given stop came from is the SPAN's question (\ref ChartShape::silent_member), so
 two spans holding identical frets stay one deduplicated posture however each was learned. Chord
@@ -61,11 +61,13 @@ struct ChartShape
     /*!
     \brief Span duration in beats; zero where every member is silent.
 
-    A span runs as far as its members ring, and a hold marker rings for nothing — so a span whose
-    members are ALL markers has no sounding evidence of duration at all and states its posture at
-    an instant. That is not a degenerate case to guard against but the honest answer: the bracket
-    draws at the span start whatever the length, and the rails a positive span draws simply have
-    nothing to cover. Every span with a sounding member is strictly positive, as before.
+    A span runs as far as its members ring, and a silently-held stop rings for nothing — so a span
+    whose members are ALL held fingers states its posture at an instant until sound attaches to it,
+    and then runs through the content it fronts: the taps articulating the shape, or the ring of
+    the note that matched one of its claims. Zero length is not a degenerate case to guard against
+    but the honest answer while nothing has arrived — the bracket draws at the span start whatever
+    the length, and the rails a positive span draws simply have nothing to cover. Every span with a
+    sounding member is strictly positive, as before.
     */
     Fraction sustain{};
 
@@ -73,18 +75,18 @@ struct ChartShape
     std::size_t posture{0};
 
     /*!
-    \brief True when a posture member of this span came from a hold marker rather than from sound.
+    \brief True when a posture member of this span came from a silent hold rather than from sound.
 
-    The one fact the arrival rule (\ref chartShapeArrivals) cannot re-derive from the notes, and the
-    reason it is carried here instead of asked again: this walk is what resolved the markers, so
+    The one fact the arrival rule (\ref chartShapeArrivals) cannot re-derive from what SOUNDS, and
+    the reason it is carried here instead of asked again: this walk is what resolved the holds, so
     stating the answer on the span it resolved them into is one authority publishing its result,
-    where a second scan of the marker array beside the arrival would be the same rule written twice
-    and free to disagree.
+    where a second scan beside the arrival would be the same rule written twice and free to
+    disagree.
 
-    The per-span summary of \ref ChartShapes::marker_shapes, which names the resolution marker by
-    marker. Both are written in the same loop of the same pass, so they cannot disagree; this one
-    exists because the arrival rule asks the question once per SPAN and scanning the marker array
-    for each span would make one classification quadratic in the markers.
+    The per-span summary of \ref ChartShapes::silent_hold_shapes, which names the resolution note by
+    note. Both are written in the same loop of the same pass, so they cannot disagree; this one
+    exists because the arrival rule asks the question once per SPAN and re-scanning the note stream
+    for each span would make one classification quadratic.
 
     It is what flips the span to an arpeggio. The bracket is the only mark that states a posture
     fret at all — a chord box draws the notes' own heads — so a span carrying a silently-held member
@@ -111,16 +113,16 @@ struct ChartShapes
     std::vector<ChartPosture> postures;
 
     /*!
-    \brief Per input hold marker, the span its stop joined; absent where the marker stayed inert.
+    \brief Per input note, the span a silently-held stop joined; absent for every other note.
 
-    Same order and size as the `hold_markers` argument, so a caller indexes it by the marker it
-    already holds. This is where a marker BECOMES visible: the posture bracket that prints its stop
-    draws at that span's start, so the editor reads this to place the marker's own mark and to hit
-    test it, and an absent entry means the marker resolved to nothing and therefore draws nowhere —
-    which is exactly the property "nothing undrawn is clickable" needs, published by the pass that
-    knows rather than re-derived by the surface.
+    Same order and size as the note streams, so a caller indexes it by the note it already holds.
+    This is where a silent hold BECOMES visible: it draws no head of its own, so the posture
+    bracket printing its stop at that span's start is its whole face, and the editor reads this to
+    place that face and to hit test it. An absent entry means the hold resolved to nothing and
+    therefore draws nowhere — exactly the property "nothing undrawn is clickable" needs, published
+    by the pass that knows rather than re-derived by the surface.
     */
-    std::vector<std::optional<std::size_t>> marker_shapes;
+    std::vector<std::optional<std::size_t>> silent_hold_shapes;
 };
 
 /*!
@@ -132,9 +134,9 @@ inside \ref chartResolutions and read from there by everything that draws a chor
 bracket, or a span-implied hold.
 
 A span opens at a slot holding two or more MEMBERS, where a member is a sounding fretting-hand
-onset there or a \ref ChartHoldMarker there — one sound plus one held finger opens a span, two held
-fingers with nothing sounding open one, and a LONE member of either kind opens nothing (user ruling
-2026-08-27, correcting the sound-only threshold this shipped with). The posture is deduplicated by
+onset there or a \ref NoteAttack::None hold there — one sound plus one held finger opens a span,
+two held fingers with nothing sounding open one, and a LONE member of either kind opens nothing
+(user ruling 2026-08-27). The posture is deduplicated by
 its fret vector, and consecutive onsets holding the same articulation merge into one span covering
 the strums' own rings — the grouping the tab renders as a chord box over repeated strums. Tap-only
 onsets are transparent to the whole derivation: taps are the tapping hand, so they neither form
@@ -159,27 +161,52 @@ already in the stream, so this is derived rather than authored: it is the one-no
 chord over a held shape. It cannot OPEN a span, only extend one, which is also what widens the
 span's right-hand scan and can turn a following box into an arpeggio.
 
-A \ref ChartHoldMarker lying inside a derived span joins that span's posture on its string — the
-one thing here that is authored rather than read off the sound, because no function of a note
-stream can distinguish a held finger from an absent one. Its fret is its own where it carries one,
-and otherwise comes from the first note that sounds on that string later in the same span; a marker
-that resolves to no fret at all, or that lies past the span's own end, contributes nothing and is
-inert. A marker is still not a STRIKE — it never closes a span and never ends a held posture — but
-it is a MEMBER, so two of them at one slot open a span where no shape is still RINGING, and one
-beside a single sounding note does too. Under a shape that is still ringing the markers join it
-rather than restating it, which is what keeps a finger added mid-shape from splitting the shape it
-joins; past that shape's ring they state the next one, because a span outlives its sound only so a
-later identical strum can rejoin it (rule 11) and that is a merging rule, not a claim that the hand
-is still down. Because a marker's fret may only be known once the span is complete, the posture is
-keyed at the span's CLOSE rather than at each onset — which is also why one span keys one posture
-instead of every strum re-keying the same one.
+A \ref NoteAttack::None hold lying inside a derived span joins that span's posture on its string —
+the one thing here that is authored rather than read off the sound, because no function of a note
+stream can distinguish a held finger from an absent one. One past the span's own end contributes
+nothing and is inert, as is one on a string the shape already states. A hold is still not a
+STRIKE — it never closes a span and never ends a held posture — but it is a MEMBER, so two at one
+slot open a span where no shape is still STANDING, and one beside a single sounding note does too.
+The posture is keyed at the span's CLOSE rather than at each onset, because a claim is judged
+against the span's own extent — which is also why one span keys one posture instead of every strum
+re-keying the same one.
 
-A span every one of whose members is a marker has nothing sounding to give it length, so it runs
-from its start to its start: its posture is stated at an instant, which is exactly where the
-bracket that prints it draws. Its claims still resolve — a claim at the span's own start is inside
-it whatever the length — so two fret-carrying markers state a posture nothing sounds, while two
-fret-less ones have no later in-span note to take a fret from and stay inert, the same degrade as
-every other unresolvable claim.
+GROWTH is where the hold lands (user ruling 2026-08-27, which overturned the earlier join clause).
+A stop taken on a string a standing SOUNDING shape does not state puts the hand in a different
+shape from that instant, and the derivation answers that exactly as it answers a strum growing by a
+string: the span splits. The new one inherits the shape it grew out of — its articulation and the
+stops already claimed in it — and takes the extent the old one had left, so the two cover that ring
+with no gap and no overlap, and a later strum whose articulation equalizes with the grown one
+merges into it under the ordinary rule. What the authored hold decides is therefore WHERE the
+statement sits: written at the shape's own onset it states the shape whole from its start, which is
+the case the record exists for; written later it says the finger came down later, because that is
+what it says. A shape the HAND alone stated is exempt — it has no sound to date it by, so it is one
+statement and later fingers join it — and so is a stop on a string the shape already states, which
+takes no new stop and adds nothing.
+
+A stop that reaches a span more than once — carried across a growth split — is a member of each,
+but its FACE is published for the FIRST: it was authored at one slot, and that is where the bracket
+printing it belongs. A stop that reaches none states nothing anywhere, and
+\ref sweepInertSilentHolds is what keeps such a record from being saved.
+
+A span every one of whose members is a hold must be JUSTIFIED by the content it fronts, and it is
+authored in front of that content by design (user ruling 2026-08-27). Two things justify it: a
+fretting-hand onset arriving on one of its claimed strings AT that claim's stop — the same
+fret-match test the lone re-pick above uses — or a picking-hand onset sounding on one of its
+posture strings, which is the held-shape-under-tapping figure with the holding stated rather than
+inferred. Taps at the span's very own instant count; requiring the hold to be planted a quantum
+early would be a convention no notation asks for.
+
+Until one of those arrives such a span has no ring to measure, so it stays open however long it
+waits and states its posture at an instant; from the first arrival its extent is the content's —
+the taps' rings, then the ordinary member-ring rule once a matching note lands. That tap coverage
+must stay CONTIGUOUS: an onset landing exactly on the frontier continues it (the same-string bound
+clamps a run of taps to exact adjacency), but one past the frontier is the next passage rather than
+this shape continuing, and attaching it would resurrect the shape across the whole gap. A
+silent-only span that closes with NOTHING having arrived dissolves: it is evidence of nothing, and
+it states nothing anywhere, exactly as a lone member does. Its notes are then removed by
+\ref sweepInertSilentHolds rather than saved stating nothing — this derivation only declines to
+emit the span; the settle is what takes the records.
 
 Articulation is read from the PRESENTED notes and span extent from the stored rings, which is the
 split the box states: what the chord LOOKS like is what the surfaces draw (a tail the presentation
@@ -192,15 +219,13 @@ The maintained plain-English spec is "Posture and shape derivation" in
 \param saved_notes Note stream in SAVED form, sorted by (position, string); read for its rings.
 \param presented_notes The same notes through \ref presentedChartNotes, in the same order and of
                        the same size; read for the articulation two strums are compared by.
-\param hold_markers Silently-held shape members, sorted by (position, string)
-                    (\ref Chart::hold_markers).
 \param tempo_map Tempo map supplying the exact beat axis and the meter at each closing onset.
 
-\return The derived spans, the posture table they index, and each marker's resolution.
+\return The derived spans, the posture table they index, and each silent hold's resolution.
 */
 [[nodiscard]] ChartShapes deriveChartShapes(
     const std::vector<ChartNote>& saved_notes, const std::vector<ChartNote>& presented_notes,
-    const std::vector<ChartHoldMarker>& hold_markers, const TempoMap& tempo_map);
+    const TempoMap& tempo_map);
 
 /*!
 \brief Classifies every shape span as an arpeggio or a strummed chord box.
@@ -220,7 +245,7 @@ of one strummed box.
 
 A posture string that is merely SILENT at the start — a partial strum of the shape — still does not
 make an arpeggio, and that clause is no longer a compromise: "merely silent" and "known held" used
-to be indistinguishable, which is the whole reason the rule had to pick one; a hold marker is what
+to be indistinguishable, which is the whole reason the rule had to pick one; a silent hold is what
 tells them apart, and it says so on the span rather than being guessed at here.
 
 Asked of the PRESENTED stream (\ref presentedChartNotes), like every other fact a surface draws:

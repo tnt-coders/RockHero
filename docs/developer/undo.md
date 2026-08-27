@@ -31,12 +31,11 @@ Every undoable domain contributes an `*_edits.h` family of small memento structs
 insert/delete/move/retype/sustain/legato/attack/arpeggio-hold, all eight authoring planners
 funnelled through the same finalize step, plus the settle sweep's `planSettleLegato`, which
 deliberately bypasses that funnel because flattening a claim to a plain pick can violate no rule;
-see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` spans BOTH authored arrays,
-the notes and the hold markers, because the arpeggio hold verb's conversion takes a note out of
-one and puts a marker into the other in a single gesture, and the fret verbs write a typed or
-shifted stop onto whichever array the selection names; a composite of two edits would need an
-order between its halves, and `applyChartChange` rebuilds both arrays on copies before swapping
-either in, so a failed precondition anywhere leaves the chart entirely untouched),
+see the plan/apply split in \ref guide_patterns. One `ChartEditPlan` is one change to the note
+stream, which is the only per-string authored array there is — a silently-held shape member is a
+note with no attack, so the arpeggio hold verb's conversion rewrites one note in place rather than
+moving a record between arrays; `applyChartChange` rebuilds the stream on a copy before swapping it
+in, so a failed precondition part way through leaves the chart entirely untouched),
 `tone_region_edits.h` (create/delete/resize/rename/boundary-move/reset),
 `tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
 (document replace, tone import). Capture rules that keep fidelity:
@@ -63,6 +62,11 @@ either in, so a failed precondition anywhere leaves the chart entirely untouched
   the technique toggle's reversal becomes its own inverse entry (the tail still comes back, the
   session stays correctly dirty), a duration step opens a new gesture from the saved rings, and the
   legato settle sweep pushes its flatten rather than folding it.
+- The **inert-hold settle** needs none of that machinery, and the contrast is worth naming: it runs
+  INSIDE the plan gate (`finalizePlan`), so the holds an edit strands are part of that edit's own
+  plan and one Ctrl+Z restores them with it. It can, because unlike a legato claim it never arrives
+  on its own — a hold states nothing only because some edit made it so, and the edit is right there
+  to carry it.
 - The **legato settle sweep** is the one edit that arrives with no user gesture of its own, so its
   commit shape is decided by where the cursor sits (`settleChartLegato`, `chart_handlers.cpp`):
   on top of history it FOLDS into the burst's own chart-notes entry via `replaceTop`, so one Ctrl+Z

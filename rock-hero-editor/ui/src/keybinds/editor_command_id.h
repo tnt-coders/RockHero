@@ -215,7 +215,7 @@ enum class EditorCommandId : std::uint16_t
     ChartVibratoToggle = 0x1711,
 
     /*! \brief Author, convert or remove a silently-held shape member at the caret (`N`). */
-    ChartHoldMarkerToggle = 0x1712,
+    ChartSilentHoldToggle = 0x1712,
 
     /*! \brief Sever a gesture at each selected waypoint (`Shift+L`). */
     ChartWaypointDisconnect = 0x1713,

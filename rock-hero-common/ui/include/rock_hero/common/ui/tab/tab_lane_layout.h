@@ -50,9 +50,9 @@ every count.
 /*!
 \brief Size of one arpeggio posture bracket pair — the "[ fret ]" mark around a span-start head.
 
-The bracket is the only mark that states a fret nothing struck, which makes it the mark an authored
-hold marker wears; the editor therefore both draws it and hit-tests it, and these are the numbers
-both of those read (\ref TabLaneGeometry::bracketGeometry).
+The bracket is the only mark that states a fret nothing struck, which makes it the mark an
+authored silently-held stop wears; the editor therefore both draws it and hit-tests it, and these
+are the numbers both of those read (\ref TabLaneGeometry::bracketGeometry).
 */
 struct TabBracketGeometry
 {
@@ -127,7 +127,7 @@ struct TabLaneGeometry
 
     The bracket hugs a note head's ring, so every value derives from \ref headSize and the bracket
     tracks the heads at each lane size. It lives on the geometry rather than in the painter because
-    the bracket is now a HIT TARGET as well as a mark — selecting a hold marker means clicking the
+    the bracket is now a HIT TARGET as well as a mark — selecting a held stop means clicking the
     bracket that states its stop — and a second copy of these numbers in the layout manifest would
     be the drift the manifest exists to prevent.
 

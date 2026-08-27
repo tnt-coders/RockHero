@@ -118,7 +118,37 @@ enum class NoteAttack : std::uint8_t
     writer. Emphasis is never overridden — a scrape has its own dynamics, played aggressively
     or lightly.
     */
-    PickSlide
+    PickSlide,
+    /*!
+    \brief No onset at all: the fretting hand takes this stop SILENTLY.
+
+    The one fact about the fretting hand a stream of strokes structurally cannot carry, and it is
+    an attack because that is what it changes — the note is still a stop on a string at an instant,
+    and only the stroke is missing. A finger resting on a fret makes no sound, produces no onset
+    and extends no ring, so a hand holding a six-string shape and picking four of it streams
+    identically to a hand holding four and moving to the fifth later; both are real playing, so the
+    derivation notates the literal notes and this attack is how a charter states the other reading.
+
+    A POINT record: `position`, `string` and `fret` are the whole of it. `sustain` is FORBIDDEN
+    rather than merely unused — a silent hold has no ring of its own, and its extent is the span's
+    (a stored ring would be falsely bounded by a same-string tap through \ref sustainBoundOf) — and
+    every technique is refused with it, since each describes something about a sound that never
+    happens. \ref savedChartNote strips them and \ref validateChartNoteAlone refuses a note that
+    carries any, which is the same fixpoint pairing a scrape's latent overrides use.
+
+    A silent hold is never a STRIKE: it closes no span, ends no posture, never re-picks a shape and
+    never bounds a neighbour's ring. It IS a MEMBER — a shape is made of stops rather than of
+    strikes (user ruling 2026-08-27) — so two members at one slot open a span whichever kind they
+    are, and a lone member of either kind opens nothing. It presents no head and no tail on any
+    surface; what shows it is the arpeggio bracket printing its stop at its span's start
+    (\ref deriveChartShapes). The design record is `docs/plans/todo/arpeggio-authoring.md`.
+
+    Declared LAST rather than in any musical order, and that placement is load-bearing: `Pick` must
+    keep the zero value so a value-initialized note is a plain picked one. A zero-valued `None`
+    would make every default-constructed note a silent hold — an illegal default hiding behind
+    correct-looking code, exactly the trap \ref NoteEmphasis::Normal is declared first to avoid.
+    */
+    None
 };
 
 /*!
@@ -284,6 +314,29 @@ attack those rules hang on is grep-able and can never be mistaken for an inciden
 [[nodiscard]] constexpr bool isScrape(NoteAttack attack) noexcept
 {
     return attack == NoteAttack::PickSlide;
+}
+
+/*!
+\brief Reports whether the note is a stop taken with no stroke at all (\ref NoteAttack::None).
+
+The one question every reader of the note stream that means "what SOUNDS" has to ask, spelled once
+so the skip is greppable and can never be mistaken for an incidental equality. A silent hold is in
+the stream because it is a stop on a string at an instant like any other note — it moves, deletes,
+selects and retypes through the same verbs — but it produces no onset, so nothing that draws a
+head, measures a ring, bounds a neighbour's tail, groups a strum, justifies a connection or counts
+a strike may include it.
+
+Contrast \ref rightHandOnset, which asks the opposite kind of question: a tap DOES sound and is
+merely the other hand's, so it is invisible to the fretting hand's posture grouping while staying a
+real onset everywhere else.
+
+\param attack Attack to classify.
+
+\return True when the note is a silently-held shape member.
+*/
+[[nodiscard]] constexpr bool silentHold(NoteAttack attack) noexcept
+{
+    return attack == NoteAttack::None;
 }
 
 /*!
@@ -495,11 +548,13 @@ struct ChartNote
     Storing the truth once is what keeps the readability policy from being destruction that every
     later reader then has to guess back (`docs/plans/in-progress/note-sustain-model.md`).
 
-    Every note rings for some length, so zero is not an encoding — \ref validateChartNoteAlone
-    refuses it structurally, since no repair can invent a duration. The only bound is
-    \ref sustainBoundOf: a re-strike stops the ring, so the tail may reach the next onset on its own
-    string exactly and never pass it (40-Q2-B, \ref normalizeSustainOverlaps). Payload offsets lie
-    within it.
+    Every note that SOUNDS rings for some length, so zero is not an encoding — \ref
+    validateChartNoteAlone refuses it structurally, since no repair can invent a duration. The one
+    exception is the one note that never sounds: a \ref NoteAttack::None hold has no ring of its
+    own, so zero is not merely allowed there but REQUIRED, and any other value is refused. The only
+    bound is \ref sustainBoundOf: a re-strike stops the ring, so the tail may reach the next onset
+    on its own string exactly and never pass it (40-Q2-B, \ref normalizeSustainOverlaps). Payload
+    offsets lie within it.
     */
     Fraction sustain{};
 
@@ -765,12 +820,11 @@ statement authored by one and not the other would be a curve nobody wrote.
 /*!
 \brief The chart's SLOT order: ascending position, then ascending string.
 
-A `(position, string)` pair is a slot, and both of the chart's authored per-string arrays — the
-notes and the hold markers — are kept in this order with no array holding one slot twice. Stated
-once here and delegated to by each array's own order (\ref chartNoteOrderLess,
-\ref chartHoldMarkerOrderLess) because the two arrays SHARE the slot space: a marker is refused
-where a note already sounds, so an order the two spelled differently would be a rule stated twice
-about the same slot.
+A `(position, string)` pair is a slot, and the chart's one per-string authored array — the notes,
+silent holds included — is kept in this order, holding no slot twice. Stated separately from
+\ref chartNoteOrderLess because a SLOT is what the editor's selection keys and hit resolution
+address, so the order they merge by is named for the thing they name rather than for the record
+that happens to occupy it.
 
 \param lhs_position Left-hand position.
 \param lhs_string Left-hand string.
@@ -797,84 +851,6 @@ so it is stated once. Two notes equal under it are the same slot, which no chart
 \return True when lhs comes strictly before rhs in the chart's order.
 */
 [[nodiscard]] constexpr bool chartNoteOrderLess(const ChartNote& lhs, const ChartNote& rhs) noexcept
-{
-    return chartSlotOrderLess(lhs.position, lhs.string, rhs.position, rhs.string);
-}
-
-/*!
-\brief One stop the fretting hand takes SILENTLY: the shape member no note can state.
-
-The one fact about the fretting hand the note stream structurally cannot carry. A finger resting
-on a fret makes no sound, produces no onset and extends no ring, so a hand holding a six-string
-shape and picking four of it streams identically to a hand holding four and moving to the fifth
-later. Both are real playing, so the derivation must notate the literal notes (user ruling
-2026-08-25) and this record is how a charter states the other reading. Derivation splits where the
-hand's continuity is unprovable; this joins where the charter says so.
-
-Anchored to a `(position, string)` and nothing else: it names no span, no note and no id, so its
-whole relationship to a shape is resolved at read time (\ref deriveChartShapes) and no edit
-anywhere can leave stale relational state behind — there is none to leave. A marker nothing
-justifies is gracefully INERT: it draws nowhere and is refused nowhere, which is the unjustified
-connection claim's degrade kept verbatim (\ref NoteAttack::Legato).
-
-The fret is optional, and which case is which is the whole design:
-
-- **Absent** where a later note on that string inside the same span sounds the stop. The note
-  already states the fret, so the authored datum is a *when* and not a *what*; storing a second
-  copy of a fret the notes give would be two independently editable statements of one fact, which
-  a transpose of the chord alone would silently break.
-- **Present** where nothing sounds on that string anywhere inside the span — the full barre under
-  a four-string pattern. No note exists to state it, so no note can ever contradict it, which is
-  exactly what makes the authored fret honest here and dishonest above.
-
-A marker is not a strike — it closes no shape and ends no posture — but it IS a MEMBER, and a shape
-is made of stops rather than of strikes (user ruling 2026-08-27). Two members at one slot open a
-span whichever kind they are: a sounding note beside a held finger, or two held fingers with
-nothing sounding at all. A LONE member of either kind opens nothing.
-
-A marker also has no mark of its own. The arpeggio bracket printing its stop at the span's start IS
-the marker on the editing surface — what the pointer selects, and what a typed fret writes to — so
-one that resolves to no posture is invisible as well as inert. That is the whole of what "inert"
-costs today, and it is recorded as an open edge in the design record below.
-
-The design record is `docs/plans/todo/arpeggio-authoring.md`.
-*/
-struct ChartHoldMarker
-{
-    /*! \brief Musical position at which the hand takes the stop. */
-    GridPosition position;
-
-    /*! \brief One-based string, counted from the lowest-pitched string. */
-    int string{1};
-
-    /*!
-    \brief The stop taken, when no note inside the span can state it; absent when one does.
-
-    Zero is the open string here as everywhere else, and it is a legitimate authored value: a chord
-    diagram marks an open string as part of the voicing, and an open member that is never struck is
-    precisely a claim nothing sounds. What is NOT legitimate is a fret a note already gives, which
-    is why the absent form exists at all.
-    */
-    std::optional<int> fret{};
-
-    /*!
-    \brief Compares two hold markers by their stored fields.
-    \param lhs Left-hand marker.
-    \param rhs Right-hand marker.
-    \return True when both markers store equal values.
-    */
-    friend bool operator==(const ChartHoldMarker& lhs, const ChartHoldMarker& rhs) = default;
-};
-
-/*!
-\brief The hold-marker array's order: the chart's slot order (\ref chartSlotOrderLess).
-
-\param lhs Left-hand marker.
-\param rhs Right-hand marker.
-\return True when lhs comes strictly before rhs in the chart's order.
-*/
-[[nodiscard]] constexpr bool chartHoldMarkerOrderLess(
-    const ChartHoldMarker& lhs, const ChartHoldMarker& rhs) noexcept
 {
     return chartSlotOrderLess(lhs.position, lhs.string, rhs.position, rhs.string);
 }
@@ -937,12 +913,15 @@ node through this, so 2.311741 reads "2.3" everywhere and the two can never roun
 [[nodiscard]] std::string harmonicNodeText(double node);
 
 /*!
-\brief The note as a saved document records it: in-memory latent overrides stripped.
+\brief The note as a saved document records it: everything its attack cannot carry stripped.
 
-The one seam between memory and document. A pick slide overrides the pitched techniques in
-memory — kept so toggling the attack back restores them — but a saved scrape never carries them;
-the writer emits this form, and the editor's plan gate validates it, so the two can never
-disagree about what a legal document is.
+The one seam between memory and document, and the one authority on what each attack may state. A
+pick slide overrides the pitched techniques in memory — kept so toggling the attack back restores
+them — but a saved scrape never carries them; a silent hold (\ref NoteAttack::None) states its stop
+and nothing else at all, ring included. The writer emits this form and
+\ref validateChartNoteAlone refuses any note that is not already equal to it, so the two can never
+disagree about what a legal document is, and a technique field added to \ref ChartNote later is
+refused on both attacks by the one rule instead of needing a row in a list.
 
 \param note Note as held in memory.
 
@@ -1191,29 +1170,29 @@ struct ChartTuning
 /*!
 \brief The true tab of one arrangement.
 
-Notes say what sounds; the hand placements say where the hand sits; the hold markers say the one
-thing about the hand that neither can — a stop taken without being sounded. What the hand HOLDS —
-the chord boxes and arpeggio brackets both surfaces draw — is derived from those three rather than
-stored beside them (\ref deriveChartShapes), because a span is a statement about the notes under it
-and a stored one could only ever disagree with them. There is exactly one chart per arrangement —
-difficulty is a derived rating, never authored variants.
+Notes say where each finger goes and, for all but one attack, what it sounds; the hand placements
+say where the hand sits on the neck. What the hand HOLDS — the chord boxes and arpeggio brackets
+both surfaces draw — is derived from those two rather than stored beside them
+(\ref deriveChartShapes), because a span is a statement about the notes under it and a stored one
+could only ever disagree with them. There is exactly one chart per arrangement — difficulty is a
+derived rating, never authored variants.
 */
 struct Chart
 {
     /*! \brief Instrument tuning; the strings array length is the string count everywhere. */
     ChartTuning tuning;
 
-    /*! \brief Every sounding onset, sorted by (position, string). */
-    std::vector<ChartNote> notes;
-
     /*!
-    \brief Silently-held shape members, sorted by (position, string) and disjoint from \ref notes.
+    \brief Every stop the fretting hand takes, sorted by (position, string), one slot at most once.
 
-    The authored half of the posture: everything a derivation can read off the sound stays derived,
-    and this carries only what no sound records (\ref ChartHoldMarker). Disjoint because the two
-    arrays share one slot space — where a note sounds, the note is the statement.
+    Almost all of them sound; a \ref NoteAttack::None entry is the one that does not, and it is in
+    this array rather than beside it because a silently-held shape member IS a stop on a string at
+    an instant — the same slot, the same fret, the same verbs — with only the stroke missing. A
+    second array keyed the same way would have reused one slot space for two record kinds, so
+    disjointness had to be enforced by a rule; here it is slot uniqueness, which this array already
+    owed.
     */
-    std::vector<ChartHoldMarker> hold_markers;
+    std::vector<ChartNote> notes;
 
     /*! \brief Fret-hand positions, sorted by position. */
     std::vector<FretHandPosition> fret_hand_positions;

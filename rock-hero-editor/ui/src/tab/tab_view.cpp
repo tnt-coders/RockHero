@@ -329,6 +329,12 @@ void TabView::paint(juce::Graphics& g)
             continue;
         }
         const common::core::NoteViewState& note = drawn_note(index);
+        // A silently-held stop has no head to ring; its face is the posture bracket, ringed by
+        // the pass below on the very silhouette the click resolved.
+        if (common::core::silentHold(note.attack))
+        {
+            continue;
+        }
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
         g.setColour(accent);
         common::ui::strokeTabNoteHeadOutline(
@@ -368,25 +374,26 @@ void TabView::paint(juce::Graphics& g)
             overlayRingStroke(layout.head_size));
     }
 
-    // Selected hold markers. The overlay draws NO mark of its own for one (user ruling
+    // Selected silently-held stops. The overlay draws NO mark of its own for one (user ruling
     // 2026-08-27: "There should be no dot visible when we press N ... The bracket marker IS the
-    // data point that we can select and modify"): a marker's stop is stated by the arpeggio
-    // bracket the paint core already draws at its span's start, so an authoring dot beside it was
-    // a second mark for one fact, and the fact was drawn in the wrong place besides. All that is
-    // left here is the selection ring, traced on that bracket — the same accent every other
-    // selected object wears, on the same silhouette the click resolved.
+    // data point that we can select and modify"): the stop is stated by the arpeggio bracket the
+    // paint core already draws at its span's start, so an authoring dot beside it was a second
+    // mark for one fact, and the fact was drawn in the wrong place besides. All that is left here
+    // is the selection ring, traced on that bracket — the same accent every other selected object
+    // wears, on the same silhouette the click resolved.
     //
-    // The layout answers with nothing for a marker that resolved into no span, which is precisely
-    // the marker the paint core draws no bracket for; ring and mark therefore appear and vanish
-    // together with no rule of their own.
-    for (const std::size_t index : m_edit.selected_hold_markers)
+    // The layout answers with nothing for a hold that resolved into no span, which is precisely
+    // the hold the paint core draws no bracket for; ring and mark therefore appear and vanish
+    // together with no rule of their own. It answers with nothing for a sounding note too, which
+    // is why this pass and the head-ring pass above can share one selection list.
+    for (const std::size_t index : m_edit.selected_notes)
     {
-        if (index >= tab.hold_markers.size())
+        if (index >= tab.notes.size())
         {
             continue;
         }
-        const std::optional<common::ui::TabHoldMarkerLayout> layout =
-            common::ui::tabHoldMarkerLayout(metrics, tab.hold_markers[index]);
+        const std::optional<common::ui::TabSilentHoldLayout> layout =
+            common::ui::tabSilentHoldLayout(metrics, tab.notes[index]);
         if (!layout.has_value())
         {
             continue;
@@ -468,36 +475,32 @@ void TabView::paint(juce::Graphics& g)
                     continue;
                 }
                 const common::core::NoteViewState& note = drawn_note(index);
+                // A selected bracket wears the same box AT the bracket, which is where the stop it
+                // states prints — no head sits under it, so the box carries none, exactly as the
+                // empty-slot insert case does. A hold whose bracket is not drawn shows nothing, on
+                // the same rule that keeps its ring and its hit box off the lane.
+                if (const std::optional<common::ui::TabSilentHoldLayout> hold =
+                        common::ui::tabSilentHoldLayout(metrics, note);
+                    common::core::silentHold(note.attack))
+                {
+                    if (hold.has_value())
+                    {
+                        common::ui::paintTabPendingEntryBox(
+                            g,
+                            metrics,
+                            nullptr,
+                            hold->center_x,
+                            hold->center_y,
+                            text,
+                            invalid,
+                            ink,
+                            accent);
+                    }
+                    continue;
+                }
                 const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
                 common::ui::paintTabPendingEntryBox(
                     g, metrics, &note, layout.onset_x, layout.center_y, text, invalid, ink, accent);
-            }
-            // A selected bracket wears the same box at the bracket, which is where the stop it
-            // states prints — no head sits under it, so the box carries none, exactly as the
-            // empty-slot insert case does. A marker whose bracket is not drawn shows nothing, on
-            // the same rule that keeps its ring and its hit box off the lane.
-            for (const std::size_t index : targets->hold_markers)
-            {
-                if (index >= tab.hold_markers.size())
-                {
-                    continue;
-                }
-                const std::optional<common::ui::TabHoldMarkerLayout> layout =
-                    common::ui::tabHoldMarkerLayout(metrics, tab.hold_markers[index]);
-                if (!layout.has_value())
-                {
-                    continue;
-                }
-                common::ui::paintTabPendingEntryBox(
-                    g,
-                    metrics,
-                    nullptr,
-                    layout->center_x,
-                    layout->center_y,
-                    text,
-                    invalid,
-                    ink,
-                    accent);
             }
         }
         else if (

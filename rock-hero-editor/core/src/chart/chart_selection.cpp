@@ -11,7 +11,6 @@ namespace rock_hero::editor::core
 void ChartSelection::clear() noexcept
 {
     m_notes.clear();
-    m_hold_markers.clear();
     m_waypoints.clear();
 }
 
@@ -77,11 +76,6 @@ const std::vector<ChartSlotKey>& ChartSelection::notes() const noexcept
     return m_notes;
 }
 
-const std::vector<ChartSlotKey>& ChartSelection::holdMarkers() const noexcept
-{
-    return m_hold_markers;
-}
-
 const std::vector<ChartWaypointKey>& ChartSelection::waypoints() const noexcept
 {
     return m_waypoints;
@@ -90,14 +84,10 @@ const std::vector<ChartWaypointKey>& ChartSelection::waypoints() const noexcept
 std::vector<ChartSelectionKey> ChartSelection::keys() const
 {
     std::vector<ChartSelectionKey> all;
-    all.reserve(m_notes.size() + m_hold_markers.size() + m_waypoints.size());
+    all.reserve(m_notes.size() + m_waypoints.size());
     for (const ChartSlotKey& slot : m_notes)
     {
         all.push_back(ChartNoteKey{.slot = slot});
-    }
-    for (const ChartSlotKey& slot : m_hold_markers)
-    {
-        all.push_back(ChartHoldMarkerKey{.slot = slot});
     }
     for (const ChartWaypointKey& waypoint : m_waypoints)
     {
@@ -108,7 +98,7 @@ std::vector<ChartSelectionKey> ChartSelection::keys() const
 
 bool ChartSelection::empty() const noexcept
 {
-    return m_notes.empty() && m_hold_markers.empty() && m_waypoints.empty();
+    return m_notes.empty() && m_waypoints.empty();
 }
 
 std::optional<ChartSlotKey> chartCaretSlotFor(const ChartSelectionKey& key)
@@ -117,10 +107,6 @@ std::optional<ChartSlotKey> chartCaretSlotFor(const ChartSelectionKey& key)
     {
         return note->slot;
     }
-    if (const auto* const marker = std::get_if<ChartHoldMarkerKey>(&key))
-    {
-        return marker->slot;
-    }
     return std::nullopt;
 }
 
@@ -128,12 +114,6 @@ std::vector<std::size_t> selectedNoteIndices(
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection)
 {
     return slotIndicesForKeys(notes, selection.notes());
-}
-
-std::vector<std::size_t> selectedHoldMarkerIndices(
-    const std::vector<common::core::ChartHoldMarker>& markers, const ChartSelection& selection)
-{
-    return slotIndicesForKeys(markers, selection.holdMarkers());
 }
 
 // The waypoint keys are sorted by (note slot, offset) and the note stream by slot, so one forward
@@ -174,30 +154,21 @@ std::vector<ChartWaypointRef> selectedWaypointIndices(
     return located;
 }
 
-// Both authored arrays are sorted by (position, string), so each onset group is one contiguous
-// run — the same equal_range over each, because the group is an instant and not an array.
-// Waypoints are deliberately not collected: a waypoint sits along a ring rather than at the onset,
-// so it is not a member of the hand's unit at that instant.
+// The stream is sorted by (position, string), so an onset group is one contiguous run and this is
+// one equal_range — the group is an instant, not an array. Silently-held stops fall inside it with
+// no case of their own, which is the whole point of their living in the note stream. Waypoints are
+// deliberately not collected: a waypoint sits along a ring rather than at the onset, so it is not a
+// member of the hand's unit at that instant.
 std::vector<ChartSelectionKey> chartOnsetGroupKeys(
-    const std::vector<common::core::ChartNote>& notes,
-    const std::vector<common::core::ChartHoldMarker>& markers,
-    const common::core::GridPosition position)
+    const std::vector<common::core::ChartNote>& notes, const common::core::GridPosition position)
 {
     const auto note_group =
         std::ranges::equal_range(notes, position, std::less{}, &common::core::ChartNote::position);
-    const auto marker_group = std::ranges::equal_range(
-        markers, position, std::less{}, &common::core::ChartHoldMarker::position);
     std::vector<ChartSelectionKey> keys;
-    keys.reserve(
-        static_cast<std::size_t>(std::ranges::distance(note_group)) +
-        static_cast<std::size_t>(std::ranges::distance(marker_group)));
+    keys.reserve(static_cast<std::size_t>(std::ranges::distance(note_group)));
     for (const common::core::ChartNote& note : note_group)
     {
         keys.push_back(ChartNoteKey{.slot = chartSlotKeyOf(note)});
-    }
-    for (const common::core::ChartHoldMarker& marker : marker_group)
-    {
-        keys.push_back(ChartHoldMarkerKey{.slot = chartSlotKeyOf(marker)});
     }
     return keys;
 }

@@ -38,6 +38,29 @@ std::string harmonicNodeText(const double node)
 ChartNote savedChartNote(const ChartNote& note)
 {
     ChartNote saved = note;
+    if (silentHold(saved.attack))
+    {
+        // Built from a DEFAULT note rather than by clearing fields on a copy, so the record is
+        // stated positively — a silent hold is its slot, its stop and its attack — and a technique
+        // field added to ChartNote later is stripped here (and therefore refused by the validator's
+        // fixpoint) without anyone remembering to add a line.
+        return ChartNote{
+            .position = note.position,
+            .string = note.string,
+            .fret = note.fret,
+            .sustain = {},
+            .attack = note.attack,
+            .palm_mute = false,
+            .dead = false,
+            .harmonic_node = {},
+            .vibrato = false,
+            .tremolo = false,
+            .emphasis = NoteEmphasis::Normal,
+            .bend = 0.0,
+            .waypoints = {},
+            .slide_out = {},
+        };
+    }
     if (isScrape(saved.attack))
     {
         saved.palm_mute = false;

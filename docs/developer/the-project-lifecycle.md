@@ -281,8 +281,9 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
 handshape or diagram data, and the chart stores none either: a span is a statement about the notes
 under it, so `common::core::deriveChartShapes` (`chart/chart_shapes.h`) derives every span and
 posture from the note stream wherever they are read, once per chart revision inside
-`chartResolutions`. The one authored input is `chart.holdMarkers[]` (rule 12b) — the single posture
-fact no function of a note stream can distinguish. Rules 10 to 12b below are that derivation's
+`chartResolutions`. The one authored input rides in the stream itself: a note whose `attack` is
+`none` (rule 12b) — the single posture fact no function of a stream of STROKES can distinguish.
+Rules 10 to 12b below are that derivation's
 maintained plain-English spec — this page is where they are stated, and `chart_shapes.h` points
 here rather than restating them.
 
@@ -292,7 +293,7 @@ slide on an open string, say — used to derive its own span from data the chart
 now it reads as what it is, and merges with its identically-played neighbours.
 
 10. **Two or more MEMBERS at one slot form a chord.** A member is a sounding fretting-hand onset
-    at that slot or a hold marker at it (rule 12b), so one struck string beside one held finger
+    at that slot or a silently-held stop at it (rule 12b), so one struck string beside one held finger
     forms a shape, two held fingers with nothing sounding form one, and a LONE member of either
     kind forms none (user ruling 2026-08-27, correcting the sounding-only threshold this shipped
     with: converting one member of a two-note chord into a held finger made the shape evaporate
@@ -303,9 +304,10 @@ now it reads as what it is, and merges with its identically-played neighbours.
     on one. Tap-attack notes are excepted: taps belong to the tapping hand,
     not the fretting posture, so they never join a posture — even a multi-string tapped onset
     derives no chord, and a mixed onset is judged by its non-tap members alone (rule 11). A span
-    whose members are ALL markers has nothing ringing to give it length, so it runs from its start
-    to its start and states its posture at an instant — which is exactly where the bracket that
-    prints it draws.
+    whose members are ALL silently-held stops has nothing ringing to give it length, so it states
+    its posture at an instant — which is exactly where the bracket that prints it draws — until
+    the content it fronts arrives and lends it one; rule 12b carries that law and the dissolve
+    that answers a statement nothing ever justified.
 11. **Repeated strums of one articulation share one span.** Consecutive onsets whose strings
     are played *identically in every way except duration* — same frets, attack (legato, left-hand
     tap, tap, slap, pop), muting, harmonics, vibrato, tremolo, emphasis, bends, and slides; the
@@ -326,7 +328,8 @@ now it reads as what it is, and merges with its identically-played neighbours.
     right-hand taps, the two-hand-tapping staple) counts only its non-tap members: one left-hand
     note is an ordinary single onset, two or more are a chord. An isolated strum gets a span of
     its own ring. **One single-string onset is excepted:** a lone *re-pick* of a string the open
-    span already holds — by sound with unchanged articulation, or by a hold marker (rule 12b) —
+    span already holds — by sound with unchanged articulation, or by a silently-held stop at the
+    same fret (rule 12b) —
     does not close the span when at least one OTHER member is still ringing (the presented ring,
     for rule 12's own reason). The hand has demonstrably not left the shape, so the span extends
     over the re-pick instead of dying at it, and this is what makes the one-note-at-a-time broken
@@ -350,7 +353,7 @@ now it reads as what it is, and merges with its identically-played neighbours.
     no other arpeggio grouping is derived. A figure picked one string at a time from its FIRST
     note still opens no span on its own — rule 11's re-pick exception EXTENDS a shape and cannot
     open one, and rule 10 needs two members at one slot — so that grouping waits for the
-    corpus-informed pass, or for the charter to state the held members with rule 12b's markers.
+    corpus-informed pass, or for the charter to state the held members with rule 12b's holds.
 12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
     merging can stretch a strum's ring past the next event, but the shape's box never follows
     it: when a new posture (or a non-chord onset) closes a span, the closed span's end trims to
@@ -361,41 +364,106 @@ now it reads as what it is, and merges with its identically-played neighbours.
     reaches its final restrike even when events crowd closer than the margin; a span that
     would still lose all length (a single short strum crowded inside the margin) falls back to
     exact adjacency, ending at the earlier of its own ring and the closing onset.
-12b. **A hold marker states the one posture member the notes cannot.** A finger resting on a fret
-    makes no sound, extends no ring, and produces no onset, so a hand holding a six-string shape
-    and picking four of it streams *identically* to a hand holding four and moving to the fifth
-    later. Both are real playing (user ruling 2026-08-25, which is also why growth by a new string
-    keeps SPLITTING rather than being read as one shape), so the derivation notates the literal
-    notes and `chart.holdMarkers[]` is how a charter states the other reading, authored by the
-    arpeggio hold verb (`N`, \ref guide_keyboard), which acts on whatever the chart caret's slot
-    holds rather than on the selection, since a fact about the hand is stated at the position it
-    holds. A marker lying
-    inside a derived span joins that span's posture on its string, and the span then arrives as an
-    **arpeggio** — the bracket is the only mark with a place to print a fret nothing struck. Its
-    own fret is used where it carries one; otherwise the fret comes from the first note that
-    sounds on that string later in the same span, so the chart never holds two editable copies of
-    one fret. A marker that resolves to nothing — no span covers it, its position falls past the
-    span's own end, its string is already stated by sound, or nothing supplies its fret — is
-    **inert**: it changes no posture and draws nowhere, exactly as an unjustified connection claim
-    plays as the pick it sounds like. **A marker is not a strike** — it closes no span and ends no
-    posture, and markers landing under a shape still RINGING join it rather than splitting it — but
-    it IS a member, which is what rule 10 counts. "Still ringing" is the test, not "the derivation
-    has not closed the span yet": a span outlives its sound so a later identical strum can rejoin
-    it (rule 11), and that is a merging rule rather than a claim that the hand is still down, so
-    markers past the ring state the NEXT shape instead of joining a shape that stopped sounding.
-    Because a marker's fret can arrive from a note later in the span, the posture is keyed when the
-    span CLOSES rather than at each onset.
+12b. **A silently-held stop states the one posture member a stroke cannot.** A finger resting on a
+    fret makes no sound, extends no ring, and produces no onset, so a hand holding a six-string
+    shape and picking four of it streams *identically* to a hand holding four and moving to the
+    fifth later. Both are real playing (user ruling 2026-08-25, which is also why growth by a new
+    string keeps SPLITTING rather than being read as one shape), so the derivation notates the
+    literal notes and a note with `attack: none` is how a charter states the other reading —
+    authored by the arpeggio hold verb (`N`, \ref guide_keyboard), which acts on the selection like
+    every chart verb, falling back to the armed caret's own slot when nothing is selected (which is
+    the only way to reach a slot that holds nothing). Such a note is a POINT record: its slot and its fret are the whole of it, it
+    has no ring of its own, and every technique is refused on it (user ruling 2026-08-27, which
+    replaced the separate `holdMarkers[]` array with this attack — a second slot-keyed array meant
+    disjointness had to be a rule, where one stream owes slot uniqueness anyway).
 
-    **The bracket IS the marker's mark** (user ruling 2026-08-27): the editor draws no separate
-    authoring glyph for one, so the arpeggio bracket at the span's start on the marker's string is
-    what shows the resolved stop, what a click selects, and what a typed fret writes to. A typed
-    digit STATES a stop, so it writes onto a marker whether or not it carried one; an Alt+Shift
-    transpose SHIFTS a stated stop and passes over a fret-less marker, whose stop the note it reads
-    from already carries. A retyped stop that contradicts the note re-picking its string splits the
-    span through rule 11's re-pick exception, with no rule of its own. The cost of "inert" is
-    therefore invisibility: a marker with no posture to join draws nothing anywhere and can only be
-    reached through Ctrl+Z or the caret slot it sits on
-    (`docs/plans/todo/arpeggio-authoring.md` carries the open edge and its options).
+    A hold lying inside a derived span joins that span's posture on its string, and the span then
+    arrives as an **arpeggio** — the bracket is the only mark with a place to print a fret nothing
+    struck. One that resolves to nothing — no span covers it, its position falls past the span's
+    own end, or its string is already stated by the shape — states nothing anywhere, and the settle
+    below removes it rather than saving a record no surface draws.
+    **A hold is not a strike** — it closes no span, ends no posture and bounds no neighbour's ring —
+    but it IS a member, which is what rule 10 counts. "Still ringing" is the test for what it can
+    join, not "the derivation has not closed the span yet": a span outlives its sound so a later
+    identical strum can rejoin it (rule 11), and that is a merging rule rather than a claim that the
+    hand is still down, so holds past the ring state the NEXT shape instead of joining a shape that
+    stopped sounding.
+
+    **A stop taken inside a sounding shape, on a string that shape does not state, SPLITS it** (user
+    ruling 2026-08-27, which overturned the earlier "holds landing under a held shape join it"
+    clause). From that instant the hand is in a different shape, and that is the same answer rule 11
+    already gives a strum growing by a string: growth splits. The new span inherits the shape it
+    grew out of — its articulation and the stops already claimed in it — and takes the extent the
+    old one had left, so the two cover that ring end to end, and a later strum whose articulation
+    equalizes with the grown one merges into it under rule 11 with nothing added. What the authored
+    hold decides is therefore WHERE the statement sits: written at the shape's own onset it states
+    the shape whole from its start (the case the verb exists for); written later it says the finger
+    came down later, because that is what it says. Two exceptions, each for its own reason: a shape
+    the HAND alone stated is one statement with no sound to date it by, so later fingers join it
+    rather than splitting a statement still waiting for its content; and a stop on a string the
+    shape already states takes no new stop at all. A stop carried across a split is a member of
+    every span it reaches, but its FACE belongs to the FIRST — it was authored at one slot, and that
+    is where its bracket draws.
+
+    **A hold that states nothing is REMOVED, not kept** (user ruling 2026-08-27).
+    `sweepInertSilentHolds` is the legato settle's sibling: it judges only the stream it is handed,
+    runs as the normalizer's last stage on every load and inside the editor's plan gate on every
+    edit, and iterates to a fixpoint, because one removal can take a span's second member and strand
+    the holds that had joined it. Two consequences worth naming. An edit that strands a hold takes
+    it in the SAME undo entry, so one Ctrl+Z restores the pair; and the `N` verb refuses a press
+    whose own product the settle would remove — whole-plan, never per slot, so a chord's members are
+    legal together and illegal one at a time, and a press that would delete the note it was asked to
+    hold does nothing at all instead.
+
+    **A shape the HAND alone states must be justified by the content it fronts** (user ruling
+    2026-08-27). Two held stops at one slot open a span — rule 10 counts members, not strikes — and
+    such a span is authored in front of the passage it describes, so it has no ring to measure and
+    waits, unended, until one of two things arrives: a fretting-hand onset on one of its claimed
+    strings AT that claim's stop (the same fret-match test rule 11's re-pick exception uses), or a
+    picking-hand onset sounding on one of its posture strings, which is the held-shape-under-tapping
+    figure with the holding stated rather than inferred. The walk imposes no plant offset — a tap at
+    the span's very own instant counts, and requiring one would be a convention no notation asks for
+    — but slot uniqueness does impose one HERE, and the two rules meet in a corner worth naming: a
+    tap on a claimed string at that claim's own instant is the same-slot case flagged unrepresentable
+    below, so the tap that justifies is always at least a quantum after the stop it articulates. The
+    same-instant tap a charter CAN write lands on a string the shape does not hold, and that one
+    justifies nothing.
+    Whether the answering onset is ALONE or one voice of a chord is not part of the test — it is
+    the stop that answers, so a strum carrying the claimed fret justifies the statement it fronts
+    exactly as a lone re-pick does. A span that closes with nothing having arrived **dissolves**:
+    it is evidence of nothing, and its notes state nothing anywhere, exactly as a lone member does.
+
+    Such a span's EXTENT is the union of the rings that attach to it, and that union has to be
+    CONTIGUOUS: a picking-hand onset extends it only while it starts no later than where the
+    coverage already reaches. The boundary is closed on purpose — a run of taps on one string is
+    clamped to exact adjacency by the same-string bound, so each lands ON the previous ring's end —
+    but past the frontier the hand is demonstrably off the shape, and a later tap on one of its
+    strings is the next passage rather than this one continuing. Without that the shape would be
+    resurrected across the whole gap, which is what rule 11's re-pick exception refuses for a span
+    with sound in it. A span still sitting at its own instant has no coverage yet and accepts its
+    first arrival however late, which is the waiting the record exists for.
+
+    Being justified is not the same as being JOINED, and the two part company in one case worth
+    naming. A lone re-pick and a tap both attach to the span, so its extent becomes theirs — the
+    taps' rings, then the ordinary member-ring rule once a matching note lands. A chord answers the
+    claim and then opens its own shape regardless, because growth by a new string keeps splitting;
+    the held shape is emitted at its own instant, stating its posture where the bracket draws, and
+    the chord is a second shape after it. Until anything arrives the span waits, unended, stating
+    its posture at that same instant.
+
+    **The bracket IS the hold's face** (user ruling 2026-08-27): it draws no head and no tail on any
+    surface, so the arpeggio bracket at the span's start on its string is what shows the resolved
+    stop, what a click selects, and what a typed fret writes to. A typed digit STATES a stop, and a
+    transpose SHIFTS one, both reaching a selected hold exactly as they reach a selected head —
+    which is also how a transposed chord carries its silent members along. A retyped stop that
+    contradicts the note re-picking its string splits the span through rule 11's re-pick exception,
+    with no rule of its own. Because the settle above removes every hold that states nothing, there
+    is no invisible-and-unreachable record to find: what a chart holds, some bracket prints.
+
+    **Known unrepresentable, recorded rather than solved** (user, 2026-08-27): a held fret on the
+    very string being tapped at the very same instant. Two facts, one slot — the hold and the tap
+    would have to share a `(position, string)` — so the charter states the hold one quantum early,
+    which the notation can express.
 
 **Slide semantics** (resolved before the ring policy's clamp, so a merged or grown ring is
 clamped and then drawn like any other):
@@ -618,10 +686,13 @@ differently):
     requirement is ALSO decided earlier, the moment a note's node is known
     (`flattenStrandedStrike`), because
     the hand-window pass reads the attack and must not shape a song around a tap
-    that cannot survive. The relational half, `sweepUnjustifiedLegato`, is the normalizer's last
-    stage — the same sweep every settle point runs — so a chart is never born carrying a claim its
-    own notes contradict. It runs last because it reads the finished stream: released frets after
-    the slide chains (rules 13-15), holds after the ring policy's clamp. The spans a reader
+    that cannot survive. The relational half is the normalizer's last two stages — the same sweeps
+    every settle point runs — so a chart is never born carrying a statement its own notes contradict.
+    They run last because they read the finished stream: released frets after the slide chains
+    (rules 13-15), holds after the ring policy's clamp. `sweepUnjustifiedLegato` goes first of the
+    two, because flattening a claim changes an articulation and articulation is what spans are keyed
+    by; `sweepInertSilentHolds` then removes every held stop the resulting spans leave stating
+    nothing (rule 12b), iterating to a fixpoint. The spans a reader
     derives therefore describe the SETTLED stream (rules 10-12a).
     The importer counts the repairs by rule in its log; the editor's open shows them once with
     positions. Guitar Pro's hammer-on/pull-off destinations import as the `Legato`

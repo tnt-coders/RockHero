@@ -165,7 +165,7 @@ TEST_CASE("Clearing the shake at a waypoint dissolves the statement it wrote", "
     CHECK(currentChart(fixture.controller) == shaking);
 }
 
-// Delete reaches waypoints exactly as it reaches notes and hold markers: it takes every statement
+// Delete reaches waypoints exactly as it reaches notes: it takes every statement
 // the selected waypoint makes, and a waypoint stating nothing is no record at all, so the point
 // goes with them. The round trip is field-exact in both directions.
 TEST_CASE("Delete takes the selected waypoint and undo puts it back", "[core][chart]")
@@ -272,7 +272,6 @@ TEST_CASE("The arrow move is inert with only a waypoint selected", "[core][chart
     click(fixture.controller, g_junction_x, g_string_3_y);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_waypoints.size() == 1);
     REQUIRE(publishedState(fixture.view).chart_edit.selected_notes.empty());
-    REQUIRE(publishedState(fixture.view).chart_edit.selected_hold_markers.empty());
 
     fixture.controller.onSelectionMoveRequested(ChartStepDirection::Right);
     CHECK(currentChart(fixture.controller) == original);
@@ -292,6 +291,35 @@ TEST_CASE("The arrow move is inert with only a waypoint selected", "[core][chart
     CHECK(
         moved.notes[0].position ==
         common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
+}
+
+// The typed digit's boundary, asked the same way: a digit RETYPES the selected notes, so a
+// selection carrying none is no operand and the press states nothing — it does not open a pending
+// entry either. Routing it by "the selection is not empty" armed one whose target was an empty key
+// set; that entry read as INVALID, and an invalid entry is the one kind that outlives its window by
+// design, so a digit typed over a waypoint left a red box no timer would ever clear. Stating a
+// waypoint's own fret is the waypoint model's editor stage, not this flow.
+TEST_CASE("A typed digit is inert with only a waypoint selected", "[core][chart]")
+{
+    WaypointFixture fixture;
+    const common::core::Chart original = currentChart(fixture.controller);
+
+    click(fixture.controller, g_junction_x, g_string_3_y);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_waypoints.size() == 1);
+    REQUIRE(publishedState(fixture.view).chart_edit.selected_notes.empty());
+
+    // A leading 1 is the extendable digit — the one a stuck entry would wait on forever.
+    fixture.controller.onChartFretDigitTyped(1);
+    CHECK(currentChart(fixture.controller) == original);
+    CHECK_FALSE(publishedState(fixture.view).chart_edit.pending_fret.has_value());
+    CHECK_FALSE(publishedState(fixture.view).undo_enabled);
+
+    // And the boundary does not over-reach: the same digit over a selected NOTE still retypes it.
+    click(fixture.controller, g_onset_x, g_string_3_y);
+    fixture.controller.onChartFretDigitTyped(9);
+    const common::core::Chart retyped = currentChart(fixture.controller);
+    REQUIRE(retyped.notes.size() == 1);
+    CHECK(retyped.notes[0].fret == 9);
 }
 
 } // namespace rock_hero::editor::core

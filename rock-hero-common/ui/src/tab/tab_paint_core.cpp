@@ -80,7 +80,7 @@ constexpr double g_arpeggio_mark_brightness{1.3};
 // The square-bracket pair marking an arpeggio posture note reads as "[ fret ]" and stays much
 // lighter than the note rings it wraps. Its SIZE lives on the lane geometry
 // (TabLaneGeometry::bracketGeometry) rather than here, because the editor hit-tests the bracket as
-// well as drawing it — the mark IS the selectable hold marker — and the layout manifest must bound
+// well as drawing it — the mark IS a silent hold's whole face — and the layout manifest must bound
 // exactly the rectangles this pass fills. The brackets draw as pixel-snapped rectangles: a
 // fractional width or position antialiases into fuzzy, unsquare edges.
 //
@@ -349,6 +349,10 @@ struct LabelChip
 // Reads the state's own notes rather than the drawn-note accessor, and is not a site that missed
 // it: everything asked here — onset, string, attack, fret — is what presentation leaves untouched,
 // so both forms of a note answer identically.
+//
+// A silently-held stop is not a head: it is the very thing the posture digit is printing, so
+// reading one as a head would make the bracket conclude the string already states its fret and
+// print nothing at all.
 [[nodiscard]] const common::core::NoteViewState* headAtSpanStart(
     const common::core::ChartViewState& tab, double span_start_seconds, int chart_string)
 {
@@ -361,7 +365,7 @@ struct LabelChip
          it != tab.notes.end() && it->start_seconds <= span_start_seconds + tolerance;
          ++it)
     {
-        if (it->string == chart_string)
+        if (it->string == chart_string && !common::core::silentHold(it->attack))
         {
             return &*it;
         }
@@ -2257,7 +2261,10 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = note_at(index);
-        if (note.end_seconds < span_start)
+        // A silently-held stop presents no head and no tail anywhere: what shows it is the posture
+        // bracket the arpeggio pass above already drew at its span's start, which is also its face
+        // for selection and hit testing.
+        if (common::core::silentHold(note.attack) || note.end_seconds < span_start)
         {
             continue;
         }
@@ -2361,7 +2368,7 @@ void paintTabLane(
     // The held fret is stated wherever the notes do not already state it, decided per string by
     // what sounds at the span start (the posture-smart rule settled 2026-08-14, tabulated in
     // `docs/plans/in-progress/arpeggio-posture-display-options.md`): centred in the brackets on a
-    // silent string — which is EVERY hold-marker string, since a marker cannot share a slot with a
+    // silent string — which is EVERY held-stop string, since a hold cannot share a slot with a
     // note — dropped where a head already prints that fret, dropped where a fretting-hand onset
     // moved the hand off the template (stating a posture the hand has left would be false), and
     // displaced into a side slot outboard of the closing bar where a TAP sounds a different fret.
@@ -2377,7 +2384,7 @@ void paintTabLane(
     // previous note's head and its arriving sustain ribbon live.
     //
     // The bracket bars are unchanged by all this, and are what the editor hit-tests to select the
-    // hold marker whose stop the digit states; only the lane-line gap grew to cover the digit.
+    // held stop whose fret the digit states; only the lane-line gap grew to cover the digit.
     //
     // The note's VISIBLE top and bottom are the bright ring's edges: the head's outermost layer is
     // the near-black backing, which melts into the dark lane. The brackets stop a bar-width inside
@@ -2452,7 +2459,10 @@ void paintTabLane(
     for (std::size_t index = first; index < last; ++index)
     {
         const common::core::NoteViewState& note = note_at(index);
-        if (note.end_seconds < span_start)
+        // A silently-held stop presents no head and no tail anywhere: what shows it is the posture
+        // bracket the arpeggio pass above already drew at its span's start, which is also its face
+        // for selection and hit testing.
+        if (common::core::silentHold(note.attack) || note.end_seconds < span_start)
         {
             continue;
         }

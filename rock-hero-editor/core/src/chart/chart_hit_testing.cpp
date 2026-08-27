@@ -49,42 +49,41 @@ std::optional<ChartHitTarget> chartHitTarget(
     const common::core::ChartViewState& tab, const common::ui::TabLaneGeometry& geometry, float x,
     float y)
 {
-    // Hold markers first, which is the ONE place this order departs from "topmost drawn wins", so
-    // the reason is stated rather than inferred from the position. A marker's mark is the arpeggio
-    // bracket at its span's start on its own string, and that string is silent there by
-    // construction — slot disjointness refuses a note under a marker, and a claim on a string the
-    // sound already states is dropped as inert — so a marker's bracket never wraps a head. What it
-    // CAN overlap is a head slightly later on the same string, which is exactly the note a
-    // fret-less marker takes its stop from, and the paint core draws brackets before heads, so
-    // that head is on top. The marker takes the overlap anyway: the bracket is its ONLY
-    // affordance, and yielding leaves it a two-pixel bar, while the head keeps every column the
-    // bracket does not reach. The trade is recorded with the verb's design record
+    // Silently-held stops first, which is the ONE place this order departs from "topmost drawn
+    // wins", so the reason is stated rather than inferred from the position. A hold's face is the
+    // arpeggio bracket at its span's start on its own string, and that string is silent there by
+    // construction — slot uniqueness refuses a second note under it, and a claim on a string the
+    // sound already states is dropped as inert — so the bracket never wraps a head. What it CAN
+    // overlap is a head slightly later on the same string, and the paint core draws brackets
+    // before heads, so that head is on top. The hold takes the overlap anyway: the bracket is its
+    // ONLY affordance, and yielding leaves it a two-pixel bar, while the head keeps every column
+    // the bracket does not reach. The trade is recorded with the verb's design record
     // (`docs/plans/todo/arpeggio-authoring.md`) rather than settled silently here.
     //
-    // Markers carry no tail and are rare, so the whole array is probed rather than culled through
-    // the note stream's own visible range, which is keyed by note ends. A marker that resolved
-    // into no span lays out to nothing and is skipped here for free — nothing undrawn is
-    // clickable.
-    std::optional<std::size_t> best_marker;
-    float best_marker_distance = 0.0f;
-    for (std::size_t index = 0; index < tab.hold_markers.size(); ++index)
+    // The whole stream is probed rather than culled through the visible range, because a hold's
+    // bracket sits at its SPAN's start, which can be earlier than the hold's own instant and
+    // therefore outside a window keyed by note ends. Every note that is not a resolved hold lays
+    // out to nothing here and is skipped for free — nothing undrawn is clickable.
+    std::optional<std::size_t> best_hold;
+    float best_hold_distance = 0.0f;
+    for (std::size_t index = 0; index < tab.notes.size(); ++index)
     {
-        const std::optional<common::ui::TabHoldMarkerLayout> layout =
-            common::ui::tabHoldMarkerLayout(geometry, tab.hold_markers[index]);
+        const std::optional<common::ui::TabSilentHoldLayout> layout =
+            common::ui::tabSilentHoldLayout(geometry, tab.notes[index]);
         if (!layout.has_value() || !layout->box.contains(x, y))
         {
             continue;
         }
         const float distance = std::abs(x - layout->center_x);
-        if (!best_marker.has_value() || distance < best_marker_distance)
+        if (!best_hold.has_value() || distance < best_hold_distance)
         {
-            best_marker = index;
-            best_marker_distance = distance;
+            best_hold = index;
+            best_hold_distance = distance;
         }
     }
-    if (best_marker.has_value())
+    if (best_hold.has_value())
     {
-        return ChartHoldMarkerHit{.index = *best_marker};
+        return ChartNoteHit{.index = *best_hold};
     }
 
     const auto [first, last] = candidateRange(tab, geometry, x, x);
@@ -95,6 +94,13 @@ std::optional<ChartHitTarget> chartHitTarget(
     float best_head_distance = 0.0f;
     for (std::size_t index = first; index < last; ++index)
     {
+        // A silent hold draws no head and no tail, so nothing of it is clickable at its own
+        // instant; its face was resolved above, at its span's start. Skipped in every pass below
+        // rather than let the note layout hand back a rectangle the lane never painted.
+        if (common::core::silentHold(tab.notes[index].attack))
+        {
+            continue;
+        }
         const common::ui::TabNoteLayout layout =
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
         if (!layout.head.contains(x, y))
@@ -152,6 +158,10 @@ std::optional<ChartHitTarget> chartHitTarget(
     float best_tail_distance = 0.0f;
     for (std::size_t index = first; index < last; ++index)
     {
+        if (common::core::silentHold(tab.notes[index].attack))
+        {
+            continue;
+        }
         const common::ui::TabNoteLayout layout =
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
         if (layout.tail.width <= 0.0f || !layout.tail.contains(x, y))
@@ -185,6 +195,11 @@ std::vector<ChartHitTarget> chartTargetsInBox(
     std::vector<ChartHitTarget> boxed;
     for (std::size_t index = first; index < last; ++index)
     {
+        if (common::core::silentHold(tab.notes[index].attack))
+        {
+            // Its face is the bracket, boxed by the pass below; it draws no head to catch here.
+            continue;
+        }
         const common::ui::TabNoteLayout layout =
             common::ui::tabNoteLayout(geometry, tab.notes[index]);
         if (intersects(layout.head))
@@ -192,13 +207,15 @@ std::vector<ChartHitTarget> chartTargetsInBox(
             boxed.push_back(ChartNoteHit{.index = index});
         }
     }
-    for (std::size_t index = 0; index < tab.hold_markers.size(); ++index)
+    // The silent holds a box catches, over the whole stream for the same reason the click probe
+    // uses: a hold's bracket can sit earlier than the window the note range covers.
+    for (std::size_t index = 0; index < tab.notes.size(); ++index)
     {
-        const std::optional<common::ui::TabHoldMarkerLayout> layout =
-            common::ui::tabHoldMarkerLayout(geometry, tab.hold_markers[index]);
+        const std::optional<common::ui::TabSilentHoldLayout> layout =
+            common::ui::tabSilentHoldLayout(geometry, tab.notes[index]);
         if (layout.has_value() && intersects(layout->box))
         {
-            boxed.push_back(ChartHoldMarkerHit{.index = index});
+            boxed.push_back(ChartNoteHit{.index = index});
         }
     }
     // The waypoint heads a box catches, on the same drawn-extent rule as the two above: a box

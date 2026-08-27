@@ -222,26 +222,6 @@ namespace
     note.position = *position;
     note.string = Json::readOptionalInt(note_json, "string", 0);
     note.fret = Json::readOptionalInt(note_json, "fret", -1);
-    // Required, with no default: every note rings for some length, so a missing key is a missing
-    // fact rather than "no tail" — reading it as zero would silently invent the one datum the
-    // model cannot derive. This is also the path a chart written before the duration model
-    // actually takes, and the only one: that writer OMITTED the key on every tail-less note, which
-    // is most of them, so the message carries the re-import remedy exactly like the removed-key
-    // tripwires below. (The positive-sustain rule states the same remedy for a zero that is
-    // written out, which no version of the writer ever emitted.)
-    if (Json::value(note_json, "sustain").isVoid())
-    {
-        return std::unexpected{malformed(
-            "chart note is missing \"sustain\"; re-import the package to get the note's actual "
-            "ring duration")};
-    }
-    auto sustain = readFraction(note_json, "sustain");
-    if (!sustain.has_value())
-    {
-        return std::unexpected{std::move(sustain.error())};
-    }
-    note.sustain = *sustain;
-
     const std::string attack = Json::readOptionalString(note_json, "attack", "");
     if (attack == "legato")
     {
@@ -271,9 +251,50 @@ namespace
     {
         note.attack = NoteAttack::PickSlide;
     }
+    else if (attack == "none")
+    {
+        note.attack = NoteAttack::None;
+    }
     else if (!attack.empty())
     {
         return std::unexpected{malformed("chart note attack is unknown: " + attack)};
+    }
+
+    // The ring, read AFTER the attack because the attack decides whether there is one to read.
+    // Required with no default on every attack that sounds: a note rings for some length, so a
+    // missing key is a missing fact rather than "no tail", and reading it as zero would silently
+    // invent the one datum the model cannot derive. This is also the path a chart written before
+    // the duration model actually takes, and the only one: that writer OMITTED the key on every
+    // tail-less note, which is most of them, so the message carries the re-import remedy exactly
+    // like the removed-key tripwires above.
+    //
+    // A silent hold has no ring at all, so the key must be ABSENT rather than zero — the same
+    // posture every defaulted property takes, applied to the one property whose default depends on
+    // the attack. A written zero is refused instead of accepted as the value the reader cannot
+    // tell from an absent key, so the document has exactly one spelling for "no ring".
+    if (silentHold(note.attack))
+    {
+        if (!Json::value(note_json, "sustain").isVoid())
+        {
+            return std::unexpected{malformed(
+                "chart note states \"sustain\" on a silently held stop, which has no ring of its "
+                "own")};
+        }
+    }
+    else
+    {
+        if (Json::value(note_json, "sustain").isVoid())
+        {
+            return std::unexpected{malformed(
+                "chart note is missing \"sustain\"; re-import the package to get the note's actual "
+                "ring duration")};
+        }
+        auto sustain = readFraction(note_json, "sustain");
+        if (!sustain.has_value())
+        {
+            return std::unexpected{std::move(sustain.error())};
+        }
+        note.sustain = *sustain;
     }
 
     note.palm_mute = Json::readOptionalBool(note_json, "palmMute", false);
@@ -339,37 +360,6 @@ namespace
     return note;
 }
 
-[[nodiscard]] std::expected<ChartHoldMarker, ChartError> readHoldMarker(
-    const juce::var& marker_json)
-{
-    auto position = readPosition(marker_json);
-    if (!position.has_value())
-    {
-        return std::unexpected{std::move(position.error())};
-    }
-    // Typed exactly like the note scalars, and for the same reason: a wrong-typed `fret` read as
-    // absent would silently turn an authored stop into "ask the notes for it", which then resolves
-    // to nothing and draws nothing — a marker that vanished with no word said.
-    for (const char* const key : {"string", "fret"})
-    {
-        const juce::var& property = Json::value(marker_json, key);
-        if (!property.isVoid() && !property.isInt())
-        {
-            return std::unexpected{malformed(
-                "chart hold marker \"" + std::string{key} + "\" has the wrong type")};
-        }
-    }
-    return ChartHoldMarker{
-        .position = *position,
-        .string = Json::readOptionalInt(marker_json, "string", 0),
-        // Absence is the α form and carries meaning, so there is no default to read: the stop comes
-        // from the note that supplies it.
-        .fret = Json::value(marker_json, "fret").isVoid()
-                    ? std::nullopt
-                    : std::optional{Json::readOptionalInt(marker_json, "fret", 0)},
-    };
-}
-
 // ---- writer -------------------------------------------------------------------------------
 
 void appendJsonString(std::string& out, const std::string& text)
@@ -391,9 +381,14 @@ void appendJsonString(std::string& out, const std::string& text)
     std::string line = R"({ "position": ")" + formatGridPositionToken(note.position) + '"';
     line += ", \"string\": " + std::to_string(note.string);
     line += ", \"fret\": " + std::to_string(note.fret);
-    // Always emitted: the ring is a note's own fact, and the reader refuses a document that omits
-    // it, so there is no shorter form to elide into.
-    line += R"(, "sustain": ")" + formatBeatFractionToken(note.sustain) + '"';
+    // Emitted for every attack that sounds: the ring is such a note's own fact, and the reader
+    // refuses a document that omits it, so there is no shorter form to elide into. A silent hold
+    // has no ring, and the reader refuses the key there in the other direction — one spelling
+    // each way.
+    if (!silentHold(note.attack))
+    {
+        line += R"(, "sustain": ")" + formatBeatFractionToken(note.sustain) + '"';
+    }
     switch (note.attack)
     {
         case NoteAttack::Pick:
@@ -433,6 +428,11 @@ void appendJsonString(std::string& out, const std::string& text)
         case NoteAttack::PickSlide:
         {
             line += R"(, "attack": "pickSlide")";
+            break;
+        }
+        case NoteAttack::None:
+        {
+            line += R"(, "attack": "none")";
             break;
         }
     }
@@ -528,21 +528,6 @@ void appendJsonString(std::string& out, const std::string& text)
     return line;
 }
 
-[[nodiscard]] std::string holdMarkerLine(const ChartHoldMarker& marker)
-{
-    std::string line = R"({ "position": ")" + formatGridPositionToken(marker.position) + '"';
-    line += ", \"string\": " + std::to_string(marker.string);
-    // Omitted where a note in the span supplies it. Absence is a MEANING here rather than a
-    // defaulted value — writing the resolved fret out would author exactly the second copy this
-    // record exists not to hold.
-    if (marker.fret.has_value())
-    {
-        line += ", \"fret\": " + std::to_string(*marker.fret);
-    }
-    line += " }";
-    return line;
-}
-
 } // namespace
 
 std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
@@ -604,6 +589,15 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
             "chart uses the removed \"chords\"/\"shapes\" fields; re-import the package to derive "
             "the hand-posture spans from the notes")};
     }
+    // The silently-held member moved into the note stream as an attack, so its own array is gone.
+    // Refused rather than ignored, for the reason every removed spelling is: a document carrying
+    // it would load with every hold silently missing and validate clean.
+    if (!Json::value(root, "holdMarkers").isVoid())
+    {
+        return std::unexpected{malformed(
+            "chart uses the removed \"holdMarkers\" field; re-import the package to get silently "
+            "held stops as notes with \"attack\": \"none\"")};
+    }
 
     const juce::var& notes_json = Json::value(root, "notes");
     if (notes_json.isArray())
@@ -630,21 +624,6 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     if (!std::ranges::is_sorted(chart.notes, chartNoteOrderLess))
     {
         return std::unexpected{malformed("chart notes must be sorted by position and string")};
-    }
-
-    const juce::var& markers_json = Json::value(root, "holdMarkers");
-    if (markers_json.isArray())
-    {
-        chart.hold_markers.reserve(static_cast<std::size_t>(markers_json.size()));
-        for (int index = 0; index < markers_json.size(); ++index)
-        {
-            auto marker = readHoldMarker(markers_json[index]);
-            if (!marker.has_value())
-            {
-                return std::unexpected{std::move(marker.error())};
-            }
-            chart.hold_markers.push_back(*marker);
-        }
     }
 
     const juce::var& fhps_json = Json::value(root, "fhps");
@@ -723,7 +702,6 @@ namespace
     };
 
     append_array("notes", chart.notes, noteLine);
-    append_array("holdMarkers", chart.hold_markers, holdMarkerLine);
     append_array("fhps", chart.fret_hand_positions, [](const FretHandPosition& fhp) {
         std::string line = R"({ "position": ")" + formatGridPositionToken(fhp.position) +
                            R"(", "fret": )" + std::to_string(fhp.fret);

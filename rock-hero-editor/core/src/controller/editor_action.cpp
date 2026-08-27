@@ -223,9 +223,9 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ToggleChartTechnique;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::ToggleChartHoldMarker>)
+    else if constexpr (std::is_same_v<A, EditorAction::ToggleChartSilentHold>)
     {
-        return EditorAction::Id::ToggleChartHoldMarker;
+        return EditorAction::Id::ToggleChartSilentHold;
     }
     else if constexpr (std::is_same_v<A, EditorAction::SetChartLeftTap>)
     {

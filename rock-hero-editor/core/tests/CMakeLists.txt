@@ -29,7 +29,7 @@ add_executable(
     test_chart_waypoint_editing.cpp
     test_chart_edits.cpp
     test_chart_hit_testing.cpp
-    test_chart_hold_marker.cpp
+    test_chart_silent_hold.cpp
     test_chart_navigation.cpp
     test_deferred_project_action_state.cpp
     test_editor_action_availability.cpp

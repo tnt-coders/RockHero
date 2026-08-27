@@ -337,8 +337,9 @@ item ships, mark it and name the commit.
     is `docs/plans/todo/unified-waypoint-model.md`, and the study shrinks to bend display and
     authoring on that substrate. W13 closes into that plan.
   - **Selectability BUILT 2026-08-26** (the plan's editor stage, the first non-negotiable):
-    `ChartSelectionKey` is now the sum `variant<ChartNoteKey, ChartHoldMarkerKey,
-    ChartWaypointKey>`, a waypoint identified by (note slot, offset) so sibling edits cannot
+    `ChartSelectionKey` is now the sum `variant<ChartNoteKey, ChartWaypointKey>` (the hold-marker
+    alternative left it with the array, 2026-08-27 — a silently-held stop is a NOTE, so it selects
+    as one), a waypoint identified by (note slot, offset) so sibling edits cannot
     re-point it. The lane's linked waypoint heads are clickable and marquee-selectable, wear the
     same accent ring every selectable wears, and take `Delete`, the vibrato channel's `V`, and
     `Shift+L`. A waypoint occupies no slot, so selecting one demotes the marker to a cursor rather

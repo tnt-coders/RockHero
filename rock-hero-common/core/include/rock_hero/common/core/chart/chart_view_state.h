@@ -106,9 +106,8 @@ struct SlideViewState
 
     Carried beside the resolved second because the second cannot name the waypoint back: it is a
     rounded double derived through the tempo map, while the editor's selection keys a waypoint by
-    (note slot, offset) and must match the authored `Waypoint::offset` exactly. The same reason
-    \ref ChartViewState::hold_markers carries the authored record — one producer for chart content
-    an editing surface has to point at.
+    (note slot, offset) and must match the authored `Waypoint::offset` exactly — one producer for
+    chart content an editing surface has to point at.
 
     Stable under sibling edits, which an index would not be: removing an earlier waypoint shifts
     every later index and moves no offset.
@@ -192,6 +191,22 @@ struct NoteViewState
     NoteAttack attack{NoteAttack::Pick};
 
     /*!
+    \brief Where a silently-held stop's posture bracket draws; absent for every other note.
+
+    A \ref NoteAttack::None note has no head and no tail, so the arpeggio bracket printing its stop
+    IS its face on the editing surface — what the pointer selects, and what a typed fret writes to.
+    The bracket draws at the START of the span the stop joined, which is where a posture is stated
+    and is not in general where the hold was authored, so this carries the bracket's instant rather
+    than \ref start_seconds. A hold that joined no span — one past its span's end, one on a string
+    the sound already states, one whose span dissolved unjustified — carries none, which is exactly
+    what makes "nothing undrawn is clickable" hold by construction rather than by a second rule.
+
+    Resolved by the span derivation itself (\ref ChartShapes::silent_hold_shapes), never re-derived
+    here. Absent on every sounding note, whose face is its own head at its own instant.
+    */
+    std::optional<double> bracket_seconds{};
+
+    /*!
     \brief What this note's connection claim resolves to (\ref resolveLegato).
 
     The chart stores a claim and never a direction, so the drawn hammer-on or pull-off mark can only
@@ -272,7 +287,8 @@ struct NoteViewState
     {
         return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
                std::is_eq(lhs.end_seconds <=> rhs.end_seconds) && lhs.string == rhs.string &&
-               lhs.fret == rhs.fret && lhs.attack == rhs.attack && lhs.legato == rhs.legato &&
+               lhs.fret == rhs.fret && lhs.attack == rhs.attack &&
+               lhs.bracket_seconds == rhs.bracket_seconds && lhs.legato == rhs.legato &&
                lhs.palm_mute == rhs.palm_mute && lhs.dead == rhs.dead &&
                lhs.harmonic_node == rhs.harmonic_node && lhs.tremolo == rhs.tremolo &&
                lhs.emphasis == rhs.emphasis && lhs.bend == rhs.bend && lhs.slides == rhs.slides &&
@@ -411,67 +427,6 @@ lines — aligns to; a head itself keeps the node's exact fractional position.
 {
     return fretFor(note.fret, note.harmonic_node, note.attack);
 }
-
-/*!
-\brief One authored hold marker resolved to a timeline second.
-
-The AUTHORED record, not what it resolves to: the stop a resolved marker contributes is already in
-the span's posture (\ref ShapeViewState::strings), and stating it twice would put one fret on two
-independently drawn surfaces. What this carries is only "an authored silent hold lives at this
-slot", which is what an editing surface needs to draw a mark on it, hit-test it, and select it —
-including where the display rule prints nothing at all, because a marker nothing justifies is inert
-and would otherwise be invisible authored state.
-
-**The 3D board and the game do not read this.** It is the 2D lane's authoring affordance, drawn by
-the editor as its own overlay under the charting-mark law; every surface shows the marker's EFFECT
-through the posture instead. It travels in the shared projection rather than beside it because it
-is chart content resolved to seconds, and one producer for that is the rule
-(\ref ChartViewState::display_hold_ends carries the same asymmetry the other way round).
-*/
-struct HoldMarkerViewState
-{
-    /*!
-    \brief Where this marker's posture bracket draws; absent when it resolved to nothing.
-
-    A hold marker has no mark of its own: the arpeggio bracket that prints its stop IS the marker,
-    drawn at the START of the span the stop joined, which is where a posture is stated and is not
-    in general where the marker was authored. So this carries the bracket's instant rather than the
-    marker's, and a marker that joined no span — one whose fret nothing supplies, one past its
-    span's end, one whose string the sound already states — carries none at all, which is exactly
-    what makes "nothing undrawn is clickable" hold by construction rather than by a second rule.
-
-    Resolved by the span derivation itself (\ref ChartShapes::marker_shapes), never re-derived here.
-    */
-    std::optional<double> bracket_seconds{};
-
-    /*! \brief One-based chart string (unshifted, like \ref NoteViewState::string). */
-    int string{1};
-
-    /*!
-    \brief Compares two hold-marker entries by their stored fields.
-
-    Hand-written rather than defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-    seconds member. Exact equality is intended; the ordering query expresses it warning-free with
-    identical semantics (NaN compares unequal either way). Both optionals are bound to named
-    references before either is read, which is what keeps the unchecked-optional-access analysis
-    able to see the guard.
-
-    \param lhs Left-hand entry.
-    \param rhs Right-hand entry.
-    \return True when both entries store equal values.
-    */
-    friend constexpr bool operator==(
-        const HoldMarkerViewState& lhs, const HoldMarkerViewState& rhs) noexcept
-    {
-        const std::optional<double>& left = lhs.bracket_seconds;
-        const std::optional<double>& right = rhs.bracket_seconds;
-        if (!left.has_value() || !right.has_value())
-        {
-            return left.has_value() == right.has_value() && lhs.string == rhs.string;
-        }
-        return std::is_eq(*left <=> *right) && lhs.string == rhs.string;
-    }
-};
 
 /*! \brief What the hand holds on one string under a shape span. */
 struct ShapeStringViewState
@@ -643,17 +598,6 @@ struct ChartViewState
     as it is held.
     */
     std::vector<double> display_hold_ends;
-
-    /*!
-    \brief Authored hold markers in ascending (position, string) order — the editor lane's own.
-
-    Carried for the 2D editing surface alone (\ref HoldMarkerViewState); the board draws nothing
-    from it, because what a marker MEANS already reaches every surface through the posture. Same
-    order and size as `Chart::hold_markers`, INCLUDING the markers that resolved to nothing: the
-    editor addresses a marker by its index here, so a filtered array would renumber the selection.
-    An unresolved entry simply carries no bracket to draw or click.
-    */
-    std::vector<HoldMarkerViewState> hold_markers;
 
     /*! \brief Hand-posture spans in ascending start order. */
     std::vector<ShapeViewState> shapes;

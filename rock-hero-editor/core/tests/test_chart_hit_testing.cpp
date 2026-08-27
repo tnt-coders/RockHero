@@ -74,17 +74,24 @@ namespace
     return ChartNoteHit{.index = index};
 }
 
-// One note slot as a selection key: the selection unit spans both authored arrays now.
+// One note slot as a selection key.
 [[nodiscard]] ChartSelectionKey noteKey(const ChartSlotKey& slot)
 {
     return ChartNoteKey{.slot = slot};
 }
 
-// The same slot read as the other kind — the pair below is what proves the kind is part of the
-// identity rather than a label the answer carries.
-[[nodiscard]] ChartSelectionKey markerKey(const ChartSlotKey& slot)
+// One silently-held stop in a projection: no head, no tail, and a bracket instant naming where its
+// face draws — the span's start, which is not in general the slot it was authored at.
+[[nodiscard]] common::core::NoteViewState heldView(
+    const double bracket_seconds, const int string, const double onset_seconds)
 {
-    return ChartHoldMarkerKey{.slot = slot};
+    common::core::NoteViewState note;
+    note.start_seconds = onset_seconds;
+    note.end_seconds = onset_seconds;
+    note.string = string;
+    note.attack = common::core::NoteAttack::None;
+    note.bracket_seconds = bracket_seconds;
+    return note;
 }
 
 // One of a note's waypoints as a hit target: two indices, because a waypoint belongs to a note
@@ -240,52 +247,52 @@ TEST_CASE("Chart hit testing collects notes inside a marquee box", "[core][chart
     CHECK(empty.empty());
 }
 
-// A hold marker is reached through the posture BRACKET that states its stop, at exactly the extent
-// that bracket is drawn at, and it wins over a head it overlaps even though the paint core draws
-// it under one. The marquee collects it too, so a box over a chord takes the silently-held member
+// A silently-held stop is reached through the posture BRACKET that states it, at exactly the
+// extent that bracket is drawn at, and it wins over a head it overlaps even though the paint core
+// draws it under one. The marquee collects it too, so a box over a chord takes the held member
 // with the rest of the shape.
-TEST_CASE("Chart hit testing resolves hold markers at their brackets", "[core][chart]")
+TEST_CASE("Chart hit testing resolves held stops at their brackets", "[core][chart]")
 {
     common::core::ChartViewState tab = makeTabState();
     // On string 5 at 6s (x = 120, y = 60.5), a lane the fixture leaves empty so nothing else can
     // answer the probes.
-    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = 6.0, .string = 5}};
+    tab.notes.push_back(heldView(6.0, 5, 6.0));
     const common::ui::TabLaneGeometry geometry = makeGeometry();
 
-    const ChartHitTarget marker{ChartHoldMarkerHit{.index = 0}};
-    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == marker);
-    // The box is the BRACKET's, not a head's or the retired dot's, and the two probes say so in
-    // both axes: the bracket stands wider than the head it wraps (x = 134 is outside the head's
-    // 26 px box and inside the bracket) and stops short of it vertically (y = 71 is inside the
-    // head and outside the bracket). The drawn extent IS the clickable one.
-    CHECK(chartHitTarget(tab, geometry, 134.0f, 60.0f) == marker);
+    const ChartHitTarget held{ChartNoteHit{.index = 3}};
+    CHECK(chartHitTarget(tab, geometry, 120.0f, 60.0f) == held);
+    // The box is the BRACKET's, not a head's, and the two probes say so in both axes: the bracket
+    // stands wider than the head it wraps (x = 134 is outside the head's 26 px box and inside the
+    // bracket) and stops short of it vertically (y = 71 is inside the head and outside the
+    // bracket). The drawn extent IS the clickable one.
+    CHECK(chartHitTarget(tab, geometry, 134.0f, 60.0f) == held);
     CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 71.0f).has_value());
     CHECK_FALSE(chartHitTarget(tab, geometry, 145.0f, 60.0f).has_value());
 
-    // A marker that resolved into no span has no bracket, so nothing reaches it — the projection
-    // publishes no instant for it and the layout answers with nothing at all.
-    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = {}, .string = 5}};
+    // A hold that resolved into no span has no bracket, so nothing reaches it — the projection
+    // publishes no instant for it and the layout answers with nothing at all. Its own onset is
+    // not a fallback: a silent hold draws no head there either.
+    tab.notes.back() = heldView(6.0, 5, 6.0);
+    tab.notes.back().bracket_seconds.reset();
     CHECK_FALSE(chartHitTarget(tab, geometry, 120.0f, 60.0f).has_value());
     // Same for the marquee, boxed over string 5's own lane so no note can answer either.
     CHECK(chartTargetsInBox(tab, geometry, 0.0f, 40.0f, 400.0f, 80.0f).empty());
 
-    // A bracket never wraps a head of its OWN string — a marker's string is silent at the span
-    // start by construction — but it can overlap one a little later on that string, which is
-    // exactly the note a fret-less marker takes its stop from. The paint core draws the bracket
-    // UNDER that head, and the marker takes the overlap anyway: the bracket is its only
-    // affordance, while the head keeps every column the bracket does not reach. Bracket at 4s
+    // A bracket never wraps a head of its OWN string — a held stop's string is silent at the span
+    // start by construction — but it can overlap one a little later on that string. The paint core
+    // draws the bracket UNDER that head, and the hold takes the overlap anyway: the bracket is its
+    // only affordance, while the head keeps every column the bracket does not reach. Bracket at 4s
     // spans x 63..97 on string 1; the 5s head spans 86..114.
-    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = 4.0, .string = 1}};
-    CHECK(chartHitTarget(tab, geometry, 90.0f, 220.0f) == marker);
+    tab.notes.back() = heldView(4.0, 1, 4.0);
+    CHECK(chartHitTarget(tab, geometry, 90.0f, 220.0f) == held);
     CHECK(chartHitTarget(tab, geometry, 110.0f, 220.0f) == noteTarget(1));
 
-    // The marquee collects notes and brackets together, notes first.
-    tab.hold_markers = {common::core::HoldMarkerViewState{.bracket_seconds = 2.0, .string = 3}};
+    // The marquee collects heads and brackets together, heads first.
+    tab.notes.back() = heldView(2.0, 3, 2.0);
     const std::vector<ChartHitTarget> boxed =
         chartTargetsInBox(tab, geometry, 20.0f, 120.0f, 130.0f, 240.0f);
     CHECK(
-        boxed ==
-        (std::vector<ChartHitTarget>{noteTarget(0), noteTarget(1), noteTarget(2), marker}));
+        boxed == (std::vector<ChartHitTarget>{noteTarget(0), noteTarget(1), noteTarget(2), held}));
 }
 
 // Selection keys resolve back to projection indices through the sorted chart note stream, and
@@ -354,23 +361,25 @@ TEST_CASE("Chart selection keys separate the kinds sharing one slot", "[core][ch
 {
     const ChartSlotKey slot = slotAt(2, 1);
     const ChartSelectionKey note = noteKey(slot);
-    const ChartSelectionKey marker = markerKey(slot);
+    const ChartSelectionKey waypoint =
+        ChartWaypointKey{.note = slot, .offset = common::core::Fraction{1, 2}};
 
     ChartSelection selection;
     selection.add(note);
-    selection.add(marker);
+    selection.add(waypoint);
     CHECK(selection.contains(note));
-    CHECK(selection.contains(marker));
+    CHECK(selection.contains(waypoint));
     CHECK(selection.notes() == std::vector<ChartSlotKey>{slot});
-    CHECK(selection.holdMarkers() == std::vector<ChartSlotKey>{slot});
-    // Notes first, each kind in slot order: the verb window compares whole selections across the
-    // kinds, so the flattened order is part of what it proves.
-    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, marker}));
+    CHECK(selection.waypoints().size() == 1);
+    // Notes first, each kind in its own order: the verb window compares whole selections across
+    // the kinds, so the flattened order is part of what it proves.
+    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, waypoint}));
 
-    // Toggling one kind off leaves the other standing, which a slot-only identity could not do.
+    // Toggling one kind off leaves the other standing, which a slot-only identity could not do:
+    // a waypoint SHARES its note's slot rather than excluding it.
     selection.toggle(note);
     CHECK_FALSE(selection.contains(note));
-    CHECK(selection.contains(marker));
+    CHECK(selection.contains(waypoint));
     CHECK_FALSE(selection.empty());
 
     // clear() is kind-agnostic: one selection editor-wide, emptied in one call.
@@ -378,79 +387,65 @@ TEST_CASE("Chart selection keys separate the kinds sharing one slot", "[core][ch
     CHECK(selection.empty());
 }
 
-// Each kind's keys resolve against ITS OWN array through the same merge, so one mixed selection
-// hands every verb a per-array operand rather than a filtered mixed one — and a key naming a
-// record that is gone drops out instead of mismapping onto its neighbour.
-TEST_CASE("Chart selection resolves hold marker keys to their own array", "[core][chart]")
+// A silently-held stop resolves through the SAME merge a sounding note does, because it is one:
+// the note stream is the one slot-keyed array there is, and a key naming a note that is gone drops
+// out instead of mismapping onto its neighbour.
+TEST_CASE("Chart selection resolves held stops like any other note", "[core][chart]")
 {
+    common::core::ChartNote held = makeTestNote({.measure = 3, .beat = 1}, 4, 9);
+    held.attack = common::core::NoteAttack::None;
+    held.sustain = common::core::Fraction{};
     const std::vector<common::core::ChartNote> notes{
         makeTestNote({.measure = 2, .beat = 1}, 1, 3),
         makeTestNote({.measure = 2, .beat = 1}, 2, 5),
-    };
-    const std::vector<common::core::ChartHoldMarker> markers{
-        common::core::ChartHoldMarker{
-            .position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3, .fret = std::nullopt
-        },
-        common::core::ChartHoldMarker{
-            .position = {.measure = 3, .beat = 1, .offset = {}}, .string = 4, .fret = 9
-        },
+        held,
     };
 
     ChartSelection selection;
     selection.add(noteKey(slotAt(2, 2)));
-    selection.add(markerKey(slotAt(3, 4)));
-    CHECK(selectedNoteIndices(notes, selection) == std::vector<std::size_t>{1});
-    CHECK(selectedHoldMarkerIndices(markers, selection) == std::vector<std::size_t>{1});
-
-    // The note's own slot resolves to nothing in the marker array and vice versa: neither
-    // resolution can reach across the kinds, which is what keeps the arrays' indices honest.
-    selection.clear();
-    selection.add(markerKey(slotAt(2, 2)));
     selection.add(noteKey(slotAt(3, 4)));
-    CHECK(selectedNoteIndices(notes, selection).empty());
-    CHECK(selectedHoldMarkerIndices(markers, selection).empty());
+    CHECK(selectedNoteIndices(notes, selection) == (std::vector<std::size_t>{1, 2}));
 
-    // A marker key naming a marker that is gone is skipped, exactly like a stale note key.
+    // A key naming a slot nothing occupies is skipped rather than mismapped.
     selection.clear();
-    selection.add(markerKey(slotAt(2, 3)));
-    selection.add(markerKey(slotAt(9, 4)));
-    CHECK(selectedHoldMarkerIndices(markers, selection) == std::vector<std::size_t>{0});
+    selection.add(noteKey(slotAt(9, 4)));
+    CHECK(selectedNoteIndices(notes, selection).empty());
 }
 
 // The double click's unit is the onset GROUP, and the group is the HAND's at that instant: a
 // silently-held stop authored on the same onset is a member of the shape the strum takes, so it
-// joins the notes rather than being left out of the verbs the group then feeds. Only that instant
-// joins — a marker one onset later belongs to its own group.
-TEST_CASE("Chart onset group keys collect both authored arrays", "[core][chart]")
+// joins the notes with no rule of its own — one equal_range over one stream. Only that instant
+// joins; a hold one onset later belongs to its own group.
+TEST_CASE("Chart onset group keys collect every member of the instant", "[core][chart]")
 {
+    common::core::ChartNote near_hold = makeTestNote({.measure = 2, .beat = 1}, 3, 5);
+    near_hold.attack = common::core::NoteAttack::None;
+    near_hold.sustain = common::core::Fraction{};
+    common::core::ChartNote far_hold = makeTestNote({.measure = 3, .beat = 1}, 4, 9);
+    far_hold.attack = common::core::NoteAttack::None;
+    far_hold.sustain = common::core::Fraction{};
     const std::vector<common::core::ChartNote> notes{
         makeTestNote({.measure = 2, .beat = 1}, 1, 3),
         makeTestNote({.measure = 2, .beat = 1}, 2, 5),
+        near_hold,
         makeTestNote({.measure = 3, .beat = 1}, 1, 7),
-    };
-    const std::vector<common::core::ChartHoldMarker> markers{
-        common::core::ChartHoldMarker{
-            .position = {.measure = 2, .beat = 1, .offset = {}}, .string = 3, .fret = std::nullopt
-        },
-        common::core::ChartHoldMarker{
-            .position = {.measure = 3, .beat = 1, .offset = {}}, .string = 4, .fret = 9
-        },
+        far_hold,
     };
 
     CHECK(
-        chartOnsetGroupKeys(notes, markers, {.measure = 2, .beat = 1, .offset = {}}) ==
+        chartOnsetGroupKeys(notes, {.measure = 2, .beat = 1, .offset = {}}) ==
         (std::vector<ChartSelectionKey>{
-            noteKey(slotAt(2, 1)), noteKey(slotAt(2, 2)), markerKey(slotAt(2, 3))
+            noteKey(slotAt(2, 1)), noteKey(slotAt(2, 2)), noteKey(slotAt(2, 3))
         }));
 
-    // An onset holding only a marker is still a group, so double-clicking a lone mark selects it.
-    const std::vector<common::core::ChartNote> no_notes;
+    // An onset holding only a hold is still a group, so double-clicking a lone bracket selects it.
+    const std::vector<common::core::ChartNote> hold_only{far_hold};
     CHECK(
-        chartOnsetGroupKeys(no_notes, markers, {.measure = 3, .beat = 1, .offset = {}}) ==
-        std::vector<ChartSelectionKey>{markerKey(slotAt(3, 4))});
+        chartOnsetGroupKeys(hold_only, {.measure = 3, .beat = 1, .offset = {}}) ==
+        std::vector<ChartSelectionKey>{noteKey(slotAt(3, 4))});
 
     // An onset nothing sits on collects nothing.
-    CHECK(chartOnsetGroupKeys(notes, markers, {.measure = 9, .beat = 1, .offset = {}}).empty());
+    CHECK(chartOnsetGroupKeys(notes, {.measure = 9, .beat = 1, .offset = {}}).empty());
 }
 
 // A junction's head is drawn ON the tail, so it has to win over it or no waypoint would ever be
@@ -536,14 +531,14 @@ TEST_CASE("Chart selection keys a waypoint by its offset", "[core][chart]")
     CHECK(selectedWaypointIndices(notes, tab.notes, selection).empty());
 }
 
-// Waypoints are a third alternative of one selection, not a second selection: the kind-agnostic
-// mutations reach them, they publish after the two slot-keyed kinds, and a waypoint shares its
-// note's slot without excluding the note — the pairing a slot-plus-kind key could not hold.
-TEST_CASE("Chart selection carries waypoints beside the slot-keyed kinds", "[core][chart]")
+// Waypoints are the second alternative of one selection, not a second selection: the
+// kind-agnostic mutations reach them, they publish after the slot-keyed notes, and a waypoint
+// shares its note's slot without excluding the note — the pairing a slot-plus-kind key could not
+// hold.
+TEST_CASE("Chart selection carries waypoints beside the notes", "[core][chart]")
 {
     const ChartSlotKey slot = slotAt(2, 1);
     const ChartSelectionKey note = noteKey(slot);
-    const ChartSelectionKey marker = markerKey(slot);
     const ChartSelectionKey waypoint = waypointKey(slot, common::core::Fraction{2});
     const ChartSelectionKey later = waypointKey(slot, common::core::Fraction{4});
 
@@ -551,12 +546,11 @@ TEST_CASE("Chart selection carries waypoints beside the slot-keyed kinds", "[cor
     selection.add(later);
     selection.add(waypoint);
     selection.add(note);
-    selection.add(marker);
     CHECK(selection.contains(waypoint));
     CHECK(selection.contains(later));
-    // Notes first, then markers, then waypoints, each kind in its own order — the flattened order
-    // the verb window compares whole selections in.
-    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, marker, waypoint, later}));
+    // Notes first, then waypoints, each kind in its own order — the flattened order the verb
+    // window compares whole selections in.
+    CHECK(selection.keys() == (std::vector<ChartSelectionKey>{note, waypoint, later}));
     CHECK(
         selection.waypoints() ==
         (std::vector<ChartWaypointKey>{
@@ -575,7 +569,6 @@ TEST_CASE("Chart selection carries waypoints beside the slot-keyed kinds", "[cor
     // marker to a cursor in place rather than putting it on the note the waypoint rides.
     CHECK_FALSE(chartCaretSlotFor(waypoint).has_value());
     CHECK(chartCaretSlotFor(note) == slot);
-    CHECK(chartCaretSlotFor(marker) == slot);
 
     selection.clear();
     CHECK(selection.empty());

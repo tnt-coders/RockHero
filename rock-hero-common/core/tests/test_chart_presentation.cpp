@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/chart/chart_presentation.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -674,6 +675,51 @@ TEST_CASE("A strum's inherited hold comes from the furthest-reaching span", "[co
         // No span covers measure 5, so its strum holds exactly what it presents: nothing.
         CHECK(holds[2] == Fraction{});
         CHECK(holds[3] == Fraction{});
+    }
+}
+
+// A silently-held stop is not there as far as SOUND is concerned, and three rules that walk the
+// note stream have to read it that way. Each of these had no case before the substrate swap put
+// held stops in the stream, and each fails loudly if its skip is removed.
+TEST_CASE("Presentation and its bounds read past a silently-held stop", "[core][chart]")
+{
+    const TempoMap map = fourFourMap();
+    const auto hold = [](const GridPosition position, const int string, const int fret) {
+        ChartNote held = note(position, string, Fraction{}, fret);
+        held.attack = NoteAttack::None;
+        return held;
+    };
+
+    SECTION("a held stop is not a binding onset, so the tail in front of it keeps its length")
+    {
+        // Rule 1 trims a ring to clear the HEAD that follows it, and a held stop draws none. The
+        // note rings two beats; a hold lands ONE beat in and a real onset TWO beats in, so the
+        // trim that fires is the real onset's margin and the hold changes nothing.
+        const std::vector<ChartNote> with_hold{
+            note(at(1, 1), 1, Fraction{2}),
+            hold(at(1, 2), 3, 7),
+            note(at(1, 3), 2, Fraction{1}),
+        };
+        std::vector<ChartNote> without_hold = with_hold;
+        without_hold.erase(without_hold.begin() + 1);
+        CHECK(presentedSustains(with_hold, map)[0] == presentedSustains(without_hold, map)[0]);
+        // And the case discriminates sharply: two beats less the 4/4 margin, where a hold that
+        // bound would have left one beat less that margin instead.
+        CHECK(presentedSustains(with_hold, map)[0] == Fraction{2} - minimumSustainDistanceBeats(4));
+        CHECK(presentedSustains(with_hold, map)[0] != Fraction{1} - minimumSustainDistanceBeats(4));
+    }
+
+    SECTION("a held stop on the string bounds no ring")
+    {
+        // 40-Q2-B bounds a ring at the next STRIKE on its own string, and nothing struck silently
+        // stops a string that is already sounding.
+        std::vector<ChartNote> notes{
+            note(at(1, 1), 1, Fraction{4}),
+            hold(at(1, 2), 1, 7),
+        };
+        CHECK_FALSE(sustainBoundOf(notes, notes[0], map).has_value());
+        normalizeSustainOverlaps(notes, map);
+        CHECK(notes[0].sustain == Fraction{4});
     }
 }
 

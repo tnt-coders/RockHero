@@ -126,9 +126,10 @@ and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active.
 
 Inside the chart alternative there is a second axis, the selection **unit**: a `ChartSelection`
 holds `ChartSelectionKey` values, and that key is a **sum** —
-`std::variant<ChartNoteKey, ChartHoldMarkerKey, ChartWaypointKey>` (`chart_selection.h`). The
-first two are named by a `ChartSlotKey`, the `(position, string)` both authored arrays are keyed
-by; the third is not, and that is why the key is a sum rather than a kind tag beside a slot. A
+`std::variant<ChartNoteKey, ChartWaypointKey>` (`chart_selection.h`). The first is named by a
+`ChartSlotKey`, the `(position, string)` the note stream is keyed by — silently-held stops
+included, since they are notes; the second is not, and that is why the key is a sum rather than a
+kind tag beside a slot. A
 note carries many waypoints, so a waypoint's identity is `(note slot, offset)` — the authored
 beat-fraction offset and never an index, because removing an earlier waypoint shifts every later
 index and moves no offset. Carrying that offset as a field only one kind uses would make "a note
@@ -139,8 +140,8 @@ One sorted-unique sequence per alternative, one set of mutations written over wh
 (sequence, element) pair an alternative maps to — `ChartSelection::visitSequence` is that single
 mapping, so a mutation never branches on kind and the waypoint sequence can hold a different
 element type than the two slot-keyed ones. Every verb reads its own kind's operand as a plain
-list (`notes()`, `holdMarkers()`, `waypoints()`) and a verb a kind has no meaning for simply
-reads an empty one, which is what keeps the technique verbs free of waypoint guards.
+list (`notes()`, `waypoints()`) and a verb a kind has no meaning for simply reads an empty one,
+which is what keeps the technique verbs free of waypoint guards.
 
 Three consequences worth knowing before touching this:
 
@@ -148,20 +149,23 @@ Three consequences worth knowing before touching this:
   absent for a waypoint key, and selecting one demotes the marker to a cursor in place, exactly as
   every multi-select gesture does. The armed-caret invariant is "the selection is what sits under
   the caret", and a caret on the note while the selection holds the waypoint would break it.
-  `ChartSlotOccupant` (which of the two SLOT-keyed arrays holds an object at a slot) is therefore
-  a narrower question than "what can be selected", and deliberately excludes waypoints: the two
-  arrays are disjoint over one slot space, while a waypoint SHARES its note's slot.
+  `chartSlotOccupied` (does the note stream hold anything at this slot) is therefore a narrower
+  question than "what can be selected", and deliberately excludes waypoints: a slot holds at most
+  one note, while a waypoint SHARES its note's slot.
 - **Waypoints publish as drawn positions, not as chart identity.** `ChartEditViewState` carries
-  `selected_waypoints` as `ChartWaypointRef{note_index, waypoint_index}` beside the two index
-  lists, resolved against the presented projection the lane hit-tested; a key the trim clipped out
+  `selected_waypoints` as `ChartWaypointRef{note_index, waypoint_index}` beside the note index
+  list, resolved against the presented projection the lane hit-tested; a key the trim clipped out
   of the drawn tail resolves to nothing and simply wears no ring.
 - **`selection.empty()` is not "this verb has no operand" any more, and the difference bites.**
-  Widening the key split one question into two: a verb whose operand is the slot-keyed arrays
-  (`moveChartSelection` — Alt+arrows) now sees a non-empty selection with `notes()` and
-  `holdMarkers()` both empty, and reading a `front()` off either is out of bounds rather than
-  merely inert. Every such verb guards on the operand it actually reads, never on `empty()`.
-  Verbs whose planner takes the keys as a list need no change: an empty key list already means
-  NoChange.
+  Widening the key split one question into two: a verb whose operand is the slot-keyed notes
+  (`moveChartSelection` — Alt+arrows) can see a non-empty selection with `notes()` empty — a
+  waypoint-only selection — and reading a `front()` off it is out of bounds rather than merely
+  inert. Every such verb guards on the operand it actually reads, never on `empty()`. Verbs whose
+  planner takes the keys as a list need no change: an empty key list already means NoChange. The
+  typed DIGIT is the same question one level up: it routes by whether the selection holds notes to
+  retype, not by `empty()` — routing it by emptiness armed a pending entry whose target was an
+  empty key set, and because an invalid entry is the one kind that outlives its window by design,
+  a digit typed over a waypoint left a red box no timer would clear.
 
 **Adding a selection kind is the highest silent-fan-out change in the editor.** Because dispatch
 is `std::visit`/`holds_alternative`, a new alternative compiles clean nearly everywhere it is
@@ -233,11 +237,11 @@ base color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefo
 all color strings through it. The glyph renderer itself is the **shared notation paint core**
 in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
 `TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head/tail
-in pixels" for hit testing (and the same for a linked waypoint's head, and for a hold marker's
-**posture bracket** — a marker has no mark of its own, so what the editor rings and hit-tests is
+in pixels" for hit testing (and the same for a linked waypoint's head, and for a silently-held
+stop's **posture bracket** — such a note draws no head, so what the editor rings and hit-tests is
 the arpeggio bracket the paint core already draws at its span's start, and the bracket's size lives
 on `TabLaneGeometry` for exactly that reason: the painter and the hit test read one authority. A
-marker that joined no posture draws no bracket, and the layout answers with no box at all, so
+hold that joined no posture draws no bracket, and the layout answers with no box at all, so
 nothing undrawn is clickable without a second rule saying so), and `tab_paint_core.h` — the one
 designated juce_graphics-bearing
 common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.

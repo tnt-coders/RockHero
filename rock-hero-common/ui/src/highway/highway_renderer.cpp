@@ -2563,9 +2563,14 @@ void HighwayRenderer::Impl::draw(
     for (std::size_t index = first_note; index < last_note; ++index)
     {
         const common::core::NoteViewState& note = state.chart.notes[index];
+        // A silently-held stop is not a note the board draws: it makes no sound, so it has no
+        // head, no shadow, no rail and no tail. Filtered HERE, once, because every note batch
+        // below iterates this one index list — the board shows what a silent hold MEANS through
+        // the posture rails instead.
+        //
         // The hold end, not the sustain end: a span-held strum stays drawable while its head
         // pins at the hit line long after its sustainless onset has passed.
-        if (note.start_seconds <= span_end_seconds &&
+        if (!common::core::silentHold(note.attack) && note.start_seconds <= span_end_seconds &&
             state.chart.display_hold_ends[index] >= span_start_seconds)
         {
             visible.push_back(index);
@@ -6025,7 +6030,10 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
         for (std::size_t member = index; member < cluster_end; ++member)
         {
             const common::core::NoteViewState& note = state.chart.notes[member];
-            if (!common::core::rightHandOnset(note.attack))
+            // A silently-held stop strikes nothing, so it lights no fret line and never counts
+            // toward the box the glow classifies by.
+            if (!common::core::rightHandOnset(note.attack) &&
+                !common::core::silentHold(note.attack))
             {
                 ++fretting_hand_count;
                 any_open = any_open || common::core::openString(note);
@@ -6045,7 +6053,8 @@ void HighwayRenderer::Impl::drawStrikeGlow(const FrameContext& frame)
             for (std::size_t member = index; member < cluster_end; ++member)
             {
                 const common::core::NoteViewState& note = state.chart.notes[member];
-                if (common::core::rightHandOnset(note.attack) || note.fret <= 0)
+                if (common::core::rightHandOnset(note.attack) ||
+                    common::core::silentHold(note.attack) || note.fret <= 0)
                 {
                     continue;
                 }

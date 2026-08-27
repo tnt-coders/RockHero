@@ -188,13 +188,14 @@ struct ChartResolutions
     std::vector<ChartPosture> postures;
 
     /*!
-    \brief Per hold marker of the same chart, the \ref shapes entry its stop joined; absent if none.
+    \brief Per note, the \ref shapes entry a silently-held stop joined; absent for every other note.
 
-    Same order and size as `Chart::hold_markers` (\ref ChartShapes::marker_shapes). The 2D lane's
-    mark for a marker IS the posture bracket at that span's start, so this is what places it and
-    what makes an unresolved marker draw — and therefore hit-test — nowhere.
+    Index-parallel to `notes` like everything else here (\ref ChartShapes::silent_hold_shapes). A
+    silent hold has no head of its own, so its face IS the posture bracket at that span's start:
+    this is what places it, and what makes an unresolved hold draw — and therefore hit-test —
+    nowhere.
     */
-    std::vector<std::optional<std::size_t>> marker_shapes;
+    std::vector<std::optional<std::size_t>> silent_hold_shapes;
 
     /*! \brief Each note's held length in beats (\ref chartHolds): how long the hand stays down. */
     std::vector<Fraction> holds;
@@ -207,20 +208,17 @@ The connections come from \ref chartConnections, so the walk that answers them i
 both the callers that want the whole picture and the callers that want a claim.
 
 The spans come from the same stream rather than from a caller, which is what makes them impossible
-to disagree with it: a caller holding a stale span list has nowhere to pass it. The hold markers
-ride alongside for the same reason — they are the one posture input the note stream cannot carry
-(\ref ChartHoldMarker), and a span derived without the chart's own markers would be a second,
-quieter picture of the same chart.
+to disagree with it: a caller holding a stale span list has nowhere to pass it. The silently-held
+members ride in that one stream too (\ref NoteAttack::None), so there is no second posture input a
+caller could forget to hand over.
 
 \param notes Note stream sorted by (position, string).
-\param hold_markers Silently-held shape members from the same chart (\ref Chart::hold_markers).
 \param tempo_map Song tempo map supplying the beat axis.
 
 \return The resolutions; every per-note vector is index-parallel to `notes`.
 */
 [[nodiscard]] ChartResolutions chartResolutions(
-    const std::vector<ChartNote>& notes, const std::vector<ChartHoldMarker>& hold_markers,
-    const TempoMap& tempo_map);
+    const std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 /*!
 \brief Flattens every legato claim the chart no longer justifies to a plain pick — the settle sweep.
@@ -246,6 +244,38 @@ no flatten can create or destroy another note's justification.
         invariant, which is what callers test to know whether it changed.
 */
 [[nodiscard]] std::vector<ChartConversion> sweepUnjustifiedLegato(
+    std::vector<ChartNote>& notes, const TempoMap& tempo_map);
+
+/*!
+\brief Removes every silently-held stop the chart's shapes leave stating nothing.
+
+The legato sweep's sibling, and here beside it for the same reason: it is relational and stateless,
+judging only the stream it is handed. A \ref NoteAttack::None note has no head, no ring and no sound
+— its whole existence is the fret it puts into a posture — so one that reaches no span
+(\ref ChartShapes::silent_hold_shapes absent) is a record that draws nowhere, hit-tests nowhere and
+changes no picture. Keeping it would save an invisible note the charter can neither see nor select.
+
+Three ways to state nothing, one test for all of them, because the derivation answers all three the
+same way: joining no span at all (a lone member, or a shape the hand alone stated that nothing ever
+justified), landing past the end of the span it joined, and restating a stop that span already
+states — the last being the redundant restatement, which adds no fret and flips no bracket.
+
+Unlike the legato sweep, one pass is NOT enough, and this iterates to a fixpoint: a removal can take
+the second member off a span, which then states nothing itself and leaves ITS holds stating nothing.
+Each round removes at least one note, so the walk is bounded by the holds in the stream.
+
+Runs where the invariant has to hold: \ref normalizeChart's last stage, after the legato settle
+(which can change an articulation, and therefore a span), so a loaded chart is already swept; and
+the editor's plan gate, so an edit that leaves a hold stating nothing takes it in the same undo
+entry rather than saving one nothing draws.
+
+\param notes Note stream sorted by (position, string); swept in place.
+\param tempo_map Song tempo map supplying the beat axis.
+
+\return One \ref ChartRepair::InertSilentHold conversion per removed hold, each naming its position
+        and string; empty when every hold in the stream already stated something.
+*/
+[[nodiscard]] std::vector<ChartConversion> sweepInertSilentHolds(
     std::vector<ChartNote>& notes, const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

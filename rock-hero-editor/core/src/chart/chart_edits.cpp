@@ -53,101 +53,92 @@ namespace
     return common::core::frettingFingerOnNode(note) != common::core::frettingFingerOnNode(retyped);
 }
 
-// Diffs one authored array's current values against the planned ones into removed/inserted full
-// values; both inputs are sorted by the chart's slot order. Written once over the record type
-// because a note stream and a hold-marker array are the same walk — a per-array copy would be the
-// same merge stated twice, free to disagree about what "changed in place" means.
-template <typename Record>
-[[nodiscard]] ChartArrayChange<Record> diffSlotArray(
-    const std::vector<Record>& before, const std::vector<Record>& after)
+// Diffs the note stream's current values against the planned ones into removed/inserted full
+// values; both inputs are sorted by the chart's slot order. The label is the caller's.
+[[nodiscard]] ChartEditPlan diffNotes(
+    const std::vector<common::core::ChartNote>& before,
+    const std::vector<common::core::ChartNote>& after, const std::string_view label)
 {
-    ChartArrayChange<Record> change;
+    ChartEditPlan plan{.removed = {}, .inserted = {}, .label = std::string{label}};
     std::size_t before_index = 0;
     std::size_t after_index = 0;
     while (before_index < before.size() || after_index < after.size())
     {
         if (before_index == before.size())
         {
-            change.inserted.push_back(after[after_index++]);
+            plan.inserted.push_back(after[after_index++]);
             continue;
         }
         if (after_index == after.size())
         {
-            change.removed.push_back(before[before_index++]);
+            plan.removed.push_back(before[before_index++]);
             continue;
         }
-        const Record& old_record = before[before_index];
-        const Record& new_record = after[after_index];
-        if (chartSlotKeyOf(old_record) < chartSlotKeyOf(new_record))
+        const common::core::ChartNote& old_note = before[before_index];
+        const common::core::ChartNote& new_note = after[after_index];
+        if (chartSlotKeyOf(old_note) < chartSlotKeyOf(new_note))
         {
-            change.removed.push_back(before[before_index++]);
+            plan.removed.push_back(before[before_index++]);
             continue;
         }
-        if (chartSlotKeyOf(new_record) < chartSlotKeyOf(old_record))
+        if (chartSlotKeyOf(new_note) < chartSlotKeyOf(old_note))
         {
-            change.inserted.push_back(after[after_index++]);
+            plan.inserted.push_back(after[after_index++]);
             continue;
         }
-        if (!(old_record == new_record))
+        if (!(old_note == new_note))
         {
-            change.removed.push_back(old_record);
-            change.inserted.push_back(new_record);
+            plan.removed.push_back(old_note);
+            plan.inserted.push_back(new_note);
         }
         ++before_index;
         ++after_index;
     }
-    return change;
+    return plan;
 }
 
-// One authored array cut in two by a key set: the records the keys name, and everything else.
-// Both keep their slot order. The two range verbs share it — deleting is "keep the rest", moving
-// is "transform the keyed half and put it back" — and both run it over each authored array, so
-// neither verb states per-array handling of its own.
-template <typename Record> struct KeyedSplit
+// The note stream cut in two by a key set: the notes the keys name, and everything else. Both
+// keep their slot order. The two range verbs share it — deleting is "keep the rest", moving is
+// "transform the keyed half and put it back".
+struct KeyedSplit
 {
-    std::vector<Record> keyed;
-    std::vector<Record> rest;
+    std::vector<common::core::ChartNote> keyed;
+    std::vector<common::core::ChartNote> rest;
 };
 
 // keys must be sorted ascending (the ChartSelection order); the lookup binary-searches it.
-template <typename Record>
-[[nodiscard]] KeyedSplit<Record> splitByKeys(
-    const std::vector<Record>& records, const std::vector<ChartSlotKey>& keys)
+[[nodiscard]] KeyedSplit splitByKeys(
+    const std::vector<common::core::ChartNote>& notes, const std::vector<ChartSlotKey>& keys)
 {
-    KeyedSplit<Record> split;
-    split.rest.reserve(records.size());
-    for (const Record& record : records)
+    KeyedSplit split;
+    split.rest.reserve(notes.size());
+    for (const common::core::ChartNote& note : notes)
     {
-        if (std::ranges::binary_search(keys, chartSlotKeyOf(record)))
+        if (std::ranges::binary_search(keys, chartSlotKeyOf(note)))
         {
-            split.keyed.push_back(record);
+            split.keyed.push_back(note);
             continue;
         }
-        split.rest.push_back(record);
+        split.rest.push_back(note);
     }
     return split;
 }
 
-// Slides every record by the delta in place, or answers false and leaves them half-moved for the
+// Slides every note by the delta in place, or answers false and leaves them half-moved for the
 // caller to discard. Refused, never clamped: a move that would leave the neck or the grid is
 // invalid. The grid arithmetic itself clamps at the origin, so leaving the grid shows up as a move
 // that fell short of the delta asked for.
-//
-// One template over the record type because a note and a hold marker move identically — they are
-// the same slot arithmetic, and the marker riding along with its notes is exactly what keeps a
-// moved chord's silent member from being left behind.
-template <typename Record>
-[[nodiscard]] bool moveKeyedRecords(
-    const common::core::TempoMap& tempo_map, std::vector<Record>& records,
+[[nodiscard]] bool moveKeyedNotes(
+    const common::core::TempoMap& tempo_map, std::vector<common::core::ChartNote>& notes,
     const common::core::Fraction beat_delta, const int string_delta, const int string_count)
 {
-    for (Record& record : records)
+    for (common::core::ChartNote& note : notes)
     {
-        const common::core::GridPosition from = record.position;
-        record.position = common::core::advanceGridPosition(tempo_map, from, beat_delta);
-        record.string += string_delta;
-        if (record.string < 1 || record.string > string_count ||
-            common::core::beatDistance(tempo_map, from, record.position) != beat_delta)
+        const common::core::GridPosition from = note.position;
+        note.position = common::core::advanceGridPosition(tempo_map, from, beat_delta);
+        note.string += string_delta;
+        if (note.string < 1 || note.string > string_count ||
+            common::core::beatDistance(tempo_map, from, note.position) != beat_delta)
         {
             return false;
         }
@@ -184,23 +175,16 @@ enum class StrandedStrikeRepair : std::uint8_t
 // `base` is the stream the plan is expressed against, which is `chart.notes` for every verb that
 // edits from what it finds. The sustain gesture is the exception, and the reason the base is a
 // parameter rather than read off `chart`: its plan must describe the whole gesture, so it is diffed
-// against the stream the gesture started from while the ring rules still judge the live chart. The
-// MARKER base is always the live `chart.hold_markers`, because no verb replans a marker gesture
-// across presses — so it is read here rather than passed, and cannot be passed wrong.
+// against the stream the gesture started from while the ring rules still judge the live chart.
 //
-// The hold markers pass through the SAME gate rather than a rule of their own, and that is what
-// keeps disjointness true by construction: a note planted where a marker sits, or a marker planted
-// where a note sounds, refuses here even though neither planner mentions the other array. Markers
-// carry no in-plan repair — every marker rule is a refusal, so a candidate needing one is refused
-// whole rather than quietly clamped onto a stop the charter never typed.
+// Silently-held stops need no arm of their own here: they are notes, so the slot-uniqueness rule
+// the gate already runs is what used to be spelled as disjointness between two arrays.
 [[nodiscard]] std::expected<ChartEditPlan, ChartPlanRefusal> finalizePlan(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<common::core::ChartNote>& base,
-    std::vector<common::core::ChartNote> candidate,
-    std::vector<common::core::ChartHoldMarker> candidate_markers, std::string_view label)
+    std::vector<common::core::ChartNote> candidate, std::string_view label)
 {
     std::ranges::sort(candidate, common::core::chartNoteOrderLess);
-    std::ranges::sort(candidate_markers, common::core::chartHoldMarkerOrderLess);
     // The truncated indices are the load path's business (it names what it changed); a producer
     // that only needs the invariant ignores them, which is why the rule is not [[nodiscard]].
     common::core::normalizeSustainOverlaps(candidate, tempo_map);
@@ -212,6 +196,15 @@ enum class StrandedStrikeRepair : std::uint8_t
     {
         static_cast<void>(common::core::flattenStrandedStrike(note));
     }
+    // The relational settle a plan DOES carry, and the one the cascade rests on: a silently-held
+    // stop that reaches no shape states nothing anywhere, so an edit that leaves one takes it in
+    // the same undo entry rather than saving a note nothing draws. It rides the plan for the same
+    // reason the stranded strike does — the truth it repairs is the edit's own product — and it is
+    // the whole of what makes "every hold in the chart states something" an invariant instead of a
+    // hope. Deliberately unlike the legato settle beside it, which stays out of a burst because a
+    // claim the burst broke is still visible and still the user's; a hold the edit stranded is
+    // neither.
+    static_cast<void>(common::core::sweepInertSilentHolds(candidate, tempo_map));
     // The gate judges the SAVED form: a scrape's latent overrides are legal in memory and stripped
     // by the writer, so validating the in-memory values would refuse charts the document accepts.
     std::vector<common::core::ChartNote> saved_form;
@@ -224,20 +217,7 @@ enum class StrandedStrikeRepair : std::uint8_t
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    // Judged against the candidate's own saved notes, never the chart's: the slot rule has to see
-    // the stream the plan produces, or a conversion would be refused for colliding with the very
-    // note it removes.
-    if (!common::core::validateChartHoldMarkers(
-             candidate_markers, saved_form, chart.tuning, tempo_map)
-             .has_value())
-    {
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
-    ChartEditPlan plan{
-        .notes = diffSlotArray(base, candidate),
-        .hold_markers = diffSlotArray(chart.hold_markers, candidate_markers),
-        .label = std::string{label},
-    };
+    ChartEditPlan plan = diffNotes(base, candidate, label);
     if (plan.empty())
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
@@ -297,8 +277,7 @@ template <typename Write>
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
-    return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(candidate), chart.hold_markers, label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
 // The offsets one note carries selected waypoints at, in ascending order. Waypoint keys are sorted
@@ -383,69 +362,129 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planInsertNote(
     // the next onset on the string ends exactly on it.
     note.sustain = default_sustain;
     std::vector<common::core::ChartNote> candidate = chart.notes;
-    // Placing on an occupied slot replaces the note there. Still reachable under the marker
-    // model: undo/redo never move the marker, so undoing a delete can put a note back under
-    // an armed caret with an empty selection — the next typed digit inserts onto that
-    // occupied slot and must replace, not collide.
+    // Placing on an occupied slot replaces the note there. Still reachable: undo and redo never
+    // move the caret, so undoing a delete can put a note back under an armed caret with an empty
+    // selection — the next typed digit inserts onto that occupied slot and must replace, not
+    // collide.
     std::erase_if(candidate, [&note](const common::core::ChartNote& existing) {
         return chartSlotKeyOf(existing) == chartSlotKeyOf(note);
     });
     candidate.push_back(std::move(note));
-    return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(candidate), chart.hold_markers, "Insert Note");
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), "Insert Note");
 }
 
-std::expected<ChartEditPlan, ChartPlanRefusal> planToggleHoldMarker(
+std::expected<ChartEditPlan, ChartPlanRefusal> planToggleSilentHold(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const ChartSlotKey& slot)
+    const std::vector<ChartSlotKey>& slots, const common::core::Fraction default_sustain)
 {
-    const auto marker_at = std::ranges::lower_bound(
-        chart.hold_markers, slot, {}, [](const common::core::ChartHoldMarker& marker) {
-            return chartSlotKeyOf(marker);
-        });
-    if (marker_at != chart.hold_markers.end() && chartSlotKeyOf(*marker_at) == slot)
+    if (slots.empty())
     {
-        std::vector<common::core::ChartHoldMarker> markers = chart.hold_markers;
-        markers.erase(
-            markers.begin() + std::ranges::distance(chart.hold_markers.begin(), marker_at));
-        return finalizePlan(
-            chart, tempo_map, chart.notes, chart.notes, std::move(markers), "Remove Hold Marker");
+        return std::unexpected{ChartPlanRefusal::NoChange};
+    }
+    // Every sorted-by-slot sequence below is searched through this one projection.
+    const auto slot_of = [](const common::core::ChartNote& note) { return chartSlotKeyOf(note); };
+    const std::vector<common::core::ChartNote> named = notesForKeys(chart.notes, slots);
+    // The toggle direction, asked of the scope as a whole exactly as the technique verbs ask it:
+    // only a scope whose every occupied slot ALREADY holds a stop means "sound these again". An
+    // empty slot names no note here, so it never argues for the sounding direction — there is
+    // nothing at it to sound.
+    const bool sound_them =
+        !named.empty() && std::ranges::all_of(named, [](const common::core::ChartNote& note) {
+            return common::core::silentHold(note.attack);
+        });
+
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    for (common::core::ChartNote& toggled : candidate)
+    {
+        if (!std::ranges::binary_search(slots, chartSlotKeyOf(toggled)))
+        {
+            continue;
+        }
+        if (sound_them)
+        {
+            // Back to a sounding note. The ring is the caller's session step, like any placement's,
+            // because a hold stored none to restore; what the conversion stripped comes back
+            // through the reversal window and undo, which carry the whole note, never by being
+            // reinvented.
+            toggled.attack = common::core::NoteAttack::Pick;
+            toggled.sustain = default_sustain;
+        }
+        else
+        {
+            // Converting a sounding note: the attack changes, and the fixpoint the saved form
+            // already defines takes everything the new attack cannot state with it — the ring, the
+            // mutes, the node, the payload. Written through savedChartNote rather than by clearing
+            // fields here, so this verb and the rule that judges its result can never disagree
+            // about what a silent hold may carry, and a technique added to ChartNote later needs no
+            // line in this function. A slot already holding a stop is left exactly as it is, which
+            // is what savedChartNote answers for it too.
+            toggled.attack = common::core::NoteAttack::None;
+            toggled = common::core::savedChartNote(toggled);
+        }
+    }
+    // The scope's EMPTY slots, which only the caret's fallback can name: each gains a hold at the
+    // open string, exactly as the neutral-create placement plants a note at fret 0 — the editor's
+    // one fret-stating flow is typing a digit at the armed caret, and the caller arms it here, so
+    // the charter states the stop next. Appended in whatever order the scope lists them, because
+    // the shared finalize is the one authority on the stream's order.
+    for (const ChartSlotKey& slot : slots)
+    {
+        if (sound_them || std::ranges::binary_search(named, slot, {}, slot_of))
+        {
+            continue;
+        }
+        candidate.push_back(
+            common::core::ChartNote{
+                .position = slot.position,
+                .string = slot.string,
+                .fret = 0,
+                .sustain = {},
+                .attack = common::core::NoteAttack::None,
+                .palm_mute = false,
+                .dead = false,
+                .harmonic_node = {},
+                .vibrato = false,
+                .tremolo = false,
+                .emphasis = common::core::NoteEmphasis::Normal,
+                .bend = 0.0,
+                .waypoints = {},
+                .slide_out = {},
+            });
     }
 
-    const auto note_at =
-        std::ranges::lower_bound(chart.notes, slot, {}, [](const common::core::ChartNote& note) {
-            return chartSlotKeyOf(note);
-        });
-    const bool convert = note_at != chart.notes.end() && chartSlotKeyOf(*note_at) == slot;
-    // Convert carries the note's fret; authoring on an empty slot states none, because a later
-    // in-span note on that string is what supplies it. The two cases are the whole fret story: a
-    // fret is authored exactly where no note could ever state it.
-    const common::core::ChartHoldMarker marker{
-        .position = slot.position,
-        .string = slot.string,
-        .fret = convert ? std::optional{note_at->fret} : std::optional<int>{},
-    };
-    std::vector<common::core::ChartNote> notes = chart.notes;
-    if (convert)
+    std::expected<ChartEditPlan, ChartPlanRefusal> plan = finalizePlan(
+        chart,
+        tempo_map,
+        chart.notes,
+        std::move(candidate),
+        sound_them ? "Sound Note" : "Hold Stop");
+    if (!plan.has_value())
     {
-        notes.erase(notes.begin() + std::ranges::distance(chart.notes.begin(), note_at));
+        return plan;
     }
-    std::vector<common::core::ChartHoldMarker> markers = chart.hold_markers;
-    markers.push_back(marker);
-    return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(notes), std::move(markers), "Hold Marker");
+    // Whole-plan atomicity: the finalize's settle removes a held stop that reaches no shape, so a
+    // press whose own subject it removed would DELETE the note the charter asked it to hold. That
+    // press states nothing, so it is refused whole rather than applied in part — which is also
+    // what lets a chord convert together and a lone member refuse, without this function knowing
+    // that spans exist. Bound once so the checked value and the reads are provably one object.
+    const ChartEditPlan& settled = *plan;
+    if (std::ranges::any_of(slots, [&settled, &slot_of](const ChartSlotKey& slot) {
+            // Both halves of a diff are in slot order, like every other stream here.
+            return std::ranges::binary_search(settled.removed, slot, {}, slot_of) &&
+                   !std::ranges::binary_search(settled.inserted, slot, {}, slot_of);
+        }))
+    {
+        return std::unexpected{ChartPlanRefusal::Invalid};
+    }
+    return plan;
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys,
-    const std::vector<ChartWaypointKey>& waypoint_keys)
+    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartWaypointKey>& waypoint_keys)
 {
-    KeyedSplit<common::core::ChartNote> notes = splitByKeys(chart.notes, note_keys);
-    KeyedSplit<common::core::ChartHoldMarker> markers =
-        splitByKeys(chart.hold_markers, marker_keys);
+    KeyedSplit notes = splitByKeys(chart.notes, note_keys);
     const std::size_t deleted_notes = notes.keyed.size();
-    const std::size_t deleted_markers = markers.keyed.size();
     // Waypoints go from the notes that SURVIVE: one whose note this call deletes needs no removal
     // of its own, and the strip runs over `rest` for exactly that reason. Delete takes every
     // statement a waypoint makes, so the waypoint always empties and always goes — which is the
@@ -473,7 +512,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
             }));
         deleted_waypoints += before - note.waypoints.size();
     }
-    if (deleted_notes == 0 && deleted_markers == 0 && deleted_waypoints == 0)
+    if (deleted_notes == 0 && deleted_waypoints == 0)
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
@@ -486,15 +525,11 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
                           : std::to_string(count) + " " + std::string{plural};
     };
     std::string label;
-    if (deleted_markers == 0 && deleted_waypoints == 0)
+    if (deleted_waypoints == 0)
     {
         label = "Delete " + count_label(deleted_notes, "Note", "Notes");
     }
-    else if (deleted_notes == 0 && deleted_waypoints == 0)
-    {
-        label = "Delete " + count_label(deleted_markers, "Hold Marker", "Hold Markers");
-    }
-    else if (deleted_notes == 0 && deleted_markers == 0)
+    else if (deleted_notes == 0)
     {
         label = "Delete " + count_label(deleted_waypoints, "Waypoint", "Waypoints");
     }
@@ -502,82 +537,69 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDeleteSelection(
     {
         label = "Delete Selection";
     }
-    return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(notes.rest), std::move(markers.rest), label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planMoveSelection(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<ChartSlotKey>& note_keys, const std::vector<ChartSlotKey>& marker_keys,
-    common::core::Fraction beat_delta, int string_delta, std::string_view label)
+    const std::vector<ChartSlotKey>& note_keys, common::core::Fraction beat_delta, int string_delta,
+    std::string_view label)
 {
-    if ((note_keys.empty() && marker_keys.empty()) ||
-        (beat_delta.numerator == 0 && string_delta == 0))
+    if (note_keys.empty() || (beat_delta.numerator == 0 && string_delta == 0))
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
     const int string_count = static_cast<int>(chart.tuning.strings.size());
-    KeyedSplit<common::core::ChartNote> notes = splitByKeys(chart.notes, note_keys);
-    KeyedSplit<common::core::ChartHoldMarker> markers =
-        splitByKeys(chart.hold_markers, marker_keys);
-    if (notes.keyed.empty() && markers.keyed.empty())
+    KeyedSplit notes = splitByKeys(chart.notes, note_keys);
+    if (notes.keyed.empty())
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
-    if (!moveKeyedRecords(tempo_map, notes.keyed, beat_delta, string_delta, string_count) ||
-        !moveKeyedRecords(tempo_map, markers.keyed, beat_delta, string_delta, string_count))
+    if (!moveKeyedNotes(tempo_map, notes.keyed, beat_delta, string_delta, string_count))
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
 
-    // Converging moves that stack two records on one slot are refused, as is landing on a slot an
-    // unmoved record occupies — and both tests span BOTH arrays, because the arrays share one slot
-    // space and a note landing on a marker's slot is exactly the collision disjointness forbids.
+    // Converging moves that stack two notes on one slot are refused, as is landing on a slot an
+    // unmoved note occupies. One test covers silently-held stops too, because they are notes on
+    // the same slot space — the collision the two-array model had to state as disjointness.
     std::vector<ChartSlotKey> target_keys;
-    target_keys.reserve(notes.keyed.size() + markers.keyed.size());
+    target_keys.reserve(notes.keyed.size());
     for (const common::core::ChartNote& note : notes.keyed)
     {
         target_keys.push_back(chartSlotKeyOf(note));
-    }
-    for (const common::core::ChartHoldMarker& marker : markers.keyed)
-    {
-        target_keys.push_back(chartSlotKeyOf(marker));
     }
     std::ranges::sort(target_keys);
     if (std::ranges::adjacent_find(target_keys) != target_keys.end())
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
-    const auto lands_on_unmoved = [&target_keys](const auto& rest) {
-        return std::ranges::any_of(rest, [&target_keys](const auto& record) {
-            return std::ranges::binary_search(target_keys, chartSlotKeyOf(record));
+    const bool lands_on_unmoved =
+        std::ranges::any_of(notes.rest, [&target_keys](const common::core::ChartNote& note) {
+            return std::ranges::binary_search(target_keys, chartSlotKeyOf(note));
         });
-    };
-    if (lands_on_unmoved(notes.rest) || lands_on_unmoved(markers.rest))
+    if (lands_on_unmoved)
     {
         return std::unexpected{ChartPlanRefusal::Invalid};
     }
 
     notes.rest.insert(notes.rest.end(), notes.keyed.begin(), notes.keyed.end());
-    markers.rest.insert(markers.rest.end(), markers.keyed.begin(), markers.keyed.end());
-    return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(notes.rest), std::move(markers.rest), label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(notes.rest), label);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
-    const std::vector<common::core::ChartNote>& base,
-    const std::vector<common::core::ChartHoldMarker>& base_markers, int target, bool set_exact)
+    const std::vector<common::core::ChartNote>& base, int target, bool set_exact)
 {
-    if (base.empty() && base_markers.empty())
+    if (base.empty())
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
 
-    // The transposition anchor: the shared delta comes from the snapshot's lowest STATED fret,
-    // markers included. A marker that states none is not part of the anchor for the same reason it
-    // is not part of the shift below — there is no stop of its own to move.
+    // The transposition anchor: the shared delta comes from the snapshot's lowest stop. A
+    // silently-held member is in the snapshot like any other note, so a transposed chord carries
+    // its held frets along and the anchor sees them.
     std::optional<int> lowest;
     for (const common::core::ChartNote& note : base)
     {
@@ -586,19 +608,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             lowest = note.fret;
         }
     }
-    for (const common::core::ChartHoldMarker& marker : base_markers)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& fret = marker.fret;
-        if (fret.has_value() && (!lowest.has_value() || *fret < *lowest))
-        {
-            lowest = *fret;
-        }
-    }
 
-    // A transpose with nothing stated anywhere shifts by nothing and the finalize answers
-    // NoChange — honest rather than a refusal, because a fret-less marker really has no stop to
-    // move. A set-exact entry needs no anchor at all: it states the stop outright.
     int delta = 0;
     if (!set_exact && lowest.has_value())
     {
@@ -624,33 +634,6 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
         retyped.fret = set_exact ? target : note.fret + delta;
         retyped_notes.push_back(std::move(retyped));
     }
-    // A selected HOLD MARKER retypes too, and it is the one place a marker's own stop is authored
-    // after the toggle stated it (user ruling 2026-08-27: "If you select a note that is just a
-    // bracket (no onset) you should be able to set the fret number for that bracket"). Typing a
-    // digit STATES the stop, so set-exact gives a fret-less marker one; a transpose SHIFTS a stated
-    // stop and passes over a marker with none, because there is nothing to keep in step.
-    //
-    // Nothing else moves with it. The span the marker sits in is DERIVED, so a contradicting stop
-    // is not arbitrated here at all: the derivation's own claim-fret test stops matching the note
-    // that re-picks the string, side ruling (ii) declines to continue, and the span splits — the
-    // coherence the ruling asks for, falling out of one rule instead of a second one written here.
-    std::vector<common::core::ChartHoldMarker> retyped_markers;
-    retyped_markers.reserve(base_markers.size());
-    for (const common::core::ChartHoldMarker& marker : base_markers)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& fret = marker.fret;
-        common::core::ChartHoldMarker retyped = marker;
-        if (set_exact)
-        {
-            retyped.fret = target;
-        }
-        else if (fret.has_value())
-        {
-            retyped.fret = *fret + delta;
-        }
-        retyped_markers.push_back(retyped);
-    }
 
     std::vector<common::core::ChartNote> candidate = chart.notes;
     for (common::core::ChartNote& note : candidate)
@@ -664,20 +647,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planRetypeFrets(
             }
         }
     }
-    std::vector<common::core::ChartHoldMarker> candidate_markers = chart.hold_markers;
-    for (common::core::ChartHoldMarker& marker : candidate_markers)
-    {
-        for (const common::core::ChartHoldMarker& retyped : retyped_markers)
-        {
-            if (chartSlotKeyOf(retyped) == chartSlotKeyOf(marker))
-            {
-                marker = retyped;
-                break;
-            }
-        }
-    }
-    return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(candidate), std::move(candidate_markers), label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
@@ -760,7 +730,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planAdjustSustain(
     // needs no name at all: the finalize below refuses it as NoChange and the caller retires the
     // gesture's entry instead of labelling one that describes nothing.
     const std::string_view label = net.numerator > 0 ? "Grow Sustain" : "Shrink Sustain";
-    return finalizePlan(chart, tempo_map, base, std::move(candidate), chart.hold_markers, label);
+    return finalizePlan(chart, tempo_map, base, std::move(candidate), label);
 }
 
 // Claims a connection for every selected note the resolver justifies one for. Which note to connect
@@ -891,8 +861,7 @@ ChartLegatoPlan planSetLegato(
         // empty exactly like an all-skipped press, so the press falls through to its clear
         // meaning — the behavior this verb always had. The skip channel, not the plan's absence,
         // is this planner's feedback payload.
-        if (auto plan = finalizePlan(
-                chart, tempo_map, chart.notes, std::move(candidate), chart.hold_markers, label);
+        if (auto plan = finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
             plan.has_value())
         {
             outcome.plan = std::move(*plan);
@@ -924,17 +893,7 @@ std::optional<ChartEditPlan> planSettleLegato(
     // the flatten put the stream back exactly where `base` had it, so the caller still has to
     // commit — walking the chart back to `base` is what removes the claim — and the entry it
     // replaces correctly describes nothing.
-    return ChartEditPlan{
-        .notes = diffSlotArray(base.notes, settled),
-        // The sweep touches no marker, so this half is exactly what the entry being folded did to
-        // the marker array — DERIVED from the two chart states rather than carried across by hand.
-        // It cannot be left empty: the caller walks the live chart back through the burst's own
-        // reversal, which takes both arrays with it, so an empty half here would drop the markers
-        // that burst authored (and resurrect the note a conversion took) the moment a settle lands
-        // on one.
-        .hold_markers = diffSlotArray(base.hold_markers, chart.hold_markers),
-        .label = std::string{label},
-    };
+    return diffNotes(base.notes, settled, label);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planSetAttack(
@@ -1153,8 +1112,7 @@ std::expected<ChartEditPlan, ChartPlanRefusal> planDisconnectWaypoints(
     {
         return std::unexpected{ChartPlanRefusal::NoChange};
     }
-    return finalizePlan(
-        chart, tempo_map, chart.notes, std::move(candidate), chart.hold_markers, label);
+    return finalizePlan(chart, tempo_map, chart.notes, std::move(candidate), label);
 }
 
 std::expected<ChartEditPlan, ChartPlanRefusal> planSetVibrato(
@@ -1243,7 +1201,7 @@ template <typename Carries>
     const common::core::Chart& chart, const ChartSelection& selection, const Carries& carries)
 {
     const std::vector<common::core::ChartNote> selected =
-        recordsForKeys(chart.notes, selection.notes());
+        notesForKeys(chart.notes, selection.notes());
     return !selected.empty() && std::ranges::all_of(selected, carries);
 }
 
@@ -1371,12 +1329,17 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
                 // clears only when every anchor in it already shakes.
                 .carried =
                     [](const common::core::Chart& chart, const ChartSelection& selection) {
-                        if (selection.notes().empty() && selection.waypoints().empty())
+                        // Asked of the RESOLVED anchors, like every other row's
+                        // everySelectedNoteCarries: a key naming a note the chart no longer holds
+                        // is not an anchor that carries anything, and reading the KEYS instead
+                        // made this one row answer "already carries it" where the flag rows
+                        // answered "set it" for the same selection.
+                        const std::vector<common::core::ChartNote> notes =
+                            notesForKeys(chart.notes, selection.notes());
+                        if (notes.empty() && selection.waypoints().empty())
                         {
                             return false;
                         }
-                        const std::vector<common::core::ChartNote> notes =
-                            recordsForKeys(chart.notes, selection.notes());
                         return std::ranges::all_of(
                                    notes,
                                    [](const common::core::ChartNote& note) {
@@ -1492,39 +1455,37 @@ ChartTechniqueLaw chartTechniqueLaw(const ChartTechnique technique)
 namespace
 {
 
-// Applies one array's change to a copy of that array, or refuses. Written over the record type so
-// the notes and the hold markers share one preflight: every removal must still match by full value
-// and every insertion must land on a free slot.
-template <typename Record>
-[[nodiscard]] std::expected<std::vector<Record>, EditorUndoFailureCode> withArrayChange(
-    const std::vector<Record>& current, const ChartArrayChange<Record>& change)
+// Applies the plan to a copy of the note stream, or refuses: every removal must still match by
+// full value and every insertion must land on a free slot.
+[[nodiscard]] std::expected<std::vector<common::core::ChartNote>, EditorUndoFailureCode>
+withPlanApplied(const std::vector<common::core::ChartNote>& current, const ChartEditPlan& plan)
 {
-    std::vector<Record> records = current;
-    for (const Record& record : change.removed)
+    std::vector<common::core::ChartNote> notes = current;
+    for (const common::core::ChartNote& note : plan.removed)
     {
-        const auto found =
-            std::ranges::lower_bound(records, chartSlotKeyOf(record), {}, [](const Record& held) {
+        const auto found = std::ranges::lower_bound(
+            notes, chartSlotKeyOf(note), {}, [](const common::core::ChartNote& held) {
                 return chartSlotKeyOf(held);
             });
-        if (found == records.end() || !(*found == record))
+        if (found == notes.end() || !(*found == note))
         {
             return std::unexpected{EditorUndoFailureCode::PreflightRejected};
         }
-        records.erase(found);
+        notes.erase(found);
     }
-    for (const Record& record : change.inserted)
+    for (const common::core::ChartNote& note : plan.inserted)
     {
-        const auto insert_at =
-            std::ranges::lower_bound(records, chartSlotKeyOf(record), {}, [](const Record& held) {
+        const auto insert_at = std::ranges::lower_bound(
+            notes, chartSlotKeyOf(note), {}, [](const common::core::ChartNote& held) {
                 return chartSlotKeyOf(held);
             });
-        if (insert_at != records.end() && chartSlotKeyOf(*insert_at) == chartSlotKeyOf(record))
+        if (insert_at != notes.end() && chartSlotKeyOf(*insert_at) == chartSlotKeyOf(note))
         {
             return std::unexpected{EditorUndoFailureCode::PreflightRejected};
         }
-        records.insert(insert_at, record);
+        notes.insert(insert_at, note);
     }
-    return records;
+    return notes;
 }
 
 } // namespace
@@ -1532,22 +1493,14 @@ template <typename Record>
 std::expected<void, EditorUndoFailureCode> applyChartChange(
     common::core::Chart& chart, const ChartEditPlan& plan)
 {
-    // Both arrays are rebuilt on copies before either is swapped in, so a failed precondition in
-    // the second one cannot leave the first half applied — which is what makes a plan crossing the
-    // two arrays one atomic gesture.
-    auto notes = withArrayChange(chart.notes, plan.notes);
+    // Rebuilt on a copy before it is swapped in, so a failed precondition partway through cannot
+    // leave half the plan applied.
+    auto notes = withPlanApplied(chart.notes, plan);
     if (!notes.has_value())
     {
         return std::unexpected{notes.error()};
     }
-    auto markers = withArrayChange(chart.hold_markers, plan.hold_markers);
-    if (!markers.has_value())
-    {
-        return std::unexpected{markers.error()};
-    }
-
     chart.notes = std::move(*notes);
-    chart.hold_markers = std::move(*markers);
     return {};
 }
 

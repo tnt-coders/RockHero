@@ -82,16 +82,6 @@ std::optional<ChartSelectionKey> EditorController::Impl::chartSelectionKeyAt(
                 }
                 return ChartNoteKey{.slot = chartSlotKeyOf(chart.notes[hit.index])};
             }
-            else if constexpr (std::is_same_v<Hit, ChartHoldMarkerHit>)
-            {
-                if (hit.index >= chart.hold_markers.size())
-                {
-                    return std::nullopt;
-                }
-                return ChartHoldMarkerKey{
-                    .slot = chartSlotKeyOf(chart.hold_markers[hit.index]),
-                };
-            }
             else
             {
                 if (tab == nullptr || hit.note_index >= chart.notes.size() ||
@@ -255,39 +245,24 @@ void EditorController::Impl::dissolveChartCaretInPlace()
 }
 
 // What the chart holds on a slot, or absent when nothing does. Validation keeps the two authored
-// arrays DISJOINT over one slot space, so the answer is unique by construction: a slot belongs to
-// a note, to a hold marker, or to nobody, and no caller has to decide a precedence that could
-// disagree with the validator's. The uniqueness is DISJOINTNESS's and not the slot's — a future
-// selectable that shares a note's slot rather than excluding it would owe this function a
-// precedence rule, which is exactly the thing there is none of today. Each array is sorted by
-// (position, string), so the lookup is one binary search per kind. Shared by caret arming
-// (selection re-derivation), the Alt+click insert (refusal), the insert ghost's honesty gate, and
-// the Insert key.
-std::optional<ChartSlotOccupant> EditorController::Impl::chartSlotObject(
+// one slot at most once, silently-held stops included, so occupancy is one binary search over the
+// (position, string)-sorted stream and there is no precedence for a caller to decide. A future
+// selectable that SHARES a note's slot rather than excluding it would owe this question a kind
+// again; nothing does today. Shared by caret arming (selection re-derivation), the Alt+click
+// insert (refusal), the insert ghost's honesty gate, and the Insert key.
+bool EditorController::Impl::chartSlotOccupied(
     common::core::GridPosition position, int string) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value())
     {
-        return std::nullopt;
+        return false;
     }
     const ChartSlotKey key{.position = position, .string = string};
-    if (std::ranges::binary_search(
-            arrangement->chart->notes, key, {}, [](const common::core::ChartNote& note) {
-                return chartSlotKeyOf(note);
-            }))
-    {
-        return ChartSlotOccupant::Note;
-    }
-    if (std::ranges::binary_search(
-            arrangement->chart->hold_markers,
-            key,
-            {},
-            [](const common::core::ChartHoldMarker& marker) { return chartSlotKeyOf(marker); }))
-    {
-        return ChartSlotOccupant::HoldMarker;
-    }
-    return std::nullopt;
+    return std::ranges::binary_search(
+        arrangement->chart->notes, key, {}, [](const common::core::ChartNote& note) {
+            return chartSlotKeyOf(note);
+        });
 }
 
 void EditorController::Impl::armChartCaret(common::core::GridPosition position, int string)
@@ -305,16 +280,13 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
     disarmChartVerbWindow();
     m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartSlotKey key{.position = position, .string = string};
-    if (const std::optional<ChartSlotOccupant> held = chartSlotObject(position, string);
-        held.has_value())
+    if (chartSlotOccupied(position, string))
     {
-        // Whatever the slot holds becomes the selection — a note or an authored hold marker
+        // Whatever the slot holds becomes the selection — a sounding note or a silently-held stop
         // alike, so the armed-caret invariant reads the same for both and the arpeggio hold verb
-        // finds its own mark selected after it authors one. Waypoints cannot appear here: they
+        // finds its own object selected after it authors one. Waypoints cannot appear here: they
         // occupy no slot, so nothing the caret can be armed at ever names one.
-        chartSelectionMutable().replaceWith(
-            *held == ChartSlotOccupant::Note ? ChartSelectionKey{ChartNoteKey{.slot = key}}
-                                             : ChartSelectionKey{ChartHoldMarkerKey{.slot = key}});
+        chartSelectionMutable().replaceWith(ChartSelectionKey{ChartNoteKey{.slot = key}});
     }
     else
     {
@@ -371,7 +343,7 @@ void EditorController::Impl::insertChartNoteAt(
 
 // Resolves the Alt-hover insert ghost: published only while paused with Alt held over an
 // insertable empty slot, so the ring never advertises an insert that would no-op (§7). Snapping
-// and occupancy match the click exactly (chartPlacementAt + chartSlotObject). Dirty-checked
+// and occupancy match the click exactly (chartPlacementAt + chartSlotOccupied). Dirty-checked
 // against the current ghost — a hover that stays within one grid slot leaves it unchanged and
 // pushes no view rebuild, so per-pixel hover stays cheap.
 void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& event)
@@ -380,8 +352,7 @@ void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& ev
     if (event.modifiers.alt && !isBusy() && !m_transport.state().playing)
     {
         if (const auto placement = chartPlacementAt(event);
-            placement.has_value() &&
-            !chartSlotObject(placement->first, placement->second).has_value())
+            placement.has_value() && !chartSlotOccupied(placement->first, placement->second))
         {
             const common::core::TempoMap& tempo_map = session().song().tempo_map;
             ghost = ChartSlotViewState{
@@ -598,51 +569,42 @@ bool EditorController::Impl::applyChartEditPlan(
     }
     else
     {
-        // (selection - removed keys) + inserted keys: retyped/resized records stay selected even
-        // when the edit left some of them unchanged, moved records follow to their new keys, and
-        // deleted ones drop out. Run once per authored array over the SAME rule — the conversion
-        // verb takes a note out of one array and puts a marker into the other, and the selection
-        // has to follow across that boundary or the caret would sit on an unselected object.
+        // (selection - removed keys) + inserted keys: retyped/resized notes stay selected even
+        // when the edit left some of them unchanged, moved notes follow to their new keys, and
+        // deleted ones drop out.
         std::vector<ChartSelectionKey> next_selection;
         const auto in_side = [](const auto& side, const ChartSlotKey& key) {
             return std::ranges::any_of(
                 side, [&key](const auto& record) { return chartSlotKeyOf(record) == key; });
         };
-        const auto follow = [&next_selection, &in_side](
-                                const std::vector<ChartSlotKey>& selected,
-                                const auto& change,
-                                const auto& make_key) {
-            for (const ChartSlotKey& key : selected)
-            {
-                if (!in_side(change.removed, key))
+        const auto follow =
+            [&next_selection, &in_side, &plan](const std::vector<ChartSlotKey>& selected) {
+                for (const ChartSlotKey& key : selected)
                 {
-                    next_selection.push_back(make_key(key));
+                    if (!in_side(plan->removed, key))
+                    {
+                        next_selection.push_back(ChartSelectionKey{ChartNoteKey{.slot = key}});
+                    }
                 }
-            }
-            for (const auto& record : change.inserted)
-            {
-                const ChartSlotKey key = chartSlotKeyOf(record);
-                // A record rewritten IN PLACE that the user had not selected is something the
-                // plan carried, not the edit's subject — the H assist grows a predecessor's tail
-                // inside the same plan, and the finalize's overlap pass can retrim a same-string
-                // neighbour — so it must not join the selection. Selecting it would break the
-                // armed-caret invariant (armed means the selection is exactly what sits under the
-                // caret) and would silently widen the next keystroke's scope. A record inserted
-                // at a NEW key is the edit's own product (a moved or created object) and follows
-                // as before.
-                if (in_side(change.removed, key) && !std::ranges::binary_search(selected, key))
+                for (const common::core::ChartNote& note : plan->inserted)
                 {
-                    continue;
+                    const ChartSlotKey key = chartSlotKeyOf(note);
+                    // A note rewritten IN PLACE that the user had not selected is something
+                    // the plan carried, not the edit's subject — the H assist grows a
+                    // predecessor's tail inside the same plan, and the finalize's overlap pass
+                    // can retrim a same-string neighbour — so it must not join the selection.
+                    // Selecting it would break the armed-caret invariant (armed means the
+                    // selection is exactly what sits under the caret) and would silently widen
+                    // the next keystroke's scope. A note inserted at a NEW key is the edit's own
+                    // product (a moved or created object) and follows as before.
+                    if (in_side(plan->removed, key) && !std::ranges::binary_search(selected, key))
+                    {
+                        continue;
+                    }
+                    next_selection.push_back(ChartSelectionKey{ChartNoteKey{.slot = key}});
                 }
-                next_selection.push_back(make_key(key));
-            }
-        };
-        follow(chartSelection().notes(), plan->notes, [](const ChartSlotKey& key) {
-            return ChartSelectionKey{ChartNoteKey{.slot = key}};
-        });
-        follow(chartSelection().holdMarkers(), plan->hold_markers, [](const ChartSlotKey& key) {
-            return ChartSelectionKey{ChartHoldMarkerKey{.slot = key}};
-        });
+            };
+        follow(chartSelection().notes());
         // A waypoint key rides an edit that rewrote its note IN PLACE, which is every waypoint
         // verb there is — and that is what carries the dissolve law's linger: the key stays
         // selected after the waypoint it named dissolved, so a second press inside the verb
@@ -651,8 +613,7 @@ bool EditorController::Impl::applyChartEditPlan(
         // slot and the plan carries no map from an old slot to a new one.
         for (const ChartWaypointKey& waypoint : chartSelection().waypoints())
         {
-            if (!in_side(plan->notes.removed, waypoint.note) ||
-                in_side(plan->notes.inserted, waypoint.note))
+            if (!in_side(plan->removed, waypoint.note) || in_side(plan->inserted, waypoint.note))
             {
                 next_selection.push_back(waypoint);
             }
@@ -758,8 +719,8 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         const std::optional<ChartSlotKey> slot = chartCaretSlotFor(*key);
         if (arrangement != nullptr && arrangement->chart.has_value() && slot.has_value())
         {
-            chartSelectionMutable().replaceWith(chartOnsetGroupKeys(
-                arrangement->chart->notes, arrangement->chart->hold_markers, slot->position));
+            chartSelectionMutable().replaceWith(
+                chartOnsetGroupKeys(arrangement->chart->notes, slot->position));
         }
         dissolveChartCaretInPlace();
         static_cast<void>(settleChartLegato());
@@ -918,8 +879,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     // play-from-the-marker this IS the seek, the selection clearing via the caret's re-derivation.
     if (const auto placement = chartPlacementAt(event); placement.has_value())
     {
-        if (gesture.modifiers.alt &&
-            !chartSlotObject(placement->first, placement->second).has_value())
+        if (gesture.modifiers.alt && !chartSlotOccupied(placement->first, placement->second))
         {
             insertChartNoteAt(placement->first, placement->second, 0);
         }
@@ -1295,20 +1255,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveSelection
 // snap is on, a tick while it is off), and Up/Down across strings. The time move is RELATIVE, so an
 // object sitting between lines keeps its offset rather than being pulled onto one — a move is not a
 // snap. A refused move (edge of the neck, occupied slot, grid origin collision) is a silent no-op —
-// the selection stays put, matching refuse-not-clamp everywhere else. Selected hold markers move
-// with the notes: a marker left behind by a moved chord opens under no span and goes silently
-// inert, which loses the hand fact without making anything false.
+// the selection stays put, matching refuse-not-clamp everywhere else. A silently-held stop moves
+// with the chord it belongs to and needs no rule of its own: it is a note on a slot like any other.
 //
-// The operand is the two SLOT-keyed arrays and the guard asks for exactly that, not for a
-// non-empty selection: a waypoint has no slot to step — moving one along its ring is authoring,
-// not this verb — so a selection holding only waypoints reads as no operand, the same empty-operand
-// rule every other chart verb follows. Asked HERE because it is also what makes the meter reference
+// The operand is the SLOT-keyed notes and the guard asks for exactly that, not for a non-empty
+// selection: a waypoint has no slot to step — moving one along its ring is authoring, not this
+// verb — so a selection holding only waypoints reads as no operand, the same empty-operand rule
+// every other chart verb follows. Asked HERE because it is also what makes the meter reference
 // below total: with no slot selected there is no front to read.
 void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() ||
-        (chartSelection().notes().empty() && chartSelection().holdMarkers().empty()))
+        chartSelection().notes().empty())
     {
         return;
     }
@@ -1320,13 +1279,9 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
         case ChartStepDirection::Left:
         case ChartStepDirection::Right:
         {
-            // Any selected object's position answers the meter question — the step is uniform
-            // over the whole selection either way — so the note front serves where there is one
-            // and the marker front where there is not, which is what a markers-only selection
-            // needs.
-            const common::core::GridPosition reference =
-                chartSelection().notes().empty() ? chartSelection().holdMarkers().front().position
-                                                 : chartSelection().notes().front().position;
+            // Any selected note's position answers the meter question — the step is uniform
+            // over the whole selection either way — so the front serves.
+            const common::core::GridPosition reference = chartSelection().notes().front().position;
             const common::core::Fraction step = chartQuantumStepBeats(reference);
             beat_delta = direction == ChartStepDirection::Right
                              ? step
@@ -1344,17 +1299,11 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
             break;
         }
     }
-    // A caret sitting exactly on the single moved object rides along (an object stop stays under
-    // the caret through its own nudge); the marker moves directly — no re-arm — so the derived
-    // selection cannot widen to a chord unit mid-nudge. A lone hold marker rides exactly like a
-    // lone note: the rule is about the caret's own object, not about which array holds it.
-    const bool one_note =
-        chartSelection().notes().size() == 1 && chartSelection().holdMarkers().empty();
-    const bool one_marker =
-        chartSelection().holdMarkers().size() == 1 && chartSelection().notes().empty();
-    const ChartSlotKey* const lone_slot =
-        one_note ? &chartSelection().notes().front()
-                 : (one_marker ? &chartSelection().holdMarkers().front() : nullptr);
+    // A caret sitting exactly on the single moved note rides along (an object stop stays under
+    // the caret through its own nudge); the caret moves directly — no re-arm — so the derived
+    // selection cannot widen to a chord unit mid-nudge.
+    const bool one_note = chartSelection().notes().size() == 1;
+    const ChartSlotKey* const lone_slot = one_note ? &chartSelection().notes().front() : nullptr;
     const ChartCaret* const caret = armedChartCaret();
     const bool caret_rides = caret != nullptr && !caret->lane.has_value() && lone_slot != nullptr &&
                              caret->position == lone_slot->position &&
@@ -1363,23 +1312,21 @@ void EditorController::Impl::moveChartSelection(ChartStepDirection direction)
             *arrangement->chart,
             session().song().tempo_map,
             chartSelection().notes(),
-            chartSelection().holdMarkers(),
             beat_delta,
             string_delta,
             one_note ? "Move Note" : "Move Selection")) &&
         caret_rides && !chartSelection().empty())
     {
-        // Re-read after the edit: the selection followed the move, so whichever array still holds
-        // the lone object names where the caret landed.
-        const ChartSlotKey& moved =
-            one_note ? chartSelection().notes().front() : chartSelection().holdMarkers().front();
+        // Re-read after the edit: the selection followed the move, so it names where the caret
+        // landed.
+        const ChartSlotKey& moved = chartSelection().notes().front();
         m_chart_marker = ChartCaret{.position = moved.position, .string = moved.string};
         updateView();
     }
 }
 
-// Deletes the selected notes and hold markers as one compound undo entry; the selection empties
-// with them.
+// Deletes the selected notes and waypoints as one compound undo entry; the selection empties with
+// them.
 void EditorController::Impl::deleteChartSelection()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -1392,7 +1339,6 @@ void EditorController::Impl::deleteChartSelection()
         *arrangement->chart,
         session().song().tempo_map,
         chartSelection().notes(),
-        chartSelection().holdMarkers(),
         chartSelection().waypoints())));
 }
 
@@ -1421,7 +1367,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::InsertAtCaret
     // and this press has nothing left to do. So only an armed EMPTY slot inserts, asked of the
     // chart now rather than of the selection before the settle. Then the keyboard form of the same
     // verb Alt+click performs, through the same planting function.
-    if (chartSlotObject(caret->position, caret->string).has_value())
+    if (chartSlotOccupied(caret->position, caret->string))
     {
         return;
     }
@@ -1473,7 +1419,13 @@ void EditorController::Impl::performActionImpl(const EditorAction::TypeChartFret
     {
         return;
     }
-    if (chartSelection().empty())
+    // Which flow a digit takes is decided by the RETYPE operand, not by whether the selection is
+    // empty: a selection holding only waypoints retypes nothing, and routing it into the retype
+    // flow armed a pending entry with no target at all. It falls through to the insert flow
+    // instead, where a selected waypoint has demoted the marker to a cursor and the press is
+    // therefore inert — a digit with nothing to state does nothing, which is the same answer the
+    // passive marker gives. Stating a waypoint's own fret is the waypoint model's editor stage.
+    if (chartSelection().notes().empty())
     {
         insertChartFretAtCaret(digit, now_ms);
         return;
@@ -1542,16 +1494,14 @@ std::expected<ChartEditPlan, ChartPlanRefusal> EditorController::Impl::replanCha
             std::move(note),
             chartGridStepBeats(insert->slot.position));
     }
+    // No guard for an empty operand here: the planner answers NoChange for one, and calling that
+    // Invalid is what armed a red pending box — the display of a REFUSAL — over a press that had
+    // simply found nothing to retype. The two emptinesses stay distinct, as everywhere else.
     const auto& retype = std::get<ChartFretEntry::Retype>(entry.target);
-    if (retype.keys.empty() && retype.marker_keys.empty())
-    {
-        return std::unexpected{ChartPlanRefusal::Invalid};
-    }
     return planRetypeFrets(
         *arrangement->chart,
         session().song().tempo_map,
         retype.base_notes,
-        retype.base_markers,
         entry.value,
         /*set_exact=*/true);
 }
@@ -1702,8 +1652,6 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
             ChartFretEntry::Retype{
                 .keys = chartSelection().notes(),
                 .base_notes = chartNotesForKeys(chartSelection().notes()),
-                .marker_keys = chartSelection().holdMarkers(),
-                .base_markers = chartHoldMarkersForKeys(chartSelection().holdMarkers()),
             },
         .armed_ms = now_ms,
     };
@@ -1721,27 +1669,37 @@ std::vector<common::core::ChartNote> EditorController::Impl::chartNotesForKeys(
     {
         return {};
     }
-    return recordsForKeys(arrangement->chart->notes, keys);
+    return notesForKeys(arrangement->chart->notes, keys);
 }
 
-// The same snapshot over the other authored array. A fret verb's scope is both arrays, because a
-// bracket carries a stop exactly as a head does.
-std::vector<common::core::ChartHoldMarker> EditorController::Impl::chartHoldMarkersForKeys(
-    const std::vector<ChartSlotKey>& keys) const
+// THE scope of a typed chart verb, written once here for every verb that asks. The typing family's
+// own gate is "act on the selection (or the armed marker), and no-op when there is none"
+// (`docs/plans/in-progress/keymap-matrix.md`), so the selection comes first and the armed caret is
+// what an empty selection falls back to — which is also the only way a verb can reach a slot that
+// holds nothing at all, the empty-slot authoring case.
+//
+// A caret riding an automation lane row names no chart slot, so it contributes nothing: lane typing
+// is the lane's own typed-value editor, routed in the view.
+std::vector<ChartSlotKey> EditorController::Impl::chartVerbSlots() const
 {
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value())
+    const std::vector<ChartSlotKey>& selected = chartSelection().notes();
+    if (!selected.empty())
+    {
+        return selected;
+    }
+    const ChartCaret* const caret = armedChartCaret();
+    if (caret == nullptr || caret->lane.has_value())
     {
         return {};
     }
-    return recordsForKeys(arrangement->chart->hold_markers, keys);
+    return {ChartSlotKey{.position = caret->position, .string = caret->string}};
 }
 
 // Shifts every selected stop's fret by one (Alt+Shift+wheel), shape-preserving by
 // construction; a shift pushing the lowest fret below zero or the highest past the cap is
-// refused by the planner, never clamped. The anchor is the lowest fret the SELECTION states,
-// notes and stated brackets alike, which is the same anchor the planner computes — asked here
-// only to name the target one step away from it.
+// refused by the planner, never clamped. The anchor is the lowest fret the SELECTION states —
+// silently-held stops included, so a transposed chord carries its held members — which is the same
+// anchor the planner computes, asked here only to name the target one step away from it.
 void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFrets& action)
 {
     const int direction = action.direction;
@@ -1753,23 +1711,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
 
     const std::vector<common::core::ChartNote> selected =
         chartNotesForKeys(chartSelection().notes());
-    const std::vector<common::core::ChartHoldMarker> selected_markers =
-        chartHoldMarkersForKeys(chartSelection().holdMarkers());
     std::optional<int> lowest;
     for (const common::core::ChartNote& note : selected)
     {
         if (!lowest.has_value() || note.fret < *lowest)
         {
             lowest = note.fret;
-        }
-    }
-    for (const common::core::ChartHoldMarker& marker : selected_markers)
-    {
-        // Bound to a local so the optional check and the access are provably the same object.
-        const std::optional<int>& fret = marker.fret;
-        if (fret.has_value() && (!lowest.has_value() || *fret < *lowest))
-        {
-            lowest = *fret;
         }
     }
     if (!lowest.has_value())
@@ -1781,7 +1728,6 @@ void EditorController::Impl::performActionImpl(const EditorAction::ShiftChartFre
         *arrangement->chart,
         session().song().tempo_map,
         selected,
-        selected_markers,
         *lowest + (direction > 0 ? 1 : -1),
         /*set_exact=*/false)));
 }
@@ -2220,38 +2166,47 @@ void EditorController::Impl::performActionImpl(const EditorAction::DisconnectCha
         "Disconnect Waypoint")));
 }
 
-// The arpeggio hold verb (`N`), and it is the one chart verb anchored at the CARET rather than at
-// the selection: a hand fact is authored at the position it holds, by a charter looking at that
-// position (`docs/plans/todo/arpeggio-authoring.md`, verb v2 — v1's reach from a later note was
-// rejected for exactly this). So a multi-object selection does not widen it, and a passive marker
-// gives it nothing to act on.
+// The arpeggio hold verb (`N`), selection-scoped like every other chart verb with the typing
+// family's caret fallback behind it (\ref chartVerbSlots): a chord converts in one press and one
+// undo entry, and a caret on an empty slot is what authors a hand fact where no note is — the case
+// a selection cannot reach, since there is nothing there to select
+// (`docs/plans/todo/arpeggio-authoring.md`). The uniform-scope law therefore has no exception here
+// any more; what it had was a verb whose only reachable operand was the caret's.
 //
 // Under the toggle window this is a true two-press toggle in every case, conversions included: the
-// second press REVERSES the first entry, which is the only thing that can put back the note a
-// conversion took — the marker it wrote carries a fret and nothing else, so no clear law could
-// rebuild the ring, attack and techniques the note had. Once the window is dead (any other edit, a
-// caret move, undo/redo), pressing `N` on a marker removes it and the slot is left empty, which is
-// the plain inverse of authoring one there.
-void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartHoldMarker&)
+// second press REVERSES the first entry, which is the only thing that can put back the techniques a
+// conversion stripped — a silent hold carries a stop and nothing else, so no forward law could
+// rebuild the mutes, node and payload the note had. Once the window is dead (any other edit, a
+// caret move, undo/redo), pressing `N` on a hold sounds it again as a plain pick at the session's
+// grid step, which is the honest forward inverse and the one this verb can state.
+//
+// A press whose product would state nothing is refused by the planner and is SILENT here, exactly
+// as a technique toggle that applies to nothing is: no window is armed, so the next press is an
+// ordinary first press. The counted feedback both want is W5's channel.
+void EditorController::Impl::performActionImpl(const EditorAction::ToggleChartSilentHold&)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const ChartCaret* const caret = armedChartCaret();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || caret == nullptr ||
-        caret->lane.has_value())
+    const std::vector<ChartSlotKey> slots = chartVerbSlots();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || slots.empty())
     {
         return;
     }
-    if (reverseChartVerbWindow(ChartHoldMarkerToggle{}, "Revert Hold Marker"))
+    if (reverseChartVerbWindow(ChartSilentHoldToggle{}, "Revert Hold Stop"))
     {
         return;
     }
-    const ChartSlotKey slot{.position = caret->position, .string = caret->string};
-    if (applyChartEditPlan(
-            planToggleHoldMarker(*arrangement->chart, session().song().tempo_map, slot)))
+    // The ring a sounded note is given is the session's grid step, read at the scope's first slot
+    // like any placement's: the step is a session fact scaled by the local meter, and the charter
+    // is working at the position they are looking at.
+    if (applyChartEditPlan(planToggleSilentHold(
+            *arrangement->chart,
+            session().song().tempo_map,
+            slots,
+            chartGridStepBeats(slots.front().position))))
     {
         m_chart_verb_window = ChartVerbWindow{
             .keys = chartSelection().keys(),
-            .verb = ChartHoldMarkerToggle{},
+            .verb = ChartSilentHoldToggle{},
         };
     }
 }
@@ -2382,9 +2337,8 @@ bool EditorController::Impl::settleChartLegato()
     // The folded entry has to describe the WHOLE burst, so it is diffed against the pre-burst
     // CHART, reconstructed by reversing exactly what the top entry applied. (Re-planning forward
     // from the current values could not produce it: the burst's own plan is what carries the edit.)
-    // The whole chart and not just its notes, because the entry being replaced may have moved the
-    // marker array too — an arpeggio-hold conversion is a legal burst — and the walk-back below
-    // reverses both halves.
+    // The whole chart and not just its notes, because the walk-back below reverses a plan against
+    // it and the base a fold diffs against is the chart state that entry was applied to.
     common::core::Chart base = *arrangement->chart;
     std::string label{"Settle Legato"};
     if (burst != nullptr)

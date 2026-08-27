@@ -356,7 +356,7 @@ namespace
     // a same-day `Shift+A` signing — a common charting verb earns a bare key). The letter was
     // verified unclaimed across the matrix and this registry, so it collides with nothing and
     // reserves nothing.
-    add(EditorCommandId::ChartHoldMarkerToggle, "Arpeggio Hold", "Authoring", {chord('n')});
+    add(EditorCommandId::ChartSilentHoldToggle, "Arpeggio Hold", "Authoring", {chord('n')});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.

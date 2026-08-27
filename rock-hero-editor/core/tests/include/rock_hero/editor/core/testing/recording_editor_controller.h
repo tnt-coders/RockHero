@@ -308,10 +308,10 @@ public:
         chart_left_tap_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartHoldMarkerToggleRequested */
-    void onChartHoldMarkerToggleRequested() override
+    /*! \copydoc IEditorController::onChartSilentHoldToggleRequested */
+    void onChartSilentHoldToggleRequested() override
     {
-        chart_hold_marker_toggle_count += 1;
+        chart_silent_hold_toggle_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartWaypointDisconnectRequested */
@@ -807,8 +807,8 @@ public:
     /*! \brief Number of onChartLeftTapRequested() intents received. */
     int chart_left_tap_count{0};
 
-    /*! \brief Number of onChartHoldMarkerToggleRequested() intents received. */
-    int chart_hold_marker_toggle_count{0};
+    /*! \brief Number of onChartSilentHoldToggleRequested() intents received. */
+    int chart_silent_hold_toggle_count{0};
 
     /*! \brief Number of onChartWaypointDisconnectRequested() intents received. */
     int chart_waypoint_disconnect_count{0};
