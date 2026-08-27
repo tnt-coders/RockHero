@@ -42,10 +42,14 @@ constexpr float g_point_draw_radius = 4.0f;
 // stroke); deliberately not the grab radius, which is an input-policy number that happens to match.
 constexpr int g_curve_clip_margin = 8;
 
-// The lane's derived anchor: an upright bar, not a round handle, so it never reads as one of the
-// authored points it sits among. Quieter than a point because it is derived, but still visible
-// enough to invite the drag that authors a real point in its place.
-constexpr float g_anchor_bar_width = 2.0f;
+// The lane's derived anchor: a HOLLOW point on the authored points' own circle, so it stands among
+// them at their size while reading as a different kind of mark — derived rather than authored, and
+// so neither selectable nor deletable. Its ring is stroked like the other rings drawn on that
+// circle (the selected point's, the insert ghost's); what tells it from the ghost's is the filled
+// center at the paint site, which the curve stops at instead of running through. Quieter than a
+// point because it is derived, but still visible enough to invite the drag that authors a real
+// point in its place.
+constexpr float g_anchor_ring_stroke_width = 1.5f;
 constexpr float g_anchor_alpha = 0.7f;
 
 // Chips pin to the visible left edge so lane names and "+" stay on screen at any zoom.
@@ -600,7 +604,7 @@ float ToneAutomationLanesView::curveValueAt(
     // anchor and the raw authored values (the backend curve is written from the same numbers). A
     // discrete lane's anchor can sit off-state — the tone state's value is the plugin's, not the
     // chart's — and snapping here would put the caret square and the readout at a different height
-    // from the anchor bar they are supposed to sit on. Creation snaps instead, at the one seam
+    // from the anchor mark they are supposed to sit on. Creation snaps instead, at the one seam
     // that makes a point: the controller's landing value.
     return core::toneAutomationCurveValueAtSeconds(
         laneAnchorSample(lane), laneCurveSamples(lane), seconds, lane.is_discrete);
@@ -618,7 +622,7 @@ bool ToneAutomationLanesView::withinAnchorGrab(
     juce::Point<int> local_point) const
 {
     // No mark, nothing to grab: an authored point on (or before) the anchor's slot already states
-    // the lane's value there, so paint draws that point instead of the anchor bar.
+    // the lane's value there, so paint draws that point instead of the anchor's mark.
     if (!lane.points.empty() && lane.points.front().seconds <= core::toneAutomationAnchorSeconds())
     {
         return false;
@@ -862,11 +866,13 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             float x{};
             float y{};
             bool authored{};
-            bool anchor{};
             bool selected{};
         };
         std::vector<CurvePoint> curve_points;
         curve_points.reserve(drawn.size() + 3);
+        // Where the anchor's own mark goes, kept aside because it is painted after the curve is
+        // stroked rather than with the points; empty exactly where no anchor mark is drawn.
+        std::optional<juce::Point<float>> anchor_mark;
         if (lane.resolved)
         {
             const core::ToneAutomationCurveSample anchor = laneAnchorSample(lane);
@@ -874,12 +880,13 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             if (const std::optional<float> anchor_x = xForSeconds(anchor.seconds);
                 anchor_x.has_value() && (drawn.empty() || drawn.front().seconds > anchor.seconds))
             {
+                const juce::Point<float> mark{*anchor_x, value_to_y(anchor.norm_value)};
+                anchor_mark = mark;
                 curve_points.push_back(
                     CurvePoint{
-                        .x = *anchor_x,
-                        .y = value_to_y(anchor.norm_value),
+                        .x = mark.x,
+                        .y = mark.y,
                         .authored = false,
-                        .anchor = true,
                         .selected = false,
                     });
             }
@@ -896,7 +903,6 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     .x = *x,
                     .y = value_to_y(point.norm_value),
                     .authored = true,
-                    .anchor = false,
                     .selected = point.selected,
                 });
         }
@@ -908,7 +914,6 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     .x = std::min(-1.0f, curve_points.front().x),
                     .y = curve_points.front().y,
                     .authored = false,
-                    .anchor = false,
                     .selected = false,
                 });
             curve_points.push_back(
@@ -916,7 +921,6 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     .x = std::max(static_cast<float>(getWidth()) + 1.0f, curve_points.back().x),
                     .y = curve_points.back().y,
                     .authored = false,
-                    .anchor = false,
                     .selected = false,
                 });
         }
@@ -972,29 +976,41 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                         point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius, 1.5f);
                 }
             }
-            else if (point.anchor && point.x >= clip_left && point.x <= clip_right)
-            {
-                // The anchor is derived, not authored, so it reads as a different KIND of mark: an
-                // upright bar sitting on the curve rather than a round grabbable handle. It cannot
-                // be selected or deleted. What it answers is a DRAG, which authors a real point in
-                // its place at the anchor's own value and pulls it off the anchor from there — a
-                // bare click authors nothing and leaves the bar exactly as it is — so the bar is
-                // quieter than a point but still visibly a handle. Drawn one point-diameter tall
-                // so it never outgrows the points it stands among.
-                const float half_height = g_point_draw_radius;
-                graphics.setColour(
-                    editorTheme().accent.withMultipliedAlpha(lane_alpha * g_anchor_alpha));
-                graphics.fillRect(
-                    juce::Rectangle<float>{
-                        point.x - (g_anchor_bar_width * 0.5f),
-                        point.y - half_height,
-                        g_anchor_bar_width,
-                        2.0f * half_height
-                    });
-            }
         }
         graphics.setColour(editorTheme().accent.withMultipliedAlpha(lane_alpha));
         graphics.strokePath(curve, juce::PathStrokeType{1.6f});
+
+        // The derived anchor, drawn AFTER the curve because its center has to cover the line: a
+        // HOLLOW point where an authored point is a solid one, same circle and same place in the
+        // handle family, so it reads as the other KIND of mark rather than as a smaller or dimmer
+        // point. It cannot be selected or deleted. What it answers is a DRAG, which authors a real
+        // point in its place at the anchor's own value and pulls it off the anchor from there — a
+        // bare click authors nothing and leaves the ring exactly as it is — so it stays quieter
+        // than a point while still reading as a handle.
+        //
+        // The center is filled with the band the canvas paints beneath the lanes: the lanes view
+        // draws no background of its own (TrackViewport's track-row layering contract paints the
+        // lanes band in the waveform row's colour), so restating that one role here is what makes
+        // the fill invisible as a fill and visible only as an emptied center. It is opaque rather
+        // than lane-alpha'd because an occluder that lets the line through is not an occluder —
+        // and the two can never disagree, since an unresolved lane draws no anchor at all. The
+        // filled center is also what tells this ring from the Alt-insert ghost's, which is the
+        // same circle drawn hollow-through, with the curve running visibly across it.
+        if (anchor_mark.has_value() && anchor_mark->x >= clip_left && anchor_mark->x <= clip_right)
+        {
+            const juce::Point<float> mark = *anchor_mark;
+            const juce::Rectangle<float> ring{
+                mark.x - g_point_draw_radius,
+                mark.y - g_point_draw_radius,
+                2.0f * g_point_draw_radius,
+                2.0f * g_point_draw_radius
+            };
+            graphics.setColour(editorTheme().waveform_row_background);
+            graphics.fillEllipse(ring);
+            graphics.setColour(
+                editorTheme().accent.withMultipliedAlpha(lane_alpha * g_anchor_alpha));
+            graphics.drawEllipse(ring, g_anchor_ring_stroke_width);
+        }
 
         // The Alt-held insert ghost: a hollow ring on the curve where an Alt+click would place a
         // point, published by the controller through m_state.insert_ghost (its slot snapped

@@ -448,7 +448,8 @@ handle cursor and no insert ring, which a zone shared with lane area could not s
 carrying the parameter's pre-automation value — what the tone state says the knob is — sampled from
 `IToneAutomation` per vblank so it follows a knob turn. It is never stored in `song.json`; the audio
 write seam prepends it to the backend curve (see \ref guide_tracktion_adapter) and the lane draws it
-as an upright bar rather than a round handle, because it is not an authored point: it cannot be
+as a **hollow** point rather than a solid one, because it is not an authored point: the center is
+filled with the band the canvas paints beneath the lanes so the curve stops there, and it cannot be
 selected or deleted, and the drawn curve ramps (or steps) from it into the first authored point
 instead of flattening backwards. A lane with no authored points is therefore just its anchor's flat
 line. What the anchor answers is a **drag, which authors a real point at the lane start** — wanting
@@ -466,7 +467,7 @@ start states the lane's value there, and no anchor mark is drawn for it. Evaluat
 the drawn line, the on-curve landing value for a new point, the insert ghost's y, the caret square —
 is one function, `toneAutomationCurveValueAtSeconds` in editor core, and it reports the *drawn*
 value: the discrete snap belongs to creation, not to reading the curve, so the caret square can
-never sit at a different height from the bar it is standing on.
+never sit at a different height from the mark it is standing on.
 
 **The anchor moves, so the backend curve is re-derived.** The audio seam bakes the anchor into the
 Tracktion curve when it writes, while the lane re-reads it live every frame — two captures of one

@@ -1150,7 +1150,7 @@ TEST_CASE(
     // read-only, so a press on it does not move it — it arms a NEW point at the lane start, on the
     // curve (which at the start IS the anchor's value), with no Alt needed. Like a point grab, the
     // press stays a click until the pointer crosses the drag threshold, so it publishes nothing
-    // yet: the anchor bar simply stays a bar.
+    // yet: the anchor's mark simply stays as it is.
     editor.controller.onToneAutomationPointerDown(pointerEvent(0.0F, pointerYForValue(0.4F)));
     CHECK_FALSE(editor.automation().drag_preview.has_value());
 

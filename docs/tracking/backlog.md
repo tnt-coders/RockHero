@@ -529,3 +529,13 @@ the getter runs, tripping the assert at `:984` (hit for real by a loop-annotated
 documented in `test_engine.cpp`'s load test). The fix is two property pins beside the existing
 `syncAbsolute` pin; the vendored bug then stays unreachable from our product code.
 
+
+## Automation lanes: the band color is stated twice
+
+Found 2026-08-27 by the hollow-anchor build. The lanes' band color lives in
+`track_viewport.cpp` (the canvas the viewport paints under the lanes) and now a second time in
+the anchor mark's opaque center fill (`tone_automation_lanes_view.cpp`), which must mask the
+curve line by matching that canvas. Both sites name the layering contract in comments, but two
+places agreeing by hand is the registry's oldest defect shape. The one-authority fix is a theme
+role of its own (an automation-lane-background role in `EditorTheme`) consumed by both sites —
+an `EditorTheme` change, so it needs the user's sign-off rather than a drive-by edit.

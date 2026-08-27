@@ -1,3 +1,4 @@
+#include "shared/editor_theme.h"
 #include "tone/tone_automation_lanes_view.h"
 
 #include <algorithm>
@@ -660,7 +661,7 @@ TEST_CASE("Lanes view draws the derived anchor at the lane start", "[ui][tone-au
     LanesHarness harness;
     harness.tone_automation.baseline_norm_value = 0.5F;
 
-    // A lane with no authored points is exactly its anchor: an upright bar at the lane start plus
+    // A lane with no authored points is exactly its anchor: a hollow point at the lane start plus
     // the flat line the anchor's value extends across the row.
     core::ToneAutomationViewState state;
     state.tone_document_ref = "tones/x/tone.json";
@@ -676,16 +677,28 @@ TEST_CASE("Lanes view draws the derived anchor at the lane start", "[ui][tone-au
     juce::Graphics graphics{image};
     harness.view.paint(graphics);
 
-    // Value 0.5 in the 56 px lane's {top 5, height 40} value band draws at y 25, and the anchor bar
-    // is a point-diameter tall, so it inks 3 px above the curve at the lane start.
+    // Value 0.5 in the 56 px lane's {top 5, height 40} value band draws at y 25, so the anchor is
+    // the point handles' own circle centered on (0, 25) — half of it off the left edge. Being
+    // round, it inks 3 px up AND 3 px along, which nothing else in this lane reaches: the curve is
+    // a thin line on row 25, and no upright bar could ink a pixel three columns out.
     constexpr int anchor_y = 25;
-    CHECK(static_cast<int>(image.getPixelAt(0, anchor_y - 3).getAlpha()) > 0);
-    // Discriminating: the flat line is far thinner than the bar, so the same height further along
-    // the lane is blank — the ink at the lane start is the bar, not the line. Sampled at x 200,
-    // inside the editable window: past it (x >= 400 here) the out-of-window dim overlay inks every
-    // pixel, which would make the control pass for the wrong reason.
+    CHECK(static_cast<int>(image.getPixelAt(3, anchor_y - 3).getAlpha()) > 0);
+    // Discriminating: the flat line is far thinner than the ring is tall, so the same height
+    // further along the lane is blank — the ink at the lane start is the mark, not the line.
+    // Sampled at x 200, inside the editable window: past it (x >= 400 here) the out-of-window dim
+    // overlay inks every pixel, which would make the control pass for the wrong reason.
     CHECK(static_cast<int>(image.getPixelAt(200, anchor_y - 3).getAlpha()) == 0);
     CHECK(static_cast<int>(image.getPixelAt(200, anchor_y).getAlpha()) > 0);
+
+    // HOLLOW, in two halves. The center is filled opaquely with the band the canvas paints beneath
+    // the lanes, so the curve does not show through it: (1, 25) is inside that fill (well clear of
+    // the stroke) and on the curve's own row — the row the check above proves the line runs along
+    // — where an unfilled or translucent center would leave the accent, or a blend of it, instead.
+    CHECK(image.getPixelAt(1, anchor_y) == editorTheme().waveform_row_background);
+    // And the ring is stroked OUTSIDE that fill, which is the half that makes the mark visible at
+    // all: (0, 20) is past the filled disc's 4 px radius, so only the stroke can ink it. A disc of
+    // band colour with no ring would read as nothing on the band, and would leave this pixel bare.
+    CHECK(static_cast<int>(image.getPixelAt(0, anchor_y - 5).getAlpha()) > 0);
 }
 
 TEST_CASE(
@@ -702,6 +715,8 @@ TEST_CASE(
 
     // The authored point on the lane's start slot states the lane's value there (0.25 -> y 35), so
     // no anchor mark is drawn for the tone state's 0.5 (y 25) that would otherwise sit above it.
+    // (0, 22) is inside the ring the suppressed anchor would have drawn — its opaque center, in
+    // fact — so a blank pixel there can only mean the mark was never painted.
     CHECK(static_cast<int>(image.getPixelAt(0, 22).getAlpha()) == 0);
     // The authored point itself is drawn where it belongs, so the blank above is a missing anchor
     // rather than a blank lane.

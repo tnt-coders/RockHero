@@ -1364,7 +1364,8 @@ bool EditorController::Impl::beginLanePointInsertDrag(
     // One refresh for both effects a press has on the lane's overlays: the Alt insert's on-curve
     // preview point publishes from the press (that gesture has its edit in hand at once), and any
     // Alt-hover ghost the press dismissed disappears with it. An anchor press publishes no preview
-    // until its drag begins — the anchor bar simply stays a bar under a click that authors nothing.
+    // until its drag begins — the anchor's mark simply stays as it is under a click that authors
+    // nothing.
     updateView();
     return true;
 }
